@@ -9,9 +9,9 @@ tx = Transaction.build_for_integration(IntegrationCommerceCodes.WEBPAY_PLUS_DEFE
 
 # Uso: python poc_captura.py TOKEN CODIGO_AUTORIZACION ORDEN [MONTO]
 # Caso 1: capturar el mismo monto autorizado. Caso 2: capturar menos (por defecto $51.340 de $69.000)
-token = sys.argv[1] if len(sys.argv) > 1 else "PEGA_AQUI_EL_TOKEN_WS"
-codigo_autorizacion = sys.argv[2] if len(sys.argv) > 2 else "PEGA_AQUI_EL_AUTH_CODE"
-orden = sys.argv[3] if len(sys.argv) > 3 else "orden-poc-matu-001"
+if len(sys.argv) < 4:
+    sys.exit("Uso: python poc_captura.py TOKEN CODIGO_AUTORIZACION ORDEN [MONTO]")
+token, codigo_autorizacion, orden = sys.argv[1], sys.argv[2], sys.argv[3]
 monto_a_capturar = int(sys.argv[4]) if len(sys.argv) > 4 else 51340
 
 print("--- 3. CAPTURA ---")

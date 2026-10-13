@@ -1,4 +1,5 @@
-"""Genera la matriz de acceso por eje (diagramas/10-rls-matriz-de-acceso.png y .svg).
+"""Genera la matriz de acceso por eje (10-rls-matriz-de-acceso.png y .svg) en MATU_DIAGRAMAS,
+por defecto ../MATU/docs/diagramas/modelo-datos.
 Cada celda está respaldada por una prueba de tests/test_aislamiento.py."""
 import os
 import pathlib
@@ -8,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-# Los diagramas se publican en el repositorio de evidencias (MATU), clonado junto a este.
+# Los diagramas se publican en el repositorio de documentación (MATU), clonado junto a este.
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
 POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"
 SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", POR_DEFECTO))
@@ -57,6 +58,7 @@ ax.set_title("MATU · Qué filas alcanza cada eje de acceso (RLS forzado · veri
              fontsize=14, weight="bold", pad=18)
 fig.text(0.02, 0.02, "* admin y cuidador siempre · pagador solo con permiso explícito · observador nunca.     "
          "Verde: acceso completo     Amarillo: acotado     Rojo: cero filas por política", fontsize=10)
+SALIDA.mkdir(parents=True, exist_ok=True)
 for ext in ("png", "svg"):
     fig.savefig(SALIDA / f"10-rls-matriz-de-acceso.{ext}", dpi=160, bbox_inches="tight", facecolor="white")
 print("matriz escrita")

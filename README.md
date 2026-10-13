@@ -11,10 +11,10 @@ MATU ayuda a que el cuidado de una persona mayor dependiente no dependa de una s
 | Parte | Estado |
 |---|---|
 | Entorno local (`infra/`) | PostgreSQL 16 y Redis 7 con Docker Compose. La base arranca con los cuatro roles creados |
-| Base de la API (`backend/`) | FastAPI, SQLAlchemy y Alembic configurados. La app se conecta como `matu_app` |
-| Modelo de datos (`backend/db/`) | Completo: 49 tablas, 94 políticas RLS forzadas, permisos por rol |
+| Base de la API (`backend/`) | SQLAlchemy y Alembic configurados. `database.py` se conecta como `matu_app`. FastAPI está declarado como dependencia y la app se agrega en el sprint 1 |
+| Modelo de datos (`backend/db/`) | Completo: 49 tablas y 94 políticas RLS, con RLS forzado en 45 tablas (las 4 de infraestructura van sin RLS y se acotan por permisos) |
 | Migraciones | `0001_esquema_inicial` aplica el modelo completo y tiene vuelta atrás |
-| Pruebas | 31 pruebas de aislamiento contra PostgreSQL real |
+| Pruebas | 31 pruebas de aislamiento contra PostgreSQL real, más una que verifica que la app se conecta como `matu_app` |
 | Integración continua | GitHub Actions en cada push: estilo, tipos, secretos, migraciones y pruebas. En verde |
 | Prueba de concepto de Transbank (`spikes/`) | Parcial: el débito no admite captura diferida. Los demás casos se cierran en el sprint 1 |
 
@@ -24,6 +24,7 @@ MATU ayuda a que el cuidado de una persona mayor dependiente no dependa de una s
 MATU_PROYECTO/
 ├── README.md
 ├── .env.example                   plantilla de variables locales (copiar a .env)
+├── .gitattributes                 saltos de línea LF para que los scripts funcionen en Linux
 ├── .secrets.baseline              hallazgos conocidos de detect-secrets
 ├── .github/
 │   ├── PULL_REQUEST_TEMPLATE.md   checklist de la definición de terminado
@@ -36,6 +37,7 @@ MATU_PROYECTO/
 │   ├── alembic.ini
 │   ├── alembic/
 │   │   ├── env.py                 migra como matu_owner
+│   │   ├── script.py.mako         plantilla de migraciones nuevas
 │   │   └── versions/
 │   │       └── 0001_esquema_inicial.py
 │   ├── db/                        modelo de datos en SQL
@@ -43,11 +45,11 @@ MATU_PROYECTO/
 │   │   ├── 01_esquema.sql         49 tablas, restricciones e índices
 │   │   ├── 02_rls.sql             94 políticas de aislamiento por fila
 │   │   ├── 03_permisos.sql        permisos por rol
-│   │   ├── rebuild.sh             reconstrucción rápida sin Alembic, solo para uso local
 │   │   ├── gen_diagramas.py       genera los diagramas desde la base
 │   │   └── gen_matriz.py          genera la matriz de acceso
 │   └── tests/
-│       └── test_aislamiento.py    31 pruebas contra PostgreSQL real
+│       ├── test_aislamiento.py    31 pruebas contra PostgreSQL real
+│       └── test_conexion_app.py   la app se conecta como matu_app
 ├── infra/
 │   ├── docker-compose.yml         PostgreSQL 16 y Redis 7
 │   └── postgres/init/
@@ -76,7 +78,7 @@ A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y 
 
 Requiere Docker y Python 3.12. Los comandos son para Git Bash, desde la raíz del repositorio.
 
-**1. Variables de entorno.** Copia la plantilla y cambia las contraseñas. Las de las URL tienen que calzar con las de arriba.
+**1. Variables de entorno.** Copia la plantilla y cambia las contraseñas. La de `MIGRATIONS_DATABASE_URL` debe coincidir con `MATU_OWNER_PASSWORD`, la de `DATABASE_URL` con `MATU_APP_PASSWORD` y la de `MATU_TEST_DSN` con `POSTGRES_PASSWORD`. Usa solo letras, números y guiones.
 
 ```
 cp .env.example .env
@@ -84,9 +86,19 @@ cp .env.example .env
 
 **2. Base de datos.** La primera vez que se crea el volumen, el script `infra/postgres/init/10_matu.sh` crea los cuatro roles, la base `matu` y la extensión `btree_gist`.
 
+**Si ya habías levantado el entorno anterior** (el que usaba `matu_owner` como superusuario), borra primero su volumen, porque si el volumen existe el script de arranque no se vuelve a ejecutar:
+
 ```
-docker compose --env-file .env -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml down -v
 ```
+
+Después:
+
+```
+docker compose --env-file .env -f infra/docker-compose.yml up -d --wait
+```
+
+Si ya tienes un PostgreSQL instalado en el computador usando el puerto 5432, hay que detenerlo antes.
 
 **3. Dependencias y migraciones.**
 
@@ -98,15 +110,21 @@ pip install -e ".[dev]"
 alembic upgrade head
 ```
 
+En macOS o Linux, el segundo comando es `source .venv/bin/activate`. En Windows, si `python` no es la versión 3.12, se crea con `py -3.12 -m venv .venv`.
+
 **4. Pruebas.**
 
 ```
 pytest -q
 ```
 
-Para volver a empezar con la base vacía: `docker compose --env-file .env -f infra/docker-compose.yml down -v` (borra el volumen) y repetir desde el paso 2.
+Las pruebas borran los datos de la base local antes de sembrar los suyos. No guardes datos de trabajo en ella.
 
-**Diagramas.** `gen_diagramas.py` y `gen_matriz.py` escriben en `../MATU/docs/diagramas/modelo-datos`, es decir, en el repositorio de documentación clonado en la misma carpeta que este. La ruta se cambia con la variable `MATU_DIAGRAMAS`.
+Para volver a empezar con la base vacía: `docker compose --env-file .env -f infra/docker-compose.yml down -v` (borra el volumen) y repetir desde el paso 2. Para rehacer solo el esquema sin tocar los roles: `alembic downgrade base` y `alembic upgrade head`.
+
+**Migraciones nuevas.** Se crean con `alembic revision --rev-id 0002 -m "descripción"`, para mantener la numeración correlativa.
+
+**Diagramas.** `gen_diagramas.py` y `gen_matriz.py` escriben en `../MATU/docs/diagramas/modelo-datos`, es decir, en el repositorio de documentación clonado en la misma carpeta que este. La ruta se cambia con la variable `MATU_DIAGRAMAS`. La matriz necesita matplotlib: `pip install -e ".[dev,diagramas]"`.
 
 ## Integración continua
 
@@ -118,11 +136,11 @@ Para volver a empezar con la base vacía: `docker compose --env-file .env -f inf
 4. **Migraciones**: subida, bajada y subida de nuevo
 5. **pytest**: las pruebas de aislamiento contra la base migrada
 
-Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra con `detect-secrets scan > .secrets.baseline`.
+Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra desde la raíz del repositorio con `detect-secrets scan --baseline .secrets.baseline`.
 
 ## Forma de trabajo
 
-- Cada cambio se hace en una rama propia (`feat/...`, `fix/...`, `chore/...`) y entra a `main` por pull request.
+- Por ahora se trabaja directo en `main`. Cuando el equipo pase a pull requests, cada cambio irá en una rama propia (`feat/...`, `fix/...`, `chore/...`) y la protección de `main` exigirá el pipeline en verde.
 - La plantilla del pull request trae el checklist de la definición de terminado.
 - Todo cambio que toque dinero o datos sensibles lo revisa la otra persona del equipo.
 - Las tareas se gestionan en Trello, con el backlog de los sprints 1 a 3.
@@ -131,5 +149,5 @@ Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra
 
 ## Integrantes del equipo
 
-* **Jorge Espinoza** · Product Owner / Developer
-* **Martín Henríquez** · Scrum Master / Developer
+* **Jorge Espinoza** · Product Owner y desarrollador
+* **Martín Henríquez** · Scrum Master y desarrollador

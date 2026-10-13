@@ -9,7 +9,9 @@ tx = Transaction.build_for_integration(IntegrationCommerceCodes.WEBPAY_PLUS_DEFE
 
 # Uso: python poc_estado.py TOKEN
 # Consulta cómo terminó una transacción. Sirve para diagnosticar un pago que no quedó autorizado
-token = sys.argv[1] if len(sys.argv) > 1 else "PEGA_AQUI_EL_TOKEN_WS"
+if len(sys.argv) < 2:
+    sys.exit("Uso: python poc_estado.py TOKEN")
+token = sys.argv[1]
 
 print("--- ESTADO DE LA TRANSACCIÓN ---")
 try:

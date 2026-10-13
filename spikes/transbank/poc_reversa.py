@@ -9,7 +9,9 @@ tx = Transaction.build_for_integration(IntegrationCommerceCodes.WEBPAY_PLUS_DEFE
 
 # Uso: python poc_reversa.py TOKEN [MONTO]
 # Caso 3: revertir una autorización que no se capturó
-token = sys.argv[1] if len(sys.argv) > 1 else "PEGA_AQUI_EL_TOKEN_WS"
+if len(sys.argv) < 2:
+    sys.exit("Uso: python poc_reversa.py TOKEN [MONTO]")
+token = sys.argv[1]
 monto_a_revertir = int(sys.argv[2]) if len(sys.argv) > 2 else 69000
 
 print("--- 4. REVERSA ---")

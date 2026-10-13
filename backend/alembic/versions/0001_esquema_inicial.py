@@ -24,10 +24,15 @@ SCRIPTS = ("01_esquema.sql", "02_rls.sql", "03_permisos.sql")
 
 
 def _ejecutar(sql: str) -> None:
+    contexto = op.get_context()
+    if contexto.as_sql:
+        # Modo offline (alembic upgrade --sql): se imprime el SQL en vez de ejecutarlo
+        contexto.impl.static_output(sql)
+        return
     # Se usa el cursor del driver para que el SQL llegue tal cual, sin que
     # SQLAlchemy interprete los ':' o los '%' del texto.
-    cursor = op.get_bind().connection.cursor()
-    cursor.execute(sql)
+    with op.get_bind().connection.cursor() as cursor:
+        cursor.execute(sql)
 
 
 def upgrade() -> None:
@@ -59,6 +64,10 @@ def downgrade() -> None:
             LOOP
                 EXECUTE format('DROP FUNCTION IF EXISTS %s CASCADE', r.firma);
             END LOOP;
+            -- Permisos que 03_permisos.sql deja sobre el esquema y para tablas futuras
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM matu_app;
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM matu_app;
+            REVOKE USAGE ON SCHEMA public FROM matu_app, matu_publisher, matu_scheduler;
         END $$;
         """
     )

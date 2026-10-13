@@ -18,6 +18,10 @@ dev = [
     "mypy>=1.11",
     "detect-secrets>=1.5",
 ]
+# Solo para regenerar la matriz de acceso (backend/db/gen_matriz.py)
+diagramas = [
+    "matplotlib>=3.8",
+]
 
 # El backend todavía no es un paquete instalable: solo se declaran sus dependencias
 [tool.setuptools]
@@ -41,7 +45,7 @@ known-third-party = ["alembic"]
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
-exclude = ["^alembic/versions/", "^\\.venv/"]
+exclude = ["^alembic/versions/", "^\\.venv/", "^venv/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

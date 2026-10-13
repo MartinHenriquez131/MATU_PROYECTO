@@ -1,6 +1,6 @@
 # MATU · Entorno local
 # Desde la raíz del repositorio:
-#   docker compose --env-file .env -f infra/docker-compose.yml up -d
+#   docker compose --env-file .env -f infra/docker-compose.yml up -d --wait
 # Las contraseñas vienen del archivo .env (ver .env.example).
 
 services:
@@ -14,14 +14,14 @@ services:
       MATU_OWNER_PASSWORD: ${MATU_OWNER_PASSWORD:?Falta MATU_OWNER_PASSWORD en .env}
       MATU_APP_PASSWORD: ${MATU_APP_PASSWORD:?Falta MATU_APP_PASSWORD en .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Script de arranque: crea roles y base la primera vez que se crea el volumen
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
       - ../backend/db:/matu-db:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d matu"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d matu"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -31,7 +31,7 @@ services:
     container_name: matu_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
 volumes:
   postgres_data:

@@ -4,7 +4,7 @@
 
 ## Definición de terminado
 
-Antes de aprobar, verifica que el cambio cumple la definición de terminado de la estrategia de pruebas (sección 12):
+Antes de aprobar, verifica que el cambio cumpla la definición de terminado de la estrategia de pruebas (sección 12):
 
 - [ ] Tiene pruebas de dominio de sus reglas nuevas
 - [ ] Tiene al menos una prueba de integración del camino feliz y una del principal camino de error

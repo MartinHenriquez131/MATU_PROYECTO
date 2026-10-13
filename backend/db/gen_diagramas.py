@@ -2,7 +2,8 @@
 Genera los diagramas entidad-relación de MATU leyendo el catálogo de PostgreSQL.
 Así los diagramas no pueden desalinearse del esquema: salen de él.
 
-    python gen_diagramas.py  ->  escribe diagramas/*.mmd
+    python db/gen_diagramas.py  ->  escribe los .mmd en MATU_DIAGRAMAS
+    (por defecto ../MATU/docs/diagramas/modelo-datos)
 """
 import os
 import pathlib
@@ -12,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv(pathlib.Path(__file__).resolve().parents[2] / ".env")
 DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
-# Los diagramas se publican en el repositorio de evidencias (MATU), clonado junto a este.
+# Los diagramas se publican en el repositorio de documentación (MATU), clonado junto a este.
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
 POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"
 SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", POR_DEFECTO))

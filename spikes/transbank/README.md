@@ -3,7 +3,7 @@
 > **Estado al 13 de octubre de 2026: incompleta, se cierra en el sprint 1.**
 > - **Caso 4 (débito): respondido.** El comercio de captura diferida solo ofrece tarjetas de crédito.
 > - **Casos 1, 2, 3 y 5: pendientes.** Los dos intentos del 13 de octubre terminaron en `aborted` al confirmar el pago (`Transaction has an invalid finished state: aborted`). El pago no se completó en el navegador y la causa todavía no está identificada. Para diagnosticarlo está `poc_estado.py`.
-> - La tarjeta de Trello "Liderar Prueba de Concepto Transbank" está en el Sprint 1.
+> - La tarjeta de Trello "S1 · S0-E · Cerrar la prueba de concepto de Transbank" está en el Sprint 1.
 
 Código de prueba del sprint 0. No forma parte del producto. Verifica el ADR-006 antes de construir el módulo de pagos: que Webpay Plus diferido permite **autorizar un monto, capturar por un monto menor y revertir**, que es lo que MATU necesita para cobrar el monto real de un pedido.
 
@@ -11,7 +11,7 @@ Los casos son los de la [estrategia de pruebas, sección 10](https://github.com/
 
 ## Requisitos
 
-- Python 3.10 o superior
+- Python 3.12, la misma versión del backend
 - `pip install -r requirements.txt` (transbank-sdk 6.1.0)
 
 Usa el ambiente de **integración** de Transbank con las credenciales públicas de captura diferida (código de comercio 597055555540). No hay claves propias en el código.
@@ -46,3 +46,5 @@ Cada caso usa una orden nueva. Después de pagar, el navegador vuelve a `localho
 | 5 · Retorno recibido dos veces | En el caso 1, ejecutar `poc_commit.py TOKEN` una segunda vez | El segundo commit falla y hay un solo cobro |
 
 Se guarda la salida de la consola de cada paso. Es la evidencia.
+
+**Si el commit responde `aborted`:** antes de reintentar, ejecutar `python poc_estado.py TOKEN` y guardar su salida. Muestra si Webpay registró el pago y en qué estado quedó, que es lo que falta para identificar la causa.

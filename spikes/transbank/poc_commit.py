@@ -9,7 +9,9 @@ tx = Transaction.build_for_integration(IntegrationCommerceCodes.WEBPAY_PLUS_DEFE
 
 # Uso: python poc_commit.py TOKEN
 # Ejecutarlo dos veces con el mismo token es el caso 5 (retorno recibido dos veces)
-token = sys.argv[1] if len(sys.argv) > 1 else "PEGA_AQUI_EL_TOKEN_WS"
+if len(sys.argv) < 2:
+    sys.exit("Uso: python poc_commit.py TOKEN")
+token = sys.argv[1]
 
 print("--- 2. COMMIT (CONFIRMACIÓN DE LA RETENCIÓN) ---")
 respuesta = tx.commit(token=token)
