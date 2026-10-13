@@ -8,8 +8,10 @@ import os
 import pathlib
 
 import psycopg
+from dotenv import load_dotenv
 
-DSN = os.environ.get("MATU_TEST_DSN", "host=/tmp port=5433 user=postgres dbname=matu")
+load_dotenv(pathlib.Path(__file__).resolve().parents[2] / ".env")
+DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
 # Los diagramas se publican en el repositorio de evidencias (MATU), clonado junto a este.
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
 POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"

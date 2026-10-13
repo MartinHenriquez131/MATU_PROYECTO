@@ -15,7 +15,8 @@ MATU ayuda a que el cuidado de una persona mayor dependiente no dependa de una s
 | Modelo de datos (`backend/db/`) | Completo: 49 tablas, 94 políticas RLS forzadas, permisos por rol |
 | Migraciones | `0001_esquema_inicial` aplica el modelo completo y tiene vuelta atrás |
 | Pruebas | 31 pruebas de aislamiento contra PostgreSQL real |
-| Integración continua | GitHub Actions en cada push: estilo, tipos, secretos, migraciones y pruebas |
+| Integración continua | GitHub Actions en cada push: estilo, tipos, secretos, migraciones y pruebas. En verde |
+| Prueba de concepto de Transbank (`spikes/`) | Parcial: el débito no admite captura diferida. Los demás casos se cierran en el sprint 1 |
 
 ## Estructura
 
@@ -47,10 +48,12 @@ MATU_PROYECTO/
 │   │   └── gen_matriz.py          genera la matriz de acceso
 │   └── tests/
 │       └── test_aislamiento.py    31 pruebas contra PostgreSQL real
-└── infra/
-    ├── docker-compose.yml         PostgreSQL 16 y Redis 7
-    └── postgres/init/
-        └── 10_matu.sh             crea roles, base y btree_gist al primer arranque
+├── infra/
+│   ├── docker-compose.yml         PostgreSQL 16 y Redis 7
+│   └── postgres/init/
+│       └── 10_matu.sh             crea roles, base y btree_gist al primer arranque
+└── spikes/                        código de prueba que no es parte del producto
+    └── transbank/                 prueba de concepto de captura diferida (incompleta, ver su README)
 ```
 
 A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y TypeScript), según la estructura comprometida en el anexo 19.1 del documento de arquitectura.
@@ -123,6 +126,8 @@ Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra
 - La plantilla del pull request trae el checklist de la definición de terminado.
 - Todo cambio que toque dinero o datos sensibles lo revisa la otra persona del equipo.
 - Las tareas se gestionan en Trello, con el backlog de los sprints 1 a 3.
+- Los sprints corren de viernes a jueves. El calendario está en el repositorio de documentación, `docs/sprints/calendario-sprints.md`.
+- El desarrollo es asistido por IA. El código generado cumple la misma definición de terminado que el escrito a mano, y nunca se entregan datos reales ni secretos al asistente.
 
 ## Integrantes del equipo
 

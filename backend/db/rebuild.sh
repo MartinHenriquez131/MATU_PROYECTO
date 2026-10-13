@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Reconstruye la base de pruebas desde cero y aplica el esquema completo
+# Reconstruye la base desde cero y aplica el esquema completo, sin Alembic.
+# Solo para uso local y rápido. El camino oficial es Docker Compose más `alembic upgrade head`.
+# Conexión de superusuario con PGHOST, PGPORT y PGPASSWORD.
 set -euo pipefail
-P="psql -h ${PGHOST:-/tmp} -p ${PGPORT:-5433} -v ON_ERROR_STOP=1 -q"
+P="psql -h ${PGHOST:-localhost} -p ${PGPORT:-5432} -v ON_ERROR_STOP=1 -q"
 $P -U postgres -c "DROP DATABASE IF EXISTS matu" -c "DROP ROLE IF EXISTS matu_owner, matu_app, matu_publisher, matu_scheduler"
 $P -U postgres -f 00_roles.sql
 $P -U postgres -c "CREATE DATABASE matu OWNER matu_owner"
