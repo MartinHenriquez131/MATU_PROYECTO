@@ -12,7 +12,8 @@ import psycopg
 DSN = os.environ.get("MATU_TEST_DSN", "host=/tmp port=5433 user=postgres dbname=matu")
 # Los diagramas se publican en el repositorio de evidencias (MATU), clonado junto a este.
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
-SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"))
+POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"
+SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", POR_DEFECTO))
 
 TIPOS = {
     "uuid": "uuid", "text": "text", "boolean": "bool", "integer": "int", "bigint": "bigint",

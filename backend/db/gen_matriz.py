@@ -10,14 +10,16 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 # Los diagramas se publican en el repositorio de evidencias (MATU), clonado junto a este.
 # Se puede cambiar con la variable MATU_DIAGRAMAS.
-SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"))
+POR_DEFECTO = pathlib.Path(__file__).resolve().parents[3] / "MATU" / "docs" / "diagramas" / "modelo-datos"
+SALIDA = pathlib.Path(os.environ.get("MATU_DIAGRAMAS", POR_DEFECTO))
 COLUMNAS = ["Plan de cuidado\n(secciones, clave,\naccesos)", "Perfil de\nconsumo", "Pedido", "Líneas y\nprecios",
             "Dirección\nde entrega", "Cargo y\npagos", "Liquidación\nal comercio", "Auditoría"]
 FILAS = [
     ("Familia\nusuario + grupo", ["Según rol*", "Sí", "Sí", "Sí", "Sí", "Sí", "Nunca", "Su grupo"]),
     ("Relevo\nrol relevo + acceso\n(sin grupo)", ["Solo secciones\nhabilitadas y vigente", "Nunca", "Nunca", "Nunca",
                                                "Nunca", "Nunca", "Nunca", "Inserta la\nsuya"]),
-    ("Comercio\ncomercio_id", ["Nunca", "Nunca", "Enviados o\nposteriores", "Sí", "Nunca", "Nunca", "Los suyos", "Nunca"]),
+    ("Comercio\ncomercio_id", ["Nunca", "Nunca", "Enviados o\nposteriores", "Sí", "Nunca", "Nunca",
+                               "Los suyos", "Nunca"]),
     ("Repartidor\nrepartidor_id", ["Nunca", "Nunca", "Su asignación\nactiva", "Nunca", "Su asignación\nactiva",
                                    "Nunca", "Nunca", "Nunca"]),
     ("Operación\nrol operacion", ["Nunca", "Nunca", "Todos", "Todos", "Todos", "Todos", "Todos", "Lee todo"]),

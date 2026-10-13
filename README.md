@@ -10,35 +10,47 @@ MATU ayuda a que el cuidado de una persona mayor dependiente no dependa de una s
 
 | Parte | Estado |
 |---|---|
-| Entorno local (`infra/`) | PostgreSQL 16 y Redis 7 con Docker Compose |
-| Base de la API (`backend/`) | FastAPI, SQLAlchemy y Alembic configurados |
-| Modelo de datos (`backend/db/`) | Completo y probado: 49 tablas, 94 políticas RLS, 31 pruebas de aislamiento |
-| Conexión del modelo con Alembic | Pendiente, historia MATU-02 del sprint 1 |
+| Entorno local (`infra/`) | PostgreSQL 16 y Redis 7 con Docker Compose. La base arranca con los cuatro roles creados |
+| Base de la API (`backend/`) | FastAPI, SQLAlchemy y Alembic configurados. La app se conecta como `matu_app` |
+| Modelo de datos (`backend/db/`) | Completo: 49 tablas, 94 políticas RLS forzadas, permisos por rol |
+| Migraciones | `0001_esquema_inicial` aplica el modelo completo y tiene vuelta atrás |
+| Pruebas | 31 pruebas de aislamiento contra PostgreSQL real |
+| Integración continua | GitHub Actions en cada push: estilo, tipos, secretos, migraciones y pruebas |
 
 ## Estructura
 
 ```
 MATU_PROYECTO/
 ├── README.md
+├── .env.example                   plantilla de variables locales (copiar a .env)
+├── .secrets.baseline              hallazgos conocidos de detect-secrets
 ├── .github/
-│   └── PULL_REQUEST_TEMPLATE.md   checklist de la definición de terminado
+│   ├── PULL_REQUEST_TEMPLATE.md   checklist de la definición de terminado
+│   └── workflows/
+│       └── ci.yml                 pipeline de integración continua
 ├── backend/
-│   ├── database.py                conexión a la base
-│   ├── models.py                  modelos de SQLAlchemy
+│   ├── pyproject.toml             dependencias y configuración de ruff, mypy y pytest
+│   ├── database.py                conexión de la app, como matu_app
+│   ├── models.py                  modelos ORM (se agregan con cada historia)
 │   ├── alembic.ini
-│   ├── alembic/                   migraciones
-│   └── db/                        modelo de datos ejecutable
-│       ├── 00_roles.sql           los cuatro roles de base de datos
-│       ├── 01_esquema.sql         49 tablas, restricciones e índices
-│       ├── 02_rls.sql             94 políticas de aislamiento por fila
-│       ├── 03_permisos.sql        permisos por rol
-│       ├── rebuild.sh             reconstruye la base desde cero
-│       ├── gen_diagramas.py       genera los diagramas desde la base
-│       ├── gen_matriz.py          genera la matriz de acceso
-│       └── tests/
-│           └── test_aislamiento.py   31 pruebas contra PostgreSQL real
+│   ├── alembic/
+│   │   ├── env.py                 migra como matu_owner
+│   │   └── versions/
+│   │       └── 0001_esquema_inicial.py
+│   ├── db/                        modelo de datos en SQL
+│   │   ├── 00_roles.sql           los cuatro roles de base de datos
+│   │   ├── 01_esquema.sql         49 tablas, restricciones e índices
+│   │   ├── 02_rls.sql             94 políticas de aislamiento por fila
+│   │   ├── 03_permisos.sql        permisos por rol
+│   │   ├── rebuild.sh             reconstrucción rápida sin Alembic, solo para uso local
+│   │   ├── gen_diagramas.py       genera los diagramas desde la base
+│   │   └── gen_matriz.py          genera la matriz de acceso
+│   └── tests/
+│       └── test_aislamiento.py    31 pruebas contra PostgreSQL real
 └── infra/
-    └── docker-compose.yml         PostgreSQL 16 y Redis 7
+    ├── docker-compose.yml         PostgreSQL 16 y Redis 7
+    └── postgres/init/
+        └── 10_matu.sh             crea roles, base y btree_gist al primer arranque
 ```
 
 A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y TypeScript), según la estructura comprometida en el anexo 19.1 del documento de arquitectura.
@@ -59,23 +71,51 @@ A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y 
 
 ## Cómo ejecutarlo
 
-**Entorno local.** Desde la raíz del repositorio:
+Requiere Docker y Python 3.12. Los comandos son para Git Bash, desde la raíz del repositorio.
+
+**1. Variables de entorno.** Copia la plantilla y cambia las contraseñas. Las de las URL tienen que calzar con las de arriba.
 
 ```
-docker compose -f infra/docker-compose.yml up -d
+cp .env.example .env
 ```
 
-**Modelo de datos y pruebas de aislamiento.** Por ahora `rebuild.sh` se ejecuta contra un PostgreSQL 16 con el superusuario `postgres`, y el puerto y el host se ajustan con las variables `PGHOST` y `PGPORT`:
+**2. Base de datos.** La primera vez que se crea el volumen, el script `infra/postgres/init/10_matu.sh` crea los cuatro roles, la base `matu` y la extensión `btree_gist`.
 
 ```
-cd backend/db
-PGHOST=localhost PGPORT=5432 ./rebuild.sh
-MATU_TEST_DSN="host=localhost port=5432 user=postgres dbname=matu" pytest -q tests/
+docker compose --env-file .env -f infra/docker-compose.yml up -d
 ```
 
-La integración de estos scripts con Docker Compose y Alembic es parte de la historia MATU-02. Cuando esté lista, esta sección se actualiza.
+**3. Dependencias y migraciones.**
+
+```
+cd backend
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -e ".[dev]"
+alembic upgrade head
+```
+
+**4. Pruebas.**
+
+```
+pytest -q
+```
+
+Para volver a empezar con la base vacía: `docker compose --env-file .env -f infra/docker-compose.yml down -v` (borra el volumen) y repetir desde el paso 2.
 
 **Diagramas.** `gen_diagramas.py` y `gen_matriz.py` escriben en `../MATU/docs/diagramas/modelo-datos`, es decir, en el repositorio de documentación clonado en la misma carpeta que este. La ruta se cambia con la variable `MATU_DIAGRAMAS`.
+
+## Integración continua
+
+`.github/workflows/ci.yml` corre en cada push y en cada pull request, contra un PostgreSQL 16 desechable:
+
+1. **ruff**: estilo del código
+2. **mypy**: tipos
+3. **detect-secrets**: que no se suban contraseñas ni claves. Los valores de ejemplo y los del pipeline ya están registrados en `.secrets.baseline`
+4. **Migraciones**: subida, bajada y subida de nuevo
+5. **pytest**: las pruebas de aislamiento contra la base migrada
+
+Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra con `detect-secrets scan > .secrets.baseline`.
 
 ## Forma de trabajo
 

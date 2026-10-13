@@ -1,0 +1,47 @@
+[project]
+name = "matu-backend"
+version = "0.1.0"
+description = "MATU · Sistema de continuidad del cuidado · backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "detect-secrets>=1.5",
+]
+
+# El backend todavía no es un paquete instalable: solo se declaran sus dependencias
+[tool.setuptools]
+py-modules = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+# La carpeta alembic/ tiene el mismo nombre que la librería: se trata como de terceros
+known-third-party = ["alembic"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+exclude = ["^alembic/versions/", "^\\.venv/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

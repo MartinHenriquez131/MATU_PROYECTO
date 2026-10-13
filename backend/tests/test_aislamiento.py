@@ -1,22 +1,26 @@
 """
 MATU · Pruebas de aislamiento del modelo de datos contra PostgreSQL real.
 
-Prototipo de backend/tests/test_aislamiento.py (arquitectura, sección 7.7 y 12.5).
-Requiere una base recién migrada con db/00_roles.sql a db/03_permisos.sql.
+Arquitectura, secciones 7.7 y 12.5. Requiere una base recién migrada:
+roles y base con infra/postgres/init/10_matu.sh y esquema con `alembic upgrade head`.
 
-    MATU_TEST_DSN="host=/tmp port=5433 user=postgres dbname=matu" pytest -q tests/
+    pytest -q tests/
 
-La conexión es de superusuario solo para sembrar datos. Cada verificación corre
-con SET ROLE matu_app (o el rol que corresponda), que NO evade RLS.
+La conexión se toma de MATU_TEST_DSN (archivo .env o variable del pipeline). Es de
+superusuario solo para sembrar datos. Cada verificación corre con SET ROLE matu_app
+(o el rol que corresponda), que NO evade RLS.
 """
 import os
 import uuid
+from pathlib import Path
 
 import psycopg
 import pytest
+from dotenv import load_dotenv
 from psycopg import errors
 
-DSN = os.environ.get("MATU_TEST_DSN", "host=/tmp port=5433 user=postgres dbname=matu")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
 
 # Identificadores fijos para leer las pruebas con facilidad
 U_ADMIN_A, U_OBS_A, U_PAG_A, U_PAG2_A = (uuid.UUID(f"00000000-0000-0000-0000-0000000000a{i}") for i in (1, 2, 3, 4))
@@ -84,7 +88,8 @@ UPDATE acceso_relevo SET revocado_en = now() WHERE id = '{ACC_REVOCADO}';
 
 INSERT INTO categoria_cuidado (id, nombre) VALUES ('00000000-0000-0000-0000-000000000c01', 'Incontinencia');
 INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
- ('00000000-0000-0000-0000-000000000f01', '00000000-0000-0000-0000-000000000c01', 'Pañal adulto M', 'x30', 'unidad', 30);
+ ('00000000-0000-0000-0000-000000000f01', '00000000-0000-0000-0000-000000000c01',
+  'Pañal adulto M', 'x30', 'unidad', 30);
 INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna) VALUES
  ('{COMERCIO}', 'Farmacia Uno SpA', 'Farmacia Uno', '76.000.000-1', 'Av. Larraín 1', 'La Reina');
 INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES ('{U_ENC}', '{COMERCIO}');

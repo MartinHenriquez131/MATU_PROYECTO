@@ -11,3 +11,6 @@ __pycache__/
 # Secretos y configuración local
 .env
 *.env.local
+
+# Instalación local del backend
+*.egg-info/

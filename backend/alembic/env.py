@@ -1,78 +1,63 @@
-from logging.config import fileConfig
+"""Entorno de Alembic para MATU.
 
-import sys
+Las migraciones se ejecutan como matu_owner, el dueño del esquema. La URL se lee
+de la variable MIGRATIONS_DATABASE_URL, nunca del repositorio.
+
+No hay autogenerate: el esquema se escribe en SQL (backend/db) porque las
+políticas RLS, los CHECK y los EXCLUDE no se expresan bien con el ORM.
+"""
+
 import os
-sys.path.append(os.getcwd())
-from models import Base
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, pool
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# Busca el .env en la raíz del repositorio. En el pipeline las variables ya vienen definidas.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 config = context.config
-
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+target_metadata = None
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+# La tabla de versiones de Alembic vive en su propio esquema. Si estuviera en public,
+# 02_rls.sql le activaría RLS como a cualquier tabla de negocio y Alembic no podría
+# registrar la versión.
+ESQUEMA_VERSIONES = "alembic"
+
+
+def url_migraciones() -> str:
+    url = os.environ.get("MIGRATIONS_DATABASE_URL")
+    if not url:
+        raise RuntimeError("Falta MIGRATIONS_DATABASE_URL. Copia .env.example a .env y complétalo.")
+    return url
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=url_migraciones(),
         target_metadata=target_metadata,
         literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
+        version_table_schema=ESQUEMA_VERSIONES,
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
+    connectable = create_engine(url_migraciones(), poolclass=pool.NullPool)
     with connectable.connect() as connection:
+        connection.exec_driver_sql(f"CREATE SCHEMA IF NOT EXISTS {ESQUEMA_VERSIONES}")
+        connection.commit()
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_schema=ESQUEMA_VERSIONES,
         )
-
         with context.begin_transaction():
             context.run_migrations()
 
