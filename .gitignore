@@ -1,4 +1,13 @@
+# Entornos virtuales
 venv/
+.venv/
 backend/venv/
+
+# Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Secretos y configuración local
+.env
+*.env.local
