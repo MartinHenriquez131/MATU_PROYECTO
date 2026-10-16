@@ -43,7 +43,7 @@ MATU es un sistema de **continuidad del cuidado** para personas mayores con depe
 - **PostgreSQL 16** con Row Level Security forzado en toda tabla de negocio, y **Redis 7**, sobre Docker Compose (`infra/docker-compose.yml`)
 - Transbank SDK, Webpay Plus en modalidad **captura diferida**, con un solo pagador
 
-**Estructura objetivo: monolito modular** (arquitectura, sección 6.3). Hoy existen `backend/database.py` y `backend/models.py` del sprint 0, pero el código nuevo va en esta estructura, sin un `models.py` ni un `services/` global:
+**Estructura objetivo: monolito modular** (arquitectura, sección 6.3). Todo el código va en `backend/app/`, sin un `models.py` ni un `services/` global:
 
 ```
 backend/app/
