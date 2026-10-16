@@ -11,10 +11,10 @@ MATU ayuda a que el cuidado de una persona mayor dependiente no dependa de una s
 | Parte | Estado |
 |---|---|
 | Entorno local (`infra/`) | PostgreSQL 16 y Redis 7 con Docker Compose. La base arranca con los cuatro roles creados |
-| Base de la API (`backend/`) | SQLAlchemy y Alembic configurados. `database.py` se conecta como `matu_app`. FastAPI está declarado como dependencia y la app se agrega en el sprint 1 |
+| API (`backend/app/`) | Esqueleto de FastAPI (S0-A): configuración con `pydantic-settings`, errores RFC 7807, logs JSON con `request_id` y sin cuerpos de petición, y `GET /v1/salud`. `app/core/db.py` se conecta como `matu_app` |
 | Modelo de datos (`backend/db/`) | Completo: 49 tablas y 94 políticas RLS, con RLS forzado en 45 tablas (las 4 de infraestructura van sin RLS y se acotan por permisos) |
 | Migraciones | `0001_esquema_inicial` aplica el modelo completo y tiene vuelta atrás |
-| Pruebas | 31 pruebas de aislamiento contra PostgreSQL real, más una que verifica que la app se conecta como `matu_app` |
+| Pruebas | 31 pruebas de aislamiento contra PostgreSQL real, una que verifica que la app se conecta como `matu_app` y las del esqueleto de la API (`tests/core/`) |
 | Integración continua | GitHub Actions en cada push: estilo, tipos, secretos, migraciones y pruebas. En verde |
 | Prueba de concepto de Transbank (`spikes/`) | Parcial: el débito no admite captura diferida. Los demás casos se cierran en el sprint 1 |
 
@@ -32,8 +32,13 @@ MATU_PROYECTO/
 │       └── ci.yml                 pipeline de integración continua
 ├── backend/
 │   ├── pyproject.toml             dependencias y configuración de ruff, mypy y pytest
-│   ├── database.py                conexión de la app, como matu_app
-│   ├── models.py                  modelos ORM (se agregan con cada historia)
+│   ├── app/
+│   │   ├── main.py                crea la app y registra los routers de cada historia
+│   │   └── core/
+│   │       ├── config.py          configuración desde el entorno y el .env
+│   │       ├── db.py              conexión de la app, como matu_app
+│   │       ├── errores.py         errores RFC 7807
+│   │       └── logs.py            logs JSON con request_id
 │   ├── alembic.ini
 │   ├── alembic/
 │   │   ├── env.py                 migra como matu_owner
@@ -48,6 +53,7 @@ MATU_PROYECTO/
 │   │   ├── gen_diagramas.py       genera los diagramas desde la base
 │   │   └── gen_matriz.py          genera la matriz de acceso
 │   └── tests/
+│       ├── core/                  pruebas del esqueleto de la API
 │       ├── test_aislamiento.py    31 pruebas contra PostgreSQL real
 │       └── test_conexion_app.py   la app se conecta como matu_app
 ├── infra/
@@ -118,6 +124,14 @@ En macOS o Linux, el segundo comando es `source .venv/bin/activate`. En Windows,
 pytest -q
 ```
 
+**5. Levantar la API.** Desde `backend/`, con el entorno virtual activo:
+
+```
+uvicorn app.main:app --reload
+```
+
+`http :8000/v1/salud` responde `{"estado": "ok"}`, y la documentación interactiva queda en `http://localhost:8000/docs`. Los logs salen en JSON, una línea por petición.
+
 Las pruebas borran los datos de la base local antes de sembrar los suyos. No guardes datos de trabajo en ella.
 
 Para volver a empezar con la base vacía: `docker compose --env-file .env -f infra/docker-compose.yml down -v` (borra el volumen) y repetir desde el paso 2. Para rehacer solo el esquema sin tocar los roles: `alembic downgrade base` y `alembic upgrade head`.
@@ -134,13 +148,13 @@ Para volver a empezar con la base vacía: `docker compose --env-file .env -f inf
 2. **mypy**: tipos
 3. **detect-secrets**: que no se suban contraseñas ni claves. Los valores de ejemplo y los del pipeline ya están registrados en `.secrets.baseline`
 4. **Migraciones**: subida, bajada y subida de nuevo
-5. **pytest**: las pruebas de aislamiento contra la base migrada
+5. **pytest**: las pruebas de aislamiento contra la base migrada y las de la API
 
 Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra desde la raíz del repositorio con `detect-secrets scan --baseline .secrets.baseline`.
 
 ## Forma de trabajo
 
-- Por ahora se trabaja directo en `main`. Cuando el equipo pase a pull requests, cada cambio irá en una rama propia (`feat/...`, `fix/...`, `chore/...`) y la protección de `main` exigirá el pipeline en verde.
+- Desde el sprint 1, cada historia va en su propia rama (`matu-04-crear-cuenta`, `s0a-esqueleto-api`) y entra a `main` por pull request, con el pipeline en verde y la revisión de la otra persona.
 - La plantilla del pull request trae el checklist de la definición de terminado.
 - Todo cambio que toque dinero o datos sensibles lo revisa la otra persona del equipo.
 - Las tareas se gestionan en Trello, con el backlog de los sprints 1 a 3.
