@@ -8,6 +8,7 @@ Reglas (arquitectura, secciones 11.6 y 13; prompt de agentes, política 6):
   pueden traer valores de las filas.
 - El log de acceso de uvicorn se apaga, porque incluye el query string. Lo reemplaza la
   línea "peticion" del middleware, que registra solo la ruta.
+- Los clientes HTTP (httpx, urllib3) quedan en WARNING por la misma razón.
 """
 
 import json
@@ -64,6 +65,11 @@ def configurar_logs(nivel: str = "INFO", stream: TextIO | None = None) -> None:
         uv.handlers = []
         uv.propagate = True
     logging.getLogger("uvicorn.access").disabled = True
+
+    # Los clientes HTTP registran la URL completa, con su query string, en INFO o DEBUG.
+    # Se suben a WARNING para que una llamada saliente (Transbank, correo) no deje tokens en el log.
+    for nombre in ("httpx", "httpx2", "httpcore", "urllib3", "requests"):
+        logging.getLogger(nombre).setLevel(logging.WARNING)
 
 
 def _request_id_entrante(scope: Scope) -> str | None:
