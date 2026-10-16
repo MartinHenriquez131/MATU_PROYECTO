@@ -1,7 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "additionalDirectories": ["../MATU"],
-    "allow": ["Read(../MATU/**)"]
+    "additionalDirectories": ["../MATU", "../Brain"],
+    "allow": [
+      "Read(../MATU/**)",
+      "Read(../Brain/**)",
+      "Edit(../Brain/MATU/**)",
+      "Bash(git -C ../Brain status:*)",
+      "Bash(git -C ../Brain diff:*)",
+      "Bash(git -C ../Brain log:*)",
+      "Bash(git -C ../Brain add:*)",
+      "Bash(git -C ../Brain commit:*)"
+    ]
   }
 }
