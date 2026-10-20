@@ -1,29 +1,23 @@
 """
 MATU · La aplicación se conecta con un rol que RLS alcanza siempre.
 
-Usa DATABASE_URL, la misma conexión que usa la API (backend/database.py), y verifica
-que el rol es matu_app, que no es superusuario y que no evade RLS.
+Usa el mismo engine que usa la API (app/core/db.py, con DATABASE_URL) y verifica que el
+rol es matu_app, que no es superusuario y que no evade RLS.
 """
 
-import os
-from pathlib import Path
-
-import psycopg
 import pytest
-from dotenv import load_dotenv
+from sqlalchemy import text
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-URL = os.environ.get("DATABASE_URL", "")
+from app.core.config import obtener_configuracion
+from app.core.db import obtener_engine
 
 
-@pytest.mark.skipif(not URL, reason="DATABASE_URL no está definida")
+@pytest.mark.skipif(not obtener_configuracion().database_url, reason="DATABASE_URL no está definida")
 def test_app_se_conecta_como_matu_app_sin_privilegios() -> None:
-    conninfo = URL.replace("postgresql+psycopg://", "postgresql://", 1)
-    with psycopg.connect(conninfo) as cx:
+    with obtener_engine().connect() as cx:
         fila = cx.execute(
-            "SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
-        ).fetchone()
-    assert fila is not None
+            text("SELECT current_user, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")
+        ).one()
     usuario, superusuario, evade_rls = fila
     assert usuario == "matu_app"
     assert superusuario is False
