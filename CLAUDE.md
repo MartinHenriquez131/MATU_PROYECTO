@@ -16,6 +16,8 @@ La fuente de verdad son los documentos del repositorio **MATU** (carpeta `docs/`
 - `docs/modelo-datos.md`: tablas, aislamiento por fila y cifrado
 - `docs/arquitectura.md`: secciones 6 (módulos y reglas de dependencia), 7 (contexto de sesión) y 11 (seguridad)
 
+El vault de Obsidian (`../Brain/MATU`) resume y enlaza esos documentos, y se consulta y se mantiene con la skill `matu-brain`. Si el vault contradice `docs/`, manda `docs/` y se corrige el vault.
+
 **Si una instrucción de este prompt contradice uno de esos documentos, no elijas tú.** Detente, señala la contradicción y pregunta a Jorge o a Martín.
 
 ---
@@ -201,7 +203,8 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 4. **QA:** auditoría. Si hay un FAIL, se vuelve al paso 3 con el hallazgo
 5. **Analista normativo**, si participó en el paso 2: revisión de cierre
 6. **Orquestador:** resumen final y pull request. Lo revisa y lo fusiona **la otra persona del equipo**, siempre que la historia toque datos sensibles o dinero (definición de terminado, punto 5)
-7. **La persona** marca el checklist de la tarjeta en Trello y anota las horas reales, que se usan para medir el factor de vibecoding
+7. **Orquestador:** actualiza el vault de Obsidian con la skill `matu-brain` (historia, sprint, bitácora y decisiones) y deja el cambio en un commit del vault
+8. **La persona** marca el checklist de la tarjeta en Trello y anota las horas reales, que se usan para medir el factor de vibecoding
 
 ---
 
