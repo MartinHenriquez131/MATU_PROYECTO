@@ -6,13 +6,15 @@ ya vienen definidas y el .env no existe.
 
 Cada historia agrega aquí lo suyo:
 - MATU-05a: la clave y el algoritmo del JWT
-- MATU-26: POLITICA_VERSION
+- MATU-26: POLITICA_VERSION, la versión vigente de la política de privacidad. Por ahora es
+  opcional; MATU-07 la exige fuera del ambiente de pruebas
 """
 
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py → la raíz del repositorio está tres niveles más arriba
@@ -32,6 +34,11 @@ class Configuracion(BaseSettings):
 
     # Conexión de la API como matu_app. Vacía solo en pruebas que no tocan la base.
     database_url: str = ""
+
+    # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
+    # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la
+    # configuración. Aquí es opcional: exigirla fuera del ambiente de pruebas es de MATU-07.
+    politica_version: str | None = Field(default=None, pattern=r"^[0-9]+\.[0-9]+$")
 
 
 @lru_cache
