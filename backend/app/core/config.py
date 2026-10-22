@@ -6,7 +6,8 @@ ya vienen definidas y el .env no existe.
 
 Cada historia agrega aquí lo suyo:
 - MATU-04: PEPPER_EMAIL, la llave del HMAC de indice_credencial
-- MATU-05a: la clave y el algoritmo del JWT
+- MATU-05a: JWT_CLAVE, la clave del access token. El algoritmo (HS256) y la duración
+  (15 minutos) son fijos y viven en el código, no aquí
 - MATU-26: POLITICA_VERSION, la versión vigente de la política de privacidad. Por ahora es
   opcional; MATU-07 la exige fuera del ambiente de pruebas
 """
@@ -15,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py → la raíz del repositorio está tres niveles más arriba
@@ -28,6 +29,9 @@ class Configuracion(BaseSettings):
         env_file_encoding="utf-8",
         # El .env también tiene las variables de Alembic y de las pruebas de aislamiento
         extra="ignore",
+        # Un error de validación no copia el valor recibido: puede ser un secreto (PEPPER_EMAIL o
+        # JWT_CLAVE demasiado cortas) y el error termina en el log de arranque
+        hide_input_in_errors=True,
     )
 
     entorno: Literal["local", "pruebas", "produccion"] = "local"
@@ -47,11 +51,28 @@ class Configuracion(BaseSettings):
     # configuración; crear una cuenta sin ella falla.
     pepper_email: SecretStr | None = Field(default=None, min_length=32)
 
-    @field_validator("pepper_email", mode="before")
+    # Clave HMAC con que se firman y verifican los access tokens (JWT HS256, MATU-05a). Vive fuera
+    # del repositorio. Cambiarla invalida todos los tokens emitidos. Opcional para cargar la
+    # configuración; emitir o validar un token sin ella falla.
+    jwt_clave: SecretStr | None = Field(default=None, min_length=32)
+
+    @field_validator("pepper_email", "jwt_clave", mode="before")
     @classmethod
-    def _pepper_vacio_es_ausente(cls, valor: object) -> object:
-        # PEPPER_EMAIL= en el .env cuenta como no definida
+    def _secreto_vacio_es_ausente(cls, valor: object) -> object:
+        # PEPPER_EMAIL= o JWT_CLAVE= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @model_validator(mode="after")
+    def _jwt_clave_distinta_de_pepper(self) -> "Configuracion":
+        # Condición del analista normativo: firmar tokens y calcular el HMAC del email con la misma
+        # clave acopla ambos secretos. El mensaje nombra las variables, nunca sus valores.
+        if (
+            self.pepper_email is not None
+            and self.jwt_clave is not None
+            and self.pepper_email.get_secret_value() == self.jwt_clave.get_secret_value()
+        ):
+            raise ValueError("JWT_CLAVE y PEPPER_EMAIL deben ser claves distintas")
+        return self
 
 
 @lru_cache
