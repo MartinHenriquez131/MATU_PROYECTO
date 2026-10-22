@@ -319,7 +319,8 @@ def test_login_no_deja_token_ni_contrasena_en_logs(
     respuesta = entorno_iam.iniciar_sesion(email=email_sintetico, contrasena=contrasena_sintetica)
     token = respuesta.json()["access_token"]
     entorno_iam.yo(token)
-    entorno_iam.iniciar_sesion(email=email_sintetico, contrasena="otra-" + contrasena_sintetica)
+    otra_contrasena = "otra-" + contrasena_sintetica  # pragma: allowlist secret
+    entorno_iam.iniciar_sesion(email=email_sintetico, contrasena=otra_contrasena)
     entorno_iam.reloj.avanzar(timedelta(minutes=15))
     entorno_iam.yo(token)
 

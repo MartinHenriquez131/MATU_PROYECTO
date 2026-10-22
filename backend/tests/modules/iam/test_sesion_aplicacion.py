@@ -103,7 +103,7 @@ def test_iniciar_sesion_emite_token_de_15_minutos(
 ) -> None:
     sesion = iniciar_sesion(
         email="  Familiar@Ejemplo.CL ",
-        contrasena="clave-sintetica",
+        contrasena="clave-sintetica",  # pragma: allowlist secret
         pepper=PEPPER,
         hasher=HasherFalso(),
         repositorio=repositorio,
