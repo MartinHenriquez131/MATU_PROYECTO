@@ -12,7 +12,8 @@ cuatro reglas de la sección 6.4 de la arquitectura:
 4. Nadie importa notifications: solo consume eventos.
 
 Además, app.core y app.shared no importan app.modules, y ningún archivo de domain/ lee el
-reloj del sistema ni importa algo fuera de la biblioteca estándar, app.shared o su módulo.
+reloj del sistema ni importa algo fuera de la biblioteca estándar, app.shared o el domain/ de su
+módulo (nunca su application/, infrastructure/, api/ ni events.py).
 
 Para que no pase en vacío, el mismo verificador corre sobre árboles falsos en tmp_path que
 sí rompen cada regla, y debe detectarlos.
@@ -246,7 +247,8 @@ def verificar_pureza_dominio(raiz: Path) -> list[Violacion]:
             continue
         origen, _ = _nombre_modulo(raiz, archivo)
         modulo = _modulo_de_negocio(origen, paquete)
-        permitidos = [f"{paquete}.shared"] + ([f"{paquete}.modules.{modulo}"] if modulo else [])
+        # Del propio módulo, solo su domain/: application/, infrastructure/, api/ y events.py traen I/O
+        permitidos = [f"{paquete}.shared"] + ([f"{paquete}.modules.{modulo}.domain"] if modulo else [])
         arbol = _leer(archivo)
         relativo = _relativo(raiz, archivo)
 
@@ -256,7 +258,7 @@ def verificar_pureza_dominio(raiz: Path) -> list[Violacion]:
                 continue
             violaciones.append(
                 Violacion(relativo, importacion.linea, "dominio", f"domain/ no importa {destino}: solo stdlib, "
-                          f"{paquete}.shared o su propio módulo")
+                          f"{paquete}.shared o el domain/ de su módulo")
             )
 
         # Nombre local → nombre calificado, para reconocer los alias del reloj del sistema
@@ -487,7 +489,7 @@ SDK_PROHIBIDOS = [
 
 @pytest.mark.parametrize("codigo", SDK_PROHIBIDOS)
 def test_dominio_con_sdk_externo_falla(tmp_path: Path, codigo: str) -> None:
-    # Dado un domain/ que importa algo fuera de la biblioteca estándar, app.shared o su módulo
+    # Dado un domain/ que importa algo fuera de la biblioteca estándar, app.shared o el domain/ de su módulo
     raiz = _arbol(tmp_path, {"modules/consumption/domain/prediccion/quiebre.py": codigo})
 
     # Cuando se verifica, entonces se detecta
@@ -495,8 +497,55 @@ def test_dominio_con_sdk_externo_falla(tmp_path: Path, codigo: str) -> None:
     assert [v.regla for v in violaciones] == ["dominio"], _detalle(violaciones)
 
 
+CAPAS_EXTERNAS_DEL_MODULO = [
+    pytest.param(DOMINIO, "from app.modules.care_plan.infrastructure.repositorio import Repo\n",
+                 id="infrastructure-absoluto"),
+    pytest.param(DOMINIO, "from ..infrastructure import repositorio\n", id="infrastructure-relativo"),
+    pytest.param(DOMINIO, "from app.modules.care_plan.application.ports import CustodiaClaves\n",
+                 id="application-absoluto"),
+    pytest.param(DOMINIO, "from ..application.ports import CustodiaClaves\n", id="application-relativo"),
+    pytest.param(DOMINIO, "import app.modules.care_plan.api.router\n", id="api-absoluto"),
+    pytest.param(DOMINIO, "from ..api import esquemas\n", id="api-relativo"),
+    pytest.param(DOMINIO, "from app.modules.care_plan import events\n", id="events-absoluto"),
+    pytest.param(DOMINIO, "from .. import events\n", id="events-relativo"),
+    pytest.param(DOMINIO, "from app.modules.care_plan import CustodiaClaves\n", id="paquete-del-modulo"),
+    pytest.param("modules/care_plan/domain/relevo/acceso.py", "from ...infrastructure import repositorio\n",
+                 id="infrastructure-relativo-desde-subcarpeta"),
+]
+
+
+@pytest.mark.parametrize(("ruta", "codigo"), CAPAS_EXTERNAS_DEL_MODULO)
+def test_dominio_no_importa_capas_externas_de_su_modulo(tmp_path: Path, ruta: str, codigo: str) -> None:
+    # Dado un domain/ que importa application/, infrastructure/, api/ o events.py de su propio módulo
+    raiz = _arbol(tmp_path, {ruta: codigo})
+
+    # Cuando se verifica, entonces se detecta: por esa puerta entraría el I/O
+    violaciones = verificar_pureza_dominio(raiz)
+    assert [v.regla for v in violaciones] == ["dominio"], _detalle(violaciones)
+
+
+DOMINIO_A_DOMINIO = [
+    pytest.param(DOMINIO, "from app.modules.care_plan.domain.seccion import Seccion\n", id="absoluto"),
+    pytest.param(DOMINIO, "import app.modules.care_plan.domain.seccion\n", id="absoluto-con-import"),
+    pytest.param(DOMINIO, "from .seccion import Seccion\n", id="relativo"),
+    pytest.param(DOMINIO, "from . import seccion\n", id="relativo-al-paquete"),
+    pytest.param("modules/care_plan/domain/relevo/acceso.py", "from ..seccion import Seccion\n",
+                 id="relativo-desde-subcarpeta"),
+]
+
+
+@pytest.mark.parametrize(("ruta", "codigo"), DOMINIO_A_DOMINIO)
+def test_dominio_importa_el_dominio_de_su_modulo(tmp_path: Path, ruta: str, codigo: str) -> None:
+    # Dado un domain/ que importa otra parte del domain/ de su propio módulo
+    raiz = _arbol(tmp_path, {ruta: codigo})
+
+    # Cuando se verifica, entonces no hay violaciones
+    violaciones = verificar_pureza_dominio(raiz)
+    assert violaciones == [], _detalle(violaciones)
+
+
 def test_dominio_puro_no_falla(tmp_path: Path) -> None:
-    # Dado un domain/ que recibe el reloj y solo usa stdlib, app.shared y su propio módulo
+    # Dado un domain/ que recibe el reloj y solo usa stdlib, app.shared y el domain/ de su módulo
     codigo = (
         "from __future__ import annotations\n"
         "import uuid\n"
