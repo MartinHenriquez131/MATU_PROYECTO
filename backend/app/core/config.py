@@ -29,6 +29,9 @@ class Configuracion(BaseSettings):
         env_file_encoding="utf-8",
         # El .env también tiene las variables de Alembic y de las pruebas de aislamiento
         extra="ignore",
+        # Un error de validación no copia el valor recibido: puede ser un secreto (PEPPER_EMAIL o
+        # JWT_CLAVE demasiado cortas) y el error termina en el log de arranque
+        hide_input_in_errors=True,
     )
 
     entorno: Literal["local", "pruebas", "produccion"] = "local"
