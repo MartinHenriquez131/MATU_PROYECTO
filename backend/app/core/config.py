@@ -6,7 +6,8 @@ ya vienen definidas y el .env no existe.
 
 Cada historia agrega aquí lo suyo:
 - MATU-04: PEPPER_EMAIL, la llave del HMAC de indice_credencial
-- MATU-05a: la clave y el algoritmo del JWT
+- MATU-05a: JWT_CLAVE, la clave del access token. El algoritmo (HS256) y la duración
+  (15 minutos) son fijos y viven en el código, no aquí
 - MATU-26: POLITICA_VERSION, la versión vigente de la política de privacidad. Por ahora es
   opcional; MATU-07 la exige fuera del ambiente de pruebas
 """
@@ -47,10 +48,15 @@ class Configuracion(BaseSettings):
     # configuración; crear una cuenta sin ella falla.
     pepper_email: SecretStr | None = Field(default=None, min_length=32)
 
-    @field_validator("pepper_email", mode="before")
+    # Clave HMAC con que se firman y verifican los access tokens (JWT HS256, MATU-05a). Vive fuera
+    # del repositorio. Cambiarla invalida todos los tokens emitidos. Opcional para cargar la
+    # configuración; emitir o validar un token sin ella falla.
+    jwt_clave: SecretStr | None = Field(default=None, min_length=32)
+
+    @field_validator("pepper_email", "jwt_clave", mode="before")
     @classmethod
-    def _pepper_vacio_es_ausente(cls, valor: object) -> object:
-        # PEPPER_EMAIL= en el .env cuenta como no definida
+    def _secreto_vacio_es_ausente(cls, valor: object) -> object:
+        # PEPPER_EMAIL= o JWT_CLAVE= en el .env cuentan como no definidas
         return None if valor == "" else valor
 
 
