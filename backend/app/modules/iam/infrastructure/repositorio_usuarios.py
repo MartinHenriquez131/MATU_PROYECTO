@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.db import sesion_tenant
 from app.modules.iam.application.ports import CredencialGuardada, NuevoUsuario
 from app.modules.iam.domain.credenciales import EmailYaRegistrado
 from app.modules.iam.infrastructure.modelos import IndiceCredencialORM, UsuarioORM
@@ -16,14 +17,10 @@ class RepositorioUsuariosSQL:
 
     def crear(self, usuario: NuevoUsuario) -> None:
         try:
-            with self._fabrica() as sesion, sesion.begin():
-                # La política usuario_propio solo deja insertar la fila del usuario en contexto.
-                # El registro es el único caso en que la API fija app.usuario_id sin un token:
-                # el usuario aún no existe. Local a la transacción, como pide la sección 7.7.
-                # TODO(MATU-02): reemplazar por sesion_tenant cuando esté en main.
-                sesion.execute(
-                    text("SELECT set_config('app.usuario_id', :id, true)"), {"id": str(usuario.id)}
-                )
+            # La política usuario_propio solo deja insertar la fila del usuario en contexto.
+            # El registro es el único caso en que la API fija app.usuario_id sin un token:
+            # el usuario aún no existe.
+            with sesion_tenant(self._fabrica, usuario_id=usuario.id) as sesion:
                 sesion.add(
                     UsuarioORM(
                         id=usuario.id,
@@ -42,18 +39,17 @@ class RepositorioUsuariosSQL:
             raise
 
     def buscar_credencial(self, email_hash: bytes) -> CredencialGuardada | None:
+        # Paso 1. indice_credencial no tiene RLS: es la única forma de pasar de email a usuario sin
+        # contexto. Solo guarda el HMAC del email, nunca el email.
         with self._fabrica() as sesion, sesion.begin():
-            # indice_credencial no tiene RLS: es la única forma de pasar de email a usuario sin
-            # contexto. Solo guarda el HMAC del email, nunca el email.
             usuario_id = sesion.execute(
                 select(IndiceCredencialORM.usuario_id).where(IndiceCredencialORM.email_hash == email_hash)
             ).scalar_one_or_none()
-            if usuario_id is None:
-                return None
-            # La fila de usuario sí tiene RLS (usuario_propio: id = app_usuario()). Se fija el
-            # contexto del usuario recién resuelto, local a la transacción (sección 7.7).
-            # TODO(MATU-02): reemplazar por sesion_tenant cuando esté en main.
-            sesion.execute(text("SELECT set_config('app.usuario_id', :id, true)"), {"id": str(usuario_id)})
+        if usuario_id is None:
+            return None
+        # Paso 2. La fila de usuario sí tiene RLS (usuario_propio: id = app_usuario()). Se lee con
+        # el contexto del usuario recién resuelto, en su propia transacción.
+        with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
             # Con SQL explícito y no con UsuarioORM: mapear estado en el ORM cambiaría el INSERT
             # del registro, que hoy deja ese valor a la base.
             fila = sesion.execute(

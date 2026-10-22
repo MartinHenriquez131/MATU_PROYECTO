@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MATU · Sistema de continuidad del cuidado · backend"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.121.1",  # Depends(scope="function"): el commit ocurre antes de responder
     "uvicorn>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.4",
