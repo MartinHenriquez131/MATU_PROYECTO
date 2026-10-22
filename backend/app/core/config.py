@@ -16,7 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/app/core/config.py → la raíz del repositorio está tres niveles más arriba
@@ -61,6 +61,18 @@ class Configuracion(BaseSettings):
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL= o JWT_CLAVE= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @model_validator(mode="after")
+    def _jwt_clave_distinta_de_pepper(self) -> "Configuracion":
+        # Condición del analista normativo: firmar tokens y calcular el HMAC del email con la misma
+        # clave acopla ambos secretos. El mensaje nombra las variables, nunca sus valores.
+        if (
+            self.pepper_email is not None
+            and self.jwt_clave is not None
+            and self.pepper_email.get_secret_value() == self.jwt_clave.get_secret_value()
+        ):
+            raise ValueError("JWT_CLAVE y PEPPER_EMAIL deben ser claves distintas")
+        return self
 
 
 @lru_cache

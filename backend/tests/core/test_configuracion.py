@@ -97,3 +97,26 @@ def test_pepper_email_corto_no_aparece_en_el_error(monkeypatch: pytest.MonkeyPat
 
     assert [e["loc"] for e in error.value.errors()] == [("pepper_email",)]
     assert "p" * 31 not in str(error.value)
+
+
+def test_jwt_clave_igual_a_pepper_email_no_carga(monkeypatch: pytest.MonkeyPatch) -> None:
+    clave = "m" * 64
+    monkeypatch.setenv("JWT_CLAVE", clave)
+    monkeypatch.setenv("PEPPER_EMAIL", clave)
+
+    with pytest.raises(ValidationError) as error:
+        cargar()
+
+    assert "deben ser claves distintas" in str(error.value)
+    assert clave not in str(error.value)
+
+
+def test_jwt_clave_distinta_de_pepper_email_carga(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JWT_CLAVE", "k" * 64)
+    monkeypatch.setenv("PEPPER_EMAIL", "p" * 64)
+
+    configuracion = cargar()
+
+    assert configuracion.jwt_clave is not None
+    assert configuracion.pepper_email is not None
+    assert configuracion.jwt_clave.get_secret_value() != configuracion.pepper_email.get_secret_value()
