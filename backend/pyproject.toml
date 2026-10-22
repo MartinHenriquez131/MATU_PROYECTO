@@ -12,6 +12,7 @@ dependencies = [
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
     "python-dotenv>=1.0",
+    "argon2-cffi>=23.1",
 ]
 
 [project.optional-dependencies]
@@ -54,3 +55,6 @@ exclude = ["^alembic/versions/", "^\\.venv/", "^venv/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    'rf(requisito): requisito funcional que verifica la prueba, por ejemplo @pytest.mark.rf("RF-37")',
+]
