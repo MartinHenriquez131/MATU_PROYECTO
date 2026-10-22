@@ -9,8 +9,8 @@ from app.core.db import sesion_tenant
 from app.modules.care_circle.application.ports import GrupoDelUsuario, NuevoGrupo
 from app.modules.care_circle.domain.grupos import ROL_FUNDADOR
 
-# Sin RETURNING: con RLS, la fila nueva aún no es visible para el creador por grupo_mis_grupos, y
-# el id ya se conoce porque lo generó la aplicación
+# Sin RETURNING: el id ya se conoce porque lo generó la aplicación, y así el INSERT no depende de
+# qué política SELECT muestre la fila antes de que exista la membresía
 _INSERTAR_GRUPO = text("INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES (:id, :nombre, :creado_por)")
 
 # El estado queda en su valor por omisión, 'activa'

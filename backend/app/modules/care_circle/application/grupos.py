@@ -17,8 +17,9 @@ class GrupoCreado:
 def crear_grupo(usuario_id: uuid.UUID, nombre: str, repositorio: RepositorioGrupos) -> GrupoCreado:
     """Crea el grupo y deja a quien lo crea como admin, en la misma transacción.
 
-    El identificador se genera aquí y no en la base: con RLS, un INSERT ... RETURNING del grupo
-    devuelve cero filas mientras no exista la membresía, y la membresía necesita ese id.
+    El identificador se genera aquí y no en la base, y el INSERT del grupo no usa RETURNING: el
+    RETURNING depende de que una política SELECT muestre la fila antes de que exista la membresía
+    (hoy lo hace grupo_creador_ver; sin ella, devolvería cero filas), y la membresía necesita ese id.
 
     Lanza NombreGrupoInvalido si el nombre, sin espacios en los extremos, no tiene 1 a 80 caracteres.
     """
