@@ -7,12 +7,15 @@ Reglas (arquitectura, secciones 11.6 y 13; prompt de agentes, política 6):
 - De una excepción se registra el tipo y la traza, no su mensaje: los errores de la base
   pueden traer valores de las filas.
 - El log de acceso de uvicorn se apaga, porque incluye el query string. Lo reemplaza la
-  línea "peticion" del middleware, que registra solo la ruta.
-- Los clientes HTTP (httpx, urllib3) quedan en WARNING por la misma razón.
+  línea "peticion" del middleware, que registra la plantilla de la ruta (/v1/grupos/{grupo_id}),
+  nunca el path real, y el usuario y el grupo cuando la petición los fijó.
+- Los clientes HTTP (httpx, urllib3) quedan en WARNING por la misma razón. Y si uno de ellos, o
+  cualquier logger que no sea de MATU, registra una URL, se le quita el query string y el fragmento.
 """
 
 import json
 import logging
+import re
 import sys
 import time
 import traceback
@@ -27,10 +30,29 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 request_id_actual: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Campos extra que un log puede llevar. Lo que no está aquí no se escribe.
-# MATU-02 llenará usuario_id y grupo_id cuando fije el contexto de tenant.
+# usuario_id y grupo_id los fijan las dependencias de iam y care_circle en request.state.
 CAMPOS_PERMITIDOS = ("metodo", "ruta", "estado", "duracion_ms", "tipo_error", "usuario_id", "grupo_id")
 
+# Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)
+SIN_RUTA = "sin-ruta"
+
 log = logging.getLogger("matu.api")
+
+# Una URL absoluta o un path, seguidos de ?query o #fragmento. Se conserva solo la parte previa.
+_URL_CON_QUERY = re.compile(r"(?P<base>(?:https?://|/)[^\s?#\"'<>]*)[?#][^\s\"'<>]*")
+
+
+def _sin_query(mensaje: str) -> str:
+    return _URL_CON_QUERY.sub(r"\g<base>", mensaje)
+
+
+def _mensaje(record: logging.LogRecord) -> str:
+    mensaje = record.getMessage()
+    # Los logs de MATU ya cuidan lo que escriben. Los de terceros (urllib3, httpx) pueden traer
+    # una URL con un token en el query string.
+    if record.name.startswith("matu"):
+        return mensaje
+    return _sin_query(mensaje)
 
 
 class FormateadorJSON(logging.Formatter):
@@ -39,7 +61,7 @@ class FormateadorJSON(logging.Formatter):
             "ts": datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds"),
             "nivel": record.levelname,
             "logger": record.name,
-            "mensaje": record.getMessage(),
+            "mensaje": _mensaje(record),
             "request_id": request_id_actual.get(),
         }
         for campo in CAMPOS_PERMITIDOS:
@@ -83,9 +105,31 @@ def _request_id_entrante(scope: Scope) -> str | None:
     return None
 
 
+def _plantilla_ruta(scope: Scope) -> str:
+    """La plantilla de la ruta que atendió la petición (/v1/grupos/{grupo_id}), sin valores reales.
+
+    Según la versión de FastAPI, scope["route"].path trae el prefijo del router (/v1) o no lo trae.
+    Si no lo trae, el prefijo es la parte del path que queda antes de lo que calza la ruta. Los
+    prefijos de MATU son fijos, así que esa parte nunca trae un valor de la petición.
+    """
+    ruta = scope.get("route")
+    plantilla = getattr(ruta, "path", None)
+    if not isinstance(plantilla, str):
+        return SIN_RUTA
+    patron = getattr(ruta, "path_regex", None)
+    path = scope.get("path", "")
+    if not isinstance(patron, re.Pattern) or patron.match(path):
+        return plantilla
+    for indice, caracter in enumerate(path):
+        if caracter == "/" and indice > 0 and patron.match(path[indice:]):
+            return path[:indice] + plantilla
+    return plantilla
+
+
 class MiddlewareRequestId:
     """Asigna un request_id a cada petición, lo devuelve en X-Request-ID y registra una línea
-    por petición con método, ruta, estado y duración."""
+    por petición con método, plantilla de la ruta, estado, duración y, si la petición los fijó,
+    usuario_id y grupo_id."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -96,7 +140,8 @@ class MiddlewareRequestId:
             return
 
         request_id = _request_id_entrante(scope) or str(uuid.uuid4())
-        scope.setdefault("state", {})["request_id"] = request_id
+        estado_peticion = scope.setdefault("state", {})
+        estado_peticion["request_id"] = request_id
         token = request_id_actual.set(request_id)
         estado = 500
         inicio = time.perf_counter()
@@ -114,13 +159,14 @@ class MiddlewareRequestId:
             log.exception("error no controlado")
             raise
         finally:
-            log.info(
-                "peticion",
-                extra={
-                    "metodo": scope.get("method"),
-                    "ruta": scope.get("path"),
-                    "estado": estado,
-                    "duracion_ms": round((time.perf_counter() - inicio) * 1000, 1),
-                },
-            )
+            extra = {
+                "metodo": scope.get("method"),
+                "ruta": _plantilla_ruta(scope),
+                "estado": estado,
+                "duracion_ms": round((time.perf_counter() - inicio) * 1000, 1),
+            }
+            for campo in ("usuario_id", "grupo_id"):
+                if campo in estado_peticion:
+                    extra[campo] = estado_peticion[campo]
+            log.info("peticion", extra=extra)
             request_id_actual.reset(token)

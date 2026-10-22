@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from fastapi import APIRouter
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -47,6 +48,10 @@ def entorno() -> Iterator[Entorno]:
     def eco(cuerpo: CuerpoPrueba) -> dict[str, str]:
         return {"ok": "si"}
 
+    @app.get("/prueba/item/{item_id}")
+    def item(item_id: str) -> dict[str, str]:
+        return {"ok": "si"}
+
     @app.get("/prueba/conflicto")
     def conflicto() -> None:
         raise ErrorMATU(409, tipo="email-registrado", detalle="Ese email ya tiene una cuenta")
@@ -55,6 +60,15 @@ def entorno() -> Iterator[Entorno]:
     def falla(cuerpo: dict[str, str]) -> None:
         # Simula un error de la base cuyo mensaje trae un valor de la fila
         raise RuntimeError("Key (email)=(" + cuerpo.get("valor", "") + ") already exists")
+
+    # Un router con prefijo, como los de /v1, con un parámetro en la ruta
+    router = APIRouter()
+
+    @router.get("/grupos/{grupo_id}/cosas")
+    def cosas(grupo_id: str) -> dict[str, str]:
+        return {"ok": "si"}
+
+    app.include_router(router, prefix="/prueba-v1")
 
     with TestClient(app, raise_server_exceptions=False) as cliente:
         yield Entorno(cliente=cliente, salida_logs=salida)
