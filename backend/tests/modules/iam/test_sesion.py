@@ -143,6 +143,7 @@ def test_cuenta_bloqueada_401_mismo_mensaje(
     assert _sin_request_id(respuesta) == CREDENCIALES_INVALIDAS
 
 
+@pytest.mark.rf("RF-37")
 def test_contrasena_corta_no_da_422(entorno_iam: EntornoIam) -> None:
     # Sin largo mínimo en el login: un 422 por largo distinguiría casos. Sin base, ninguna cuenta.
     class SinCuentas:
@@ -160,6 +161,7 @@ def test_contrasena_corta_no_da_422(entorno_iam: EntornoIam) -> None:
 # --- Validación del cuerpo: nunca se repite el valor ----------------------------------------
 
 
+@pytest.mark.rf("RF-37")
 def test_login_contrasena_demasiado_larga_422_sin_el_valor(entorno_iam: EntornoIam) -> None:
     larga = "Zq9-larga-" + "y" * 119  # 129 caracteres
 
@@ -171,6 +173,7 @@ def test_login_contrasena_demasiado_larga_422_sin_el_valor(entorno_iam: EntornoI
     assert larga not in entorno_iam.texto_log()
 
 
+@pytest.mark.rf("RF-37")
 def test_login_email_demasiado_largo_422(entorno_iam: EntornoIam, contrasena_sintetica: str) -> None:
     respuesta = entorno_iam.iniciar_sesion(email="x" * 250 + "@ejemplo.cl", contrasena=contrasena_sintetica)
 
@@ -178,6 +181,7 @@ def test_login_email_demasiado_largo_422(entorno_iam: EntornoIam, contrasena_sin
     assert [e["campo"] for e in respuesta.json()["errores"]] == ["email"]
 
 
+@pytest.mark.rf("RF-37")
 def test_login_campos_extra_422(entorno_iam: EntornoIam, contrasena_sintetica: str) -> None:
     respuesta = entorno_iam.iniciar_sesion(email="familiar@ejemplo.cl", contrasena=contrasena_sintetica, rol="admin")
 
