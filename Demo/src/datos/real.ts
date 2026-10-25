@@ -1,7 +1,7 @@
 // Adaptador real: Axios contra /v1 en el mismo origen (el proxy de Vite lo lleva a la API).
 // El token JWT vive solo en esta clausura, en memoria. Nunca en storage ni en la URL.
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios'
-import { errorDeRed, errorDesdeProblema, rutaPlantilla, type ApiMatu, type Llamada } from './api'
+import { errorDeRed, errorDesdeProblema, errorSinSesion, rutaPlantilla, type ApiMatu, type Llamada } from './api'
 import type {
   CuentaCreadaRespuesta,
   GrupoRespuesta,
@@ -41,7 +41,7 @@ export function crearCliente(anotar: (l: Omit<Llamada, 'id'>) => void): AxiosIns
     (e: AxiosError<Problema>) => {
       registrar(e.config, e.response?.status ?? null)
       if (!e.response) return Promise.reject(errorDeRed())
-      return Promise.reject(errorDesdeProblema(e.response.status, e.response.data ?? null))
+      return Promise.reject(errorDesdeProblema(e.response.status, e.response.data ?? null, e.config?.url ?? ''))
     },
   )
   return http
@@ -62,7 +62,11 @@ export function adaptadorReal(anotar: (l: Omit<Llamada, 'id'>) => void): ApiMatu
   let token: string | null = null
   let grupoId: string | null = null
 
-  const auth = () => (token ? { Authorization: `Bearer ${token}` } : {})
+  // Sin token no se llama: la API respondería 401 y el texto sería el de un error de contraseña.
+  const auth = () => {
+    if (!token) throw errorSinSesion()
+    return { Authorization: `Bearer ${token}` }
+  }
   const conGrupo = () => ({ ...auth(), ...(grupoId ? { 'X-Grupo-Id': grupoId } : {}) })
 
   return {

@@ -51,9 +51,12 @@ export class ErrorApi extends Error {
     this.codigo = codigo
   }
 
-  /** Falla de red o del servidor: aquí se ofrece seguir en modo simulado. */
+  /**
+   * Falla de red, del servidor o sin sesión: aquí se ofrece seguir en modo simulado. La sesión
+   * falta cuando el presentador salta a una escena real sin haber creado la cuenta antes.
+   */
   get puedeSimular(): boolean {
-    return this.tipo === 'red' || (this.status !== null && this.status >= 500)
+    return this.tipo === 'red' || (this.status !== null && this.status >= 500) || this.codigo === 'sin-sesion'
   }
 }
 
@@ -72,8 +75,9 @@ const CAMPOS_HUMANOS: Record<string, string> = {
 }
 
 /** Traduce un problema RFC 7807 a un texto humano, sin repetir datos de la persona. */
-export function errorDesdeProblema(status: number, p: Partial<Problema> | null): ErrorApi {
+export function errorDesdeProblema(status: number, p: Partial<Problema> | null, ruta = ''): ErrorApi {
   const codigo = p?.type?.replace('/errores/', '') ?? null
+  if (status === 401 && ruta !== '/sesiones') return errorSinSesion()
   if (status === 409 && codigo === 'email-registrado') {
     return new ErrorApi('http', 'Ese email ya tiene una cuenta. Entra con tu contraseña.', status, { email: 'Ese email ya tiene una cuenta.' }, codigo)
   }
@@ -94,6 +98,9 @@ export function errorDesdeProblema(status: number, p: Partial<Problema> | null):
   }
   return new ErrorApi('http', 'No se pudo completar. Vuelve a intentar.', status, {}, codigo)
 }
+
+export const errorSinSesion = () =>
+  new ErrorApi('http', 'No hay una sesión abierta. Crea tu cuenta o entra primero, o sigue con datos simulados.', 401, {}, 'sin-sesion')
 
 export const errorDeRed = () =>
   new ErrorApi('red', 'No hay conexión con el servidor de MATU. Puedes seguir en modo simulado.')

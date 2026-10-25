@@ -34,6 +34,10 @@ const Contexto = createContext<ContextoBackend | null>(null)
 // build:single no tiene servidor: siempre simulado.
 const ARCHIVO_UNICO = import.meta.env.MODE === 'single'
 
+// Una sola consulta al arrancar. Con StrictMode el efecto corre dos veces en desarrollo y la
+// consola mostraba dos 502 de /v1/salud en vez de uno.
+let deteccionInicial: Promise<boolean> | null = null
+
 export function ProveedorBackend({ children }: { children: ReactNode }) {
   const [llamadas, setLlamadas] = useState<Llamada[]>([])
   const seq = useRef(0)
@@ -53,7 +57,8 @@ export function ProveedorBackend({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (ARCHIVO_UNICO) return
     let vivo = true
-    hayBackend(anotar).then((ok) => {
+    deteccionInicial ??= hayBackend(anotar)
+    deteccionInicial.then((ok) => {
       if (!vivo) return
       setModo(ok ? 'real' : 'simulado')
       setMotivo(ok ? null : 'sin-backend')

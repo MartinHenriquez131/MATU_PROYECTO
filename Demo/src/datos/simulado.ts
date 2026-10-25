@@ -7,17 +7,58 @@ import { AVISO_CUIDADOR } from '../demo/datos'
 /** Huella publicada del aviso v1.0 (política de privacidad v0.9, sección 5). */
 const HUELLA_AVISO = '9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9'
 
+/**
+ * Cuenta sintética que ya usa MATU, para mostrar "Entrar" sin backend. Antes la escena
+ * "Entrar" en modo simulado quedaba con los campos vacíos y no había con qué entrar.
+ */
+export const CUENTA_EJEMPLO = { nombre: 'Carmen', email: 'carmen@correo.ejemplo', clave: 'maria-los-aromos' }
+
 const espera = (ms = 280) => new Promise((r) => setTimeout(r, ms))
 const id = () => crypto.randomUUID()
 
+function personaDelEjemplo(): PersonaListada {
+  return {
+    id: id(),
+    nombre: 'María Soto',
+    nombre_pila: 'María',
+    nivel_apoyo: 'apoyo_parcial',
+    direccion: { etiqueta: 'Casa', calle: 'Los Aromos', numero: '123', depto: null, comuna: 'La Reina', region: 'Metropolitana', referencia: null },
+    consentimiento: {
+      id: id(),
+      calidad_otorgante: 'cuidador_de_hecho',
+      finalidad: 'plan_cuidado',
+      version_politica: '0.9',
+      otorgado_en: '2026-10-10T14:20:00-03:00',
+      revision_vence_en: '2027-10-10T14:20:00-03:00',
+    },
+  }
+}
+
 export function adaptadorSimulado(): ApiMatu {
   const cuentas = new Map<string, { nombre: string; contrasena: string }>()
-  const grupos: GrupoRespuesta[] = []
-  const personas: PersonaListada[] = []
+  // Los grupos son de cada cuenta y las personas de cada grupo, como con RLS en el backend.
+  const gruposDe = new Map<string, GrupoRespuesta[]>()
+  const personasDe = new Map<string, PersonaListada[]>()
   let sesion: string | null = null
+  let grupoActual: string | null = null
 
-  const exigirSesion = () => {
-    if (!sesion) throw new ErrorApi('http', 'Tu sesión terminó. Entra de nuevo.', 401)
+  {
+    const e = CUENTA_EJEMPLO.email
+    cuentas.set(e, { nombre: CUENTA_EJEMPLO.nombre, contrasena: CUENTA_EJEMPLO.clave })
+    const g = { id: id(), nombre: 'Cuidado de María', rol: 'admin' }
+    gruposDe.set(e, [g])
+    personasDe.set(g.id, [personaDelEjemplo()])
+  }
+
+  const exigirSesion = (): string => {
+    if (!sesion) throw new ErrorApi('http', 'No hay una sesión abierta. Crea tu cuenta o entra primero.', 401, {}, 'sin-sesion')
+    return sesion
+  }
+  const exigirGrupo = (email: string): string => {
+    const propio = (gruposDe.get(email) ?? []).some((g) => g.id === grupoActual)
+    // Un grupo ajeno responde 404, nunca 403 (CLAUDE.md, agente 2, punto 4).
+    if (!grupoActual || !propio) throw new ErrorApi('http', 'No encontramos ese grupo para tu cuenta. Entra de nuevo.', 404)
+    return grupoActual
   }
 
   return {
@@ -32,26 +73,29 @@ export function adaptadorSimulado(): ApiMatu {
     },
     async iniciarSesion(email, contrasena) {
       await espera()
-      const c = cuentas.get(email.trim().toLowerCase())
+      const e = email.trim().toLowerCase()
+      const c = cuentas.get(e)
       if (!c || c.contrasena !== contrasena) throw new ErrorApi('http', 'El email o la contraseña no coinciden. Revísalos y vuelve a intentar.', 401)
-      sesion = email
+      sesion = e
+      grupoActual = null
     },
     async listarGrupos() {
       await espera(120)
-      exigirSesion()
-      return [...grupos]
+      return [...(gruposDe.get(exigirSesion()) ?? [])]
     },
     async crearGrupo(nombre) {
       await espera(160)
-      exigirSesion()
+      const e = exigirSesion()
       const g = { id: id(), nombre, rol: 'admin' }
-      grupos.push(g)
+      gruposDe.set(e, [...(gruposDe.get(e) ?? []), g])
       return g
     },
-    elegirGrupo() {},
+    elegirGrupo(gid) {
+      grupoActual = gid
+    },
     async darDeAlta(d): Promise<PersonaCreada> {
       await espera()
-      exigirSesion()
+      const gid = exigirGrupo(exigirSesion())
       if (d.calidad_otorgante === 'representante_legal' && !d.referencia_documento?.trim()) {
         throw new ErrorApi('http', 'Escribe la referencia del documento que te nombra representante.', 422, { referencia_documento: 'Falta la referencia.' })
       }
@@ -90,16 +134,17 @@ export function adaptadorSimulado(): ApiMatu {
             ? { id: AVISO_CUIDADOR.id, version: AVISO_CUIDADOR.version, titulo: AVISO_CUIDADOR.titulo, parrafos: AVISO_CUIDADOR.parrafos, sha256: HUELLA_AVISO }
             : null,
       }
-      personas.push({ ...persona })
+      const { aviso: _aviso, ...listada } = persona
+      personasDe.set(gid, [...(personasDe.get(gid) ?? []), listada])
       return persona
     },
     async listarPersonas() {
       await espera(120)
-      exigirSesion()
-      return [...personas]
+      return [...(personasDe.get(exigirGrupo(exigirSesion())) ?? [])]
     },
     cerrar() {
       sesion = null
+      grupoActual = null
     },
   }
 }
