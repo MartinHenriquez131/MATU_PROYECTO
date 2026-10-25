@@ -2,16 +2,23 @@
 
 usuario_actual es la puerta de toda ruta autenticada. MATU-02 y MATU-06 la importan desde aquí.
 Valida firma, algoritmo y vencimiento del access token en cada petición, y nunca registra el token.
+
+sesion_de_usuario entrega una sesión con app.usuario_id fijado y sin grupo, para las rutas que
+no dependen de un grupo (por ejemplo GET /v1/grupos de MATU-06). Las rutas de un grupo usan
+sesion_de_grupo, de care_circle.
 """
 
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import obtener_configuracion
+from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
 from app.modules.iam.application.ports import EmisorTokens
 from app.modules.iam.application.sesion import validar_acceso
@@ -48,6 +55,7 @@ def obtener_reloj() -> Reloj:
 
 
 def usuario_actual(
+    request: Request,
     credenciales: Annotated[HTTPAuthorizationCredentials | None, Depends(_esquema_bearer)],
     emisor: Annotated[EmisorTokens, Depends(obtener_emisor_tokens)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
@@ -55,8 +63,28 @@ def usuario_actual(
     if credenciales is None:
         raise ErrorMATU(401, detalle="Inicia sesión para continuar", headers=_CABECERA_BEARER)
     try:
-        return UsuarioActual(id=validar_acceso(credenciales.credentials, emisor, reloj))
+        usuario = UsuarioActual(id=validar_acceso(credenciales.credentials, emisor, reloj))
     except TokenInvalido:
         raise ErrorMATU(
             401, tipo="token-invalido", detalle="Inicia sesión de nuevo", headers=_CABECERA_BEARER
         ) from None
+    # El log de la petición (MiddlewareRequestId) registra el identificador, nunca el token
+    request.state.usuario_id = str(usuario.id)
+    return usuario
+
+
+def sesion_de_usuario(
+    usuario: Annotated[UsuarioActual, Depends(usuario_actual)],
+    fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)],
+) -> Iterator[Session]:
+    """Una sesión con solo app.usuario_id fijado, en una transacción que dura lo que la ruta.
+
+    Commit si la ruta termina bien, rollback si lanza. Úsala con SesionDeUsuario.
+    """
+    with sesion_tenant(fabrica, usuario_id=usuario.id) as sesion:
+        yield sesion
+
+
+# scope="function": la transacción se cierra (commit o rollback) antes de enviar la respuesta,
+# para que un commit fallido no llegue al cliente como un 200
+SesionDeUsuario = Annotated[Session, Depends(sesion_de_usuario, scope="function")]

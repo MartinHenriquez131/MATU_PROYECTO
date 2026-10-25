@@ -4,8 +4,12 @@ Criterio de cierre (backlog v1.3, sección 3): app/main.py, configuración, erro
 y logs JSON con request_id y sin cuerpos de petición.
 """
 
+import io
+import json
+import logging
 import uuid
 
+from app.core.logs import FormateadorJSON
 from tests.core.conftest import Entorno
 
 PROBLEMA = "application/problem+json"
@@ -135,3 +139,87 @@ def test_error_inesperado_se_registra_con_tipo_y_sin_mensaje(entorno: Entorno, s
     assert errores[0]["request_id"] == respuesta.json()["request_id"]
     assert "traza" in errores[0]
     assert secreto not in entorno.texto_log()
+
+
+def _linea_peticion(entorno: Entorno) -> dict[str, object]:
+    lineas = [linea for linea in entorno.lineas_log() if linea["mensaje"] == "peticion"]
+    assert len(lineas) == 1
+    return lineas[0]
+
+
+def test_log_registra_la_plantilla_de_la_ruta_y_no_el_path(entorno: Entorno, secreto: str) -> None:
+    # Dado un valor sensible en un parámetro de la ruta
+    entorno.cliente.get(f"/prueba/item/{secreto}")
+
+    # Entonces el log registra la plantilla, no el valor
+    assert _linea_peticion(entorno)["ruta"] == "/prueba/item/{item_id}"
+    assert secreto not in entorno.texto_log()
+
+
+def test_log_de_ruta_con_prefijo_registra_la_plantilla_completa(entorno: Entorno) -> None:
+    entorno.cliente.get("/v1/salud")
+
+    assert _linea_peticion(entorno)["ruta"] == "/v1/salud"
+
+
+def test_log_de_ruta_con_prefijo_y_parametro_registra_la_plantilla(entorno: Entorno, secreto: str) -> None:
+    entorno.cliente.get(f"/prueba-v1/grupos/{secreto}/cosas")
+
+    assert _linea_peticion(entorno)["ruta"] == "/prueba-v1/grupos/{grupo_id}/cosas"
+    assert secreto not in entorno.texto_log()
+
+
+def test_log_de_ruta_inexistente_no_registra_el_path(entorno: Entorno, secreto: str) -> None:
+    respuesta = entorno.cliente.get(f"/v1/no-existe/{secreto}")
+
+    assert respuesta.status_code == 404
+    assert _linea_peticion(entorno)["ruta"] == "sin-ruta"
+    assert secreto not in entorno.texto_log()
+
+
+def test_log_sin_usuario_ni_grupo_no_los_inventa(entorno: Entorno) -> None:
+    entorno.cliente.get("/v1/salud")
+
+    linea = _linea_peticion(entorno)
+    assert "usuario_id" not in linea
+    assert "grupo_id" not in linea
+
+
+def _formatear(nombre_logger: str, mensaje: str, *args: object) -> dict[str, object]:
+    salida = io.StringIO()
+    manejador = logging.StreamHandler(salida)
+    manejador.setFormatter(FormateadorJSON())
+    logger = logging.getLogger(nombre_logger)
+    logger.addHandler(manejador)
+    try:
+        logger.warning(mensaje, *args)
+    finally:
+        logger.removeHandler(manejador)
+    datos: dict[str, object] = json.loads(salida.getvalue())
+    return datos
+
+
+def test_log_de_tercero_no_deja_el_query_string_de_una_url(secreto: str) -> None:
+    # Dado un WARNING de urllib3 con una URL absoluta y una línea de petición con path y query
+    url = f"https://pasarela.ejemplo.cl/api/v1/estado?token={secreto}&otro=1"  # pragma: allowlist secret
+    datos = _formatear("urllib3.connectionpool", "Retrying after connection broken: %s", url)
+    linea = _formatear(
+        "urllib3.connectionpool", 'https://pasarela.ejemplo.cl:443 "GET /api/v1/estado?token=%s HTTP/1.1" 200', secreto
+    )
+
+    # Entonces se conserva la URL sin su query string
+    assert datos["mensaje"] == "Retrying after connection broken: https://pasarela.ejemplo.cl/api/v1/estado"
+    assert linea["mensaje"] == 'https://pasarela.ejemplo.cl:443 "GET /api/v1/estado HTTP/1.1" 200'
+    assert secreto not in json.dumps([datos, linea])
+
+
+def test_log_de_tercero_no_deja_el_fragmento_de_una_url(secreto: str) -> None:
+    datos = _formatear("httpx", "GET %s", f"https://matu.ejemplo.cl/r#{secreto}")
+
+    assert datos["mensaje"] == "GET https://matu.ejemplo.cl/r"
+
+
+def test_log_de_matu_no_se_altera() -> None:
+    datos = _formatear("matu.prueba", "consulta /v1/grupos?pagina=2")
+
+    assert datos["mensaje"] == "consulta /v1/grupos?pagina=2"
