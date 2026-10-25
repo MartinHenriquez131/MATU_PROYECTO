@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CloudOff } from 'lucide-react'
 import { ErrorApi, type ApiMatu } from './api'
 import { useBackend } from './backend'
@@ -33,16 +33,21 @@ export function useLlamada() {
 
 /** Falla de red dicha con calma, con una salida: seguir en simulado. */
 export function AvisoFalla({ error, onSimulado }: { error: ErrorApi | null; onSimulado: () => void }) {
+  const caja = useRef<HTMLDivElement>(null)
+  // El aviso puede quedar bajo el formulario: se trae a la vista.
+  useEffect(() => {
+    caja.current?.scrollIntoView({ block: 'nearest' })
+  }, [error])
   if (!error) return null
   if (!error.puedeSimular) {
     return (
-      <p role="alert" className="font-bold text-pronto">
+      <div ref={caja} role="alert" className="font-bold text-pronto">
         {error.message}
-      </p>
+      </div>
     )
   }
   return (
-    <div role="alert" className="flex flex-col gap-3 rounded-2xl bg-atenta-fondo px-4 py-3">
+    <div ref={caja} role="alert" className="flex flex-col gap-3 rounded-2xl bg-atenta-fondo px-4 py-3">
       <p className="flex gap-2">
         <CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
         <span>

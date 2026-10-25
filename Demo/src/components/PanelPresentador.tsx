@@ -55,7 +55,7 @@ function Llamadas() {
       <p className="mb-1.5 text-[0.9rem] font-bold text-tenue">Respuestas de la API (sin cuerpo ni token)</p>
       <table className="w-full text-[0.85rem]">
         <tbody>
-          {llamadas.slice(0, 5).map((l) => (
+          {llamadas.slice(0, 3).map((l) => (
             <tr key={l.id} className="border-t border-linea">
               <td className="py-1 pr-2 font-bold">{l.metodo}</td>
               <td className="cifras py-1 pr-2 break-all">{l.ruta}</td>

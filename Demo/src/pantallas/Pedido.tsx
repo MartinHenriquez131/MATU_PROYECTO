@@ -24,10 +24,10 @@ import { Boton, CampoTexto, GrupoOpciones, Nota, Sello, Tarjeta } from '../compo
 function Renglon({ texto, monto, fuerte = false, nota }: { texto: string; monto: string; fuerte?: boolean; nota?: string }) {
   return (
     <div className={`flex flex-col ${fuerte ? 'font-bold' : ''}`}>
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="min-w-0 shrink">{texto}</span>
         <span aria-hidden className="min-w-4 flex-1 translate-y-[-0.3em] border-b-2 border-dotted border-tinta/20" />
-        <span className={`cifras shrink-0 ${fuerte ? 'text-[1.2rem]' : ''}`}>{monto}</span>
+        <span className={`cifras ml-auto shrink-0 ${fuerte ? 'text-[1.2rem]' : ''}`}>{monto}</span>
       </div>
       {nota && <span className="text-sm text-tenue">{nota}</span>}
     </div>

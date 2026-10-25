@@ -83,7 +83,7 @@ export const ESCENAS: Escena[] = [
     id: 'a-quien',
     capa: 1,
     titulo: '¿A quién cuidas?',
-    nota: 'Pide lo mínimo. No pregunta diagnóstico y la dirección es opcional.',
+    nota: 'Pide lo mínimo. No pregunta qué enfermedad tiene y la dirección es opcional.',
     rol: 'familia',
     preparar: (s) => pilaFamilia(s, ['bienvenida', 'cuenta', 'a-quien']),
   },
@@ -99,7 +99,7 @@ export const ESCENAS: Escena[] = [
     id: 'inicio',
     capa: 1,
     titulo: 'Inicio',
-    nota: 'Lo primero que se ve es la ficha, contada por campos: 1 de 3.',
+    nota: 'Lo primero que se ve es la ficha, contada por campos: 1 de 3, no un porcentaje.',
     rol: 'familia',
     preparar: (s) => {
       const t = conFamilia(s)

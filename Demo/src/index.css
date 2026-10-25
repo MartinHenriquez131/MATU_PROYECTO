@@ -49,7 +49,6 @@
   --animate-subir: subir 420ms var(--ease-calma) both;
   --animate-digito: digito 520ms var(--ease-calma) both;
   --animate-trazo: trazo 900ms var(--ease-calma) both;
-  --animate-onda: onda 1400ms var(--ease-calma) both;
 
   @keyframes entrar {
     from { opacity: 0; transform: translateX(14px); }
@@ -71,10 +70,6 @@
   @keyframes trazo {
     from { stroke-dashoffset: 1; }
     to { stroke-dashoffset: 0; }
-  }
-  @keyframes onda {
-    0% { opacity: 0.55; transform: scale(0.6); }
-    100% { opacity: 0; transform: scale(1.9); }
   }
 }
 
@@ -120,6 +115,10 @@
     outline-offset: 2px;
     border-radius: 0.5rem;
   }
+  /* Un fieldset mide por defecto lo que su contenido: con el texto al 200% desbordaría. */
+  fieldset {
+    min-width: 0;
+  }
   h1,
   h2,
   h3 {
@@ -134,6 +133,7 @@
   /* Cifras de dinero, fechas y horas: alineadas, en la cara del texto. */
   .cifras {
     font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
   }
   /* Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. */
   .digitos {

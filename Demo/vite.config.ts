@@ -13,7 +13,8 @@ function politicaDeContenido(unSoloArchivo: boolean): Plugin {
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: blob:",
-    "connect-src 'none'",
+    // Solo la propia API, en el mismo origen. El archivo único no habla con nadie.
+    `connect-src ${unSoloArchivo ? "'none'" : "'self'"}`,
     "manifest-src 'self'",
     "base-uri 'none'",
     "form-action 'none'",
