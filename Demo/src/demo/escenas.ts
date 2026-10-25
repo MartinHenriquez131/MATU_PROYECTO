@@ -11,6 +11,7 @@ import {
   cortarAcceso,
   estadoInicial,
   pedidoHasta,
+  personaEjemplo,
   pilaComercio,
   pilaFamilia,
   rodrigoEdita,
@@ -93,7 +94,8 @@ export const ESCENAS: Escena[] = [
     titulo: 'Permiso',
     nota: 'Queda registrado en qué calidad se autoriza. Quien cuida de hecho ve un aviso y lo acepta.',
     rol: 'familia',
-    preparar: (s) => pilaFamilia(s, ['bienvenida', 'cuenta', 'a-quien', 'permiso']),
+    // Sin persona, "Acepto y continúo" no tenía a quién dar de alta y no hacía nada.
+    preparar: (s) => pilaFamilia(s.persona ? s : { ...s, persona: personaEjemplo() }, ['bienvenida', 'cuenta', 'a-quien', 'permiso']),
   },
   {
     id: 'inicio',

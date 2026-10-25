@@ -119,6 +119,16 @@ export function volver(s: Estado): Estado {
   return pila[pila.length - 1].id === 'enlace-pin' ? { ...t, pinVisible: null } : t
 }
 
+/** Vuelve hasta la pantalla `indice` de la pila (0 es la raíz). */
+export function volverHasta(s: Estado, indice: number): Estado {
+  const clave = s.rol === 'comercio' ? 'comercio' : 'familia'
+  const pila = s.nav[clave]
+  if (indice < 0 || indice >= pila.length - 1) return s
+  const sale = pila.slice(indice + 1)
+  const t = { ...s, dir: 'atras' as const, nav: { ...s.nav, [clave]: pila.slice(0, indice + 1) } }
+  return sale.some((x) => x.id === 'enlace-pin') ? { ...t, pinVisible: null } : t
+}
+
 /** Reemplaza la pila completa de la familia. */
 export function pilaFamilia(s: Estado, ids: (PantallaFamiliaId | [PantallaFamiliaId, string])[]): Estado {
   let t = s
@@ -199,23 +209,23 @@ export function darPermiso(s: Estado, calidad: Calidad, referenciaDocumento: str
   return avisar(t, `Permiso registrado. ${nombrePila(t)} ya está en MATU.`)
 }
 
+/** La persona cuidada del ejemplo: María, con dirección para el pedido. */
+export function personaEjemplo(): Persona {
+  return {
+    nombre: 'María Soto',
+    nombrePila: 'María',
+    apoyo: 'apoyo_parcial',
+    direccion: 'Los Aromos 123, La Reina',
+    partes: { calle: 'Los Aromos', numero: '123', comuna: 'La Reina' },
+    idReal: null,
+  }
+}
+
 /** Datos de una familia que ya usa MATU: para "Ya tengo cuenta" y para saltar escenas. */
 export function conFamilia(s: Estado): Estado {
   let t = s
   if (!t.cuenta) t = { ...t, cuenta: { nombre: 'Carmen', email: 'carmen@correo.ejemplo', real: false } }
-  if (!t.persona) {
-    t = {
-      ...t,
-      persona: {
-        nombre: 'María Soto',
-        nombrePila: 'María',
-        apoyo: 'apoyo_parcial',
-        direccion: 'Los Aromos 123, La Reina',
-        partes: { calle: 'Los Aromos', numero: '123', comuna: 'La Reina' },
-        idReal: null,
-      },
-    }
-  }
+  if (!t.persona) t = { ...t, persona: personaEjemplo() }
   if (!t.consentimiento) {
     t = {
       ...t,
@@ -568,8 +578,10 @@ export function marcarEntregado(s: Estado): Estado {
 export function pedidoHasta(s: Estado, objetivo: EstadoPedido, medio: Medio = 'credito'): Estado {
   let t = conFamilia(s)
   if (!t.pedido || etapa(t.pedido.estado) > etapa(objetivo) || (t.pedido.estado === 'borrador' && t.pedido.lineas.length === 0)) {
-    if (lineasLista(t.insumos, {}).length === 0) t = { ...t, insumos: insumosIniciales() }
-    t = armarPedido({ ...t, ajustesLista: {} })
+    // Un pedido nuevo para una escena parte siempre de los insumos del ejemplo: estimado de
+    // $60.000, reserva de $69.000 y cobro de $51.340. Antes se armaba con el stock del momento,
+    // y después de una entrega (que suma al stock) salía otro monto y el real superaba el tope.
+    t = armarPedido({ ...t, insumos: insumosIniciales(), ajustesLista: {} })
   }
   const pasos: [EstadoPedido, (x: Estado) => Estado][] = [
     ['pagado', (x) => resultadoPago(x.pedido?.medio ? x : elegirMedio(x, medio), true)],

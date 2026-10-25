@@ -34,6 +34,7 @@ export type PantallaFamiliaId =
   | 'rechazado'
   | 'seguimiento'
   | 'entregado'
+  | 'grupo'
 
 export type PantallaComercioId = 'c-pedidos' | 'c-preparar' | 'c-monto' | 'c-codigo'
 
