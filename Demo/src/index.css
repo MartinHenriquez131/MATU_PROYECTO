@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+
+/* Fuentes locales, sin CDN: la demo funciona sin conexión en el proyector. */
+@import '@fontsource/atkinson-hyperlegible/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible/latin-700.css';
+@import '@fontsource/atkinson-hyperlegible/latin-400-italic.css';
+@import '@fontsource/atkinson-hyperlegible-mono/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible-mono/latin-700.css';
+@import '@fontsource-variable/bricolage-grotesque/wght.css';
+
+/*
+ * Identidad de MATU · "Patio".
+ * Seis tokens de marca y tres pares semánticos, en un solo lugar.
+ *   papel  fondo general, verde neblina (no crema)
+ *   hoja   superficie de tarjetas y hojas
+ *   tinta  texto principal
+ *   tenue  texto secundario (7:1 sobre hoja)
+ *   pino   acento y acciones (7,6:1 con texto papel)
+ *   miel   calidez decorativa: logo, puntos de la línea de tiempo. Nunca texto sobre claro
+ * Los semánticos (pronto, atenta, ok) van aparte del acento.
+ */
+@theme {
+  --color-papel: #edf2ee;
+  --color-hoja: #ffffff;
+  --color-tinta: #13252a;
+  --color-tenue: #485b5f;
+  --color-pino: #0e5e57;
+  --color-miel: #e3a43a;
+
+  --color-pronto: #a8261b;
+  --color-pronto-fondo: #fbe9e6;
+  --color-atenta: #835000;
+  --color-atenta-fondo: #fcefd8;
+  --color-ok: #22663d;
+  --color-ok-fondo: #e1f1e6;
+
+  /* Derivados, no son tokens nuevos */
+  --color-linea: color-mix(in oklab, var(--color-tinta) 14%, transparent);
+  --color-rocio: color-mix(in oklab, var(--color-pino) 13%, var(--color-hoja));
+
+  --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Atkinson Hyperlegible', ui-sans-serif, sans-serif;
+  --font-cifras: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+
+  --ease-calma: cubic-bezier(0.22, 0.8, 0.24, 1);
+
+  --animate-entrar: entrar 260ms var(--ease-calma) both;
+  --animate-volver: volver 260ms var(--ease-calma) both;
+  --animate-subir: subir 420ms var(--ease-calma) both;
+  --animate-digito: digito 520ms var(--ease-calma) both;
+  --animate-trazo: trazo 900ms var(--ease-calma) both;
+  --animate-onda: onda 1400ms var(--ease-calma) both;
+
+  @keyframes entrar {
+    from { opacity: 0; transform: translateX(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes volver {
+    from { opacity: 0; transform: translateX(-14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes subir {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes digito {
+    0% { opacity: 0; transform: translateY(-0.6em) scale(0.9); }
+    60% { opacity: 1; transform: translateY(0.06em) scale(1.02); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes trazo {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes onda {
+    0% { opacity: 0.55; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(1.9); }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-papel: #0d1719;
+    --color-hoja: #152427;
+    --color-tinta: #e4eeeb;
+    --color-tenue: #a9bcb8;
+    --color-pino: #74d2c3;
+    --color-miel: #e8b866;
+
+    --color-pronto: #ffa395;
+    --color-pronto-fondo: #3b1b17;
+    --color-atenta: #f2c46b;
+    --color-atenta-fondo: #33270f;
+    --color-ok: #8fd9a8;
+    --color-ok-fondo: #13301f;
+  }
+}
+
+@layer base {
+  /* 1rem = 17 px: el texto base y todo el espaciado escalan con la preferencia del usuario. */
+  html {
+    font-size: 106.25%;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light dark;
+  }
+  body {
+    @apply bg-papel text-tinta font-sans antialiased;
+    line-height: 1.5;
+    min-height: 100dvh;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-pino);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer utilities {
+  .cifras {
+    font-family: var(--font-cifras);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .sin-barra {
+    scrollbar-width: none;
+  }
+  .sin-barra::-webkit-scrollbar {
+    display: none;
+  }
+  /* Textura sutil de la hoja imprimible: líneas de cuaderno. */
+  .renglones {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(1.75rem - 1px),
+      color-mix(in oklab, var(--color-pino) 10%, transparent) calc(1.75rem - 1px),
+      color-mix(in oklab, var(--color-pino) 10%, transparent) 1.75rem
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
