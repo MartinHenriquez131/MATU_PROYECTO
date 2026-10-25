@@ -9,7 +9,7 @@ import type { DireccionVista, PersonaListada } from '../datos/contrato'
 import { useBackend } from '../datos/backend'
 import { AvisoFalla, useLlamada } from '../datos/useLlamada'
 import { Pantalla } from '../components/Pantalla'
-import { Boton, CampoTexto, GrupoOpciones, Logo, Nota } from '../components/Ui'
+import { Boton, CampoTexto, GrupoOpciones, Hoja, Logo, Nota } from '../components/Ui'
 
 const azar = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => (b % 10).toString()).join('')
 
@@ -34,12 +34,22 @@ export function Bienvenida() {
   const { modo } = useBackend()
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-pino text-papel">
-      {/* Luz de ventana: arcos concéntricos, decorativos */}
-      <svg aria-hidden className="pointer-events-none absolute -top-24 -right-28 size-[26rem] opacity-[0.13]" viewBox="0 0 200 200">
-        {[30, 50, 70, 90].map((r) => (
-          <circle key={r} cx="100" cy="100" r={r} fill="none" stroke="currentColor" strokeWidth="10" />
-        ))}
-      </svg>
+      {/* Lo propio de MATU asoma desde arriba: la hoja de la ficha, sujeta con su imán. */}
+      <div aria-hidden className="pointer-events-none absolute top-7 -right-12 w-[17rem] rotate-[5deg] text-tinta">
+        <Hoja>
+          <p className="font-display text-[1.45rem] leading-tight font-extrabold tracking-[-0.02em]">Ficha de María</p>
+          <ul className="renglones mt-2 leading-[1.75rem]">
+            <li>Su día</li>
+            <li>Si se altera</li>
+            <li>A quién llamar</li>
+          </ul>
+          <div className="mt-3 flex gap-1.5">
+            <span className="h-2.5 flex-1 rounded-full bg-pino" />
+            <span className="h-2.5 flex-1 rounded-full bg-pino" />
+            <span className="h-2.5 flex-1 rounded-full bg-tinta/10" />
+          </div>
+        </Hoja>
+      </div>
       <div className="relative flex flex-1 flex-col justify-end gap-5 px-7 pb-8">
         <Logo claro className="size-20" />
         <h1 className="font-display text-[3.2rem] leading-[0.95] font-extrabold tracking-[-0.03em]">MATU</h1>

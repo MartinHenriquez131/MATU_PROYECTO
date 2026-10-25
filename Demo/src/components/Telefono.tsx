@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { BatteryFull, Signal, Wifi } from 'lucide-react'
 import { useDemo } from '../demo/estado'
 import { fmtHora } from '../demo/calculos'
@@ -33,10 +33,15 @@ export function App() {
   // zoom: 2 duplica todo como el zoom del navegador, y obliga a que el contenido se reacomode
   // en la mitad del ancho: la prueba de WCAG 1.4.4 y 1.4.10 hecha visible.
   const zoom: CSSProperties | undefined = s.texto200 ? { zoom: 2 } : undefined
+  // La primera pantalla aparece quieta: la transición solo responde a una navegación.
+  // Si entrara deslizándose, dejaría ver una franja de fondo en el borde.
+  const primera = useRef(clave)
+  const animacion = clave === primera.current ? '' : s.dir === 'atras' ? 'animate-volver' : 'animate-entrar'
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-papel">
+      {/* overflow-hidden también recorta la pantalla que entra: nunca hay desplazamiento lateral. */}
       <div style={zoom} className="flex min-h-0 flex-1 flex-col">
-        <div key={clave} className={`flex min-h-0 flex-1 flex-col ${s.dir === 'atras' ? 'animate-volver' : 'animate-entrar'}`}>
+        <div key={clave} className={`flex min-h-0 flex-1 flex-col ${animacion}`}>
           <Pantallas />
         </div>
       </div>

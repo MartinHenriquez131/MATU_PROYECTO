@@ -393,7 +393,7 @@ export function Seguimiento() {
           <h2 className="font-bold">Cambios de la farmacia</h2>
           {cambios.map((l) => (
             <p key={l.insumoId} className="text-[0.95rem]">
-              {l.resolucion === 'reemplazado' ? `${l.nombre}: cambiada por ${l.reemplazo?.nombre.toLowerCase()}.` : `${l.nombre}: no había. No se cobra.`}
+              {l.resolucion === 'reemplazado' ? `${l.nombre}: llega otra marca equivalente.` : `${l.nombre}: no había. No se cobra.`}
             </p>
           ))}
         </Tarjeta>
@@ -437,7 +437,7 @@ export function Entregado() {
         .map((l) => (
           <p key={l.insumoId} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-atenta-fondo px-4 py-3 text-[0.95rem]">
             <span>
-              <b>{l.nombre}</b>: {l.reemplazo?.nombre.toLowerCase()}
+              <b>{l.nombre}</b>: llegó otra marca equivalente
             </span>
             <span className="font-bold text-atenta">Cambio</span>
           </p>
