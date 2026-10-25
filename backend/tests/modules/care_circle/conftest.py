@@ -1,5 +1,5 @@
-"""Fixtures de care_circle: rutas de prueba protegidas por sesion_de_grupo y sesion_de_usuario, y
-grupos sembrados como superusuario (la API para crear grupos llega con MATU-06)."""
+"""Fixtures de care_circle: rutas de prueba protegidas por sesion_de_grupo y sesion_de_usuario,
+grupos sembrados como superusuario y grupos creados por la API (MATU-06)."""
 
 import uuid
 from collections.abc import Callable, Iterator
@@ -78,6 +78,14 @@ class EntornoGrupo:
                 )
         return grupo_id
 
+    def crear_grupo(self, token: str | None, cuerpo: Any) -> Any:
+        """POST /v1/grupos. Si responde 201, el grupo queda anotado para limpiarlo."""
+        cabeceras = {"Authorization": f"Bearer {token}"} if token is not None else {}
+        respuesta = self.iam.cliente.post("/v1/grupos", json=cuerpo, headers=cabeceras)
+        if respuesta.status_code == 201:
+            self.grupos.append(uuid.UUID(respuesta.json()["id"]))
+        return respuesta
+
     def pedir(self, ruta: str, token: str | None = None, grupo: str | None = None) -> Any:
         cabeceras = {}
         if token is not None:
@@ -91,8 +99,14 @@ class EntornoGrupo:
 def entorno_grupo(entorno_iam: EntornoIam) -> Iterator[EntornoGrupo]:
     entorno = EntornoGrupo(iam=entorno_iam)
     yield entorno
-    # Antes de que entorno_iam borre las cuentas: membresia y grupo_familiar las referencian
-    if entorno.grupos:
+    # Antes de que entorno_iam borre las cuentas: membresia y grupo_familiar las referencian.
+    # También los grupos que crearon esas cuentas y que la prueba no anotó.
+    if entorno.grupos or entorno_iam.creados:
         with psycopg.connect(DSN, autocommit=True) as cx:
-            cx.execute("DELETE FROM membresia WHERE grupo_id = ANY(%s)", (entorno.grupos,))
-            cx.execute("DELETE FROM grupo_familiar WHERE id = ANY(%s)", (entorno.grupos,))
+            grupos = cx.execute(
+                "SELECT id FROM grupo_familiar WHERE id = ANY(%s::uuid[]) OR creado_por = ANY(%s::uuid[])",
+                (entorno.grupos, entorno_iam.creados),
+            ).fetchall()
+            ids = [fila[0] for fila in grupos]
+            cx.execute("DELETE FROM membresia WHERE grupo_id = ANY(%s::uuid[])", (ids,))
+            cx.execute("DELETE FROM grupo_familiar WHERE id = ANY(%s::uuid[])", (ids,))
