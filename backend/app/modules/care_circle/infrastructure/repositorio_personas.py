@@ -9,6 +9,7 @@ dependen de qué política SELECT muestra cada fila.
 
 import json
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import Row, text
@@ -72,6 +73,11 @@ _LISTAR_NOMBRE_Y_DIRECCION = text(
 _LISTAR_SOLO_NOMBRE = text("SELECT p.id, p.nombre" + _DESDE_PERSONAS + _FILTRO)
 
 
+def _utc(instante: datetime | None) -> datetime | None:
+    # La API responde siempre en UTC (arquitectura 9.1), sea cual sea la zona de la sesión de la base
+    return None if instante is None else instante.astimezone(UTC)
+
+
 def _direccion(fila: Row[Any]) -> DatosDireccion | None:
     if fila.direccion_entrega_id is None or fila.calle is None:
         return None
@@ -116,8 +122,8 @@ class RepositorioPersonasSQL:
                     calidad_otorgante=f.calidad_otorgante,
                     finalidad=f.finalidad,
                     version_politica=f.version_politica,
-                    otorgado_en=f.otorgado_en,
-                    revision_vence_en=f.revision_vence_en,
+                    otorgado_en=f.otorgado_en.astimezone(UTC),
+                    revision_vence_en=_utc(f.revision_vence_en),
                 ),
             )
             for f in filas
