@@ -6,7 +6,7 @@ el mensaje tal cual (app/core/errores.py), y el valor puede ser una contraseña.
 
 import re
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -47,3 +47,23 @@ class CuentaCreadaRespuesta(BaseModel):
     id: uuid.UUID
     nombre: str
     email: str
+
+
+class SolicitudSesion(BaseModel):
+    """Cuerpo de POST /v1/sesiones.
+
+    Sin largo mínimo ni forma de email: un 422 por esas razones distinguiría casos que el login
+    responde siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[str, Field(max_length=LARGO_MAXIMO_EMAIL)]
+    contrasena: Annotated[str, Field(max_length=LARGO_MAXIMO_CONTRASENA)]
+
+
+class SesionRespuesta(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    # Segundos de vida del access token
+    expira_en: int
