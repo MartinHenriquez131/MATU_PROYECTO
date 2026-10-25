@@ -123,6 +123,8 @@ export interface Evento {
 export interface Insumo {
   id: string
   nombre: string
+  /** Cómo se nombra en una frase: "los pañales". */
+  corto: string
   presentacion: string
   unidad: string
   preguntaDia: string

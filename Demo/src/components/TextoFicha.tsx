@@ -28,12 +28,13 @@ export function LineaDeTiempo({ items }: { items: { hora: string; texto: string 
   )
 }
 
-export function TextoCampo({ texto, vacio = 'Sin completar' }: { texto: string; vacio?: string }) {
+/** Texto de un campo. En la hoja, el texto corrido va sobre renglones; "Su día" con horas, en línea de tiempo. */
+export function TextoCampo({ texto, vacio = 'Sin completar', renglones = false }: { texto: string; vacio?: string; renglones?: boolean }) {
   if (!texto.trim()) return <p className="text-tenue italic">{vacio}</p>
   const horas = separarHoras(texto)
   if (horas) return <LineaDeTiempo items={horas} />
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={renglones ? 'renglones leading-[1.75rem]' : 'flex flex-col gap-1.5'}>
       {texto.split('\n').map((l, i) => (
         <p key={i} className="break-words">
           {l}

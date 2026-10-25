@@ -153,7 +153,7 @@ export function MedioPago() {
       titulo="¿Cómo pagas?"
       pie={
         <Boton icono={<Lock aria-hidden className="size-5" />} onClick={() => haz((x) => ir(elegirMedio(x, medio), 'pasarela'))}>
-          Ir a pagar · <span className="cifras">{fmtDinero(monto)}</span>
+          Pagar <span className="cifras">{fmtDinero(monto)}</span>
         </Boton>
       }
     >
@@ -168,7 +168,7 @@ export function MedioPago() {
         ]}
       />
       {medio === 'credito' ? (
-        <Tarjeta tono="rocio" className="animate-subir">
+        <Tarjeta tono="rocio">
           <p className="font-bold">
             Reservamos <span className="cifras">{fmtDinero(reservaCredito(p.estimado))}</span> por si algún precio cambió.
           </p>
@@ -180,7 +180,7 @@ export function MedioPago() {
           </div>
         </Tarjeta>
       ) : (
-        <Tarjeta tono="rocio" className="animate-subir">
+        <Tarjeta tono="rocio">
           <p className="font-bold">
             Con débito el banco cobra al instante: se cobran <span className="cifras">{fmtDinero(p.estimado)}</span> al confirmar.
           </p>
@@ -222,8 +222,8 @@ export function Pasarela() {
       titulo="Pasarela de pago simulada"
       encabezado={
         <header className="shrink-0 bg-[#1f2a37] px-4 py-3 text-white">
-          <p className="text-sm font-bold tracking-wide uppercase opacity-80">Pasarela de pago simulada</p>
-          <p className="font-bold">Transbank, ambiente de prueba</p>
+          <p className="font-bold">Pasarela de pago simulada</p>
+          <p className="text-[0.95rem] opacity-85">Transbank, ambiente de prueba</p>
         </header>
       }
       cuerpoClase="bg-[#f3f4f6] text-[#1f2a37]"
@@ -290,7 +290,7 @@ export function Rechazado() {
         </>
       }
     >
-      <Tarjeta tono="pronto" className="items-center text-center">
+      <Tarjeta tono="pronto" className="items-start">
         <Sello tono="pronto">
           <TriangleAlert aria-hidden className="size-9" />
         </Sello>
@@ -375,7 +375,7 @@ export function Seguimiento() {
                 </span>
                 <span className="text-[0.95rem] text-tenue">
                   {hecho ? paso.detalle(p) : 'Pendiente'}
-                  {hecho && p.hitos[paso.e] !== undefined && <span className="cifras"> · {fmtHora(p.hitos[paso.e]!)}</span>}
+                  {hecho && p.hitos[paso.e] !== undefined && <span className="cifras">, a las {fmtHora(p.hitos[paso.e]!)}</span>}
                 </span>
               </span>
             </li>
@@ -385,7 +385,7 @@ export function Seguimiento() {
       {(p.estado === 'listo' || p.estado === 'pagado' || p.estado === 'preparando') && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-rocio px-4 py-3">
           <span className="text-[0.95rem]">Código de retiro, lo muestra quien retira</span>
-          <span className="cifras text-[1.5rem] font-bold tracking-[0.2em] text-pino">{p.codigoRetiro}</span>
+          <span className="digitos text-[1.5rem] font-bold tracking-[0.2em] text-pino">{p.codigoRetiro}</span>
         </div>
       )}
       {cambios.length > 0 && (
@@ -411,7 +411,7 @@ export function Entregado() {
   const panal = s.insumos.find((i) => i.id === 'panal-m')
   return (
     <Pantalla titulo="Pedido entregado" pie={<Boton variante="secundario" onClick={() => haz((x) => pilaFamilia(x, ['inicio']))}>Volver al inicio</Boton>}>
-      <Tarjeta tono="ok" className="items-center text-center">
+      <Tarjeta tono="ok" className="items-start">
         <span className="grid size-14 place-items-center rounded-full bg-ok text-ok-fondo">
           <CircleCheck aria-hidden className="size-8" />
         </span>

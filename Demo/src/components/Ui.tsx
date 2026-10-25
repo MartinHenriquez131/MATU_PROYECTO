@@ -46,14 +46,32 @@ export function Tarjeta({
   tono?: 'hoja' | 'pronto' | 'ok' | 'atenta' | 'rocio' | 'borde'
 }) {
   const t = {
-    hoja: 'bg-hoja shadow-[0_1px_2px_rgb(0_0_0/0.05)] ring-1 ring-linea',
+    hoja: 'bg-hoja ring-1 ring-linea',
     pronto: 'bg-pronto-fondo ring-1 ring-pronto/25',
     ok: 'bg-ok-fondo ring-1 ring-ok/25',
     atenta: 'bg-atenta-fondo ring-1 ring-atenta/25',
     rocio: 'bg-rocio',
     borde: 'bg-transparent border-2 border-dashed border-linea',
   }[tono]
-  return <div className={`flex flex-col gap-2 rounded-[1.35rem] p-4 ${t} ${className}`}>{children}</div>
+  return <div className={`flex flex-col gap-2 rounded-2xl p-4 ${t} ${className}`}>{children}</div>
+}
+
+/**
+ * La hoja del refrigerador: el único elemento con sombra y con un imán de miel.
+ * La ficha se ve igual en el inicio, en "Para imprimir" y en lo que abre el relevo.
+ */
+export function Hoja({ children, inclinada = false, className = '', etiqueta }: { children: ReactNode; inclinada?: boolean; className?: string; etiqueta?: string }) {
+  return (
+    <div className={`relative pt-2.5 ${inclinada ? '-rotate-[0.7deg]' : ''} ${className}`} role={etiqueta ? 'group' : undefined} aria-label={etiqueta}>
+      <span
+        aria-hidden
+        className="absolute top-0 left-1/2 z-10 size-6 -translate-x-1/2 rounded-full bg-miel shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_3px_5px_-1px_rgb(0_0_0/0.3)]"
+      />
+      <div className="rounded-[0.4rem] bg-hoja px-5 pt-6 pb-5 shadow-[0_1px_1px_rgb(0_0_0/0.07),0_16px_32px_-18px_rgb(19_37_42/0.55)] ring-1 ring-linea/60">
+        {children}
+      </div>
+    </div>
+  )
 }
 
 const ESTILO_NIVEL: Record<Nivel, string> = {
@@ -257,7 +275,7 @@ export function Sello({ children, tono = 'pino' }: { children: ReactNode; tono?:
     suave: 'bg-rocio text-pino',
     pronto: 'bg-pronto-fondo text-pronto',
   }[tono]
-  return <div className={`mx-auto grid size-18 place-items-center rounded-[1.6rem] ${t}`}>{children}</div>
+  return <div className={`grid size-16 shrink-0 place-items-center rounded-2xl ${t}`}>{children}</div>
 }
 
 export function Logo({ className = 'size-10', claro = false }: { className?: string; claro?: boolean }) {

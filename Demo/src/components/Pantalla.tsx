@@ -14,6 +14,7 @@ export function Pantalla({
   pie,
   sinVolver = false,
   encabezado,
+  encabezadoFijo = true,
   cuerpoClase = '',
 }: {
   titulo: string
@@ -21,6 +22,8 @@ export function Pantalla({
   pie?: ReactNode
   sinVolver?: boolean
   encabezado?: ReactNode
+  /** false: el encabezado se va con el desplazamiento (útil con el texto al 200%). */
+  encabezadoFijo?: boolean
   cuerpoClase?: string
 }) {
   const { s, haz } = useDemo()
@@ -39,7 +42,7 @@ export function Pantalla({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {encabezado ?? (
+      {encabezadoFijo && (encabezado ?? (
         <header className="flex min-h-15 shrink-0 items-center gap-1 border-b border-linea bg-hoja/90 px-2 backdrop-blur">
           {puedeVolver ? (
             <button
@@ -53,18 +56,19 @@ export function Pantalla({
           ) : (
             <span className="w-3" />
           )}
-          <h1 ref={h1} tabIndex={-1} className="min-w-0 py-2 font-display text-[1.2rem] font-bold leading-tight tracking-[-0.01em] outline-none">
+          <h1 ref={h1} tabIndex={-1} className="min-w-0 py-2 text-[1.15rem] font-bold leading-tight outline-none">
             {titulo}
           </h1>
         </header>
-      )}
+      ))}
       {encabezado && (
         <h1 ref={h1} tabIndex={-1} className="sr-only">
           {titulo}
         </h1>
       )}
-      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5 pb-6 ${cuerpoClase}`}>
-        <div className="flex flex-col gap-4">{children}</div>
+      <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${cuerpoClase}`}>
+        {!encabezadoFijo && encabezado}
+        <div className="flex flex-col gap-4 px-5 pt-5 pb-6">{children}</div>
       </div>
       {pie && <div className="flex shrink-0 flex-col gap-2.5 border-t border-linea bg-hoja px-5 pt-3 pb-4">{pie}</div>}
       <BarraPestanas />
@@ -90,8 +94,8 @@ function BarraPestanas() {
     return e === 'entregado' ? 'entregado' : 'seguimiento'
   }
   return (
-    <nav aria-label="Secciones" className="shrink-0 border-t border-linea bg-hoja px-2 pt-1 pb-2">
-      <ul className="flex">
+    <nav aria-label="Secciones" className="@container shrink-0 border-t border-linea bg-hoja px-2 pt-1 pb-2">
+      <ul className="grid grid-cols-4">
         {PESTANAS.map(({ id, texto, Icono, raices }) => {
           const on = raices.includes(actual)
           return (
@@ -107,7 +111,8 @@ function BarraPestanas() {
                 <span className={`grid h-8 w-14 max-w-full place-items-center rounded-full transition-colors ${on ? 'bg-rocio' : ''}`}>
                   <Icono aria-hidden className="size-5.5" strokeWidth={on ? 2.4 : 2} />
                 </span>
-                <span className="max-w-full truncate">{texto}</span>
+                {/* En una barra muy angosta (texto al 200%) queda solo el ícono; el nombre sigue para lectores de pantalla. */}
+                <span className="max-w-full break-words @max-[20rem]:sr-only">{texto}</span>
               </button>
             </li>
           )

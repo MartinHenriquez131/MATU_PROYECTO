@@ -1,5 +1,6 @@
 // Panel del presentador: capas y escenas, rol, estado del backend y reinicio.
 // No es parte de MATU: es la guía para mostrarla.
+import { useEffect, useRef } from 'react'
 import { RotateCcw, Server, ServerOff, Store, UserRound, UsersRound } from 'lucide-react'
 import { useDemo } from '../demo/estado'
 import { CAPAS, ESCENAS, ESCENAS_REALES, escenaActual, prepararEscena } from '../demo/escenas'
@@ -29,13 +30,13 @@ function EstadoBackend() {
             ? 'Pasaste a simulado después de una falla de red.'
             : 'GET /v1/salud no respondió. Todo corre en el navegador.'
   return (
-    <div className={`flex gap-3 rounded-2xl p-3.5 ${conectado ? 'bg-ok-fondo' : 'bg-tinta/[0.06]'}`}>
+    <div className={`flex shrink-0 gap-3 rounded-2xl p-3 ${conectado ? 'bg-ok-fondo' : 'bg-tinta/[0.06]'}`}>
       {conectado ? <Server aria-hidden className="mt-0.5 size-5 shrink-0 text-ok" /> : <ServerOff aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />}
       <div className="min-w-0 flex-1">
         <p className={`font-bold ${conectado ? 'text-ok' : ''}`} role="status">
           {texto}
         </p>
-        <p className="text-[0.9rem] text-tenue">{detalle}</p>
+        <p className="text-[0.85rem] leading-snug text-tenue">{detalle}</p>
         {b.modo === 'simulado' && b.motivo !== 'archivo-unico' && (
           <button type="button" onClick={() => void b.reintentarReal()} className="mt-1 min-h-11 font-bold text-pino underline underline-offset-4">
             Buscar el backend de nuevo
@@ -86,12 +87,17 @@ export function PanelPresentador({ alElegir }: { alElegir?: () => void }) {
   }
   const accesoRelevo = s.rol === 'relevo' ? accesoDelRelevo(s) : null
   const editando = s.rol === 'familia' && pantallaFamilia(s).id === 'completar' && s.borrador
+  const lista = useRef<HTMLElement>(null)
+  // La escena activa siempre queda a la vista en el panel.
+  useEffect(() => {
+    lista.current?.querySelector('[aria-current="step"]')?.scrollIntoView({ block: 'center' })
+  }, [actual])
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <EstadoBackend />
 
-      <fieldset>
+      <fieldset className="shrink-0">
         <legend className="mb-2 font-bold">Ver como</legend>
         <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-tinta/[0.06] p-1.5">
           {ROLES.map(({ rol, texto, quien, Icono }) => (
@@ -111,7 +117,7 @@ export function PanelPresentador({ alElegir }: { alElegir?: () => void }) {
       </fieldset>
 
       {escena && (
-        <section aria-label="Escena actual" className="rounded-2xl bg-hoja p-4 ring-1 ring-linea">
+        <section aria-label="Escena actual" className="shrink-0 rounded-2xl bg-hoja p-4 ring-1 ring-linea">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display text-[1.15rem] font-bold">{escena.titulo}</h2>
             <span className={`rounded-full px-2.5 py-0.5 text-[0.8rem] font-bold ${esReal(escena.id) ? 'bg-ok-fondo text-ok' : 'bg-tinta/[0.07] text-tenue'}`}>
@@ -126,7 +132,7 @@ export function PanelPresentador({ alElegir }: { alElegir?: () => void }) {
           )}
           {accesoRelevo && s.relevo.fase === 'pin' && (
             <p className="mt-3 rounded-xl bg-rocio px-3 py-2 text-[0.95rem]">
-              PIN de este enlace: <b className="cifras tracking-[0.2em]">{accesoRelevo.pin}</b>
+              PIN de este enlace: <b className="digitos tracking-[0.2em]">{accesoRelevo.pin}</b>
             </p>
           )}
           {editando && (
@@ -141,7 +147,7 @@ export function PanelPresentador({ alElegir }: { alElegir?: () => void }) {
         </section>
       )}
 
-      <nav aria-label="Escenas de la demo" className="flex flex-col gap-4">
+      <nav ref={lista} aria-label="Escenas de la demo" className="sin-barra -mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 [mask-image:linear-gradient(to_bottom,transparent,#000_0.75rem,#000_calc(100%-1.5rem),transparent)] py-2">
         {CAPAS.map((c) => (
           <section key={c.capa}>
             <h2 className="flex items-baseline gap-2">
@@ -173,7 +179,7 @@ export function PanelPresentador({ alElegir }: { alElegir?: () => void }) {
         ))}
       </nav>
 
-      <div className="flex flex-col gap-2 border-t border-linea pt-4">
+      <div className="flex shrink-0 flex-col gap-2 border-t border-linea pt-3">
         <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 font-bold">
           Texto al 200%
           <input

@@ -52,7 +52,7 @@ import {
 } from '../demo/calculos'
 import type { CampoId } from '../demo/tipos'
 import { Pantalla } from '../components/Pantalla'
-import { BarraCampos, Boton, CampoTexto, Chip, Etiqueta, Fila, Logo, Nota, Sello, Stepper, Tarjeta } from '../components/Ui'
+import { BarraCampos, Boton, CampoTexto, Chip, Etiqueta, Fila, Hoja, Logo, Nota, Sello, Stepper, Tarjeta } from '../components/Ui'
 import { TextoCampo } from '../components/TextoFicha'
 import { useMovimientoReducido } from '../components/movimiento'
 
@@ -77,53 +77,55 @@ export function Inicio() {
         ? 'Con lo que ya escribiste, alguien podría reemplazarte unas horas.'
         : 'Lista. Quien te reemplace va a saber qué hacer.'
 
+  const nombre = s.cuenta?.nombre || ''
   return (
     <Pantalla
-      titulo={`Hola, ${s.cuenta?.nombre ?? 'Carmen'}`}
+      titulo={nombre ? `Hola, ${nombre}` : 'Hola'}
+      encabezadoFijo={false}
       encabezado={
-        <header className="relative shrink-0 overflow-hidden bg-pino px-5 pt-5 pb-6 text-papel">
-          <svg aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-64 opacity-[0.12]" viewBox="0 0 200 200">
-            {[40, 62, 84].map((r) => (
-              <circle key={r} cx="100" cy="100" r={r} fill="none" stroke="currentColor" strokeWidth="9" />
-            ))}
-          </svg>
-          <div className="relative flex items-center gap-3">
-            <Logo claro className="size-11 shrink-0" />
-            <div className="min-w-0">
-              <p className="font-display text-[1.45rem] leading-tight font-bold tracking-[-0.02em]">Hola, {s.cuenta?.nombre ?? 'Carmen'}</p>
-              <p className="text-[0.95rem] opacity-90">
-                Cuidado de {pila} · <span className="capitalize">{diaDeHoy(s.ahora)}</span>
-              </p>
-            </div>
+        <header className="shrink-0 bg-hoja px-5 pt-5 pb-4">
+          <div className="min-w-0">
+            <p className="font-display text-[2rem] leading-[1.05] font-extrabold tracking-[-0.03em]">{nombre ? `Hola, ${nombre}` : 'Hola'}</p>
+            <p className="mt-1 text-tenue">
+              Cuidas a {pila}. Hoy es <span className="cifras">{diaDeHoy(s.ahora)}</span>.
+            </p>
           </div>
         </header>
       }
     >
-      <Tarjeta>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-[1.15rem] font-bold">Ficha de relevo</h2>
-          <Etiqueta tono={hechos === 3 ? 'ok' : 'pino'}>
-            <span className="cifras">{hechos} de 3</span>
-          </Etiqueta>
+      <Hoja inclinada etiqueta={`Ficha de ${pila}`}>
+        <h2 className="font-display text-[1.5rem] leading-tight font-extrabold tracking-[-0.02em]">Ficha de {pila}</h2>
+        <ul className="renglones mt-2 leading-[1.75rem]">
+          {CAMPOS.map((c) => {
+            const listo = !!s.ficha[c].texto.trim()
+            return (
+              <li key={c} className="flex items-center justify-between gap-2">
+                <span className={listo ? '' : 'text-tenue'}>{TEXTO_CAMPO[c].titulo}</span>
+                <span className={`text-[0.9rem] font-bold ${listo ? 'text-ok' : 'text-tenue'}`}>{listo ? 'Listo' : 'Falta'}</span>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="mt-3">
+          <BarraCampos hechos={hechos} />
         </div>
-        <BarraCampos hechos={hechos} />
-        <p className="text-tenue">{textoAvance}</p>
-        {hechos < 3 && (
-          <Boton onClick={() => haz((x) => abrirCampo(x, siguienteCampoVacio(x)!))}>Completar la ficha</Boton>
-        )}
+        <p className="mt-2 text-[0.95rem] text-tenue">{textoAvance}</p>
+      </Hoja>
+      <div className="flex flex-col gap-2.5">
+        {hechos < 3 && <Boton onClick={() => haz((x) => abrirCampo(x, siguienteCampoVacio(x)!))}>Completar la ficha</Boton>}
         <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={() => haz((x) => ir(x, 'compartir'))}>
           Compartir con un relevo
         </Boton>
-      </Tarjeta>
+      </div>
 
       {urgente ? (
         <Tarjeta tono={nivel(dUrg) === 'pronto' ? 'pronto' : nivel(dUrg) === 'atenta' ? 'atenta' : 'ok'}>
           <h2 className="flex items-center gap-2 font-bold">
             <TriangleAlert aria-hidden className="size-5 shrink-0" />
-            {nivel(dUrg) === 'tranquila' ? 'Los insumos están bien' : `Se acaba: ${urgente.nombre.toLowerCase()}`}
+            {nivel(dUrg) === 'tranquila' ? 'Los insumos alcanzan' : `Se acaban ${urgente.corto}`}
           </h2>
           <p>
-            Queda para <b className="cifras">{dUrg} días</b>, hasta el <span className="cifras">{fmtFecha(s.ahora + dUrg * DIA)}</span>. Te
+            Alcanzan para <b className="cifras">{dUrg} días</b>, hasta el <span className="cifras">{fmtFecha(s.ahora + dUrg * DIA)}</span>. Te
             avisamos antes para que no te pille.
           </p>
           <Boton onClick={() => haz((x) => ir(x, 'se-acaba'))}>Ver qué reponer</Boton>
@@ -231,7 +233,7 @@ export function Completar() {
         </Fila>
       }
     >
-      <p className="text-sm font-bold tracking-wide text-tenue uppercase">Campo {indice} de 3</p>
+      <p className="font-bold text-tenue">Campo {indice} de 3</p>
       <BarraCampos hechos={otros + (b.texto.trim() ? 1 : 0)} />
       <label htmlFor="campo-texto" className="font-display text-[1.6rem] leading-tight font-bold tracking-[-0.02em]">
         {t.titulo}
@@ -264,7 +266,7 @@ export function Completar() {
       >
         {dictando ? 'Escuchando…' : 'Dictar en vez de escribir'}
       </Boton>
-      <p className="text-center text-sm text-tenue">El dictado está simulado en la demo.</p>
+      <p className="text-sm text-tenue">El dictado está simulado en la demo.</p>
     </Pantalla>
   )
 }
@@ -294,7 +296,7 @@ export function Guardado() {
         )
       }
     >
-      <div className="flex flex-col items-center gap-3 pt-6 text-center">
+      <div className="flex flex-col items-start gap-3 pt-4">
         <Sello>
           <svg viewBox="0 0 24 24" className="size-10" aria-hidden>
             <path
@@ -311,7 +313,7 @@ export function Guardado() {
           </svg>
         </Sello>
         <p className="font-display text-[1.7rem] font-bold">Guardado</p>
-        <p className="max-w-[18rem] text-tenue">
+        <p className="text-tenue">
           {hechos === 3 ? 'La ficha está completa.' : `Vas en ${hechos} de 3.`} Puedes seguir cuando quieras, no se pierde nada.
         </p>
         <div className="w-full max-w-[14rem]">
@@ -462,7 +464,7 @@ export function EnlacePin() {
   const ultimo = a ?? s.accesos[0]
   if (!a || !ultimo) {
     return (
-      <Pantalla titulo="Enlace listo" pie={<Boton onClick={() => haz((x) => reemplazar(x, 'compartir'))}>Crear un enlace nuevo</Boton>}>
+      <Pantalla titulo="Enlace creado" pie={<Boton onClick={() => haz((x) => reemplazar(x, 'compartir'))}>Crear un enlace nuevo</Boton>}>
         <Nota titulo="El PIN ya no se puede ver">Por seguridad se muestra una sola vez. Si se perdió, crea un enlace nuevo y corta el anterior.</Nota>
       </Pantalla>
     )
@@ -470,14 +472,14 @@ export function EnlacePin() {
   const url = `matu.cl/r#${a.token.slice(0, 14)}…`
   return (
     <Pantalla
-      titulo="Enlace listo"
+      titulo="Enlace creado"
       pie={
         <>
           <Boton
             icono={<Send aria-hidden className="size-5" />}
-            onClick={() => haz((x) => avisar(x, `Se abriría WhatsApp con el enlace para ${a.nombre}, sin el PIN. (Simulado)`))}
+            onClick={() => haz((x) => avisar(x, `En la app se abre WhatsApp con el enlace para ${a.nombre}, sin el PIN. En la demo, no se envía nada.`))}
           >
-            Enviar enlace por WhatsApp
+            Enviar el enlace por WhatsApp
           </Boton>
           <Boton variante="secundario" icono={<Smartphone aria-hidden className="size-5" />} onClick={() => haz((x) => abrirRelevo(x, a.id))}>
             Abrir como {a.nombre}
@@ -485,49 +487,45 @@ export function EnlacePin() {
         </>
       }
     >
-      <div className="flex flex-col items-center gap-2 pt-2 text-center">
-        <div className="relative">
-          <span aria-hidden className="absolute inset-0 rounded-[1.6rem] bg-pino animate-onda" />
-          <span aria-hidden className="absolute inset-0 rounded-[1.6rem] bg-pino animate-onda [animation-delay:350ms]" />
-          <Sello>
-            <svg viewBox="0 0 24 24" className="size-9" aria-hidden fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" pathLength={1} strokeDasharray="1" className="animate-trazo" />
-              <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" pathLength={1} strokeDasharray="1" className="animate-trazo [animation-delay:250ms]" />
-            </svg>
-          </Sello>
+      {/* El único momento orquestado de la demo: el enlace se traza y el PIN cae dígito a dígito. */}
+      <div className="flex items-center gap-4">
+        <Sello>
+          <svg viewBox="0 0 24 24" className="size-9" aria-hidden fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" pathLength={1} strokeDasharray="1" className="animate-trazo" />
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" pathLength={1} strokeDasharray="1" className="animate-trazo [animation-delay:250ms]" />
+          </svg>
+        </Sello>
+        <div className="min-w-0">
+          <p className="font-display text-[1.5rem] leading-tight font-extrabold tracking-[-0.02em]">Enlace creado para {a.nombre}</p>
+          <p className="text-tenue">
+            Vence el <span className="cifras">{fmtFecha(a.venceMin)}</span> a las <span className="cifras">{fmtHora(a.venceMin)}</span>.
+          </p>
         </div>
-        <p className="mt-2 font-display text-[1.6rem] leading-tight font-bold animate-subir [animation-delay:300ms]">Listo para {a.nombre}</p>
-        <p className="text-tenue animate-subir [animation-delay:380ms]">
-          Vence el <span className="cifras">{fmtFecha(a.venceMin)}</span> a las <span className="cifras">{fmtHora(a.venceMin)}</span>
-        </p>
       </div>
 
-      <div className="flex items-center gap-2 rounded-2xl bg-rocio px-4 py-3 animate-subir [animation-delay:450ms]">
+      <p className="flex items-center gap-2 border-b border-linea pb-3 text-[0.95rem] text-tenue">
         <Link2 aria-hidden className="size-5 shrink-0 text-pino" />
-        <span className="cifras min-w-0 truncate text-[0.95rem]">{url}</span>
-      </div>
+        <span className="min-w-0 truncate">{url}</span>
+      </p>
 
-      <section
-        aria-labelledby="pin-t"
-        className="relative overflow-hidden rounded-[1.5rem] bg-hoja px-4 pt-4 pb-5 text-center border-2 border-dashed border-pino/70 animate-subir [animation-delay:520ms]"
-      >
-        <h2 id="pin-t" className="flex items-center justify-center gap-2 font-bold text-tenue">
-          <KeyRound aria-hidden className="size-5" />
+      <section aria-labelledby="pin-t" className="rounded-2xl bg-rocio px-4 pt-4 pb-5">
+        <h2 id="pin-t" className="flex items-center gap-2 font-bold">
+          <KeyRound aria-hidden className="size-5 text-pino" />
           PIN para abrir la ficha
         </h2>
-        <p className="mt-3 flex justify-center gap-2.5" aria-label={`PIN: ${a.pin.split('').join(' ')}`}>
+        <p className="mt-3 flex justify-center gap-2" aria-label={`PIN: ${a.pin.split('').join(' ')}`}>
           {a.pin.split('').map((d, i) => (
             <span
               key={i}
               aria-hidden
-              className="cifras grid h-[4.6rem] w-[3.4rem] place-items-center rounded-2xl bg-rocio text-[2.6rem] font-bold text-pino shadow-[inset_0_-3px_0_var(--color-miel)] animate-digito"
-              style={{ animationDelay: `${700 + i * 140}ms` }}
+              className="digitos grid h-[4.8rem] w-[3.5rem] place-items-center rounded-xl bg-hoja text-[3rem] leading-none font-bold text-pino animate-digito"
+              style={{ animationDelay: `${600 + i * 160}ms` }}
             >
               {d}
             </span>
           ))}
         </p>
-        <p className="mt-4 text-[0.95rem]">
+        <p className="mt-4">
           <b>Díctaselo por teléfono.</b> No lo mandes junto con el enlace. Solo lo verás ahora.
         </p>
       </section>
@@ -591,7 +589,7 @@ export function Enlaces() {
             {vig ? (
               <>
                 <Boton variante="secundario" icono={<Unlink aria-hidden className="size-5" />} onClick={() => haz((x) => cortarAcceso(x, a.id))}>
-                  Cortar este enlace ahora
+                  Cortar el enlace
                 </Boton>
                 <Boton variante="texto" onClick={() => haz((x) => abrirRelevo(x, a.id))}>
                   Probar el enlace como {a.nombre}
@@ -614,35 +612,29 @@ export function Imprimir() {
   const { s } = useDemo()
   const pila = nombrePila(s)
   return (
-    <Pantalla titulo="Para imprimir" cuerpoClase="bg-tinta/[0.06]">
+    <Pantalla titulo="Para imprimir">
       <p className="text-[0.95rem] text-tenue">
         Así queda la hoja para el refrigerador. En la app se descarga lista para imprimir; en la demo se muestra aquí.
       </p>
-      <article
-        aria-label={`Hoja impresa de la ficha de ${pila}`}
-        className="relative rounded-md bg-hoja px-5 pt-6 pb-5 shadow-[0_1px_2px_rgb(0_0_0/0.08),0_12px_28px_-12px_rgb(0_0_0/0.3)] [clip-path:polygon(0_0,calc(100%-1.6rem)_0,100%_1.6rem,100%_100%,0_100%)]"
-      >
-        <span aria-hidden className="absolute top-0 right-0 size-[1.6rem] rounded-bl-md bg-tinta/10" />
-        <header className="flex items-center gap-3 border-b-2 border-tinta pb-3">
-          <Logo className="size-9 shrink-0" />
+      <Hoja etiqueta={`Hoja impresa de la ficha de ${pila}`}>
+        <header className="flex items-end justify-between gap-3 border-b-2 border-tinta pb-3">
           <div className="min-w-0">
-            <p className="text-sm font-bold tracking-[0.12em] text-tenue uppercase">Ficha de relevo</p>
-            <h2 className="font-display text-[1.7rem] leading-none font-extrabold">{pila}</h2>
+            <p className="text-tenue">Ficha de relevo de</p>
+            <h2 className="font-display text-[2.2rem] leading-none font-extrabold tracking-[-0.03em]">{pila}</h2>
           </div>
+          <Logo className="size-9 shrink-0" />
         </header>
-        <p className="mt-3 text-[0.95rem]">Para quien la cuide hoy. Gracias por estar.</p>
+        <p className="mt-3">Para quien la cuide hoy. Gracias por estar.</p>
         {CAMPOS.map((c) => (
           <section key={c} className="mt-4">
-            <h3 className="mb-1.5 font-display text-[1.1rem] font-bold text-pino">{TEXTO_CAMPO[c].titulo}</h3>
-            <div className="renglones leading-[1.75rem]">
-              <TextoCampo texto={s.ficha[c].texto} vacio={`Sin completar. Pregúntale a ${s.cuenta?.nombre ?? 'Carmen'}.`} />
-            </div>
+            <h3 className="mb-1 text-[1.1rem] font-bold text-pino">{TEXTO_CAMPO[c].titulo}</h3>
+            <TextoCampo renglones texto={s.ficha[c].texto} vacio={`Sin completar. Pregúntale a ${s.cuenta?.nombre || 'Carmen'}.`} />
           </section>
         ))}
-        <footer className="cifras mt-5 border-t border-dashed border-linea pt-2 text-sm text-tenue">
-          Impresa el {fmtFecha(s.ahora)}. Si algo cambia, vuelve a imprimirla.
+        <footer className="mt-5 border-t border-dashed border-linea pt-2 text-sm text-tenue">
+          Impresa el <span className="cifras">{fmtFecha(s.ahora)}</span>. Si algo cambia, vuelve a imprimirla.
         </footer>
-      </article>
+      </Hoja>
     </Pantalla>
   )
 }
@@ -662,7 +654,7 @@ export function Conflicto() {
       </Tarjeta>
       <Tarjeta>
         <p className="cifras text-sm font-bold text-tenue">
-          Lo de {c.suyo.autor} · {c.suyo.minuto !== null ? fmtHora(c.suyo.minuto) : ''}
+          Lo que guardó {c.suyo.autor} a las {c.suyo.minuto !== null ? fmtHora(c.suyo.minuto) : ''}
         </p>
         <p className="leading-relaxed">{c.suyo.texto}</p>
         <Boton variante="secundario" onClick={() => haz((x) => resolverConflicto(x, 'suyo'))}>
@@ -670,7 +662,7 @@ export function Conflicto() {
         </Boton>
       </Tarjeta>
       <Tarjeta>
-        <p className="text-sm font-bold text-tenue">Lo tuyo · ahora</p>
+        <p className="text-sm font-bold text-tenue">Lo que escribiste recién</p>
         <p className="leading-relaxed">{c.mio || <i className="text-tenue">Vacío</i>}</p>
         <Boton onClick={() => haz((x) => resolverConflicto(x, 'mio'))}>Dejar la mía</Boton>
       </Tarjeta>

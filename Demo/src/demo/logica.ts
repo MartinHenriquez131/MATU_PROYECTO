@@ -196,7 +196,7 @@ export function darPermiso(s: Estado, calidad: Calidad, referenciaDocumento: str
   }
   t = avanzar(t, 1)
   t = pilaFamilia(t, ['inicio'])
-  return avisar(t, `${nombrePila(t)} quedó registrada. Empecemos por su ficha.`)
+  return avisar(t, `Permiso registrado. ${nombrePila(t)} ya está en MATU.`)
 }
 
 /** Datos de una familia que ya usa MATU: para "Ya tengo cuenta" y para saltar escenas. */
@@ -318,7 +318,7 @@ export function resolverConflicto(s: Estado, dejar: 'suyo' | 'mio'): Estado {
     t = { ...t, ficha: { ...t.ficha, [c.campo]: { texto: c.mio.trim(), version: actual.version + 1, autor: 'Carmen', minuto: t.ahora } } }
   }
   t = reemplazar(avanzar(t, 1), 'guardado', c.campo)
-  return avisar(t, dejar === 'mio' ? 'Quedó tu versión. Lo de Rodrigo no se borró sin que lo vieras.' : 'Quedó la versión de Rodrigo.')
+  return avisar(t, dejar === 'mio' ? 'Dejaste tu versión.' : `Dejaste la versión de ${c.suyo.autor}.`)
 }
 
 // ---------- compartir ----------
@@ -359,7 +359,7 @@ export function cortarAcceso(s: Estado, id: string): Estado {
   if (!a) return s
   let t: Estado = { ...s, accesos: s.accesos.map((x) => (x.id === id ? { ...x, estado: 'revocado' as const } : x)) }
   t = registrar(t, `Cortaste el enlace de ${a.nombre}`)
-  return avisar(avanzar(t, 1), `Listo. El enlace de ${a.nombre} ya no abre.`)
+  return avisar(avanzar(t, 1), `Enlace cortado. Ya no abre para ${a.nombre}.`)
 }
 
 export function accesoPorDefecto(s: Estado): Estado {
@@ -440,7 +440,7 @@ export function declarar(s: Estado, id: string, porDia: number, quedan: number):
     insumos: s.insumos.map((i) => (i.id === id ? { ...i, porDia, quedan, declarado: true } : i)),
     ajustesLista: {},
   }
-  return avisar(avanzar(t, 1), 'Guardado. Recalculamos cuándo se acaba.')
+  return avisar(avanzar(t, 1), 'Consumo guardado. La fecha se recalculó.')
 }
 
 export function yaLoCompre(s: Estado, id: string, paquetes: number): Estado {
@@ -449,7 +449,7 @@ export function yaLoCompre(s: Estado, id: string, paquetes: number): Estado {
     insumos: s.insumos.map((i) => (i.id === id ? { ...i, quedan: i.quedan + paquetes * i.tamanoPaquete } : i)),
     ajustesLista: {},
   }
-  return avisar(avanzar(t, 1), 'Listo, sumamos lo que compraste.')
+  return avisar(avanzar(t, 1), 'Compra anotada. La fecha se recalculó.')
 }
 
 export function ajustarLista(s: Estado, id: string, paquetes: number): Estado {

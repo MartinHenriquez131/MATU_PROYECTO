@@ -52,12 +52,12 @@ export function SeAcaba() {
           </>
         }
       >
-        <div className="flex flex-col items-center gap-3 pt-8 text-center">
+        <div className="flex flex-col items-start gap-3 pt-6">
           <Sello tono="suave">
             <ListChecks aria-hidden className="size-9" />
           </Sello>
           <p className="font-display text-[1.5rem] leading-tight font-bold">Aún no sabemos qué usa {pila}</p>
-          <p className="max-w-[19rem] text-tenue">
+          <p className="text-tenue">
             Cuéntanos de un solo producto, el que más te preocupa. Con eso ya te podemos avisar antes de que se acabe.
           </p>
         </div>
@@ -98,7 +98,7 @@ export function SeAcaba() {
                       {i.nombre} <span className="font-normal text-tenue">{i.presentacion}</span>
                     </span>
                     <span className="text-[0.95rem]">
-                      Quedan <b className="cifras">{d} días</b> · hasta el <span className="cifras">{fechaFin(i, s.ahora)}</span>
+                      Quedan <b className="cifras">{d} días</b>, hasta el <span className="cifras">{fechaFin(i, s.ahora)}</span>
                     </span>
                   </span>
                   <EtiquetaNivel nivel={n} />
@@ -216,7 +216,7 @@ export function YaCompre() {
       titulo="Ya lo compré"
       pie={
         <Boton disabled={paquetes === 0} onClick={() => haz((x) => volver(yaLoCompre(x, i.id, paquetes)))}>
-          Guardar
+          Anotar la compra
         </Boton>
       }
     >
@@ -259,7 +259,7 @@ export function Reponer() {
               <Boton onClick={() => haz((x) => ir(x, 'seguimiento'))}>Ver el pedido en curso</Boton>
             ) : (
               <Boton icono={<ShoppingBag aria-hidden className="size-5" />} onClick={() => haz((x) => ir(armarPedido(x), 'pedido'))}>
-                Pedir a domicilio · <span className="cifras">{fmtDinero(total)}</span> aprox.
+                Pedir a domicilio por <span className="cifras">{fmtDinero(total)}</span> aprox.
               </Boton>
             )}
             <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={() => haz((x) => ir(x, 'exportar'))}>
@@ -315,7 +315,7 @@ export function textoLista(nombre: string, fecha: string, lineas: ReturnType<typ
   const filas = lineas
     .filter((l) => l.paquetes > 0)
     .map((l) => `- ${l.insumo.nombre} ${l.insumo.presentacion}: ${l.paquetes} ${l.paquetes === 1 ? 'paquete' : 'paquetes'}`)
-  return [`Lista de ${nombre} · ${fecha}`, ...filas].join('\n')
+  return [`Lista de ${nombre}, ${fecha}`, ...filas].join('\n')
 }
 
 export function Exportar() {
@@ -329,7 +329,7 @@ export function Exportar() {
       await navigator.clipboard.writeText(texto)
       haz((x) => avisar(x, 'Lista copiada. Pégala donde quieras.'))
     } catch {
-      haz((x) => avisar(x, 'No se pudo copiar en este navegador.'))
+      haz((x) => avisar(x, 'Este navegador no deja copiar. Usa Descargar.'))
     }
   }
   const compartir = async () => {
@@ -372,7 +372,7 @@ export function Exportar() {
         </>
       }
     >
-      <div className="flex flex-col items-center gap-2 pt-2 text-center">
+      <div className="flex flex-col items-start gap-2 pt-1">
         <Sello>
           <FileText aria-hidden className="size-9" />
         </Sello>

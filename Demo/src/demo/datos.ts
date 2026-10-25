@@ -92,6 +92,7 @@ export function insumosIniciales(): Insumo[] {
   return [
     {
       id: 'panal-m',
+      corto: 'los pañales',
       nombre: 'Pañal adulto talla M',
       presentacion: 'x30',
       unidad: 'pañales',
@@ -104,6 +105,7 @@ export function insumosIniciales(): Insumo[] {
     },
     {
       id: 'toallitas',
+      corto: 'las toallitas',
       nombre: 'Toallitas húmedas',
       presentacion: 'x80',
       unidad: 'toallitas',
@@ -116,6 +118,7 @@ export function insumosIniciales(): Insumo[] {
     },
     {
       id: 'suplemento',
+      corto: 'el suplemento',
       nombre: 'Suplemento vainilla',
       presentacion: 'x12',
       unidad: 'botellitas',
@@ -128,6 +131,7 @@ export function insumosIniciales(): Insumo[] {
     },
     {
       id: 'crema',
+      corto: 'la crema',
       nombre: 'Crema protectora',
       presentacion: '200 g',
       unidad: 'usos',
@@ -140,6 +144,7 @@ export function insumosIniciales(): Insumo[] {
     },
     {
       id: 'guantes',
+      corto: 'los guantes',
       nombre: 'Guantes desechables',
       presentacion: 'x100',
       unidad: 'guantes',
@@ -152,6 +157,7 @@ export function insumosIniciales(): Insumo[] {
     },
     {
       id: 'sabanillas',
+      corto: 'las sabanillas',
       nombre: 'Sabanillas desechables',
       presentacion: 'x10',
       unidad: 'sabanillas',

@@ -10,7 +10,7 @@ import { Logo } from './Ui'
 
 function Distintivo({ claro = false }: { claro?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.8rem] font-bold ${claro ? 'bg-tinta/[0.07] text-tenue' : 'bg-tinta/[0.07] text-tenue'}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.8rem] font-bold text-tenue ${claro ? '' : 'bg-tinta/[0.07]'}`}>
       <span aria-hidden className="size-1.5 rounded-full bg-miel" />
       Demo con datos simulados
     </span>
@@ -37,7 +37,7 @@ export function Escenario() {
           <Distintivo />
           <MarcoTelefono />
         </main>
-        <aside aria-label="Panel del presentador" className="flex h-[min(52rem,calc(100dvh-3rem))] w-[min(26rem,36vw)] flex-col">
+        <aside aria-label="Panel del presentador" className="flex h-[min(54rem,calc(100dvh-3rem))] w-[min(26rem,36vw)] flex-col">
           <header className="flex items-center gap-3 pb-4">
             <Logo className="size-10 shrink-0" />
             <div>
@@ -45,7 +45,7 @@ export function Escenario() {
               <p className="text-[0.9rem] text-tenue">Panel del presentador</p>
             </div>
           </header>
-          <div className="sin-barra min-h-0 flex-1 overflow-y-auto pr-1 pb-4">
+          <div className="min-h-0 flex-1">
             <PanelPresentador />
           </div>
         </aside>
@@ -84,7 +84,7 @@ export function Escenario() {
               <X aria-hidden className="size-6" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8">
+          <div className="min-h-0 flex-1 px-5 pb-5">
             <PanelPresentador alElegir={() => setAbierto(false)} />
           </div>
         </div>

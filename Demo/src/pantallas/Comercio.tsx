@@ -58,8 +58,8 @@ export function CPedidos() {
     : null
   return (
     <Pantalla
-      titulo={`${COMERCIO.nombre} · Hoy`}
-      encabezado={<EncabezadoComercio titulo={`${COMERCIO.nombre} · Hoy`} />}
+      titulo={`Pedidos de hoy en ${COMERCIO.nombre}`}
+      encabezado={<EncabezadoComercio titulo={`Pedidos de hoy en ${COMERCIO.nombre}`} />}
       pie={textoAccion && <Boton onClick={accion}>{textoAccion}</Boton>}
     >
       <ul className="flex flex-col gap-2.5">
@@ -67,23 +67,23 @@ export function CPedidos() {
           <li className="flex flex-wrap items-center justify-between gap-2 rounded-[1.2rem] border-l-[6px] border-pino bg-hoja p-4 ring-1 ring-linea">
             <span className="min-w-0">
               <span className="cifras block font-bold">
-                #{p.numero} · {p.lineas.reduce((n, l) => n + l.paquetes, 0)} productos
+                Pedido #{p.numero}, {p.lineas.reduce((n, l) => n + l.paquetes, 0)} productos
               </span>
-              <span className="text-[0.95rem] text-tenue">Para {s.persona?.nombrePila ?? 'María'} · retiro {COMERCIO.ventana}</span>
+              <span className="text-[0.95rem] text-tenue">Para {s.persona?.nombrePila ?? 'María'}, retiro {COMERCIO.ventana}</span>
             </span>
             <Etiqueta tono={ESTADO_COMERCIO[p.estado].tono}>{ESTADO_COMERCIO[p.estado].texto}</Etiqueta>
           </li>
         )}
         <li className="flex flex-wrap items-center justify-between gap-2 rounded-[1.2rem] bg-hoja p-4 ring-1 ring-linea">
           <span>
-            <span className="cifras block font-bold">#4822 · 3 productos</span>
+            <span className="cifras block font-bold">Pedido #4822, 3 productos</span>
             <span className="text-[0.95rem] text-tenue">Retiro entre 18:00 y 19:00</span>
           </span>
           <Etiqueta tono="atenta">Preparando</Etiqueta>
         </li>
         <li className="flex flex-wrap items-center justify-between gap-2 rounded-[1.2rem] bg-hoja p-4 ring-1 ring-linea">
           <span>
-            <span className="cifras block font-bold">#4819 · 4 productos</span>
+            <span className="cifras block font-bold">Pedido #4819, 4 productos</span>
             <span className="text-[0.95rem] text-tenue">Retirado 15:20</span>
           </span>
           <Etiqueta tono="ok">Listo</Etiqueta>
@@ -112,7 +112,7 @@ export function CPreparar() {
   const pendientes = p.lineas.some((l) => l.resolucion === 'sin_stock')
   return (
     <Pantalla
-      titulo={`Pedido #${p.numero} · para ${s.persona?.nombrePila ?? 'María'}`}
+      titulo={`Pedido #${p.numero} para ${s.persona?.nombrePila ?? 'María'}`}
       pie={
         <Boton disabled={pendientes} onClick={() => haz((x) => ir(x, 'c-monto'))}>
           {pendientes ? 'Resuelve lo que falta para seguir' : 'Ingresar el monto real'}
@@ -152,7 +152,7 @@ export function CPreparar() {
                   </Boton>
                   {p.aceptaEquivalente && eq && eq.precio <= topeEquivalente(l.precio) && (
                     <Boton onClick={() => haz((x) => resolverLinea(x, l.insumoId, 'reemplazado'))}>
-                      Reemplazar · <span className="cifras">{fmtDinero(eq.precio)}</span>
+                      Reemplazar por <span className="cifras">{fmtDinero(eq.precio)}</span>
                     </Boton>
                   )}
                 </div>
@@ -252,17 +252,17 @@ export function CCodigo() {
                 setCodigo(e.target.value.replace(/\D/g, '').slice(0, 4))
                 setError(null)
               }}
-              className={`cifras min-h-16 w-full rounded-2xl bg-hoja px-4 text-center text-[2rem] font-bold tracking-[0.4em] ring-2 ring-inset outline-none focus-visible:ring-pino ${error ? 'ring-pronto' : 'ring-linea'}`}
+              className={`digitos min-h-16 w-full rounded-2xl bg-hoja px-4 text-center text-[2rem] font-bold tracking-[0.4em] ring-2 ring-inset outline-none focus-visible:ring-pino ${error ? 'ring-pronto' : 'ring-linea'}`}
               error={error}
               ayuda="Es de un solo uso y vence en 90 minutos."
             />
           </form>
           <p className="rounded-2xl border-2 border-dashed border-tenue/40 px-4 py-3 text-[0.95rem] text-tenue">
-            En la demo, el código es <span className="cifras font-bold text-tinta">{p.codigoRetiro}</span>.
+            En la demo, el código es <span className="digitos font-bold text-tinta">{p.codigoRetiro}</span>.
           </p>
         </>
       ) : (
-        <Tarjeta tono="ok" className="items-center text-center">
+        <Tarjeta tono="ok" className="items-start">
           <CircleCheck aria-hidden className="size-12 text-ok" />
           <p className="font-display text-[1.3rem] font-bold">Código válido</p>
           <p>{p.estado === 'entregado' ? 'El pedido ya se entregó.' : 'Entrega el pedido y márcalo cuando llegue a la casa.'}</p>

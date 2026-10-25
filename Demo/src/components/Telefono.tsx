@@ -49,7 +49,7 @@ export function App() {
 export function MarcoTelefono() {
   const { s } = useDemo()
   return (
-    <div className="relative h-[min(52rem,calc(100dvh-5rem))] w-[24.4rem] shrink-0 rounded-[3.4rem] bg-[#0a1113] p-[0.7rem] shadow-[0_2px_0_1px_rgb(255_255_255/0.06)_inset,0_40px_80px_-30px_rgb(0_0_0/0.55),0_0_0_1px_rgb(0_0_0/0.4)]">
+    <div className="relative h-[min(52rem,calc(100dvh-6.5rem))] w-[24.4rem] shrink-0 rounded-[3.4rem] bg-[#0a1113] p-[0.7rem] shadow-[0_2px_0_1px_rgb(255_255_255/0.06)_inset,0_40px_80px_-30px_rgb(0_0_0/0.55),0_0_0_1px_rgb(0_0_0/0.4)]">
       <div className="relative flex h-full flex-col overflow-hidden rounded-[2.75rem] bg-papel">
         <div className="relative z-20 flex h-12 shrink-0 items-center justify-between bg-hoja px-7 text-[0.85rem] font-bold" aria-hidden>
           <span className="cifras">{fmtHora(s.ahora)}</span>

@@ -9,7 +9,7 @@
 @import '@fontsource-variable/bricolage-grotesque/wght.css';
 
 /*
- * Identidad de MATU · "Patio".
+ * Identidad de MATU: "Patio".
  * Seis tokens de marca y tres pares semánticos, en un solo lugar.
  *   papel  fondo general, verde neblina (no crema)
  *   hoja   superficie de tarjetas y hojas
@@ -131,10 +131,14 @@
 }
 
 @layer utilities {
+  /* Cifras de dinero, fechas y horas: alineadas, en la cara del texto. */
   .cifras {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. */
+  .digitos {
     font-family: var(--font-cifras);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
   }
   .sin-barra {
     scrollbar-width: none;
