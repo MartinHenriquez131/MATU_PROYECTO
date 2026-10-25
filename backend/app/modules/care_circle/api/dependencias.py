@@ -5,7 +5,7 @@ sesion_de_grupo es la puerta de toda ruta que trabaja sobre un grupo familiar:
 1. usuario_actual (iam) valida el access token. Sin token válido, 401.
 2. Lee el grupo de la cabecera X-Grupo-Id.
 3. Abre sesion_tenant con app.usuario_id primero y app.grupo_id después.
-4. Verifica, dentro de ese contexto, que el usuario es miembro activo del grupo.
+4. Verifica, dentro de ese contexto, que el usuario es miembro activo del grupo, y lee su rol en él.
 
 Si falta la cabecera, no es un UUID, el grupo no existe o el usuario no es miembro activo, la
 respuesta es el mismo 404, nunca 403: no revela si el grupo existe.
@@ -27,17 +27,22 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
-from app.modules.care_circle.infrastructure.membresia import es_miembro_activo
+from app.modules.care_circle.infrastructure.membresia import rol_activo
 from app.modules.iam.api.dependencias import UsuarioActual, usuario_actual
 
 
 @dataclass(frozen=True)
 class ContextoGrupo:
-    """El usuario, el grupo verificado y la sesión con su contexto ya fijado."""
+    """El usuario, el grupo verificado, su rol en él y la sesión con su contexto ya fijado.
+
+    rol es el de su membresía activa (admin, cuidador, pagador u observador). Cada ruta decide con él
+    qué puede hacer y qué ve (arquitectura 11.2), y responde 404 cuando el rol no alcanza.
+    """
 
     usuario_id: uuid.UUID
     grupo_id: uuid.UUID
     sesion: Session
+    rol: str
 
 
 def _grupo_de_cabecera(valor: str | None) -> uuid.UUID:
@@ -62,12 +67,13 @@ def sesion_de_grupo(
     """
     grupo_id = _grupo_de_cabecera(x_grupo_id)
     with sesion_tenant(fabrica, usuario_id=usuario.id, grupo_id=grupo_id) as sesion:
-        if not es_miembro_activo(sesion, usuario.id, grupo_id):
+        rol = rol_activo(sesion, usuario.id, grupo_id)
+        if rol is None:
             # El mismo 404 por omisión que un grupo inexistente o una ruta que no existe
             raise ErrorMATU(404)
         # El log de la petición registra el grupo ya verificado
         request.state.grupo_id = str(grupo_id)
-        yield ContextoGrupo(usuario_id=usuario.id, grupo_id=grupo_id, sesion=sesion)
+        yield ContextoGrupo(usuario_id=usuario.id, grupo_id=grupo_id, sesion=sesion, rol=rol)
 
 
 # scope="function": la transacción se cierra (commit o rollback) antes de enviar la respuesta,

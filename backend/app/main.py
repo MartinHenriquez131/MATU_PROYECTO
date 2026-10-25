@@ -16,6 +16,7 @@ from app.core.config import obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
 from app.modules.care_circle.api.router import router as router_grupos
+from app.modules.care_circle.api.router_personas import router as router_personas
 from app.modules.iam.api.router import router as router_iam
 
 router_salud = APIRouter(tags=["salud"])
@@ -45,6 +46,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_salud, prefix="/v1")
     app.include_router(router_iam, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")
+    app.include_router(router_personas, prefix="/v1")
 
     return app
 
