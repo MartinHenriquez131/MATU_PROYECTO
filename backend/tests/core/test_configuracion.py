@@ -3,6 +3,8 @@
 Criterio 3: su versión se publica en la configuración como POLITICA_VERSION, en formato
 MAYOR.MENOR. Esta historia no tiene RF: su traza es la Ley 21.719.
 
+MATU-07 (RF-01) la hace obligatoria fuera del ambiente de pruebas: sin ella la API no arranca.
+
 Las pruebas leen solo del entorno que fijan, nunca del .env del equipo.
 """
 
@@ -10,7 +12,9 @@ import pytest
 from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 
-from app.core.config import Configuracion
+from app.core import config
+from app.core.config import POLITICA_VERSION_FABRICA, Configuracion
+from app.main import crear_app
 
 
 class ConfiguracionSinArchivo(Configuracion):
@@ -34,11 +38,52 @@ def test_politica_version_acepta_varios_digitos(monkeypatch: pytest.MonkeyPatch)
     assert cargar().politica_version == "10.12"
 
 
-def test_sin_politica_version_la_configuracion_carga_igual(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Exigirla fuera del ambiente de pruebas es un criterio de MATU-07, no de esta historia
+# --- MATU-07 · POLITICA_VERSION obligatoria fuera del ambiente de pruebas ---------------------------
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("entorno", ["local", "produccion"])
+def test_sin_politica_version_fuera_de_pruebas_no_carga(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
     monkeypatch.delenv("POLITICA_VERSION", raising=False)
 
-    assert cargar().politica_version is None
+    with pytest.raises(ValidationError) as error:
+        cargar()
+
+    assert "Falta POLITICA_VERSION" in str(error.value)
+
+
+@pytest.mark.rf("RF-01")
+def test_sin_politica_version_en_pruebas_usa_la_version_de_fabrica(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "pruebas")
+    monkeypatch.delenv("POLITICA_VERSION", raising=False)
+
+    assert cargar().politica_version == POLITICA_VERSION_FABRICA == "0.0"
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "produccion"])
+def test_politica_version_definida_manda_en_todo_entorno(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.9")
+
+    assert cargar().politica_version == "0.9"
+
+
+@pytest.mark.rf("RF-01")
+def test_sin_politica_version_la_api_no_arranca(monkeypatch: pytest.MonkeyPatch) -> None:
+    # app.main crea la app al importarse con obtener_configuracion(): si la configuración no carga,
+    # uvicorn no levanta. Se prueba con la configuración real, sin el .env del equipo.
+    monkeypatch.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.delenv("POLITICA_VERSION", raising=False)
+    config.obtener_configuracion.cache_clear()
+    try:
+        with pytest.raises(ValidationError) as error:
+            crear_app()
+        assert "Falta POLITICA_VERSION" in str(error.value)
+    finally:
+        config.obtener_configuracion.cache_clear()
 
 
 @pytest.mark.parametrize(

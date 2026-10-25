@@ -1,11 +1,20 @@
-"""Fixtures globales: los dobles de los puertos (estrategia de pruebas, sección 3)."""
+"""Fixtures globales: los dobles de los puertos (estrategia de pruebas, sección 3).
 
+pytest es el ambiente de pruebas: ENTORNO=pruebas se fija aquí, antes de que cualquier conftest o
+prueba cargue la configuración. Así, sin POLITICA_VERSION (por ejemplo en el pipeline), la
+configuración usa la versión de fábrica en vez de impedir que la API arranque (MATU-07). Las
+pruebas que verifican la exigencia fuera de pruebas fijan su propio ENTORNO.
+"""
+
+import os
 from datetime import UTC, datetime
 
 import pytest
 
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
+
+os.environ["ENTORNO"] = "pruebas"
 
 
 @pytest.fixture
