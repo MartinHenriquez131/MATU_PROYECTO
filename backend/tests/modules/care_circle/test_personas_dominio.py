@@ -220,7 +220,9 @@ def test_sha256_cambia_si_cambia_una_letra() -> None:
 
 
 # Huella publicada en la política de privacidad v0.9 (docs/legal/politica-privacidad.md del repositorio MATU)
-HUELLA_PUBLICADA_AVISO_CUIDADOR = "9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9"
+HUELLA_PUBLICADA_AVISO_CUIDADOR = (
+    "9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9"  # pragma: allowlist secret
+)
 
 
 @pytest.mark.rf("RF-01")
