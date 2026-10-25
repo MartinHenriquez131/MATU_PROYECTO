@@ -1,9 +1,10 @@
 # Spike · Prueba de concepto de Transbank (captura diferida)
 
-> **Estado al 13 de octubre de 2026: incompleta, se cierra en el sprint 1.**
-> - **Caso 4 (débito): respondido.** El comercio de captura diferida solo ofrece tarjetas de crédito.
-> - **Casos 1, 2, 3 y 5: pendientes.** Los dos intentos del 13 de octubre terminaron en `aborted` al confirmar el pago (`Transaction has an invalid finished state: aborted`). El pago no se completó en el navegador y la causa todavía no está identificada. Para diagnosticarlo está `poc_estado.py`.
-> - La tarjeta de Trello "S1 · S0-E · Cerrar la prueba de concepto de Transbank" está en el Sprint 1.
+> **Estado al 25 de octubre de 2026: completa.** Los cinco casos tienen su resultado real en el ambiente de integración (24/10, y el caso 2 repetido el 25/10 con capturas).
+> - **Casos 1, 2 y 3: cumplen.** La captura diferida cobra el monto real (de $69.000 autorizados se capturan $51.340) y revierte sin cobrar.
+> - **Caso 4 (débito):** el comercio de captura diferida solo ofrece crédito. Decisión del 24/10: MATU no limita las formas de pago, y el débito usa el plan B del ADR-006.
+> - **Caso 5: un solo cobro.** El segundo commit **no falla**: devuelve la transacción ya capturada. El módulo de pagos detecta el duplicado por su propio registro del token.
+> - Resultados, evidencia y capturas: [MATU · docs/pruebas-concepto/transbank.md](https://github.com/MartinHenriquez131/MATU/blob/main/docs/pruebas-concepto/transbank.md).
 
 Código de prueba del sprint 0. No forma parte del producto. Verifica el ADR-006 antes de construir el módulo de pagos: que Webpay Plus diferido permite **autorizar un monto, capturar por un monto menor y revertir**, que es lo que MATU necesita para cobrar el monto real de un pedido.
 
@@ -46,5 +47,7 @@ Cada caso usa una orden nueva. Después de pagar, el navegador vuelve a `localho
 | 5 · Retorno recibido dos veces | En el caso 1, ejecutar `poc_commit.py TOKEN` una segunda vez | El segundo commit falla y hay un solo cobro |
 
 Se guarda la salida de la consola de cada paso. Es la evidencia.
+
+**Para capturar el `token_ws` sin depender de la barra de direcciones:** basta un servidor local mínimo en `localhost:8000` que registre los parámetros del retorno, que llegan por GET. Así se hizo el 24/10, sin ningún anulado.
 
 **Si el commit responde `aborted`:** antes de reintentar, ejecutar `python poc_estado.py TOKEN` y guardar su salida. Muestra si Webpay registró el pago y en qué estado quedó, que es lo que falta para identificar la causa.
