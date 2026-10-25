@@ -219,6 +219,25 @@ def test_sha256_cambia_si_cambia_una_letra() -> None:
     assert alterado.sha256 != aviso.sha256
 
 
+# Huella publicada en la política de privacidad v0.9 (docs/legal/politica-privacidad.md del repositorio MATU)
+HUELLA_PUBLICADA_AVISO_CUIDADOR = "9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9"
+
+
+@pytest.mark.rf("RF-01")
+def test_aviso_vigente_coincide_con_la_huella_publicada_en_la_politica() -> None:
+    aviso = AVISO_CUIDADOR_DE_HECHO
+
+    assert (aviso.id, aviso.version, aviso.sha256) == (
+        "aviso_cuidador_de_hecho",
+        "1.0",
+        HUELLA_PUBLICADA_AVISO_CUIDADOR,
+    ), (
+        "El aviso del cuidador de hecho ya no coincide con la huella publicada en la política de privacidad. "
+        "Si cambió el texto, sube la versión del aviso y actualiza la huella en "
+        "docs/legal/politica-privacidad.md del repositorio MATU."
+    )
+
+
 # --- Roles -----------------------------------------------------------------------------------
 
 
