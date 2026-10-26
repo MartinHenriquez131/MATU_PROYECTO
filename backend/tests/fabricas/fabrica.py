@@ -4,7 +4,8 @@ Cada método de ``Fabrica`` crea una cosa, con valores por omisión razonables y
 por argumento, y devuelve un dataclass con los identificadores creados:
 
     fabrica = Fabrica()
-    familia = fabrica.familia()                       # admin, un miembro por rol, persona y ficha
+    familia = fabrica.familia()                       # admin, un miembro por rol y persona, sin ficha
+    con_ficha = fabrica.familia(con_ficha=True)       # lo mismo, con el plan de cuidado ya creado
     carmen = fabrica.usuario(nombre="Carmen Soto")
     grupo = fabrica.grupo(admin=carmen)
     rodrigo = fabrica.usuario(nombre="Rodrigo Soto")
@@ -356,6 +357,11 @@ class Fabrica:
     def ficha(self, persona: PersonaCreada, *, actualizado_por: uuid.UUID | None = None) -> FichaCreada:
         """El plan de cuidado de la persona en modo 'ficha_relevo', SIN secciones.
 
+        Es un paso aparte y no lo da familia() por omisión: plan_cuidado.persona_cuidada_id es
+        UNIQUE, así que la persona admite un solo plan. Las pruebas de MATU-12 (el plan nace en la
+        primera escritura) necesitan a la persona sin plan; las que parten de una ficha existente
+        la piden con ficha() o con familia(con_ficha=True).
+
         TODO(MATU-11): las tres secciones (rutina, manejo_situaciones, red_apoyo) van cifradas con
         AES-256-GCM y la clave de datos de la persona. Cuando MATU-11 entregue CifradorSecciones,
         esta fábrica recibe los textos y los escribe cifrados con él, más su fila de clave_datos.
@@ -376,10 +382,15 @@ class Fabrica:
         miembros: tuple[str, ...] = MIEMBROS_POR_OMISION,
         calidad: CalidadOtorgante | str = CalidadOtorgante.TITULAR,
         con_consentimiento: bool = True,
-        con_ficha: bool = True,
+        con_ficha: bool = False,
     ) -> FamiliaCreada:
         """Un grupo con su admin, un miembro por etiqueta, una persona cuidada con consentimiento
-        (otorgado por el admin) y, si ``con_ficha``, su ficha.
+        (otorgado por el admin) y, solo si ``con_ficha=True``, su ficha.
+
+        Sin ficha por omisión: plan_cuidado.persona_cuidada_id es UNIQUE y en MATU-12 el plan nace
+        en la primera escritura. Una familia con ficha ya creada haría fallar esas pruebas (409 o
+        violación de UNIQUE) u ocultaría el camino de creación. La prueba que necesita la ficha la
+        pide explícitamente.
 
         Etiquetas: los cuatro roles y "pagador_con_plan" (pagador con puede_ver_plan).
         """

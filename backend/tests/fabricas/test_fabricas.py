@@ -246,14 +246,28 @@ def test_familia_tiene_un_miembro_por_rol(fabrica: Fabrica) -> None:
         [("admin", False), ("cuidador", False), ("pagador", True), ("pagador", False), ("observador", False)]
     )
     assert familia.miembros["pagador_con_plan"].membresia.puede_ver_plan is True
+
+
+def test_familia_nace_sin_ficha_por_omision(fabrica: Fabrica) -> None:
+    # MATU-12: el plan nace en la primera escritura y persona_cuidada_id es UNIQUE en plan_cuidado
+    familia = fabrica.familia()
+
+    assert familia.ficha is None
+    assert _contar("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == 0
+
+
+def test_familia_con_ficha_crea_el_plan(fabrica: Fabrica) -> None:
+    familia = fabrica.familia(con_ficha=True)
+
     assert familia.ficha is not None
+    assert _contar("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == 1
 
 
 # --- Aislamiento ------------------------------------------------------------------------------------
 
 
 def test_rls_un_usuario_de_la_familia_a_no_ve_a_la_persona_de_b(fabrica: Fabrica) -> None:
-    a, b = fabrica.familia(), fabrica.familia()
+    a, b = fabrica.familia(), fabrica.familia(con_ficha=True)
     carmen = a.miembros["cuidador"].usuario
 
     personas = _como_matu_app(carmen.id, a.grupo.id, "SELECT id FROM persona_cuidada")
@@ -293,7 +307,7 @@ def test_api_responde_404_a_la_familia_a_por_el_grupo_de_b(cliente_api: tuple[Te
 
 def test_limpiar_no_deja_filas_ni_lo_que_la_prueba_escribio_en_el_grupo() -> None:
     sembradora = Fabrica()
-    familia = sembradora.familia(calidad="cuidador_de_hecho")
+    familia = sembradora.familia(calidad="cuidador_de_hecho", con_ficha=True)
     otra = sembradora.grupo(admin=familia.miembros["cuidador"].usuario)
     sembradora.membresia(otra, familia.miembros["observador"].usuario, "observador")
     # Lo que escribiría MATU-11 por la API y la fábrica no anotó
