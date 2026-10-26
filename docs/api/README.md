@@ -46,9 +46,9 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
 | `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match` | Existe (por defecto del 428) |
 | `/errores/pin-incorrecto` | 401 | PIN incorrecto, del 1.º al 4.º intento, con `intentos_restantes` | **Nuevo** (MATU-19) |
-| `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie o con la sesión vencida en Redis | **Nuevo** (MATU-19) |
-| `/errores/relevo-vencido` | 410 | El acceso venció | **Nuevo** (MATU-19) |
-| `/errores/relevo-revocado` | 410 | El acceso se revocó | **Nuevo** (MATU-20) |
+| `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie, o con una cookie que no corresponde a una sesión en Redis (alterada o vencida por su TTL). Nunca por revocar | **Nuevo** (MATU-19) |
+| `/errores/relevo-vencido` | 410 | El acceso venció (canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-19) |
+| `/errores/relevo-revocado` | 410 | El acceso se revocó (canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
 | `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso | **Nuevo** (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos | **Nuevo** (MATU-19) |
 | `/errores/demasiadas-peticiones` | 429 | Más de 10 canjes por hora desde una IP | Existe (por defecto del 429), lo usa MATU-25 |
@@ -68,9 +68,9 @@ Jorge revisa y aprueba cada parte (MATU-09). Mientras no lo haga, todo esto es p
 9. **El canje responde 204, no 200.** La sesión va en la cookie y la ficha se lee siempre con `GET /v1/relevo/ficha`, que es lo que se audita como apertura (`relevo.abrir`) y suma `usos`. Un solo camino de lectura.
 10. **PIN incorrecto: 401, no 422.** El PIN es una credencial: está bien formado y no coincide, como la contraseña en `POST /v1/sesiones` (401 `credenciales-invalidas`). Así 422 queda para "el PIN no son 4 dígitos", que no cuenta como intento, y la página distingue los dos casos. El cuerpo solo trae `intentos_restantes`. Igual que `/v1/sesiones`, el 401 del canje no lleva `WWW-Authenticate`: no hay un esquema HTTP estándar para un PIN, y se acepta esa desviación de RFC 9110.
 11. **El 5.º PIN incorrecto responde 423** (no 401 con 0 intentos), y un acceso bloqueado responde 423 aunque después llegue el PIN correcto. Un PIN correcto antes del bloqueo vuelve el contador a 0: solo puede hacerlo quien sabe el PIN.
-12. **Tres 410 distintos** (`vencido`, `revocado`, `no-disponible`), porque MATU-23 pide un texto por estado. Un token desconocido o cortado es `no-disponible`, también cuando `indice_token` ya se purgó tras vencer. Ninguno cuenta como intento.
+12. **Tres 410 distintos** (`vencido`, `revocado`, `no-disponible`), porque MATU-23 pide un texto por estado. Un token desconocido o cortado es `no-disponible`, también cuando `indice_token` ya se purgó tras vencer. Ninguno cuenta como intento. Ver la decisión 22: revocar no borra `indice_token`, así que un enlace revocado responde `revocado`, nunca `no-disponible`.
 13. **`GET /v1/relevo/ficha` responde 423 si el acceso se bloqueó después del canje.** Que alguien pruebe 5 PIN con el enlace indica que el enlace se filtró: se corta también la sesión abierta. Requiere revisar `pin_intentos_fallidos` en la aplicación, porque la política `acceso_relevo_propio` mira solo `revocado_en` y `expira_en`.
-14. **La cookie se llama `__Secure-matu-relevo`** y dura lo que ocurra primero: 12 horas o el vencimiento del acceso. 12 horas cubren un turno de noche; después se vuelve a pedir el PIN. Las respuestas 410 y 423 de la ficha la borran.
+14. **La cookie se llama `__Secure-matu-relevo`** y dura lo que ocurra primero: 12 horas o el vencimiento del acceso. 12 horas cubren un turno de noche; después se vuelve a pedir el PIN. Las respuestas 410 y 423 de la ficha la borran. El 401 `sin-sesion-relevo` queda solo para "sin cookie" o cookie que no corresponde a una sesión viva (alterada o vencida por su TTL).
 15. **La vigencia se pide como `expira_en`** (opcional, 24 horas por defecto), no como duración: la pantalla ofrece "hasta el domingo" y "por N días", y los dos se traducen a una fecha. El servidor valida el máximo de 30 días con su reloj.
 16. **`nombre_relevo` y `telefono_relevo` son obligatorios** al crear, aunque MATU-18 no los nombra: `acceso_relevo.otorgado_a_nombre` y `otorgado_a_telefono` son `NOT NULL` en el esquema, la arquitectura 9.2 los pide en el cuerpo y la política de privacidad v0.9 informa que se guardan. El teléfono no sale en ninguna respuesta. **`motivo` es obligatorio**, por la misma razón (`NOT NULL`) y porque queda en la auditoría.
 17. **`campos`, no `secciones`.** La interfaz y el backlog hablan de campos, y la ficha solo admite tres (`rutina`, `manejo_situaciones`, `red_apoyo`), aunque `plan_seccion` acepte ocho tipos.
@@ -78,6 +78,23 @@ Jorge revisa y aprueba cada parte (MATU-09). Mientras no lo haga, todo esto es p
 19. **`/plan/aperturas` lista solo lo que hicieron los relevos** (apertura, PIN incorrecto y bloqueo), sin IP. Las lecturas de los miembros se auditan, pero mostrarlas es otra decisión (RF-08, pantalla del sprint 3). Si después se agregan, `tipo` gana valores nuevos, y para un cliente estricto eso es un cambio incompatible: conviene decidirlo antes de implementar.
 20. **El `mensaje` de los 422 es hoy el texto de Pydantic, en inglés** (`app/core/errores.py` copia `msg`). Los ejemplos lo muestran así. La interfaz se guía por `campo` y `tipo` y muestra el texto de `docs/lenguaje.md`.
 21. **No entran en este contrato:** `en_nombre_de` del llenado asistido (RF-42), `GET /plan/exportar` (RF-09), el envío del PIN por SMS (*Debería*) y cerrar la sesión del relevo desde la página.
+22. **Revocar no borra `indice_token` ni las sesiones de relevo** (corrección de QA, manda el backlog). MATU-20 exige que "la siguiente petición del relevo responde 410, aunque tenga una cookie válida". Si revocar borrara la sesión, esa petición respondería 401 `sin-sesion-relevo`, y si borrara `indice_token`, el canje respondería `relevo-no-disponible`: el 410 `relevo-revocado` nunca ocurriría. Por eso `DELETE /v1/accesos-relevo/{id}` solo fija `revocado_en`; la cookie y el token siguen identificando el acceso, y la API verifica su estado en **cada** petición del relevo (canje y `GET /v1/relevo/ficha`). Revocado → 410 `relevo-revocado`; vencido → 410 `relevo-vencido`. Las respuestas 410 y 423 descartan la sesión en ese momento.
+
+## Decisión abierta de MATU-19: distinguir revocado de vencido
+
+La decisión 22 exige que la API sepa, con solo el token o la sesión de relevo, si el acceso está **revocado** o **vencido**. Hoy no puede leerlo:
+
+- `indice_token` (`backend/db/01_esquema.sql`) guarda `expira_en`, pero **no** la revocación.
+- La política `acceso_relevo_propio` (`backend/db/02_rls.sql`) filtra `revocado_en IS NULL AND expira_en > now()`: con `app.rol = 'relevo'`, un acceso revocado y uno vencido devuelven **cero filas**, sin distinguirse.
+
+Al implementar MATU-19 se elige una de estas opciones. **No se decide en este contrato**; la deciden Jorge o Martín con el backend:
+
+| Opción | Qué cambia | A favor | En contra |
+|---|---|---|---|
+| (a) Columna `revocado_en timestamptz NULL` en `indice_token` | Migración de Alembic reversible. `DELETE /v1/accesos-relevo/{id}` la fija en la misma transacción que `acceso_relevo.revocado_en` | El canje y la sesión deciden con una sola lectura de `indice_token`, que no tiene RLS ni dato sensible | Duplica el estado en dos tablas; hay que mantenerlas coherentes |
+| (b) Lectura acotada con `app.rol = 'sistema'` de `acceso_relevo.revocado_en` y `expira_en` | Sin migración. Una función del repositorio que lee solo esas dos columnas por `id`, después de que la lectura como `relevo` devolvió cero filas | Una sola fuente de verdad | Abre un camino con rol `sistema` en una ruta pública: hay que acotarlo a esas columnas y probarlo en `test_aislamiento.py` |
+
+En los dos casos, `vencido` también se puede deducir de `indice_token.expira_en`; lo que falta es `revocado`.
 
 ## Contradicciones con la arquitectura v1.1, sección 9.2
 

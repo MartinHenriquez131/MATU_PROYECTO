@@ -206,9 +206,14 @@ paths:
       operationId: revocarAccesoRelevo
       summary: Revocar un acceso de relevo
       description: |
-        Revocación **inmediata**: fija `revocado_en`, borra la entrada de `indice_token` y
-        descarta las sesiones de relevo de ese acceso en Redis. La siguiente petición del relevo
-        responde 410 aunque tenga una cookie válida (MATU-20).
+        Revocación **inmediata**: fija `revocado_en` y nada más. **No** borra la entrada de
+        `indice_token` ni descarta las sesiones de relevo en Redis: el token y la cookie siguen
+        identificando el acceso, y lo que cambia es su estado, que la API verifica en **cada**
+        petición del relevo. Por eso la siguiente petición responde **410**
+        `/errores/relevo-revocado` aunque tenga una cookie válida (MATU-20), y un canje posterior
+        con el mismo enlace también responde 410 `relevo-revocado`, no `relevo-no-disponible`.
+        Cómo distingue la API "revocado" de "vencido" es una decisión abierta de MATU-19
+        (`docs/api/README.md`).
 
         Es idempotente: revocar un acceso ya revocado o vencido también responde 204. El registro
         no se borra: queda en la lista como `revocado`, para la auditoría.
@@ -241,9 +246,11 @@ paths:
 
         1. Límite por IP: 10 canjes por hora (MATU-25). Si se supera, **429**, sin tocar el acceso.
         2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
-        3. El token corresponde a un acceso. Si no, **410** `/errores/relevo-no-disponible`.
-        4. Revocado → **410** `/errores/relevo-revocado`. Vencido → **410** `/errores/relevo-vencido`.
-           No cuenta como intento.
+        3. El token corresponde a un acceso (`indice_token`). Si no, **410**
+           `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
+        4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
+           `/errores/relevo-vencido`. Revocar no borra `indice_token`, así que un enlace revocado
+           siempre llega a este paso. No cuenta como intento.
         5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
         6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
            responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
@@ -304,9 +311,18 @@ paths:
 
         Cada lectura correcta registra `relevo.abrir`, suma 1 a `usos` y fija `ultimo_uso_en`.
 
-        Si el acceso se revocó o venció, responde **410** aunque la cookie sea válida, y la borra.
-        Si el acceso se bloqueó después del canje (alguien probó 5 PIN con el mismo enlace),
-        responde **423** y también la borra.
+        La sesión de relevo en Redis identifica el acceso, no su estado: en **cada** petición la
+        API vuelve a leer el estado del acceso, en este orden:
+
+        1. Sin cookie, o cookie que no corresponde a una sesión en Redis (alterada, o vencida por
+           su propio `Max-Age`/TTL) → **401** `/errores/sin-sesion-relevo`.
+        2. Acceso revocado → **410** `/errores/relevo-revocado` (MATU-20), aunque la cookie sea
+           válida. Revocar no descarta la sesión: es esta verificación la que corta el acceso.
+        3. Acceso vencido → **410** `/errores/relevo-vencido`.
+        4. Acceso bloqueado después del canje (alguien probó 5 PIN con el mismo enlace) → **423**.
+        5. Si no, **200**.
+
+        Las respuestas 410 y 423 borran la cookie y descartan la sesión en Redis en ese momento.
       x-matu-historia: MATU-19, MATU-20, MATU-23
       x-matu-auditoria: relevo.abrir
       security:
@@ -964,9 +980,10 @@ components:
     RelevoNoDisponibleCanje:
       description: |
         El enlace ya no sirve. Tres `type`, para que la página muestre el texto de cada estado:
-        `/errores/relevo-vencido`, `/errores/relevo-revocado`, o `/errores/relevo-no-disponible`
-        cuando el token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de
-        `indice_token` después de vencer).
+        `/errores/relevo-vencido`, `/errores/relevo-revocado` (revocar no borra `indice_token`, así
+        que un enlace revocado siempre responde este), o `/errores/relevo-no-disponible` cuando el
+        token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
+        después de vencer).
       headers:
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
@@ -995,8 +1012,9 @@ components:
     RelevoNoDisponibleSesion:
       description: |
         El acceso de la sesión se revocó (`/errores/relevo-revocado`) o venció
-        (`/errores/relevo-vencido`), aunque la cookie siga siendo válida. La respuesta borra la
-        cookie.
+        (`/errores/relevo-vencido`). La cookie sigue siendo válida en forma y su sesión existe en
+        Redis: el 410 sale de verificar el estado del acceso en esta petición. La respuesta borra
+        la cookie y descarta la sesión.
       headers:
         Set-Cookie:
           $ref: '#/components/headers/BorrarCookieRelevo'
@@ -1085,7 +1103,10 @@ components:
             request_id: 9b2f4c1e-0000-4000-8000-0000000000ee
 
     SinSesionRelevo:
-      description: Falta la cookie de sesión de relevo, o la sesión ya no existe en Redis. La página vuelve a pedir el PIN.
+      description: |
+        Falta la cookie de sesión de relevo, o no corresponde a ninguna sesión en Redis (alterada,
+        o vencida por su propio TTL de 12 horas o el vencimiento del acceso). Revocar **no** lleva
+        aquí: un acceso revocado con cookie válida responde 410. La página vuelve a pedir el PIN.
       headers:
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
