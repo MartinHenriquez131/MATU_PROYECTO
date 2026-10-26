@@ -63,7 +63,7 @@ export class ErrorApi extends Error {
 const CAMPOS_HUMANOS: Record<string, string> = {
   nombre: 'Revisa el nombre.',
   email: 'Ese email no tiene la forma de un email. Revisa que tenga @ y un dominio.',
-  contrasena: 'La contraseña necesita al menos 10 caracteres.',
+  contrasena: 'La contraseña necesita al menos 10 caracteres.', // pragma: allowlist secret
   nombre_pila: 'Revisa cómo le dicen.',
   nivel_apoyo: 'Elige cuánto apoyo necesita.',
   calidad_otorgante: 'Elige en qué calidad das el permiso.',

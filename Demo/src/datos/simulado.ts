@@ -5,7 +5,7 @@ import type { CuentaCreadaRespuesta, GrupoRespuesta, PersonaCreada, PersonaLista
 import { AVISO_CUIDADOR } from '../demo/datos'
 
 /** Huella publicada del aviso v1.0 (política de privacidad v0.9, sección 5). */
-const HUELLA_AVISO = '9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9'
+const HUELLA_AVISO = '9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9' // pragma: allowlist secret
 
 /**
  * Cuenta sintética que ya usa MATU, para mostrar "Entrar" sin backend. Antes la escena
@@ -66,7 +66,7 @@ export function adaptadorSimulado(): ApiMatu {
     async crearCuenta(nombre, email, contrasena): Promise<CuentaCreadaRespuesta> {
       await espera()
       const e = email.trim().toLowerCase()
-      if (contrasena.length < 10) throw new ErrorApi('http', 'La contraseña necesita al menos 10 caracteres.', 422, { contrasena: 'Al menos 10 caracteres.' })
+      if (contrasena.length < 10) throw new ErrorApi('http', 'La contraseña necesita al menos 10 caracteres.', 422, { contrasena: 'Al menos 10 caracteres.' }) // pragma: allowlist secret
       if (cuentas.has(e)) throw new ErrorApi('http', 'Ese email ya tiene una cuenta. Entra con tu contraseña.', 409, { email: 'Ese email ya tiene una cuenta.' }, 'email-registrado')
       cuentas.set(e, { nombre, contrasena })
       return { id: id(), nombre, email: e }
