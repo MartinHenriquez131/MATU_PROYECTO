@@ -64,6 +64,8 @@ function useEsReal() {
 interface Ayuda {
   id: string
   texto: string
+  /** Rótulo corto para la franja bajo 90 rem, donde no cabe el largo. */
+  corto?: string
   dato?: string
   accion?: Cambio
 }
@@ -74,14 +76,15 @@ function ayudas(s: Estado): Ayuda[] {
   const pagado = !!p && etapa(p.estado) >= etapa('pagado')
   if (s.rol === 'relevo') {
     const a = accesoDelRelevo(s)
-    if (a && s.relevo.fase === 'pin') r.push({ id: 'pin', texto: `PIN que dictó ${s.cuenta?.nombre || 'Carmen'}`, dato: a.pin })
+    if (a && s.relevo.fase === 'pin') r.push({ id: 'pin', texto: `PIN que dictó ${s.cuenta?.nombre || 'Carmen'}`, corto: 'PIN', dato: a.pin })
     return r
   }
   if (s.rol === 'comercio') {
     const id = pantallaComercio(s).id
     if (!pagado) r.push({ id: 'pagar', texto: 'La familia paga el pedido', accion: (x) => pilaComercio(pedidoHasta(x, 'pagado'), ['c-pedidos']) })
-    if (id === 'c-codigo' && p?.estado === 'listo') r.push({ id: 'codigo', texto: 'Código que muestra quien retira', dato: p.codigoRetiro })
-    if (pagado && p) r.push({ id: 'familia', texto: 'Ver lo que ve la familia', accion: (x) => pilaFamilia(x, [x.pedido?.estado === 'entregado' ? 'entregado' : 'seguimiento']) })
+    if (id === 'c-codigo' && p?.estado === 'listo') r.push({ id: 'codigo', texto: 'Código que muestra quien retira', corto: 'Código', dato: p.codigoRetiro })
+    // Mientras se muestra el código de retiro, la vista de la familia no hace falta y no cabría.
+    if (pagado && p && !r.some((x) => x.id === 'codigo')) r.push({ id: 'familia', texto: 'Ver lo que ve la familia', accion: (x) => pilaFamilia(x, [x.pedido?.estado === 'entregado' ? 'entregado' : 'seguimiento']) })
     return r
   }
   const top = pantallaFamilia(s).id
@@ -126,7 +129,14 @@ function ListaAyudas({ compacta = false }: { compacta?: boolean }) {
             </button>
           ) : (
             <p className={`flex flex-wrap items-center gap-x-2 rounded-lg bg-rocio px-3 ${compacta ? 'min-h-10 text-sm' : 'min-h-11'}`}>
-              <span>{a.texto}</span>
+              {compacta && a.corto ? (
+                <>
+                  <span className="@min-[90rem]:hidden">{a.corto}</span>
+                  <span className="hidden @min-[90rem]:inline">{a.texto}</span>
+                </>
+              ) : (
+                <span>{a.texto}</span>
+              )}
               {a.dato && <b className="digitos text-lg tracking-widest text-pino">{a.dato}</b>}
             </p>
           )}
@@ -184,7 +194,7 @@ function SelectorRol({ compacto = false }: { compacto?: boolean }) {
               }`}
             >
               <input type="radio" name={compacto ? 'rol-franja' : 'rol-cajon'} className="sr-only" checked={on} onChange={() => cambiar(rol)} />
-              <Icono aria-hidden className="size-4.5 shrink-0" />
+              <Icono aria-hidden className={`size-4.5 shrink-0 ${compacto ? 'hidden @min-[90rem]:block' : ''}`} />
               <span className="whitespace-nowrap">
                 {texto}
                 {/* En la franja va solo el rol, para que quepa en una línea; en la guía, también quién es. */}
@@ -238,8 +248,10 @@ function DireccionRelevo() {
   const limpia = s.relevo.urlLimpia || !s.relevo.token
   return (
     <p className="text-sm text-tenue">
-      Dirección: <span className="cifras font-bold text-tinta">{limpia ? '/r' : `/r#${s.relevo.token!.slice(0, 8)}…`}</span>
-      {limpia && s.relevo.fase === 'ficha' ? ', el token ya se borró' : ''}
+      {/* Bajo 90 rem queda solo el valor: el rótulo y la aclaración no caben en una línea. */}
+      <span className="sr-only @min-[90rem]:not-sr-only">Dirección: </span>
+      <span className="cifras font-bold text-tinta">{limpia ? '/r' : `/r#${s.relevo.token!.slice(0, 6)}…`}</span>
+      {limpia && s.relevo.fase === 'ficha' && <span className="sr-only @min-[90rem]:not-sr-only">, el token ya se borró</span>}
     </p>
   )
 }
@@ -247,8 +259,8 @@ function DireccionRelevo() {
 export function Franja() {
   const { cajon, setCajon } = usePresentador()
   return (
-    <header aria-label="Controles de la demo" className="border-b border-linea bg-papel">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+    <header aria-label="Controles de la demo" className="@container border-b border-linea bg-papel">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 @min-[90rem]:gap-x-3">
         <Distintivo />
         <SelectorRol compacto />
         <NavEscena />
@@ -260,10 +272,12 @@ export function Franja() {
           onClick={() => setCajon((x) => !x)}
           aria-expanded={cajon}
           aria-controls="guia-presentador"
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 font-bold text-pino hover:bg-rocio"
+          aria-label="Abrir la guía"
+          className="inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 font-bold text-pino hover:bg-rocio"
         >
           <BookOpen aria-hidden className="size-5" />
-          Guía
+          {/* Bajo 90 rem la franja no cabe en una línea con el texto: quedan el ícono y la tecla. */}
+          <span className="hidden @min-[90rem]:inline">Guía</span>
           <kbd className="rounded-md bg-tinta/7 px-1.5 text-xs font-bold text-tenue">?</kbd>
         </button>
       </div>
