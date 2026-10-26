@@ -142,8 +142,13 @@ paths:
           lo que escribió otro, y no hay fusión automática (ADR-015).
         - `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.
         - Con las dos cabeceras a la vez responde **422**.
-        - `texto` vacío (o solo espacios) vacía el campo: queda con su `etag`, cuenta como
-          "Sin completar" y baja la completitud.
+        - `texto` vacío (o solo espacios) con `If-Match` vacía el campo: queda con su `etag`,
+          cuenta como "Sin completar" y baja la completitud.
+        - `texto` vacío (o solo espacios) con `If-None-Match: *` responde **422**
+          (`tipo: vacio_sin_crear`): no hay nada que crear. Se decide sin leer la base, solo con la
+          cabecera y el cuerpo, en el paso 6 del orden de evaluación; por eso responde 422 aunque
+          otra persona ya haya creado el campo. No crea el plan, no gasta una versión y no registra
+          `plan.editar`.
 
         La primera escritura de cualquier campo crea el plan con `modo = 'ficha_relevo'` y la
         clave de datos de la persona (MATU-11). Responde **201** si el campo se creó y **200** si se
@@ -637,7 +642,8 @@ components:
     ValidacionCampo:
       description: |
         Cuerpo inválido: `texto` falta, supera 500 caracteres o trae caracteres de control; hay un
-        campo extra; o llegaron `If-Match` e `If-None-Match` a la vez. `errores[]` nombra el campo y
+        campo extra; llegaron `If-Match` e `If-None-Match` a la vez; o `texto` vacío con
+        `If-None-Match: *` (`tipo: vacio_sin_crear`, un campo nunca escrito no se crea vacío). `errores[]` nombra el campo y
         nunca repite el valor. Hoy `mensaje` es el texto de Pydantic, en inglés: la interfaz se guía
         por `campo` y `tipo`, y muestra el texto de `docs/lenguaje.md`.
       headers:
