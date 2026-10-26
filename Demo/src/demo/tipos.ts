@@ -203,6 +203,8 @@ export interface Estado {
   pedido: Pedido | null
   relevo: SesionRelevo
   texto200: boolean
+  /** Escena elegida que no se deduce de la pantalla (la 35): vale mientras no se navegue. */
+  escenaFija: { id: string; n: number } | null
   aviso: Aviso | null
   seq: number
 }

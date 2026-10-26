@@ -10,6 +10,7 @@ import {
   conFamilia,
   cortarAcceso,
   estadoInicial,
+  pantallaFamilia,
   pedidoHasta,
   personaEjemplo,
   pilaComercio,
@@ -416,11 +417,15 @@ export function prepararEscena(s: Estado, id: string): Estado {
   // El 200% es un interruptor del presentador, no de la escena: se mantiene al cambiar de escena
   // hasta que se apaga. La escena 35 solo lo enciende al entrar.
   const t = e.preparar({ ...s, aviso: null, conflicto: id === 'conflicto' ? s.conflicto : null })
-  return { ...t, rol: e.rol }
+  // La 35 muestra Inicio agrandado: sin esta marca, la franja la mostraba como la 6.
+  const escenaFija = id === 'texto-200' ? { id, n: pantallaFamilia(t).n } : null
+  return { ...t, rol: e.rol, escenaFija }
 }
 
 /** Qué escena corresponde a lo que se ve ahora, para marcarla en el panel. */
 export function escenaActual(s: Estado): string | null {
+  const f = s.escenaFija
+  if (f && s.texto200 && s.rol === 'familia' && pantallaFamilia(s).n === f.n) return f.id
   if (s.rol === 'relevo') {
     if (s.relevo.fase === 'ficha') return 'relevo-ficha'
     if (s.relevo.fase === 'no_disponible') return 'no-disponible'

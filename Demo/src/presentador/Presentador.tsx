@@ -222,7 +222,7 @@ function NavEscena() {
         </span>
         <span className="font-bold">{escena?.titulo ?? 'Fuera del guion'}</span>
         {escena && <EtiquetaModo real={esReal(escena.id)} />}
-        {s.texto200 && <span className="rounded-full bg-rocio px-2 py-0.5 text-sm font-bold text-pino">Texto al 200%</span>}
+        {s.texto200 && escena?.id !== 'texto-200' && <span className="rounded-full bg-rocio px-2 py-0.5 text-sm font-bold text-pino">Texto al 200%</span>}
       </p>
       <button type="button" className={btn} onClick={siguiente} disabled={indice >= ESCENAS.length - 1} aria-label="Escena siguiente" title="Escena siguiente (] o Av Pág)">
         <ChevronRight aria-hidden className="size-5" />

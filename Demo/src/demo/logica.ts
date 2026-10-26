@@ -65,6 +65,7 @@ export function estadoInicial(rol: Rol = 'familia', tokenInicial: string | null 
     pedido: null,
     relevo: { token: tokenInicial, fase: tokenInicial ? 'no_disponible' : 'pin', pinErroneo: false, urlLimpia: false },
     texto200: false,
+    escenaFija: null,
     aviso: null,
     seq: 10,
   }
