@@ -90,7 +90,7 @@ paths:
                   telefono_relevo: +56 9 5555 0137
                   campos: [rutina, manejo_situaciones, red_apoyo]
                   expira_en: '2026-11-01T02:00:00Z'
-                  motivo: Salgo el sábado
+                  motivo: fin_de_semana_fuera
       responses:
         '201':
           description: |
@@ -166,7 +166,7 @@ paths:
                       - id: 2e8a6b40-0000-4000-8000-0000000000b1
                         nombre_relevo: Rosa
                         campos: [rutina, manejo_situaciones, red_apoyo]
-                        motivo: Salgo el sábado
+                        motivo: fin_de_semana_fuera
                         estado: vigente
                         creado_en: '2026-10-30T18:10:00Z'
                         expira_en: '2026-11-01T02:00:00Z'
@@ -179,7 +179,7 @@ paths:
                       - id: 2e8a6b40-0000-4000-8000-0000000000b0
                         nombre_relevo: Rosa
                         campos: [rutina]
-                        motivo: Turno de noche
+                        motivo: turno_de_noche
                         estado: revocado
                         creado_en: '2026-10-25T22:00:00Z'
                         expira_en: '2026-10-26T22:00:00Z'
@@ -576,6 +576,24 @@ components:
       type: string
       enum: [vigente, vencido, revocado, bloqueado]
 
+    MotivoAcceso:
+      type: string
+      enum: [salgo_unas_horas, fin_de_semana_fuera, turno_de_noche, otro]
+      description: |
+        Para qué se comparte. Es un **enumerado sin texto libre**: queda en `acceso_relevo.motivo` y
+        en la auditoría, que se conserva 3 años, y un texto libre podría terminar guardando un dato
+        de salud imposible de borrar. Los valores son los chips de la demo:
+
+        | Valor | Texto en la interfaz (`docs/lenguaje.md`) |
+        |---|---|
+        | `salgo_unas_horas` | Salgo unas horas |
+        | `fin_de_semana_fuera` | Fin de semana fuera |
+        | `turno_de_noche` | Turno de noche |
+        | `otro` | Otro motivo (sin campo para escribir) |
+
+        Un valor fuera de la lista responde 422. La columna es `text NOT NULL`, así que no requiere
+        migración; la restricción vive en la API (un `CHECK` sería una migración aparte).
+
     SolicitudAcceso:
       type: object
       additionalProperties: false
@@ -611,10 +629,7 @@ components:
             Hasta cuándo vale el enlace, con zona. Opcional: por defecto, 24 horas desde ahora.
             Máximo 30 días desde ahora.
         motivo:
-          allOf:
-            - $ref: '#/components/schemas/TextoUnaLinea'
-          maxLength: 120
-          description: Para qué se comparte, por ejemplo "Salgo el sábado". Queda en la auditoría.
+          $ref: '#/components/schemas/MotivoAcceso'
 
     AccesoCreado:
       type: object
@@ -662,7 +677,7 @@ components:
           items:
             $ref: '#/components/schemas/CampoFicha'
         motivo:
-          type: string
+          $ref: '#/components/schemas/MotivoAcceso'
         estado:
           $ref: '#/components/schemas/EstadoAcceso'
         creado_en:
@@ -902,7 +917,7 @@ components:
             type: /errores/sin-consentimiento
             title: Sin permiso
             status: 403
-            detail: Falta la autorización para guardar la ficha de esta persona
+            detail: Falta la autorización para usar la ficha de esta persona
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
 
@@ -936,7 +951,8 @@ components:
     ValidacionAcceso:
       description: |
         Cuerpo inválido: falta un campo, `campos` vacío o repetido, teléfono que no es un celular
-        chileno, `expira_en` en el pasado o a más de 30 días, o un campo extra. `errores[]` nombra
+        chileno, `motivo` fuera del enumerado, `expira_en` en el pasado o a más de 30 días, o un
+        campo extra. `errores[]` nombra
         el campo y nunca repite el valor.
       headers:
         X-Request-ID:

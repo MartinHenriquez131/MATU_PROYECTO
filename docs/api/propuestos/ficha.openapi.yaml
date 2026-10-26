@@ -574,7 +574,7 @@ components:
             type: /errores/sin-consentimiento
             title: Sin permiso
             status: 403
-            detail: Falta la autorización para guardar la ficha de esta persona
+            detail: Falta la autorización para usar la ficha de esta persona
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
 
