@@ -59,7 +59,7 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
         ) : (
           <>
             <Renglon texto="Pagas en total" monto={real !== null ? fmtDinero(real) : 'el monto real'} fuerte />
-            {dif !== null && <Renglon texto="Te devolvemos" monto={fmtDinero(dif)} tono="ok" nota="Cómo y en qué plazo, todavía por definir." />}
+            {dif !== null && <Renglon texto="Te devolveremos" monto={fmtDinero(dif)} tono="ok" nota="Cómo y en qué plazo, todavía por definir." />}
           </>
         )}
       </div>
@@ -176,7 +176,7 @@ export function MedioPago() {
             </Nota>
           ) : (
             <Nota titulo={`Con débito el banco cobra al instante: se cobran ${fmtDinero(p.estimado)} al confirmar.`}>
-              Si el pedido sale por menos, te devolvemos la diferencia. Cómo y en qué plazo se devuelve todavía está por definir.
+              Si el pedido sale por menos, te devolveremos la diferencia. Cómo y en qué plazo se devuelve todavía está por definir.
             </Nota>
           )}
           <Acciones>
@@ -420,17 +420,19 @@ export function Entregado() {
               Entregado a las <span className="cifras">{fmtHora(p.hitos.entregado ?? s.ahora)}</span>
             </p>
           </div>
-          <p className="max-w-prose text-xl leading-snug">
-            {p.medio === 'credito' ? (
-              <>
-                Se cobraron <b className="cifras">{fmtDinero(p.montoReal)}</b>. Los <b className="cifras">{fmtDinero(dif)}</b> restantes ya se liberaron.
-              </>
-            ) : (
-              <>
-                Se cobraron <b className="cifras">{fmtDinero(p.montoReal)}</b>. Pagaste <span className="cifras">{fmtDinero(p.montoPagado)}</span>. Te devolveremos <b className="cifras">{fmtDinero(dif)}</b>; cómo y en qué plazo, todavía por definir.
-              </>
-            )}
-          </p>
+          {p.medio === 'credito' ? (
+            <p className="max-w-prose text-xl leading-snug">
+              Se cobraron <b className="cifras">{fmtDinero(p.montoReal)}</b>. Los <b className="cifras">{fmtDinero(dif)}</b> restantes ya se liberaron.
+            </p>
+          ) : (
+            <div className="flex max-w-prose flex-col gap-1">
+              <p className="text-xl leading-snug">
+                Pagaste <b className="cifras">{fmtDinero(p.montoPagado)}</b> y el pedido costó <b className="cifras">{fmtDinero(p.montoReal)}</b>. Te devolveremos la diferencia:{' '}
+                <b className="cifras">{fmtDinero(dif)}</b>.
+              </p>
+              <p className="text-base text-tenue">Cómo y en qué plazo, todavía está por definir.</p>
+            </div>
+          )}
           {p.lineas
             .filter((l) => l.resolucion === 'reemplazado')
             .map((l) => (
