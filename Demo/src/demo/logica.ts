@@ -249,7 +249,7 @@ export function conFamilia(s: Estado): Estado {
             token: nuevoToken(),
             pin: nuevoPin(),
             nombre: 'Rosa',
-            telefono: '+56 9 8765 4321',
+            telefono: '+56 9 5555 0137',
             campos: ['su_dia', 'si_se_altera'],
             motivo: 'Fin de semana fuera',
             creadoMin: -9860,
@@ -376,7 +376,7 @@ export function cortarAcceso(s: Estado, id: string): Estado {
 export function accesoPorDefecto(s: Estado): Estado {
   return crearAcceso(
     s,
-    { nombre: 'Rosa', telefono: '+56 9 8765 4321', campos: [...CAMPOS], vigencia: '24h', dias: 1, motivo: 'Salgo unas horas' },
+    { nombre: 'Rosa', telefono: '+56 9 5555 0137', campos: [...CAMPOS], vigencia: '24h', dias: 1, motivo: 'Salgo unas horas' },
     PIN_DEMO,
   )
 }
