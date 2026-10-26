@@ -1,6 +1,6 @@
 # MATU · Demo navegable
 
-Demo de MATU para la presentación del viernes 30 de octubre de 2026. Muestra las tres capas del semestre (ficha de relevo, consumo y predicción, pedido y pago con un solo pagador) y se siente como una app: en el celular va a pantalla completa y se puede instalar en la pantalla de inicio; en el proyector va dentro de un marco de teléfono, con un panel para el presentador al lado.
+Demo de MATU para la presentación del viernes 30 de octubre de 2026. Es una **web app de escritorio**, pensada para proyectarse desde un computador entre 1280 y 1920 px de ancho. Muestra las tres capas del semestre (ficha de relevo, consumo y predicción, pedido y pago con un solo pagador) como tres apps distintas: la de la familia, la página pública del relevo y la consola de la farmacia, más un panel discreto para el presentador.
 
 Todos los datos son sintéticos: Carmen cuida a María, Rosa la reemplaza y Rodrigo es su hijo.
 
@@ -35,6 +35,7 @@ La demo usa el backend real donde ya existe y simula el resto.
 - El panel del presentador muestra "Backend conectado" o "Modo simulado", y cada escena dice si es Real o Simulado. En una escena real se ven las últimas respuestas: método, ruta y código HTTP. Nunca el cuerpo ni el token.
 - El token JWT vive solo en memoria. Nada se guarda en `localStorage`, `sessionStorage` ni cookies, y al recargar se parte de cero.
 - El email y la contraseña de la cuenta de prueba se generan en cada sesión (`carmen.NNNN@correo.ejemplo`), para que repetir la demo no choque con un 409. Para ver el 409 a propósito, vuelve a "Crear cuenta" y escribe el mismo email.
+- En modo simulado, "Entrar" viene con la cuenta sintética de ejemplo (`carmen@correo.ejemplo`), que ya tiene su grupo y a María. Si el presentador salta a una escena real sin haber creado la cuenta, la pantalla lo dice y ofrece seguir en modo simulado con esa cuenta.
 - Las llamadas van a `/v1` en el mismo origen. El proxy de Vite (`server.proxy` y `preview.proxy`) las lleva a `http://127.0.0.1:8000`, sin CORS.
 
 ### Levantar el modo real
@@ -58,9 +59,25 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 ## Cómo se navega
 
-- **En el proyector (≥ 900 px):** el panel de la derecha tiene las escenas por capa, el selector de rol (familia, relevo, comercio), el estado del backend, "Texto al 200%" y "Reiniciar demo". La nota de cada escena dice en una línea qué demuestra.
-- **En el celular:** el panel está detrás del botón "Guía", arriba a la derecha. El distintivo "Demo con datos simulados" está siempre visible.
-- Dentro de la app todo funciona al tocarlo: se puede recorrer cada flujo sin usar el panel.
+### Las tres apps
+
+- **La familia (Carmen).** Antes de tener cuenta, el alta va en dos paneles: el de MATU a la izquierda, con los pasos, y el formulario a la derecha. Después, una barra lateral persistente con **Inicio, Ficha de relevo, Insumos, Pedidos y Grupo familiar**, cada una con una pista de estado ("1 de 3", "Pronto", "En curso"), y un encabezado con la persona cuidada y quien está conectada. El contenido va en dos columnas: la ficha al lado de la hoja como la verá el relevo, la lista de insumos al lado del detalle y la predicción, el pedido al lado de la boleta. Ficha e Insumos tienen pestañas para sus vistas hermanas.
+- **El relevo (Rosa, `/r#<token>`).** Una página pública, sin cuenta y sin navegación: primero el PIN, después la hoja centrada con el vencimiento al lado. El token se borra de la dirección con `history.replaceState` después del canje. Al quinto PIN incorrecto el enlace se bloquea (MATU-19).
+- **El comercio (Farmacia Los Aromos).** Una consola de trabajo: la cola de pedidos del día a la izquierda y el pedido elegido a la derecha, con sus tres pasos: preparar (con un faltante que se reemplaza), el monto real dentro del tope y el código de retiro.
+- La **pasarela de pago** es una página aparte, en grises, rotulada "Pasarela de pago simulada".
+
+### El panel del presentador
+
+- Una **franja delgada arriba**: el distintivo "Demo con datos simulados" (siempre visible), el rol (Familia, Relevo, Comercio), la escena actual con anterior y siguiente y su etiqueta Real o Simulado, y las ayudas de la escena: el PIN que dictó Carmen, "Rodrigo guarda este campo", "Abrir como Rosa", "Ver qué hace la farmacia", el código de retiro. Con el rol relevo muestra la dirección: `/r#…` y, después del canje, `/r`.
+- Un **cajón lateral**, la guía, que se abre con el botón "Guía" o con `?`. No tapa la app: la angosta y la app se reacomoda. Tiene el estado del backend, la escena actual con su nota, las 35 escenas por capa, "Texto al 200%", el tema (sistema, claro u oscuro), el modo presentación, los atajos y "Reiniciar demo".
+- **Modo presentación** (`p`): oculta la franja; queda solo el distintivo en la esquina inferior izquierda, con un botón para abrir la guía.
+- **Atajos:** `?` guía, `]` o `Av Pág` escena siguiente (sirve con un control de presentación), `[` o `Re Pág` anterior, `p` modo presentación, `Esc` cierra la guía. No actúan dentro de un campo de texto y se pueden apagar desde la guía.
+- Dentro de cada app todo funciona al hacer clic: se puede recorrer cada flujo de punta a punta sin usar el panel.
+
+### Accesibilidad
+
+- Todo se ordena con container queries. "Texto al 200%" aplica `zoom: 2` solo a la app, que se reacomoda a la mitad del ancho; con el zoom del navegador al 400% en 1280 px (320 px efectivos) todo fluye a una columna, sin desplazamiento horizontal.
+- Texto base de 17 px en `rem`, foco visible, "Saltar al contenido", foco al título de cada página al navegar, etiquetas en todos los controles, estado dicho con palabra y con forma, y `prefers-reduced-motion`.
 
 ## Escenas
 
@@ -111,7 +128,7 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 - La fecha de la demo es el viernes 30/10/2026 a las 14:20, y avanza unos minutos con cada acción.
 - El dictado por voz escribe un ejemplo; WhatsApp no se abre; "Para imprimir" muestra la hoja en pantalla, sin `window.print`.
-- El relevo es la misma pestaña: el panel cambia a Rosa y la URL pasa a `/r#<token>`. Después del canje, el token se limpia con `history.replaceState`. Como el estado vive en memoria, un enlace abierto en otra ventana no existe ahí y muestra "Este enlace ya no está disponible".
+- El relevo es la misma pestaña: la franja cambia a Rosa y la URL pasa a `/r#<token>`. Después del canje, el token se limpia con `history.replaceState`. Como el estado vive en memoria, un enlace abierto en otra ventana no existe ahí y muestra "Este enlace ya no está disponible".
 - El PIN se bloquea al quinto intento fallido (MATU-19).
 - La pasarela de pago es una pantalla propia rotulada "Pasarela de pago simulada"; no se mueve dinero ni se piden datos de tarjeta.
 - **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y la diferencia se devuelve cuando la farmacia arma el pedido.
@@ -120,8 +137,12 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 ## Archivos
 
 - `src/demo/`: estado en memoria, datos sintéticos, cálculos (predicción y dinero en pesos enteros) y escenas
-- `src/datos/`: la capa de datos (`api.ts` con la interfaz, `real.ts` con Axios, `simulado.ts`, `contrato.ts` con los tipos copiados de los esquemas Pydantic)
-- `src/pantallas/`: alta, ficha, relevo, consumo, pedido y comercio
-- `src/components/`: marco de teléfono, panel del presentador, piezas de interfaz y la URL del relevo
-- `DISENO.md`: el plan de diseño y su revisión
-- `scripts/generar-iconos.mjs`: dibuja los íconos PNG del manifiesto sin dependencias
+- `src/datos/`: la capa de datos (`api.ts` con la interfaz, `real.ts` con Axios, `simulado.ts` con la cuenta de ejemplo, `contrato.ts` con los tipos copiados de los esquemas Pydantic)
+- `src/familia/`: la app de la familia (marco con barra lateral, alta, inicio, ficha, insumos, pedidos, pasarela y grupo familiar)
+- `src/relevo/`: la página pública del relevo
+- `src/comercio/`: la consola de la farmacia
+- `src/presentador/`: la franja, la guía, los atajos y el modo presentación
+- `src/components/`: piezas de interfaz, la hoja de la ficha y la URL del relevo
+- `src/Escenario.tsx`: compone la franja, la app del rol actual, el aviso y la guía
+- `DISENO.md`: el plan de diseño y su revisión (del diseñador)
+- `scripts/generar-iconos.mjs`: dibuja los íconos PNG del manifiesto (corazón blanco en un círculo de marca) sin dependencias
