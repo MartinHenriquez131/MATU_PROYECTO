@@ -24,7 +24,8 @@ info:
     fragmento, canje por POST y cookie. La arquitectura se corrige en la v1.2.
 
     **Lo que nunca sale ni se registra.** El token se guarda solo como hash SHA-256 (`token_hash`,
-    también en `indice_token`) y el PIN solo como hash (`pin_hash`). Los dos se muestran **una
+    también en `indice_token`) y el PIN solo como HMAC con *pepper* (`pin_hash`; ver las notas
+    para implementar en `docs/api/README.md`). Los dos se muestran **una
     sola vez**, en el 201 de la creación. Ninguna respuesta posterior, log, error ni URL los
     contiene. La IP se usa solo para el contador del límite por IP en Redis: no se guarda en
     `auditoria` ni en los logs.
@@ -647,7 +648,7 @@ components:
         pin:
           type: string
           pattern: '^[0-9]{4}$'
-          description: PIN de 4 dígitos. Se entrega solo aquí y se guarda solo su hash.
+          description: PIN de 4 dígitos. Se entrega solo aquí y se guarda solo su HMAC con pepper.
         campos:
           type: array
           items:

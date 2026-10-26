@@ -109,6 +109,23 @@ Este contrato sigue el **backlog v1.3**, que es más nuevo. Jorge las corrige en
 | `PUT …/plan/ficha` escribe los tres campos en una llamada | `PUT …/plan/ficha/{campo}`, uno por campo | MATU-13 (ETag por campo), decisión 2 |
 | `PUT …/plan/secciones/{tipo}` con `If-Match: "<version>"` | No se expone: el semestre usa solo la ficha (ADR-023) | ADR-023 |
 | Cuerpo del acceso con `secciones` | `campos` | Decisión 17 |
+| 11.6: el PIN se envía "al teléfono registrado" | La API no envía el PIN: lo entrega una vez en el 201 y la cuidadora se lo dicta al relevo. El envío por SMS es *Debería* y no está en este contrato (decisión 21) | Backlog v1.3, MATU-18; revisión del analista normativo. Se corrige en la v1.2, o se agrega el SMS cuando se priorice |
+
+## Notas para implementar
+
+- **`pin_hash` es un HMAC-SHA-256 con *pepper*, no un hash simple** (revisión del analista normativo). Un PIN de 4 dígitos tiene 10.000 valores: con un hash simple (ni siquiera con sal) quien lea la tabla lo recupera por fuerza bruta en milisegundos. El *pepper* es un secreto que vive fuera de la base, en `.env` vía `pydantic-settings` (CLAUDE.md, política 5), así que una copia de la base sola no basta. La comparación es en tiempo constante (`hmac.compare_digest`). El límite de 5 intentos protege el canje en línea; el HMAC protege la base fuera de línea. El token no lo necesita: 256 bits aleatorios no se recuperan por fuerza bruta, y basta su SHA-256.
+- **Revocado frente a vencido:** ver la decisión abierta de MATU-19, más arriba.
+
+## Decisiones de Jorge
+
+Puntos de la revisión del analista normativo que el contrato no resuelve solo. Jorge decide; lo que quede en "requiere consulta legal" va a la tarjeta de consulta legal en Trello. Mientras tanto, el contrato queda como está.
+
+1. **`telefono_relevo` es obligatorio y el contrato no declara su finalidad.** Hoy la API no lo usa para nada (no hay SMS) y no lo devuelve. Opciones: (a) hacerlo opcional hasta que exista el SMS, con una migración que quite el `NOT NULL` de `acceso_relevo.otorgado_a_telefono`; o (b) declarar una finalidad concreta en el contrato y en la política de privacidad. **Por ahora sigue obligatorio** (decisión 16).
+2. **Plazo de conservación de los accesos revocados y vencidos, y borrar el teléfono al vencer o revocar.** El contrato conserva el registro para la auditoría, con el teléfono incluido. Falta fijar cuánto se conserva y si `otorgado_a_telefono` se borra (o se anonimiza) al vencer o revocar. **Requiere consulta legal.**
+3. **La política de privacidad v0.9, sección 10, promete cortar los accesos al retirar el consentimiento**, y este contrato no lo hace hasta la historia del sprint 3 (ver "Riesgo abierto"). Jorge decide si se adelanta esa historia o se ajusta el texto de la política mientras tanto.
+4. **La política v0.9, sección 5, dice que no se usa la IP, y MATU-25 la usa en el canje** (contador del límite por IP en Redis, sin guardarla en `auditoria` ni en los logs). Hay que alinear la política con MATU-25 o cambiar el límite.
+5. **Aviso al relevo como titular de datos.** El relevo es titular de su nombre y su teléfono, y no tiene cuenta. Falta decidir el texto del aviso que ve en la página de MATU-23 (qué se guarda de él, para qué y por cuánto tiempo).
+6. **Faltan las entradas de la ficha de relevo y del acceso de relevo en `docs/legal/registro-tratamientos.md`** (repositorio MATU). No se editan en este contrato: las redacta el analista normativo como borrador y Jorge las aprueba.
 
 ## Diferencias con la demo (`origin/demo-web-viernes-30`, `Demo/src/`)
 
