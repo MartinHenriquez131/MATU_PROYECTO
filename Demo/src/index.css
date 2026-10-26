@@ -9,15 +9,13 @@
 @import '@fontsource-variable/bricolage-grotesque/wght.css';
 
 /*
- * Identidad de MATU: "Patio".
- * Seis tokens de marca y tres pares semánticos, en un solo lugar.
- *   papel  fondo general, verde neblina (no crema)
- *   hoja   superficie de tarjetas y hojas
- *   tinta  texto principal
- *   tenue  texto secundario (7:1 sobre hoja)
- *   pino   acento y acciones (7,6:1 con texto papel)
- *   miel   calidez decorativa: logo, puntos de la línea de tiempo. Nunca texto sobre claro
- * Los semánticos (pronto, atenta, ok) van aparte del acento.
+ * Identidad de MATU (DISENO.md, sección 1). Seis tokens de marca y tres pares semánticos.
+ *   papel  fondo general y barra lateral, verde neblina
+ *   hoja   la hoja de la ficha, formularios y listas
+ *   tinta  texto principal; barra de la consola de la farmacia
+ *   tenue  texto secundario (6,3:1 sobre papel)
+ *   pino   acciones, foco y navegación activa (6,7:1 sobre papel)
+ *   miel   calidez: imán, corazón del logo, puntos de "Su día". Nunca texto sobre claro
  */
 @theme {
   --color-papel: #edf2ee;
@@ -36,7 +34,7 @@
 
   /* Derivados, no son tokens nuevos */
   --color-linea: color-mix(in oklab, var(--color-tinta) 14%, transparent);
-  --color-rocio: color-mix(in oklab, var(--color-pino) 13%, var(--color-hoja));
+  --color-rocio: color-mix(in oklab, var(--color-pino) 12%, var(--color-hoja));
 
   --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Bricolage Grotesque Variable', 'Atkinson Hyperlegible', ui-sans-serif, sans-serif;
@@ -44,24 +42,10 @@
 
   --ease-calma: cubic-bezier(0.22, 0.8, 0.24, 1);
 
-  --animate-entrar: entrar 260ms var(--ease-calma) both;
-  --animate-volver: volver 260ms var(--ease-calma) both;
-  --animate-subir: subir 420ms var(--ease-calma) both;
   --animate-digito: digito 520ms var(--ease-calma) both;
   --animate-trazo: trazo 900ms var(--ease-calma) both;
+  --animate-aparecer: aparecer 180ms ease-out both;
 
-  @keyframes entrar {
-    from { opacity: 0; transform: translateX(14px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes volver {
-    from { opacity: 0; transform: translateX(-14px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes subir {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: none; }
-  }
   @keyframes digito {
     0% { opacity: 0; transform: translateY(-0.6em) scale(0.9); }
     60% { opacity: 1; transform: translateY(0.06em) scale(1.02); }
@@ -71,17 +55,40 @@
     from { stroke-dashoffset: 1; }
     to { stroke-dashoffset: 0; }
   }
+  @keyframes aparecer {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }
 
+/* Tema oscuro: sigue al sistema, salvo que el presentador fije uno desde la guía. */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+  --color-papel: #0d1719;
+  --color-hoja: #152427;
+  --color-tinta: #e4eeeb;
+  --color-tenue: #a9bcb8;
+  --color-pino: #74d2c3;
+  --color-miel: #e8b866;
+  --color-pronto: #ffa395;
+  --color-pronto-fondo: #3b1b17;
+  --color-atenta: #f2c46b;
+  --color-atenta-fondo: #33270f;
+  --color-ok: #8fd9a8;
+  --color-ok-fondo: #13301f;
+}
+:root[data-tema='claro'] {
+  color-scheme: light;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema='claro']) {
+    color-scheme: dark;
     --color-papel: #0d1719;
     --color-hoja: #152427;
     --color-tinta: #e4eeeb;
     --color-tenue: #a9bcb8;
     --color-pino: #74d2c3;
     --color-miel: #e8b866;
-
     --color-pronto: #ffa395;
     --color-pronto-fondo: #3b1b17;
     --color-atenta: #f2c46b;
@@ -102,6 +109,7 @@
     @apply bg-papel text-tinta font-sans antialiased;
     line-height: 1.5;
     min-height: 100dvh;
+    overflow-x: hidden;
   }
   button,
   input,
@@ -113,7 +121,7 @@
   :focus-visible {
     outline: 3px solid var(--color-pino);
     outline-offset: 2px;
-    border-radius: 0.5rem;
+    border-radius: 0.4rem;
   }
   /* Un fieldset mide por defecto lo que su contenido: con el texto al 200% desbordaría. */
   fieldset {
@@ -129,33 +137,32 @@
   }
 }
 
-@layer utilities {
-  /* Cifras de dinero, fechas y horas: alineadas, en la cara del texto. */
-  .cifras {
-    font-variant-numeric: tabular-nums lining-nums;
-    white-space: nowrap;
-  }
-  /* Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. */
-  .digitos {
-    font-family: var(--font-cifras);
-    font-variant-numeric: tabular-nums;
-  }
-  .sin-barra {
-    scrollbar-width: none;
-  }
-  .sin-barra::-webkit-scrollbar {
-    display: none;
-  }
-  /* Textura sutil de la hoja imprimible: líneas de cuaderno. */
-  .renglones {
-    background-image: repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent calc(1.75rem - 1px),
-      color-mix(in oklab, var(--color-pino) 10%, transparent) calc(1.75rem - 1px),
-      color-mix(in oklab, var(--color-pino) 10%, transparent) 1.75rem
-    );
-  }
+/* Utilidades propias con @utility, para que acepten variantes como [&_input]:digitos. */
+/* Cifras de dinero, fechas y horas: alineadas, en la cara del texto. */
+@utility cifras {
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+/* Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. */
+@utility digitos {
+  font-family: var(--font-cifras);
+  font-variant-numeric: tabular-nums;
+}
+@utility titular {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+/* Renglones de cuaderno en la hoja de la ficha. */
+@utility renglones {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(1.75rem - 1px),
+    color-mix(in oklab, var(--color-pino) 12%, transparent) calc(1.75rem - 1px),
+    color-mix(in oklab, var(--color-pino) 12%, transparent) 1.75rem
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

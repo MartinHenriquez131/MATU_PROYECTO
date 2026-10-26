@@ -1,0 +1,129 @@
+// Compone la demo: la franja del presentador, la app del rol actual y el cajón de la guía.
+// "Texto al 200%" aplica zoom 2 solo a la app: como todo se ordena con container queries, la app
+// se reacomoda a la mitad del ancho y la guía queda igual.
+import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react'
+import { useDemo } from './demo/estado'
+import { pantallaComercio, pantallaFamilia } from './demo/logica'
+import type { Estado } from './demo/tipos'
+import { RelevoUrl } from './components/RelevoUrl'
+import { AppFamilia } from './familia/AppFamilia'
+import { RelevoApp } from './relevo/Relevo'
+import { Consola } from './comercio/Comercio'
+import { ProveedorPresentador, usePresentador } from './presentador/contexto'
+import { Cajon, DistintivoFlotante, Franja, useAtajos } from './presentador/Presentador'
+
+const ANCHO_CAJON = '(min-width: 64rem)'
+function suscribir(cb: () => void) {
+  const m = window.matchMedia(ANCHO_CAJON)
+  m.addEventListener('change', cb)
+  return () => m.removeEventListener('change', cb)
+}
+/** Desde 64 rem el cajón empuja la app; más angosto, la tapa. */
+const useCajonEmpuja = () => useSyncExternalStore(suscribir, () => window.matchMedia(ANCHO_CAJON).matches, () => true)
+
+function clave(s: Estado): string {
+  if (s.rol === 'familia') return `f${pantallaFamilia(s).n}`
+  if (s.rol === 'comercio') return `c${pantallaComercio(s).n}`
+  return `r${s.relevo.fase}${s.relevo.token ?? ''}`
+}
+
+/**
+ * Al navegar, el foco va al título de la página (o al detalle, en las vistas con lista y detalle),
+ * para que un lector de pantalla anuncie dónde está. Si el foco estaba en la guía o la franja, se
+ * queda ahí: el presentador sigue eligiendo escenas.
+ */
+function useFocoAlNavegar(k: string) {
+  // Se compara con la clave anterior y no con un "primera vez": con StrictMode el efecto corre dos
+  // veces al montar y el foco saltaba al título al cargar, antes de "Saltar al contenido".
+  const anterior = useRef(k)
+  useEffect(() => {
+    if (anterior.current === k) return
+    anterior.current = k
+    const activo = document.activeElement
+    const enPresentador = !!activo?.closest('#guia-presentador, [data-presentador]')
+    const detalle = document.querySelector<HTMLElement>('[data-foco="detalle"]')
+    if (detalle) {
+      detalle.scrollIntoView({ block: 'nearest' })
+      if (!enPresentador) detalle.focus({ preventScroll: true })
+      return
+    }
+    window.scrollTo({ top: 0 })
+    if (!enPresentador) document.getElementById('titulo-pagina')?.focus({ preventScroll: true })
+  }, [k])
+}
+
+/** El aviso breve de cada acción. Se anuncia a lectores de pantalla y se va solo. */
+function Aviso({ corrido }: { corrido: boolean }) {
+  const { s, haz } = useDemo()
+  const a = s.aviso
+  useEffect(() => {
+    if (!a) return
+    const id = window.setTimeout(() => haz((x) => (x.aviso?.id === a.id ? { ...x, aviso: null } : x)), 5000)
+    return () => window.clearTimeout(id)
+  }, [a, haz])
+  // Con el texto al 200% la app tiene zoom 2: la distancia al borde se divide por dos para que
+  // el aviso no quede bajo el cajón de la guía.
+  const derecha = corrido ? (s.texto200 ? 'right-50' : 'right-100') : s.texto200 ? 'right-3' : 'right-5'
+  return (
+    <div aria-live="polite" className={`pointer-events-none fixed left-5 z-30 ml-auto flex max-w-md justify-end ${derecha} ${s.texto200 ? 'bottom-3' : 'bottom-5'}`}>
+      {a && (
+        <p key={a.id} className="pointer-events-auto rounded-xl bg-tinta px-4 py-3 text-papel shadow-lg motion-safe:animate-aparecer">
+          {a.texto}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function AppActual() {
+  const { s } = useDemo()
+  if (s.rol === 'relevo') return <RelevoApp />
+  if (s.rol === 'comercio') return <Consola />
+  return <AppFamilia />
+}
+
+function Marco() {
+  const { s } = useDemo()
+  const p = usePresentador()
+  const empuja = useCajonEmpuja()
+  useAtajos()
+  useFocoAlNavegar(clave(s))
+  const zoom: CSSProperties | undefined = s.texto200 ? { zoom: 2 } : undefined
+  const corrido = p.cajon && empuja
+  return (
+    <>
+      <RelevoUrl />
+      <a
+        href="#contenido"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-hoja focus:px-4 focus:py-3 focus:font-bold focus:text-pino"
+      >
+        Saltar al contenido
+      </a>
+      <div className={`flex min-h-dvh flex-col ${corrido ? 'pr-96' : ''}`}>
+        {!p.presentacion && (
+          <div data-presentador>
+            <Franja />
+          </div>
+        )}
+        <div style={zoom} className="@container/app flex flex-1 flex-col">
+          <AppActual />
+          <Aviso corrido={corrido} />
+        </div>
+      </div>
+      {p.presentacion && (
+        <div data-presentador>
+          <DistintivoFlotante />
+        </div>
+      )}
+      {p.cajon && <Cajon />}
+    </>
+  )
+}
+
+export function Escenario() {
+  return (
+    <ProveedorPresentador>
+      <Marco />
+    </ProveedorPresentador>
+  )
+}

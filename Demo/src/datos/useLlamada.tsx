@@ -46,12 +46,14 @@ export function AvisoFalla({ error, onSimulado }: { error: ErrorApi | null; onSi
       </div>
     )
   }
+  const sinSesion = error.codigo === 'sin-sesion'
   return (
-    <div ref={caja} role="alert" className="flex flex-col gap-3 rounded-2xl bg-atenta-fondo px-4 py-3">
+    <div ref={caja} role="alert" className="flex max-w-prose flex-col items-start gap-3 border-l-4 border-atenta bg-atenta-fondo px-4 py-3">
       <p className="flex gap-2">
         <CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
         <span>
-          <b>El servidor de MATU no respondió.</b> Lo que escribiste sigue aquí. Puedes seguir la demo con datos simulados.
+          <b>{sinSesion ? 'No hay una sesión abierta en el servidor de MATU.' : 'El servidor de MATU no respondió.'}</b> Lo que escribiste sigue aquí. Puedes seguir la
+          demo con datos simulados.
         </span>
       </p>
       <Boton variante="secundario" onClick={onSimulado}>

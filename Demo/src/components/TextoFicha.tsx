@@ -14,11 +14,11 @@ export function separarHoras(texto: string): { hora: string; texto: string }[] |
 export function LineaDeTiempo({ items }: { items: { hora: string; texto: string }[] }) {
   return (
     <div className="relative">
-      <span aria-hidden className="absolute top-2 bottom-2 left-[4.5rem] w-0.5 rounded-full bg-miel/45" />
+      <span aria-hidden className="absolute top-2 bottom-2 left-18 w-0.5 rounded-full bg-miel/45" />
       <ol className="flex flex-col gap-3 pl-1">
       {items.map((it, i) => (
         <li key={i} className="relative flex items-start gap-3">
-          <span className="cifras w-[3.2rem] shrink-0 pt-px text-right font-bold text-pino">{it.hora}</span>
+          <span className="cifras w-13 shrink-0 pt-px text-right font-bold text-pino">{it.hora}</span>
           <span aria-hidden className="relative z-10 mt-1.5 size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
           <span className="min-w-0 break-words">{it.texto}</span>
         </li>
@@ -34,7 +34,7 @@ export function TextoCampo({ texto, vacio = 'Sin completar', renglones = false }
   const horas = separarHoras(texto)
   if (horas) return <LineaDeTiempo items={horas} />
   return (
-    <div className={renglones ? 'renglones leading-[1.75rem]' : 'flex flex-col gap-1.5'}>
+    <div className={renglones ? 'renglones leading-7' : 'flex flex-col gap-1.5'}>
       {texto.split('\n').map((l, i) => (
         <p key={i} className="break-words">
           {l}

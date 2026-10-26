@@ -12,15 +12,3 @@ function suscribir(cb: () => void) {
 export function useMovimientoReducido(): boolean {
   return useSyncExternalStore(suscribir, () => window.matchMedia(consulta).matches, () => false)
 }
-
-const ancho = '(min-width: 900px)'
-function suscribirAncho(cb: () => void) {
-  const m = window.matchMedia(ancho)
-  m.addEventListener('change', cb)
-  return () => m.removeEventListener('change', cb)
-}
-
-/** Pantalla ancha (proyector): la app va dentro de un marco de teléfono. */
-export function usePantallaAncha(): boolean {
-  return useSyncExternalStore(suscribirAncho, () => window.matchMedia(ancho).matches, () => false)
-}

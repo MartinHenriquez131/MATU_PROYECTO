@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ProveedorDemo } from './demo/estado'
 import { ProveedorBackend } from './datos/backend'
-import { Escenario } from './components/Escenario'
+import { Escenario } from './Escenario'
 import { leerTokenDelFragmento, rutaDeRelevo } from './components/RelevoUrl'
 
 // Si alguien abre directo un enlace /r#<token>, la demo parte como relevo. El estado vive en

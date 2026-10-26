@@ -1,29 +1,30 @@
-// Piezas de interfaz compartidas. Objetivos táctiles de 48 px o más, foco visible y
-// estado dicho con palabra además de color.
+// Piezas de interfaz compartidas. Objetivos de 48 px o más, foco visible y estado dicho con
+// palabra y con forma, además de color.
 import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Minus, Plus } from 'lucide-react'
+import { Heart, Minus, Plus } from 'lucide-react'
 import { ETIQUETA_NIVEL, type Nivel } from '../demo/calculos'
 
 type Variante = 'primario' | 'secundario' | 'suave' | 'texto'
 
 const VARIANTES: Record<Variante, string> = {
-  primario: 'bg-pino text-papel shadow-[0_1px_0_rgb(0_0_0/0.12),0_6px_16px_-8px_var(--color-pino)] hover:brightness-110 active:brightness-95',
+  primario: 'bg-pino text-papel hover:brightness-110 active:brightness-95',
   secundario: 'bg-hoja text-pino ring-2 ring-inset ring-pino/70 hover:bg-rocio',
-  suave: 'bg-rocio text-pino hover:brightness-[0.97]',
-  texto: 'text-pino underline-offset-4 hover:underline',
+  suave: 'bg-rocio text-pino hover:brightness-95',
+  texto: 'text-pino underline underline-offset-4 decoration-pino/40 hover:decoration-pino px-1',
 }
 
 export function Boton({
   variante = 'primario',
   icono,
+  ancho = false,
   className = '',
   children,
   ...resto
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: Variante; icono?: ReactNode }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: Variante; icono?: ReactNode; ancho?: boolean }) {
   return (
     <button
       type="button"
-      className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-center font-bold leading-tight transition-[filter,background-color] disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTES[variante]} ${className}`}
+      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-left font-bold leading-tight transition-[filter,background-color] disabled:cursor-not-allowed disabled:opacity-50 ${ancho ? 'w-full' : ''} ${VARIANTES[variante]} ${className}`}
       {...resto}
     >
       {icono}
@@ -32,46 +33,53 @@ export function Boton({
   )
 }
 
-export function Fila({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`flex flex-wrap gap-2.5 [&>*]:min-w-[min(100%,9rem)] [&>*]:flex-1 ${className}`}>{children}</div>
-}
-
-export function Tarjeta({
-  children,
-  className = '',
-  tono = 'hoja',
-}: {
-  children: ReactNode
-  className?: string
-  tono?: 'hoja' | 'pronto' | 'ok' | 'atenta' | 'rocio' | 'borde'
-}) {
-  const t = {
-    hoja: 'bg-hoja ring-1 ring-linea',
-    pronto: 'bg-pronto-fondo ring-1 ring-pronto/25',
-    ok: 'bg-ok-fondo ring-1 ring-ok/25',
-    atenta: 'bg-atenta-fondo ring-1 ring-atenta/25',
-    rocio: 'bg-rocio',
-    borde: 'bg-transparent border-2 border-dashed border-linea',
-  }[tono]
-  return <div className={`flex flex-col gap-2 rounded-2xl p-4 ${t} ${className}`}>{children}</div>
+/** Fila de acciones: a la izquierda, bajo lo que confirman, y se envuelve si no cabe. */
+export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`flex flex-wrap items-center gap-3 ${className}`}>{children}</div>
 }
 
 /**
- * La hoja del refrigerador: el único elemento con sombra y con un imán de miel.
- * La ficha se ve igual en el inicio, en "Para imprimir" y en lo que abre el relevo.
+ * La hoja del refrigerador: la única superficie con sombra de la demo, con su imán de miel.
+ * Se ve igual en el inicio, al editar, en la página del relevo y para imprimir.
  */
-export function Hoja({ children, inclinada = false, className = '', etiqueta }: { children: ReactNode; inclinada?: boolean; className?: string; etiqueta?: string }) {
+export function Hoja({
+  children,
+  inclinada = false,
+  className = '',
+  etiqueta,
+}: {
+  children: ReactNode
+  inclinada?: boolean
+  className?: string
+  etiqueta?: string
+}) {
   return (
-    <div className={`relative pt-2.5 ${inclinada ? '-rotate-[0.7deg]' : ''} ${className}`} role={etiqueta ? 'group' : undefined} aria-label={etiqueta}>
+    <div
+      className={`relative pt-3 ${inclinada ? '@3xl/app:-rotate-1' : ''} ${className}`}
+      role={etiqueta ? 'group' : undefined}
+      aria-label={etiqueta}
+    >
       <span
         aria-hidden
-        className="absolute top-0 left-1/2 z-10 size-6 -translate-x-1/2 rounded-full bg-miel shadow-[inset_0_-3px_0_rgb(0_0_0/0.16),0_3px_5px_-1px_rgb(0_0_0/0.3)]"
+        className="absolute top-0 left-1/2 z-10 size-7 -translate-x-1/2 rounded-full bg-miel shadow-md"
       />
-      <div className="rounded-[0.4rem] bg-hoja px-5 pt-6 pb-5 shadow-[0_1px_1px_rgb(0_0_0/0.07),0_16px_32px_-18px_rgb(19_37_42/0.55)] ring-1 ring-linea/60">
+      <div className="rounded-sm bg-hoja px-4 @3xl:px-9 pt-7 pb-6 shadow-xl ring-1 ring-linea/60">
         {children}
       </div>
     </div>
   )
+}
+
+/** Forma del chip según el nivel: lleno, a medias o vacío. El estado no depende solo del color. */
+function FormaNivel({ nivel }: { nivel: Nivel }) {
+  if (nivel === 'pronto') return <span aria-hidden className="size-2.5 rounded-full bg-current" />
+  if (nivel === 'atenta')
+    return (
+      <span aria-hidden className="grid size-2.5 place-items-center rounded-full border-2 border-current">
+        <span className="size-0.5 rounded-full bg-current" />
+      </span>
+    )
+  return <span aria-hidden className="size-2.5 rounded-full border-2 border-current" />
 }
 
 const ESTILO_NIVEL: Record<Nivel, string> = {
@@ -83,46 +91,50 @@ const ESTILO_NIVEL: Record<Nivel, string> = {
 export function EtiquetaNivel({ nivel }: { nivel: Nivel }) {
   return (
     <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold ${ESTILO_NIVEL[nivel]}`}>
-      <span aria-hidden className="size-2 rounded-full bg-current" />
+      <FormaNivel nivel={nivel} />
       {ETIQUETA_NIVEL[nivel]}
     </span>
   )
 }
 
-export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: 'neutro' | 'ok' | 'pronto' | 'atenta' | 'pino' }) {
+export type Tono = 'neutro' | 'ok' | 'pronto' | 'atenta' | 'pino'
+
+export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: Tono }) {
   const t = {
-    neutro: 'bg-tinta/[0.07] text-tenue',
+    neutro: 'bg-tinta/7 text-tenue',
     ok: 'bg-ok-fondo text-ok',
     pronto: 'bg-pronto-fondo text-pronto',
     atenta: 'bg-atenta-fondo text-atenta',
     pino: 'bg-rocio text-pino',
   }[tono]
-  return <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-bold ${t}`}>{children}</span>
+  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold ${t}`}>{children}</span>
 }
 
-/** Barra de avance de la ficha, por campos. */
-export function BarraCampos({ hechos, total = 3 }: { hechos: number; total?: number }) {
+/** Avance de la ficha, por campos: tres tramos, no un porcentaje. */
+export function BarraCampos({ hechos, total = 3, className = '' }: { hechos: number; total?: number; className?: string }) {
   return (
-    <div className="flex gap-1.5" role="img" aria-label={`${hechos} de ${total} campos listos`}>
+    <div className={`flex gap-1.5 ${className}`} role="img" aria-label={`${hechos} de ${total} campos listos`}>
       {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={`h-2.5 flex-1 rounded-full transition-colors duration-500 ${i < hechos ? 'bg-pino' : 'bg-tinta/10'}`}
-        />
+        <span key={i} className={`h-2.5 flex-1 rounded-full transition-colors duration-500 ${i < hechos ? 'bg-pino' : 'bg-tinta/10'}`} />
       ))}
     </div>
   )
 }
 
-/** Barra de días restantes: llena = 30 días o más. */
-export function BarraDias({ dias, nivel }: { dias: number; nivel: Nivel }) {
-  const pct = Math.max(4, Math.min(100, Math.round((Math.min(dias, 30) / 30) * 100)))
+export const HORIZONTE_DIAS = 30
+export const posicionDia = (dias: number) => `${(Math.min(dias, HORIZONTE_DIAS) / HORIZONTE_DIAS) * 100}%`
+
+/** Barra de días restantes sobre un horizonte de 30 días, con la marca del aviso a los 7. */
+export function BarraDias({ dias, nivel, grosor = 'h-3' }: { dias: number; nivel: Nivel; grosor?: string }) {
+  const pct = Math.max(2, Math.min(100, (Math.min(dias, HORIZONTE_DIAS) / HORIZONTE_DIAS) * 100))
   const color = { pronto: 'bg-pronto', atenta: 'bg-atenta', tranquila: 'bg-ok' }[nivel]
   return (
-    <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-tinta/[0.08]" aria-hidden>
-      <div className={`h-full rounded-full ${color} transition-[width] duration-700 ease-[var(--ease-calma)]`} style={{ width: `${pct}%` }} />
-      {/* marca de los 7 días, cuando avisamos */}
-      <span className="absolute inset-y-0 w-0.5 bg-hoja" style={{ left: `${(7 / 30) * 100}%` }} />
+    <div className={`relative w-full rounded-full bg-tinta/8 ${grosor}`} aria-hidden>
+      <div className={`h-full rounded-full ${color} transition-[width] duration-700 ease-calma`} style={{ width: `${pct}%` }} />
+      {dias > HORIZONTE_DIAS && (
+        <span className="absolute top-1/2 right-0 size-0 -translate-y-1/2 translate-x-full border-y-6 border-l-8 border-y-transparent border-l-ok" />
+      )}
+      <span className="absolute -inset-y-1 w-0.5 rounded-full bg-tinta/45" style={{ left: posicionDia(7) }} />
     </div>
   )
 }
@@ -148,7 +160,7 @@ export function Stepper({
 }) {
   const id = useId()
   const btn =
-    'grid size-13 shrink-0 place-items-center rounded-2xl bg-hoja text-pino ring-2 ring-inset ring-pino/60 hover:bg-rocio disabled:opacity-40'
+    'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pino ring-2 ring-inset ring-pino/60 hover:bg-rocio disabled:opacity-40'
   return (
     <div className="flex flex-col gap-2">
       <span id={id} className="font-bold">
@@ -156,13 +168,13 @@ export function Stepper({
       </span>
       <div className="flex flex-wrap items-center gap-3" role="group" aria-labelledby={id}>
         <button type="button" className={btn} aria-label={`Menos: ${etiqueta}`} disabled={valor <= min} onClick={() => onCambio(Math.max(min, valor - paso))}>
-          <Minus aria-hidden className="size-6" strokeWidth={2.5} />
+          <Minus aria-hidden className="size-5" strokeWidth={2.5} />
         </button>
-        <output aria-live="polite" className="cifras min-w-[3ch] text-center text-[1.9rem] font-bold leading-none">
+        <output aria-live="polite" className="cifras min-w-8 text-center text-3xl font-bold leading-none">
           {valor}
         </output>
         <button type="button" className={btn} aria-label={`Más: ${etiqueta}`} disabled={valor >= max} onClick={() => onCambio(Math.min(max, valor + paso))}>
-          <Plus aria-hidden className="size-6" strokeWidth={2.5} />
+          <Plus aria-hidden className="size-5" strokeWidth={2.5} />
         </button>
         {unidad && <span className="text-tenue">{unidad}</span>}
       </div>
@@ -177,39 +189,44 @@ export function GrupoOpciones<T extends string>({
   valor,
   onCambio,
   nombre,
+  columnas = false,
+  ayuda,
 }: {
   leyenda: string
   opciones: { valor: T; texto: string; detalle?: string }[]
   valor: T | null
   onCambio: (v: T) => void
   nombre: string
+  /** En varias columnas cuando hay ancho. */
+  columnas?: boolean
+  ayuda?: ReactNode
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 font-bold">{leyenda}</legend>
-      {opciones.map((o) => {
-        const on = o.valor === valor
-        return (
-          <label
-            key={o.valor}
-            className={`flex min-h-13 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
-              on ? 'bg-rocio ring-pino' : 'bg-hoja ring-linea hover:ring-pino/40'
-            }`}
-          >
-            <input type="radio" name={nombre} className="peer sr-only" checked={on} onChange={() => onCambio(o.valor)} />
-            <span
-              aria-hidden
-              className={`grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-pino' : 'ring-tenue/60'}`}
+      {ayuda && <div className="-mt-1 mb-1 text-base text-tenue">{ayuda}</div>}
+      <div className={`grid gap-2 ${columnas ? '@2xl:grid-cols-3' : ''}`}>
+        {opciones.map((o) => {
+          const on = o.valor === valor
+          return (
+            <label
+              key={o.valor}
+              className={`flex min-h-13 cursor-pointer items-start gap-3 rounded-xl px-4 py-3 ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
+                on ? 'bg-rocio ring-pino' : 'bg-hoja ring-linea hover:ring-pino/40'
+              }`}
             >
-              {on && <span className="size-3 rounded-full bg-pino" />}
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="font-bold leading-snug">{o.texto}</span>
-              {o.detalle && <span className="text-sm text-tenue">{o.detalle}</span>}
-            </span>
-          </label>
-        )
-      })}
+              <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+              <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-pino' : 'ring-tenue/60'}`}>
+                {on && <span className="size-3 rounded-full bg-pino" />}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="font-bold leading-snug">{o.texto}</span>
+                {o.detalle && <span className="text-sm text-tenue">{o.detalle}</span>}
+              </span>
+            </label>
+          )
+        })}
+      </div>
     </fieldset>
   )
 }
@@ -220,11 +237,14 @@ export function Chip({ activo, onClick, children }: { activo: boolean; onClick: 
       type="button"
       aria-pressed={activo}
       onClick={onClick}
-      className={`inline-flex min-h-12 items-center gap-1.5 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors ${
+      className={`inline-flex min-h-12 max-w-full items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors ${
         activo ? 'bg-pino text-papel ring-pino' : 'bg-hoja text-tenue ring-linea hover:ring-pino/40'
       }`}
     >
-      {children}
+      <span aria-hidden className={`grid size-4 shrink-0 place-items-center rounded-sm ring-2 ring-inset ${activo ? 'bg-papel ring-papel' : 'ring-tenue/60'}`}>
+        {activo && <span className="size-2 rounded-xs bg-pino" />}
+      </span>
+      <span className="min-w-0 break-words">{children}</span>
     </button>
   )
 }
@@ -233,11 +253,13 @@ export function CampoTexto({
   etiqueta,
   ayuda,
   error,
+  className = '',
+  grande = false,
   ...resto
-}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: string; error?: string | null }) {
+}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: string; error?: string | null; grande?: boolean }) {
   const id = useId()
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
       <label htmlFor={id} className="font-bold">
         {etiqueta}
       </label>
@@ -245,9 +267,9 @@ export function CampoTexto({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={ayuda || error ? `${id}-a` : undefined}
-        className={`min-h-13 w-full min-w-0 rounded-2xl bg-hoja px-4 py-3 ring-2 ring-inset outline-none placeholder:text-tenue/80 focus-visible:ring-pino ${
+        className={`min-h-12 w-full min-w-0 rounded-xl bg-hoja px-4 py-2.5 ring-2 ring-inset outline-none placeholder:text-tenue/80 focus-visible:ring-pino ${
           error ? 'ring-pronto' : 'ring-linea'
-        }`}
+        } ${grande ? 'cifras text-2xl font-bold' : ''}`}
         {...resto}
       />
       {(ayuda || error) && (
@@ -259,42 +281,70 @@ export function CampoTexto({
   )
 }
 
-export function Nota({ titulo, children, tono = 'rocio' }: { titulo?: string; children: ReactNode; tono?: 'rocio' | 'atenta' | 'pronto' }) {
-  const t = { rocio: 'bg-rocio', atenta: 'bg-atenta-fondo', pronto: 'bg-pronto-fondo' }[tono]
+export function Nota({ titulo, children, tono = 'rocio', icono }: { titulo?: string; children: ReactNode; tono?: 'rocio' | 'atenta' | 'pronto' | 'ok'; icono?: ReactNode }) {
+  const t = { rocio: 'bg-rocio', atenta: 'bg-atenta-fondo', pronto: 'bg-pronto-fondo', ok: 'bg-ok-fondo' }[tono]
   return (
-    <div className={`rounded-2xl px-4 py-3 ${t}`}>
-      {titulo && <p className="mb-1 font-bold">{titulo}</p>}
-      <div className="text-[0.95rem] leading-relaxed">{children}</div>
+    <div className={`flex gap-3 rounded-xl px-4 py-3 ${t}`}>
+      {icono}
+      <div className="min-w-0">
+        {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
+        <div className="text-base leading-relaxed">{children}</div>
+      </div>
     </div>
   )
 }
 
-export function Sello({ children, tono = 'pino' }: { children: ReactNode; tono?: 'pino' | 'suave' | 'pronto' }) {
-  const t = {
-    pino: 'bg-pino text-papel',
-    suave: 'bg-rocio text-pino',
-    pronto: 'bg-pronto-fondo text-pronto',
-  }[tono]
-  return <div className={`grid size-16 shrink-0 place-items-center rounded-2xl ${t}`}>{children}</div>
-}
-
-export function Logo({ className = 'size-10', claro = false }: { className?: string; claro?: boolean }) {
+/** Error de un formulario: qué pasó y cómo seguir. */
+export function MensajeError({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <svg viewBox="0 0 48 48" className={className} role="img" aria-label="MATU">
-      <rect width="48" height="48" rx="14" className={claro ? 'fill-papel' : 'fill-pino'} />
-      <path
-        d="M11 23.5 24 12l13 11.5"
-        fill="none"
-        className={claro ? 'stroke-pino' : 'stroke-papel'}
-        strokeWidth="3.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M24 35.4 15.3 25.3a4.45 4.45 0 0 1 8.7-1.6 4.45 4.45 0 0 1 8.7 1.6z" className="fill-miel" />
-    </svg>
+    <p id={id} role="alert" className="font-bold text-pronto">
+      {children}
+    </p>
   )
 }
 
-export function Separador() {
-  return <hr className="border-0 border-t border-dashed border-linea" />
+/**
+ * Logo de MATU: un corazón blanco dentro de un círculo del color de marca (directriz de Jorge).
+ * El color sale del token `pino`: si el diseñador cambia la paleta, el logo cambia con ella.
+ * `claro` invierte el círculo para usarlo sobre un fondo de marca.
+ */
+export function Logo({ className = 'size-10', claro = false }: { className?: string; claro?: boolean }) {
+  return (
+    <span aria-hidden className={`grid shrink-0 place-items-center rounded-full ${claro ? 'bg-white' : 'bg-pino'} ${className}`}>
+      <Heart className={`size-3/5 ${claro ? 'fill-pino text-pino' : 'fill-white text-white'}`} strokeWidth={2} />
+    </span>
+  )
+}
+
+/** Marca con nombre: el logo y "MATU" en la cara de los titulares. */
+export function Marca({ claro = false, className = '' }: { claro?: boolean; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <Logo claro={claro} className="size-9 shrink-0" />
+      <span className="titular text-xl">MATU</span>
+    </span>
+  )
+}
+
+/** Título de una sección dentro de una página. */
+export function Subtitulo({ children, id, className = '' }: { children: ReactNode; id?: string; className?: string }) {
+  return (
+    <h2 id={id} className={`text-xl font-bold leading-snug ${className}`}>
+      {children}
+    </h2>
+  )
+}
+
+/** Renglón de una cuenta: concepto, puntos guía y monto alineado. */
+export function Renglon({ texto, monto, fuerte = false, nota, tono }: { texto: ReactNode; monto: string; fuerte?: boolean; nota?: ReactNode; tono?: 'ok' | 'tenue' }) {
+  return (
+    <div className={`flex flex-col ${fuerte ? 'font-bold' : ''}`}>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="min-w-0 shrink">{texto}</span>
+        <span aria-hidden className="min-w-4 flex-1 -translate-y-1 border-b-2 border-dotted border-tinta/20" />
+        <span className={`cifras ml-auto shrink-0 ${fuerte ? 'text-xl' : ''} ${tono === 'ok' ? 'text-ok' : tono === 'tenue' ? 'text-tenue' : ''}`}>{monto}</span>
+      </div>
+      {nota && <span className="text-sm font-normal text-tenue">{nota}</span>}
+    </div>
+  )
 }
