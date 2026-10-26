@@ -427,7 +427,7 @@ export function Entregado() {
               </>
             ) : (
               <>
-                Se cobraron <b className="cifras">{fmtDinero(p.montoReal)}</b>. Pagaste {fmtDinero(p.montoPagado)} y te devolvimos <b className="cifras">{fmtDinero(dif)}</b>.
+                Se cobraron <b className="cifras">{fmtDinero(p.montoReal)}</b>. Pagaste <span className="cifras">{fmtDinero(p.montoPagado)}</span>. Te devolveremos <b className="cifras">{fmtDinero(dif)}</b>; cómo y en qué plazo, todavía por definir.
               </>
             )}
           </p>

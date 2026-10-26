@@ -255,7 +255,7 @@ function Monto() {
     if (valor > max) return setError(`Supera el tope autorizado de ${fmtDinero(max)}. Revisa la boleta o llama a la familia.`)
     haz((x) => {
       const t = pilaComercio(cerrarMonto(x, valor, boleta.trim()), ['c-pedidos'])
-      const extra = p.medio === 'debito' ? ` A la familia se le devuelven ${fmtDinero(p.montoPagado - valor)}.` : ''
+      const extra = p.medio === 'debito' ? ` A la familia se le devolverán ${fmtDinero(p.montoPagado - valor)}; cómo y en qué plazo, todavía por definir.` : ''
       return avisar(t, `Listo para retiro. Avisamos a la familia.${extra}`)
     })
   }
@@ -341,7 +341,11 @@ function Codigo() {
           <p>{p.estado === 'entregado' ? 'El pedido ya se entregó.' : 'Entrega el pedido y márcalo cuando llegue a la casa.'}</p>
           {p.estado === 'en_camino' && (
             <Boton
-              onClick={() => haz((x) => avisar(pilaComercio(marcarEntregado(x), ['c-pedidos']), 'Entregado. Se cobró el monto real y se avisó a la familia.'))}
+              onClick={() => haz((x) => avisar(
+                    pilaComercio(marcarEntregado(x), ['c-pedidos']),
+                    // Con débito el cobro ya ocurrió al confirmar: aquí no se cobra nada.
+                    p.medio === 'credito' ? 'Entregado. Se cobró el monto real y se avisó a la familia.' : 'Entregado. Se avisó a la familia.',
+                  ))}
             >
               Marcar como entregado
             </Boton>
