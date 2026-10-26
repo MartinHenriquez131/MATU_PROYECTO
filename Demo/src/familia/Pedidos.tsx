@@ -16,7 +16,6 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
   const medio = medioVista ?? p.medio
   const pagado = etapa(p.estado) >= etapa('pagado')
   const entregado = p.estado === 'entregado'
-  const credito = medio === 'credito'
   const monto = medio ? (pagado ? p.montoPagado : montoAPagar(p.estimado, medio)) : null
   const real = p.montoReal
   const dif = real !== null && monto !== null ? monto - real : null
@@ -29,40 +28,51 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
         <ReceiptText aria-hidden className="size-5 text-pino" />
         Pedido #{p.numero}
       </h2>
-      <div className="flex flex-col gap-3">
-        <Renglon texto="Estimado" monto={fmtDinero(p.estimado)} nota={`${p.lineas.reduce((n, l) => n + l.paquetes, 0)} paquetes, precios de hoy.`} />
-        {medio === null ? (
-          <Renglon texto="Cómo pagas" monto="por elegir" tono="tenue" />
-        ) : credito ? (
-          <Renglon
-            texto={pagado ? 'Reservado en tu tarjeta' : 'Se reservará en tu tarjeta'}
-            monto={fmtDinero(monto!)}
-            nota={entregado ? 'Ya no está retenido.' : `Estimado más ${MARGEN_PORCENTAJE}% por si algún precio cambió.`}
-          />
-        ) : (
+      {medio === 'debito' ? (
+        // Débito: se cobra el estimado al confirmar y la diferencia vuelve después. Sin un
+        // "pagas en total" que contradiga lo cobrado (observación del analista normativo).
+        <div className="flex flex-col gap-3">
           <Renglon texto={pagado ? 'Cobrado al confirmar' : 'Se cobrará al confirmar'} monto={fmtDinero(monto!)} nota="El débito se cobra al instante." />
-        )}
-        <Renglon
-          texto="Monto real de la boleta"
-          monto={real !== null ? fmtDinero(real) : 'por saber'}
-          tono={real === null ? 'tenue' : undefined}
-          nota={real === null ? 'Se sabe cuando la farmacia arma el pedido.' : p.boleta ? `Boleta N° ${p.boleta}` : undefined}
-        />
-        <hr className="border-0 border-t-2 border-tinta" />
-        {medio !== 'debito' ? (
-          <>
-            <Renglon texto={entregado ? 'Cobrado' : 'Se cobrará'} monto={real !== null ? fmtDinero(real) : 'el monto real'} fuerte />
-            {dif !== null && (
-              <Renglon texto={entregado ? 'Liberado' : 'Se liberará'} monto={fmtDinero(dif)} tono="ok" nota={entregado ? 'Ya volvió a tu cupo.' : 'Al entregar, sin que hagas nada.'} />
-            )}
-          </>
-        ) : (
-          <>
-            <Renglon texto="Pagas en total" monto={real !== null ? fmtDinero(real) : 'el monto real'} fuerte />
-            {dif !== null && <Renglon texto="Te devolveremos" monto={fmtDinero(dif)} tono="ok" nota="Cómo y en qué plazo, todavía por definir." />}
-          </>
-        )}
-      </div>
+          <Renglon
+            texto="Costo real del pedido"
+            monto={real !== null ? fmtDinero(real) : 'por saber'}
+            tono={real === null ? 'tenue' : undefined}
+            nota={real === null ? 'Se sabe cuando la farmacia arma el pedido.' : p.boleta ? `Boleta N° ${p.boleta}` : undefined}
+          />
+          <hr className="border-0 border-t-2 border-tinta" />
+          <Renglon
+            texto="Te devolveremos"
+            monto={dif !== null ? fmtDinero(dif) : 'por saber'}
+            tono={dif !== null ? 'ok' : 'tenue'}
+            fuerte
+            nota="Cómo y en qué plazo, todavía por definir."
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <Renglon texto="Estimado" monto={fmtDinero(p.estimado)} nota={`${p.lineas.reduce((n, l) => n + l.paquetes, 0)} paquetes, precios de hoy.`} />
+          {medio === null ? (
+            <Renglon texto="Cómo pagas" monto="por elegir" tono="tenue" />
+          ) : (
+            <Renglon
+              texto={pagado ? 'Reservado en tu tarjeta' : 'Se reservará en tu tarjeta'}
+              monto={fmtDinero(monto!)}
+              nota={entregado ? 'Ya no está retenido.' : `Estimado más ${MARGEN_PORCENTAJE}% por si algún precio cambió.`}
+            />
+          )}
+          <Renglon
+            texto="Monto real de la boleta"
+            monto={real !== null ? fmtDinero(real) : 'por saber'}
+            tono={real === null ? 'tenue' : undefined}
+            nota={real === null ? 'Se sabe cuando la farmacia arma el pedido.' : p.boleta ? `Boleta N° ${p.boleta}` : undefined}
+          />
+          <hr className="border-0 border-t-2 border-tinta" />
+          <Renglon texto={entregado ? 'Cobrado' : 'Se cobrará'} monto={real !== null ? fmtDinero(real) : 'el monto real'} fuerte />
+          {dif !== null && (
+            <Renglon texto={entregado ? 'Liberado' : 'Se liberará'} monto={fmtDinero(dif)} tono="ok" nota={entregado ? 'Ya volvió a tu cupo.' : 'Al entregar, sin que hagas nada.'} />
+          )}
+        </div>
+      )}
     </section>
   )
 }
