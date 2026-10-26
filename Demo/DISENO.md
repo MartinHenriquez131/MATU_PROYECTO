@@ -4,6 +4,8 @@
 
 **Quién la usa de verdad:** Carmen, que cuida a su mamá, está cansada y tiene poco tiempo. Rosa, que la reemplaza el fin de semana y abre un enlace sin cuenta. Y quien atiende el mostrador de Farmacia Los Aromos.
 
+> **Nota del 26/10/2026: ADR-027 aprobado.** MATU pasa a precios exactos, confirmación de stock y un solo cobro del total con envío. Las pantallas de pedido, pago, comercio y entregado (escenas 21 a 29 y 32) se rediseñan: desaparecen la reserva del 15 %, el "monto real" y la devolución con débito. Lo que este documento dice de esas pantallas (la tabla de la sección 3, la boleta con estimado, reserva y monto real, y la consola con "Monto real") queda vigente solo hasta que llegue su especificación nueva, que es la próxima tarea del diseñador. No se construye nada nuevo sobre el modelo anterior.
+
 **De dónde sale la identidad:** del mundo de Carmen. La **hoja pegada en el refrigerador** con el día de María, el **PIN dictado por teléfono** y la **boleta** de la farmacia. La hoja es lo memorable: se dibuja igual en el inicio, al editar, en la página de Rosa y para imprimir.
 
 ## 1. Color
@@ -36,7 +38,7 @@ El turquesa trabaja en dos tonos. El de **marca** es el que se reconoce: el cír
 
 Los semánticos van aparte del acento, siempre con su fondo y con una palabra: `pronto` (`#A8261B` sobre `#FBE9E6`, 6,1:1), `atenta` (`#835000` sobre `#FCEFD8`, 5,9:1) y `ok` (`#22663D` sobre `#E1F1E6`, 5,9:1). El turquesa nunca comunica estado: "Tranquila" y "Listo" son `ok`, un verde que no se confunde con la marca.
 
-La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos, sin tema oscuro, rotulada "Pasarela de pago simulada". Tiene sus propios tokens para no escribir colores a mano: `pasarela` `#EEF0F3` (fondo), `pasarela-hoja` `#FFFFFF`, `pasarela-tinta` `#1F2A37` (12,7:1 sobre el fondo), `pasarela-presionado` `#111827`, `pasarela-tenue` `#4B5563` (6,6:1), `pasarela-rechazo` `#9F1C14` (7,9:1 sobre blanco) y `pasarela-rechazo-fondo` `#FEF2F2`.
+La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos, sin tema oscuro. Va rotulada dos veces: el encabezado "Pasarela de pago simulada · Transbank, ambiente de prueba" y, debajo, una franja `pasarela-hoja` con un borde izquierdo en `pasarela-tinta` y el ícono `Info` de lucide, con el texto "**Pago de prueba. No se cobra dinero real.**" en negrita y `text-base`. Tiene sus propios tokens, que los componentes ya usan (26/10): ningún color va escrito a mano para no escribir colores a mano: `pasarela` `#EEF0F3` (fondo), `pasarela-hoja` `#FFFFFF`, `pasarela-tinta` `#1F2A37` (12,7:1 sobre el fondo), `pasarela-presionado` `#111827`, `pasarela-tenue` `#4B5563` (6,6:1), `pasarela-rechazo` `#9F1C14` (7,9:1 sobre blanco) y `pasarela-rechazo-fondo` `#FEF2F2`.
 
 ## 2. Tipografía
 
@@ -57,7 +59,7 @@ La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos
 | `text-3xl`, `text-4xl` | 1,875 y 2,25 | 32 y 38 | Título de página en pantalla ancha |
 | `text-5xl`, `text-6xl` | 3 y 3,75 | 51 y 64 | El nombre en la hoja del relevo, el PIN, la bienvenida |
 
-`text-xs` (12,75 px) no se usa. El dinero, las fechas y los días usan `cifras` (`tabular-nums`) en la cara del texto, nunca monoespaciada. Párrafos de 65 caracteres como máximo.
+`text-xs` (12,75 px) no se usa. El dinero, las fechas y los días van con números tabulares en la cara del texto, nunca monoespaciada. La utilidad `cifras` (tabular y sin salto de línea) envuelve **solo una cifra, fecha u hora suelta**, para que "$27.980" o "30/10/2026" no se partan. Una frase que contiene cifras ("$13.990 el paquete. Sugerimos 2.") usa `tabular-nums` sin `cifras`, para que refluya a 320 px. Párrafos de 65 caracteres como máximo.
 
 ## 3. Composición
 
@@ -70,7 +72,7 @@ Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no co
 ### La familia (Carmen): la app principal
 
 ```
-┌ Demo con datos simulados  [Familia|Relevo|Comercio]  ‹ 6 de 35 Inicio ›   Guía ? ┐
+┌ Piloto académico con datos de prueba [Familia|Relevo|Comercio] ‹ 6 de 35 Inicio › Guía ? ┐
 ├──────────────┬────────────────────────────────────────────────────────────────────┤
 │ (M) MATU     │ Cuidado de María Soto              viernes 30/10/2026, 14:20  (C) │
 │              ├────────────────────────────────────────────────────────────────────┤
@@ -149,7 +151,7 @@ Sin cuenta, sin navegación y sin nada que no sea la ficha. Antes de la hoja, un
 ### El comercio (Farmacia Los Aromos): una consola de trabajo
 
 ```
-┌ (tinta) Farmacia Los Aromos   Pedidos de MATU                       14:20 ┐
+┌ (tinta) Farmacia Los Aromos (comercio ficticio)   Pedidos de MATU   14:20 ┐
 ├──────────────────────────────┬─────────────────────────────────────────────┤
 │ Pedidos de hoy               │ Pedido #4821 para María                     │
 │ #4821  6 productos  ● Por    │ 1 Preparar  ─  2 Monto real  ─  3 Retiro    │
@@ -165,12 +167,22 @@ Más densa y más sobria: la barra superior en `tinta`, la cola a la izquierda c
 ### El panel del presentador
 
 ```
-┌ ● Demo con datos simulados │ Familia  Relevo  Comercio │ ‹ 11 de 35  Relevo: escribe el PIN  Simulado › │ PIN 4821 │  Guía ? ┐
+┌ ● Piloto académico con datos de prueba │ Familia  Relevo  Comercio │ ‹ 11 de 35  Relevo: escribe el PIN  Simulado › │ PIN 4821 │  Guía ? ┐
 ```
 
 - Una **franja superior** delgada, en el flujo del documento: el distintivo, el rol, la escena con anterior y siguiente, una ayuda contextual (el PIN del enlace o "Rodrigo guarda este campo") y el botón de la guía. Con el rol relevo muestra la dirección: `/r#k3J9…` y, después del canje, `/r`.
 - Un **cajón lateral** de 24 rem que se abre con el botón o con `?`, sin tapar la app: la app se angosta y se reordena. Tiene el estado del backend, la escena actual con su nota y su etiqueta Real o Simulado, las escenas por capa, "Texto al 200%", el tema, el modo presentación, los atajos y "Reiniciar demo".
 - **Modo presentación** (`p`): desaparece la franja y queda solo el distintivo, pequeño, en la esquina inferior izquierda, con un botón para volver a abrir la guía.
+- **El distintivo** dice "**Piloto académico con datos de prueba**", con el punto `miel` delante, en una píldora `tinta` al 7 % con texto `tenue` en negrita. Lo exige la figura legal del piloto (4.1), así que la regla es: **visible siempre, en todas las pantallas y en las tres apps, también en modo presentación y con "Texto al 200%"**. Ningún modo, atajo ni ancho lo oculta. Bajo 90 rem se parte en dos líneas ("Piloto académico / con datos de prueba") dentro de la misma píldora. No se abrevia.
+- **Bajo 90 rem, la franja se compacta** para caber en una línea: la guía queda como ícono y `?` (con `aria-label="Abrir la guía"`), los roles van sin ícono, la dirección del relevo se abrevia, las ayudas usan rótulos cortos ("PIN 4821", "Código 4729") y "Ver lo que ve la familia" se oculta mientras se muestra el código de retiro.
+
+### Rótulos del piloto
+
+Además del distintivo, los montos llevan un rótulo propio, porque el público podría leerlos como precios reales:
+
+- **`PreciosDeEjemplo`.** Una `Nota` en tono `atenta` (fondo `atenta-fondo`) con el ícono `Info` de lucide en `atenta`. Título en negrita: "**Precios de ejemplo.**" Texto: "MATU todavía no tiene convenio con comercios, y en esta demo no se cobra dinero real." Va al pie de la lista de reposición, bajo "La lista sirve aunque compres en otra parte", y al pie de la boleta, en la columna derecha del pedido y de "Pedido entregado". Una vez por pantalla, nunca junto al botón principal.
+- **Por qué `atenta` y no `rocio`.** `rocio` es el fondo de las notas que explican el producto ("Reservamos…", "Ya sumamos lo que llegó"). El rótulo del piloto es otra clase de mensaje: una advertencia sobre la demo misma. No se confunde con un estado "Pronto" ni "Atenta" porque no lleva figura de nivel (● ◐ ○) ni palabra de estado: lleva el ícono `Info` y una frase completa.
+- **El comercio ficticio** se nombra siempre como "Farmacia Los Aromos (comercio ficticio)" la primera vez que aparece en cada pantalla: en la barra de la consola y en la bajada de "Tu pedido".
 - **Atajos:** `?` guía, `]` o `Av Pág` siguiente escena, `[` o `Re Pág` anterior, `p` modo presentación. No actúan dentro de un campo de texto y se pueden apagar desde la guía (WCAG 2.1.4).
 
 ## 4. Principios
@@ -214,7 +226,7 @@ Jorge decidió que el color principal de MATU es el turquesa y que el logo es un
 | `miel` también en el corazón del logo | `miel` solo en el imán y los puntos de "Su día" | El corazón es blanco por la directriz. La miel queda como el único punto cálido, y eso es lo que aleja a la marca del turquesa clínico |
 | El borde de los campos usaba `linea` (1,3:1) | Derivado `borde` (3,5:1 sobre `hoja`) | Hallazgo de esta revisión: los campos no se distinguían del fondo (WCAG 1.4.11). `linea` queda para los divisores |
 | Barra lateral de 14 rem, pistas en `text-sm` (14,9 px) | Barra de 16,5 rem, pistas en `text-base` (17 px) | En el proyector, ningún estado bajo 1 rem. Con 14 rem la píldora activa sobresalía 22 px. Se descartó poner la pista debajo del nombre: suma cinco renglones y separa el estado de su sección |
-| Colores de la pasarela escritos en el componente | Tokens `pasarela-*` con los mismos valores | Política 9: ningún color a mano, ni siquiera en la parte que no es de la marca |
+| Colores de la pasarela escritos en el componente | Tokens `pasarela-*` con los mismos valores. **Hecho:** el 26/10 los componentes pasaron a usarlos | Política 9: ningún color a mano, ni siquiera en la parte que no es de la marca |
 
 Para que el turquesa no sea el de cualquier app de salud: no hay degradados ni fondos turquesa a pantalla completa (salvo el panel del alta, en el tono profundo), el turquesa nunca comunica estado, la hoja con su imán sigue siendo lo que se recuerda y la tipografía de los titulares sigue siendo Bricolage.
 
