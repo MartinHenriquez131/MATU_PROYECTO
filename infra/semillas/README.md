@@ -1,6 +1,6 @@
 # Semillas
 
-Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos del dominio reservado `correo.ejemplo`.
+Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos del dominio ficticio `correo.ejemplo`, elegido para coincidir con la demo web. No es un TLD reservado (RFC 2606 y 6761 reservan `.test`, `.example`, `.invalid` y `.localhost`): hoy `.ejemplo` no existe en la raíz del DNS, pero no está garantizado. La semilla no envía correo.
 
 ## `demo.py` · dos familias y un pagador con permiso para ver el plan
 

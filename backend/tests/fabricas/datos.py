@@ -1,7 +1,9 @@
 """Datos sintéticos chilenos para las fábricas (estrategia de pruebas, sección 9).
 
-Ninguno corresponde a una persona real. Los correos usan el dominio reservado ``correo.ejemplo``,
-que no recibe correo. Las entrevistas nunca son datos de prueba: nada de aquí sale de ellas.
+Ninguno corresponde a una persona real. Los correos usan el dominio ficticio ``correo.ejemplo``,
+elegido para coincidir con la demo web. No es un TLD reservado (RFC 2606 y 6761 reservan .test,
+.example, .invalid y .localhost): hoy ``.ejemplo`` no existe en la raíz del DNS, pero nada garantiza
+que no exista mañana. Las fábricas nunca envían correo. Las entrevistas nunca son datos de prueba: nada de aquí sale de ellas.
 """
 
 import random
