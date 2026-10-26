@@ -26,6 +26,7 @@ python infra/semillas/demo.py
 - **Contraseña.** Las cuentas nuevas usan la de la variable de entorno `SEMILLA_CONTRASENA` (10 a 128 caracteres), definida solo en la terminal donde se corre la semilla, y que no se imprime. Si no está, la semilla genera una aleatoria y la imprime **una sola vez**: anótala. Nunca se guarda en un archivo ni en el repositorio.
 - **Idempotente.** Se puede correr varias veces: lo que ya existe no se duplica, y una cuenta que ya existía conserva su contraseña. Para cambiarlas hay que vaciar la base y volver a sembrar.
 - **Nunca en producción.** Con `ENTORNO=produccion` se niega a correr.
+- **Solo como `matu_app`.** Al conectarse comprueba `SELECT current_user`. Si `DATABASE_URL` entra con otro rol (el dueño de la base o un superusuario), se detiene con salida 2 antes de escribir nada, sin mostrar la URL.
 
 > **Las pruebas del backend vacían la base local** (`test_aislamiento.py` hace `TRUNCATE` al empezar), y con ella esta semilla. Después de correr `pytest`, vuelve a sembrar. No guardes datos de trabajo en la base local.
 

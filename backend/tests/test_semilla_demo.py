@@ -171,3 +171,98 @@ def test_no_corre_en_produccion(monkeypatch: pytest.MonkeyPatch, capsys: pytest.
     finally:
         obtener_configuracion.cache_clear()
     assert "produccion" in capsys.readouterr().err
+
+
+# --- Solo como matu_app ---------------------------------------------------------------------------------
+
+# Sin contraseña en la URL: basta para comprobar que el mensaje no la muestra
+URL_SINTETICA = "postgresql+psycopg://dueno_sintetico@127.0.0.1:1/base_sintetica"
+
+
+class _SesionFalsa:
+    def __init__(self, resultado: str | Exception) -> None:
+        self.resultado = resultado
+
+    def __enter__(self) -> "_SesionFalsa":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def execute(self, sentencia: Any) -> "_SesionFalsa":
+        assert str(sentencia) == "SELECT current_user"
+        if isinstance(self.resultado, Exception):
+            raise self.resultado
+        return self
+
+    def scalar_one(self) -> str:
+        assert isinstance(self.resultado, str)
+        return self.resultado
+
+
+@pytest.fixture
+def entorno_local(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Configuración local completa y sintética, con DATABASE_URL apuntando a nada."""
+    monkeypatch.setenv("ENTORNO", "local")
+    monkeypatch.setenv("POLITICA_VERSION", "0.9")
+    monkeypatch.setenv("PEPPER_EMAIL", secrets.token_hex(32))
+    monkeypatch.setenv("JWT_CLAVE", secrets.token_hex(32))
+    monkeypatch.setenv("DATABASE_URL", URL_SINTETICA)
+    obtener_configuracion.cache_clear()
+    yield
+    obtener_configuracion.cache_clear()
+
+
+def _con_rol(monkeypatch: pytest.MonkeyPatch, resultado: str | Exception) -> list[str]:
+    """Hace que la semilla vea ``resultado`` al preguntar current_user, y anota si llegó a sembrar."""
+    sembro: list[str] = []
+    monkeypatch.setattr(demo, "fabrica_sesiones", lambda: lambda: _SesionFalsa(resultado))
+
+    def sembrar(*_: Any, **__: Any) -> tuple[list[Any], list[Any]]:
+        sembro.append("sembro")
+        return [], []
+
+    monkeypatch.setattr(demo, "sembrar", sembrar)
+    return sembro
+
+
+@pytest.mark.parametrize("rol", ["postgres", "matu_owner", "MATU_APP"])
+def test_se_niega_si_no_esta_conectada_como_matu_app(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], rol: str
+) -> None:
+    sembro = _con_rol(monkeypatch, rol)
+
+    assert demo.main() == 2
+
+    salida = capsys.readouterr()
+    assert sembro == []
+    assert "matu_app" in salida.err
+    for fragmento in (URL_SINTETICA, "dueno_sintetico", "127.0.0.1", "base_sintetica"):
+        assert fragmento not in salida.err + salida.out
+
+
+def test_si_no_se_conecta_sale_con_1_sin_mostrar_la_url(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    sembro = _con_rol(monkeypatch, OperationalError("SELECT current_user", {}, Exception(URL_SINTETICA)))
+
+    assert demo.main() == 1
+
+    salida = capsys.readouterr()
+    assert sembro == []
+    assert "DATABASE_URL" in salida.err
+    assert URL_SINTETICA not in salida.err + salida.out
+
+
+def test_como_matu_app_siembra(entorno_local: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    sembro = _con_rol(monkeypatch, "matu_app")
+
+    assert demo.main() == 0
+    assert sembro == ["sembro"]
+
+
+@requiere_base
+def test_la_conexion_de_la_api_entra_como_matu_app() -> None:
+    assert demo.rol_de_la_conexion(fabrica_sesiones()) == "matu_app"

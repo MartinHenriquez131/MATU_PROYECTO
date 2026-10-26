@@ -25,7 +25,8 @@ Se corre desde la raíz del repositorio, con el entorno virtual de backend/ acti
 
     python infra/semillas/demo.py
 
-Se niega a correr con ENTORNO=produccion. Ojo: las pruebas del backend vacían la base local
+Se niega a correr con ENTORNO=produccion, y si DATABASE_URL no entra como matu_app (SELECT
+current_user), sin mostrar la URL. Ojo: las pruebas del backend vacían la base local
 (test_aislamiento.py), y con ella esta semilla. Después de correrlas, se vuelve a sembrar.
 """
 
@@ -41,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 from app.core.config import obtener_configuracion  # noqa: E402
@@ -69,6 +71,9 @@ from app.shared.reloj_sistema import RelojSistema  # noqa: E402
 
 # El nombre de la variable, no su valor
 VARIABLE_CONTRASENA = "SEMILLA_CONTRASENA"  # pragma: allowlist secret
+
+# El único rol con el que la semilla escribe: RLS se aplica a matu_app, no al dueño ni a un superusuario
+ROL_ESPERADO = "matu_app"
 
 # --- Los datos, todos sintéticos ----------------------------------------------------------------------
 
@@ -297,6 +302,12 @@ def sembrar(
     return familias_sembradas, cuentas
 
 
+def rol_de_la_conexion(fabrica: sessionmaker[Session]) -> str:
+    """El rol con el que DATABASE_URL entra a la base (SELECT current_user)."""
+    with fabrica() as sesion:
+        return str(sesion.execute(text("SELECT current_user")).scalar_one())
+
+
 # --- Línea de comandos -----------------------------------------------------------------------------------
 
 
@@ -323,9 +334,25 @@ def main() -> int:
         return 2
     assert configuracion.politica_version is not None  # la configuración la exige fuera de pruebas
 
+    # Antes de escribir nada: la semilla solo corre como matu_app, para que RLS se aplique igual que
+    # en la API. Los mensajes nunca muestran DATABASE_URL ni el texto del error del driver.
+    fabrica = fabrica_sesiones()
+    try:
+        rol = rol_de_la_conexion(fabrica)
+    except SQLAlchemyError:
+        print("No se pudo conectar a la base con DATABASE_URL. Revisa que esté levantada y migrada.", file=sys.stderr)
+        return 1
+    if rol != ROL_ESPERADO:
+        print(
+            f"La semilla solo corre conectada como {ROL_ESPERADO}, y DATABASE_URL entra como otro rol. "
+            "Corrige DATABASE_URL en el .env: nunca el dueño de la base ni un superusuario.",
+            file=sys.stderr,
+        )
+        return 2
+
     contrasena, desde_entorno = _contrasena()
     sembradora = Sembradora(
-        fabrica=fabrica_sesiones(),
+        fabrica=fabrica,
         pepper=configuracion.pepper_email.get_secret_value().encode("utf-8"),
         version_politica=configuracion.politica_version,
         reloj=RelojSistema(),
