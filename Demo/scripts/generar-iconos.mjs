@@ -1,18 +1,13 @@
-// Genera los íconos PNG del manifiesto sin dependencias: dibuja el logo de MATU
-// (techo y corazón) con funciones de distancia y lo codifica con zlib.
+// Genera los íconos PNG del manifiesto sin dependencias: dibuja el logo de MATU (un corazón
+// blanco dentro de un círculo del color de marca) con funciones de distancia y lo codifica con zlib.
+// El color repite el token `pino` de src/index.css: si cambia la paleta, se cambia aquí y se regenera.
 // Uso: node scripts/generar-iconos.mjs
 import { deflateSync } from 'node:zlib'
 import { writeFileSync } from 'node:fs'
 
 const PINO = [14, 94, 87]
-const PAPEL = [238, 243, 240]
-const MIEL = [227, 164, 58]
+const BLANCO = [255, 255, 255]
 
-function distSegmento(px, py, ax, ay, bx, by) {
-  const dx = bx - ax, dy = by - ay
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
-}
 function enTriangulo(px, py, [ax, ay], [bx, by], [cx, cy]) {
   const s = (ax - cx) * (py - cy) - (ay - cy) * (px - cx)
   const t = (bx - ax) * (py - ay) - (by - ay) * (px - ax)
@@ -22,26 +17,16 @@ function enTriangulo(px, py, [ax, ay], [bx, by], [cx, cy]) {
 }
 // Color en coordenadas del lienzo de 48 x 48. null = transparente.
 function muestra(x, y, maskable) {
-  const radio = maskable ? 0 : 14
-  const dentro =
-    maskable ||
-    (() => {
-      const qx = Math.max(radio - x, 0, x - (48 - radio))
-      const qy = Math.max(radio - y, 0, y - (48 - radio))
-      return Math.hypot(qx, qy) <= radio
-    })()
-  if (!dentro) return null
+  // El ícono normal es un círculo; el maskable llena el cuadro y el sistema lo recorta.
+  if (!maskable && Math.hypot(x - 24, y - 24) > 24) return null
   // En el ícono maskable el dibujo se achica hacia la zona segura.
   const k = maskable ? 0.72 : 1
   const u = 24 + (x - 24) / k, v = 24 + (y - 24) / k
-  const techo = Math.min(distSegmento(u, v, 11, 23.5, 24, 12), distSegmento(u, v, 24, 12, 37, 23.5))
-  if (techo <= 1.7) return PAPEL
   const corazon =
-    Math.hypot(u - 19.75, v - 25.3) <= 4.45 ||
-    Math.hypot(u - 28.25, v - 25.3) <= 4.45 ||
-    enTriangulo(u, v, [15.3, 25.3], [32.7, 25.3], [24, 35.4])
-  if (corazon) return MIEL
-  return PINO
+    Math.hypot(u - 19.2, v - 21.6) <= 5.6 ||
+    Math.hypot(u - 28.8, v - 21.6) <= 5.6 ||
+    enTriangulo(u, v, [14.1, 24], [33.9, 24], [24, 35.5])
+  return corazon ? BLANCO : PINO
 }
 
 function crc32(buf) {
