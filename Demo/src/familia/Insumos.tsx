@@ -1,12 +1,13 @@
 // Insumos: el horizonte de 30 días a la izquierda (cada producto es una barra que termina el día que
 // se acaba) y el detalle del producto elegido a la derecha. La lista de reposición es otra pestaña.
 import { useState, type ReactNode } from 'react'
-import { CalendarCheck, Copy, Download, ListChecks, Plus, Share2, ShoppingBag } from 'lucide-react'
+import { CalendarCheck, Copy, Download, ListChecks, Plus, Send, Share2, ShoppingBag } from 'lucide-react'
 import { useDemo } from '../demo/estado'
-import { ajustarLista, armarPedido, avisar, declarar, ir, nombrePila, pantallaFamilia, pilaFamilia, reemplazar, volver, yaLoCompre } from '../demo/logica'
-import { COBERTURA_DIAS, DIA, DIAS_PRONTO, diasRestantes, fmtDinero, fmtFecha, lineasLista, nivel, totalEstimado } from '../demo/calculos'
+import { ajustarLista, armarPedido, avisar, declarar, etapa, ir, nombrePila, pantallaFamilia, pilaFamilia, reemplazar, volver, yaLoCompre } from '../demo/logica'
+import { COBERTURA_DIAS, DIA, DIAS_PRONTO, diasRestantes, fmtDinero, fmtFecha, lineasLista, nivel, totalProductos } from '../demo/calculos'
 import type { Estado, Insumo } from '../demo/tipos'
-import { Acciones, BarraDias, Boton, EtiquetaNivel, GrupoOpciones, HORIZONTE_DIAS, Nota, PreciosDeEjemplo, Renglon, Stepper, posicionDia } from '../components/Ui'
+import { COMERCIO, ENVIO } from '../demo/datos'
+import { Acciones, BarraDias, Boton, EtiquetaNivel, GrupoOpciones, HORIZONTE_DIAS, Nota, PreciosDeEjemplo, Renglon, Stepper, Subtitulo, posicionDia } from '../components/Ui'
 import { Columna, Columnas, Pagina, Pestanas } from './Shell'
 
 function fechaFin(i: Insumo, ahora: number) {
@@ -298,8 +299,11 @@ export function SeAcaba() {
 export function textoLista(nombre: string, fecha: string, lineas: ReturnType<typeof lineasLista>): string {
   const filas = lineas
     .filter((l) => l.paquetes > 0)
-    .map((l) => `- ${l.insumo.nombre} ${l.insumo.presentacion}: ${l.paquetes} ${l.paquetes === 1 ? 'paquete' : 'paquetes'}`)
-  return [`Lista de ${nombre}, ${fecha}`, ...filas].join('\n')
+    .map(
+      (l, i) =>
+        `- ${l.insumo.nombre} ${l.insumo.presentacion}: ${l.paquetes} ${l.paquetes === 1 ? 'paquete' : 'paquetes'} (${fmtDinero(l.insumo.precio)} c/u en ${i === 0 ? COMERCIO.nombreFicticio : COMERCIO.nombre})`,
+    )
+  return [`Lista de ${nombre}, ${fecha}`, ...filas, 'Precios de ejemplo.'].join('\n')
 }
 
 function ListaReposicion() {
@@ -315,32 +319,37 @@ function ListaReposicion() {
   }
   return (
     <Columna etiqueta="Lista de reposición">
-      <ul className="flex flex-col divide-y divide-linea bg-hoja ring-1 ring-linea">
-        {lineas.map((l) => (
-          <li key={l.insumo.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
-            <span className="min-w-48 flex-1">
-              <span className="block font-bold">
-                {l.insumo.nombre} <span className="font-normal text-tenue">{l.insumo.presentacion}</span>
+      <section aria-labelledby="precios-t" className="bg-hoja ring-1 ring-linea">
+        <h2 id="precios-t" className="border-b border-linea px-4 py-3 font-bold">
+          Precios de {COMERCIO.nombreFicticio}
+        </h2>
+        <ul className="flex flex-col divide-y divide-linea">
+          {lineas.map((l) => (
+            <li key={l.insumo.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
+              <span className="min-w-48 flex-1">
+                <span className="block font-bold">
+                  {l.insumo.nombre} <span className="font-normal text-tenue">{l.insumo.presentacion}</span>
+                </span>
+                <span className="text-sm text-tenue tabular-nums">
+                  {fmtDinero(l.insumo.precio)} el paquete. Sugerimos {l.sugeridos}.
+                </span>
               </span>
-              <span className="text-sm text-tenue tabular-nums">
-                {fmtDinero(l.insumo.precio)} el paquete. Sugerimos {l.sugeridos}.
+              <span className="flex items-center gap-2" role="group" aria-label={`Paquetes de ${l.insumo.nombre}`}>
+                <button type="button" className={btn} aria-label={`Un paquete menos de ${l.insumo.nombre}`} disabled={l.paquetes === 0} onClick={() => haz((x) => ajustarLista(x, l.insumo.id, l.paquetes - 1))}>
+                  <span aria-hidden className="text-2xl leading-none font-bold">−</span>
+                </button>
+                <output aria-live="polite" className="cifras min-w-7 text-center text-xl font-bold">
+                  {l.paquetes}
+                </output>
+                <button type="button" className={btn} aria-label={`Un paquete más de ${l.insumo.nombre}`} disabled={l.paquetes >= 20} onClick={() => haz((x) => ajustarLista(x, l.insumo.id, l.paquetes + 1))}>
+                  <span aria-hidden className="text-2xl leading-none font-bold">+</span>
+                </button>
               </span>
-            </span>
-            <span className="flex items-center gap-2" role="group" aria-label={`Paquetes de ${l.insumo.nombre}`}>
-              <button type="button" className={btn} aria-label={`Un paquete menos de ${l.insumo.nombre}`} disabled={l.paquetes === 0} onClick={() => haz((x) => ajustarLista(x, l.insumo.id, l.paquetes - 1))}>
-                <span aria-hidden className="text-2xl leading-none font-bold">−</span>
-              </button>
-              <output aria-live="polite" className="cifras min-w-7 text-center text-xl font-bold">
-                {l.paquetes}
-              </output>
-              <button type="button" className={btn} aria-label={`Un paquete más de ${l.insumo.nombre}`} disabled={l.paquetes >= 20} onClick={() => haz((x) => ajustarLista(x, l.insumo.id, l.paquetes + 1))}>
-                <span aria-hidden className="text-2xl leading-none font-bold">+</span>
-              </button>
-            </span>
-            <span className="cifras ml-auto w-26 text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
-          </li>
-        ))}
-      </ul>
+              <span className="cifras ml-auto w-26 text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
       <p className="text-base text-tenue">La lista sirve aunque compres en otra parte.</p>
       <PreciosDeEjemplo />
     </Columna>
@@ -351,34 +360,45 @@ export function Reponer() {
   const { s, haz } = useDemo()
   const pila = nombrePila(s)
   const conCompra = lineasLista(s.insumos, s.ajustesLista).filter((l) => l.paquetes > 0)
-  const total = totalEstimado(conCompra)
-  const enCurso = s.pedido && s.pedido.estado !== 'borrador' && s.pedido.estado !== 'entregado'
+  const hayLista = lineasLista(s.insumos, s.ajustesLista).length > 0
+  const productos = totalProductos(conCompra)
+  const total = productos + ENVIO
+  const enCurso = s.pedido && etapa(s.pedido.estado) >= etapa('pagado') && s.pedido.estado !== 'entregado'
   return (
     <PaginaInsumos bajada={`Cuánto comprar para que ${pila} quede cubierta unas ${COBERTURA_DIAS / 7} semanas.`}>
       <Columnas izquierda="ancha">
         <ListaReposicion />
-        {conCompra.length > 0 && (
-          <Columna etiqueta="Resumen">
+        {hayLista && (
+          <Columna etiqueta="Si pides en MATU">
             <section aria-labelledby="resumen-t" className="flex flex-col gap-4 bg-hoja px-5 py-5 ring-1 ring-linea">
-              <h2 id="resumen-t" className="font-bold">
-                Total estimado
+              <h2 id="resumen-t" className="text-xl font-bold">
+                Si pides en MATU
               </h2>
-              <p className="cifras titular -mt-2 text-4xl">{fmtDinero(total)}</p>
-              <p className="text-tenue">
-                {conCompra.reduce((n, l) => n + l.paquetes, 0)} paquetes de {conCompra.length} productos. El precio final se sabe cuando la farmacia arma el pedido.
-              </p>
+              <div className="flex flex-col gap-2">
+                <Renglon texto="Productos" monto={fmtDinero(productos)} />
+                <Renglon texto="Envío, uno por pedido" monto={fmtDinero(ENVIO)} />
+                <hr className="border-0 border-t-2 border-tinta" />
+                <Renglon texto="Total con IVA" monto={fmtDinero(total)} fuerte />
+              </div>
+              <p className="text-base text-tenue">Antes de que pagues confirmamos que haya stock.</p>
               <Acciones>
                 {enCurso ? (
                   <Boton onClick={() => haz((x) => pilaFamilia(x, ['seguimiento']))}>Ver el pedido en curso</Boton>
                 ) : (
-                  <Boton icono={<ShoppingBag aria-hidden className="size-5" />} onClick={() => haz((x) => pilaFamilia(armarPedido(x), ['se-acaba', 'reponer', 'pedido']))}>
-                    Pedir a domicilio por <span className="cifras">{fmtDinero(total)}</span> aprox.
+                  <Boton
+                    icono={<ShoppingBag aria-hidden className="size-5" />}
+                    disabled={conCompra.length === 0}
+                    onClick={() => haz((x) => pilaFamilia(armarPedido(x), ['se-acaba', 'reponer', 'pedido']))}
+                  >
+                    Pedir a domicilio por <span className="cifras">{fmtDinero(total)}</span>
                   </Boton>
                 )}
                 <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={() => haz((x) => ir(x, 'exportar'))}>
-                  Exportar la lista
+                  Exportar o compartir
                 </Boton>
               </Acciones>
+              {conCompra.length === 0 && !enCurso && <p className="text-base text-tenue">Elige al menos un producto para pedir.</p>}
+              <p className="text-base text-tenue">Exportarla o compartirla es gratis y no necesitas pedir en MATU.</p>
             </section>
           </Columna>
         )}
@@ -402,6 +422,10 @@ export function Exportar() {
     }
   }
   const compartir = async () => {
+    if (typeof navigator.share !== 'function') {
+      haz((x) => avisar(x, 'Este navegador no deja compartir. Usa Copiar la lista.'))
+      return
+    }
     try {
       await navigator.share({ title: `Lista de ${pila}`, text: texto })
       haz((x) => avisar(x, 'Lista compartida.'))
@@ -426,25 +450,30 @@ export function Exportar() {
     <PaginaInsumos bajada="Para quien vaya a comprar. Sirve en cualquier farmacia.">
       <Columnas izquierda="ancha">
         <ListaReposicion />
-        <Columna etiqueta="Exportar la lista">
+        <Columna etiqueta="Exportar o compartir">
           <section aria-labelledby="exportar-t" className="flex flex-col gap-4 bg-hoja px-5 py-5 ring-1 ring-linea">
-            <h2 id="exportar-t" data-foco="detalle" tabIndex={-1} className="text-xl font-bold outline-none">
-              Exportar la lista
+            <h2 id="exportar-t" data-foco="detalle" tabIndex={-1} className="text-2xl font-bold outline-none">
+              Exportar o compartir
             </h2>
-            <pre className="rounded-lg tabular-nums bg-papel p-4 text-base leading-relaxed break-words whitespace-pre-wrap">{texto}</pre>
+            <pre className="rounded-lg bg-papel p-4 text-base leading-relaxed break-words whitespace-pre-wrap tabular-nums">{texto}</pre>
             <Acciones>
               <Boton icono={<Copy aria-hidden className="size-5" />} onClick={copiar}>
-                Copiar
+                Copiar la lista
               </Boton>
               <Boton variante="secundario" icono={<Download aria-hidden className="size-5" />} onClick={descargar}>
                 Descargar
               </Boton>
-              {typeof navigator.share === 'function' && (
-                <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={compartir}>
-                  Compartir
-                </Boton>
-              )}
             </Acciones>
+            <Subtitulo>Pasársela a alguien</Subtitulo>
+            <Acciones>
+              <Boton variante="secundario" icono={<Send aria-hidden className="size-5" />} onClick={() => haz((x) => avisar(x, 'Lista enviada a Rodrigo. La verá en su MATU.'))}>
+                Enviar a Rodrigo
+              </Boton>
+              <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={compartir}>
+                Compartir desde tu teléfono
+              </Boton>
+            </Acciones>
+            <p className="text-sm text-tenue">Solo puedes enviarla a alguien de tu grupo familiar. A otras personas, compártela desde tu teléfono.</p>
             <Boton variante="texto" className="self-start" onClick={() => haz(volver)}>
               Volver a la lista
             </Boton>

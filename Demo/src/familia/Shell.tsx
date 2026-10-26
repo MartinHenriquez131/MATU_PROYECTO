@@ -29,7 +29,6 @@ export const SECCION_DE: Partial<Record<PantallaFamiliaId, Seccion>> = {
   reponer: 'insumos',
   exportar: 'insumos',
   pedido: 'pedidos',
-  medio: 'pedidos',
   rechazado: 'pedidos',
   seguimiento: 'pedidos',
   entregado: 'pedidos',
@@ -52,14 +51,13 @@ const NOMBRE: Partial<Record<PantallaFamiliaId, string>> = {
   'se-acaba': 'Insumos',
   reponer: 'la lista de reposición',
   pedido: 'tu pedido',
-  medio: 'cómo pagas',
   seguimiento: 'el pedido',
   grupo: 'Grupo familiar',
 }
 
 function destinoPedidos(s: Estado): PantallaFamiliaId {
   const e = s.pedido?.estado
-  if (e === 'borrador' && s.pedido!.lineas.length > 0) return 'pedido'
+  if (e === 'confirmando' || e === 'apartado') return 'pedido'
   return e === 'entregado' ? 'entregado' : 'seguimiento'
 }
 
@@ -89,7 +87,7 @@ function Pista({ seccion }: { seccion: Seccion }) {
   }
   if (seccion === 'pedidos') {
     const e = s.pedido?.estado
-    return e && e !== 'borrador' && e !== 'entregado' ? <span className="text-base font-bold text-pino">En curso</span> : null
+    return e && ['pagado', 'preparando', 'listo', 'en_camino'].includes(e) ? <span className="text-base font-bold text-pino">En curso</span> : null
   }
   return null
 }

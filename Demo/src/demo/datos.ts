@@ -86,9 +86,18 @@ export const COMERCIO = {
   ventana: 'entre 17:00 y 18:00',
 }
 
+/** El otro local en convenio, donde se retira el mismo producto si falta (fase 2 del ADR-027, simulado). */
+export const OTRO_COMERCIO = {
+  nombre: 'Farmacia Piedra Azul',
+  nombreFicticio: 'Farmacia Piedra Azul (comercio ficticio)',
+}
+
+/** Envío, uno por pedido. De ejemplo, cubierto por el rótulo de precios de ejemplo. */
+export const ENVIO = 2_990
+
 /**
- * Insumos con su consumo declarado. Los precios suman el estimado de la prueba real
- * de Transbank: $60.000, que con 15% de holgura reserva $69.000.
+ * Insumos con su consumo declarado y su precio en Farmacia Los Aromos. Con los sugeridos, la lista
+ * suma $60.000 en productos, $62.990 con el envío (especificación del ADR-027, sección 1).
  */
 export function insumosIniciales(): Insumo[] {
   return [
@@ -173,16 +182,15 @@ export function insumosIniciales(): Insumo[] {
   ]
 }
 
-/** Equivalentes que ofrece el comercio cuando falta un producto. */
-export const EQUIVALENTES: Record<string, { nombre: string; precio: number }> = {
-  toallitas: { nombre: 'Toallitas húmedas x80, otra marca', precio: 5_290 },
-}
-
-/** Producto sin stock en la farmacia de la demo. */
-export const SIN_STOCK = new Set(['toallitas'])
+/** Al confirmar el stock: lo que ningún comercio en convenio tiene hoy. */
+export const SIN_STOCK_HOY = new Set(['toallitas'])
+/** Al confirmar el stock: precios unitarios que cambiaron desde la lista. */
+export const PRECIO_CONFIRMADO: Record<string, number> = { suplemento: 26_490 }
+/** Después de pagar: precio del mismo producto en el otro local. La diferencia la pone MATU. */
+export const PRECIO_OTRO_COMERCIO: Record<string, number> = { suplemento: 27_590 }
+/** Lo que el comercio ve apartado antes del pago: una referencia opaca, sin número de pedido. */
+export const REF_APARTADO = 'K41M'
 
 export const PEDIDO_NUMERO = 4821
 export const CODIGO_RETIRO = '4729'
-export const BOLETA_EJEMPLO = '0084512'
-export const MONTO_REAL_EJEMPLO = 51_340
 export const PIN_DEMO = '4821'

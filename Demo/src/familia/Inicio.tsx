@@ -50,7 +50,7 @@ export function Inicio() {
   const urgente = declarados[0]
   const vigentes = s.accesos.filter((a) => accesoVigente(a, s.ahora))
   const p = s.pedido
-  const pedidoEnCurso = p && p.estado !== 'borrador' && p.estado !== 'entregado'
+  const pedidoEnCurso = p && ['pagado', 'preparando', 'listo', 'en_camino'].includes(p.estado)
   const ultimaApertura = s.eventos.find((e) => e.texto.includes('abrió'))
   const textoAvance =
     hechos === 0

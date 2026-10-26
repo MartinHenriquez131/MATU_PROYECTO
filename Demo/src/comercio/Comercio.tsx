@@ -1,42 +1,48 @@
-// Consola de Farmacia Los Aromos: la cola de pedidos del día a la izquierda y el pedido elegido a
-// la derecha, con sus tres pasos. Ve el nombre de pila, nunca la dirección ni nada de la ficha.
+// Consola de Farmacia Los Aromos (ADR-027): la cola del día a la izquierda y el pedido elegido a la
+// derecha, con sus tres pasos: apartado, preparar y retiro. El comercio ve solo productos,
+// cantidades, la referencia y el código: ningún nombre ni dirección de la familia.
 import { useState, type ReactNode } from 'react'
 import { Check, CircleCheck, PackageCheck, Store } from 'lucide-react'
 import { useDemo } from '../demo/estado'
-import { avisar, cerrarMonto, empezarPreparacion, etapa, ir, marcarEntregado, nombrePila, pantallaComercio, pilaComercio, resolverLinea, validarCodigo } from '../demo/logica'
-import { BOLETA_EJEMPLO, COMERCIO, EQUIVALENTES, MONTO_REAL_EJEMPLO } from '../demo/datos'
-import { TOPE_EQUIVALENTE_PORCENTAJE, diaDeLaSemana, fmtDinero, fmtFecha, fmtHora, leerPesos, topeEquivalente } from '../demo/calculos'
-import type { Estado, Pedido } from '../demo/tipos'
-import { Acciones, Boton, CampoTexto, Etiqueta, Nota, type Tono } from '../components/Ui'
+import { avisar, empezarPreparacion, etapa, ir, listoParaRetiro, marcarEntregado, marcarLinea, pantallaComercio, pilaComercio, validarCodigo } from '../demo/logica'
+import { COMERCIO, REF_APARTADO } from '../demo/datos'
+import { diaDeLaSemana, fmtDinero, fmtFecha, fmtHora, productosDelComercio } from '../demo/calculos'
+import type { Estado } from '../demo/tipos'
+import { Acciones, Boton, CampoTexto, Etiqueta, Nota, PreciosDeEjemplo, type Tono } from '../components/Ui'
 
-const tope = (p: Pedido) => p.montoPagado
+type Fase = 'pagado' | 'apartado' | 'preparando' | 'listo' | 'en_camino' | 'entregado'
 
-const ESTADO: Record<string, { texto: string; tono: Tono; forma: string }> = {
-  pagado: { texto: 'Por preparar', tono: 'pronto', forma: 'bg-current' },
-  preparando: { texto: 'Preparando', tono: 'atenta', forma: 'grid place-items-center border-2 border-current' },
-  listo: { texto: 'Listo para retiro', tono: 'ok', forma: 'border-2 border-current' },
-  en_camino: { texto: 'Retirado', tono: 'neutro', forma: 'border-2 border-current' },
-  entregado: { texto: 'Entregado', tono: 'neutro', forma: 'border-2 border-current' },
+const ESTADO: Record<Fase, { texto: string; tono: Tono; forma: 'llena' | 'media' | 'vacia' }> = {
+  pagado: { texto: 'Por preparar', tono: 'pronto', forma: 'llena' },
+  apartado: { texto: 'Apartado', tono: 'atenta', forma: 'media' },
+  preparando: { texto: 'Preparando', tono: 'atenta', forma: 'media' },
+  listo: { texto: 'Listo para retiro', tono: 'ok', forma: 'vacia' },
+  en_camino: { texto: 'Retirado', tono: 'neutro', forma: 'vacia' },
+  entregado: { texto: 'Retirado', tono: 'neutro', forma: 'vacia' },
 }
 
-function ChipEstado({ e }: { e: keyof typeof ESTADO }) {
+function ChipEstado({ e }: { e: Fase }) {
   const x = ESTADO[e]
   return (
     <Etiqueta tono={x.tono}>
-      <span aria-hidden className={`size-2.5 rounded-full ${x.forma}`}>{e === 'preparando' && <span className="size-0.5 rounded-full bg-current" />}</span>
+      <span aria-hidden className={`grid size-2.5 place-items-center rounded-full ${x.forma === 'llena' ? 'bg-current' : 'border-2 border-current'}`}>
+        {x.forma === 'media' && <span className="size-0.5 rounded-full bg-current" />}
+      </span>
       {x.texto}
     </Etiqueta>
   )
 }
 
 const pedidoPagado = (s: Estado) => (s.pedido && etapa(s.pedido.estado) >= etapa('pagado') ? s.pedido : null)
+const cuenta = (n: number) => `${n} ${n === 1 ? 'producto' : 'productos'}`
 
-// ---------- marco ----------
+// ---------- cola ----------
 
-function Cola() {
+function Cola({ apartadoElegido, elegirApartado }: { apartadoElegido: boolean; elegirApartado: (v: boolean) => void }) {
   const { s, haz } = useDemo()
   const p = pedidoPagado(s)
   const abrir = () => {
+    elegirApartado(false)
     if (!p) return
     if (p.estado === 'pagado') haz((x) => pilaComercio(x, ['c-pedidos']))
     else if (p.estado === 'preparando') haz((x) => pilaComercio(x, ['c-pedidos', 'c-preparar']))
@@ -44,50 +50,60 @@ function Cola() {
   }
   const fila = 'flex w-full flex-col gap-1 border-l-4 px-4 py-3 text-left'
   return (
-    <section aria-labelledby="cola-t" className="flex flex-col gap-3">
+    <section aria-labelledby="titulo-pagina" className="flex flex-col gap-3">
       <h1 id="titulo-pagina" tabIndex={-1} className="titular text-3xl outline-none">
         Pedidos de hoy
       </h1>
-      <ul className="flex flex-col gap-2" id="cola-t" aria-label="Pedidos de hoy">
+      <ul className="flex flex-col gap-2" aria-label="Pedidos de hoy">
         {p && (
           <li>
-            <button type="button" onClick={abrir} aria-current="true" className={`${fila} border-pino bg-hoja ring-2 ring-pino ring-inset`}>
+            <button type="button" onClick={abrir} aria-current={apartadoElegido ? undefined : 'true'} className={`${fila} bg-hoja ${apartadoElegido ? 'border-transparent' : 'border-pino ring-2 ring-pino ring-inset'}`}>
               <span className="flex flex-wrap items-center justify-between gap-2">
                 <span className="cifras font-bold">#{p.numero}</span>
-                <ChipEstado e={p.estado} />
+                <ChipEstado e={p.estado as Fase} />
               </span>
-              <span className="text-base">
-                Para {nombrePila(s)}, {p.lineas.reduce((n, l) => n + l.paquetes, 0)} paquetes
-              </span>
+              <span className="text-base">{cuenta(p.lineas.length)}</span>
               <span className="text-sm text-tenue">Retiro {COMERCIO.ventana}</span>
             </button>
           </li>
         )}
-        <li className={`${fila} border-transparent bg-hoja/60`}>
-          <span className="flex flex-wrap items-center justify-between gap-2">
-            <span className="cifras font-bold">#4822</span>
-            <ChipEstado e="preparando" />
-          </span>
-          <span className="text-base">3 paquetes</span>
-          <span className="text-sm text-tenue">Retiro entre 18:00 y 19:00</span>
+        <li>
+          <button
+            type="button"
+            onClick={() => elegirApartado(true)}
+            aria-current={apartadoElegido ? 'true' : undefined}
+            className={`${fila} bg-hoja ${apartadoElegido ? 'border-pino ring-2 ring-pino ring-inset' : 'border-transparent'}`}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold">
+                Ref. <span className="digitos">{REF_APARTADO}</span>
+              </span>
+              <ChipEstado e="apartado" />
+            </span>
+            <span className="text-base">{cuenta(2)}, sin pagar</span>
+            <span className="text-sm text-tenue">
+              Se libera a las <span className="cifras">{fmtHora(s.ahora + 15)}</span>
+            </span>
+          </button>
         </li>
         <li className={`${fila} border-transparent bg-hoja/60`}>
           <span className="flex flex-wrap items-center justify-between gap-2">
             <span className="cifras font-bold">#4819</span>
-            <ChipEstado e="en_camino" />
+            <ChipEstado e="entregado" />
           </span>
-          <span className="text-base">4 paquetes</span>
+          <span className="text-base">{cuenta(4)}</span>
           <span className="text-sm text-tenue">
             Retirado a las <span className="cifras">13:20</span>
           </span>
         </li>
       </ul>
-      {!p && <p className="text-tenue">El pedido de {nombrePila(s)} aparece aquí cuando la familia lo paga.</p>}
     </section>
   )
 }
 
-const PASOS = ['Preparar', 'Monto real', 'Retiro']
+// ---------- detalle ----------
+
+const PASOS = ['Apartado', 'Preparar', 'Retiro']
 
 function Pasos({ paso }: { paso: number }) {
   return (
@@ -122,22 +138,29 @@ function Detalle({ paso, children }: { paso: number; children: ReactNode }) {
   const { s } = useDemo()
   const p = s.pedido!
   return (
-    <section aria-labelledby="detalle-t" className="@container flex flex-col gap-5 bg-hoja px-4 @3xl:px-8 py-5 ring-1 ring-linea">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div>
-          <h2 id="detalle-t" data-foco="detalle" tabIndex={-1} className="text-2xl font-bold outline-none">
-            Pedido #{p.numero} para {nombrePila(s)}
-          </h2>
-          <p className="text-tenue">Retiro hoy {COMERCIO.ventana}</p>
+    <div className="flex flex-col gap-5">
+      <section aria-labelledby="detalle-t" className="@container flex flex-col gap-5 bg-hoja px-4 @3xl:px-8 py-5 ring-1 ring-linea">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div>
+            <h2 id="detalle-t" data-foco="detalle" tabIndex={-1} className="text-2xl font-bold outline-none">
+              Pedido #{p.numero}
+            </h2>
+            <p className="text-tenue">Retiro hoy {COMERCIO.ventana}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-tenue">Tus productos</p>
+            <p className="cifras text-2xl font-bold">{fmtDinero(productosDelComercio(p))}</p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-tenue">Tope autorizado</p>
-          <p className="cifras text-2xl font-bold">{fmtDinero(tope(p))}</p>
-        </div>
-      </div>
-      <Pasos paso={paso} />
-      {children}
-    </section>
+        <Pasos paso={paso} />
+        <p className="tabular-nums">
+          Apartado a las {fmtHora(p.hitos.apartado ?? 0)} y pagado a las {fmtHora(p.hitos.pagado ?? 0)}.
+        </p>
+        {children}
+        <p className="text-base text-tenue">Ves solo productos y cantidades. No ves nombres ni direcciones.</p>
+      </section>
+      <PreciosDeEjemplo />
+    </div>
   )
 }
 
@@ -146,52 +169,59 @@ function Lineas({ editable = false }: { editable?: boolean }) {
   const p = s.pedido!
   return (
     <ul className="flex flex-col divide-y divide-linea border-y border-linea">
-      {p.lineas.map((l) => {
-        const eq = EQUIVALENTES[l.insumoId]
-        return (
-          <li key={l.insumoId} className="flex flex-col gap-2 py-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <span className="min-w-0">
-                <span className="block font-bold">
-                  {l.nombre} <span className="cifras font-normal text-tenue">× {l.paquetes}</span>
-                </span>
-                {l.resolucion === 'reemplazado' && <span className="text-base text-tenue">Por: {l.reemplazo?.nombre}</span>}
-                {l.resolucion === 'sin_stock' && (
-                  <span className="text-base text-tenue">
-                    {p.aceptaEquivalente ? `La familia acepta un equivalente hasta ${TOPE_EQUIVALENTE_PORCENTAJE}% más caro.` : 'La familia no acepta equivalentes.'}
-                  </span>
-                )}
-              </span>
-              {l.resolucion === 'ok' && (
-                <Etiqueta tono="ok">
-                  <Check aria-hidden className="size-4" strokeWidth={3} />
-                  Listo
-                </Etiqueta>
-              )}
-              {l.resolucion === 'sin_stock' && <Etiqueta tono="pronto">Sin stock</Etiqueta>}
-              {l.resolucion === 'reemplazado' && <Etiqueta tono="atenta">Reemplazado</Etiqueta>}
-              {l.resolucion === 'no_disponible' && <Etiqueta>No disponible, no se cobra</Etiqueta>}
-            </div>
-            {editable && l.resolucion === 'sin_stock' && (
-              <Acciones>
-                {p.aceptaEquivalente && eq && eq.precio <= topeEquivalente(l.precio) && (
-                  <Boton onClick={() => haz((x) => resolverLinea(x, l.insumoId, 'reemplazado'))}>
-                    Reemplazar por otra marca, <span className="cifras">{fmtDinero(eq.precio)}</span>
-                  </Boton>
-                )}
-                <Boton variante="secundario" onClick={() => haz((x) => resolverLinea(x, l.insumoId, 'no_disponible'))}>
-                  Marcar como no disponible
-                </Boton>
-              </Acciones>
+      {p.lineas.map((l) => (
+        <li key={l.insumoId} className="flex flex-col gap-2 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <span className="font-bold">
+              {l.nombre} <span className="font-normal text-tenue tabular-nums">× {l.paquetes}</span>
+            </span>
+            {l.enComercio === 'listo' && (
+              <Etiqueta tono="ok">
+                <Check aria-hidden className="size-4" strokeWidth={3} />
+                Listo
+              </Etiqueta>
             )}
-          </li>
-        )
-      })}
+            {l.enComercio === 'ya_no_esta' && <Etiqueta>Ya no está</Etiqueta>}
+          </div>
+          {l.enComercio === 'ya_no_esta' && <p className="text-base text-tenue">Lo buscamos en otro local. La familia no paga más.</p>}
+          {editable && l.enComercio === 'pendiente' && (
+            <Acciones>
+              <Boton variante="secundario" onClick={() => haz((x) => marcarLinea(x, l.insumoId, 'listo'))}>
+                Listo
+              </Boton>
+              <Boton variante="secundario" onClick={() => haz((x) => avisar(marcarLinea(x, l.insumoId, 'ya_no_esta'), 'Avisamos a MATU. Lo buscamos en otro local.'))}>
+                Ya no está
+              </Boton>
+            </Acciones>
+          )}
+        </li>
+      ))}
     </ul>
   )
 }
 
-// ---------- pasos ----------
+function Apartado() {
+  const { s } = useDemo()
+  return (
+    <section aria-labelledby="ref-t" className="flex flex-col gap-4 bg-hoja px-4 @3xl:px-8 py-5 ring-1 ring-linea">
+      <h2 id="ref-t" data-foco="detalle" tabIndex={-1} className="text-2xl font-bold outline-none">
+        Ref. <span className="digitos">{REF_APARTADO}</span>
+      </h2>
+      <p className="tabular-nums">
+        Apartado para una familia que todavía no paga. Si no paga antes de las {fmtHora(s.ahora + 15)}, se libera solo.
+      </p>
+      <ul className="flex flex-col divide-y divide-linea border-y border-linea">
+        <li className="py-3 font-bold">
+          Pañal adulto talla L x20 <span className="font-normal text-tenue">× 1</span>
+        </li>
+        <li className="py-3 font-bold">
+          Crema protectora 200 g <span className="font-normal text-tenue">× 1</span>
+        </li>
+      </ul>
+      <p className="text-base text-tenue">No es un pedido todavía: no tiene número ni acciones.</p>
+    </section>
+  )
+}
 
 function Resumen() {
   const { s, haz } = useDemo()
@@ -200,19 +230,19 @@ function Resumen() {
     return (
       <div className="flex flex-col items-start gap-3 bg-hoja px-6 py-6 ring-1 ring-linea">
         <h2 data-foco="detalle" tabIndex={-1} className="text-xl font-bold outline-none">
-          Nada por preparar
+          No hay pedidos hoy.
         </h2>
-        <p className="text-tenue">Cuando una familia paga un pedido, aparece en la cola con su tope autorizado.</p>
+        <p className="text-tenue">Cuando una familia paga un pedido, aparece en la cola.</p>
       </div>
     )
   }
-  const paso = p.estado === 'pagado' || p.estado === 'preparando' ? 1 : p.estado === 'listo' ? 3 : 4
+  const paso = p.estado === 'pagado' || p.estado === 'preparando' ? 2 : p.estado === 'listo' ? 3 : 4
   return (
     <Detalle paso={paso}>
       <Lineas />
       {p.estado === 'entregado' ? (
         <Nota tono="ok" titulo={`Entregado a las ${fmtHora(p.hitos.entregado ?? s.ahora)}`}>
-          Se cobraron {fmtDinero(p.montoReal ?? 0)}. La familia ya lo ve en su pedido.
+          La familia ya lo ve en su pedido.
         </Nota>
       ) : (
         <Acciones>
@@ -228,70 +258,20 @@ function Resumen() {
 function Preparar() {
   const { s, haz } = useDemo()
   const p = s.pedido!
-  const pendientes = p.lineas.some((l) => l.resolucion === 'sin_stock')
-  return (
-    <Detalle paso={1}>
-      <Lineas editable />
-      <Acciones>
-        <Boton disabled={pendientes} onClick={() => haz((x) => ir(x, 'c-monto'))}>
-          Ingresar el monto real
-        </Boton>
-        {pendientes && <span className="text-tenue">Resuelve lo que falta para seguir.</span>}
-      </Acciones>
-      <p className="text-base text-tenue">Ves el nombre de pila de quien recibe. La dirección solo la ve quien entrega.</p>
-    </Detalle>
-  )
-}
-
-function Monto() {
-  const { s, haz } = useDemo()
-  const p = s.pedido!
-  const max = tope(p)
-  // El monto de la prueba real si cabe en el tope; si no (otro pedido), el tope mismo.
-  const [monto, setMonto] = useState(fmtDinero(Math.min(MONTO_REAL_EJEMPLO, max)).slice(1))
-  const [boleta, setBoleta] = useState(BOLETA_EJEMPLO)
-  const [error, setError] = useState<string | null>(null)
-  const cerrar = () => {
-    const valor = leerPesos(monto)
-    if (valor === null || valor === 0) return setError('Escribe el total en pesos, sin decimales.')
-    if (valor > max) return setError(`Supera el tope autorizado de ${fmtDinero(max)}. Revisa la boleta o llama a la familia.`)
-    haz((x) => {
-      const t = pilaComercio(cerrarMonto(x, valor, boleta.trim()), ['c-pedidos'])
-      const extra = p.medio === 'debito' ? ` A la familia se le devolverán ${fmtDinero(p.montoPagado - valor)}. Cómo y en qué plazo, todavía está por definir.` : ''
-      return avisar(t, `Listo para retiro. Avisamos a la familia.${extra}`)
-    })
-  }
+  const pendientes = p.lineas.some((l) => l.enComercio === 'pendiente')
   return (
     <Detalle paso={2}>
-      <form
-        className="flex flex-col gap-5"
-        onSubmit={(e) => {
-          e.preventDefault()
-          cerrar()
-        }}
-      >
-        <div className="grid gap-5 @xl:grid-cols-2">
-          <CampoTexto
-            etiqueta="Total de la boleta, en pesos"
-            inputMode="numeric"
-            grande
-            value={monto}
-            onChange={(e) => {
-              setMonto(e.target.value)
-              setError(null)
-            }}
-            error={error}
-            ayuda={`Dentro del tope autorizado de ${fmtDinero(max)}.`}
-          />
-          <CampoTexto etiqueta="N° de boleta" inputMode="numeric" grande value={boleta} onChange={(e) => setBoleta(e.target.value)} />
-        </div>
-        <Nota>El total se carga a la cuenta de MATU. La familia ve este mismo monto en su pedido.</Nota>
-        <Acciones>
-          <Boton type="submit" icono={<PackageCheck aria-hidden className="size-5" />}>
-            Marcar listo para retiro
-          </Boton>
-        </Acciones>
-      </form>
+      <Lineas editable />
+      <Acciones>
+        <Boton
+          icono={<PackageCheck aria-hidden className="size-5" />}
+          disabled={pendientes}
+          onClick={() => haz((x) => avisar(pilaComercio(listoParaRetiro(x), ['c-pedidos']), 'Listo para retiro. Avisamos a la familia.'))}
+        >
+          Marcar listo para retiro
+        </Boton>
+        {pendientes && <span className="text-tenue">Marca cada producto para seguir.</span>}
+      </Acciones>
     </Detalle>
   )
 }
@@ -303,12 +283,13 @@ function Codigo() {
   const [error, setError] = useState<string | null>(null)
   const validado = p.estado === 'en_camino' || p.estado === 'entregado'
   const validar = () => {
-    if (codigo !== p.codigoRetiro) return setError('Ese código no coincide. Pídele a quien retira que lo revise.')
+    if (codigo !== p.codigoRetiro) return setError('Ese código no es. Revisa los cuatro números.')
     setError(null)
     haz((x) => avisar(validarCodigo(x), 'Código válido. Entrega el pedido.'))
   }
   return (
     <Detalle paso={validado ? 4 : 3}>
+      <Lineas />
       {!validado ? (
         <form
           className="flex flex-col gap-4"
@@ -326,7 +307,7 @@ function Codigo() {
               setCodigo(e.target.value.replace(/\D/g, '').slice(0, 4))
               setError(null)
             }}
-            className="max-w-3xs [&_input]:digitos [&_input]:min-h-16 [&_input]:text-center [&_input]:text-4xl [&_input]:font-bold [&_input]:tracking-widest"
+            className="max-w-3xs [&_input]:digitos [&_input]:min-h-16 [&_input]:text-center [&_input]:text-3xl [&_input]:font-bold [&_input]:tracking-widest"
             error={error}
             ayuda="Es de un solo uso y vence en 90 minutos."
           />
@@ -342,15 +323,7 @@ function Codigo() {
           </p>
           <p>{p.estado === 'entregado' ? 'El pedido ya se entregó.' : 'Entrega el pedido y márcalo cuando llegue a la casa.'}</p>
           {p.estado === 'en_camino' && (
-            <Boton
-              onClick={() => haz((x) => avisar(
-                    pilaComercio(marcarEntregado(x), ['c-pedidos']),
-                    // Con débito el cobro ya ocurrió al confirmar: aquí no se cobra nada.
-                    p.medio === 'credito' ? 'Entregado. Se cobró el monto real y se avisó a la familia.' : 'Entregado. Se avisó a la familia.',
-                  ))}
-            >
-              Marcar como entregado
-            </Boton>
+            <Boton onClick={() => haz((x) => avisar(pilaComercio(marcarEntregado(x), ['c-pedidos']), 'Entregado. Se avisó a la familia.'))}>Marcar como entregado</Boton>
           )}
         </div>
       )}
@@ -363,9 +336,10 @@ export function Consola() {
   const { s } = useDemo()
   const top = pantallaComercio(s)
   const p = s.pedido
+  const [apartadoElegido, setApartadoElegido] = useState(false)
   let detalle: ReactNode = <Resumen />
-  if (p && top.id === 'c-preparar') detalle = <Preparar />
-  else if (p && top.id === 'c-monto') detalle = <Monto />
+  if (apartadoElegido) detalle = <Apartado />
+  else if (p && top.id === 'c-preparar') detalle = <Preparar />
   else if (p && top.id === 'c-codigo') detalle = <Codigo />
   return (
     <div className="flex flex-1 flex-col">
@@ -384,8 +358,8 @@ export function Consola() {
       </header>
       <main id="contenido" tabIndex={-1} className="@container/main px-4 @3xl:px-10 pt-6 pb-16 outline-none">
         <div className="mx-auto grid max-w-7xl items-start gap-x-8 gap-y-8 @3xl/main:grid-cols-[19rem_minmax(0,1fr)]">
-          <Cola />
-          <div key={top.n} className="min-w-0">
+          <Cola apartadoElegido={apartadoElegido} elegirApartado={setApartadoElegido} />
+          <div key={`${top.n}-${apartadoElegido}`} className="min-w-0">
             {detalle}
           </div>
         </div>

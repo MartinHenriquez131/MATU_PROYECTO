@@ -1,28 +1,31 @@
 // Transiciones puras del estado de la demo. Sin efectos: la URL del relevo se maneja
 // en un efecto aparte (RelevoUrl), y nada se escribe en el almacenamiento del navegador.
 import {
-  BOLETA_EJEMPLO,
   CAMPOS,
   CODIGO_RETIRO,
-  MONTO_REAL_EJEMPLO,
-  EQUIVALENTES,
+  COMERCIO,
+  ENVIO,
+  OTRO_COMERCIO,
   PEDIDO_NUMERO,
   PIN_DEMO,
-  SIN_STOCK,
+  PRECIO_CONFIRMADO,
+  PRECIO_OTRO_COMERCIO,
+  SIN_STOCK_HOY,
   TEXTO_CAMPO,
   insumosIniciales,
   AVISO_CUIDADOR,
 } from './datos'
+import { VIGENCIA_MINUTOS } from './textos-pedido'
 import {
   DIA,
   MAX_INTENTOS_PIN,
   accesoVigente,
   finDeSemana,
   lineasLista,
-  montoAPagar,
   nuevoPin,
   nuevoToken,
-  totalEstimado,
+  subtotalProductos,
+  totalProductos,
 } from './calculos'
 import type {
   Acceso,
@@ -32,6 +35,7 @@ import type {
   Estado,
   EstadoPedido,
   Evento,
+  LineaPedido,
   Medio,
   Pantalla,
   PantallaComercioId,
@@ -471,14 +475,14 @@ export function vaciarInsumos(s: Estado): Estado {
   return { ...s, insumos: s.insumos.map((i) => ({ ...i, declarado: false })), ajustesLista: {} }
 }
 
-// ---------- pedido ----------
+// ---------- pedido (ADR-027: precio exacto y un solo cobro) ----------
 
-const ORDEN: EstadoPedido[] = ['borrador', 'pagado', 'preparando', 'listo', 'en_camino', 'entregado']
+const ORDEN: EstadoPedido[] = ['confirmando', 'apartado', 'pagado', 'preparando', 'listo', 'en_camino', 'entregado']
 export const etapa = (e: EstadoPedido) => ORDEN.indexOf(e)
 
+/** Con "Pedir a domicilio": el pedido sale de la lista y empieza a confirmar el stock. */
 export function armarPedido(s: Estado): Estado {
   const lineas = lineasLista(s.insumos, s.ajustesLista).filter((l) => l.paquetes > 0)
-  const estimado = totalEstimado(lineas)
   return {
     ...s,
     pedido: {
@@ -488,17 +492,22 @@ export function armarPedido(s: Estado): Estado {
         nombre: `${l.insumo.nombre} ${l.insumo.presentacion}`,
         paquetes: l.paquetes,
         precio: l.insumo.precio,
-        resolucion: 'ok',
-        reemplazo: null,
+        precioLista: l.insumo.precio,
+        comercio: COMERCIO.nombre,
+        cambio: null,
+        enComercio: 'pendiente',
+        reasignado: null,
+        noLlego: false,
       })),
-      estimado,
-      aceptaEquivalente: true,
+      salieron: [],
+      envio: ENVIO,
+      totalLista: totalProductos(lineas) + ENVIO,
+      total: 0,
       direccion: s.persona?.direccion ?? '',
       medio: null,
-      montoPagado: 0,
-      montoReal: null,
-      boleta: '',
-      estado: 'borrador',
+      estado: 'confirmando',
+      venceMin: 0,
+      reconfirmado: false,
       codigoRetiro: CODIGO_RETIRO,
       hitos: {},
       rechazos: 0,
@@ -507,23 +516,72 @@ export function armarPedido(s: Estado): Estado {
   }
 }
 
-export function datosPedido(s: Estado, direccion: string, aceptaEquivalente: boolean): Estado {
+/**
+ * Los comercios confirman el stock: lo que nadie tiene sale del pedido, los precios quedan exactos
+ * y el total se aparta por unos minutos. Nada se cobra todavía. Con `reconfirmado`, es la segunda
+ * confirmación después de que el total venció.
+ */
+export function confirmarStock(s: Estado, reconfirmado = false): Estado {
+  const p = s.pedido
+  if (!p) return s
+  const devueltas: LineaPedido[] = p.salieron.map((l) => ({
+    insumoId: l.insumoId,
+    nombre: l.nombre,
+    paquetes: l.paquetes,
+    precio: l.precio,
+    precioLista: l.precio,
+    comercio: COMERCIO.nombre,
+    cambio: null,
+    enComercio: 'pendiente',
+    reasignado: null,
+    noLlego: false,
+  }))
+  const todas: LineaPedido[] = [...p.lineas.map((l) => ({ ...l, precio: l.precioLista, cambio: null })), ...devueltas]
+  const salieron = todas
+    .filter((l) => SIN_STOCK_HOY.has(l.insumoId))
+    .map((l) => ({ insumoId: l.insumoId, nombre: l.nombre, paquetes: l.paquetes, precio: l.precioLista }))
+  const lineas = todas
+    .filter((l) => !SIN_STOCK_HOY.has(l.insumoId))
+    .map((l) => {
+      const nuevo = PRECIO_CONFIRMADO[l.insumoId]
+      return nuevo !== undefined && nuevo !== l.precioLista ? { ...l, precio: nuevo, cambio: 'precio' as const } : l
+    })
+  const pedido = { ...p, lineas, salieron, reconfirmado, estado: 'apartado' as const, venceMin: s.ahora + VIGENCIA_MINUTOS, hitos: { apartado: s.ahora } }
+  return { ...s, pedido: { ...pedido, total: lineas.length ? subtotalProductos(pedido) + p.envio : 0 } }
+}
+
+export function datosPedido(s: Estado, direccion: string): Estado {
   if (!s.pedido) return s
   const persona = s.persona && !s.persona.direccion ? { ...s.persona, direccion } : s.persona
-  return { ...s, persona, pedido: { ...s.pedido, direccion, aceptaEquivalente } }
+  return { ...s, persona, pedido: { ...s.pedido, direccion } }
 }
 
-export function elegirMedio(s: Estado, medio: Medio): Estado {
-  if (!s.pedido) return s
-  return { ...s, pedido: { ...s.pedido, medio, montoPagado: montoAPagar(s.pedido.estimado, medio) } }
+/** "No pedir por ahora": no se cobra nada y la lista sigue igual. */
+export function noPedir(s: Estado): Estado {
+  return avisar(pilaFamilia({ ...s, pedido: null }, ['se-acaba', 'reponer']), 'No pediste. No se cobró nada y tu lista sigue igual.')
 }
 
-export function resultadoPago(s: Estado, aprobado: boolean): Estado {
+/** Para el presentador: pasa el tiempo, por ejemplo para que el total confirmado venza. */
+export function pasarMinutos(s: Estado, minutos: number): Estado {
+  return avanzar(s, minutos)
+}
+
+export function resultadoPago(s: Estado, aprobado: boolean, medio: Medio = 'credito'): Estado {
   const p = s.pedido
-  if (!p || !p.medio) return s
+  if (!p || p.estado !== 'apartado') return s
   if (!aprobado) return { ...s, pedido: { ...p, rechazos: p.rechazos + 1 } }
-  const lineas = p.lineas.map((l) => (SIN_STOCK.has(l.insumoId) ? { ...l, resolucion: 'sin_stock' as const } : l))
-  return avanzar({ ...s, pedido: { ...p, lineas, estado: 'pagado', hitos: { pagado: s.ahora } } }, 3)
+  return avanzar({ ...s, pedido: { ...p, medio, estado: 'pagado', hitos: { ...p.hitos, pagado: s.ahora } } }, 3)
+}
+
+/**
+ * Cancelar después de pagar: sin costo mientras la farmacia no empiece a preparar. Se devuelve el
+ * total y el pedido queda cancelado.
+ */
+export function cancelarPedido(s: Estado): Estado {
+  const p = s.pedido
+  if (!p || p.estado !== 'pagado') return s
+  const t: Estado = { ...s, pedido: { ...p, estado: 'cancelado', hitos: { ...p.hitos, cancelado: s.ahora } } }
+  return avisar(avanzar(t, 1), 'Pedido cancelado. Te devolvemos el total el mismo día, a la misma tarjeta.')
 }
 
 export function empezarPreparacion(s: Estado): Estado {
@@ -532,26 +590,27 @@ export function empezarPreparacion(s: Estado): Estado {
   return avanzar({ ...s, pedido: { ...p, estado: 'preparando', hitos: { ...p.hitos, preparando: s.ahora } } }, 4)
 }
 
-export function resolverLinea(s: Estado, insumoId: string, como: 'reemplazado' | 'no_disponible'): Estado {
+/**
+ * El comercio marca cada producto. "Ya no está": MATU retira el mismo producto en otro local
+ * (simulado, fase 2 del ADR-027) y la familia paga lo mismo; si nadie lo tiene, no llega.
+ */
+export function marcarLinea(s: Estado, insumoId: string, como: 'listo' | 'ya_no_esta', nadieLoTiene = false): Estado {
   const p = s.pedido
   if (!p) return s
-  const lineas = p.lineas.map((l) =>
-    l.insumoId === insumoId
-      ? { ...l, resolucion: como, reemplazo: como === 'reemplazado' ? (EQUIVALENTES[insumoId] ?? null) : null }
-      : l,
-  )
+  const lineas = p.lineas.map((l): LineaPedido => {
+    if (l.insumoId !== insumoId) return l
+    if (como === 'listo') return { ...l, enComercio: 'listo', reasignado: null, noLlego: false }
+    return nadieLoTiene
+      ? { ...l, enComercio: 'ya_no_esta', reasignado: null, noLlego: true }
+      : { ...l, enComercio: 'ya_no_esta', reasignado: { comercio: OTRO_COMERCIO.nombre, precio: PRECIO_OTRO_COMERCIO[insumoId] ?? l.precio }, noLlego: false }
+  })
   return { ...s, pedido: { ...p, lineas } }
 }
 
-export function cerrarMonto(s: Estado, montoReal: number, boleta: string): Estado {
+export function listoParaRetiro(s: Estado): Estado {
   const p = s.pedido
-  if (!p) return s
-  let t: Estado = {
-    ...s,
-    pedido: { ...p, montoReal, boleta, estado: 'listo', hitos: { ...p.hitos, listo: s.ahora } },
-  }
-  t = avanzar(t, 12)
-  return t
+  if (!p || p.lineas.some((l) => l.enComercio === 'pendiente')) return s
+  return avanzar({ ...s, pedido: { ...p, estado: 'listo', hitos: { ...p.hitos, listo: s.ahora } } }, 12)
 }
 
 export function validarCodigo(s: Estado): Estado {
@@ -565,7 +624,7 @@ export function marcarEntregado(s: Estado): Estado {
   if (!p || p.estado !== 'en_camino') return s
   let t: Estado = { ...s, pedido: { ...p, estado: 'entregado', hitos: { ...p.hitos, entregado: s.ahora } } }
   // Lo que llegó se suma solo a la cuenta de insumos: las capas 2 y 3 conversan.
-  const llegado = new Map(p.lineas.filter((l) => l.resolucion !== 'no_disponible').map((l) => [l.insumoId, l.paquetes]))
+  const llegado = new Map(p.lineas.filter((l) => !l.noLlego).map((l) => [l.insumoId, l.paquetes]))
   t = {
     ...t,
     insumos: t.insumos.map((i) => (llegado.has(i.id) ? { ...i, quedan: i.quedan + llegado.get(i.id)! * i.tamanoPaquete } : i)),
@@ -575,24 +634,31 @@ export function marcarEntregado(s: Estado): Estado {
   return avanzar(t, 1)
 }
 
-/** Lleva el pedido hasta la etapa pedida con los valores de la prueba real. */
-export function pedidoHasta(s: Estado, objetivo: EstadoPedido, medio: Medio = 'credito'): Estado {
+/**
+ * Lleva el pedido hasta la etapa pedida con los datos del ejemplo: lista de $62.990, total
+ * confirmado de $57.460 y el suplemento que "ya no está" al preparar. Con `nadieLoTiene`, el
+ * suplemento no llega y se devuelven $26.490.
+ */
+export function pedidoHasta(s: Estado, objetivo: EstadoPedido, opciones: { medio?: Medio; nadieLoTiene?: boolean } = {}): Estado {
   let t = conFamilia(s)
-  if (!t.pedido || etapa(t.pedido.estado) > etapa(objetivo) || (t.pedido.estado === 'borrador' && t.pedido.lineas.length === 0)) {
-    // Un pedido nuevo para una escena parte siempre de los insumos del ejemplo: estimado de
-    // $60.000, reserva de $69.000 y cobro de $51.340. Antes se armaba con el stock del momento,
-    // y después de una entrega (que suma al stock) salía otro monto y el real superaba el tope.
+  if (!t.pedido || t.pedido.estado === 'cancelado' || etapa(t.pedido.estado) > etapa(objetivo) || t.pedido.lineas.length === 0) {
+    // Un pedido nuevo para una escena parte siempre de los insumos del ejemplo, para que los
+    // montos sean siempre los mismos aunque antes se haya entregado otro pedido.
     t = armarPedido({ ...t, insumos: insumosIniciales(), ajustesLista: {} })
   }
   const pasos: [EstadoPedido, (x: Estado) => Estado][] = [
-    ['pagado', (x) => resultadoPago(x.pedido?.medio ? x : elegirMedio(x, medio), true)],
+    ['apartado', (x) => confirmarStock(x)],
+    ['pagado', (x) => resultadoPago(x, true, opciones.medio ?? 'credito')],
     ['preparando', empezarPreparacion],
     [
       'listo',
       (x) => {
         let y = x
-        for (const l of x.pedido!.lineas) if (l.resolucion === 'sin_stock') y = resolverLinea(y, l.insumoId, 'reemplazado')
-        return cerrarMonto(y, MONTO_REAL_EJEMPLO, BOLETA_EJEMPLO)
+        for (const l of x.pedido!.lineas) {
+          if (l.enComercio !== 'pendiente') continue
+          y = l.insumoId === 'suplemento' ? marcarLinea(y, l.insumoId, 'ya_no_esta', opciones.nadieLoTiene) : marcarLinea(y, l.insumoId, 'listo')
+        }
+        return listoParaRetiro(y)
       },
     ],
     ['en_camino', validarCodigo],

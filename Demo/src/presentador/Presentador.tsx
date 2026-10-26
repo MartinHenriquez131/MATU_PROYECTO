@@ -26,6 +26,7 @@ import {
   etapa,
   pantallaComercio,
   pantallaFamilia,
+  pasarMinutos,
   pedidoHasta,
   pilaComercio,
   pilaFamilia,
@@ -33,6 +34,8 @@ import {
   ultimoAcceso,
 } from '../demo/logica'
 import { TEXTO_CAMPO, TEXTO_RODRIGO } from '../demo/datos'
+import { totalVencido } from '../demo/calculos'
+import { VIGENCIA_MINUTOS } from '../demo/textos-pedido'
 import type { Estado, Rol } from '../demo/tipos'
 import { useBackend } from '../datos/backend'
 import { usePresentador, type Tema } from './contexto'
@@ -100,6 +103,9 @@ function ayudas(s: Estado): Ayuda[] {
   if (top === 'enlace-pin' || top === 'enlaces' || top === 'quien-vio') {
     const a = ultimoAcceso(s)
     if (a) r.push({ id: 'abrir', texto: `Abrir como ${a.nombre}`, accion: (x) => abrirRelevo(x, a.id) })
+  }
+  if (top === 'pedido' && p?.estado === 'apartado' && !totalVencido(p, s.ahora)) {
+    r.push({ id: 'vence', texto: `Pasan ${VIGENCIA_MINUTOS} minutos`, accion: (x) => pasarMinutos(x, VIGENCIA_MINUTOS + 1) })
   }
   if (top === 'seguimiento' && pagado && p?.estado !== 'entregado') {
     r.push({

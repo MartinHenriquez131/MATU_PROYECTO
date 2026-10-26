@@ -18,10 +18,9 @@ import {
   rodrigoEdita,
   ultimoAcceso,
   vaciarInsumos,
-  elegirMedio,
-  etapa,
+  pasarMinutos,
 } from './logica'
-import { accesoVigente } from './calculos'
+import { accesoVigente, devolucion, totalVencido } from './calculos'
 import type { Estado, PantallaComercioId, PantallaFamiliaId, Rol } from './tipos'
 
 export type Capa = 1 | 2 | 3 | 4
@@ -49,10 +48,9 @@ function conAccesoActivo(s: Estado): Estado {
   return a && accesoVigente(a, s.ahora) ? s : { ...accesoPorDefecto(s), pinVisible: null }
 }
 
-function pedidoBorrador(s: Estado): Estado {
-  let t = conFamilia(s)
-  if (!t.pedido || t.pedido.estado !== 'borrador') t = pedidoHasta({ ...t, pedido: null }, 'borrador')
-  return t
+/** Un pedido con el stock recién confirmado: $57.460, vigente por 15 minutos. */
+function pedidoApartado(s: Estado): Estado {
+  return pedidoHasta({ ...conFamilia(s), pedido: null }, 'apartado')
 }
 
 export const ESCENAS: Escena[] = [
@@ -227,112 +225,82 @@ export const ESCENAS: Escena[] = [
     id: 'reponer',
     capa: 2,
     titulo: 'Lista de reposición',
-    nota: 'Cuánto comprar para cubrir tres semanas. Funciona sin ningún comercio.',
+    nota: 'Precios exactos de un comercio, envío desde la lista y tres salidas. Exportar y compartir son gratis.',
     rol: 'familia',
-    preparar: (s) => pilaFamilia({ ...conFamilia(s), ajustesLista: {} }, ['se-acaba', 'reponer']),
+    preparar: (s) => pilaFamilia({ ...conFamilia(s), ajustesLista: {}, pedido: null }, ['se-acaba', 'reponer']),
   },
   {
     id: 'exportar',
     capa: 2,
-    titulo: 'Exportar la lista',
-    nota: 'Copiar, compartir o descargar la lista para quien vaya a comprar.',
+    titulo: 'Exportar o compartir la lista',
+    nota: 'Copiar, descargar, enviar a Rodrigo (del grupo) o compartir desde el teléfono. Sin pedir en MATU.',
     rol: 'familia',
-    preparar: familia(['se-acaba', 'reponer', 'exportar']),
+    preparar: (s) => pilaFamilia({ ...conFamilia(s), ajustesLista: {}, pedido: null }, ['se-acaba', 'reponer', 'exportar']),
   },
   // Capa 3
   {
     id: 'pedido',
     capa: 3,
-    titulo: 'Tu pedido',
-    nota: 'Paga una sola persona. La dirección se pide recién aquí.',
+    titulo: 'Tu pedido, antes de pagar',
+    nota: 'Stock confirmado: las toallitas salieron y el suplemento bajó de precio. Todo lo que exige la ley, antes de pagar.',
     rol: 'familia',
-    preparar: (s) => pilaFamilia(pedidoBorrador(s), ['se-acaba', 'reponer', 'pedido']),
-  },
-  {
-    id: 'medio',
-    capa: 3,
-    titulo: 'Crédito o débito',
-    nota: 'Antes de pagar se explica qué se reserva o se cobra, y qué vuelve.',
-    rol: 'familia',
-    preparar: (s) => pilaFamilia(pedidoBorrador(s), ['reponer', 'pedido', 'medio']),
+    preparar: (s) => pilaFamilia(pedidoApartado(s), ['se-acaba', 'reponer', 'pedido']),
   },
   {
     id: 'pasarela',
     capa: 3,
     titulo: 'Pasarela simulada',
-    nota: 'Transbank en ambiente de prueba. MATU nunca ve los datos de la tarjeta.',
+    nota: 'Crédito o débito de prueba, el mismo monto. "Pago de prueba. No se cobra dinero real."',
     rol: 'familia',
-    preparar: (s) => {
-      const t = pedidoBorrador(s)
-      return pilaFamilia(t.pedido?.medio ? t : elegirMedio(t, 'credito'), ['pedido', 'medio', 'pasarela'])
-    },
+    preparar: (s) => pilaFamilia(pedidoApartado(s), ['reponer', 'pedido', 'pasarela']),
   },
   {
     id: 'seguimiento',
     capa: 3,
     titulo: 'Seguimiento',
-    nota: 'Estimado, lo reservado y, cuando se sabe, el monto real.',
+    nota: 'Pagado una sola vez, con su comprobante.',
     rol: 'familia',
-    preparar: (s) => {
-      const t = conFamilia(s)
-      const listo = t.pedido && etapa(t.pedido.estado) >= etapa('pagado') && t.pedido.estado !== 'entregado'
-      return pilaFamilia(listo ? t : pedidoHasta(t, 'pagado'), ['seguimiento'])
-    },
+    preparar: (s) => pilaFamilia(pedidoHasta({ ...conFamilia(s), pedido: null }, 'pagado'), ['seguimiento']),
   },
   {
     id: 'c-pedidos',
     capa: 3,
     titulo: 'Comercio: pedidos del día',
-    nota: 'Segundo rol. Una pantalla, sin aprendizaje previo.',
+    nota: 'Lo apartado sin pagar se ve solo como referencia opaca. El pedido pagado no lleva nombres ni dirección.',
     rol: 'comercio',
-    preparar: (s) => {
-      const t = conFamilia(s)
-      const ok = t.pedido && etapa(t.pedido.estado) >= etapa('pagado')
-      return pilaComercio(ok ? t : pedidoHasta(t, 'pagado'), ['c-pedidos'])
-    },
+    preparar: (s) => pilaComercio(pedidoHasta({ ...conFamilia(s), pedido: null }, 'pagado'), ['c-pedidos']),
   },
   {
     id: 'c-preparar',
     capa: 3,
     titulo: 'Comercio: preparar',
-    nota: 'Resuelve lo que falta con la regla que dejó la familia. Ve el nombre de pila, no la dirección.',
+    nota: 'El suplemento "ya no está": MATU lo busca en otro local.',
     rol: 'comercio',
-    preparar: (s) => pilaComercio(pedidoHasta(s, 'preparando'), ['c-pedidos', 'c-preparar']),
-  },
-  {
-    id: 'c-monto',
-    capa: 3,
-    titulo: 'Comercio: monto real',
-    nota: 'El monto de la boleta, nunca sobre el tope autorizado.',
-    rol: 'comercio',
-    preparar: (s) => {
-      let t = pedidoHasta(s, 'preparando')
-      if (t.pedido!.estado !== 'preparando') t = pedidoHasta({ ...t, pedido: null }, 'preparando')
-      const lineas = t.pedido!.lineas.map((l) =>
-        l.resolucion === 'sin_stock' ? { ...l, resolucion: 'reemplazado' as const, reemplazo: { nombre: 'Toallitas húmedas x80, otra marca', precio: 5_290 } } : l,
-      )
-      return pilaComercio({ ...t, pedido: { ...t.pedido!, lineas } }, ['c-pedidos', 'c-preparar', 'c-monto'])
-    },
+    preparar: (s) => pilaComercio(pedidoHasta({ ...conFamilia(s), pedido: null }, 'preparando'), ['c-pedidos', 'c-preparar']),
   },
   {
     id: 'c-codigo',
     capa: 3,
     titulo: 'Comercio: código de retiro',
-    nota: 'Código de un solo uso. En el semestre la entrega se marca desde aquí.',
+    nota: 'Sin pedir otro monto: el total ya se pagó antes.',
     rol: 'comercio',
-    preparar: (s) => {
-      let t = pedidoHasta(s, 'listo')
-      if (t.pedido!.estado !== 'listo') t = pedidoHasta({ ...t, pedido: null }, 'listo')
-      return pilaComercio(t, ['c-pedidos', 'c-codigo'])
-    },
+    preparar: (s) => pilaComercio(pedidoHasta({ ...conFamilia(s), pedido: null }, 'listo'), ['c-pedidos', 'c-codigo']),
+  },
+  {
+    id: 'cambio-local',
+    capa: 3,
+    titulo: 'Cambio de local',
+    nota: 'Mismo producto en otro local: la familia paga lo mismo y MATU pone la diferencia. Reenvío simulado (fase 2).',
+    rol: 'familia',
+    preparar: (s) => pilaFamilia(pedidoHasta({ ...conFamilia(s), pedido: null }, 'listo'), ['seguimiento']),
   },
   {
     id: 'entregado',
     capa: 3,
     titulo: 'Entregado',
-    nota: 'Reserva $69.000, cobro $51.340: la prueba real de Transbank, explicada.',
+    nota: 'Cobrado = total que viste: el mismo monto del botón Pagar.',
     rol: 'familia',
-    preparar: (s) => pilaFamilia(pedidoHasta(s, 'entregado'), ['entregado']),
+    preparar: (s) => pilaFamilia(pedidoHasta({ ...conFamilia(s), pedido: null }, 'entregado'), ['entregado']),
   },
   // Casos borde
   {
@@ -362,16 +330,31 @@ export const ESCENAS: Escena[] = [
     },
   },
   {
+    id: 'total-vencido',
+    capa: 4,
+    titulo: 'El total venció',
+    nota: 'Pasaron 15 minutos: se confirma de nuevo, sin costo. Mientras está vencido no hay botón de pago.',
+    rol: 'familia',
+    preparar: (s) => pilaFamilia(pasarMinutos(pedidoApartado(s), 16), ['se-acaba', 'reponer', 'pedido']),
+  },
+  {
     id: 'rechazado',
     capa: 4,
     titulo: 'El pago no pasó',
-    nota: 'Sin culpar a nadie y sin jerga de pasarela. No se cobró nada.',
+    nota: 'No se cobró nada; el pedido sigue apartado hasta que vence.',
     rol: 'familia',
     preparar: (s) => {
-      const t = pedidoBorrador(s)
-      const u = t.pedido?.medio ? t : elegirMedio(t, 'credito')
-      return pilaFamilia({ ...u, pedido: { ...u.pedido!, rechazos: u.pedido!.rechazos + 1 } }, ['pedido', 'medio', 'rechazado'])
+      const t = pedidoApartado(s)
+      return pilaFamilia({ ...t, pedido: { ...t.pedido!, rechazos: t.pedido!.rechazos + 1 } }, ['reponer', 'pedido', 'rechazado'])
     },
+  },
+  {
+    id: 'no-llego',
+    capa: 4,
+    titulo: 'Un producto no llegó',
+    nota: 'Nadie lo tenía: se devuelve su precio el mismo día, a la misma tarjeta.',
+    rol: 'familia',
+    preparar: (s) => pilaFamilia(pedidoHasta({ ...conFamilia(s), pedido: null }, 'entregado', { nadieLoTiene: true }), ['entregado']),
   },
   {
     id: 'pin-incorrecto',
@@ -441,6 +424,10 @@ export function escenaActual(s: Estado): string | null {
     agregar: 'declarar',
   }
   if (id === 'se-acaba' && !s.insumos.some((i) => i.declarado)) return 'vacio'
+  const p = s.pedido
+  if (id === 'pedido' && p && totalVencido(p, s.ahora)) return 'total-vencido'
+  if (id === 'seguimiento' && p?.lineas.some((l) => l.reasignado)) return 'cambio-local'
+  if (id === 'entregado' && p && devolucion(p) > 0) return 'no-llego'
   return mapa[id] ?? (ESCENAS.some((e) => e.id === id) ? id : null)
 }
 

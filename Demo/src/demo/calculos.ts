@@ -1,8 +1,6 @@
 // Reglas y formatos de la demo. Dinero siempre en pesos enteros, nunca decimales.
 import type { Acceso, Insumo, Pedido } from './tipos'
 
-/** Holgura que se reserva con crédito sobre el estimado (arquitectura, sección 8.2). */
-export const MARGEN_PORCENTAJE = 15
 /** Cinco PIN incorrectos bloquean el acceso (MATU-19). */
 export const MAX_INTENTOS_PIN = 5
 /** Se avisa cuando quedan 7 días o menos. */
@@ -10,8 +8,6 @@ export const DIAS_PRONTO = 7
 export const DIAS_ATENTA = 14
 /** La lista de reposición busca cubrir tres semanas. */
 export const COBERTURA_DIAS = 21
-/** Un equivalente puede costar hasta 10% más. */
-export const TOPE_EQUIVALENTE_PORCENTAJE = 10
 export const DIA = 1440
 
 // Fecha fija de la demo: viernes 30/10/2026, 14:20 (hora de Chile). Se usa UTC solo como
@@ -74,13 +70,6 @@ export function fmtDinero(monto: number): string {
   return `${signo}$${String(Math.abs(monto)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
 }
 
-/** Lee lo que escribió el comercio ("51.340", "$51340") como pesos enteros. */
-export function leerPesos(texto: string): number | null {
-  const limpio = texto.replace(/[$.\s]/g, '')
-  if (!/^\d{1,7}$/.test(limpio)) return null
-  return Number.parseInt(limpio, 10)
-}
-
 // ---------- Predicción ----------
 
 /** Días que alcanzan: stock / consumo diario, hacia abajo. */
@@ -126,29 +115,31 @@ export function lineasLista(insumos: Insumo[], ajustes: Record<string, number>):
     .sort((a, b) => diasRestantes(a.insumo) - diasRestantes(b.insumo))
 }
 
-export function totalEstimado(lineas: { paquetes: number; insumo: { precio: number } }[]): number {
+export function totalProductos(lineas: { paquetes: number; insumo: { precio: number } }[]): number {
   return lineas.reduce((suma, l) => suma + l.paquetes * l.insumo.precio, 0)
 }
 
-// ---------- Pago ----------
+// ---------- Pedido (ADR-027: precio exacto y un solo cobro) ----------
 
-/** Crédito: se reserva el estimado más la holgura, redondeado hacia arriba al peso. */
-export function reservaCredito(estimado: number): number {
-  return estimado + Math.ceil((estimado * MARGEN_PORCENTAJE) / 100)
+export function subtotalProductos(p: Pedido): number {
+  return p.lineas.reduce((t, l) => t + l.paquetes * l.precio, 0)
 }
 
-export function montoAPagar(estimado: number, medio: 'credito' | 'debito'): number {
-  return medio === 'credito' ? reservaCredito(estimado) : estimado
+/** Lo que se devuelve si un producto no llegó; con el envío si no llegó nada. */
+export function devolucion(p: Pedido): number {
+  const fuera = p.lineas.filter((l) => l.noLlego)
+  if (fuera.length === 0) return 0
+  const productos = fuera.reduce((t, l) => t + l.paquetes * l.precio, 0)
+  return fuera.length === p.lineas.length ? productos + p.envio : productos
 }
 
-/** Lo que vuelve a la persona: liberado (crédito) o devuelto (débito). */
-export function diferencia(p: Pedido): number | null {
-  if (p.montoReal === null) return null
-  return p.montoPagado - p.montoReal
+/** Lo que vende el comercio que prepara: sin lo que se retiró en otro local ni lo que no llegó. */
+export function productosDelComercio(p: Pedido): number {
+  return p.lineas.filter((l) => !l.reasignado && !l.noLlego).reduce((t, l) => t + l.paquetes * l.precio, 0)
 }
 
-export function topeEquivalente(precio: number): number {
-  return precio + Math.floor((precio * TOPE_EQUIVALENTE_PORCENTAJE) / 100)
+export function totalVencido(p: Pedido, ahora: number): boolean {
+  return p.estado === 'apartado' && ahora >= p.venceMin
 }
 
 // ---------- Relevo ----------

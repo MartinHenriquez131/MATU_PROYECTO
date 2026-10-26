@@ -8,7 +8,7 @@ import { ShellFamilia } from './Shell'
 import { Inicio } from './Inicio'
 import { Compartir, Completar, Conflicto, EnlacePin, Enlaces, Guardado, Imprimir, QuienVio, TuFicha } from './Ficha'
 import { Exportar, Reponer, SeAcaba } from './Insumos'
-import { Entregado, MedioPago, Pasarela, PedidoPantalla, Rechazado, Seguimiento } from './Pedidos'
+import { Entregado, Pasarela, PedidoPantalla, Rechazado, Seguimiento } from './Pedidos'
 import { Grupo } from './Grupo'
 
 const ALTA: PantallaFamiliaId[] = ['bienvenida', 'cuenta', 'entrar', 'a-quien', 'permiso']
@@ -44,8 +44,6 @@ function Contenido({ id }: { id: PantallaFamiliaId }) {
       return <Exportar />
     case 'pedido':
       return <PedidoPantalla />
-    case 'medio':
-      return <MedioPago />
     case 'rechazado':
       return <Rechazado />
     case 'seguimiento':

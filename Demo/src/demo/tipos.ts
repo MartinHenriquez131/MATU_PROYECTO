@@ -29,14 +29,13 @@ export type PantallaFamiliaId =
   | 'reponer'
   | 'exportar'
   | 'pedido'
-  | 'medio'
   | 'pasarela'
   | 'rechazado'
   | 'seguimiento'
   | 'entregado'
   | 'grupo'
 
-export type PantallaComercioId = 'c-pedidos' | 'c-preparar' | 'c-monto' | 'c-codigo'
+export type PantallaComercioId = 'c-pedidos' | 'c-preparar' | 'c-codigo'
 
 export interface Pantalla<T extends string> {
   id: T
@@ -138,29 +137,54 @@ export interface Insumo {
 }
 
 export type Medio = 'credito' | 'debito'
-export type EstadoPedido = 'borrador' | 'pagado' | 'preparando' | 'listo' | 'en_camino' | 'entregado'
+/**
+ * Estados del pedido con precio exacto (ADR-027): se confirma el stock, queda apartado con un
+ * total que vale unos minutos, se paga una sola vez ese total y después se prepara y entrega.
+ */
+export type EstadoPedido = 'confirmando' | 'apartado' | 'pagado' | 'preparando' | 'listo' | 'en_camino' | 'entregado' | 'cancelado'
 
 export interface LineaPedido {
   insumoId: string
   nombre: string
   paquetes: number
+  /** Precio unitario confirmado, el que se paga. */
   precio: number
-  resolucion: 'ok' | 'sin_stock' | 'reemplazado' | 'no_disponible'
-  reemplazo: { nombre: string; precio: number } | null
+  /** Precio unitario que mostraba la lista. */
+  precioLista: number
+  comercio: string
+  /** Qué cambió al confirmar el stock: nada, el precio o el comercio. */
+  cambio: 'precio' | 'comercio' | null
+  /** Lo que marca el comercio al preparar. */
+  enComercio: 'pendiente' | 'listo' | 'ya_no_esta'
+  /** El mismo producto, retirado en otro local: la familia paga lo mismo y MATU pone la diferencia. */
+  reasignado: { comercio: string; precio: number } | null
+  /** Nadie lo tenía: se devuelve su precio. */
+  noLlego: boolean
+}
+
+/** Lo que estaba en la lista y ningún comercio tiene hoy: sale del pedido y no suma al total. */
+export interface LineaFuera {
+  insumoId: string
+  nombre: string
+  paquetes: number
+  precio: number
 }
 
 export interface Pedido {
   numero: number
   lineas: LineaPedido[]
-  estimado: number
-  aceptaEquivalente: boolean
+  salieron: LineaFuera[]
+  envio: number
+  /** Total de la lista antes de confirmar el stock, con envío. */
+  totalLista: number
+  /** Total confirmado con IVA y envío: lo que se paga una sola vez. */
+  total: number
   direccion: string
   medio: Medio | null
-  /** Crédito: lo reservado. Débito: lo cobrado al confirmar. */
-  montoPagado: number
-  montoReal: number | null
-  boleta: string
   estado: EstadoPedido
+  /** Hasta cuándo vale el total confirmado (minutos de la demo). */
+  venceMin: number
+  reconfirmado: boolean
   codigoRetiro: string
   hitos: Partial<Record<EstadoPedido, number>>
   rechazos: number
