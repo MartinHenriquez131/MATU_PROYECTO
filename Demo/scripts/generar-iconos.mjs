@@ -1,11 +1,11 @@
 // Genera los íconos PNG del manifiesto sin dependencias: dibuja el logo de MATU (un corazón
 // blanco dentro de un círculo del color de marca) con funciones de distancia y lo codifica con zlib.
-// El color repite el token `pino` de src/index.css: si cambia la paleta, se cambia aquí y se regenera.
+// El color repite el token `marca` de src/index.css: si cambia la paleta, se cambia aquí y se regenera.
 // Uso: node scripts/generar-iconos.mjs
 import { deflateSync } from 'node:zlib'
 import { writeFileSync } from 'node:fs'
 
-const PINO = [14, 94, 87]
+const MARCA = [13, 154, 148]
 const BLANCO = [255, 255, 255]
 
 function enTriangulo(px, py, [ax, ay], [bx, by], [cx, cy]) {
@@ -26,7 +26,7 @@ function muestra(x, y, maskable) {
     Math.hypot(u - 19.2, v - 21.6) <= 5.6 ||
     Math.hypot(u - 28.8, v - 21.6) <= 5.6 ||
     enTriangulo(u, v, [14.1, 24], [33.9, 24], [24, 35.5])
-  return corazon ? BLANCO : PINO
+  return corazon ? BLANCO : MARCA
 }
 
 function crc32(buf) {
