@@ -337,7 +337,7 @@ function ListaReposicion() {
                 <span aria-hidden className="text-2xl leading-none font-bold">+</span>
               </button>
             </span>
-            <span className="cifras w-26 text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
+            <span className="cifras ml-auto w-26 text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
           </li>
         ))}
       </ul>

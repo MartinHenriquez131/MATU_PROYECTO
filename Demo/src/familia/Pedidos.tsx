@@ -22,7 +22,7 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
   return (
     <section
       aria-labelledby="boleta-t"
-      className="relative rounded-t-lg bg-hoja px-4 @3xl:px-7 pt-5 pb-8 ring-1 ring-linea [mask:radial-gradient(circle_at_50%_100%,transparent_0.42rem,#000_0.45rem)_bottom/1.1rem_100%_repeat-x]"
+      className="relative rounded-t-lg bg-hoja px-4 @3xl:px-7 pt-5 pb-8 ring-1 ring-linea [mask:radial-gradient(circle_at_50%_100%,transparent_0.42rem,var(--color-tinta)_0.45rem)_bottom/1.1rem_100%_repeat-x]"
     >
       <h2 id="boleta-t" className="mb-4 flex items-center gap-2 text-xl font-bold">
         <ReceiptText aria-hidden className="size-5 text-pino" />
