@@ -70,7 +70,7 @@ export function Inicio() {
               {CAMPOS.map((c) => {
                 const listo = !!s.ficha[c].texto.trim()
                 return (
-                  <li key={c} className="flex items-center justify-between gap-2">
+                  <li key={c} className="flex flex-wrap items-center justify-between gap-x-2">
                     <span className={listo ? '' : 'text-tenue'}>{TEXTO_CAMPO[c].titulo}</span>
                     <span className={`inline-flex items-center gap-1 text-base font-bold ${listo ? 'text-ok' : 'text-tenue'}`}>
                       {listo ? <Check aria-hidden className="size-4" strokeWidth={3} /> : <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />}
@@ -81,7 +81,7 @@ export function Inicio() {
               })}
             </ul>
             <BarraCampos hechos={hechos} className="mt-4" />
-            <p className="mt-2 text-base text-tenue">{textoAvance}</p>
+            <p className="mt-2 text-base text-tenue wrap-anywhere">{textoAvance}</p>
           </Hoja>
           <Acciones>
             {hechos < 3 && <Boton onClick={a((x) => abrirCampo(x, siguienteCampoVacio(x)!))}>Completar la ficha</Boton>}
@@ -108,9 +108,9 @@ export function Inicio() {
                 accion="Ver qué reponer"
                 onAccion={a((x) => pilaFamilia(x, ['se-acaba']))}
               >
-                <p>
+                <p className="wrap-anywhere tabular-nums">
                   Alcanzan para <b className="cifras">{diasRestantes(urgente)} días</b>, hasta el{' '}
-                  <span className="cifras">{fmtFecha(s.ahora + diasRestantes(urgente) * DIA)}</span>.
+                  <span>{fmtFecha(s.ahora + diasRestantes(urgente) * DIA)}</span>.
                 </p>
                 <BarraDias dias={diasRestantes(urgente)} nivel={nivel(diasRestantes(urgente))} />
               </Atencion>

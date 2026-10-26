@@ -156,8 +156,12 @@ function ListaAyudas({ compacta = false }: { compacta?: boolean }) {
 export function Distintivo({ flotante = false }: { flotante?: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-2 px-3 py-1 font-bold text-tenue ${
-        flotante ? 'rounded-full bg-hoja text-base shadow-md ring-1 ring-linea' : 'max-w-44 rounded-xl bg-tinta/7 text-sm leading-tight @min-[90rem]:max-w-none @min-[90rem]:rounded-full'
+      data-distintivo={flotante ? undefined : 'franja'}
+      className={`inline-flex items-center gap-2 px-3 py-1 font-bold text-tenue ${
+        flotante
+          ? // Flotante: puede partirse en dos líneas y nunca es más ancho que la pantalla (WCAG 1.4.10).
+            'min-w-0 rounded-2xl bg-hoja text-base leading-snug shadow-md ring-1 ring-linea'
+          : 'max-w-44 shrink-0 rounded-xl bg-tinta/7 text-sm leading-tight @min-[90rem]:max-w-none @min-[90rem]:rounded-full'
       }`}
     >
       <span aria-hidden className="size-2 shrink-0 rounded-full bg-miel" />
@@ -295,10 +299,11 @@ export function Franja() {
 }
 
 /** En modo presentación queda solo esto: el distintivo y una forma de volver a la guía. */
-export function DistintivoFlotante() {
+export function DistintivoFlotante({ arriba = false }: { arriba?: boolean }) {
   const { setCajon, cajon } = usePresentador()
   return (
-    <div className="fixed bottom-3 left-3 z-30 flex items-center gap-1">
+    // Entre los dos bordes de la pantalla: el distintivo se acomoda al ancho que haya.
+    <div className={`pointer-events-none fixed inset-x-3 z-30 flex items-center gap-1 [&>*]:pointer-events-auto ${arriba ? 'top-3' : 'bottom-3'}`}>
       <Distintivo flotante />
       <button
         type="button"
@@ -306,7 +311,7 @@ export function DistintivoFlotante() {
         aria-expanded={cajon}
         aria-controls="guia-presentador"
         aria-label="Abrir la guía del presentador"
-        className="grid size-10 place-items-center rounded-full text-tenue hover:bg-tinta/7 hover:text-tinta"
+        className="grid size-10 shrink-0 place-items-center rounded-full bg-hoja text-tenue shadow-md ring-1 ring-linea hover:text-tinta"
       >
         <BookOpen aria-hidden className="size-4.5" />
       </button>

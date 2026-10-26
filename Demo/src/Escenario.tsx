@@ -1,7 +1,7 @@
 // Compone la demo: la franja del presentador, la app del rol actual y el cajón de la guía.
 // "Texto al 200%" aplica zoom 2 solo a la app: como todo se ordena con container queries, la app
 // se reacomoda a la mitad del ancho y la guía queda igual.
-import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import { useDemo } from './demo/estado'
 import { pantallaComercio, pantallaFamilia } from './demo/logica'
 import type { Estado } from './demo/tipos'
@@ -53,7 +53,7 @@ function useFocoAlNavegar(k: string) {
 }
 
 /** El aviso breve de cada acción. Se anuncia a lectores de pantalla y se va solo. */
-function Aviso({ corrido }: { corrido: boolean }) {
+function Aviso({ corrido, presentacion }: { corrido: boolean; presentacion: boolean }) {
   const { s, haz } = useDemo()
   const a = s.aviso
   useEffect(() => {
@@ -65,7 +65,7 @@ function Aviso({ corrido }: { corrido: boolean }) {
   // el aviso no quede bajo el cajón de la guía.
   const derecha = corrido ? (s.texto200 ? 'right-50' : 'right-100') : s.texto200 ? 'right-3' : 'right-5'
   return (
-    <div aria-live="polite" className={`pointer-events-none fixed left-5 z-30 ml-auto flex max-w-md justify-end ${derecha} ${s.texto200 ? 'bottom-3' : 'bottom-5'}`}>
+    <div aria-live="polite" className={`pointer-events-none fixed left-5 z-30 ml-auto flex max-w-md justify-end ${derecha} ${presentacion ? (s.texto200 ? 'bottom-12' : 'bottom-24') : s.texto200 ? 'bottom-3' : 'bottom-5'}`}>
       {a && (
         <p key={a.id} className="pointer-events-auto rounded-xl bg-tinta px-4 py-3 text-papel shadow-lg motion-safe:animate-aparecer">
           {a.texto}
@@ -90,6 +90,20 @@ function Marco() {
   useFocoAlNavegar(clave(s))
   const zoom: CSSProperties | undefined = s.texto200 ? { zoom: 2 } : undefined
   const corrido = p.cajon && empuja
+  // El aviso de piloto tiene que estar siempre en pantalla. La franja va en el flujo (a 320 px no
+  // cabe fija), así que cuando su distintivo no se ve entero aparece el distintivo flotante. Se
+  // observa el distintivo y no toda la franja: a 320 px la franja es alta y su parte de abajo
+  // puede seguir a la vista cuando el distintivo ya salió.
+  const franja = useRef<HTMLDivElement>(null)
+  const [franjaVisible, setFranjaVisible] = useState(true)
+  useEffect(() => {
+    const el = franja.current?.querySelector('[data-distintivo="franja"]')
+    if (!el) return
+    const obs = new IntersectionObserver(([e]) => setFranjaVisible(e.intersectionRatio >= 0.99), { threshold: [0, 0.99, 1] })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [p.presentacion])
+  const flotante = p.presentacion || !franjaVisible
   return (
     <>
       <RelevoUrl />
@@ -99,20 +113,22 @@ function Marco() {
       >
         Saltar al contenido
       </a>
-      <div className={`flex min-h-dvh flex-col ${corrido ? 'pr-96' : ''}`}>
+      {/* Espacio al final para que el distintivo flotante no tape el último contenido. */}
+      {/* En modo presentación el distintivo va arriba, con su espacio reservado: al cargar no tapa el titular. */}
+      <div className={`flex min-h-dvh flex-col pb-24 ${corrido ? 'pr-96' : ''} ${p.presentacion ? 'pt-18' : ''}`}>
         {!p.presentacion && (
-          <div data-presentador>
+          <div data-presentador ref={franja}>
             <Franja />
           </div>
         )}
         <div style={zoom} className="@container/app flex flex-1 flex-col">
           <AppActual />
-          <Aviso corrido={corrido} />
+          <Aviso corrido={corrido} presentacion={flotante && !p.presentacion} />
         </div>
       </div>
-      {p.presentacion && (
+      {flotante && (
         <div data-presentador>
-          <DistintivoFlotante />
+          <DistintivoFlotante arriba={p.presentacion} />
         </div>
       )}
       {p.cajon && <Cajon />}
