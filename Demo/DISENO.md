@@ -63,7 +63,7 @@ La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos
 
 Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no con media queries. Así, "Texto al 200%" (que aplica `zoom: 2` solo a la app) y el zoom del navegador al 400% en 1280 px (320 px efectivos) hacen que todo fluya a una columna sin desplazamiento horizontal. No hay una experiencia móvil aparte: es el mismo layout que se estrecha.
 
-**Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (14 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
+**Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (16,5 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
 
 **Alineación a la izquierda** en todo el contenido. Se centran solo el PIN (se lee en voz alta como un bloque) y la hoja en la página de Rosa (es el único objeto de la página).
 
@@ -87,7 +87,7 @@ Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no co
 └──────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Barra lateral** sobre `papel`, sin fondo propio: logo, cinco secciones y una pista de estado en cada una ("1 de 3", un punto de Pronto, "En curso"). Bajo 56 rem de ancho se vuelve una fila superior.
+- **Barra lateral** sobre `papel`, sin fondo propio, de **16,5 rem**: logo, cinco secciones y una pista de estado en cada una ("1 de 3", un punto de Pronto, "En curso"), en la misma línea que el nombre y en `text-base`, porque es un estado que el público lee en el proyector. La medida sale del renglón más largo: "Ficha de relevo 1 de 3" en negrita, cuando está activa, mide unos 248 px más la píldora y los márgenes. Con 14 rem sobresalía 22 px. Bajo 56 rem de ancho se vuelve una fila superior.
 - **Encabezado** con la persona cuidada a la izquierda y quien está conectada a la derecha, con la fecha y la hora de la demo.
 - **Pestañas** dentro de una sección cuando hay vistas hermanas: Ficha (Campos, Compartir, Enlaces, Quién la vio, Para imprimir) e Insumos (Qué se acaba, Lista de reposición).
 - **Dos columnas** desde 48 rem de ancho de contenido. La izquierda es lo que se hace; la derecha, el resultado:
@@ -213,6 +213,7 @@ Jorge decidió que el color principal de MATU es el turquesa y que el logo es un
 | `papel` `#EDF2EE`, verde neblina | `papel` `#ECF3F2`, neblina de agua | Un grado hacia el agua para que el fondo no tire a verde junto al turquesa. `tinta` y `tenue` no cambian y suben un poco su contraste |
 | `miel` también en el corazón del logo | `miel` solo en el imán y los puntos de "Su día" | El corazón es blanco por la directriz. La miel queda como el único punto cálido, y eso es lo que aleja a la marca del turquesa clínico |
 | El borde de los campos usaba `linea` (1,3:1) | Derivado `borde` (3,5:1 sobre `hoja`) | Hallazgo de esta revisión: los campos no se distinguían del fondo (WCAG 1.4.11). `linea` queda para los divisores |
+| Barra lateral de 14 rem, pistas en `text-sm` (14,9 px) | Barra de 16,5 rem, pistas en `text-base` (17 px) | En el proyector, ningún estado bajo 1 rem. Con 14 rem la píldora activa sobresalía 22 px. Se descartó poner la pista debajo del nombre: suma cinco renglones y separa el estado de su sección |
 | Colores de la pasarela escritos en el componente | Tokens `pasarela-*` con los mismos valores | Política 9: ningún color a mano, ni siquiera en la parte que no es de la marca |
 
 Para que el turquesa no sea el de cualquier app de salud: no hay degradados ni fondos turquesa a pantalla completa (salvo el panel del alta, en el tono profundo), el turquesa nunca comunica estado, la hoja con su imán sigue siendo lo que se recuerda y la tipografía de los titulares sigue siendo Bricolage.
