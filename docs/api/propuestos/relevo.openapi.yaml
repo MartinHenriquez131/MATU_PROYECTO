@@ -1112,7 +1112,7 @@ components:
             type: /errores/relevo-revocado
             title: Ya no está disponible
             status: 410
-            detail: Quien te compartió la ficha cortó este enlace. Pídele uno nuevo si lo necesitas
+            detail: Quien te compartió la ficha cortó este enlace. Pídele a quien te envió el enlace uno nuevo
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000ec
 
