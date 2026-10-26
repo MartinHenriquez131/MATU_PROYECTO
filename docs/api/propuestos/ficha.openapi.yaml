@@ -294,7 +294,7 @@ components:
       schema:
         $ref: '#/components/schemas/ETag'
     CacheControlNoStore:
-      description: La respuesta lleva texto de la ficha y no se guarda en ninguna caché.
+      description: La respuesta lleva texto de la ficha, un PIN o un enlace de relevo, y no se guarda en ninguna caché.
       required: true
       schema:
         type: string
