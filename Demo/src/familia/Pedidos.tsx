@@ -59,7 +59,7 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
         ) : (
           <>
             <Renglon texto="Pagas en total" monto={real !== null ? fmtDinero(real) : 'el monto real'} fuerte />
-            {dif !== null && <Renglon texto="Te devolvemos" monto={fmtDinero(dif)} tono="ok" nota="A la misma tarjeta, cuando la farmacia armó el pedido." />}
+            {dif !== null && <Renglon texto="Te devolvemos" monto={fmtDinero(dif)} tono="ok" nota="Cómo y en qué plazo, todavía por definir." />}
           </>
         )}
       </div>
@@ -176,12 +176,12 @@ export function MedioPago() {
             </Nota>
           ) : (
             <Nota titulo={`Con débito el banco cobra al instante: se cobran ${fmtDinero(p.estimado)} al confirmar.`}>
-              Si el pedido sale por menos, te devolvemos la diferencia a la misma tarjeta cuando la farmacia lo arme.
+              Si el pedido sale por menos, te devolvemos la diferencia. Cómo y en qué plazo se devuelve todavía está por definir.
             </Nota>
           )}
           <Acciones>
             <Boton icono={<Lock aria-hidden className="size-5" />} onClick={() => haz((x) => ir(elegirMedio(x, medio), 'pasarela'))}>
-              Pagar <span className="cifras">{fmtDinero(monto)}</span>
+              {medio === 'credito' ? 'Reservar' : 'Pagar'} <span className="cifras">{fmtDinero(monto)}</span>
             </Boton>
           </Acciones>
           <p className="flex gap-2 text-base text-tenue">
@@ -207,7 +207,12 @@ export function Pasarela() {
       haz((x) => {
         const t = resultadoPago(x, procesando)
         if (!procesando) return reemplazar(t, 'rechazado')
-        const msg = t.pedido?.medio === 'credito' ? 'Pago aprobado. Reservamos el monto y avisamos a la farmacia.' : 'Pago aprobado. Avisamos a la farmacia.'
+        // Textos revisados por el analista normativo. El monto sale de lo calculado, nunca fijo.
+        const monto = fmtDinero(t.pedido?.montoPagado ?? 0)
+        const msg =
+          t.pedido?.medio === 'credito'
+            ? `Reserva aprobada por ${monto}. Avisamos a la farmacia. Te cobramos el monto real al entregar.`
+            : `Pago aprobado por ${monto}. Avisamos a la farmacia.`
         return avisar(pilaFamilia(t, ['seguimiento']), msg)
       })
     }, 1100)
@@ -260,7 +265,7 @@ export function Pasarela() {
         ) : (
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={() => setProcesando(true)} className="min-h-12 rounded-lg bg-[#1f2a37] px-5 font-bold text-white hover:bg-[#111827]">
-              Aprobar el pago
+              {credito ? 'Aprobar' : 'Aprobar el pago'}
             </button>
             <button
               type="button"

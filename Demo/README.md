@@ -131,7 +131,7 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 - El relevo es la misma pestaña: la franja cambia a Rosa y la URL pasa a `/r#<token>`. Después del canje, el token se limpia con `history.replaceState`. Como el estado vive en memoria, un enlace abierto en otra ventana no existe ahí y muestra "Este enlace ya no está disponible".
 - El PIN se bloquea al quinto intento fallido (MATU-19).
 - La pasarela de pago es una pantalla propia rotulada "Pasarela de pago simulada"; no se mueve dinero ni se piden datos de tarjeta.
-- **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y la diferencia se devuelve cuando la farmacia arma el pedido.
+- **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y, si el pedido sale por menos, se devuelve la diferencia; cómo y en qué plazo, todavía por definir.
 - Fuera del semestre y fuera de la demo: el pago dividido, el prorrateo, la reposición programada y la app de repartidor.
 
 ## Archivos
