@@ -64,6 +64,17 @@ REFERENCIA_SINTETICA = "Resolución sintética 123-2026"
 # Las etiquetas de los miembros que crea familia(). "pagador_con_plan" es un pagador con puede_ver_plan
 MIEMBROS_POR_OMISION = ("cuidador", "pagador_con_plan", "pagador", "observador")
 
+# Las únicas tablas que anotar() acepta y limpiar() borra por id. limpiar() interpola el nombre en el
+# DELETE, y anotar() es público: la lista blanca evita que un nombre arbitrario llegue al SQL.
+TABLAS_ANOTABLES = frozenset(
+    {"usuario", "grupo_familiar", "membresia", "direccion", "persona_cuidada", "consentimiento", "plan_cuidado"}
+)
+
+
+def _validar_tabla(tabla: str) -> None:
+    if tabla not in TABLAS_ANOTABLES:
+        raise ValueError(f"tabla no anotable: {tabla!r}. Permitidas: {', '.join(sorted(TABLAS_ANOTABLES))}")
+
 
 @dataclass(frozen=True)
 class UsuarioCreado:
@@ -163,7 +174,11 @@ class Fabrica:
 
     def anotar(self, tabla: str, fila_id: uuid.UUID) -> None:
         """Anota una fila para que limpiar() la borre. Sirve también para lo que la prueba creó por
-        otro camino (la API o la semilla): un grupo anotado se vacía entero antes de borrarse."""
+        otro camino (la API o la semilla): un grupo anotado se vacía entero antes de borrarse.
+
+        ``tabla`` debe estar en TABLAS_ANOTABLES; si no, ValueError.
+        """
+        _validar_tabla(tabla)
         self.creados.append((tabla, fila_id))
 
     def ids(self, tabla: str) -> list[uuid.UUID]:
@@ -416,9 +431,14 @@ class Fabrica:
            haya creado para ellas fuera de los grupos (membresías, sesiones, dispositivos).
 
         La auditoría se queda: es de solo inserción y solo lleva identificadores.
+
+        Antes de abrir la conexión valida cada tabla contra TABLAS_ANOTABLES (ValueError), porque
+        ``creados`` es una lista mutable y pudo llenarse sin pasar por anotar().
         """
         if not self.creados:
             return
+        for tabla, _ in self.creados:
+            _validar_tabla(tabla)
         grupos = self.ids("grupo_familiar")
         usuarios = self.ids("usuario")
         with self._conectar() as cx, cx.transaction():
@@ -427,7 +447,8 @@ class Fabrica:
                     cx.execute(sentencia, (grupos,))
             for tabla, fila_id in reversed(self.creados):
                 if tabla != "usuario":
-                    # tabla sale de la lista interna de la fábrica, nunca de un argumento
+                    # tabla puede venir de un argumento de anotar(), pero ya pasó por la lista
+                    # blanca TABLAS_ANOTABLES arriba: nunca llega al SQL un nombre fuera de ella
                     cx.execute(f"DELETE FROM {tabla} WHERE id = %s", (fila_id,))
             if usuarios:
                 # Lo que la prueba pudo crear para esas cuentas fuera de los grupos de la fábrica
