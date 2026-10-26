@@ -1,6 +1,9 @@
 """Fixtures de care_circle: rutas de prueba protegidas por sesion_de_grupo y sesion_de_usuario,
 grupos sembrados como superusuario y grupos creados por la API (MATU-06), y el entorno de personas
-cuidadas con sus fábricas sintéticas (MATU-07)."""
+cuidadas con sus fábricas sintéticas (MATU-07).
+
+Las siembras de grupos y membresías usan las mismas sentencias que las fábricas de MATU-30
+(tests/fabricas/sql.py). Las pruebas nuevas usan directamente la fixture ``fabrica``."""
 
 import uuid
 from collections.abc import Callable, Iterator
@@ -16,6 +19,7 @@ from app.modules.care_circle.api.dependencias import SesionDeGrupo
 from app.modules.care_circle.api.router_personas import obtener_politica_version
 from app.modules.iam.api.dependencias import SesionDeUsuario
 from tests.base_datos import DSN
+from tests.fabricas.sql import insertar_grupo, insertar_membresia
 from tests.modules.conftest import EntornoIam
 
 _CONTEXTO = text("SELECT current_setting('app.usuario_id', true), current_setting('app.grupo_id', true)")
@@ -68,16 +72,10 @@ class EntornoGrupo:
         grupo_id = uuid.uuid4()
         self.grupos.append(grupo_id)
         with psycopg.connect(DSN, autocommit=True) as cx:
-            cx.execute(
-                "INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES (%s, 'Familia Sintética', %s)",
-                (grupo_id, creador.id),
-            )
+            insertar_grupo(cx, grupo_id, "Familia Sintética", creador.id)
             for usuario_id, estado in membresias.items():
                 rol = "admin" if usuario_id == creador.id else "cuidador"
-                cx.execute(
-                    "INSERT INTO membresia (grupo_id, usuario_id, rol, estado) VALUES (%s, %s, %s, %s)",
-                    (grupo_id, usuario_id, rol, estado),
-                )
+                insertar_membresia(cx, grupo_id, usuario_id, rol, estado=estado)
         return grupo_id
 
     def crear_grupo(self, token: str | None, cuerpo: Any) -> Any:
@@ -163,14 +161,9 @@ class EntornoPersonas:
         grupo_id = uuid.uuid4()
         self.base.grupos.append(grupo_id)
         with psycopg.connect(DSN, autocommit=True) as cx:
-            cx.execute(
-                "INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES (%s, 'Familia Ficticia', %s)",
-                (grupo_id, creador.id),
-            )
+            insertar_grupo(cx, grupo_id, "Familia Ficticia", creador.id)
             for usuario_id, rol in {creador.id: "admin", **(roles or {})}.items():
-                cx.execute(
-                    "INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, %s)", (grupo_id, usuario_id, rol)
-                )
+                insertar_membresia(cx, grupo_id, usuario_id, rol)
         return grupo_id
 
     def _cabeceras(self, token: str | None, grupo: uuid.UUID | str | None) -> dict[str, str]:
