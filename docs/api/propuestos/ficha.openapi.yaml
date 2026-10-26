@@ -23,7 +23,8 @@ info:
     Las preguntas guía, los ejemplos y los textos de error que ve la persona salen de
     `docs/lenguaje.md` (MATU-30), no de este contrato. Los `detail` de los ejemplos son orientativos.
 
-    **Contexto de grupo.** Toda ruta exige `Authorization: Bearer` y `X-Grupo-Id` (MATU-02). La API
+    **Contexto de grupo.** Toda ruta exige `Authorization: Bearer` y `X-Grupo-Id` (MATU-02;
+    declarada `required: false` porque sin ella responde 404, no 422). La API
     verifica la membresía activa en cada petición y nunca confía en la cabecera.
 
     **Orden de evaluación** (el primero que falla decide la respuesta):
@@ -239,11 +240,14 @@ components:
     XGrupoId:
       name: X-Grupo-Id
       in: header
-      required: true
+      required: false
       description: |
-        Grupo familiar en el que actúa el usuario (MATU-02). La API verifica en cada petición que el
-        usuario es miembro activo. Si falta, no es un UUID o el usuario no es miembro, responde
-        **404**, nunca 403 ni 422: no revela si el grupo existe.
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
       schema:
         type: string
         format: uuid

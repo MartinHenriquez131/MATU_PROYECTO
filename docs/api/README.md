@@ -59,7 +59,7 @@ Jorge revisa y aprueba cada parte (MATU-09). Mientras no lo haga, todo esto es p
 
 1. **La ficha cuelga de `/v1/personas-cuidadas/{persona_id}/plan/ficha`.** El backlog fija las rutas del relevo bajo `/v1/personas-cuidadas/{id}/plan/…` y la arquitectura 9.2 ya usa `/plan/ficha`: la ficha va con el mismo prefijo. No lleva `plan_id` porque el plan es único por persona. No se anida en `/v1/grupos/{grupo_id}/…` (como el alta de MATU-07) porque el grupo viaja en `X-Grupo-Id` (arquitectura 9.1).
 2. **Un PUT por campo** (`/plan/ficha/{campo}`), no uno para los tres. El `ETag`, el 412 y el 428 son por campo (MATU-13): si dos personas editan campos distintos, ninguna pisa a la otra ni recibe un 412.
-3. **`X-Grupo-Id` es obligatoria** en toda ruta de la familia, también en `DELETE /v1/accesos-relevo/{id}`. Es la única forma de fijar `app.grupo_id` con `sesion_de_grupo` (MATU-02). Sin ella, o sin membresía, 404.
+3. **`X-Grupo-Id` es obligatoria** en toda ruta de la familia, también en `DELETE /v1/accesos-relevo/{id}`. Es la única forma de fijar `app.grupo_id` con `sesion_de_grupo` (MATU-02). Sin ella, o sin membresía, 404. En el contrato se declara `required: false`, igual que en el código (`Header(alias="X-Grupo-Id")` con valor por omisión `None`): si fuera `required: true`, FastAPI respondería 422 al faltar y openapi-diff marcaría la diferencia al implementar.
 4. **Un rol que no alcanza recibe 404, también para escribir**, igual que en MATU-07 (el pagador y el observador reciben 404 al dar de alta). Así 403 tiene una sola causa en la capa 1, el consentimiento, y la pantalla sabe qué mostrar.
 5. **Toda escritura de un campo es condicional.** Sin `If-Match` ni `If-None-Match`, 428 (también en un campo nuevo). `If-Match: *` responde 428, porque no protege de pisar a otro. `If-Match` sobre un campo nunca escrito, 412 con `actual.etag: null`. Primera escritura 201, actualización 200.
 6. **`etag: null` significa "nunca escrito".** Un campo vaciado con `texto: ""` conserva su `etag`. Así el cliente sabe cuál de las dos cabeceras mandar sin adivinar.
@@ -120,7 +120,7 @@ La demo es simulada y no se modificó. Cuando se conecte a la API, cambia esto:
 | Un solo estado `no_disponible` para vencido, revocado y bloqueado | 410 con tres `type` y 423 aparte | Un texto por estado (MATU-23) |
 | Estados del acceso `activo`, `revocado`, `bloqueado`, y "vencido" calculado | `estado`: `vigente`, `vencido`, `revocado`, `bloqueado` | Usar `estado` de la API |
 | Motivo opcional ("Motivo, si quieres") | `motivo` obligatorio | Exigirlo o preseleccionar uno de los chips |
-| Teléfono sin validar, con espacios (`+56 9 5555 0137`) | Obligatorio, celular chileno, acepta espacios | Validar en la pantalla |
+| Teléfono sin validar, con espacios (`+56 9 5555 0137`) | Obligatorio, celular chileno, con o sin `+56`/`56` y espacios | Validar en la pantalla con el mismo patrón |
 | El teléfono tiene la ayuda "Para enviarle el enlace" (`familia/Ficha.tsx`) | La API no envía nada: la cuidadora comparte el enlace y dicta el PIN. El SMS es *Debería*. Ninguna respuesta devuelve el teléfono | Cambiar el texto de ayuda (`docs/lenguaje.md`) |
 | `Problema` sin `request_id` y con `detail` y `errores` opcionales (`datos/contrato.ts`) | Los seis miembros siempre presentes; `detail` y `request_id` pueden ser `null` | Ajustar el tipo |
 | Vigencia "24 h", "fin de semana" o "N días" | `expira_en` | Calcular la fecha en el cliente |

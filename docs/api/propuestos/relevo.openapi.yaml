@@ -431,11 +431,14 @@ components:
     XGrupoId:
       name: X-Grupo-Id
       in: header
-      required: true
+      required: false
       description: |
-        Grupo familiar en el que actúa el usuario (MATU-02). La API verifica en cada petición que el
-        usuario es miembro activo. Si falta, no es un UUID o el usuario no es miembro, responde
-        **404**, nunca 403 ni 422: no revela si el grupo existe.
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
       schema:
         type: string
         format: uuid
@@ -556,9 +559,11 @@ components:
           description: Cómo se llama quien reemplaza. Se muestra a la familia en la lista de accesos.
         telefono_relevo:
           type: string
-          pattern: '^\+?56 ?9( ?[0-9]){8}$'
+          pattern: '^(\+?56 ?)?9( ?[0-9]){8}$'
           description: |
-            Celular chileno del relevo, con o sin `+56` y espacios. Se guarda normalizado
+            Celular chileno del relevo: 9 y ocho dígitos, con o sin el prefijo `+56` (o `56`) y con
+            o sin espacios. Valen `+56 9 5555 0137`, `+56955550137`, `56 9 5555 0137` y
+            `9 5555 0137`; no vale un fijo (`+56 2 …`). Se guarda normalizado
             (`+569XXXXXXXX`). Lo exige `acceso_relevo.otorgado_a_telefono` y la política de
             privacidad lo informa; no se devuelve en ninguna respuesta.
         campos:
