@@ -160,7 +160,9 @@ class Fabrica:
     def _conectar(self) -> Any:
         return psycopg.connect(self.dsn, autocommit=True)
 
-    def _anotar(self, tabla: str, fila_id: uuid.UUID) -> None:
+    def anotar(self, tabla: str, fila_id: uuid.UUID) -> None:
+        """Anota una fila para que limpiar() la borre. Sirve también para lo que la prueba creó por
+        otro camino (la API o la semilla): un grupo anotado se vacía entero antes de borrarse."""
         self.creados.append((tabla, fila_id))
 
     def ids(self, tabla: str) -> list[uuid.UUID]:
@@ -194,7 +196,7 @@ class Fabrica:
         with self._conectar() as cx, cx.transaction():
             cx.execute(INSERTAR_USUARIO, (usuario_id, email_normalizado, nombre, password_hash, estado))
             cx.execute(INSERTAR_INDICE, (indice_email(pepper or self.pepper, email_normalizado), usuario_id))
-        self._anotar("usuario", usuario_id)
+        self.anotar("usuario", usuario_id)
         return UsuarioCreado(id=usuario_id, nombre=nombre, email=email_normalizado, contrasena=contrasena)
 
     # --- Grupo y membresía ------------------------------------------------------------------------
@@ -210,8 +212,8 @@ class Fabrica:
         with self._conectar() as cx, cx.transaction():
             insertar_grupo(cx, grupo_id, nombre, admin_id)
             membresia_id = insertar_membresia(cx, grupo_id, admin_id, "admin")
-        self._anotar("grupo_familiar", grupo_id)
-        self._anotar("membresia", membresia_id)
+        self.anotar("grupo_familiar", grupo_id)
+        self.anotar("membresia", membresia_id)
         return GrupoCreado(id=grupo_id, nombre=nombre, admin_id=admin_id, membresia_admin_id=membresia_id)
 
     def membresia(
@@ -239,7 +241,7 @@ class Fabrica:
             membresia_id = insertar_membresia(
                 cx, grupo_id, usuario_id, rol, estado=estado, puede_ver_plan=puede_ver_plan, invitado_por=invitado_por
             )
-        self._anotar("membresia", membresia_id)
+        self.anotar("membresia", membresia_id)
         return MembresiaCreada(
             id=membresia_id,
             grupo_id=grupo_id,
@@ -335,10 +337,10 @@ class Fabrica:
                 )
 
         if direccion_id is not None:
-            self._anotar("direccion", direccion_id)
-        self._anotar("persona_cuidada", persona_id)
+            self.anotar("direccion", direccion_id)
+        self.anotar("persona_cuidada", persona_id)
         if consentimiento_id is not None:
-            self._anotar("consentimiento", consentimiento_id)
+            self.anotar("consentimiento", consentimiento_id)
         return PersonaCreada(
             id=persona_id,
             grupo_id=grupo_id,
@@ -362,7 +364,7 @@ class Fabrica:
         plan_id = uuid.uuid4()
         with self._conectar() as cx:
             cx.execute(INSERTAR_PLAN, (plan_id, persona.grupo_id, persona.id, actualizado_por))
-        self._anotar("plan_cuidado", plan_id)
+        self.anotar("plan_cuidado", plan_id)
         return FichaCreada(plan_id=plan_id, grupo_id=persona.grupo_id, persona_cuidada_id=persona.id)
 
     # --- Una familia completa -------------------------------------------------------------------------
