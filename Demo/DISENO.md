@@ -8,34 +8,62 @@
 
 ## 1. Color
 
-Seis tokens de marca, en `src/index.css` (`@theme`). El tema sigue al sistema y se puede fijar desde la guía del presentador. Un proyector lava los contrastes, así que el tema claro es el de la presentación y el oscuro se mantiene completo.
+**El color principal de MATU es el turquesa** (directriz de Jorge, 25/10/2026). **El logo es un corazón blanco dentro de un círculo turquesa.** Siete tokens de marca, en `src/index.css` (`@theme`). El tema sigue al sistema y se puede fijar desde la guía del presentador. Un proyector lava los contrastes, así que el tema claro es el de la presentación y el oscuro se mantiene completo.
 
-| Token | Claro | Oscuro | Rol |
+El turquesa trabaja en dos tonos. El de **marca** es el que se reconoce: el círculo del logo y los acentos grandes. Ningún turquesa medio sostiene texto chico sobre fondo claro, así que el texto, los enlaces y los botones van en el **turquesa profundo**. Ese token conserva el nombre `pino` para no tocar los componentes. Se renombra a `turquesa` después de la demo, en el mismo cambio que los `.tsx`.
+
+| Token | Claro | Oscuro | Rol | Contraste medido |
+|---|---|---|---|---|
+| `papel` | `#ECF3F2` | `#0D1719` | Fondo general, neblina de agua. También la barra lateral: sin bloque de color | — |
+| `hoja` | `#FFFFFF` | `#152427` | La hoja de la ficha, los formularios y las listas | — |
+| `tinta` | `#13252A` | `#E4EEEB` | Texto principal y la barra de la consola de la farmacia | 14,1:1 sobre `papel` claro; 15,4:1 sobre `papel` oscuro |
+| `tenue` | `#485B5F` | `#A9BCB8` | Texto secundario | 6,4:1 sobre `papel` y 7,2:1 sobre `hoja` claros; 9,2:1 y 8,1:1 oscuros |
+| `pino` (turquesa profundo) | `#086764` | `#52CCC3` | Texto de acción, enlaces, botones, foco, navegación activa, barras de avance | Claro: 6,0:1 sobre `papel`, 6,7:1 sobre `hoja`, 5,6:1 sobre `rocio`; `papel` sobre `pino` (botón) 6,0:1. Oscuro: 9,4:1 sobre `papel`, 8,2:1 sobre `hoja`, 6,7:1 sobre `rocio`; `papel` sobre `pino` (botón) 9,4:1 |
+| `marca` (turquesa de marca) | `#0D9A94` | `#0D9A94` | El círculo del logo y los acentos grandes. Nunca texto | Corazón blanco sobre `marca`: **3,5:1** en los dos temas. `marca` sobre `papel`: 3,1:1 claro, 5,3:1 oscuro |
+| `miel` | `#E3A43A` | `#E8B866` | Calidez: el imán de la hoja y los puntos de "Su día". Nunca texto ni dato | Decorativa: no lleva información, así que no tiene mínimo |
+
+**Derivados**, no son tokens nuevos sino mezclas de los anteriores:
+
+| Derivado | Mezcla | Rol | Contraste medido |
 |---|---|---|---|
-| `papel` | `#EDF2EE` | `#0D1719` | Fondo general, verde neblina. También la barra lateral: sin bloque de color |
-| `hoja` | `#FFFFFF` | `#152427` | La hoja de la ficha, los formularios y las listas |
-| `tinta` | `#13252A` | `#E4EEEB` | Texto principal y la barra de la consola de la farmacia |
-| `tenue` | `#485B5F` | `#A9BCB8` | Texto secundario. 6,3:1 sobre `papel` |
-| `pino` | `#0E5E57` | `#74D2C3` | Acciones, foco y navegación activa. 6,7:1 sobre `papel` |
-| `miel` | `#E3A43A` | `#E8B866` | Calidez: el imán, el corazón del logo y los puntos de "Su día". Nunca texto sobre claro |
+| `linea` | `tinta` al 14 % | Divisores y contornos de superficies. **Nunca el borde de un control** | 1,3:1: no identifica nada por sí sola |
+| `rocio` | `pino` al 12 % sobre `hoja` | Fondo de notas, botón suave, opción elegida | ver `pino` |
+| `borde` | `tinta` al 50 % con `hoja` | Borde de los controles: campos, opciones y chips sin elegir | 3,5:1 sobre `hoja` y 3,1:1 sobre `papel` claros; 4:1 y 4,6:1 oscuros (WCAG 1.4.11) |
 
-Los semánticos van aparte del acento, siempre con su fondo y con una palabra: `pronto` (`#A8261B` sobre `#FBE9E6`, 6:1), `atenta` (`#835000` sobre `#FCEFD8`, 5,9:1) y `ok` (`#22663D` sobre `#E1F1E6`, 5,9:1).
+**El logo.** Círculo `marca` con el `Heart` de lucide relleno en blanco (3,5:1 en los dos temas). Sobre un fondo de marca, como el panel del alta, se invierte: círculo blanco y corazón `marca` (3,5:1). Nunca el corazón en `miel` ni el círculo en `pino`. El favicon, los íconos del manifiesto y `theme-color` usan el mismo `#0D9A94`.
 
-La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises neutros (`#F3F4F6`, `#1F2A37`), rotulada "Pasarela de pago simulada".
+**Por qué se queda `miel`.** El imán es lo que hace que la hoja sea una hoja pegada en el refrigerador, y la hoja es lo memorable de MATU. Un turquesa solo, sobre blanco, es el uniforme de las apps de salud. El ámbar de la miel es casi el complementario del turquesa: con un solo punto cálido por pantalla, el imán se ve desde el fondo de la sala y la marca deja de ser clínica. Pierde un rol: ya no es el corazón del logo, que ahora es blanco.
+
+Los semánticos van aparte del acento, siempre con su fondo y con una palabra: `pronto` (`#A8261B` sobre `#FBE9E6`, 6,1:1), `atenta` (`#835000` sobre `#FCEFD8`, 5,9:1) y `ok` (`#22663D` sobre `#E1F1E6`, 5,9:1). El turquesa nunca comunica estado: "Tranquila" y "Listo" son `ok`, un verde que no se confunde con la marca.
+
+La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos, sin tema oscuro, rotulada "Pasarela de pago simulada". Tiene sus propios tokens para no escribir colores a mano: `pasarela` `#EEF0F3` (fondo), `pasarela-hoja` `#FFFFFF`, `pasarela-tinta` `#1F2A37` (12,7:1 sobre el fondo), `pasarela-presionado` `#111827`, `pasarela-tenue` `#4B5563` (6,6:1), `pasarela-rechazo` `#9F1C14` (7,9:1 sobre blanco) y `pasarela-rechazo-fondo` `#FEF2F2`.
 
 ## 2. Tipografía
 
 | Cara | Rol |
 |---|---|
 | **Atkinson Hyperlegible** 400 y 700 | Todo el texto, los botones y las cifras. Diseñada para baja visión. Base de 17 px (`html { font-size: 106.25% }`) |
-| **Bricolage Grotesque** variable, 800 | Solo titulares desde 1,5 rem: el título de cada página, el nombre en la hoja, "Enlace creado". Tracking negativo |
-| **Atkinson Hyperlegible Mono** | Solo lo que se dicta dígito a dígito: el PIN y el código de retiro |
+| **Bricolage Grotesque** variable, 800 (`titular`) | Solo titulares desde 1,5 rem: el título de cada página, el nombre en la hoja, "Enlace creado". Tracking negativo. Única excepción: la palabra "MATU" junto al logo, a 1,25 rem |
+| **Atkinson Hyperlegible Mono** (`digitos`) | Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. Es también `--font-mono`, para que `pre`, `code` y `kbd` nunca caigan en una fuente del sistema. El `pre` de la lista para exportar hereda la cara del texto |
 
-**Escala** (rem, base 17 px): 0,85 · 1 · 1,2 · 1,5 · 2,25 · 3,4. La de 0,85 solo para datos secundarios (horas, notas al pie). El dinero, las fechas y los días usan `tabular-nums` en la cara del texto, nunca monoespaciada. Párrafos de 65 caracteres como máximo.
+**Escala.** Son los pasos de Tailwind, en rem sobre 17 px. Reemplazan a la escala del primer borrador (0,85 · 1 · 1,2 · 1,5 · 2,25 · 3,4) por el paso más cercano, porque así se construyó y se ve bien en el proyector:
+
+| Clase | rem | px | Uso |
+|---|---|---|---|
+| `text-sm` | 0,875 | 14,9 | Solo datos secundarios: ayuda bajo un campo, hora al pie, nota de un renglón de la boleta. **Nunca un estado, una acción ni un dato que el público tenga que leer** |
+| `text-base` | 1 | 17 | Texto, botones, chips de estado, pistas de la barra lateral |
+| `text-lg`, `text-xl` | 1,125 y 1,25 | 19 y 21 | Subtítulos de sección |
+| `text-2xl` | 1,5 | 25,5 | Título de página a 360 px, montos destacados |
+| `text-3xl`, `text-4xl` | 1,875 y 2,25 | 32 y 38 | Título de página en pantalla ancha |
+| `text-5xl`, `text-6xl` | 3 y 3,75 | 51 y 64 | El nombre en la hoja del relevo, el PIN, la bienvenida |
+
+`text-xs` (12,75 px) no se usa. El dinero, las fechas y los días usan `cifras` (`tabular-nums`) en la cara del texto, nunca monoespaciada. Párrafos de 65 caracteres como máximo.
 
 ## 3. Composición
 
 Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no con media queries. Así, "Texto al 200%" (que aplica `zoom: 2` solo a la app) y el zoom del navegador al 400% en 1280 px (320 px efectivos) hacen que todo fluya a una columna sin desplazamiento horizontal. No hay una experiencia móvil aparte: es el mismo layout que se estrecha.
+
+**Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (14 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
 
 **Alineación a la izquierda** en todo el contenido. Se centran solo el PIN (se lee en voz alta como un bloque) y la hoja en la página de Rosa (es el único objeto de la página).
 
@@ -85,7 +113,7 @@ Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no co
 
 ```
 ┌───────────────────────────────┬────────────────────────────────────────────┐
-│ (pino)                        │ Paso 2 de 3                                │
+│ (pino, turquesa profundo)     │ Paso 2 de 3                                │
 │ (M) MATU                      │ ¿A quién cuidas?                           │
 │                               │ [¿Cómo se llama?        ] [¿Cómo le dicen?]│
 │ Que el cuidado no dependa     │ ¿Cuánto apoyo necesita?  ( ) ( ) ( )       │
@@ -147,11 +175,11 @@ Más densa y más sobria: la barra superior en `tinta`, la cola a la izquierda c
 
 ## 4. Principios
 
-1. **La hoja del refrigerador es lo memorable.** Hoja de papel con renglones y un imán de miel, la única superficie con sombra de toda la demo. Todo lo demás es plano.
+1. **La hoja del refrigerador es lo memorable.** Hoja de papel con renglones y un imán de miel, la única superficie con sombra de toda la demo (`shadow-xl`, el imán `shadow-md`). Todo lo demás es plano. Solo flotan con sombra las capas que tapan algo: el aviso (`shadow-lg`) y el cajón de la guía (`shadow-2xl`).
 2. **Resumen antes del detalle.** Cada página abre con la frase que importa ("Le alcanza 6 días, hasta el 05/11/2026") y después muestra cómo se llegó a ella.
 3. **El estado está en la forma.** Barras de días que terminan en su fecha, una marca a los 7 días, chips cuya figura cambia (● Pronto, ◐ Atenta, ○ Tranquila) y una franja a la izquierda de cada fila. Siempre con palabra, nunca solo con color.
 4. **Cifras tabulares y formato chileno.** Pesos enteros (`$69.000`), fechas `DD/MM/AAAA`, hora de 24 horas.
-5. **Movimiento solo como respuesta.** El aviso aparece después de una acción, la barra cambia de largo cuando cambia el número, el cajón se desliza al abrirlo. Un solo momento orquestado: al crear el enlace, el ícono se traza y los cuatro dígitos del PIN caen uno a uno. Con `prefers-reduced-motion` todo es inmediato. Las páginas cambian sin deslizarse.
+5. **Movimiento solo como respuesta.** El aviso aparece después de una acción, la barra cambia de largo cuando cambia el número, el aviso y el cajón aparecen con un fundido de 180 ms (`aparecer`). Un solo momento orquestado: al crear el enlace, el ícono se traza y los cuatro dígitos del PIN caen uno a uno. Con `prefers-reduced-motion` todo es inmediato. Las páginas cambian sin deslizarse.
 6. **El texto habla desde la persona.** Voz activa, en tú, y el mismo verbo en el botón y en su confirmación: "Crear cuenta" y "Cuenta creada", "Cortar el enlace" y "Enlace cortado", "Anotar la compra" y "Compra anotada". Los errores dicen qué pasó y cómo seguir.
 
 ## 5. Revisión contra la guía de diseño
@@ -171,4 +199,35 @@ El primer borrador de este plan, revisado contra `frontend-design.md` antes de e
 | Botones de ancho completo, como en la versión de teléfono | Botones al ancho de su texto, agrupados a la izquierda bajo lo que confirman | En escritorio un botón de 900 px no se lee como botón |
 | "Pedir a domicilio →" | "Pedir a domicilio por $60.000 aprox." | La flecha en el botón es marca de plantilla; el monto informa |
 
-Se mantiene, porque funcionó en la versión anterior y no es un default: Atkinson Hyperlegible, la hoja con el imán de miel, el verde `pino` profundo acompañado de miel (en vez del turquesa genérico de las apps de salud), la boleta con el borde cortado y las fuentes locales con `@fontsource`.
+Se mantiene, porque funcionó en la versión anterior y no es un default: Atkinson Hyperlegible, la hoja con el imán de miel, la boleta con el borde cortado y las fuentes locales con `@fontsource`.
+
+### Revisión del 25/10/2026: la marca pasa al turquesa
+
+Jorge decidió que el color principal de MATU es el turquesa y que el logo es un corazón blanco dentro de un círculo turquesa. El primer borrador había elegido el verde `pino` justamente para alejarse del turquesa de las apps de salud. Lo que cambió y cómo se evita ese genérico:
+
+| Antes | Ahora | Por qué |
+|---|---|---|
+| `pino` `#0E5E57`, verde profundo (6,7:1 sobre `papel`) | `pino` `#086764`, turquesa profundo (6,0:1 sobre `papel`, 6,7:1 sobre `hoja`) | Gira el tono hacia el turquesa (178°) sin bajar de AA con margen para el proyector. Mantiene el nombre para no tocar ningún `.tsx` antes de la demo |
+| Sin color de marca aparte: el logo usaba `pino` | `marca` `#0D9A94`, igual en los dos temas | El turquesa que se reconoce no alcanza 4,5:1 para texto chico, así que vive solo en el logo y en los acentos grandes. Es el más claro que todavía da 3:1 con el corazón blanco (3,5:1). El `#14B8A6` de las plantillas da 2,5:1 y no sirve |
+| `pino` oscuro `#74D2C3`, menta | `pino` oscuro `#52CCC3`, turquesa claro | Más saturado, de la misma familia que la marca. Sigue en 8,2:1 sobre `hoja` oscura |
+| `papel` `#EDF2EE`, verde neblina | `papel` `#ECF3F2`, neblina de agua | Un grado hacia el agua para que el fondo no tire a verde junto al turquesa. `tinta` y `tenue` no cambian y suben un poco su contraste |
+| `miel` también en el corazón del logo | `miel` solo en el imán y los puntos de "Su día" | El corazón es blanco por la directriz. La miel queda como el único punto cálido, y eso es lo que aleja a la marca del turquesa clínico |
+| El borde de los campos usaba `linea` (1,3:1) | Derivado `borde` (3,5:1 sobre `hoja`) | Hallazgo de esta revisión: los campos no se distinguían del fondo (WCAG 1.4.11). `linea` queda para los divisores |
+| Colores de la pasarela escritos en el componente | Tokens `pasarela-*` con los mismos valores | Política 9: ningún color a mano, ni siquiera en la parte que no es de la marca |
+
+Para que el turquesa no sea el de cualquier app de salud: no hay degradados ni fondos turquesa a pantalla completa (salvo el panel del alta, en el tono profundo), el turquesa nunca comunica estado, la hoja con su imán sigue siendo lo que se recuerda y la tipografía de los titulares sigue siendo Bricolage.
+
+## 6. Estados de los componentes
+
+Todos con 48 px de alto como mínimo y el foco base: contorno de 3 px en `pino` con 2 px de separación (6,0:1 sobre `papel`). Ningún componente quita el contorno de foco sin poner otro igual de visible.
+
+| Componente | Normal | Presionado o elegido | Deshabilitado | Cargando | Error |
+|---|---|---|---|---|---|
+| Botón principal | `pino` macizo con texto `papel`. Uno solo por pantalla | `brightness-95` | Opacidad 50 %, con una frase al lado que dice por qué ("Resuelve lo que falta para seguir") | Mismo ancho, texto en gerundio ("Guardando…") y `aria-busy` | El botón no cambia: el error va en `MensajeError` encima |
+| Botón secundario | `hoja` con anillo `pino` al 70 % (3,5:1) y texto `pino` | Fondo `rocio` | Igual que el principal | Igual que el principal | — |
+| Botón suave y de texto | `rocio` o subrayado, texto `pino` | `brightness-95` o subrayado pleno | Opacidad 50 % | — | — |
+| Campo de texto | `hoja` con anillo `borde` de 2 px | Foco: anillo `pino` y el contorno de foco base | Opacidad 50 % | — | Anillo `pronto` y el mensaje en `pronto` negrita debajo |
+| Opción (radio) y chip | `hoja`, anillo `borde`; indicador en `tenue` (7,2:1) | Fondo `rocio`, anillo `pino`, indicador lleno o con check. El chip elegido no va en `pino` macizo: ese lugar es del botón principal | Opacidad 50 % | — | — |
+| Etiqueta de estado | Fondo semántico, palabra y figura (● ◐ ○ ✓) en `text-base` | — | — | — | — |
+| Página | — | — | — | Sin esqueletos: el contenido llega en menos de un segundo en la demo | Qué pasó y cómo seguir, en `pronto` solo si se perdió algo; un conflicto de versiones (412) va en `atenta` |
+| Lista vacía | Ícono en `rocio`, una frase desde la persona y una acción ("Empezar por los pañales") | — | — | — | — |
