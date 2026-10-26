@@ -111,7 +111,7 @@ export function TuFicha() {
                   </div>
                   <p className={`line-clamp-2 ${listo ? '' : 'text-tenue'}`}>{listo ? f.texto : TEXTO_CAMPO[c].pregunta}</p>
                   {listo && f.minuto !== null && (
-                    <p className="cifras text-sm text-tenue">
+                    <p className="text-sm text-tenue tabular-nums">
                       Lo escribió {f.autor || 'Carmen'}: {fmtCuando(f.minuto, s.ahora)}
                     </p>
                   )}
@@ -197,7 +197,7 @@ export function Completar() {
               aria-describedby="campo-pregunta campo-ejemplo campo-cuenta"
               className="w-full resize-y rounded-xl bg-hoja px-4 pt-3 pb-8 leading-relaxed ring-2 ring-borde ring-inset focus-visible:ring-pino"
             />
-            <span id="campo-cuenta" className="cifras pointer-events-none absolute right-3 bottom-2.5 text-sm text-tenue">
+            <span id="campo-cuenta" className="pointer-events-none tabular-nums absolute right-3 bottom-2.5 text-sm text-tenue">
               {b.texto.length} de {MAX_CARACTERES} caracteres
             </span>
           </div>
@@ -292,7 +292,7 @@ export function Conflicto() {
         <section aria-labelledby="v-suya" className="flex flex-col gap-3 bg-hoja px-5 py-4 ring-1 ring-linea">
           <h3 id="v-suya" className="font-bold">
             La de {c.suyo.autor}
-            <span className="cifras block text-sm font-normal text-tenue">Guardada a las {c.suyo.minuto !== null ? fmtHora(c.suyo.minuto) : ''}</span>
+            <span className="block text-sm font-normal text-tenue tabular-nums">Guardada a las {c.suyo.minuto !== null ? fmtHora(c.suyo.minuto) : ''}</span>
           </h3>
           <p className="flex-1 leading-relaxed whitespace-pre-line">{c.suyo.texto}</p>
           <Boton variante="secundario" className="self-start" onClick={() => haz((x) => resolverConflicto(x, 'suyo'))}>
@@ -320,7 +320,7 @@ export function Conflicto() {
 export function Compartir() {
   const { s, haz } = useDemo()
   const [nombre, setNombre] = useState('Rosa')
-  const [telefono, setTelefono] = useState('+56 9 8765 4321')
+  const [telefono, setTelefono] = useState('+56 9 5555 0137')
   const [campos, setCampos] = useState<CampoId[]>([...CAMPOS])
   const [vigencia, setVigencia] = useState<DatosCompartir['vigencia']>('24h')
   const [dias, setDias] = useState(3)
@@ -535,7 +535,7 @@ export function Enlaces() {
                   <p className="text-tenue">
                     Ve {listaCampos(a.campos)}.{a.motivo ? ` ${a.motivo}.` : ''}
                   </p>
-                  <p className="cifras text-sm text-tenue">
+                  <p className="text-sm text-tenue tabular-nums">
                     {vig
                       ? `Creado: ${fmtCuando(a.creadoMin, s.ahora)}. Vence: ${fmtCuando(a.venceMin, s.ahora)}.`
                       : estado === 'Vencido'
@@ -610,7 +610,7 @@ export function QuienVio() {
               {vigentes.map((a) => (
                 <li key={a.id} className="flex flex-wrap items-baseline justify-between gap-2 border-l-4 border-pino bg-hoja px-4 py-2.5">
                   <span className="font-bold">{a.nombre}</span>
-                  <span className="cifras text-tenue">vence en {fmtRestante(a.venceMin, s.ahora)}</span>
+                  <span className="text-tenue tabular-nums">vence en {fmtRestante(a.venceMin, s.ahora)}</span>
                 </li>
               ))}
             </ul>

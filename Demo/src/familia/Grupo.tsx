@@ -106,7 +106,7 @@ export function Grupo() {
                       <Link2 aria-hidden className="size-4.5 text-pino" />
                       {a.nombre}
                     </span>
-                    <span className="cifras text-tenue">vence en {fmtRestante(a.venceMin, s.ahora)}</span>
+                    <span className="text-tenue tabular-nums">vence en {fmtRestante(a.venceMin, s.ahora)}</span>
                   </li>
                 ))}
               </ul>
