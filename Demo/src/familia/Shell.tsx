@@ -154,7 +154,7 @@ function Encabezado() {
 
 export function ShellFamilia({ children }: { children: ReactNode }) {
   return (
-    <div className="grid flex-1 @4xl/app:grid-cols-[14rem_minmax(0,1fr)]">
+    <div className="grid flex-1 @4xl/app:grid-cols-[16.5rem_minmax(0,1fr)]">
       <aside className="border-b border-linea px-3 py-3 @4xl/app:border-r @4xl/app:border-b-0 @4xl/app:py-5">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 @4xl/app:sticky @4xl/app:top-4 @4xl/app:flex-col @4xl/app:items-stretch @4xl/app:gap-7">
           <Marca className="px-2" />
