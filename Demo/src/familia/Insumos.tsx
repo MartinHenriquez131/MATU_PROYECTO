@@ -305,7 +305,7 @@ export function textoLista(nombre: string, fecha: string, lineas: ReturnType<typ
 function ListaReposicion() {
   const { s, haz } = useDemo()
   const lineas = lineasLista(s.insumos, s.ajustesLista)
-  const btn = 'grid size-11 shrink-0 place-items-center rounded-lg bg-hoja text-pino ring-2 ring-inset ring-pino/60 hover:bg-rocio disabled:opacity-40'
+  const btn = 'grid size-11 shrink-0 place-items-center rounded-lg bg-hoja text-pino ring-2 ring-inset ring-pino/70 hover:bg-rocio disabled:opacity-40'
   if (lineas.length === 0) {
     return (
       <Columna etiqueta="Lista de reposición">

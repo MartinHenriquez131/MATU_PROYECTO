@@ -1,7 +1,7 @@
 // Piezas de interfaz compartidas. Objetivos de 48 px o más, foco visible y estado dicho con
 // palabra y con forma, además de color.
 import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Heart, Minus, Plus } from 'lucide-react'
+import { Check, Heart, Minus, Plus } from 'lucide-react'
 import { ETIQUETA_NIVEL, type Nivel } from '../demo/calculos'
 
 type Variante = 'primario' | 'secundario' | 'suave' | 'texto'
@@ -90,7 +90,7 @@ const ESTILO_NIVEL: Record<Nivel, string> = {
 
 export function EtiquetaNivel({ nivel }: { nivel: Nivel }) {
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold ${ESTILO_NIVEL[nivel]}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${ESTILO_NIVEL[nivel]}`}>
       <FormaNivel nivel={nivel} />
       {ETIQUETA_NIVEL[nivel]}
     </span>
@@ -107,7 +107,7 @@ export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; t
     atenta: 'bg-atenta-fondo text-atenta',
     pino: 'bg-rocio text-pino',
   }[tono]
-  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold ${t}`}>{children}</span>
+  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
 }
 
 /** Avance de la ficha, por campos: tres tramos, no un porcentaje. */
@@ -160,7 +160,7 @@ export function Stepper({
 }) {
   const id = useId()
   const btn =
-    'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pino ring-2 ring-inset ring-pino/60 hover:bg-rocio disabled:opacity-40'
+    'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pino ring-2 ring-inset ring-pino/70 hover:bg-rocio disabled:opacity-40'
   return (
     <div className="flex flex-col gap-2">
       <span id={id} className="font-bold">
@@ -212,11 +212,11 @@ export function GrupoOpciones<T extends string>({
             <label
               key={o.valor}
               className={`flex min-h-13 cursor-pointer items-start gap-3 rounded-xl px-4 py-3 ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
-                on ? 'bg-rocio ring-pino' : 'bg-hoja ring-linea hover:ring-pino/40'
+                on ? 'bg-rocio ring-pino' : 'bg-hoja ring-borde hover:ring-pino/40'
               }`}
             >
               <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
-              <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-pino' : 'ring-tenue/60'}`}>
+              <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-pino' : 'ring-tenue'}`}>
                 {on && <span className="size-3 rounded-full bg-pino" />}
               </span>
               <span className="flex min-w-0 flex-col">
@@ -238,11 +238,11 @@ export function Chip({ activo, onClick, children }: { activo: boolean; onClick: 
       aria-pressed={activo}
       onClick={onClick}
       className={`inline-flex min-h-12 max-w-full items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors ${
-        activo ? 'bg-pino text-papel ring-pino' : 'bg-hoja text-tenue ring-linea hover:ring-pino/40'
+        activo ? 'bg-rocio text-pino ring-pino' : 'bg-hoja text-tenue ring-borde hover:ring-pino/40'
       }`}
     >
-      <span aria-hidden className={`grid size-4 shrink-0 place-items-center rounded-sm ring-2 ring-inset ${activo ? 'bg-papel ring-papel' : 'ring-tenue/60'}`}>
-        {activo && <span className="size-2 rounded-xs bg-pino" />}
+      <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-sm ring-2 ring-inset ${activo ? 'ring-pino' : 'ring-tenue'}`}>
+        {activo && <Check className="size-4 text-pino" strokeWidth={3} />}
       </span>
       <span className="min-w-0 break-words">{children}</span>
     </button>
@@ -267,8 +267,8 @@ export function CampoTexto({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={ayuda || error ? `${id}-a` : undefined}
-        className={`min-h-12 w-full min-w-0 rounded-xl bg-hoja px-4 py-2.5 ring-2 ring-inset outline-none placeholder:text-tenue/80 focus-visible:ring-pino ${
-          error ? 'ring-pronto' : 'ring-linea'
+        className={`min-h-12 w-full min-w-0 rounded-xl bg-hoja px-4 py-2.5 ring-2 ring-inset placeholder:text-tenue/80 focus-visible:ring-pino ${
+          error ? 'ring-pronto' : 'ring-borde'
         } ${grande ? 'cifras text-2xl font-bold' : ''}`}
         {...resto}
       />
@@ -310,8 +310,8 @@ export function MensajeError({ children, id }: { children: ReactNode; id?: strin
  */
 export function Logo({ className = 'size-10', claro = false }: { className?: string; claro?: boolean }) {
   return (
-    <span aria-hidden className={`grid shrink-0 place-items-center rounded-full ${claro ? 'bg-white' : 'bg-pino'} ${className}`}>
-      <Heart className={`size-3/5 ${claro ? 'fill-pino text-pino' : 'fill-white text-white'}`} strokeWidth={2} />
+    <span aria-hidden className={`grid shrink-0 place-items-center rounded-full ${claro ? 'bg-white' : 'bg-marca'} ${className}`}>
+      <Heart className={`size-3/5 ${claro ? 'fill-marca text-marca' : 'fill-white text-white'}`} strokeWidth={2} />
     </span>
   )
 }

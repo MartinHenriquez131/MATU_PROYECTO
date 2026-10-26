@@ -72,7 +72,7 @@ export function Inicio() {
                 return (
                   <li key={c} className="flex items-center justify-between gap-2">
                     <span className={listo ? '' : 'text-tenue'}>{TEXTO_CAMPO[c].titulo}</span>
-                    <span className={`inline-flex items-center gap-1 text-sm font-bold ${listo ? 'text-ok' : 'text-tenue'}`}>
+                    <span className={`inline-flex items-center gap-1 text-base font-bold ${listo ? 'text-ok' : 'text-tenue'}`}>
                       {listo ? <Check aria-hidden className="size-4" strokeWidth={3} /> : <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />}
                       {listo ? 'Listo' : 'Falta'}
                     </span>

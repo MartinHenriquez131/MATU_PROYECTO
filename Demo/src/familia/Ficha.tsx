@@ -195,7 +195,7 @@ export function Completar() {
               value={b.texto}
               onChange={(e) => haz((x) => escribir(x, e.target.value))}
               aria-describedby="campo-pregunta campo-ejemplo campo-cuenta"
-              className="w-full resize-y rounded-xl bg-hoja px-4 pt-3 pb-8 leading-relaxed ring-2 ring-linea ring-inset outline-none focus-visible:ring-pino"
+              className="w-full resize-y rounded-xl bg-hoja px-4 pt-3 pb-8 leading-relaxed ring-2 ring-borde ring-inset focus-visible:ring-pino"
             />
             <span id="campo-cuenta" className="cifras pointer-events-none absolute right-3 bottom-2.5 text-sm text-tenue">
               {b.texto.length} de {MAX_CARACTERES} caracteres

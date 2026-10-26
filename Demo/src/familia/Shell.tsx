@@ -76,12 +76,12 @@ function Pista({ seccion }: { seccion: Seccion }) {
   const { s } = useDemo()
   if (seccion === 'ficha') {
     const h = completados(s)
-    return h < 3 ? <span className="cifras text-sm text-tenue">{h} de 3</span> : null
+    return h < 3 ? <span className="cifras text-base text-tenue">{h} de 3</span> : null
   }
   if (seccion === 'insumos') {
     const pronto = s.insumos.filter((i) => i.declarado && nivel(diasRestantes(i)) === 'pronto').length
     return pronto ? (
-      <span className="inline-flex items-center gap-1 text-sm font-bold text-pronto">
+      <span className="inline-flex items-center gap-1 text-base font-bold text-pronto">
         <span aria-hidden className="size-2 rounded-full bg-current" />
         Pronto
       </span>
@@ -89,7 +89,7 @@ function Pista({ seccion }: { seccion: Seccion }) {
   }
   if (seccion === 'pedidos') {
     const e = s.pedido?.estado
-    return e && e !== 'borrador' && e !== 'entregado' ? <span className="text-sm font-bold text-pino">En curso</span> : null
+    return e && e !== 'borrador' && e !== 'entregado' ? <span className="text-base font-bold text-pino">En curso</span> : null
   }
   return null
 }

@@ -95,8 +95,8 @@ function RelevoPin() {
           aria-invalid={error || corto ? true : undefined}
           aria-describedby={error ? 'pin-error' : corto ? 'pin-corto' : undefined}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          className={`digitos min-h-18 w-full max-w-60 rounded-xl bg-hoja pl-2 text-center text-5xl font-bold tracking-widest ring-2 ring-inset outline-none focus-visible:ring-pino ${
-            error || corto ? 'text-pronto ring-pronto' : 'ring-linea'
+          className={`digitos min-h-18 w-full max-w-60 rounded-xl bg-hoja pl-2 text-center text-5xl font-bold tracking-widest ring-2 ring-inset focus-visible:ring-pino ${
+            error || corto ? 'text-pronto ring-pronto' : 'ring-borde'
           }`}
         />
         {corto && <MensajeError id="pin-corto">El PIN tiene 4 números. Revisa que estén todos.</MensajeError>}
