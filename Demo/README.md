@@ -63,15 +63,15 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 - **La familia (Carmen).** Antes de tener cuenta, el alta va en dos paneles: el de MATU a la izquierda, con los pasos, y el formulario a la derecha. Después, una barra lateral persistente con **Inicio, Ficha de relevo, Insumos, Pedidos y Grupo familiar**, cada una con una pista de estado ("1 de 3", "Pronto", "En curso"), y un encabezado con la persona cuidada y quien está conectada. El contenido va en dos columnas: la ficha al lado de la hoja como la verá el relevo, la lista de insumos al lado del detalle y la predicción, el pedido al lado de la boleta. Ficha e Insumos tienen pestañas para sus vistas hermanas.
 - **El relevo (Rosa, `/r#<token>`).** Una página pública, sin cuenta y sin navegación: primero el PIN, después la hoja centrada con el vencimiento al lado. El token se borra de la dirección con `history.replaceState` después del canje. Al quinto PIN incorrecto el enlace se bloquea (MATU-19).
-- **El comercio (Farmacia Los Aromos, comercio ficticio).** Una consola de trabajo: la cola de pedidos del día a la izquierda y el pedido elegido a la derecha, con sus tres pasos: preparar (con un faltante que se reemplaza), el monto real dentro del tope y el código de retiro.
+- **El comercio (Farmacia Los Aromos, comercio ficticio).** Una consola de trabajo: la cola de pedidos del día a la izquierda y el pedido elegido a la derecha, con sus tres pasos: apartado, preparar (cada producto "Listo" o "Ya no está") y retiro. Ve solo productos, cantidades, la referencia y el código: ningún nombre ni dirección.
 - La **pasarela de pago** es una página aparte, en grises, rotulada "Pasarela de pago simulada".
 
-> **Nota:** el ADR-027 está aprobado. El pedido, el pago y el comercio de esta demo se rediseñan en la próxima tarea; lo que se describe aquí es la versión actual.
+> **ADR-027 (aprobado):** el pedido, el pago y el comercio siguen `ESPEC-ADR-027.md`: precio exacto confirmado antes de pagar, un solo cobro con crédito o débito, y el mismo total al entregar. Los textos del pedido aprobados por Jorge están en `src/demo/textos-pedido.ts`.
 
 ### El panel del presentador
 
 - Una **franja delgada arriba**: el distintivo "Piloto académico con datos de prueba" (siempre visible, en las tres apps), el rol (Familia, Relevo, Comercio), la escena actual con anterior y siguiente y su etiqueta Real o Simulado, y las ayudas de la escena: el PIN que dictó Carmen, "Rodrigo guarda este campo", "Abrir como Rosa", "Ver qué hace la farmacia", el código de retiro. Con el rol relevo muestra la dirección: `/r#…` y, después del canje, `/r`.
-- Un **cajón lateral**, la guía, que se abre con el botón "Guía" o con `?`. No tapa la app: la angosta y la app se reacomoda. Tiene el estado del backend, la escena actual con su nota, las 35 escenas por capa, "Texto al 200%", el tema (sistema, claro u oscuro), el modo presentación, los atajos y "Reiniciar demo".
+- Un **cajón lateral**, la guía, que se abre con el botón "Guía" o con `?`. No tapa la app: la angosta y la app se reacomoda. Tiene el estado del backend, la escena actual con su nota, las 36 escenas por capa, "Texto al 200%", el tema (sistema, claro u oscuro), el modo presentación, los atajos y "Reiniciar demo".
 - **Modo presentación** (`p`): oculta la franja; queda solo el distintivo, a 17 px, en la esquina inferior izquierda, con un botón para abrir la guía.
 - **Atajos:** `?` guía, `]` o `Av Pág` escena siguiente (sirve con un control de presentación), `[` o `Re Pág` anterior, `p` modo presentación, `Esc` cierra la guía. No actúan dentro de un campo de texto y se pueden apagar desde la guía.
 - Dentro de cada app todo funciona al hacer clic: se puede recorrer cada flujo de punta a punta sin usar el panel.
@@ -104,27 +104,28 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 16. Qué se está acabando: días = stock ÷ consumo diario, sobre el 30/10/2026
 17. Declarar consumo, con los pasos − y +
 18. Ya lo compré: recalcula la fecha
-19. Lista de reposición
-20. Exportar la lista: compartir, copiar o descargar
+19. Lista de reposición: precios exactos de Farmacia Los Aromos, envío y total de $62.990
+20. Exportar o compartir la lista: copiar, descargar, enviar a Rodrigo o compartir, gratis
 
-**Capa 3 · Pedido y pago, un solo pagador**
-21. Tu pedido
-22. Crédito o débito, explicado antes de pagar
-23. Pasarela simulada (Transbank, ambiente de prueba)
-24. Seguimiento
-25. Comercio: pedidos del día *(segundo rol)*
-26. Comercio: preparar, con un faltante que se reemplaza
-27. Comercio: monto real, dentro del tope
-28. Comercio: código de retiro
-29. Entregado: reserva $69.000, cobro $51.340, $17.660 liberados
+**Capa 3 · Pedido y pago, un solo cobro (ADR-027)**
+21. Tu pedido, antes de pagar: stock confirmado, lo que cambió, total de $57.460, condiciones y su casilla
+22. Pasarela simulada: crédito o débito de prueba, el mismo monto
+23. Seguimiento: pagado una sola vez, comprobante y cancelación sin costo antes de preparar
+24. Comercio: pedidos del día *(segundo rol)*, sin nombres; lo apartado sin pagar como referencia
+25. Comercio: preparar, con un producto que "ya no está"
+26. Comercio: código de retiro
+27. Cambio de local: el mismo producto en otro local, la familia paga lo mismo
+28. Entregado: se cobró $57.460, el total que se vio antes de pagar
 
 **Casos borde**
-30. Todavía no hay nada (estado vacío)
-31. Dos versiones: otra persona editó el mismo campo
-32. El pago no pasó
-33. Relevo: PIN incorrecto, con los intentos que quedan
-34. Relevo: enlace no disponible
-35. Texto al 200%
+29. Todavía no hay nada (estado vacío)
+30. Dos versiones: otra persona editó el mismo campo
+31. El total venció: pasaron 15 minutos, se confirma de nuevo sin costo
+32. El pago no pasó: no se cobró nada
+33. Un producto no llegó: se devuelven $26.490 el mismo día, a la misma tarjeta
+34. Relevo: PIN incorrecto, con los intentos que quedan
+35. Relevo: enlace no disponible
+36. Texto al 200%
 
 ## Qué es simulado
 
@@ -137,7 +138,7 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 - El relevo es la misma pestaña: la franja cambia a Rosa y la URL pasa a `/r#<token>`. Después del canje, el token se limpia con `history.replaceState`. Como el estado vive en memoria, un enlace abierto en otra ventana no existe ahí y muestra "Este enlace ya no está disponible".
 - El PIN se bloquea al quinto intento fallido (MATU-19).
 - La pasarela de pago es una pantalla propia rotulada "Pasarela de pago simulada"; no se mueve dinero ni se piden datos de tarjeta.
-- **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y, si el pedido sale por menos, se devuelve la diferencia. Cómo y en qué plazo, todavía está por definir.
+- **Un solo cobro:** antes de pagar se confirma el stock y el total exacto (vale 15 minutos). Se paga ese total una sola vez, con crédito o débito, y es lo que se cobra al entregar. Si un producto falta, se retira el mismo en otro local y la familia paga lo mismo; si nadie lo tiene, se devuelve su precio el mismo día, a la misma tarjeta.
 - Fuera del semestre y fuera de la demo: el pago dividido, el prorrateo, la reposición programada y la app de repartidor.
 
 ## Archivos
