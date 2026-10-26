@@ -67,7 +67,8 @@ from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuar
 from app.shared.puertos import Reloj  # noqa: E402
 from app.shared.reloj_sistema import RelojSistema  # noqa: E402
 
-VARIABLE_CONTRASENA = "SEMILLA_CONTRASENA"
+# El nombre de la variable, no su valor
+VARIABLE_CONTRASENA = "SEMILLA_CONTRASENA"  # pragma: allowlist secret
 
 # --- Los datos, todos sintéticos ----------------------------------------------------------------------
 

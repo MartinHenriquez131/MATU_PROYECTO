@@ -23,12 +23,7 @@ Con la base levantada, migrada (`alembic upgrade head`) y el `.env` completo (`D
 python infra/semillas/demo.py
 ```
 
-- **Contraseña.** Las cuentas nuevas usan la de la variable `SEMILLA_CONTRASENA` (10 a 128 caracteres), que no se imprime. Si no está, la semilla genera una aleatoria y la imprime **una sola vez**: anótala. Nunca se guarda en un archivo ni en el repositorio.
-
-  ```
-  SEMILLA_CONTRASENA='una-clave-larga' python infra/semillas/demo.py
-  ```
-
+- **Contraseña.** Las cuentas nuevas usan la de la variable de entorno `SEMILLA_CONTRASENA` (10 a 128 caracteres), definida solo en la terminal donde se corre la semilla, y que no se imprime. Si no está, la semilla genera una aleatoria y la imprime **una sola vez**: anótala. Nunca se guarda en un archivo ni en el repositorio.
 - **Idempotente.** Se puede correr varias veces: lo que ya existe no se duplica, y una cuenta que ya existía conserva su contraseña. Para cambiarlas hay que vaciar la base y volver a sembrar.
 - **Nunca en producción.** Con `ENTORNO=produccion` se niega a correr.
 
