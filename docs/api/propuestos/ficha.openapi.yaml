@@ -1,0 +1,690 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Ficha de relevo (propuesto)
+  version: 0.1.0-propuesto
+  summary: Lectura y escritura de los tres campos de la ficha de relevo, con control de versiones por campo.
+  description: |
+    Contrato **propuesto** de MATU-09, parte 1. Lo implementan MATU-12 (completar la ficha),
+    MATU-13 (editar sin pisar lo que escribió otro), MATU-11 (cifrado) y MATU-14 (auditoría).
+    Mientras una ruta no esté implementada vive aquí, en `docs/api/propuestos/`, y no la compara
+    la puerta openapi-diff. Ver `docs/api/README.md`.
+
+    **Recurso.** La ficha cuelga de la persona cuidada, que tiene un solo plan de cuidado
+    (`plan_cuidado.persona_cuidada_id` es único). Cada campo es un recurso propio con su `ETag`,
+    porque el conflicto se detecta campo por campo (MATU-13): si dos personas editan campos
+    distintos, ninguna recibe 412.
+
+    | Campo en la API | Título en la interfaz |
+    |---|---|
+    | `rutina` | Su día |
+    | `manejo_situaciones` | Si se altera |
+    | `red_apoyo` | A quién llamar |
+
+    Las preguntas guía, los ejemplos y los textos de error que ve la persona salen de
+    `docs/lenguaje.md` (MATU-30), no de este contrato. Los `detail` de los ejemplos son orientativos.
+
+    **Contexto de grupo.** Toda ruta exige `Authorization: Bearer` y `X-Grupo-Id` (MATU-02;
+    declarada `required: false` porque sin ella responde 404, no 422). La API
+    verifica la membresía activa en cada petición y nunca confía en la cabecera.
+
+    **Orden de evaluación** (el primero que falla decide la respuesta):
+
+    1. Access token válido. Si no, **401**.
+    2. `X-Grupo-Id` presente, UUID, y el usuario es miembro activo de ese grupo. Si no, **404**.
+    3. El rol alcanza: leer `admin`, `cuidador` y `pagador` con `puede_ver_plan`; escribir `admin` y
+       `cuidador`. Si no, **404**, igual que en MATU-07 (un observador nunca sabe si la ficha existe).
+    4. La persona es del grupo, `persona_id` es un UUID y `campo` es uno de los tres. Si no, **404**.
+    5. Consentimiento vigente para `plan_cuidado`. Si no, **403** `/errores/sin-consentimiento`.
+    6. Cuerpo válido. Si no, **422**.
+    7. Precondición (`If-Match` o `If-None-Match`). Si falta, **428**. Si no se cumple, **412**.
+
+    **Datos sensibles.** El texto se guarda cifrado (MATU-11), nunca aparece en logs, errores ni
+    URLs, y las respuestas que lo llevan van con `Cache-Control: no-store`. Toda lectura (incluido
+    el contenido actual que acompaña a un 412) registra `plan.leer` en `auditoria`, y toda
+    escritura registra `plan.editar` (MATU-14).
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: ficha
+    description: Ficha de relevo de la persona cuidada (capa 1)
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/personas-cuidadas/{persona_id}/plan/ficha:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [ficha]
+      operationId: leerFicha
+      summary: Leer la ficha de relevo
+      description: |
+        Devuelve siempre los tres campos. Un campo **nunca escrito** viene con `texto`, `etag`,
+        `actualizado_por` y `actualizado_en` en `null`: su primera escritura usa
+        `If-None-Match: *`. Un campo **vaciado** viene con `texto: null` y un `etag`: se edita con
+        `If-Match`. En los dos casos la interfaz lo muestra como "Sin completar".
+
+        Si nadie ha escrito todavía, la ficha existe igual, con los tres campos vacíos y
+        `completitud: 0`. Leer no crea el plan.
+
+        Lo leen `admin`, `cuidador` y `pagador` con `puede_ver_plan`. Registra `plan.leer`.
+      x-matu-historia: MATU-12
+      x-matu-auditoria: plan.leer
+      responses:
+        '200':
+          description: La ficha, con el ETag de cada campo y su completitud.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ficha'
+              examples:
+                parcial:
+                  summary: Dos campos escritos y uno nunca escrito
+                  value:
+                    persona_id: 7d1e2f30-0000-4000-8000-000000000001
+                    completitud: 67
+                    actualizado_en: '2026-10-30T17:42:00Z'
+                    campos:
+                      rutina:
+                        texto: "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza.\n15:00 siesta hasta las 16:30."
+                        etag: '"v3"'
+                        actualizado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Carmen
+                        actualizado_en: '2026-10-30T17:42:00Z'
+                      manejo_situaciones:
+                        texto: Si se inquieta en la tarde, baja las persianas y pon la radio despacio. Le ayuda conversar de su pueblo.
+                        etag: '"v1"'
+                        actualizado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Carmen
+                        actualizado_en: '2026-10-29T21:10:00Z'
+                      red_apoyo:
+                        texto: null
+                        etag: null
+                        actualizado_por: null
+                        actualizado_en: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinConsentimiento'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/Campo'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [ficha]
+      operationId: guardarCampoFicha
+      summary: Guardar un campo de la ficha
+      description: |
+        Escribe **un** campo. Toda escritura es condicional, y se envía exactamente una de las dos
+        cabeceras:
+
+        | Situación | Cabecera | Si otra persona se adelantó |
+        |---|---|---|
+        | El campo nunca se escribió (`etag: null` en la lectura) | `If-None-Match: *` | 412 con el contenido que ella guardó |
+        | El campo ya existe | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+
+        - Sin ninguna de las dos, o con `If-Match: *`, responde **428**: `*` no protege contra pisar
+          lo que escribió otro, y no hay fusión automática (ADR-015).
+        - `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.
+        - Con las dos cabeceras a la vez responde **422**.
+        - `texto` vacío (o solo espacios) con `If-Match` vacía el campo: queda con su `etag`,
+          cuenta como "Sin completar" y baja la completitud.
+        - `texto` vacío (o solo espacios) con `If-None-Match: *` responde **422**
+          (`tipo: vacio_sin_crear`): no hay nada que crear. Se decide sin leer la base, solo con la
+          cabecera y el cuerpo, en el paso 6 del orden de evaluación; por eso responde 422 aunque
+          otra persona ya haya creado el campo. No crea el plan, no gasta una versión y no registra
+          `plan.editar`.
+
+        La primera escritura de cualquier campo crea el plan con `modo = 'ficha_relevo'` y la
+        clave de datos de la persona (MATU-11). Responde **201** si el campo se creó y **200** si se
+        actualizó. El `ETag` nuevo viaja en la cabecera y en el cuerpo.
+
+        Escriben `admin` y `cuidador`. Registra `plan.editar`.
+      x-matu-historia: MATU-12, MATU-13
+      x-matu-auditoria: plan.editar
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCampo'
+            examples:
+              escribir:
+                summary: Escribir "A quién llamar"
+                value:
+                  texto: "Carmen (hija): +56 9 5555 0101.\nPedro (hijo): +56 9 5555 0102.\nVecina Ana, depto 12, tiene llave."
+              vaciar:
+                summary: Vaciar el campo
+                value:
+                  texto: ''
+      responses:
+        '200':
+          description: Campo actualizado.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampoGuardado'
+              examples:
+                actualizado:
+                  summary: Segunda versión de "Su día"
+                  value:
+                    campo: rutina
+                    texto: "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza.\n15:00 siesta hasta las 16:30.\n20:00 ve las noticias y se acuesta."
+                    etag: '"v4"'
+                    actualizado_por:
+                      id: 0c4b5a10-0000-4000-8000-00000000000c
+                      nombre: Carmen
+                    actualizado_en: '2026-10-30T18:05:00Z'
+                    completitud: 67
+        '201':
+          description: 'Campo creado: primera escritura, con `If-None-Match: *`.'
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampoGuardado'
+              examples:
+                creado:
+                  summary: Primera escritura de "A quién llamar"
+                  value:
+                    campo: red_apoyo
+                    texto: "Carmen (hija): +56 9 5555 0101.\nPedro (hijo): +56 9 5555 0102.\nVecina Ana, depto 12, tiene llave."
+                    etag: '"v1"'
+                    actualizado_por:
+                      id: 0c4b5a10-0000-4000-8000-00000000000c
+                      nombre: Carmen
+                    actualizado_en: '2026-10-30T18:07:00Z'
+                    completitud: 100
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinConsentimiento'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '412':
+          $ref: '#/components/responses/VersionDesactualizada'
+        '422':
+          $ref: '#/components/responses/ValidacionCampo'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+    Campo:
+      name: campo
+      in: path
+      required: true
+      description: Campo de la ficha. Un valor distinto responde **404**.
+      schema:
+        $ref: '#/components/schemas/CampoFicha'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `ETag` del campo tal como se leyó, por ejemplo `"v3"`. Obligatorio si el campo ya existe.
+        Un solo valor; `*` no se acepta y responde 428.
+      schema:
+        $ref: '#/components/schemas/ETag'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: Solo `*`, en la primera escritura de un campo que nunca se escribió.
+      schema:
+        type: string
+        const: '*'
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ETag:
+      description: Versión del campo recién guardado. Se envía tal cual en el próximo `If-Match`.
+      required: true
+      schema:
+        $ref: '#/components/schemas/ETag'
+    ETagActual:
+      description: Versión actual del campo. Ausente si el campo nunca se escribió.
+      required: false
+      schema:
+        $ref: '#/components/schemas/ETag'
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+
+  schemas:
+    CampoFicha:
+      type: string
+      enum: [rutina, manejo_situaciones, red_apoyo]
+      description: |
+        `rutina` = Su día · `manejo_situaciones` = Si se altera · `red_apoyo` = A quién llamar.
+        Son los tipos de `plan_seccion` que forman la ficha de relevo (ADR-023).
+
+    ETag:
+      type: string
+      description: |
+        ETag fuerte y opaco del campo. Hoy se deriva de `plan_seccion.version` (`"v<version>"`), pero
+        el cliente no debe interpretarlo: solo lo guarda y lo devuelve en `If-Match`.
+      pattern: '^"v[1-9][0-9]*"$'
+      examples: ['"v3"']
+
+    TextoFicha:
+      type: string
+      maxLength: 500
+      description: |
+        Hasta 500 caracteres Unicode, contados después de quitar los espacios de los extremos.
+        Admite saltos de línea (`\n`; un `\r\n` se guarda como `\n`) y ningún otro carácter de
+        control. Nunca se pide ni se espera información clínica (arquitectura 11.3).
+
+    Autor:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      description: Quién guardó el campo. Solo su identificador y su nombre, nunca su email.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+
+    EstadoCampo:
+      type: object
+      additionalProperties: false
+      required: [texto, etag, actualizado_por, actualizado_en]
+      description: |
+        Un campo de la ficha.
+
+        | `texto` | `etag` | Significado | Próxima escritura |
+        |---|---|---|---|
+        | `null` | `null` | Nunca se escribió | `If-None-Match: *` |
+        | `null` | valor | Se vació | `If-Match` |
+        | texto | valor | Escrito | `If-Match` |
+      properties:
+        texto:
+          oneOf:
+            - $ref: '#/components/schemas/TextoFicha'
+            - type: 'null'
+        etag:
+          oneOf:
+            - $ref: '#/components/schemas/ETag'
+            - type: 'null'
+        actualizado_por:
+          description: '`null` si nunca se escribió o si la cuenta de quien lo escribió ya no existe.'
+          oneOf:
+            - $ref: '#/components/schemas/Autor'
+            - type: 'null'
+        actualizado_en:
+          type: [string, 'null']
+          format: date-time
+
+    Completitud:
+      type: integer
+      enum: [0, 33, 67, 100]
+      description: '`round(100 × campos_con_texto / 3)`. La interfaz nunca bloquea por completitud (ADR-018).'
+
+    Ficha:
+      type: object
+      additionalProperties: false
+      required: [persona_id, completitud, actualizado_en, campos]
+      properties:
+        persona_id:
+          type: string
+          format: uuid
+        completitud:
+          $ref: '#/components/schemas/Completitud'
+        actualizado_en:
+          description: Última escritura de cualquier campo. `null` si nadie ha escrito.
+          type: [string, 'null']
+          format: date-time
+        campos:
+          type: object
+          additionalProperties: false
+          required: [rutina, manejo_situaciones, red_apoyo]
+          properties:
+            rutina:
+              $ref: '#/components/schemas/EstadoCampo'
+            manejo_situaciones:
+              $ref: '#/components/schemas/EstadoCampo'
+            red_apoyo:
+              $ref: '#/components/schemas/EstadoCampo'
+
+    SolicitudCampo:
+      type: object
+      additionalProperties: false
+      required: [texto]
+      description: Cuerpo del PUT. Un campo extra responde 422.
+      properties:
+        texto:
+          $ref: '#/components/schemas/TextoFicha'
+
+    CampoGuardado:
+      type: object
+      additionalProperties: false
+      required: [campo, texto, etag, actualizado_por, actualizado_en, completitud]
+      properties:
+        campo:
+          $ref: '#/components/schemas/CampoFicha'
+        texto:
+          description: '`null` si se vació.'
+          oneOf:
+            - $ref: '#/components/schemas/TextoFicha'
+            - type: 'null'
+        etag:
+          $ref: '#/components/schemas/ETag'
+        actualizado_por:
+          $ref: '#/components/schemas/Autor'
+        actualizado_en:
+          type: string
+          format: date-time
+        completitud:
+          $ref: '#/components/schemas/Completitud'
+
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    ProblemaVersion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [campo, actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            campo:
+              $ref: '#/components/schemas/CampoFicha'
+            actual:
+              $ref: '#/components/schemas/EstadoCampo'
+
+  responses:
+    NoAutenticado:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+          example:
+            type: /errores/token-invalido
+            title: No autenticado
+            status: 401
+            detail: Inicia sesión de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e1
+
+    SinConsentimiento:
+      description: |
+        La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
+        Es la única causa de 403 en la ficha: un rol sin permiso recibe 404.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/sin-consentimiento
+                  status:
+                    const: 403
+          example:
+            type: /errores/sin-consentimiento
+            title: Sin permiso
+            status: 403
+            detail: Falta la autorización para usar la ficha de esta persona
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
+
+    NoEncontrado:
+      description: |
+        El mismo 404 para todos estos casos, para no revelar qué existe:
+        falta `X-Grupo-Id` o no es un UUID; el usuario no es miembro activo del grupo; es
+        `observador`; es `pagador` sin `puede_ver_plan` (o pagador que intenta escribir); la persona
+        no existe o es de otro grupo; `campo` no es uno de los tres.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+          example:
+            type: /errores/no-encontrado
+            title: No encontrado
+            status: 404
+            detail: null
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e3
+
+    VersionDesactualizada:
+      description: |
+        Otra persona guardó el campo después de que lo leíste (`If-Match` desactualizado), lo creó
+        antes que tú (`If-None-Match: *` sobre un campo existente), o enviaste `If-Match` sobre un
+        campo que nunca se escribió. `actual` trae el contenido vigente para que la pantalla muestre
+        el conflicto y la persona decida. No hay fusión automática (ADR-015). Leer `actual` queda
+        auditado como `plan.leer`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        ETag:
+          $ref: '#/components/headers/ETagActual'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaVersion'
+          example:
+            type: /errores/version-desactualizada
+            title: Otra persona cambió este contenido
+            status: 412
+            detail: Pedro guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e4
+            campo: rutina
+            actual:
+              texto: "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza con Pedro los domingos."
+              etag: '"v4"'
+              actualizado_por:
+                id: 0c4b5a10-0000-4000-8000-00000000000d
+                nombre: Pedro
+              actualizado_en: '2026-10-30T18:01:00Z'
+
+    ValidacionCampo:
+      description: |
+        Cuerpo inválido: `texto` falta, supera 500 caracteres o trae caracteres de control; hay un
+        campo extra; llegaron `If-Match` e `If-None-Match` a la vez; o `texto` vacío con
+        `If-None-Match: *` (`tipo: vacio_sin_crear`, un campo nunca escrito no se crea vacío). `errores[]` nombra el campo y
+        nunca repite el valor. Hoy `mensaje` es el texto de Pydantic, en inglés: la interfaz se guía
+        por `campo` y `tipo`, y muestra el texto de `docs/lenguaje.md`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: texto
+                mensaje: String should have at most 500 characters
+                tipo: string_too_long
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e5
+
+    FaltaVersion:
+      description: |
+        La escritura no fue condicional: falta `If-Match` (o vino `If-Match: *`) sobre un campo que
+        ya existe, o faltan las dos cabeceras.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/falta-version
+                  status:
+                    const: 428
+          example:
+            type: /errores/falta-version
+            title: Falta la versión del contenido
+            status: 428
+            detail: Vuelve a abrir el campo y guarda de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e6

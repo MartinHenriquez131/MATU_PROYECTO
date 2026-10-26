@@ -1,0 +1,1246 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Acceso de relevo (propuesto)
+  version: 0.1.0-propuesto
+  summary: Compartir la ficha con un relevo, canjear el enlace con PIN, leerla como relevo, revocar y ver quién la abrió.
+  description: |
+    Contrato **propuesto** de MATU-09, parte 2. Lo implementan MATU-18 (compartir), MATU-19 (abrir
+    con enlace y PIN), MATU-20 (revocar), MATU-23 (página del relevo) y MATU-25 (límite por IP).
+    Ver `docs/api/README.md`.
+
+    **Dos tipos de actor.**
+
+    - **La familia** (`bearerAuth` + `X-Grupo-Id`, MATU-02): crea, lista y revoca accesos, y ve las
+      aperturas. Comparten y revocan `admin` y `cuidador`. Listan accesos y aperturas `admin`,
+      `cuidador` y `pagador` con `puede_ver_plan`. Cualquier otro caso responde el mismo **404**.
+    - **El relevo**, sin cuenta: abre `https://<origen>/r#<token>`. El token va en el **fragmento**,
+      que el navegador no envía al servidor ni al proxy. La página lo manda por POST a
+      `/v1/relevo/canje` junto con el PIN, recibe una cookie de sesión y limpia la URL con
+      `history.replaceState`. La sesión de relevo fija solo `app.rol = 'relevo'` y
+      `app.acceso_relevo_id`, nunca `app.grupo_id` (modelo de datos, hallazgo 2).
+
+    **Contradicción con la arquitectura v1.1, sección 9.2.** La arquitectura dice
+    `GET /v1/relevo/{token}`, con el token en la URL. Este contrato sigue el backlog v1.3 (MATU-19):
+    fragmento, canje por POST y cookie. La arquitectura se corrige en la v1.2.
+
+    **Lo que nunca sale ni se registra.** El token se guarda solo como hash SHA-256 (`token_hash`,
+    también en `indice_token`) y el PIN solo como HMAC con *pepper* (`pin_hash`; ver las notas
+    para implementar en `docs/api/README.md`). Los dos se muestran **una
+    sola vez**, en el 201 de la creación. Ninguna respuesta posterior, log, error ni URL los
+    contiene. La IP se usa solo para el contador del límite por IP en Redis: no se guarda en
+    `auditoria` ni en los logs.
+
+    **Cabeceras de toda respuesta bajo `/v1/relevo/`**, también las de error:
+    `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex` (MATU-23).
+
+    **Auditoría** (`auditoria.accion`): `relevo.compartir`, `relevo.revocar` (familia);
+    `relevo.canje`, `relevo.pin_incorrecto`, `relevo.bloqueo` y `relevo.abrir` (relevo, con
+    `actor_tipo = 'relevo'` y `actor_ref` = id del acceso).
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: accesos de relevo
+    description: La familia comparte y revoca (capa 1)
+  - name: relevo
+    description: Rutas públicas que usa la página del relevo, sin cuenta
+
+paths:
+  /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [accesos de relevo]
+      operationId: crearAccesoRelevo
+      summary: Compartir la ficha con un relevo
+      description: |
+        Crea un acceso de relevo y entrega, **una sola vez**, el enlace y el PIN de 4 dígitos. La
+        cuidadora le dicta el PIN al relevo por teléfono: viaja por un canal distinto del enlace,
+        que es lo que lo hace un segundo factor. El envío por SMS es *Debería* y no está en este
+        contrato.
+
+        - El token es de 256 bits aleatorios, codificado en base64url (43 caracteres). Se guarda
+          solo su hash.
+        - Vigencia: `expira_en` si se envía; si no, 24 horas desde ahora. Debe ser posterior a ahora
+          y, como máximo, ahora + 30 días según el reloj del servidor. Si no, 422.
+        - Se puede compartir aunque la ficha esté incompleta, o vacía: si el plan no existe todavía,
+          se crea con `modo = 'ficha_relevo'`. Un campo vacío se le muestra al relevo como
+          "Sin completar".
+        - El acceso guarda `nombre_pila_persona` en este momento, para que el relevo nunca lea
+          `persona_cuidada`.
+        - Requiere consentimiento vigente para `plan_cuidado` (403). Comparten `admin` y
+          `cuidador` (si no, 404). Registra `relevo.compartir`.
+      x-matu-historia: MATU-18
+      x-matu-auditoria: relevo.compartir
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudAcceso'
+            examples:
+              sabado:
+                summary: Rosa reemplaza a Carmen el sábado, con los tres campos
+                value:
+                  nombre_relevo: Rosa
+                  telefono_relevo: +56 9 5555 0137
+                  campos: [rutina, manejo_situaciones, red_apoyo]
+                  expira_en: '2026-11-01T02:00:00Z'
+                  motivo: fin_de_semana_fuera
+      responses:
+        '201':
+          description: |
+            Acceso creado. `url` y `pin` **no se vuelven a entregar**: la pantalla los muestra una
+            vez y no los guarda en el navegador. Si se pierden, se revoca y se crea otro.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccesoCreado'
+              examples:
+                creado:
+                  summary: Enlace y PIN para Rosa
+                  value:
+                    id: 2e8a6b40-0000-4000-8000-0000000000b1
+                    url: https://matu.example/r#EjemploSinteticoDeTokenDeRelevoNoValido0000
+                    pin: '4821'
+                    campos: [rutina, manejo_situaciones, red_apoyo]
+                    expira_en: '2026-11-01T02:00:00Z'
+                    nombre_relevo: Rosa
+                    nombre_pila_persona: María
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinConsentimiento'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '422':
+          $ref: '#/components/responses/ValidacionAcceso'
+    get:
+      tags: [accesos de relevo]
+      operationId: listarAccesosRelevo
+      summary: Listar los accesos de relevo de la persona
+      description: |
+        Todos los accesos de la persona, del más nuevo al más antiguo, con su estado. **Nunca**
+        incluye el token, el PIN ni el teléfono del relevo. Paginado por cursor.
+
+        `estado` se calcula en este orden: `revocado` si tiene `revocado_en`; `vencido` si
+        `expira_en` ya pasó; `bloqueado` si acumuló 5 PIN incorrectos; si no, `vigente`.
+      x-matu-historia: MATU-18, MATU-20
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por estado. Sin filtro, todos.
+          schema:
+            $ref: '#/components/schemas/EstadoAcceso'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de accesos.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaAccesos'
+              examples:
+                dos:
+                  summary: Uno vigente y uno revocado
+                  value:
+                    items:
+                      - id: 2e8a6b40-0000-4000-8000-0000000000b1
+                        nombre_relevo: Rosa
+                        campos: [rutina, manejo_situaciones, red_apoyo]
+                        motivo: fin_de_semana_fuera
+                        estado: vigente
+                        creado_en: '2026-10-30T18:10:00Z'
+                        expira_en: '2026-11-01T02:00:00Z'
+                        revocado_en: null
+                        usos: 2
+                        ultimo_uso_en: '2026-10-31T13:02:00Z'
+                        otorgado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Carmen
+                      - id: 2e8a6b40-0000-4000-8000-0000000000b0
+                        nombre_relevo: Rosa
+                        campos: [rutina]
+                        motivo: turno_de_noche
+                        estado: revocado
+                        creado_en: '2026-10-25T22:00:00Z'
+                        expira_en: '2026-10-26T22:00:00Z'
+                        revocado_en: '2026-10-26T09:15:00Z'
+                        usos: 1
+                        ultimo_uso_en: '2026-10-25T23:40:00Z'
+                        otorgado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Carmen
+                    siguiente_cursor: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '422':
+          $ref: '#/components/responses/ValidacionConsulta'
+
+  /v1/accesos-relevo/{acceso_id}:
+    parameters:
+      - name: acceso_id
+        in: path
+        required: true
+        description: Acceso de relevo. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+        schema:
+          type: string
+          format: uuid
+        example: 2e8a6b40-0000-4000-8000-0000000000b1
+      - $ref: '#/components/parameters/XGrupoId'
+    delete:
+      tags: [accesos de relevo]
+      operationId: revocarAccesoRelevo
+      summary: Revocar un acceso de relevo
+      description: |
+        Revocación **inmediata**: fija `revocado_en` y nada más. **No** borra la entrada de
+        `indice_token` ni descarta las sesiones de relevo en Redis: el token y la cookie siguen
+        identificando el acceso, y lo que cambia es su estado, que la API verifica en **cada**
+        petición del relevo. Por eso la siguiente petición responde **410**
+        `/errores/relevo-revocado` aunque tenga una cookie válida (MATU-20), y un canje posterior
+        con el mismo enlace también responde 410 `relevo-revocado`, no `relevo-no-disponible`.
+        Cómo distingue la API "revocado" de "vencido" es una decisión abierta de MATU-19
+        (`docs/api/README.md`).
+
+        Es idempotente: revocar un acceso ya revocado o vencido también responde 204. El registro
+        no se borra: queda en la lista como `revocado`, para la auditoría.
+
+        Revocan `admin` y `cuidador`. **No exige consentimiento vigente**: cortar un acceso
+        siempre debe ser posible. Registra `relevo.revocar`.
+      x-matu-historia: MATU-20
+      x-matu-auditoria: relevo.revocar
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Acceso revocado. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /v1/relevo/canje:
+    post:
+      tags: [relevo]
+      operationId: canjearRelevo
+      summary: Canjear el enlace y el PIN por una sesión de relevo
+      description: |
+        Ruta **pública**. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo,
+        nunca en la URL. Si son correctos, responde **204** con la cookie de sesión de relevo, y la
+        página lee la ficha con `GET /v1/relevo/ficha`.
+
+        **Orden de evaluación:**
+
+        1. Límite por IP: 10 canjes por hora (MATU-25). Si se supera, **429**, sin tocar el acceso.
+        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
+        3. El token corresponde a un acceso (`indice_token`). Si no, **410**
+           `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
+        4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
+           `/errores/relevo-vencido`. Revocar no borra `indice_token`, así que un enlace revocado
+           siempre llega a este paso. No cuenta como intento.
+        5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
+        6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
+           responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
+           `relevo.bloqueo` y responde **423**. Un acceso bloqueado se reemplaza creando otro.
+        7. PIN correcto: vuelve el contador a 0, crea la sesión en Redis, registra `relevo.canje` y
+           responde **204** con `Set-Cookie`.
+
+        La sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso. Después,
+        el relevo vuelve a escribir el PIN.
+      x-matu-historia: MATU-19, MATU-25
+      x-matu-auditoria: relevo.canje, relevo.pin_incorrecto, relevo.bloqueo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCanje'
+            examples:
+              canje:
+                summary: Rosa escribe el PIN que le dictó Carmen
+                value:
+                  token: EjemploSinteticoDeTokenDeRelevoNoValido0000
+                  pin: '4821'
+      responses:
+        '204':
+          description: PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookieRelevo'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+        '401':
+          $ref: '#/components/responses/PinIncorrecto'
+        '410':
+          $ref: '#/components/responses/RelevoNoDisponibleCanje'
+        '422':
+          $ref: '#/components/responses/ValidacionCanje'
+        '423':
+          $ref: '#/components/responses/RelevoBloqueado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /v1/relevo/ficha:
+    get:
+      tags: [relevo]
+      operationId: leerFichaRelevo
+      summary: Leer la ficha como relevo
+      description: |
+        Con la cookie de sesión de relevo. Devuelve **solo** los campos habilitados en el acceso,
+        el nombre de pila de la persona y el vencimiento. Un campo habilitado y vacío viene con
+        `texto: null`, y la página lo muestra como "Sin completar". No devuelve el nombre de la
+        persona, su dirección, quién escribió cada campo ni nada del grupo.
+
+        Cada lectura correcta registra `relevo.abrir`, suma 1 a `usos` y fija `ultimo_uso_en`.
+
+        La sesión de relevo en Redis identifica el acceso, no su estado: en **cada** petición la
+        API vuelve a leer el estado del acceso, en este orden:
+
+        1. Sin cookie, o cookie que no corresponde a una sesión en Redis (alterada, o vencida por
+           su propio `Max-Age`/TTL) → **401** `/errores/sin-sesion-relevo`.
+        2. Acceso revocado → **410** `/errores/relevo-revocado` (MATU-20), aunque la cookie sea
+           válida. Revocar no descarta la sesión: es esta verificación la que corta el acceso.
+        3. Acceso vencido → **410** `/errores/relevo-vencido`.
+        4. Acceso bloqueado después del canje (alguien probó 5 PIN con el mismo enlace) → **423**.
+        5. Si no, **200**.
+
+        Las respuestas 410 y 423 borran la cookie y descartan la sesión en Redis en ese momento.
+      x-matu-historia: MATU-19, MATU-20, MATU-23
+      x-matu-auditoria: relevo.abrir
+      security:
+        - relevoCookie: []
+      responses:
+        '200':
+          description: La ficha que ve el relevo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FichaRelevo'
+              examples:
+                dos_campos:
+                  summary: Rosa ve "Su día" y "Si se altera"; "A quién llamar" no se le compartió
+                  value:
+                    nombre_pila: María
+                    vence_en: '2026-11-01T02:00:00Z'
+                    campos:
+                      rutina:
+                        texto: "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza.\n15:00 siesta hasta las 16:30."
+                      manejo_situaciones:
+                        texto: null
+        '401':
+          $ref: '#/components/responses/SinSesionRelevo'
+        '410':
+          $ref: '#/components/responses/RelevoNoDisponibleSesion'
+        '423':
+          $ref: '#/components/responses/RelevoBloqueadoSesion'
+
+  /v1/personas-cuidadas/{persona_id}/plan/aperturas:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [accesos de relevo]
+      operationId: listarAperturasRelevo
+      summary: Ver quién abrió la ficha con un acceso de relevo
+      description: |
+        Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada
+        apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Muestra
+        la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.
+
+        Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se
+        listan aquí.
+      x-matu-historia: MATU-19 (RF-08)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de aperturas.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaAperturas'
+              examples:
+                rosa:
+                  summary: Rosa se equivocó una vez y después abrió la ficha
+                  value:
+                    items:
+                      - ocurrido_en: '2026-10-31T13:02:00Z'
+                        tipo: apertura
+                        acceso:
+                          id: 2e8a6b40-0000-4000-8000-0000000000b1
+                          nombre_relevo: Rosa
+                      - ocurrido_en: '2026-10-31T13:01:00Z'
+                        tipo: pin_incorrecto
+                        acceso:
+                          id: 2e8a6b40-0000-4000-8000-0000000000b1
+                          nombre_relevo: Rosa
+                    siguiente_cursor: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '422':
+          $ref: '#/components/responses/ValidacionConsulta'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+    relevoCookie:
+      type: apiKey
+      in: cookie
+      name: __Secure-matu-relevo
+      description: |
+        Cookie de sesión de relevo que entrega `POST /v1/relevo/canje`. Es un identificador
+        aleatorio de una sesión en Redis, no el token del enlace. `HttpOnly`, `Secure`,
+        `SameSite=Strict`, `Path=/v1/relevo`. El prefijo `__Secure-` obliga al navegador a
+        aceptarla solo por HTTPS.
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Valor opaco de `siguiente_cursor` de la página anterior. Uno inválido responde 422.
+      schema:
+        type: string
+        maxLength: 200
+    Limite:
+      name: limite
+      in: query
+      required: false
+      description: Elementos por página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    ReferrerPolicy:
+      description: El navegador no envía la URL de la página del relevo como `Referer` a nadie.
+      required: true
+      schema:
+        type: string
+        const: no-referrer
+    XRobotsTag:
+      description: Ningún buscador indexa las respuestas del relevo.
+      required: true
+      schema:
+        type: string
+        const: noindex
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    SetCookieRelevo:
+      description: |
+        Cookie de sesión de relevo. `Max-Age` es el menor entre 43200 (12 horas) y los segundos
+        que le quedan al acceso.
+      required: true
+      schema:
+        type: string
+      example: __Secure-matu-relevo=<id-de-sesión>; Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
+    BorrarCookieRelevo:
+      description: Borra la cookie de sesión de relevo.
+      required: true
+      schema:
+        type: string
+      example: __Secure-matu-relevo=; Max-Age=0; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
+    RetryAfter:
+      description: Segundos que faltan para que se abra la ventana del límite por IP.
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    CampoFicha:
+      type: string
+      enum: [rutina, manejo_situaciones, red_apoyo]
+      description: |
+        `rutina` = Su día · `manejo_situaciones` = Si se altera · `red_apoyo` = A quién llamar.
+        Son los tipos de `plan_seccion` que forman la ficha de relevo (ADR-023).
+
+    Autor:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      description: Quién guardó el campo. Solo su identificador y su nombre, nunca su email.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+
+    TextoUnaLinea:
+      type: string
+      minLength: 1
+      description: Una línea, sin espacios en los extremos ni caracteres de control.
+
+    EstadoAcceso:
+      type: string
+      enum: [vigente, vencido, revocado, bloqueado]
+
+    MotivoAcceso:
+      type: string
+      enum: [salgo_unas_horas, fin_de_semana_fuera, turno_de_noche, otro]
+      description: |
+        Para qué se comparte. Es un **enumerado sin texto libre**: queda en `acceso_relevo.motivo` y
+        en la auditoría, que se conserva 3 años, y un texto libre podría terminar guardando un dato
+        de salud imposible de borrar. Los valores son los chips de la demo:
+
+        | Valor | Texto en la interfaz (`docs/lenguaje.md`) |
+        |---|---|
+        | `salgo_unas_horas` | Salgo unas horas |
+        | `fin_de_semana_fuera` | Fin de semana fuera |
+        | `turno_de_noche` | Turno de noche |
+        | `otro` | Otro motivo (sin campo para escribir) |
+
+        Un valor fuera de la lista responde 422. La columna es `text NOT NULL`, así que no requiere
+        migración; la restricción vive en la API (un `CHECK` sería una migración aparte).
+
+    SolicitudAcceso:
+      type: object
+      additionalProperties: false
+      required: [nombre_relevo, telefono_relevo, campos, motivo]
+      description: Cuerpo de la creación. Un campo extra responde 422.
+      properties:
+        nombre_relevo:
+          allOf:
+            - $ref: '#/components/schemas/TextoUnaLinea'
+          maxLength: 60
+          description: Cómo se llama quien reemplaza. Se muestra a la familia en la lista de accesos.
+        telefono_relevo:
+          type: string
+          pattern: '^(\+?56 ?)?9( ?[0-9]){8}$'
+          description: |
+            Celular chileno del relevo: 9 y ocho dígitos, con o sin el prefijo `+56` (o `56`) y con
+            o sin espacios. Valen `+56 9 5555 0137`, `+56955550137`, `56 9 5555 0137` y
+            `9 5555 0137`; no vale un fijo (`+56 2 …`). Se guarda normalizado
+            (`+569XXXXXXXX`). Lo exige `acceso_relevo.otorgado_a_telefono` y la política de
+            privacidad lo informa; no se devuelve en ninguna respuesta.
+        campos:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CampoFicha'
+          description: Campos que verá el relevo. Al menos uno.
+        expira_en:
+          type: string
+          format: date-time
+          description: |
+            Hasta cuándo vale el enlace, con zona. Opcional: por defecto, 24 horas desde ahora.
+            Máximo 30 días desde ahora.
+        motivo:
+          $ref: '#/components/schemas/MotivoAcceso'
+
+    AccesoCreado:
+      type: object
+      additionalProperties: false
+      required: [id, url, pin, campos, expira_en, nombre_relevo, nombre_pila_persona]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+          pattern: '^https://[^/#]+/r#[A-Za-z0-9_-]{43}$'
+          description: Enlace para el relevo, con el token en el fragmento. Se entrega solo aquí.
+        pin:
+          type: string
+          pattern: '^[0-9]{4}$'
+          description: PIN de 4 dígitos. Se entrega solo aquí y se guarda solo su HMAC con pepper.
+        campos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampoFicha'
+        expira_en:
+          type: string
+          format: date-time
+        nombre_relevo:
+          type: string
+        nombre_pila_persona:
+          type: string
+          description: Lo único de la persona que verá el relevo.
+
+    AccesoResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre_relevo, campos, motivo, estado, creado_en, expira_en, revocado_en, usos, ultimo_uso_en, otorgado_por]
+      description: Un acceso en la lista. Sin token, sin PIN y sin teléfono.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre_relevo:
+          type: string
+        campos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampoFicha'
+        motivo:
+          $ref: '#/components/schemas/MotivoAcceso'
+        estado:
+          $ref: '#/components/schemas/EstadoAcceso'
+        creado_en:
+          type: string
+          format: date-time
+        expira_en:
+          type: string
+          format: date-time
+        revocado_en:
+          type: [string, 'null']
+          format: date-time
+        usos:
+          type: integer
+          minimum: 0
+          description: Cuántas veces el relevo abrió la ficha.
+        ultimo_uso_en:
+          type: [string, 'null']
+          format: date-time
+        otorgado_por:
+          description: Quién compartió. `null` si su cuenta ya no existe.
+          oneOf:
+            - $ref: '#/components/schemas/Autor'
+            - type: 'null'
+
+    ListaAccesos:
+      type: object
+      additionalProperties: false
+      required: [items, siguiente_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccesoResumen'
+        siguiente_cursor:
+          type: [string, 'null']
+          description: '`null` si no hay más.'
+
+    SolicitudCanje:
+      type: object
+      additionalProperties: false
+      required: [token, pin]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: |
+            Lo que viene después de `#` en el enlace. No se valida su forma: un token desconocido o
+            cortado responde 410, para que la página muestre "Pídele a quien te envió el enlace uno
+            nuevo".
+        pin:
+          type: string
+          pattern: '^[0-9]{4}$'
+
+    CampoRelevo:
+      type: object
+      additionalProperties: false
+      required: [texto]
+      properties:
+        texto:
+          description: '`null` = "Sin completar".'
+          type: [string, 'null']
+          maxLength: 500
+
+    FichaRelevo:
+      type: object
+      additionalProperties: false
+      required: [nombre_pila, vence_en, campos]
+      properties:
+        nombre_pila:
+          type: string
+          description: Nombre de pila de la persona, guardado en el acceso.
+        vence_en:
+          type: string
+          format: date-time
+          description: '`expira_en` del acceso.'
+        campos:
+          type: object
+          additionalProperties: false
+          minProperties: 1
+          description: Solo los campos habilitados. Un campo no habilitado no aparece.
+          properties:
+            rutina:
+              $ref: '#/components/schemas/CampoRelevo'
+            manejo_situaciones:
+              $ref: '#/components/schemas/CampoRelevo'
+            red_apoyo:
+              $ref: '#/components/schemas/CampoRelevo'
+
+    Apertura:
+      type: object
+      additionalProperties: false
+      required: [ocurrido_en, tipo, acceso]
+      properties:
+        ocurrido_en:
+          type: string
+          format: date-time
+        tipo:
+          type: string
+          enum: [apertura, pin_incorrecto, bloqueo]
+          description: '`apertura` = `relevo.abrir`, `pin_incorrecto` = `relevo.pin_incorrecto`, `bloqueo` = `relevo.bloqueo`.'
+        acceso:
+          type: object
+          additionalProperties: false
+          required: [id, nombre_relevo]
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre_relevo:
+              type: string
+
+    ListaAperturas:
+      type: object
+      additionalProperties: false
+      required: [items, siguiente_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Apertura'
+        siguiente_cursor:
+          type: [string, 'null']
+
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    ProblemaPinIncorrecto:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [intentos_restantes]
+          properties:
+            type:
+              const: /errores/pin-incorrecto
+            status:
+              const: 401
+            intentos_restantes:
+              type: integer
+              minimum: 1
+              maximum: 4
+              description: Intentos que quedan antes del bloqueo.
+
+  responses:
+    NoAutenticado:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+          example:
+            type: /errores/token-invalido
+            title: No autenticado
+            status: 401
+            detail: Inicia sesión de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e1
+
+    SinConsentimiento:
+      description: |
+        La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
+        Es la única causa de 403 en la ficha y en el relevo: un rol sin permiso recibe 404.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/sin-consentimiento
+                  status:
+                    const: 403
+          example:
+            type: /errores/sin-consentimiento
+            title: Sin permiso
+            status: 403
+            detail: Falta la autorización para usar la ficha de esta persona
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
+
+    NoEncontrado:
+      description: |
+        El mismo 404 para todos estos casos, para no revelar qué existe: falta `X-Grupo-Id` o no
+        es un UUID; el usuario no es miembro activo del grupo; su rol no alcanza (`observador`;
+        `pagador` sin `puede_ver_plan`; `pagador` que intenta compartir o revocar); la persona o el
+        acceso no existen o son de otro grupo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+          example:
+            type: /errores/no-encontrado
+            title: No encontrado
+            status: 404
+            detail: null
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e3
+
+    ValidacionAcceso:
+      description: |
+        Cuerpo inválido: falta un campo, `campos` vacío o repetido, teléfono que no es un celular
+        chileno, `motivo` fuera del enumerado, `expira_en` en el pasado o a más de 30 días, o un
+        campo extra. `errores[]` nombra
+        el campo y nunca repite el valor.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: expira_en
+                mensaje: El enlace puede durar como máximo 30 días
+                tipo: vigencia_maxima
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e7
+
+    ValidacionConsulta:
+      description: '`cursor` inválido o `limite` fuera de 1 a 100.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: limite
+                mensaje: Input should be less than or equal to 100
+                tipo: less_than_equal
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e8
+
+    ValidacionCanje:
+      description: |
+        Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela
+        nada del acceso.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: pin
+                mensaje: String should match pattern '^[0-9]{4}$'
+                tipo: string_pattern_mismatch
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e9
+
+    PinIncorrecto:
+      description: |
+        PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de
+        la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaPinIncorrecto'
+          example:
+            type: /errores/pin-incorrecto
+            title: PIN incorrecto
+            status: 401
+            detail: El PIN no coincide. Te quedan 3 intentos
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000ea
+            intentos_restantes: 3
+
+    RelevoNoDisponibleCanje:
+      description: |
+        El enlace ya no sirve. Tres `type`, para que la página muestre el texto de cada estado:
+        `/errores/relevo-vencido`, `/errores/relevo-revocado` (revocar no borra `indice_token`, así
+        que un enlace revocado siempre responde este), o `/errores/relevo-no-disponible` cuando el
+        token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
+        después de vencer).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/relevo-vencido, /errores/relevo-revocado, /errores/relevo-no-disponible]
+                  status:
+                    const: 410
+          example:
+            type: /errores/relevo-vencido
+            title: Ya no está disponible
+            status: 410
+            detail: Este enlace venció. Pídele a quien te envió el enlace uno nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000eb
+
+    RelevoNoDisponibleSesion:
+      description: |
+        El acceso de la sesión se revocó (`/errores/relevo-revocado`) o venció
+        (`/errores/relevo-vencido`). La cookie sigue siendo válida en forma y su sesión existe en
+        Redis: el 410 sale de verificar el estado del acceso en esta petición. La respuesta borra
+        la cookie y descarta la sesión.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Set-Cookie:
+          $ref: '#/components/headers/BorrarCookieRelevo'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/relevo-vencido, /errores/relevo-revocado]
+                  status:
+                    const: 410
+          example:
+            type: /errores/relevo-revocado
+            title: Ya no está disponible
+            status: 410
+            detail: Quien te compartió la ficha cortó este enlace. Pídele uno nuevo si lo necesitas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000ec
+
+    RelevoBloqueado:
+      description: |
+        El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se
+        desbloquea: la familia revoca y crea un acceso nuevo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/relevo-bloqueado
+                  status:
+                    const: 423
+          example:
+            type: /errores/relevo-bloqueado
+            title: Bloqueado
+            status: 423
+            detail: El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000ed
+
+    RelevoBloqueadoSesion:
+      description: |
+        El acceso se bloqueó después de que esta sesión se abrió: alguien probó 5 PIN incorrectos
+        con el mismo enlace. Se trata como enlace comprometido. La respuesta borra la cookie.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Set-Cookie:
+          $ref: '#/components/headers/BorrarCookieRelevo'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/relevo-bloqueado
+                  status:
+                    const: 423
+          example:
+            type: /errores/relevo-bloqueado
+            title: Bloqueado
+            status: 423
+            detail: El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000ee
+
+    SinSesionRelevo:
+      description: |
+        Falta la cookie de sesión de relevo, o no corresponde a ninguna sesión en Redis (alterada,
+        o vencida por su propio TTL de 12 horas o el vencimiento del acceso). Revocar **no** lleva
+        aquí: un acceso revocado con cookie válida responde 410. La página vuelve a pedir el PIN.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/sin-sesion-relevo
+                  status:
+                    const: 401
+          example:
+            type: /errores/sin-sesion-relevo
+            title: No autenticado
+            status: 401
+            detail: Abre de nuevo el enlace y escribe el PIN
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000ef
+
+    DemasiadasPeticiones:
+      description: |
+        Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25). No toca el acceso ni
+        cuenta como intento de PIN.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/demasiadas-peticiones
+                  status:
+                    const: 429
+          example:
+            type: /errores/demasiadas-peticiones
+            title: Demasiadas peticiones
+            status: 429
+            detail: Espera un rato antes de volver a intentarlo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000f0
