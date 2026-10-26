@@ -148,11 +148,20 @@ function ListaAyudas({ compacta = false }: { compacta?: boolean }) {
 
 // ---------- piezas ----------
 
-export function Distintivo() {
+/**
+ * Aviso de piloto académico (figura legal del piloto, sección 4.1): se ve siempre, en las tres
+ * apps, en modo presentación y con el texto al 200%. En la franja, bajo 90 rem, se parte en dos
+ * líneas para que la franja siga en una. Solo, en modo presentación, va a 17 px.
+ */
+export function Distintivo({ flotante = false }: { flotante?: boolean }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-tinta/7 px-3 py-1 text-sm font-bold text-tenue">
-      <span aria-hidden className="size-2 rounded-full bg-miel" />
-      Demo con datos simulados
+    <span
+      className={`inline-flex shrink-0 items-center gap-2 px-3 py-1 font-bold text-tenue ${
+        flotante ? 'rounded-full bg-hoja text-base shadow-md ring-1 ring-linea' : 'max-w-44 rounded-xl bg-tinta/7 text-sm leading-tight @min-[90rem]:max-w-none @min-[90rem]:rounded-full'
+      }`}
+    >
+      <span aria-hidden className="size-2 shrink-0 rounded-full bg-miel" />
+      Piloto académico con datos de prueba
     </span>
   )
 }
@@ -290,7 +299,7 @@ export function DistintivoFlotante() {
   const { setCajon, cajon } = usePresentador()
   return (
     <div className="fixed bottom-3 left-3 z-30 flex items-center gap-1">
-      <Distintivo />
+      <Distintivo flotante />
       <button
         type="button"
         onClick={() => setCajon((x) => !x)}

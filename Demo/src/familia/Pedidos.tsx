@@ -1,13 +1,13 @@
 // Pedido y pago con un solo pagador. A la izquierda lo que se hace; a la derecha, la boleta:
 // estimado, reserva o cobro, monto real y lo que vuelve.
 import { useEffect, useState } from 'react'
-import { Check, CircleCheck, CreditCard, Landmark, LoaderCircle, Lock, ReceiptText, ShoppingBag, TriangleAlert } from 'lucide-react'
+import { Check, CircleCheck, CreditCard, Info, Landmark, LoaderCircle, Lock, ReceiptText, ShoppingBag, TriangleAlert } from 'lucide-react'
 import { useDemo } from '../demo/estado'
 import { avisar, datosPedido, elegirMedio, etapa, ir, nombrePila, pilaFamilia, reemplazar, resultadoPago, volver } from '../demo/logica'
 import { COMERCIO } from '../demo/datos'
 import { DIA, MARGEN_PORCENTAJE, diasRestantes, fmtDinero, fmtFecha, fmtHora, montoAPagar, reservaCredito } from '../demo/calculos'
 import type { EstadoPedido, Medio, Pedido } from '../demo/tipos'
-import { Acciones, Boton, CampoTexto, GrupoOpciones, Nota, Renglon, Subtitulo } from '../components/Ui'
+import { Acciones, Boton, CampoTexto, GrupoOpciones, Nota, PreciosDeEjemplo, Renglon, Subtitulo } from '../components/Ui'
 import { Columna, Columnas, Pagina } from './Shell'
 
 // ---------- Boleta ----------
@@ -45,7 +45,7 @@ export function Boleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
             monto={dif !== null ? fmtDinero(dif) : 'por saber'}
             tono={dif !== null ? 'ok' : 'tenue'}
             fuerte
-            nota="Cómo y en qué plazo, todavía por definir."
+            nota="Cómo y en qué plazo, todavía está por definir."
           />
         </div>
       ) : (
@@ -81,6 +81,7 @@ function ColumnaBoleta({ p, medioVista }: { p: Pedido; medioVista?: Medio }) {
   return (
     <Columna etiqueta="Boleta">
       <Boleta p={p} medioVista={medioVista} />
+      <PreciosDeEjemplo />
     </Columna>
   )
 }
@@ -115,7 +116,7 @@ export function PedidoPantalla() {
     haz((x) => ir(datosPedido(x, direccion.trim(), equivalente), 'medio'))
   }
   return (
-    <Pagina titulo="Tu pedido" volver bajada={`Lo prepara ${COMERCIO.nombre} y llega hoy ${COMERCIO.ventana}. Paga una sola persona: tú.`}>
+    <Pagina titulo="Tu pedido" volver bajada={`Lo prepara ${COMERCIO.nombreFicticio} y llega hoy ${COMERCIO.ventana}. Paga una sola persona: tú.`}>
       <Columnas izquierda="ancha">
         <Columna etiqueta="Datos del pedido">
           <Subtitulo>Productos</Subtitulo>
@@ -186,7 +187,7 @@ export function MedioPago() {
             </Nota>
           ) : (
             <Nota titulo={`Con débito el banco cobra al instante: se cobran ${fmtDinero(p.estimado)} al confirmar.`}>
-              Si el pedido sale por menos, te devolveremos la diferencia. Cómo y en qué plazo se devuelve todavía está por definir.
+              Si el pedido sale por menos, te devolveremos la diferencia. Cómo y en qué plazo, todavía está por definir.
             </Nota>
           )}
           <Acciones>
@@ -242,29 +243,33 @@ export function Pasarela() {
   }
   const credito = p.medio === 'credito'
   return (
-    <main id="contenido" tabIndex={-1} className="flex-1 bg-[#eef0f3] px-4 py-10 text-[#1f2a37] outline-none [color-scheme:light] [&_:focus-visible]:outline-[#1f2a37]">
+    <main id="contenido" tabIndex={-1} className="flex-1 bg-pasarela px-4 py-10 text-pasarela-tinta outline-none [color-scheme:light] [&_:focus-visible]:outline-pasarela-tinta">
       <div className="mx-auto flex max-w-xl flex-col gap-4">
-        <header className="rounded-xl bg-[#1f2a37] px-5 py-4 text-white">
+        <header className="rounded-xl bg-pasarela-tinta px-5 py-4 text-pasarela-hoja">
           <h1 id="titulo-pagina" tabIndex={-1} className="text-xl font-bold outline-none">
             Pasarela de pago simulada
           </h1>
-          <p className="opacity-90">Transbank, ambiente de prueba. No se mueve dinero.</p>
+          <p className="opacity-90">Transbank, ambiente de prueba.</p>
         </header>
-        <div className="rounded-xl bg-white px-5 py-4 ring-1 ring-black/10">
+        <p className="flex gap-3 rounded-xl border-l-4 border-pasarela-tinta bg-pasarela-hoja px-5 py-3 font-bold ring-1 ring-pasarela-tinta/10">
+          <Info aria-hidden className="mt-0.5 size-5 shrink-0" />
+          Pago de prueba. No se cobra dinero real.
+        </p>
+        <div className="rounded-xl bg-pasarela-hoja px-5 py-4 ring-1 ring-pasarela-tinta/10">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-            <dt className="text-[#4b5563]">Comercio</dt>
+            <dt className="text-pasarela-tenue">Comercio</dt>
             <dd className="text-right font-bold">MATU</dd>
-            <dt className="text-[#4b5563]">Orden</dt>
+            <dt className="text-pasarela-tenue">Orden</dt>
             <dd className="cifras text-right">{p.numero}</dd>
-            <dt className="text-[#4b5563]">{credito ? 'Monto a reservar' : 'Monto a cobrar'}</dt>
+            <dt className="text-pasarela-tenue">{credito ? 'Monto a reservar' : 'Monto a cobrar'}</dt>
             <dd className="cifras text-right text-2xl font-bold">{fmtDinero(p.montoPagado)}</dd>
           </dl>
         </div>
-        <div className="flex items-center gap-3 rounded-xl bg-white px-5 py-4 ring-1 ring-black/10">
+        <div className="flex items-center gap-3 rounded-xl bg-pasarela-hoja px-5 py-4 ring-1 ring-pasarela-tinta/10">
           {credito ? <CreditCard aria-hidden className="size-7 shrink-0" /> : <Landmark aria-hidden className="size-7 shrink-0" />}
           <div className="min-w-0">
             <p className="font-bold">{credito ? 'Tarjeta de crédito de prueba' : 'Tarjeta de débito de prueba'}</p>
-            <p className="cifras text-[#4b5563]">terminada en 6623</p>
+            <p className="text-pasarela-tenue tabular-nums">terminada en 6623</p>
           </div>
         </div>
         {procesando !== null ? (
@@ -274,22 +279,22 @@ export function Pasarela() {
           </p>
         ) : (
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => setProcesando(true)} className="min-h-12 rounded-lg bg-[#1f2a37] px-5 font-bold text-white hover:bg-[#111827]">
+            <button type="button" onClick={() => setProcesando(true)} className="min-h-12 rounded-lg bg-pasarela-tinta px-5 font-bold text-pasarela-hoja hover:bg-pasarela-presionado">
               {credito ? 'Aprobar' : 'Aprobar el pago'}
             </button>
             <button
               type="button"
               onClick={() => setProcesando(false)}
-              className="min-h-12 rounded-lg bg-white px-5 font-bold text-[#9f1c14] ring-2 ring-[#9f1c14]/70 ring-inset hover:bg-[#fef2f2]"
+              className="min-h-12 rounded-lg bg-pasarela-hoja px-5 font-bold text-pasarela-rechazo ring-2 ring-pasarela-rechazo/70 ring-inset hover:bg-pasarela-rechazo-fondo"
             >
               Simular que el banco lo rechaza
             </button>
-            <button type="button" onClick={() => haz(volver)} className="min-h-12 px-2 font-bold text-[#1f2a37] underline underline-offset-4">
+            <button type="button" onClick={() => haz(volver)} className="min-h-12 px-2 font-bold text-pasarela-tinta underline underline-offset-4">
               Volver a MATU sin pagar
             </button>
           </div>
         )}
-        <p className="text-sm text-[#4b5563]">Los datos de la tarjeta solo existen en Transbank. MATU recibe el resultado, nunca la tarjeta.</p>
+        <p className="text-sm text-pasarela-tenue">Los datos de la tarjeta solo existen en Transbank. MATU recibe el resultado, nunca la tarjeta.</p>
       </div>
     </main>
   )
@@ -371,7 +376,7 @@ function Pasos({ p }: { p: Pedido }) {
               </span>
               <span className="text-base text-tenue">
                 {hecho ? paso.detalle(p) : 'Pendiente'}
-                {hecho && p.hitos[paso.e] !== undefined && <span className="cifras">, a las {fmtHora(p.hitos[paso.e]!)}</span>}
+                {hecho && p.hitos[paso.e] !== undefined && <span className="tabular-nums">, a las {fmtHora(p.hitos[paso.e]!)}</span>}
               </span>
             </span>
           </li>
@@ -387,7 +392,7 @@ export function Seguimiento() {
   if (!p || p.estado === 'borrador') return <SinPedido />
   const cambios = p.lineas.filter((l) => l.resolucion === 'reemplazado' || l.resolucion === 'no_disponible')
   return (
-    <Pagina titulo={`Pedido de ${nombrePila(s)}`} bajada={`Lo prepara ${COMERCIO.nombre}. Llega hoy ${COMERCIO.ventana}.`}>
+    <Pagina titulo={`Pedido de ${nombrePila(s)}`} bajada={`Lo prepara ${COMERCIO.nombreFicticio}. Llega hoy ${COMERCIO.ventana}.`}>
       <Columnas izquierda="ancha">
         <Columna etiqueta="Seguimiento">
           <Pasos p={p} />

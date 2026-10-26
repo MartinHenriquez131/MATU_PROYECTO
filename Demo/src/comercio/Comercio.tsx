@@ -77,7 +77,9 @@ function Cola() {
             <ChipEstado e="en_camino" />
           </span>
           <span className="text-base">4 paquetes</span>
-          <span className="cifras text-sm text-tenue">Retirado a las 13:20</span>
+          <span className="text-sm text-tenue">
+            Retirado a las <span className="cifras">13:20</span>
+          </span>
         </li>
       </ul>
       {!p && <p className="text-tenue">El pedido de {nombrePila(s)} aparece aquí cuando la familia lo paga.</p>}
@@ -255,7 +257,7 @@ function Monto() {
     if (valor > max) return setError(`Supera el tope autorizado de ${fmtDinero(max)}. Revisa la boleta o llama a la familia.`)
     haz((x) => {
       const t = pilaComercio(cerrarMonto(x, valor, boleta.trim()), ['c-pedidos'])
-      const extra = p.medio === 'debito' ? ` A la familia se le devolverán ${fmtDinero(p.montoPagado - valor)}; cómo y en qué plazo, todavía por definir.` : ''
+      const extra = p.medio === 'debito' ? ` A la familia se le devolverán ${fmtDinero(p.montoPagado - valor)}. Cómo y en qué plazo, todavía está por definir.` : ''
       return avisar(t, `Listo para retiro. Avisamos a la familia.${extra}`)
     })
   }
@@ -371,7 +373,7 @@ export function Consola() {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 @3xl:px-10 py-3">
           <span className="flex items-center gap-2.5 font-bold">
             <Store aria-hidden className="size-6" />
-            {COMERCIO.nombre}
+            {COMERCIO.nombreFicticio}
           </span>
           <span className="opacity-85">Pedidos de MATU</span>
           <span className="flex-1" />

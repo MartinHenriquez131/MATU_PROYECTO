@@ -6,7 +6,7 @@ import { useDemo } from '../demo/estado'
 import { ajustarLista, armarPedido, avisar, declarar, ir, nombrePila, pantallaFamilia, pilaFamilia, reemplazar, volver, yaLoCompre } from '../demo/logica'
 import { COBERTURA_DIAS, DIA, DIAS_PRONTO, diasRestantes, fmtDinero, fmtFecha, lineasLista, nivel, totalEstimado } from '../demo/calculos'
 import type { Estado, Insumo } from '../demo/tipos'
-import { Acciones, BarraDias, Boton, EtiquetaNivel, GrupoOpciones, HORIZONTE_DIAS, Nota, Renglon, Stepper, posicionDia } from '../components/Ui'
+import { Acciones, BarraDias, Boton, EtiquetaNivel, GrupoOpciones, HORIZONTE_DIAS, Nota, PreciosDeEjemplo, Renglon, Stepper, posicionDia } from '../components/Ui'
 import { Columna, Columnas, Pagina, Pestanas } from './Shell'
 
 function fechaFin(i: Insumo, ahora: number) {
@@ -322,7 +322,7 @@ function ListaReposicion() {
               <span className="block font-bold">
                 {l.insumo.nombre} <span className="font-normal text-tenue">{l.insumo.presentacion}</span>
               </span>
-              <span className="cifras text-sm text-tenue">
+              <span className="text-sm text-tenue tabular-nums">
                 {fmtDinero(l.insumo.precio)} el paquete. Sugerimos {l.sugeridos}.
               </span>
             </span>
@@ -342,6 +342,7 @@ function ListaReposicion() {
         ))}
       </ul>
       <p className="text-base text-tenue">La lista sirve aunque compres en otra parte.</p>
+      <PreciosDeEjemplo />
     </Columna>
   )
 }
@@ -430,7 +431,7 @@ export function Exportar() {
             <h2 id="exportar-t" data-foco="detalle" tabIndex={-1} className="text-xl font-bold outline-none">
               Exportar la lista
             </h2>
-            <pre className="cifras rounded-lg bg-papel p-4 text-base leading-relaxed break-words whitespace-pre-wrap">{texto}</pre>
+            <pre className="rounded-lg tabular-nums bg-papel p-4 text-base leading-relaxed break-words whitespace-pre-wrap">{texto}</pre>
             <Acciones>
               <Boton icono={<Copy aria-hidden className="size-5" />} onClick={copiar}>
                 Copiar

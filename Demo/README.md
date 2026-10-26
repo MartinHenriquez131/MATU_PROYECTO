@@ -68,9 +68,9 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 ### El panel del presentador
 
-- Una **franja delgada arriba**: el distintivo "Demo con datos simulados" (siempre visible), el rol (Familia, Relevo, Comercio), la escena actual con anterior y siguiente y su etiqueta Real o Simulado, y las ayudas de la escena: el PIN que dictó Carmen, "Rodrigo guarda este campo", "Abrir como Rosa", "Ver qué hace la farmacia", el código de retiro. Con el rol relevo muestra la dirección: `/r#…` y, después del canje, `/r`.
+- Una **franja delgada arriba**: el distintivo "Piloto académico con datos de prueba" (siempre visible, en las tres apps), el rol (Familia, Relevo, Comercio), la escena actual con anterior y siguiente y su etiqueta Real o Simulado, y las ayudas de la escena: el PIN que dictó Carmen, "Rodrigo guarda este campo", "Abrir como Rosa", "Ver qué hace la farmacia", el código de retiro. Con el rol relevo muestra la dirección: `/r#…` y, después del canje, `/r`.
 - Un **cajón lateral**, la guía, que se abre con el botón "Guía" o con `?`. No tapa la app: la angosta y la app se reacomoda. Tiene el estado del backend, la escena actual con su nota, las 35 escenas por capa, "Texto al 200%", el tema (sistema, claro u oscuro), el modo presentación, los atajos y "Reiniciar demo".
-- **Modo presentación** (`p`): oculta la franja; queda solo el distintivo en la esquina inferior izquierda, con un botón para abrir la guía.
+- **Modo presentación** (`p`): oculta la franja; queda solo el distintivo, a 17 px, en la esquina inferior izquierda, con un botón para abrir la guía.
 - **Atajos:** `?` guía, `]` o `Av Pág` escena siguiente (sirve con un control de presentación), `[` o `Re Pág` anterior, `p` modo presentación, `Esc` cierra la guía. No actúan dentro de un campo de texto y se pueden apagar desde la guía.
 - Dentro de cada app todo funciona al hacer clic: se puede recorrer cada flujo de punta a punta sin usar el panel.
 
@@ -126,12 +126,16 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 ## Qué es simulado
 
+- Es un piloto académico con datos de prueba: así lo dice el distintivo en todas las pantallas.
+- Los precios son de ejemplo. Junto a ellos (lista de reposición, pedido, pago y boleta) se lee: "Precios de ejemplo. MATU todavía no tiene convenio con comercios, y en esta demo no se cobra dinero real." La pasarela dice "Pago de prueba. No se cobra dinero real."
+- Farmacia Los Aromos es un comercio ficticio y se rotula así la primera vez en cada pantalla. Los productos no llevan marcas reales.
+
 - La fecha de la demo es el viernes 30/10/2026 a las 14:20, y avanza unos minutos con cada acción.
 - El dictado por voz escribe un ejemplo; WhatsApp no se abre; "Para imprimir" muestra la hoja en pantalla, sin `window.print`.
 - El relevo es la misma pestaña: la franja cambia a Rosa y la URL pasa a `/r#<token>`. Después del canje, el token se limpia con `history.replaceState`. Como el estado vive en memoria, un enlace abierto en otra ventana no existe ahí y muestra "Este enlace ya no está disponible".
 - El PIN se bloquea al quinto intento fallido (MATU-19).
 - La pasarela de pago es una pantalla propia rotulada "Pasarela de pago simulada"; no se mueve dinero ni se piden datos de tarjeta.
-- **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y, si el pedido sale por menos, se devuelve la diferencia; cómo y en qué plazo, todavía por definir.
+- **Crédito:** se reserva el estimado más 15% y se cobra solo el monto real; el resto se libera. **Débito:** se cobra el estimado al confirmar y, si el pedido sale por menos, se devuelve la diferencia. Cómo y en qué plazo, todavía está por definir.
 - Fuera del semestre y fuera de la demo: el pago dividido, el prorrateo, la reposición programada y la app de repartidor.
 
 ## Archivos

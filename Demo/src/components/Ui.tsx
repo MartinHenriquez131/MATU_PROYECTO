@@ -1,7 +1,7 @@
 // Piezas de interfaz compartidas. Objetivos de 48 px o más, foco visible y estado dicho con
 // palabra y con forma, además de color.
 import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Check, Heart, Minus, Plus } from 'lucide-react'
+import { Check, Heart, Info, Minus, Plus } from 'lucide-react'
 import { ETIQUETA_NIVEL, type Nivel } from '../demo/calculos'
 
 type Variante = 'primario' | 'secundario' | 'suave' | 'texto'
@@ -291,6 +291,18 @@ export function Nota({ titulo, children, tono = 'rocio', icono }: { titulo?: str
         <div className="text-base leading-relaxed">{children}</div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Rótulo junto a los precios (aviso pedido por el analista normativo): son de ejemplo, no hay
+ * convenio con comercios y no se cobra dinero real. Con ícono y título, no solo con color.
+ */
+export function PreciosDeEjemplo() {
+  return (
+    <Nota tono="atenta" titulo="Precios de ejemplo." icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
+      MATU todavía no tiene convenio con comercios, y en esta demo no se cobra dinero real.
+    </Nota>
   )
 }
 

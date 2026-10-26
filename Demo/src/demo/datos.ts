@@ -81,6 +81,8 @@ export const AVISO_CUIDADOR = {
 
 export const COMERCIO = {
   nombre: 'Farmacia Los Aromos',
+  /** La primera vez en cada pantalla: no pudimos confirmar que no exista un comercio con ese nombre. */
+  nombreFicticio: 'Farmacia Los Aromos (comercio ficticio)',
   ventana: 'entre 17:00 y 18:00',
 }
 
