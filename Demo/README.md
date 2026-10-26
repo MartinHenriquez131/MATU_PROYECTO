@@ -63,8 +63,10 @@ Ojo: el modo real escribe cuentas, grupos y personas sintéticas en la base loca
 
 - **La familia (Carmen).** Antes de tener cuenta, el alta va en dos paneles: el de MATU a la izquierda, con los pasos, y el formulario a la derecha. Después, una barra lateral persistente con **Inicio, Ficha de relevo, Insumos, Pedidos y Grupo familiar**, cada una con una pista de estado ("1 de 3", "Pronto", "En curso"), y un encabezado con la persona cuidada y quien está conectada. El contenido va en dos columnas: la ficha al lado de la hoja como la verá el relevo, la lista de insumos al lado del detalle y la predicción, el pedido al lado de la boleta. Ficha e Insumos tienen pestañas para sus vistas hermanas.
 - **El relevo (Rosa, `/r#<token>`).** Una página pública, sin cuenta y sin navegación: primero el PIN, después la hoja centrada con el vencimiento al lado. El token se borra de la dirección con `history.replaceState` después del canje. Al quinto PIN incorrecto el enlace se bloquea (MATU-19).
-- **El comercio (Farmacia Los Aromos).** Una consola de trabajo: la cola de pedidos del día a la izquierda y el pedido elegido a la derecha, con sus tres pasos: preparar (con un faltante que se reemplaza), el monto real dentro del tope y el código de retiro.
+- **El comercio (Farmacia Los Aromos, comercio ficticio).** Una consola de trabajo: la cola de pedidos del día a la izquierda y el pedido elegido a la derecha, con sus tres pasos: preparar (con un faltante que se reemplaza), el monto real dentro del tope y el código de retiro.
 - La **pasarela de pago** es una página aparte, en grises, rotulada "Pasarela de pago simulada".
+
+> **Nota:** el ADR-027 está aprobado. El pedido, el pago y el comercio de esta demo se rediseñan en la próxima tarea; lo que se describe aquí es la versión actual.
 
 ### El panel del presentador
 
