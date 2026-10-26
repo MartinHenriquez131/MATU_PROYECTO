@@ -17,7 +17,8 @@ docs/api/
 - **`openapi.json`** tiene solo rutas implementadas. Una ruta pasa de `propuestos/` a `openapi.json` cuando su historia se termina: se exporta desde `GET /openapi.json` de la API y se quita del archivo propuesto en el mismo PR.
 - **La puerta openapi-diff** compara `openapi.json` contra lo que expone la API, y nunca mira `propuestos/`. Un cambio en un contrato propuesto no rompe el pipeline; un cambio en una ruta implementada sí.
 - Hoy ni `openapi.json` ni la puerta openapi-diff existen en el pipeline (`.github/workflows/ci.yml`). Las rutas ya implementadas (`/v1/usuarios`, `/v1/sesiones`, `/v1/grupos`, `/v1/grupos/{grupo_id}/personas-cuidadas`) se ven en `GET /openapi.json` con la API levantada. Crear los dos queda pendiente, fuera de MATU-09.
-- Cada archivo propuesto es autocontenido: no hace `$ref` a otro archivo. Los componentes comunes (`Problema`, `ProblemaValidacion`, `ErrorCampo`, `CampoFicha`, `Autor`, `XGrupoId`, `PersonaId`, `bearerAuth`, el cuerpo de `NoAutenticado`, `NoEncontrado` y `SinConsentimiento`) son idénticos en los dos.
+- Cada archivo propuesto es autocontenido: no hace `$ref` a otro archivo. Los componentes comunes (`Problema`, `ProblemaValidacion`, `ErrorCampo`, `CampoFicha`, `Autor`, `XGrupoId`, `PersonaId`, `bearerAuth`, las cabeceras `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`, y el cuerpo de `NoAutenticado`, `NoEncontrado` y `SinConsentimiento`) son idénticos en los dos.
+- **Cabeceras de respuesta.** Toda respuesta, también las de error, declara `X-Request-ID` (UUID, el mismo `request_id` de los logs y del problema; lo pone `app/core/logs.py`). Llevan `Cache-Control: no-store` las que traen texto de la ficha, PIN o enlace, y también la lista de accesos y `/plan/aperturas`, porque dicen a quién se compartió la ficha y cuándo la abrió.
 
 ## Rutas
 

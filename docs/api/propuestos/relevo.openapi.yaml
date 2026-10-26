@@ -97,6 +97,8 @@ paths:
             Acceso creado. `url` y `pin` **no se vuelven a entregar**: la pantalla los muestra una
             vez y no los guarda en el navegador. Si se pierden, se revoca y se crea otro.
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
           content:
@@ -147,6 +149,11 @@ paths:
       responses:
         '200':
           description: Página de accesos.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
               schema:
@@ -227,6 +234,9 @@ paths:
       responses:
         '204':
           description: Acceso revocado. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '404':
@@ -279,6 +289,8 @@ paths:
         '204':
           description: PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo.
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             Set-Cookie:
               $ref: '#/components/headers/SetCookieRelevo'
             Cache-Control:
@@ -331,6 +343,8 @@ paths:
         '200':
           description: La ficha que ve el relevo.
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
             Referrer-Policy:
@@ -383,6 +397,11 @@ paths:
       responses:
         '200':
           description: Página de aperturas.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
           content:
             application/json:
               schema:
@@ -472,8 +491,19 @@ components:
         default: 20
 
   headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
     CacheControlNoStore:
-      description: La respuesta lleva texto de la ficha, un PIN o un enlace de relevo, y no se guarda en ninguna caché.
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
       required: true
       schema:
         type: string
@@ -829,6 +859,8 @@ components:
         Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
         (`/errores/token-invalido`).
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         WWW-Authenticate:
           $ref: '#/components/headers/WWWAuthenticateBearer'
       content:
@@ -853,6 +885,9 @@ components:
       description: |
         La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
         Es la única causa de 403 en la ficha y en el relevo: un rol sin permiso recibe 404.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -877,6 +912,9 @@ components:
         es un UUID; el usuario no es miembro activo del grupo; su rol no alcanza (`observador`;
         `pagador` sin `puede_ver_plan`; `pagador` que intenta compartir o revocar); la persona o el
         acceso no existen o son de otro grupo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -900,6 +938,9 @@ components:
         Cuerpo inválido: falta un campo, `campos` vacío o repetido, teléfono que no es un celular
         chileno, `expira_en` en el pasado o a más de 30 días, o un campo extra. `errores[]` nombra
         el campo y nunca repite el valor.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -917,6 +958,9 @@ components:
 
     ValidacionConsulta:
       description: '`cursor` inválido o `limite` fuera de 1 a 100.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -937,6 +981,8 @@ components:
         Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela
         nada del acceso.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
         Referrer-Policy:
@@ -963,6 +1009,8 @@ components:
         PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de
         la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
         Referrer-Policy:
@@ -990,6 +1038,8 @@ components:
         token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
         después de vencer).
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
         Referrer-Policy:
@@ -1021,6 +1071,8 @@ components:
         Redis: el 410 sale de verificar el estado del acceso en esta petición. La respuesta borra
         la cookie y descarta la sesión.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Set-Cookie:
           $ref: '#/components/headers/BorrarCookieRelevo'
         Cache-Control:
@@ -1052,6 +1104,8 @@ components:
         El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se
         desbloquea: la familia revoca y crea un acceso nuevo.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
         Referrer-Policy:
@@ -1081,6 +1135,8 @@ components:
         El acceso se bloqueó después de que esta sesión se abrió: alguien probó 5 PIN incorrectos
         con el mismo enlace. Se trata como enlace comprometido. La respuesta borra la cookie.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Set-Cookie:
           $ref: '#/components/headers/BorrarCookieRelevo'
         Cache-Control:
@@ -1113,6 +1169,8 @@ components:
         o vencida por su propio TTL de 12 horas o el vencimiento del acceso). Revocar **no** lleva
         aquí: un acceso revocado con cookie válida responde 410. La página vuelve a pedir el PIN.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Cache-Control:
           $ref: '#/components/headers/CacheControlNoStore'
         Referrer-Policy:
@@ -1142,6 +1200,8 @@ components:
         Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25). No toca el acceso ni
         cuenta como intento de PIN.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         Retry-After:
           $ref: '#/components/headers/RetryAfter'
         Cache-Control:

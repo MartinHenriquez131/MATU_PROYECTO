@@ -78,6 +78,8 @@ paths:
         '200':
           description: La ficha, con el ETag de cada campo y su completitud.
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
           content:
@@ -172,6 +174,8 @@ paths:
         '200':
           description: Campo actualizado.
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             ETag:
               $ref: '#/components/headers/ETag'
             Cache-Control:
@@ -195,6 +199,8 @@ paths:
         '201':
           description: 'Campo creado: primera escritura, con `If-None-Match: *`.'
           headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
             ETag:
               $ref: '#/components/headers/ETag'
             Cache-Control:
@@ -287,6 +293,15 @@ components:
         const: '*'
 
   headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
     ETag:
       description: Versión del campo recién guardado. Se envía tal cual en el próximo `If-Match`.
       required: true
@@ -298,7 +313,9 @@ components:
       schema:
         $ref: '#/components/schemas/ETag'
     CacheControlNoStore:
-      description: La respuesta lleva texto de la ficha, un PIN o un enlace de relevo, y no se guarda en ninguna caché.
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
       required: true
       schema:
         type: string
@@ -509,6 +526,8 @@ components:
         Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
         (`/errores/token-invalido`).
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         WWW-Authenticate:
           $ref: '#/components/headers/WWWAuthenticateBearer'
       content:
@@ -533,6 +552,9 @@ components:
       description: |
         La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
         Es la única causa de 403 en la ficha: un rol sin permiso recibe 404.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -557,6 +579,9 @@ components:
         falta `X-Grupo-Id` o no es un UUID; el usuario no es miembro activo del grupo; es
         `observador`; es `pagador` sin `puede_ver_plan` (o pagador que intenta escribir); la persona
         no existe o es de otro grupo; `campo` no es uno de los tres.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -583,6 +608,8 @@ components:
         el conflicto y la persona decida. No hay fusión automática (ADR-015). Leer `actual` queda
         auditado como `plan.leer`.
       headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
         ETag:
           $ref: '#/components/headers/ETagActual'
         Cache-Control:
@@ -613,6 +640,9 @@ components:
         campo extra; o llegaron `If-Match` e `If-None-Match` a la vez. `errores[]` nombra el campo y
         nunca repite el valor. Hoy `mensaje` es el texto de Pydantic, en inglés: la interfaz se guía
         por `campo` y `tipo`, y muestra el texto de `docs/lenguaje.md`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
@@ -632,6 +662,9 @@ components:
       description: |
         La escritura no fue condicional: falta `If-Match` (o vino `If-Match: *`) sobre un campo que
         ya existe, o faltan las dos cabeceras.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
       content:
         application/problem+json:
           schema:
