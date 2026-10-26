@@ -161,9 +161,9 @@ function useCambiarRol() {
       if (rol === 'relevo') {
         // Si Rosa ya tenía la página abierta, vuelve a ella: al montarse se revalida el enlace,
         // y si Carmen lo cortó, ya no ve la ficha. Antes se reiniciaba siempre en el PIN.
-        return x.relevo.token && accesoDelRelevo(x) ? { ...x, rol, texto200: false } : abrirRelevo(x)
+        return x.relevo.token && accesoDelRelevo(x) ? { ...x, rol } : abrirRelevo(x)
       }
-      return { ...x, rol, texto200: false }
+      return { ...x, rol }
     })
 }
 
@@ -207,6 +207,7 @@ function EtiquetaModo({ real }: { real: boolean }) {
 }
 
 function NavEscena() {
+  const { s } = useDemo()
   const { indice, escena, siguiente, anterior } = useEscenas()
   const esReal = useEsReal()
   const btn = 'grid size-10 shrink-0 place-items-center rounded-lg text-tinta hover:bg-tinta/7 disabled:opacity-35'
@@ -221,6 +222,7 @@ function NavEscena() {
         </span>
         <span className="font-bold">{escena?.titulo ?? 'Fuera del guion'}</span>
         {escena && <EtiquetaModo real={esReal(escena.id)} />}
+        {s.texto200 && <span className="rounded-full bg-rocio px-2 py-0.5 text-sm font-bold text-pino">Texto al 200%</span>}
       </p>
       <button type="button" className={btn} onClick={siguiente} disabled={indice >= ESCENAS.length - 1} aria-label="Escena siguiente" title="Escena siguiente (] o Av Pág)">
         <ChevronRight aria-hidden className="size-5" />

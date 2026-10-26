@@ -413,14 +413,14 @@ export const ESCENAS: Escena[] = [
 export function prepararEscena(s: Estado, id: string): Estado {
   const e = ESCENAS.find((x) => x.id === id)
   if (!e) return s
-  const base = id === 'texto-200' ? s : { ...s, texto200: false }
-  const t = e.preparar({ ...base, aviso: null, conflicto: id === 'conflicto' ? base.conflicto : null })
+  // El 200% es un interruptor del presentador, no de la escena: se mantiene al cambiar de escena
+  // hasta que se apaga. La escena 35 solo lo enciende al entrar.
+  const t = e.preparar({ ...s, aviso: null, conflicto: id === 'conflicto' ? s.conflicto : null })
   return { ...t, rol: e.rol }
 }
 
 /** Qué escena corresponde a lo que se ve ahora, para marcarla en el panel. */
 export function escenaActual(s: Estado): string | null {
-  if (s.texto200) return 'texto-200'
   if (s.rol === 'relevo') {
     if (s.relevo.fase === 'ficha') return 'relevo-ficha'
     if (s.relevo.fase === 'no_disponible') return 'no-disponible'
