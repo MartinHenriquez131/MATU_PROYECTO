@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ApiMatu, Llamada, Modo } from './api'
 import { adaptadorReal, hayBackend } from './real'
-import { adaptadorSimulado } from './simulado'
+import { CUENTA_EJEMPLO, adaptadorSimulado } from './simulado'
 
 export type Deteccion = 'detectando' | Modo
 export type MotivoSimulado = 'sin-backend' | 'archivo-unico' | 'por-falla' | null
@@ -74,6 +74,10 @@ export function ProveedorBackend({ children }: { children: ReactNode }) {
     if (credenciales) {
       await sim.crearCuenta(credenciales.nombre, credenciales.email, credenciales.contrasena).catch(() => undefined)
       await sim.iniciarSesion(credenciales.email, credenciales.contrasena).catch(() => undefined)
+    } else {
+      // Sin cuenta en esta sesión (se saltó a una escena real), entra con la cuenta de ejemplo:
+      // si no, el simulado también respondía "no hay una sesión abierta" y no había salida.
+      await sim.iniciarSesion(CUENTA_EJEMPLO.email, CUENTA_EJEMPLO.clave).catch(() => undefined)
     }
     simuladoRef.current = sim
     real.cerrar()
