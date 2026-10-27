@@ -282,7 +282,7 @@ export const ESCENAS: Escena[] = [
     id: 'c-codigo',
     capa: 3,
     titulo: 'Comercio: código de retiro',
-    nota: 'Sin pedir otro monto: el total ya se pagó antes.',
+    nota: 'La farmacia ya no ingresa ningún monto: la familia pagó el total exacto antes.',
     rol: 'comercio',
     preparar: (s) => pilaComercio(pedidoHasta({ ...conFamilia(s), pedido: null }, 'listo'), ['c-pedidos', 'c-codigo']),
   },
