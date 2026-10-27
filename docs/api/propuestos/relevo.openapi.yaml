@@ -27,8 +27,9 @@ info:
     también en `indice_token`) y el PIN solo como HMAC con *pepper* (`pin_hash`; ver las notas
     para implementar en `docs/api/README.md`). Los dos se muestran **una
     sola vez**, en el 201 de la creación. Ninguna respuesta posterior, log, error ni URL los
-    contiene. La IP se usa solo para el contador del límite por IP en Redis, que dura una hora:
-    no se guarda en `auditoria` ni en los logs.
+    contiene. La IP se usa solo para el contador del límite por IP en Redis (MATU-25). La clave
+    del contador es una huella de la IP, un HMAC con un secreto que vive en `.env`, nunca la IP
+    en claro, y vence a la hora (decisión 27). La IP no se guarda en `auditoria` ni en los logs.
 
     **Cabeceras de toda respuesta bajo `/v1/relevo/`**, también las de error:
     `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex` (MATU-23).
@@ -69,8 +70,9 @@ paths:
         - Se puede compartir aunque la ficha esté incompleta, o vacía: si el plan no existe todavía,
           se crea con `modo = 'ficha_relevo'`. Un campo vacío se le muestra al relevo como
           "Sin completar".
-        - El acceso guarda `nombre_pila_persona` en este momento, para que el relevo nunca lea
-          `persona_cuidada`.
+        - El acceso guarda `nombre_pila_persona` y el nombre de pila de quien comparte en este
+          momento, para que el relevo nunca lea `persona_cuidada` ni `usuario` (decisión 28).
+          Guardar el de quien comparte requiere una migración de MATU-18.
         - Requiere consentimiento vigente para `plan_cuidado` (403). Comparten `admin` y
           `cuidador` (si no, 404). Registra `relevo.compartir`.
       x-matu-historia: MATU-18
@@ -244,6 +246,78 @@ paths:
         '404':
           $ref: '#/components/responses/NoEncontrado'
 
+  /v1/relevo/presentacion:
+    post:
+      tags: [relevo]
+      operationId: presentarRelevo
+      summary: Saber quién compartió la ficha y de quién es, antes del PIN
+      description: |
+        Ruta **pública** para la pantalla del PIN (decisión 28). Recibe solo el token, leído del
+        fragmento `/r#<token>`, en el cuerpo y nunca en la URL. Responde los dos nombres de pila
+        para que la página diga "Carmen te compartió la ficha de María" antes de pedir el PIN.
+
+        Jorge aceptó el riesgo: quien reciba un enlace reenviado ve los dos nombres de pila sin
+        el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.
+
+        **Orden de evaluación**, el mismo del canje hasta el estado:
+
+        1. Límite por IP de MATU-25, con el mismo contador del canje. Si se supera, **429**.
+        2. Cuerpo válido. Si no, **422**.
+        3. El token corresponde a un acceso (`indice_token`). Si no, **410**
+           `/errores/relevo-no-disponible`.
+        4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
+           revocado → **410** `/errores/relevo-revocado`, vencido → **410**
+           `/errores/relevo-vencido`.
+        5. Bloqueado (5 PIN incorrectos) → **423**.
+        6. Si no, **200** con los dos nombres. Se leen de `acceso_relevo` con `app.rol = 'relevo'`
+           y `app.acceso_relevo_id`, igual que la sesión de relevo.
+
+        No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra
+        `relevo.abrir`: no muestra la ficha.
+      x-matu-historia: MATU-19, MATU-23
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPresentacion'
+            examples:
+              presentacion:
+                summary: La página de Rosa pide los nombres con el token del enlace
+                value:
+                  token: EjemploSinteticoDeTokenDeRelevoNoValido0000
+      responses:
+        '200':
+          description: Los dos nombres de pila del acceso.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Presentacion'
+              examples:
+                carmen_maria:
+                  summary: Carmen compartió la ficha de María
+                  value:
+                    nombre_pila_comparte: Carmen
+                    nombre_pila: María
+        '410':
+          $ref: '#/components/responses/RelevoNoDisponibleCanje'
+        '422':
+          $ref: '#/components/responses/ValidacionPresentacion'
+        '423':
+          $ref: '#/components/responses/RelevoBloqueado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
   /v1/relevo/canje:
     post:
       tags: [relevo]
@@ -256,7 +330,8 @@ paths:
 
         **Orden de evaluación:**
 
-        1. Límite por IP: 10 canjes por hora (MATU-25). Si se supera, **429**, sin tocar el acceso.
+        1. Límite por IP: 10 peticiones por hora, contando canjes y presentaciones (MATU-25,
+           decisión 27). Si se supera, **429**, sin tocar el acceso.
         2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
@@ -320,9 +395,11 @@ paths:
       summary: Leer la ficha como relevo
       description: |
         Con la cookie de sesión de relevo. Devuelve **solo** los campos habilitados en el acceso,
-        el nombre de pila de la persona y el vencimiento. Un campo habilitado y vacío viene con
-        `texto: null`, y la página lo muestra como "Sin completar". No devuelve el nombre de la
-        persona, su dirección, quién escribió cada campo ni nada del grupo.
+        el nombre de pila de la persona, el nombre de pila de quien compartió (decisión 28, para
+        "Solo Carmen puede cambiar esta ficha") y el vencimiento. Un campo habilitado y vacío
+        viene con `texto: null`, y la página lo muestra como "Sin completar". No devuelve el
+        nombre completo de la persona, su dirección, quién escribió cada campo ni nada más del
+        grupo.
 
         Cada lectura correcta registra `relevo.abrir`, suma 1 a `usos` y fija `ultimo_uso_en`.
 
@@ -363,6 +440,7 @@ paths:
                   summary: Rosa ve "Su día" y "Si se altera"; "A quién llamar" no se le compartió
                   value:
                     nombre_pila: María
+                    nombre_pila_comparte: Carmen
                     vence_en: '2026-11-01T02:00:00Z'
                     campos:
                       rutina:
@@ -620,8 +698,11 @@ components:
 
             **Finalidad** (decisión de Jorge del 27-10): que quien comparte le envíe el enlace al
             relevo, por WhatsApp o SMS desde su propio teléfono, y que la familia pueda contactarlo.
-            La API no envía nada (decisión 21). Se conserva con el registro del acceso, 3 años,
-            igual que la auditoría.
+            La API no envía nada (decisión 21).
+
+            **Conservación** (decisión 25): el teléfono se borra 30 días después de que el acceso
+            vence o se revoca. El nombre del relevo, el motivo y las fechas del acceso se conservan
+            3 años, igual que la auditoría.
         campos:
           type: array
           minItems: 1
@@ -740,6 +821,32 @@ components:
           type: string
           pattern: '^[0-9]{4}$'
 
+    SolicitudPresentacion:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: |
+            Lo que viene después de `#` en el enlace. No se valida su forma: un token desconocido o
+            cortado responde 410, igual que en el canje.
+
+    Presentacion:
+      type: object
+      additionalProperties: false
+      required: [nombre_pila_comparte, nombre_pila]
+      description: Lo único que ve el relevo antes del PIN (decisión 28).
+      properties:
+        nombre_pila_comparte:
+          type: string
+          description: Nombre de pila de quien compartió, guardado en el acceso al crearlo.
+        nombre_pila:
+          type: string
+          description: Nombre de pila de la persona, guardado en el acceso al crearlo.
+
     CampoRelevo:
       type: object
       additionalProperties: false
@@ -753,11 +860,14 @@ components:
     FichaRelevo:
       type: object
       additionalProperties: false
-      required: [nombre_pila, vence_en, campos]
+      required: [nombre_pila, nombre_pila_comparte, vence_en, campos]
       properties:
         nombre_pila:
           type: string
           description: Nombre de pila de la persona, guardado en el acceso.
+        nombre_pila_comparte:
+          type: string
+          description: Nombre de pila de quien compartió, guardado en el acceso (decisión 28).
         vence_en:
           type: string
           format: date-time
@@ -1028,6 +1138,33 @@ components:
                 tipo: string_pattern_mismatch
             request_id: 9b2f4c1e-0000-4000-8000-0000000000e9
 
+    ValidacionPresentacion:
+      description: |
+        Falta el token o el cuerpo trae un campo extra. No revela nada del acceso.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: token
+                mensaje: Field required
+                tipo: missing
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000f1
+
     PinIncorrecto:
       description: |
         PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de
@@ -1221,8 +1358,9 @@ components:
 
     DemasiadasPeticiones:
       description: |
-        Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25). No toca el acceso ni
-        cuenta como intento de PIN.
+        Se superó el límite de 10 peticiones por hora desde la misma IP (MATU-25). Canje y
+        presentación comparten el contador, cuya clave es una huella de la IP (decisión 27). No
+        toca el acceso ni cuenta como intento de PIN.
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
