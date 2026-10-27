@@ -118,6 +118,31 @@ ALTER POLICY pedido_comercio_actualizar ON pedido USING (
     comercio_id = app_comercio() AND pagado_en IS NOT NULL
     AND estado NOT IN ('borrador', 'total_confirmado', 'vencido', 'pagado'));
 
+-- Pagado el pedido, lo cobrado no se reabre: ni la familia (pedido_familia FOR ALL) ni el
+-- comercio (pedido_comercio_actualizar) cambian el total, sus partes, su confirmación ni la
+-- marca de pago, ni lo devuelven a un estado previo al pago. De esto depende pedido_linea_pagada_fija.
+-- Va después de convertir las filas, que fijan pagado_en por primera vez.
+CREATE FUNCTION pedido_pagado_fijo() RETURNS trigger LANGUAGE plpgsql AS
+$$ BEGIN
+    IF OLD.pagado_en IS NOT NULL THEN
+        IF (NEW.pagado_en, NEW.subtotal_productos, NEW.costo_envio, NEW.total,
+            NEW.total_confirmado_en, NEW.total_vence_en)
+           IS DISTINCT FROM (OLD.pagado_en, OLD.subtotal_productos, OLD.costo_envio, OLD.total,
+            OLD.total_confirmado_en, OLD.total_vence_en) THEN
+            RAISE EXCEPTION 'el pedido ya está pagado: el total y el pago quedan fijos'
+                USING ERRCODE = 'check_violation';
+        END IF;
+        IF NEW.estado IN ('borrador', 'total_confirmado', 'vencido') THEN
+            RAISE EXCEPTION 'el pedido ya está pagado: no vuelve a un estado previo al pago'
+                USING ERRCODE = 'check_violation';
+        END IF;
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER pedido_pagado_fijo BEFORE UPDATE ON pedido
+    FOR EACH ROW EXECUTE FUNCTION pedido_pagado_fijo();
+
 -- =============================================================================
 -- pedido_linea · precio pagado fijo, reasignación al mismo producto y devolución
 -- =============================================================================
@@ -365,6 +390,9 @@ ALTER TABLE pedido_linea
 -- =============================================================================
 -- pedido
 -- =============================================================================
+DROP TRIGGER pedido_pagado_fijo ON pedido;
+DROP FUNCTION pedido_pagado_fijo();
+
 ALTER POLICY pedido_comercio_ver ON pedido USING (
     comercio_id = app_comercio()
     AND estado NOT IN ('borrador', 'pendiente_recaudacion', 'autorizado', 'expirado'));

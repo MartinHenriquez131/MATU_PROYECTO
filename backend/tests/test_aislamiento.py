@@ -543,3 +543,29 @@ def test_comercio_no_ve_pedidos_sin_pagar_o_sin_enviar(cx, estado):
                (G_A, P_A, COMERCIO, estado, pagado, U_ADMIN_A))
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
     assert contar(cx, "pedido") == 2                          # solo los dos pagados y enviados de la semilla
+
+
+@pytest.mark.rf("ADR-027")
+@pytest.mark.parametrize("quien", ["familia", "comercio"])
+@pytest.mark.parametrize("cambio", [
+    # Hallazgo P2-1 del QA: reabrir el pedido pagado para cambiar el precio
+    "estado = 'borrador', pagado_en = NULL",
+    "estado = 'total_confirmado', pagado_en = NULL",
+    "estado = 'vencido'",
+    "pagado_en = pagado_en + interval '1 minute'",
+    "subtotal_productos = subtotal_productos - 1000, total = total - 1000",
+    "costo_envio = 0, total = subtotal_productos",
+    "total_confirmado_en = total_confirmado_en - interval '1 minute'",
+    "total_vence_en = total_vence_en + interval '1 hour'",
+])
+def test_el_pedido_pagado_no_se_reabre(cx, quien, cambio):
+    """Sin el trigger pedido_pagado_fijo, la familia o el comercio podrían cambiar lo ya cobrado."""
+    ctx = {"usuario_id": U_ADMIN_A, "grupo_id": G_A} if quien == "familia" else \
+          {"usuario_id": U_ENC, "comercio_id": COMERCIO}
+    como(cx, **ctx)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (PED_A_ENVIADO,))
+    # El pedido pagado sí avanza en su ciclo, y lo cobrado sigue igual
+    cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
+    assert cx.execute("SELECT subtotal_productos, costo_envio, total FROM pedido WHERE id = %s",
+                      (PED_A_ENVIADO,)).fetchone() == (25980, 2990, 28970)

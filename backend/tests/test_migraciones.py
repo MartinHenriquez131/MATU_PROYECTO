@@ -161,6 +161,9 @@ def test_0002_sube_convierte_las_filas_y_baja_al_esquema_de_0001(base_desechable
     assert sorted(consultar("SELECT estado, monto_cobrado, monto_devuelto FROM participacion")) == [
         ("anulada", 14938, 14938), ("pagada", 29877, 0)]
     assert sorted(consultar("SELECT tipo FROM transaccion_pasarela")) == [("anulacion",), ("venta",)]
+    # Lo pagado no se reabre (pedido_pagado_fijo)
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE pedido SET estado = 'borrador', pagado_en = NULL WHERE id = '{PED_AUT}'")
 
     # ---- baja: el esquema vuelve a ser exactamente el de 0001, con las filas convertidas de vuelta
     alembic("downgrade", "0001")
