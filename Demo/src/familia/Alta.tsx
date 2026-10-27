@@ -123,7 +123,7 @@ export function Bienvenida() {
       <h2 className="text-xl font-bold">MATU ordena lo que hoy está en tu cabeza</h2>
       <ul className="flex flex-col gap-5">
         {[
-          { Icono: ClipboardList, t: 'La ficha de relevo', d: 'Su día, qué la calma y a quién llamar. Tres campos cortos, para que quien te reemplace sepa qué hacer.' },
+          { Icono: ClipboardList, t: 'La ficha de relevo', d: 'Su día, qué hacer si se altera y a quién llamar. Tres campos cortos, para que quien te reemplace sepa qué hacer.' },
           { Icono: Link2, t: 'Un enlace con PIN', d: 'La compartes con quien te reemplaza, solo lo que tú elijas y hasta cuándo tú digas. Lo puedes cortar en cualquier momento.' },
           { Icono: Package, t: 'Antes de que se acabe', d: 'Te avisa cuándo se acaban los pañales y los demás insumos. Si quieres, la farmacia los lleva y paga una sola persona.' },
         ].map(({ Icono, t, d }) => (

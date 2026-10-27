@@ -7,25 +7,25 @@ export const CAMPOS: CampoId[] = ['su_dia', 'si_se_altera', 'a_quien_llamar']
 
 export const TEXTO_CAMPO: Record<
   CampoId,
-  { titulo: string; pregunta: string; ejemplo: string; dictado: string }
+  { titulo: string; pregunta: (pila: string) => string; ejemplo: string; dictado: string }
 > = {
   su_dia: {
     titulo: 'Su día',
-    pregunta: '¿Cómo es un día normal para ella? Puedes contar un día bueno o uno difícil.',
+    pregunta: (pila) => `¿Cómo es un día normal para ${pila}? Puedes contar un día bueno o uno difícil.`,
     ejemplo: 'Por ejemplo: «08:00 Despierta. Le gusta que abran la cortina primero». Si empiezas con la hora, lo mostramos como línea de tiempo.',
     dictado:
       '08:00 Despierta sola. Le gusta que abran la cortina primero.\n08:30 Desayuno. Té con leche tibio, nunca caliente.\n13:00 Almuerzo. Come mejor si alguien la acompaña.\n16:00 Siesta corta, máximo una hora.\n20:00 Once liviana y su programa de radio.',
   },
   si_se_altera: {
     titulo: 'Si se altera',
-    pregunta: '¿Qué la calma cuando se angustia o se desorienta?',
+    pregunta: (pila) => `¿Qué calma a ${pila} cuando se angustia?`,
     ejemplo: 'Por ejemplo: «Le hace bien que le tomen la mano y le hablen de su pueblo».',
     dictado:
       'Bajar las persianas y poner la radio bajito. No hablarle fuerte. Si pregunta por su marido, no corregirla: decirle que salió y ya vuelve.',
   },
   a_quien_llamar: {
     titulo: 'A quién llamar',
-    pregunta: '¿A quién llamar si algo pasa y no te ubican?',
+    pregunta: () => '¿A quién llamar si algo pasa y no te ubican?',
     ejemplo: 'Por ejemplo: «Rodrigo, su hijo: +56 9 5555 0102».',
     dictado:
       'Carmen, yo: +56 9 8765 4321\nRodrigo, su hijo: +56 9 5555 0102\nJuana, vecina del 302: tiene llave',

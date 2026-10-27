@@ -109,7 +109,7 @@ export function TuFicha() {
                       {listo ? 'Listo' : 'Falta'}
                     </Etiqueta>
                   </div>
-                  <p className={`line-clamp-2 ${listo ? '' : 'text-tenue'}`}>{listo ? f.texto : TEXTO_CAMPO[c].pregunta}</p>
+                  <p className={`line-clamp-2 ${listo ? '' : 'text-tenue'}`}>{listo ? f.texto : TEXTO_CAMPO[c].pregunta(nombrePila(s))}</p>
                   {listo && f.minuto !== null && (
                     <p className="text-sm text-tenue tabular-nums">
                       Lo escribió {f.autor || 'Carmen'}: {fmtCuando(f.minuto, s.ahora)}
@@ -184,7 +184,7 @@ export function Completar() {
               {t.titulo}
             </label>
             <p id="campo-pregunta" className="text-base">
-              {t.pregunta}
+              {t.pregunta(nombrePila(s))}
             </p>
           </div>
           <div className="relative">
