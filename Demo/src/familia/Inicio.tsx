@@ -34,7 +34,7 @@ function Atencion({
     <li className={`flex flex-col gap-2 border-l-4 bg-hoja py-3.5 pr-4 pl-4 ${franja}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">{titulo}</div>
       {children}
-      <button type="button" onClick={onAccion} className="min-h-10 self-start font-bold text-pino underline decoration-pino/40 underline-offset-4 hover:decoration-pino">
+      <button type="button" onClick={onAccion} className="min-h-12 self-start font-bold text-pino underline decoration-pino/40 underline-offset-4 hover:decoration-pino">
         {accion}
       </button>
     </li>
