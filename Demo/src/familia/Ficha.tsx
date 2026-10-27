@@ -1,7 +1,7 @@
 // Ficha de relevo: los tres campos a la izquierda y la hoja como la verá el relevo a la derecha.
 // Compartir, enlaces, quién la vio y la vista para imprimir son pestañas de la misma sección.
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, CircleAlert, Circle, Clock3, KeyRound, Link2, Lock, Mic, PencilLine, Phone, Send, ShieldCheck, Share2, TriangleAlert, Unlink, UserRound } from 'lucide-react'
+import { Check, CircleAlert, Circle, Clock3, History, KeyRound, Link2, Lock, Mic, PencilLine, Phone, Send, ShieldCheck, Share2, TriangleAlert, Unlink, UserRound } from 'lucide-react'
 import { useDemo } from '../demo/estado'
 import {
   abrirCampo,
@@ -589,8 +589,10 @@ function Eventos({ maximo }: { maximo?: number }) {
               <CircleAlert aria-hidden className="size-5" />
             ) : e.tipo === 'enlace' ? (
               <Link2 aria-hidden className="size-5" />
-            ) : (
+            ) : e.tipo === 'ficha' ? (
               <UserRound aria-hidden className="size-5" />
+            ) : (
+              <History aria-hidden className="size-5" />
             )}
           </span>
           <span className="min-w-0">
