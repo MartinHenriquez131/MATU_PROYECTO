@@ -611,3 +611,217 @@ Las decisiones de Jorge que se aplicaron sobre esta especificación (vigencia de
 - **Datos de la demo** (`src/demo/`): los precios y comercios de la tabla de la sección 1; el envío de $2.990; la vigencia del total; la referencia opaca "K41M"; el estado "Ya no está" por línea; y la reasignación y la devolución simuladas. No hay endpoint real: todo es simulado, así que no hace falta pedir nada al backend para la demo.
 - **Guía del presentador:** la lista de 36 escenas de la sección 1, con sus notas.
 - **Íconos nuevos de lucide:** `RefreshCw`, `ArrowDownUp`, `Store`, `Lock`, `Download`, `Clock` y `Undo2`.
+
+---
+
+## 6. Ajustes del 27/10 (relevo, compartir y "Quién la vio")
+
+**Del diseñador, 27/10/2026.** Cinco ajustes chicos que Jorge aprobó el 27/10. No son del ADR-027, pero son para la misma demo. Los textos marcados **(aprobado)** son exactos y no se cambian. Lo marcado **(propuesta)** es mío, y Jorge lo puede quitar sin afectar lo demás. Todo usa tokens y componentes que ya existen: **no hace falta ningún token nuevo.**
+
+**Términos prohibidos:** `docs/lenguaje.md` todavía no existe en el repo MATU, así que revisé contra la lista del backlog (MATU-30: diagnóstico, conducta, incidente, deterioro, incontinencia) y la de la sección 2 de este documento. Ningún texto de esta sección los usa.
+
+### 6.1 Preguntas guía de la ficha, con el nombre y sin femenino
+
+**Objetivo:** Carmen lee una pregunta que nombra a su mamá, y la misma pregunta sirve para cualquier persona cuidada.
+
+**Textos (aprobado):**
+- Su día: "¿Cómo es un día normal para {pila}? Puedes contar un día bueno o uno difícil."
+- Si se altera: "¿Qué calma a {pila} cuando se angustia?"
+- A quién llamar: sin cambios ("¿A quién llamar si algo pasa y no te ubican?").
+- `{pila}` es `nombrePila(s)` de `demo/logica.ts`, que ya devuelve "María" si el estado no tiene nombre de pila. "María" no se escribe a mano en ningún otro lugar.
+
+**Construcción:**
+- `demo/datos.ts`: la `pregunta` de `TEXTO_CAMPO` deja de ser un texto fijo y pasa a ser una función `(pila: string) => string` (o se agrega `preguntaPara(campo, pila)`). Los ejemplos y los dictados no cambian, porque describen a María y no le preguntan nada a Carmen.
+- Los dos lugares que muestran la pregunta la llaman con `nombrePila(s)`: `familia/Ficha.tsx`, en la lista de campos (cerca de la línea 112, el texto `text-tenue` de un campo vacío), y en "Editar un campo" (cerca de la 187, `#campo-pregunta`).
+- `familia/Alta.tsx:126`, primera tarjeta de "MATU ordena lo que hoy está en tu cabeza", con la propuesta del orquestador: "Su día, qué hacer si se altera y a quién llamar. Tres campos cortos, para que quien te reemplace sepa qué hacer." En esa pantalla todavía no hay nombre, por eso no se usa `{pila}`.
+
+**Criterios verificables:**
+- `grep -rn "para ella\|Qué la calma\|qué la calma" src/` no encuentra nada.
+- Si en el alta se escribe "Teresa" como nombre de pila, las dos preguntas dicen "Teresa".
+- En "Editar un campo", la pregunta sigue en `text-base`, bajo el título `titular text-3xl`. En la lista de campos sigue cortada a dos líneas (`line-clamp-2`) y no desborda a 360 px.
+
+### 6.2 Ayuda del teléfono al compartir
+
+**Texto (aprobado):** la `ayuda` del `CampoTexto` "Su teléfono" en `Compartir` (`familia/Ficha.tsx`, cerca de la línea 358) pasa de "Para enviarle el enlace." a **"Para enviarle el enlace y poder contactarle."**
+
+**Criterio:** la ayuda conserva el estilo de ayuda de `CampoTexto` (el componente no cambia). En pantalla ancha, con los dos campos en columnas (`@lg:grid-cols-2`), puede ocupar dos renglones sin desalinear los campos: los dos `input` quedan a la misma altura porque la ayuda va debajo.
+
+### 6.3 Motivo obligatorio y recordatorio al crear el enlace
+
+**Objetivo:** Carmen dice para qué comparte con un toque, sin escribir, y sabe qué contarle a Rosa cuando la llame para dictarle el PIN.
+
+**Jerarquía en "Compartir"** (el orden de la columna no cambia): nombre y teléfono, "¿Qué puede ver?", "¿Hasta cuándo?", **"¿Para qué lo compartes?"** y el botón "Crear enlace".
+
+**Esquema a 360 px:**
+
+```
+¿Para qué lo compartes?
+( ◉ Salgo unas horas )  ( ○ Fin de semana fuera )
+( ○ Turno de noche )    ( ○ Otro motivo )
+
+[ Crear enlace ]
+```
+
+En pantalla ancha es el mismo grupo en `flex flex-wrap gap-2`: los cuatro caben en una o dos filas, según el ancho de la columna.
+
+**Textos (aprobado):** la leyenda "¿Para qué lo compartes?" y las opciones "Salgo unas horas", "Fin de semana fuera", "Turno de noche" y "Otro motivo". Sin texto libre y sin "si quieres".
+
+**Comportamiento:**
+- **Siempre hay exactamente una opción elegida.** De partida, "Salgo unas horas", la misma de hoy y la que usa `accesoPorDefecto`. Tocar la elegida no la desmarca. Como el grupo nunca queda vacío, no hay mensaje de error.
+- Las opciones viven en una constante de `demo/datos.ts` (por ejemplo `MOTIVOS`), y el tipo de `motivo` en `DatosCompartir` pasa a ser la unión de esos cuatro textos.
+- En "Enlaces" la línea queda igual: "Ve su día, si se altera y a quién llamar. Otro motivo." Se lee bien porque cada opción es una frase.
+
+**Semántica y forma (chip de opción única):**
+- Un `fieldset` con su `legend` (`mb-2 font-bold`, igual que "¿Qué puede ver?" y "¿Hasta cuándo?"). Dentro van cuatro `label`, cada uno con un `input type="radio" name="motivo" className="sr-only"`. Sin `aria-pressed`: es un grupo de radio nativo, así que Tab entra a la opción elegida y las flechas la cambian.
+- Cada `label` tiene la piel del `Chip` actual: `inline-flex min-h-12 max-w-full items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset`. Elegido: `bg-rocio text-pino ring-pino`. Sin elegir: `bg-hoja text-tenue ring-borde hover:ring-pino/40`. Nunca `pino` macizo, porque ese lugar es del botón "Crear enlace".
+- **Indicador redondo, no cuadrado:** `size-5 rounded-full ring-2 ring-inset` (`ring-pino` si está elegido, `ring-tenue` si no) y, en la opción elegida, un punto `size-2.5 rounded-full bg-pino`. El cuadrado con check queda para los chips de varias opciones, como "¿Qué puede ver?". El estado se ve en la figura (punto lleno o círculo vacío), no solo en el color.
+- **Foco:** el mismo de `GrupoOpciones`, con `has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino` sobre el `label`: un contorno de 3 px en `pino`, con más de 3:1 sobre `papel` y `hoja` en los dos temas.
+- **Área táctil:** `min-h-12`, que con la raíz de 17 px son 51 px, y todo el `label` se puede tocar.
+- **Dónde se construye:** recomiendo una variante de `GrupoOpciones` en `components/Ui.tsx` (por ejemplo `forma="chips"`, con `flex flex-wrap gap-2` en vez de la grilla), para no repetir el patrón de foco.
+
+**Recordatorio al crear el enlace.** La demo **no tiene** hoy un recordatorio parecido. Lo más cercano es "Díctaselo a {nombre} por teléfono. No lo mandes junto con el enlace. Solo lo verás ahora.", que habla del PIN y no cambia. El recordatorio nuevo va justo después, porque Carmen lo cumple en esa misma llamada.
+- **Dónde:** en `EnlacePin` (`familia/Ficha.tsx`), dentro de la sección "PIN para abrir la ficha" (`bg-rocio`), después del párrafo "Díctaselo…".
+- **Forma:** `<p className="flex gap-2 border-t border-linea pt-4 text-base">` con el ícono `Phone` de lucide (`aria-hidden mt-0.5 size-5 shrink-0 text-pino`). No usa `Nota`, porque ya está sobre `rocio` y una nota `rocio` adentro no se distinguiría.
+- **Texto (aprobado):** "Cuéntale a {a.nombre} que anotaste su nombre y su teléfono en MATU, y que cada vez que abra el enlace o la ficha queda registrado."
+
+```
+┌ (llave) PIN para abrir la ficha ────────────┐
+│        [ 4 ] [ 8 ] [ 2 ] [ 1 ]              │
+│ Díctaselo a Rosa por teléfono. No lo mandes │
+│ junto con el enlace. Solo lo verás ahora.   │
+│ ─────────────────────────────────────────── │
+│ (tel) Cuéntale a Rosa que anotaste su       │
+│   nombre y su teléfono en MATU, y que cada  │
+│   vez que abra el enlace o la ficha queda   │
+│   registrado.                               │
+└─────────────────────────────────────────────┘
+```
+
+**Criterios verificables:**
+- Con el teclado, Tab llega a "Salgo unas horas", la flecha derecha elige "Fin de semana fuera" y el punto se mueve. No hay manera de dejar el grupo sin elección.
+- Un lector de pantalla anuncia "¿Para qué lo compartes?, grupo" y cada opción como "botón de opción, 1 de 4, marcado".
+- En la pantalla del PIN, el único `pino` macizo sigue siendo "Enviar el enlace por WhatsApp".
+- Con texto al 200% a 320 px, los chips pasan a una columna y nada se corta.
+
+### 6.4 Aviso al relevo en la pantalla del PIN
+
+**Objetivo:** Rosa, que no tiene cuenta, sabe qué guarda MATU de ella antes de escribir el PIN, sin que eso le estorbe para entrar.
+
+**Jerarquía** (`RelevoPin`, en `relevo/Relevo.tsx`):
+1. El título "Carmen te compartió la ficha de María" y el campo del PIN.
+2. "Ver la ficha", el único `pino` macizo, y "No necesitas cuenta ni instalar nada…", que se queda donde está.
+3. El aviso, debajo y separado por una línea.
+
+**Esquema a 360 px:**
+
+```
+          [llave]
+ Carmen te compartió la ficha de María
+ Escribe el PIN de cuatro números…
+             PIN
+         [ _ _ _ _ ]
+        [ Ver la ficha ]
+ No necesitas cuenta ni instalar nada…
+ ─────────────────────────────────────
+ (escudo) Tus datos en MATU
+ MATU guarda tu nombre y tu teléfono, que
+ anotó quien te compartió la ficha, para
+ enviarte el enlace y poder contactarte. Tu
+ teléfono se borra 30 días después de que el
+ enlace vence o se corta.
+
+ También registra cada vez que abres el
+ enlace o la ficha y cada PIN incorrecto, y
+ guarda ese registro 3 años, para saber a
+ quién se compartió.
+
+ Responsables de tus datos: Jorge Espinoza y
+ Martín Henríquez. Puedes pedir ver, corregir
+ o borrar tus datos.
+
+ (hoja) Política de privacidad
+```
+
+En pantalla ancha se ve igual: la página del PIN es una sola columna centrada (`max-w-xl`), y el aviso usa el mismo ancho que el párrafo de arriba (`max-w-md`).
+
+**Construcción:**
+- Un `section` con `aria-labelledby`, después del párrafo "No necesitas cuenta…", con `flex w-full max-w-md flex-col gap-3 border-t border-linea pt-5 text-start`. Va **alineado a la izquierda** aunque la página esté centrada, porque tres párrafos centrados no se leen.
+- Título (propuesta): un `h2` "Tus datos en MATU", con `flex items-center gap-2 text-base font-bold` y el ícono `ShieldCheck` (`aria-hidden size-5 shrink-0 text-pino`). Le da nombre a la región para el lector de pantalla y permite saltarla.
+- **El texto aprobado, sin cambiar una palabra, en tres párrafos.** El corte es solo de presentación:
+  1. "MATU guarda tu nombre y tu teléfono, que anotó quien te compartió la ficha, para enviarte el enlace y poder contactarte. Tu teléfono se borra 30 días después de que el enlace vence o se corta."
+  2. "También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, y guarda ese registro 3 años, para saber a quién se compartió."
+  3. "Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos."
+- Los párrafos van en **`text-base text-tenue leading-relaxed`**, no en `text-sm`. La escala (DISENO.md, sección 2) deja `text-sm` para datos secundarios que el público no lee, y este aviso se va a mostrar en el proyector. `tenue` sobre `papel` da más de 6:1 en el tema claro y más de 8:1 en el oscuro.
+- **Sin acordeón.** Es lo que Rosa tiene que poder leer antes de entrar, y esconderlo detrás de "Ver más" lo convierte en letra chica. No compite con el PIN, porque va después del botón y con menos peso.
+- **"Política de privacidad".** Hoy la demo **no enlaza a la política** en ninguna parte: el alta y "Grupo familiar" solo la nombran ("con la política de privacidad 0.9"), y la demo no tiene una página de la política. Para no inventar una ruta:
+  - En la demo es un `Boton variante="texto"` con el ícono `FileText`, en su propio renglón (`self-start`, con su `min-h-12`). Al tocarlo muestra un aviso de la demo, igual que "Enviar el enlace por WhatsApp": "En la app se abre la política de privacidad, versión 0.9. En la demo no se abre ninguna página."
+  - En la aplicación de `web/` será un `<a>` a la página pública de la política. Eso no es parte de esta demo.
+- Sin `whitespace-nowrap` ni anchos fijos: con texto al 200% (el `zoom: 2` del escenario) a 320 px, el bloque baja de renglón y la página solo crece hacia abajo.
+
+**Estados:** el aviso es igual en todos los estados de `RelevoPin` (normal, PIN incompleto y PIN incorrecto). No aparece en `NoDisponible` ni en la ficha.
+
+**Criterios verificables:**
+- El aviso está en el DOM debajo de "Ver la ficha" y su texto, sin contar los cortes de párrafo, es idéntico al aprobado.
+- Ningún texto del aviso está bajo 1 rem.
+- A 360 px y con texto al 200% no hay desplazamiento horizontal (`document.documentElement.scrollWidth <= innerWidth`).
+- "Ver la ficha" se ve sin hacer scroll a 1280 × 720 en el proyector. El aviso puede quedar más abajo.
+
+### 6.5 "Quién la vio" con "abrió el enlace"
+
+**Objetivo:** Carmen ve si Rosa llegó al enlace, aunque todavía no haya escrito el PIN.
+
+**El evento nuevo (aprobado):** "{nombre} abrió el enlace".
+- **Cuándo se genera:** en `abrirRelevo` (`demo/logica.ts`), cuando el relevo entra a la página del PIN y antes de que lo escriba. En la guía pasa en la escena "Relevo: escribe el PIN", al cambiar al rol Relevo con el selector y con "Abrir como Rosa".
+- **Sin duplicados:** no se registra de nuevo si el estado ya está en el rol relevo, con el mismo token y en la fase `pin`. Así, pasar de "Relevo: escribe el PIN" a "Relevo: la ficha" deja una sola línea "Rosa abrió el enlace" y una "Rosa abrió la ficha". Volver a entrar después de ver la ficha sí suma otra línea, porque es otra apertura.
+- **Se registra aunque el enlace esté vencido o cortado:** también es una apertura, y a Carmen le sirve saber que Rosa intentó entrar (escena "Relevo: enlace no disponible").
+- **Historia previa:** donde se siembra el fin de semana pasado (`demo/logica.ts`, cerca de la línea 267), se agrega "Rosa abrió el enlace" en el minuto −8897, antes de "Rosa abrió la ficha" (−8895). Así la escena "Quién la vio" muestra los dos tipos aunque se salte el relevo.
+- **El tipo del evento:** `Evento` (`demo/tipos.ts`) suma el campo `tipo: 'enlace' | 'ficha' | 'otro'`, que `registrar` recibe como parámetro. "abrió la ficha" es `ficha`, "abrió el enlace" es `enlace`, y el resto (PIN mal escrito, bloqueo, vencimiento) es `otro`. Distinguirlos buscando palabras en el texto es frágil.
+
+**Cómo se distingue de "abrió la ficha"** (componente `Eventos` de `familia/Ficha.tsx`):
+
+| Evento | Ícono (lucide) | Círculo | Texto |
+|---|---|---|---|
+| Abrió el enlace | `Link2` | `bg-rocio text-pino` | "Rosa abrió el enlace" |
+| Abrió la ficha | `UserRound` (el de hoy) | `bg-rocio text-pino` | "Rosa abrió la ficha" |
+| PIN mal escrito y bloqueo | `CircleAlert` (el de hoy) | `bg-atenta-fondo text-atenta` | Sin cambios |
+
+La diferencia está en la **figura** del ícono (un eslabón frente a una persona) y en el **verbo con su objeto**, no en el color: las dos aperturas usan el mismo círculo `rocio`. El color solo marca lo que pide atención, como hoy.
+
+```
+(persona)  Rosa abrió la ficha
+           hace un momento
+───────────────────────────────
+(eslabón)  Rosa abrió el enlace
+           hace un momento
+───────────────────────────────
+(persona)  Rosa abrió la ficha
+           el sábado pasado
+```
+
+**Textos:**
+- Bajada de "Quién la vio" (aprobado): "Una línea por cada vez que alguien abre el enlace o la ficha, o escribe mal el PIN. Es un respaldo para ti, no una vigilancia."
+- Lista vacía de `Eventos`, para que diga lo mismo que la bajada (propuesta): "Todavía nadie ha abierto el enlace ni la ficha. Cuando alguien lo haga, aparece aquí."
+
+**"Inicio" (`familia/Inicio.tsx:54`):** debe seguir mostrando la **última apertura de la ficha**, no la del enlace. A Carmen le importa si Rosa ya leyó la ficha, y "abrió el enlace" queda en "Quién la vio". Hay que cambiar `s.eventos.find((e) => e.texto.includes('abrió'))` por `s.eventos.find((e) => e.tipo === 'ficha')`. Si Rosa solo abrió el enlace, Inicio muestra la apertura anterior de la ficha, o nada.
+
+**Guía del presentador (`demo/escenas.ts`):** ninguna nota repite "abrió la ficha" con esas palabras, pero dos narran lo que cambia (propuesta):
+- `relevo-pin`: "Rosa abre sin cuenta y ve qué guarda MATU de sus datos. El token viaja en el fragmento /r#… y se borra al entrar. Abrir el enlace ya queda en «Quién la vio»."
+- `quien-vio`: "Una línea cada vez que alguien abre el enlace o la ficha, o escribe mal el PIN. Respaldo, no vigilancia."
+- `compartir` puede quedar igual. Si el presentador quiere nombrar el motivo: "Quién reemplaza, qué campos ve, hasta cuándo y para qué. 24 horas por defecto."
+
+**Criterios verificables:**
+- Después de las escenas "Relevo: escribe el PIN" y "Relevo: la ficha", "Quién la vio" muestra exactamente una línea nueva "Rosa abrió el enlace" y una "Rosa abrió la ficha", con la de la ficha arriba.
+- Las dos líneas se distinguen en escala de grises, por la figura del ícono y por el texto.
+- Inicio dice "Rosa abrió la ficha", nunca "Rosa abrió el enlace".
+
+### 6.6 Archivos que toca el frontend
+
+| Ajuste | Archivos |
+|---|---|
+| 6.1 Preguntas | `src/demo/datos.ts`, `src/familia/Ficha.tsx` (líneas ~112 y ~187), `src/familia/Alta.tsx:126` |
+| 6.2 Teléfono | `src/familia/Ficha.tsx` (~358) |
+| 6.3 Motivo y recordatorio | `src/familia/Ficha.tsx` (`Compartir`, ~398, y `EnlacePin`), `src/components/Ui.tsx` (variante de `GrupoOpciones`), `src/demo/datos.ts` (`MOTIVOS`), `src/demo/tipos.ts` (tipo de `motivo`) |
+| 6.4 Aviso al relevo | `src/relevo/Relevo.tsx` (`RelevoPin`) |
+| 6.5 Quién la vio | `src/demo/tipos.ts` (`Evento.tipo`), `src/demo/logica.ts` (`registrar`, `abrirRelevo`, `canjear` y la historia previa), `src/familia/Ficha.tsx` (`Eventos` y `QuienVio`), `src/familia/Inicio.tsx:54`, `src/demo/escenas.ts` (notas) |
+
+**Fuera de lo aprobado, para que decida el orquestador:** en la misma pantalla, "¿Hasta cuándo?" también es de una sola opción, pero usa el `Chip` de varias (cuadrado con check y `aria-pressed`). Con 6.3 quedan dos grupos de una sola opción con figuras distintas, uno debajo del otro. Pasarlo a la misma variante es un cambio de una línea. Lo recomiendo (P3), pero no está en lo que aprobó Jorge.
