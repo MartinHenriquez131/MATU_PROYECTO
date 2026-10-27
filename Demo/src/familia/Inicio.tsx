@@ -51,7 +51,7 @@ export function Inicio() {
   const vigentes = s.accesos.filter((a) => accesoVigente(a, s.ahora))
   const p = s.pedido
   const pedidoEnCurso = p && ['pagado', 'preparando', 'listo', 'en_camino'].includes(p.estado)
-  const ultimaApertura = s.eventos.find((e) => e.texto.includes('abrió'))
+  const ultimaApertura = s.eventos.find((e) => e.tipo === 'ficha')
   const textoAvance =
     hechos === 0
       ? 'Empieza por «Su día». Con eso alguien ya podría reemplazarte unas horas.'

@@ -120,6 +120,8 @@ export interface Evento {
   id: number
   minuto: number
   texto: string
+  /** Qué se abrió: el enlace (la página del PIN), la ficha, u otra cosa (PIN mal escrito, bloqueo, vencimiento). */
+  tipo: 'enlace' | 'ficha' | 'otro'
   tono: 'normal' | 'atento'
 }
 

@@ -579,13 +579,19 @@ export function Enlaces() {
 function Eventos({ maximo }: { maximo?: number }) {
   const { s } = useDemo()
   const lista = maximo ? s.eventos.slice(0, maximo) : s.eventos
-  if (lista.length === 0) return <Nota>Todavía nadie ha abierto la ficha. Cuando alguien la abra, aparece aquí.</Nota>
+  if (lista.length === 0) return <Nota>Todavía nadie ha abierto el enlace ni la ficha. Cuando alguien lo haga, aparece aquí.</Nota>
   return (
     <ol className="flex flex-col">
       {lista.map((e) => (
         <li key={e.id} className="flex items-start gap-3 border-b border-linea py-3 last:border-0">
           <span className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-full ${e.tono === 'atento' ? 'bg-atenta-fondo text-atenta' : 'bg-rocio text-pino'}`}>
-            {e.tono === 'atento' ? <CircleAlert aria-hidden className="size-5" /> : <UserRound aria-hidden className="size-5" />}
+            {e.tono === 'atento' ? (
+              <CircleAlert aria-hidden className="size-5" />
+            ) : e.tipo === 'enlace' ? (
+              <Link2 aria-hidden className="size-5" />
+            ) : (
+              <UserRound aria-hidden className="size-5" />
+            )}
           </span>
           <span className="min-w-0">
             <span className="block font-bold">{e.texto}</span>
@@ -601,7 +607,7 @@ export function QuienVio() {
   const { s, haz } = useDemo()
   const vigentes = s.accesos.filter((a) => accesoVigente(a, s.ahora))
   return (
-    <PaginaFicha bajada="Una línea por cada vez que alguien abre la ficha o escribe mal el PIN. Es un respaldo para ti, no una vigilancia.">
+    <PaginaFicha bajada="Una línea por cada vez que alguien abre el enlace o la ficha, o escribe mal el PIN. Es un respaldo para ti, no una vigilancia.">
       <Columnas izquierda="ancha">
         <Columna etiqueta="Aperturas">
           <Eventos />

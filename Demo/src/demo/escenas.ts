@@ -132,7 +132,7 @@ export const ESCENAS: Escena[] = [
     id: 'compartir',
     capa: 1,
     titulo: 'Compartir',
-    nota: 'Quién reemplaza, qué campos ve y hasta cuándo. 24 horas por defecto.',
+    nota: 'Quién reemplaza, qué campos ve, hasta cuándo y para qué. 24 horas por defecto.',
     rol: 'familia',
     preparar: familia(['ficha', 'compartir']),
   },
@@ -152,7 +152,7 @@ export const ESCENAS: Escena[] = [
     id: 'relevo-pin',
     capa: 1,
     titulo: 'Relevo: escribe el PIN',
-    nota: 'Rosa abre sin cuenta. El token viaja en el fragmento /r#… y se borra al entrar.',
+    nota: 'Rosa abre sin cuenta y ve qué guarda MATU de sus datos. El token viaja en el fragmento /r#… y se borra al entrar. Abrir el enlace ya queda en «Quién la vio».',
     rol: 'relevo',
     preparar: (s) => {
       const t = conAccesoActivo(conFamilia(s))
@@ -176,7 +176,7 @@ export const ESCENAS: Escena[] = [
     id: 'quien-vio',
     capa: 1,
     titulo: 'Quién la vio',
-    nota: 'Una línea por apertura, en lenguaje simple. Respaldo, no vigilancia.',
+    nota: 'Una línea cada vez que alguien abre el enlace o la ficha, o escribe mal el PIN. Respaldo, no vigilancia.',
     rol: 'familia',
     preparar: familia(['ficha', 'quien-vio']),
   },

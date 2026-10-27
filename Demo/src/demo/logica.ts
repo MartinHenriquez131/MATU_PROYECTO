@@ -92,9 +92,9 @@ function avanzar(s: Estado, minutos: number): Estado {
   return { ...s, ahora: s.ahora + minutos }
 }
 
-function registrar(s: Estado, texto: string, tono: Evento['tono'] = 'normal', minuto = s.ahora): Estado {
+function registrar(s: Estado, texto: string, tipo: Evento['tipo'], tono: Evento['tono'] = 'normal', minuto = s.ahora): Estado {
   const [id, t] = sig(s)
-  return { ...t, eventos: [{ id, minuto, texto, tono }, ...t.eventos].sort((a, b) => b.minuto - a.minuto) }
+  return { ...t, eventos: [{ id, minuto, texto, tipo, tono }, ...t.eventos].sort((a, b) => b.minuto - a.minuto) }
 }
 
 export function nombrePila(s: Estado): string {
@@ -265,8 +265,9 @@ export function conFamilia(s: Estado): Estado {
           },
         ],
       }
-      t = registrar(t, 'Rosa abrió la ficha', 'normal', -8895)
-      t = registrar(t, 'Venció el enlace del fin de semana', 'normal', -6621)
+      t = registrar(t, 'Rosa abrió el enlace', 'enlace', 'normal', -8897)
+      t = registrar(t, 'Rosa abrió la ficha', 'ficha', 'normal', -8895)
+      t = registrar(t, 'Venció el enlace del fin de semana', 'otro', 'normal', -6621)
     }
   }
   if (!t.ficha.su_dia.texto) {
@@ -367,7 +368,7 @@ export function crearAcceso(s: Estado, d: DatosCompartir, pinFijo?: string): Est
     intentosFallidos: 0,
   }
   let t: Estado = { ...t0, accesos: [acceso, ...t0.accesos], pinVisible: acceso.id }
-  t = registrar(t, `Creaste un enlace para ${acceso.nombre}`)
+  t = registrar(t, `Creaste un enlace para ${acceso.nombre}`, 'otro')
   return avanzar(t, 2)
 }
 
@@ -375,7 +376,7 @@ export function cortarAcceso(s: Estado, id: string): Estado {
   const a = s.accesos.find((x) => x.id === id)
   if (!a) return s
   let t: Estado = { ...s, accesos: s.accesos.map((x) => (x.id === id ? { ...x, estado: 'revocado' as const } : x)) }
-  t = registrar(t, `Cortaste el enlace de ${a.nombre}`)
+  t = registrar(t, `Cortaste el enlace de ${a.nombre}`, 'otro')
   return avisar(avanzar(t, 1), `Enlace cortado. Ya no abre para ${a.nombre}.`)
 }
 
@@ -400,6 +401,10 @@ export function abrirRelevo(s: Estado, accesoId?: string): Estado {
     t = { ...accesoPorDefecto(t), pinVisible: null }
     a = ultimoAcceso(t)!
   }
+  // Abrir el enlace ya es una apertura, aunque esté vencido o cortado. No se repite si Rosa ya
+  // está en la página del PIN de ese mismo enlace.
+  const yaEnElPin = t.rol === 'relevo' && t.relevo.token === a.token && t.relevo.fase === 'pin'
+  if (!yaEnElPin) t = registrar(t, `${a.nombre} abrió el enlace`, 'enlace')
   return {
     ...t,
     rol: 'relevo',
@@ -423,7 +428,7 @@ export function canjear(s: Estado, token: string | null, pin: string): Estado {
       accesos: s.accesos.map((x) => (x.id === a.id ? { ...x, intentosFallidos: 0 } : x)),
       relevo: { ...s.relevo, fase: 'ficha', pinErroneo: false, urlLimpia: true },
     }
-    t = registrar(t, `${a.nombre} abrió la ficha`)
+    t = registrar(t, `${a.nombre} abrió la ficha`, 'ficha')
     return avanzar(t, 1)
   }
   const intentos = a.intentosFallidos + 1
@@ -435,8 +440,8 @@ export function canjear(s: Estado, token: string | null, pin: string): Estado {
     ),
     relevo: { ...s.relevo, fase: bloqueado ? 'no_disponible' : 'pin', pinErroneo: !bloqueado },
   }
-  t = registrar(t, `${a.nombre} escribió mal el PIN`, 'atento')
-  if (bloqueado) t = registrar(t, `El enlace de ${a.nombre} se bloqueó por PIN incorrecto`, 'atento')
+  t = registrar(t, `${a.nombre} escribió mal el PIN`, 'otro', 'atento')
+  if (bloqueado) t = registrar(t, `El enlace de ${a.nombre} se bloqueó por PIN incorrecto`, 'otro', 'atento')
   return t
 }
 
