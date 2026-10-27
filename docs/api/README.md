@@ -29,6 +29,7 @@ docs/api/
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Propuesto |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Propuesto |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Propuesto |
+| `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Propuesto |
 | `POST /v1/relevo/canje` | MATU-19, MATU-25 | Propuesto |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Propuesto |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-19 (RF-08) | Propuesto |
@@ -48,11 +49,11 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match` | Existe (por defecto del 428) |
 | `/errores/pin-incorrecto` | 401 | PIN incorrecto, del 1.º al 4.º intento, con `intentos_restantes` | **Nuevo** (MATU-19) |
 | `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie, o con una cookie que no corresponde a una sesión en Redis (alterada o vencida por su TTL). Nunca por revocar | **Nuevo** (MATU-19) |
-| `/errores/relevo-vencido` | 410 | El acceso venció (canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-19) |
-| `/errores/relevo-revocado` | 410 | El acceso se revocó (canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
-| `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso | **Nuevo** (MATU-19) |
-| `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos | **Nuevo** (MATU-19) |
-| `/errores/demasiadas-peticiones` | 429 | Más de 10 canjes por hora desde una IP | Existe (por defecto del 429), lo usa MATU-25 |
+| `/errores/relevo-vencido` | 410 | El acceso venció (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-19) |
+| `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
+| `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | **Nuevo** (MATU-19) |
+| `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | **Nuevo** (MATU-19) |
+| `/errores/demasiadas-peticiones` | 429 | Más de 10 presentaciones y canjes por hora desde una IP | Existe (por defecto del 429), lo usa MATU-25 |
 
 ## Decisiones tomadas en este contrato
 
@@ -84,7 +85,13 @@ Jorge aprobó la parte 1 (ficha) y la parte 2 (acceso de relevo) el 27-10, despu
 23. **`indice_token` guarda también `revocado_en`** (MATU-19, opción (a), decisión de Jorge del 27-10). Una migración de Alembic reversible agrega `revocado_en timestamptz NULL` a `indice_token`. `DELETE /v1/accesos-relevo/{id}` la fija en la misma transacción que `acceso_relevo.revocado_en`, y una prueba verifica que las dos columnas coinciden. Así el canje y la sesión de relevo deciden con una sola lectura de `indice_token`, que no tiene RLS ni dato sensible: `revocado_en` da `revocado` y `expira_en` da `vencido`. La migración la hace MATU-19 o MATU-20, no este contrato.
     - **Descartada, opción (b):** leer `acceso_relevo.revocado_en` y `expira_en` con `app.rol = 'sistema'` cuando la lectura como `relevo` devuelve cero filas. Evitaba la migración y dejaba una sola fuente de verdad, pero abría un camino con el rol `sistema` en una ruta pública.
 24. **`telefono_relevo` sigue obligatorio y tiene finalidad declarada** (decisión de Jorge del 27-10). Sirve para que quien comparte le envíe el enlace al relevo, por WhatsApp o SMS desde su propio teléfono, y para que la familia pueda contactarlo. La API no envía nada (decisión 21) y no devuelve el teléfono en ninguna respuesta. Como visión, fuera de MATU-09: MATU se piensa como app móvil, y ahí el teléfono será esencial para identificar a la persona, enviar la ficha y la lista, y contactar al repartidor.
-25. **El registro del acceso de relevo se conserva 3 años, igual que la auditoría, con el teléfono incluido** (decisión de Jorge del 27-10). Identifica a quién se entregó la ficha. Ya no requiere consulta legal.
+25. **El teléfono del relevo se borra 30 días después de que el acceso vence o se revoca. El resto del registro se conserva 3 años** (decisión de Jorge del 27-10). El nombre del relevo, el motivo y las fechas del acceso se conservan igual que la auditoría, porque identifican a quién se entregó la ficha. Ya no requiere consulta legal. Para borrar el teléfono hace falta quitar el `NOT NULL` de `acceso_relevo.otorgado_a_telefono` con una migración, y una tarea que lo borre al cumplirse el plazo. Las hace la historia que implemente la conservación, no este contrato.
+26. **Si se borra a la persona cuidada, su nombre de pila copiado en `acceso_relevo` se anonimiza** (decisión de Jorge del 27-10). Lo hace la historia de borrado.
+27. **La clave del contador por IP en Redis es una huella de la IP, nunca la IP en claro** (condición de MATU-25, decisión de Jorge del 27-10). La huella es un HMAC con un secreto que vive en `.env` vía `pydantic-settings`, y la clave vence a la hora. Sin esto, la política de privacidad, que dice que la IP no se guarda, no sería cierta.
+28. **El relevo ve quién compartió y de quién es la ficha antes del PIN** (decisión de Jorge del 27-10). La pantalla del PIN dice "Carmen te compartió la ficha de María", como la demo. Razón: quien envía lo hace a su nombre y de forma voluntaria a través de la app, y recibir algo que pide un PIN sin saber qué es no da confianza. Riesgo aceptado por Jorge: quien reciba un enlace reenviado ve los dos nombres de pila sin el PIN.
+    - **`POST /v1/relevo/presentacion`**, ruta nueva y pública. Recibe el token en el cuerpo, nunca en la URL, porque viaja en el fragmento. Responde 200 con `nombre_pila_comparte` y `nombre_pila`, y nada más. Evalúa el límite por IP, el token y el estado igual que el canje: los mismos 410 (`vencido`, `revocado`, `no-disponible`) y el mismo 423. No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra `relevo.abrir`. Comparte el contador por IP del canje (MATU-25). Lleva `Cache-Control: no-store`.
+    - **`GET /v1/relevo/ficha` también devuelve `nombre_pila_comparte`**, para decir "Solo Carmen puede cambiar esta ficha".
+    - **`acceso_relevo` guarda el nombre de pila de quien comparte** al crear el acceso, igual que `nombre_pila_persona`, para que el relevo nunca lea `usuario`. La migración la hace MATU-18, no este contrato.
 
 ## Contradicciones con la arquitectura v1.1, sección 9.2
 
@@ -109,12 +116,13 @@ Este contrato sigue el **backlog v1.3**, que es más nuevo. Jorge las corrige en
 Resuelven los puntos de la revisión del analista normativo que el contrato no resolvía solo.
 
 1. **Teléfono del relevo:** sigue obligatorio, con finalidad declarada. Es la decisión 24.
-2. **Conservación:** el registro del acceso, con el teléfono, se conserva 3 años como la auditoría. Es la decisión 25. Deja de requerir consulta legal.
+2. **Conservación:** el teléfono del relevo se borra 30 días después de que el acceso vence o se revoca. El nombre, el motivo y las fechas del acceso se conservan 3 años como la auditoría. Es la decisión 25. Deja de requerir consulta legal. Si se borra a la persona cuidada, su nombre de pila en el acceso se anonimiza (decisión 26).
 3. **Retiro de la autorización:** la política de privacidad v0.9, sección 10, mantiene su promesa de cortar los accesos de relevo al retirar la autorización. La historia del sprint 3 que lo hace queda como requisito para operar con datos reales (ver "Riesgo abierto").
-4. **IP:** el analista normativo ajusta la política en el repositorio MATU para decir que la IP se usa solo para limitar intentos, por una hora, sin guardarla. MATU-25 queda como está.
-5. **Aviso al relevo:** Jorge aprobó el texto que ve el relevo en la página de MATU-23. Vive en `docs/lenguaje.md`, sección 7.5, del repositorio MATU. Este contrato no lo repite.
+4. **IP:** el analista normativo ajusta la política en el repositorio MATU para decir que la IP se usa solo para limitar intentos, por una hora, sin guardarla. MATU-25 queda como está, con una condición: la clave del contador es una huella de la IP (decisión 27).
+5. **Aviso al relevo:** Jorge aprobó el texto final. Va en la pantalla del PIN, antes del canje, y vive en `docs/lenguaje.md`, sección 7.5, del repositorio MATU. Este contrato no lo repite. Dice qué se guarda del relevo y para qué, que el teléfono se borra a los 30 días, que cada apertura y cada PIN incorrecto se registran por 3 años, quiénes son los responsables y cómo pedir ver, corregir o borrar sus datos. El correo de contacto sigue pendiente.
 6. **Registro de tratamientos:** las entradas de la ficha de relevo y del acceso de relevo en `docs/legal/registro-tratamientos.md` (repositorio MATU) las redacta el analista normativo y las aprueba Jorge. Este contrato no las edita.
 7. **MATU-19, revocado frente a vencido:** opción (a), columna `revocado_en` en `indice_token`. Es la decisión 23. La migración la hace MATU-19 o MATU-20.
+8. **Quién compartió:** el relevo ve los dos nombres de pila antes del PIN, con una ruta nueva. Es la decisión 28.
 
 ## Diferencias con la demo (`origin/demo-web-viernes-30`, `Demo/src/`)
 
@@ -124,7 +132,7 @@ La demo es simulada y no se modificó. Cuando se conecte a la API, cambia esto:
 |---|---|---|
 | Campos `su_dia`, `si_se_altera`, `a_quien_llamar` (`demo/tipos.ts`) | `rutina`, `manejo_situaciones`, `red_apoyo` | Mapear en el cliente; los títulos visibles no cambian |
 | `Campo.version` numérico hace de ETag | `etag` opaco (`"v3"`) en el cuerpo y en la cabecera | Guardar y reenviar el texto tal cual |
-| La pantalla del PIN dice "Carmen te compartió la ficha de María" antes del canje (`relevo/Relevo.tsx`) | Antes del canje no hay datos: decirlos con solo el token revelaría el nombre a quien tenga el enlace sin el PIN. Después, la ficha trae `nombre_pila`, pero **nunca quién compartió** | Título genérico en la pantalla del PIN. Mostrar quién compartió requiere guardar su nombre en `acceso_relevo` (migración): **decisión de Jorge** |
+| La pantalla del PIN dice "Carmen te compartió la ficha de María" antes del canje (`relevo/Relevo.tsx`) | Coincide: `POST /v1/relevo/presentacion` devuelve los dos nombres de pila con solo el token, y la ficha trae `nombre_pila_comparte` (decisión 28) | Leer los nombres de la presentación, no de datos fijos. Agregar el aviso al relevo de `docs/lenguaje.md` 7.5 |
 | Un solo estado `no_disponible` para vencido, revocado y bloqueado | 410 con tres `type` y 423 aparte | Un texto por estado (MATU-23) |
 | Estados del acceso `activo`, `revocado`, `bloqueado`, y "vencido" calculado | `estado`: `vigente`, `vencido`, `revocado`, `bloqueado` | Usar `estado` de la API |
 | Motivo opcional ("Motivo, si quieres"), tres chips que se pueden desmarcar | `motivo` obligatorio, enumerado: los tres chips más `otro`, sin texto libre | Agregar el chip "Otro motivo" sin campo de texto, preseleccionar uno y no permitir dejarlos todos desmarcados |
