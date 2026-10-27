@@ -577,7 +577,22 @@ Los productos y la boleta quedan visibles en `tenue`, con el título "Lo que hab
 
 ---
 
+## 3 bis. Reglas que quedaron de la construcción (revisión visual del 26/10)
+
+Las decisiones de Jorge que se aplicaron sobre esta especificación (vigencia de 15 minutos sin rótulo, sin la casilla de equivalentes, sin nombre en la consola, textos de `src/demo/textos-pedido.ts`) mandan sobre lo escrito arriba.
+
+- **La frase de pago** de la escena 21 es: "Pagas con crédito o débito en Transbank. Se cobra una sola vez este total, sin cobros después." La palabra "reserva" no se usa, ni siquiera negada.
+- **Dirección que falta.** Si el alta no tuvo dirección, "Entrega" la pide en ese mismo lugar con un `CampoTexto` obligatorio ("¿A dónde lo llevamos?"). El error dice "Escribe la dirección para que el pedido llegue." y "Pagar" no avanza sin ella. Coincide con Grupo familiar: "Sin dirección. Se pide con el primer pedido."
+- **Lo apartado sin pagar en la consola** ("Ref. K41M") es el pedido de otra familia, ficticio. Muestra la referencia, cuántos productos tiene y a qué hora se libera, nunca un nombre ni una dirección.
+- **Cancelar el pedido** (seguimiento, mientras la farmacia no empiece a preparar):
+  - Es un botón de texto con su condición al lado. Al tocarlo, en el mismo lugar, sin ventana modal, aparece una confirmación: "¿Cancelar el pedido? Te devolveremos $57.460 a la misma tarjeta." con los botones "Sí, cancelar el pedido" (`secundario`) y "Seguir con el pedido" (`texto`). Es la única acción del pedido que mueve dinero de vuelta, así que no se ejecuta con un solo toque.
+  - La pantalla "Pedido cancelado" usa la misma forma que "Un producto no llegó": una `Nota` con `Undo2` y la boleta con "Pagado" y "Te devolveremos", **en futuro**, con la nota de medio y plazo. Las dos devoluciones del sistema se ven iguales.
+  - El aviso dice "Pedido cancelado. Te devolveremos $57.460."
+- **El distintivo flotante** aparece abajo a la izquierda cuando la franja sale de la vista. El final de la página tiene un margen inferior de 6 rem para que nunca tape la última acción.
+
 ## 4. Lo que no decido yo
+
+> **Al 26/10:** Jorge resolvió los puntos 1 (15 minutos), 2 (te vende MATU, una sola boleta), 3 (el mismo día, a la misma tarjeta), 5 y 6. Quedan abiertos los puntos 4, 7, 8 y 9.
 
 | # | Tema | Qué muestra la demo mientras tanto | Quién decide |
 |---|---|---|---|
