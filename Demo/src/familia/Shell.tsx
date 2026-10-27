@@ -181,7 +181,7 @@ export function Pestanas({ items }: { items: { texto: string; activa: boolean; i
               type="button"
               aria-current={t.activa ? 'page' : undefined}
               onClick={t.ir}
-              className={`min-h-11 border-b-3 px-3 font-bold ${t.activa ? 'border-pino text-pino' : 'border-transparent text-tenue hover:text-tinta'}`}
+              className={`min-h-12 border-b-3 px-3 font-bold ${t.activa ? 'border-pino text-pino' : 'border-transparent text-tenue hover:text-tinta'}`}
             >
               {t.texto}
             </button>
