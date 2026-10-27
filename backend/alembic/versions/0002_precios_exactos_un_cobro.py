@@ -10,6 +10,12 @@ Reemplaza en el esquema la autorización con margen y la captura diferida del AD
 - cargo y participacion: monto cobrado y monto devuelto (devuelto <= cobrado), sin margen,
   autorizado ni capturado.
 - transaccion_pasarela.tipo: venta y anulación.
+- pedido pagado: el total, sus partes, la confirmación y la marca de pago quedan fijos, y el
+  estado no vuelve a uno previo al pago (trigger). Sin esto, quien puede actualizar el pedido
+  (la familia o el comercio) podría reabrirlo y cambiar el precio pagado.
+- regla_sustitucion (RF-21, redefinido el 27-10): si un producto falta, MATU lo busca en otro
+  comercio en convenio ('otro_comercio') o lo quita del pedido y devuelve su precio ('quitar').
+  Nunca otra marca ni otro producto: salen producto_sustituto_id y precio_maximo.
 - RLS: el comercio ve el pedido solo cuando está pagado y enviado.
 
 Los scripts de backend/db no se tocan: son la migración 0001. Todo va aquí con SQL.
@@ -216,6 +222,18 @@ CREATE TRIGGER pedido_linea_pagada_fija BEFORE INSERT OR UPDATE OR DELETE ON ped
     FOR EACH ROW EXECUTE FUNCTION pedido_linea_pagada_fija();
 
 -- =============================================================================
+-- regla_sustitucion · RF-21: si el producto falta, otro comercio en convenio o se quita
+-- =============================================================================
+-- Sin fila para un producto, MATU lo busca en otro comercio (la opción por omisión).
+-- Se mantienen regla_sustitucion_uq y la política regla_hereda.
+ALTER TABLE regla_sustitucion DROP CONSTRAINT regla_sustitucion_accion_check,
+    DROP CONSTRAINT regla_sustitucion_especifico;
+UPDATE regla_sustitucion SET accion = CASE WHEN accion = 'no_sustituir' THEN 'quitar' ELSE 'otro_comercio' END;
+ALTER TABLE regla_sustitucion DROP COLUMN producto_sustituto_id, DROP COLUMN precio_maximo;
+ALTER TABLE regla_sustitucion
+    ADD CONSTRAINT regla_sustitucion_accion_check CHECK (accion IN ('otro_comercio', 'quitar'));
+
+-- =============================================================================
 -- cargo · un cobro del total exacto y lo devuelto
 -- =============================================================================
 ALTER TABLE cargo DROP CONSTRAINT cargo_estado_check, DROP CONSTRAINT cargo_captura_tope;
@@ -360,6 +378,20 @@ ALTER TABLE cargo
     ADD CONSTRAINT cargo_estado_check CHECK (estado IN ('creado', 'recaudando',
         'redistribuyendo', 'completo', 'fallido', 'capturado', 'revertido', 'reembolsado_parcial')),
     ADD CONSTRAINT cargo_captura_tope CHECK (monto_capturado <= monto_autorizado);
+
+-- =============================================================================
+-- regla_sustitucion
+-- =============================================================================
+ALTER TABLE regla_sustitucion DROP CONSTRAINT regla_sustitucion_accion_check;
+UPDATE regla_sustitucion SET accion = CASE WHEN accion = 'quitar' THEN 'no_sustituir' ELSE 'equivalente' END;
+ALTER TABLE regla_sustitucion
+    ADD COLUMN producto_sustituto_id uuid REFERENCES producto(id),
+    ADD COLUMN precio_maximo         bigint CHECK (precio_maximo > 0);
+ALTER TABLE regla_sustitucion
+    ADD CONSTRAINT regla_sustitucion_accion_check CHECK (accion IN
+        ('equivalente', 'producto_especifico', 'no_sustituir', 'consultar')),
+    ADD CONSTRAINT regla_sustitucion_especifico CHECK
+        ((accion = 'producto_especifico') = (producto_sustituto_id IS NOT NULL));
 
 -- =============================================================================
 -- pedido_linea

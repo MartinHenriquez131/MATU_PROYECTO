@@ -87,6 +87,10 @@ INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, total
 INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_snapshot, precio_real, estado_linea)
 VALUES ('{PED_AUT}', '{OF}', '{PROD}', 2, 12990, NULL, 'requiere_decision'),
        ('{PED_CAP}', '{OF}', '{PROD}', 1, 12990, 11990, 'sustituida');
+INSERT INTO regla_sustitucion (pedido_id, producto_id, accion, producto_sustituto_id, precio_maximo) VALUES
+ ('{PED_AUT}', '{PROD}', 'no_sustituir',        NULL,     NULL),
+ ('{PED_CAP}', '{PROD}', 'producto_especifico', '{PROD}', 15000),
+ ('{PED_BOR}', '{PROD}', 'consultar',           NULL,     NULL);
 INSERT INTO cargo (id, pedido_id, monto_objetivo, monto_autorizado, monto_capturado, estado, recaudacion_expira_en)
 VALUES ('{CAR_COMPLETO}',  '{PED_AUT}', 25980, 29877, 0, 'completo',  now()),
        ('{CAR_REVERTIDO}', '{PED_CAP}', 12990, 14938, 0, 'revertido', now());
@@ -161,6 +165,9 @@ def test_0002_sube_convierte_las_filas_y_baja_al_esquema_de_0001(base_desechable
     assert sorted(consultar("SELECT estado, monto_cobrado, monto_devuelto FROM participacion")) == [
         ("anulada", 14938, 14938), ("pagada", 29877, 0)]
     assert sorted(consultar("SELECT tipo FROM transaccion_pasarela")) == [("anulacion",), ("venta",)]
+    # RF-21: no sustituir pasa a quitar; el resto, al mismo producto en otro comercio
+    assert sorted(consultar("SELECT accion FROM regla_sustitucion")) == [
+        ("otro_comercio",), ("otro_comercio",), ("quitar",)]
     # Lo pagado no se reabre (pedido_pagado_fijo)
     with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
         c.execute(f"UPDATE pedido SET estado = 'borrador', pagado_en = NULL WHERE id = '{PED_AUT}'")
@@ -175,6 +182,8 @@ def test_0002_sube_convierte_las_filas_y_baja_al_esquema_de_0001(base_desechable
     assert sorted(consultar("SELECT estado, monto_autorizado, monto_capturado FROM cargo")) == [
         ("capturado", 29877, 29877), ("revertido", 14938, 0)]
     assert sorted(consultar("SELECT tipo FROM transaccion_pasarela")) == [("autorizacion",), ("reversa",)]
+    assert sorted(consultar("SELECT accion, producto_sustituto_id, precio_maximo FROM regla_sustitucion")) == [
+        ("equivalente", None, None), ("equivalente", None, None), ("no_sustituir", None, None)]
 
     # ---- y vuelve a subir
     alembic("upgrade", "head")

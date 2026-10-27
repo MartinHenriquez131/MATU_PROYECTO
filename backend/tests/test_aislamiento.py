@@ -569,3 +569,44 @@ def test_el_pedido_pagado_no_se_reabre(cx, quien, cambio):
     cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
     assert cx.execute("SELECT subtotal_productos, costo_envio, total FROM pedido WHERE id = %s",
                       (PED_A_ENVIADO,)).fetchone() == (25980, 2990, 28970)
+
+
+# ------------------------------------------------------------------ si un producto falta (RF-21)
+
+REGLA = "INSERT INTO regla_sustitucion (pedido_id, producto_id, accion) VALUES (%s, %s, %s)"
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize("accion", ["equivalente", "producto_especifico", "no_sustituir", "consultar"])
+def test_ya_no_se_sustituye_por_otro_producto(cx, accion):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, accion))
+
+
+@pytest.mark.rf("RF-21")
+def test_regla_sin_producto_sustituto_ni_precio_maximo(cx):
+    columnas = {r[0] for r in cx.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'regla_sustitucion'").fetchall()}
+    assert columnas == {"id", "pedido_id", "producto_id", "accion"}
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize("accion", ["otro_comercio", "quitar"])
+def test_si_falta_otro_comercio_o_quitar(cx, accion):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, accion))
+    assert contar(cx, "regla_sustitucion", f"accion = '{accion}'") == 1
+    # Una sola decisión por producto del pedido
+    with pytest.raises(errors.UniqueViolation):
+        cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, "otro_comercio"))
+
+
+@pytest.mark.rf("RF-21")
+def test_regla_de_otro_grupo_no_se_ve_ni_se_crea(cx):
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "quitar"))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "regla_sustitucion") == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "otro_comercio"))
