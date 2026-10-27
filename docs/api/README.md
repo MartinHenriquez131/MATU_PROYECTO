@@ -56,7 +56,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 
 ## Decisiones tomadas en este contrato
 
-Jorge revisa y aprueba cada parte (MATU-09). Mientras no lo haga, todo esto es propuesta.
+Jorge aprobó la parte 1 (ficha) y la parte 2 (acceso de relevo) el 27-10, después de la fusión del PR #15. Los archivos siguen en `propuestos/` porque todavía no se implementan.
 
 1. **La ficha cuelga de `/v1/personas-cuidadas/{persona_id}/plan/ficha`.** El backlog fija las rutas del relevo bajo `/v1/personas-cuidadas/{id}/plan/…` y la arquitectura 9.2 ya usa `/plan/ficha`: la ficha va con el mismo prefijo. No lleva `plan_id` porque el plan es único por persona. No se anida en `/v1/grupos/{grupo_id}/…` (como el alta de MATU-07) porque el grupo viaja en `X-Grupo-Id` (arquitectura 9.1).
 2. **Un PUT por campo** (`/plan/ficha/{campo}`), no uno para los tres. El `ETag`, el 412 y el 428 son por campo (MATU-13): si dos personas editan campos distintos, ninguna pisa a la otra ni recibe un 412.
@@ -74,29 +74,17 @@ Jorge revisa y aprueba cada parte (MATU-09). Mientras no lo haga, todo esto es p
 13. **`GET /v1/relevo/ficha` responde 423 si el acceso se bloqueó después del canje.** Que alguien pruebe 5 PIN con el enlace indica que el enlace se filtró: se corta también la sesión abierta. Requiere revisar `pin_intentos_fallidos` en la aplicación, porque la política `acceso_relevo_propio` mira solo `revocado_en` y `expira_en`.
 14. **La cookie se llama `__Secure-matu-relevo`** y dura lo que ocurra primero: 12 horas o el vencimiento del acceso. 12 horas cubren un turno de noche; después se vuelve a pedir el PIN. Las respuestas 410 y 423 de la ficha la borran. El 401 `sin-sesion-relevo` queda solo para "sin cookie" o cookie que no corresponde a una sesión viva (alterada o vencida por su TTL).
 15. **La vigencia se pide como `expira_en`** (opcional, 24 horas por defecto), no como duración: la pantalla ofrece "hasta el domingo" y "por N días", y los dos se traducen a una fecha. El servidor valida el máximo de 30 días con su reloj.
-16. **`nombre_relevo` y `telefono_relevo` son obligatorios** al crear, aunque MATU-18 no los nombra: `acceso_relevo.otorgado_a_nombre` y `otorgado_a_telefono` son `NOT NULL` en el esquema, la arquitectura 9.2 los pide en el cuerpo y la política de privacidad v0.9 informa que se guardan. El teléfono no sale en ninguna respuesta. **`motivo` es obligatorio**, por la misma razón (`NOT NULL`), y es un **enumerado** (`salgo_unas_horas`, `fin_de_semana_fuera`, `turno_de_noche`, `otro`) **sin texto libre**: queda en la auditoría 3 años, y un texto libre de 120 caracteres podría guardar un dato de salud que no se puede borrar (revisión del analista normativo). Cabe en la columna `text` sin migración.
+16. **`nombre_relevo` y `telefono_relevo` son obligatorios** al crear, aunque MATU-18 no los nombra: `acceso_relevo.otorgado_a_nombre` y `otorgado_a_telefono` son `NOT NULL` en el esquema, la arquitectura 9.2 los pide en el cuerpo y la política de privacidad v0.9 informa que se guardan. El teléfono no sale en ninguna respuesta, y su finalidad la fija la decisión 24. **`motivo` es obligatorio**, por la misma razón (`NOT NULL`), y es un **enumerado** (`salgo_unas_horas`, `fin_de_semana_fuera`, `turno_de_noche`, `otro`) **sin texto libre**: queda en la auditoría 3 años, y un texto libre de 120 caracteres podría guardar un dato de salud que no se puede borrar (revisión del analista normativo). Cabe en la columna `text` sin migración.
 17. **`campos`, no `secciones`.** La interfaz y el backlog hablan de campos, y la ficha solo admite tres (`rutina`, `manejo_situaciones`, `red_apoyo`), aunque `plan_seccion` acepte ocho tipos.
 18. **Compartir exige consentimiento vigente; revocar y listar no.** Revocar siempre tiene que ser posible.
 19. **`/plan/aperturas` lista solo lo que hicieron los relevos** (apertura, PIN incorrecto y bloqueo), sin IP. Las lecturas de los miembros se auditan, pero mostrarlas es otra decisión (RF-08, pantalla del sprint 3). Si después se agregan, `tipo` gana valores nuevos, y para un cliente estricto eso es un cambio incompatible: conviene decidirlo antes de implementar.
 20. **El `mensaje` de los 422 es hoy el texto de Pydantic, en inglés** (`app/core/errores.py` copia `msg`). Los ejemplos lo muestran así. La interfaz se guía por `campo` y `tipo` y muestra el texto de `docs/lenguaje.md`.
 21. **No entran en este contrato:** `en_nombre_de` del llenado asistido (RF-42), `GET /plan/exportar` (RF-09), el envío del PIN por SMS (*Debería*) y cerrar la sesión del relevo desde la página.
-22. **Revocar no borra `indice_token` ni las sesiones de relevo** (corrección de QA, manda el backlog). MATU-20 exige que "la siguiente petición del relevo responde 410, aunque tenga una cookie válida". Si revocar borrara la sesión, esa petición respondería 401 `sin-sesion-relevo`, y si borrara `indice_token`, el canje respondería `relevo-no-disponible`: el 410 `relevo-revocado` nunca ocurriría. Por eso `DELETE /v1/accesos-relevo/{id}` solo fija `revocado_en`; la cookie y el token siguen identificando el acceso, y la API verifica su estado en **cada** petición del relevo (canje y `GET /v1/relevo/ficha`). Revocado → 410 `relevo-revocado`; vencido → 410 `relevo-vencido`. Las respuestas 410 y 423 descartan la sesión en ese momento.
-
-## Decisión abierta de MATU-19: distinguir revocado de vencido
-
-La decisión 22 exige que la API sepa, con solo el token o la sesión de relevo, si el acceso está **revocado** o **vencido**. Hoy no puede leerlo:
-
-- `indice_token` (`backend/db/01_esquema.sql`) guarda `expira_en`, pero **no** la revocación.
-- La política `acceso_relevo_propio` (`backend/db/02_rls.sql`) filtra `revocado_en IS NULL AND expira_en > now()`: con `app.rol = 'relevo'`, un acceso revocado y uno vencido devuelven **cero filas**, sin distinguirse.
-
-Al implementar MATU-19 se elige una de estas opciones. **No se decide en este contrato**; la deciden Jorge o Martín con el backend:
-
-| Opción | Qué cambia | A favor | En contra |
-|---|---|---|---|
-| (a) Columna `revocado_en timestamptz NULL` en `indice_token` | Migración de Alembic reversible. `DELETE /v1/accesos-relevo/{id}` la fija en la misma transacción que `acceso_relevo.revocado_en` | El canje y la sesión deciden con una sola lectura de `indice_token`, que no tiene RLS ni dato sensible | Duplica el estado en dos tablas; hay que mantenerlas coherentes |
-| (b) Lectura acotada con `app.rol = 'sistema'` de `acceso_relevo.revocado_en` y `expira_en` | Sin migración. Una función del repositorio que lee solo esas dos columnas por `id`, después de que la lectura como `relevo` devolvió cero filas | Una sola fuente de verdad | Abre un camino con rol `sistema` en una ruta pública: hay que acotarlo a esas columnas y probarlo en `test_aislamiento.py` |
-
-En los dos casos, `vencido` también se puede deducir de `indice_token.expira_en`; lo que falta es `revocado`.
+22. **Revocar no borra `indice_token` ni las sesiones de relevo** (corrección de QA, manda el backlog). MATU-20 exige que "la siguiente petición del relevo responde 410, aunque tenga una cookie válida". Si revocar borrara la sesión, esa petición respondería 401 `sin-sesion-relevo`, y si borrara `indice_token`, el canje respondería `relevo-no-disponible`: el 410 `relevo-revocado` nunca ocurriría. Por eso `DELETE /v1/accesos-relevo/{id}` solo fija `revocado_en`, en `acceso_relevo` y en `indice_token` (decisión 23). La cookie y el token siguen identificando el acceso, y la API verifica su estado en **cada** petición del relevo (canje y `GET /v1/relevo/ficha`). Revocado → 410 `relevo-revocado`, y vencido → 410 `relevo-vencido`. Las respuestas 410 y 423 descartan la sesión en ese momento.
+23. **`indice_token` guarda también `revocado_en`** (MATU-19, opción (a), decisión de Jorge del 27-10). Una migración de Alembic reversible agrega `revocado_en timestamptz NULL` a `indice_token`. `DELETE /v1/accesos-relevo/{id}` la fija en la misma transacción que `acceso_relevo.revocado_en`, y una prueba verifica que las dos columnas coinciden. Así el canje y la sesión de relevo deciden con una sola lectura de `indice_token`, que no tiene RLS ni dato sensible: `revocado_en` da `revocado` y `expira_en` da `vencido`. La migración la hace MATU-19 o MATU-20, no este contrato.
+    - **Descartada, opción (b):** leer `acceso_relevo.revocado_en` y `expira_en` con `app.rol = 'sistema'` cuando la lectura como `relevo` devuelve cero filas. Evitaba la migración y dejaba una sola fuente de verdad, pero abría un camino con el rol `sistema` en una ruta pública.
+24. **`telefono_relevo` sigue obligatorio y tiene finalidad declarada** (decisión de Jorge del 27-10). Sirve para que quien comparte le envíe el enlace al relevo, por WhatsApp o SMS desde su propio teléfono, y para que la familia pueda contactarlo. La API no envía nada (decisión 21) y no devuelve el teléfono en ninguna respuesta. Como visión, fuera de MATU-09: MATU se piensa como app móvil, y ahí el teléfono será esencial para identificar a la persona, enviar la ficha y la lista, y contactar al repartidor.
+25. **El registro del acceso de relevo se conserva 3 años, igual que la auditoría, con el teléfono incluido** (decisión de Jorge del 27-10). Identifica a quién se entregó la ficha. Ya no requiere consulta legal.
 
 ## Contradicciones con la arquitectura v1.1, sección 9.2
 
@@ -114,18 +102,19 @@ Este contrato sigue el **backlog v1.3**, que es más nuevo. Jorge las corrige en
 ## Notas para implementar
 
 - **`pin_hash` es un HMAC-SHA-256 con *pepper*, no un hash simple** (revisión del analista normativo). Un PIN de 4 dígitos tiene 10.000 valores: con un hash simple (ni siquiera con sal) quien lea la tabla lo recupera por fuerza bruta en milisegundos. El *pepper* es un secreto que vive fuera de la base, en `.env` vía `pydantic-settings` (CLAUDE.md, política 5), así que una copia de la base sola no basta. La comparación es en tiempo constante (`hmac.compare_digest`). El límite de 5 intentos protege el canje en línea; el HMAC protege la base fuera de línea. El token no lo necesita: 256 bits aleatorios no se recuperan por fuerza bruta, y basta su SHA-256.
-- **Revocado frente a vencido:** ver la decisión abierta de MATU-19, más arriba.
+- **Revocado frente a vencido:** ver la decisión 23. Hoy `indice_token` (`backend/db/01_esquema.sql`) guarda `expira_en` pero no la revocación, y la política `acceso_relevo_propio` (`backend/db/02_rls.sql`) filtra `revocado_en IS NULL AND expira_en > now()`: con `app.rol = 'relevo'`, un acceso revocado y uno vencido devuelven cero filas. Por eso hace falta la columna nueva.
 
-## Decisiones de Jorge
+## Decisiones de Jorge del 27-10
 
-Puntos de la revisión del analista normativo que el contrato no resuelve solo. Jorge decide; lo que quede en "requiere consulta legal" va a la tarjeta de consulta legal en Trello. Mientras tanto, el contrato queda como está.
+Resuelven los puntos de la revisión del analista normativo que el contrato no resolvía solo.
 
-1. **`telefono_relevo` es obligatorio y el contrato no declara su finalidad.** Hoy la API no lo usa para nada (no hay SMS) y no lo devuelve. Opciones: (a) hacerlo opcional hasta que exista el SMS, con una migración que quite el `NOT NULL` de `acceso_relevo.otorgado_a_telefono`; o (b) declarar una finalidad concreta en el contrato y en la política de privacidad. **Por ahora sigue obligatorio** (decisión 16).
-2. **Plazo de conservación de los accesos revocados y vencidos, y borrar el teléfono al vencer o revocar.** El contrato conserva el registro para la auditoría, con el teléfono incluido. Falta fijar cuánto se conserva y si `otorgado_a_telefono` se borra (o se anonimiza) al vencer o revocar. **Requiere consulta legal.**
-3. **La política de privacidad v0.9, sección 10, promete cortar los accesos al retirar el consentimiento**, y este contrato no lo hace hasta la historia del sprint 3 (ver "Riesgo abierto"). Jorge decide si se adelanta esa historia o se ajusta el texto de la política mientras tanto.
-4. **La política v0.9, sección 5, dice que no se usa la IP, y MATU-25 la usa en el canje** (contador del límite por IP en Redis, sin guardarla en `auditoria` ni en los logs). Hay que alinear la política con MATU-25 o cambiar el límite.
-5. **Aviso al relevo como titular de datos.** El relevo es titular de su nombre y su teléfono, y no tiene cuenta. Falta decidir el texto del aviso que ve en la página de MATU-23 (qué se guarda de él, para qué y por cuánto tiempo).
-6. **Faltan las entradas de la ficha de relevo y del acceso de relevo en `docs/legal/registro-tratamientos.md`** (repositorio MATU). No se editan en este contrato: las redacta el analista normativo como borrador y Jorge las aprueba.
+1. **Teléfono del relevo:** sigue obligatorio, con finalidad declarada. Es la decisión 24.
+2. **Conservación:** el registro del acceso, con el teléfono, se conserva 3 años como la auditoría. Es la decisión 25. Deja de requerir consulta legal.
+3. **Retiro de la autorización:** la política de privacidad v0.9, sección 10, mantiene su promesa de cortar los accesos de relevo al retirar la autorización. La historia del sprint 3 que lo hace queda como requisito para operar con datos reales (ver "Riesgo abierto").
+4. **IP:** el analista normativo ajusta la política en el repositorio MATU para decir que la IP se usa solo para limitar intentos, por una hora, sin guardarla. MATU-25 queda como está.
+5. **Aviso al relevo:** Jorge aprobó el texto que ve el relevo en la página de MATU-23. Vive en `docs/lenguaje.md`, sección 7.5, del repositorio MATU. Este contrato no lo repite.
+6. **Registro de tratamientos:** las entradas de la ficha de relevo y del acceso de relevo en `docs/legal/registro-tratamientos.md` (repositorio MATU) las redacta el analista normativo y las aprueba Jorge. Este contrato no las edita.
+7. **MATU-19, revocado frente a vencido:** opción (a), columna `revocado_en` en `indice_token`. Es la decisión 23. La migración la hace MATU-19 o MATU-20.
 
 ## Diferencias con la demo (`origin/demo-web-viernes-30`, `Demo/src/`)
 
@@ -140,7 +129,7 @@ La demo es simulada y no se modificó. Cuando se conecte a la API, cambia esto:
 | Estados del acceso `activo`, `revocado`, `bloqueado`, y "vencido" calculado | `estado`: `vigente`, `vencido`, `revocado`, `bloqueado` | Usar `estado` de la API |
 | Motivo opcional ("Motivo, si quieres"), tres chips que se pueden desmarcar | `motivo` obligatorio, enumerado: los tres chips más `otro`, sin texto libre | Agregar el chip "Otro motivo" sin campo de texto, preseleccionar uno y no permitir dejarlos todos desmarcados |
 | Teléfono sin validar, con espacios (`+56 9 5555 0137`) | Obligatorio, celular chileno, con o sin `+56`/`56` y espacios | Validar en la pantalla con el mismo patrón |
-| El teléfono tiene la ayuda "Para enviarle el enlace" (`familia/Ficha.tsx`) | La API no envía nada: la cuidadora comparte el enlace y dicta el PIN. El SMS es *Debería*. Ninguna respuesta devuelve el teléfono | Cambiar el texto de ayuda (`docs/lenguaje.md`) |
+| El teléfono tiene la ayuda "Para enviarle el enlace" (`familia/Ficha.tsx`) | La API no envía nada: la cuidadora le envía el enlace desde su propio teléfono y dicta el PIN (decisión 24). Ninguna respuesta devuelve el teléfono | Nada: el texto es correcto con la decisión 24. Se mantiene |
 | `Problema` sin `request_id` y con `detail` y `errores` opcionales (`datos/contrato.ts`) | Los seis miembros siempre presentes; `detail` y `request_id` pueden ser `null` | Ajustar el tipo |
 | Vigencia "24 h", "fin de semana" o "N días" | `expira_en` | Calcular la fecha en el cliente |
 
@@ -149,3 +138,5 @@ Lo que coincide: tope de 500 caracteres, 5 intentos de PIN, contador que vuelve 
 ## Riesgo abierto
 
 Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vigentes" (backlog, sección 8, sprint 3), retirar el consentimiento no corta los accesos ya creados: `GET /v1/relevo/ficha` no puede leer `consentimiento`, porque la sesión de relevo no fija `app.grupo_id`. Se cierra cuando esa historia revoque los accesos al retirar el consentimiento.
+
+**Condición de Jorge (27-10):** esa historia es requisito para operar con datos reales. La política de privacidad v0.9 promete cortar los accesos al retirar la autorización, y MATU no recibe datos reales mientras la historia no esté terminada.
