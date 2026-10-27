@@ -1,7 +1,7 @@
 // Pedido con precio exacto y un solo cobro (ADR-027). Antes de pagar, la familia ve el total
 // confirmado con envío e IVA, lo que cambió desde la lista y las condiciones; paga una sola vez
 // ese total, con crédito o débito, y es lo mismo que se cobra al entregar.
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowDownUp,
   Check,
@@ -97,7 +97,7 @@ export function Boleta({ p, modo, tenue = false }: { p: Pedido; modo: ModoBoleta
         {modo === 'cancelado' && (
           <>
             <Renglon texto="Pagado" monto={fmtDinero(p.total)} />
-            <Renglon texto="Te devolvemos" monto={fmtDinero(p.total)} tono="ok" fuerte nota="El mismo día, a la misma tarjeta." />
+            <Renglon texto="Te devolveremos" monto={fmtDinero(p.total)} tono="ok" fuerte nota="El mismo día, a la misma tarjeta." />
           </>
         )}
         {modo === 'entregado' && (
@@ -378,7 +378,7 @@ export function PedidoPantalla() {
                 </ul>
               </details>
             </div>
-            <p className="max-w-prose">Pagas con crédito o débito en Transbank. Se cobra una sola vez este total. No hay reserva ni cobros después.</p>
+            <p className="max-w-prose">Pagas con crédito o débito en Transbank. Se cobra una sola vez este total, sin cobros después.</p>
             <Acciones>
               <Boton icono={<Lock aria-hidden className="size-5" />} disabled={!acepto} onClick={pagar}>
                 Pagar <span className="cifras">{fmtDinero(p.total)}</span>
@@ -630,14 +630,7 @@ export function Seguimiento() {
               <span className="digitos text-2xl font-bold tracking-widest text-pino">{p.codigoRetiro}</span>
             </div>
           )}
-          {p.estado === 'pagado' && (
-            <div className="flex flex-col items-start gap-1">
-              <Boton variante="texto" onClick={() => haz(cancelarPedido)}>
-                Cancelar el pedido
-              </Boton>
-              <span className="text-sm text-tenue">Sin costo, mientras la farmacia no empiece a prepararlo.</span>
-            </div>
-          )}
+          {p.estado === 'pagado' && <CancelarPedido total={p.total} />}
         </Columna>
         <Columna etiqueta="Boleta">
           <Boleta p={p} modo="pagado" />
@@ -648,6 +641,41 @@ export function Seguimiento() {
   )
 }
 
+/** Cancelar después de pagar, con una confirmación en el mismo lugar (sin ventana modal). */
+function CancelarPedido({ total }: { total: number }) {
+  const { haz } = useDemo()
+  const [confirmando, setConfirmando] = useState(false)
+  const pregunta = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (confirmando) pregunta.current?.focus()
+  }, [confirmando])
+  if (confirmando) {
+    return (
+      <div className="flex flex-col items-start gap-3 border-l-4 border-atenta bg-atenta-fondo px-4 py-3">
+        <p ref={pregunta} tabIndex={-1} className="font-bold tabular-nums outline-none">
+          ¿Cancelar el pedido? Te devolveremos {fmtDinero(total)} a la misma tarjeta.
+        </p>
+        <Acciones>
+          <Boton variante="secundario" onClick={() => haz(cancelarPedido)}>
+            Sí, cancelar el pedido
+          </Boton>
+          <Boton variante="texto" onClick={() => setConfirmando(false)}>
+            Seguir con el pedido
+          </Boton>
+        </Acciones>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Boton variante="texto" onClick={() => setConfirmando(true)}>
+        Cancelar el pedido
+      </Boton>
+      <span className="text-base text-tenue">Sin costo, mientras la farmacia no empiece a prepararlo.</span>
+    </div>
+  )
+}
+
 function Cancelado({ p }: { p: Pedido }) {
   const { haz } = useDemo()
   return (
@@ -655,7 +683,7 @@ function Cancelado({ p }: { p: Pedido }) {
       <Columnas izquierda="ancha">
         <Columna etiqueta="Qué pasó">
           <Nota titulo="Cancelaste el pedido antes de que la farmacia empezara a prepararlo" icono={<Undo2 aria-hidden className="mt-0.5 size-5 shrink-0 text-pino" />}>
-            <p className="tabular-nums">Te devolvemos {fmtDinero(p.total)} el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.</p>
+            <p className="tabular-nums">Te devolveremos {fmtDinero(p.total)} el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.</p>
           </Nota>
           <Acciones>
             <Boton variante="secundario" onClick={() => haz((x) => pilaFamilia({ ...x, pedido: null }, ['se-acaba', 'reponer']))}>

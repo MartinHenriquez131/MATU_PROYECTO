@@ -21,6 +21,7 @@ import {
   MAX_INTENTOS_PIN,
   accesoVigente,
   finDeSemana,
+  fmtDinero,
   lineasLista,
   nuevoPin,
   nuevoToken,
@@ -581,7 +582,7 @@ export function cancelarPedido(s: Estado): Estado {
   const p = s.pedido
   if (!p || p.estado !== 'pagado') return s
   const t: Estado = { ...s, pedido: { ...p, estado: 'cancelado', hitos: { ...p.hitos, cancelado: s.ahora } } }
-  return avisar(avanzar(t, 1), 'Pedido cancelado. Te devolvemos el total el mismo día, a la misma tarjeta.')
+  return avisar(avanzar(t, 1), `Pedido cancelado. Te devolveremos ${fmtDinero(p.total)}.`)
 }
 
 export function empezarPreparacion(s: Estado): Estado {
