@@ -43,7 +43,7 @@ MATU es un sistema de **continuidad del cuidado** para personas mayores con depe
 - **Python 3.12**, FastAPI sobre Uvicorn, Pydantic v2 con `pydantic-settings`
 - **SQLAlchemy 2** con psycopg 3, **Alembic** para migraciones
 - **PostgreSQL 16** con Row Level Security forzado en toda tabla de negocio, y **Redis 7**, sobre Docker Compose (`infra/docker-compose.yml`)
-- Transbank SDK, Webpay Plus en modalidad **captura diferida**, con un solo pagador
+- Transbank SDK, Webpay Plus en **venta normal**: un solo cobro del total confirmado, con un solo pagador (ADR-027)
 
 **Estructura objetivo: monolito modular** (arquitectura, sección 6.3). Todo el código va en `backend/app/`, sin un `models.py` ni un `services/` global:
 
@@ -125,7 +125,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 5. Los errores responden en RFC 7807. Los logs son JSON con `request_id` y **nunca** incluyen el cuerpo de la petición, el texto de la ficha, tokens ni PIN
 6. Las secciones de la ficha se cifran con el puerto `CifradorSecciones` (AES-256-GCM, clave por persona). Nunca guarda texto de la ficha en claro
 7. Lo que depende del tiempo usa el puerto `Reloj`, nunca `datetime.now()` en `domain/`
-8. **Pagos:** autoriza el estimado con margen y captura el monto real. El débito no admite captura diferida, y se aplica lo que se decida en el sprint 1 (plan B del ADR-006 o solo crédito)
+8. **Pagos (ADR-027):** cobra una sola vez el total confirmado (precios exactos más un envío único), que vale 15 minutos. Crédito y débito funcionan igual. La única devolución es la anulación parcial a la misma tarjeta, cuando un producto no se puede entregar. Nunca cobra más de lo que la familia vio, ni sustituye por otra marca
 
 **REGLA DE ORO:** **prohibido tocar diseño visual o componentes de interfaz.**
 

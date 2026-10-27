@@ -100,22 +100,28 @@ INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, producto_id, tasa_unid
  ('{G_A}', '{P_A}', '00000000-0000-0000-0000-000000000f01', 4, 24, current_date, current_date + 6),
  ('{G_B}', '{P_B}', '00000000-0000-0000-0000-000000000f01', 3, 30, current_date, current_date + 10);
 
-INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, total_estimado,
+-- Los pedidos nacen en borrador con sus líneas. Las líneas de un pedido pagado ya no cambian
+-- (ADR-027), así que el pago y el envío al comercio van después.
+INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos, costo_envio, total,
                     destinatario_nombre_pila, creado_por) VALUES
- ('{PED_A_ENVIADO}',  '{G_A}', '{P_A}', '{COMERCIO}', 'enviado_a_comercio', 25980, 'María', '{U_ADMIN_A}'),
- ('{PED_A_BORRADOR}', '{G_A}', '{P_A}', '{COMERCIO}', 'borrador',           12990, 'María', '{U_ADMIN_A}'),
- ('{PED_B_ENVIADO}',  '{G_B}', '{P_B}', '{COMERCIO}', 'enviado_a_comercio', 12990, 'Luis',  '{U_ADMIN_B}');
+ ('{PED_A_ENVIADO}',  '{G_A}', '{P_A}', '{COMERCIO}', 'borrador', 25980, 2990, 28970, 'María', '{U_ADMIN_A}'),
+ ('{PED_A_BORRADOR}', '{G_A}', '{P_A}', '{COMERCIO}', 'borrador', 12990, 2990, 15980, 'María', '{U_ADMIN_A}'),
+ ('{PED_B_ENVIADO}',  '{G_B}', '{P_B}', '{COMERCIO}', 'borrador', 12990, 2990, 15980, 'Luis',  '{U_ADMIN_B}');
 INSERT INTO pedido_entrega (pedido_id, calle, numero, comuna, telefono_contacto) VALUES
  ('{PED_A_ENVIADO}', 'Los Aromos', '123', 'La Reina', '+56911111111');
-INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_snapshot) VALUES
+INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario) VALUES
  ('{PED_A_ENVIADO}',  '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 2, 12990),
  ('{PED_A_BORRADOR}', '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 1, 12990);
-INSERT INTO cargo (id, pedido_id, monto_objetivo, recaudacion_expira_en) VALUES
- ('00000000-0000-0000-0000-0000000007a1', '{PED_A_ENVIADO}', 25980, now() + interval '2 hours');
-INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, monto_comprometido) VALUES
- ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-0000000007a1', '{U_ADMIN_A}', 10000, 29877);
-INSERT INTO transaccion_pasarela (participacion_id, proveedor, tipo, buy_order, monto, idempotency_key) VALUES
- ('00000000-0000-0000-0000-0000000008a1', 'webpay_plus', 'autorizacion', 'MATU-0001', 29877, 'k1');
+UPDATE pedido SET estado = 'enviado_a_comercio', total_confirmado_en = now() - interval '5 minutes',
+                  total_vence_en = now() + interval '10 minutes', pagado_en = now()
+ WHERE id IN ('{PED_A_ENVIADO}', '{PED_B_ENVIADO}');
+INSERT INTO cargo (id, pedido_id, estado, monto_cobrado) VALUES
+ ('00000000-0000-0000-0000-0000000007a1', '{PED_A_ENVIADO}', 'pagado', 28970);
+INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, estado, monto_cobrado) VALUES
+ ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-0000000007a1', '{U_ADMIN_A}', 10000,
+  'pagada', 28970);
+INSERT INTO transaccion_pasarela (participacion_id, proveedor, tipo, buy_order, monto, estado, idempotency_key) VALUES
+ ('00000000-0000-0000-0000-0000000008a1', 'webpay_plus', 'venta', 'MATU-0001', 28970, 'aprobada', 'k1');
 INSERT INTO repartidor (id, usuario_id, vehiculo, comuna_base) VALUES ('{REPARTIDOR}', '{U_REP}', 'auto', 'La Reina');
 INSERT INTO asignacion (grupo_id, pedido_id, repartidor_id) VALUES ('{G_A}', '{PED_A_ENVIADO}', '{REPARTIDOR}');
 INSERT INTO idempotencia (grupo_id, endpoint, clave, usuario_id, hash_peticion, respuesta) VALUES
@@ -379,7 +385,228 @@ def test_nonce_no_se_repite(cx):
                               '\\x00000000000000000000000000000000', 1)""", (PLAN_A,))
 
 
-def test_captura_no_supera_lo_autorizado(cx):
+# ------------------------------------------------------------------ precios exactos y un solo cobro (ADR-027)
+
+CARGO_A = "00000000-0000-0000-0000-0000000007a1"
+PRODUCTO = "00000000-0000-0000-0000-000000000f01"
+OFERTA = "00000000-0000-0000-0000-000000000f11"
+
+
+@pytest.mark.rf("ADR-027")
+@pytest.mark.parametrize("tabla", ["cargo", "participacion"])
+def test_devuelto_no_supera_lo_cobrado(cx, tabla):
+    """Reemplaza a la prueba del tope de captura: ya no hay autorizado ni capturado, solo cobrado y devuelto."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    parcial = "devuelto_parcial" if tabla == "cargo" else "devuelta_parcial"
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(f"UPDATE {tabla} SET estado = %s, monto_devuelto = monto_cobrado + 1", (parcial,))
+    cx.execute(f"UPDATE {tabla} SET estado = %s, monto_devuelto = 12990", (parcial,))
+    assert cx.execute(f"SELECT monto_cobrado - monto_devuelto FROM {tabla}").fetchone()[0] == 28970 - 12990
+
+
+@pytest.mark.rf("ADR-027")
+def test_total_es_productos_mas_un_envio(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET total = total + 1 WHERE id = %s", (PED_A_BORRADOR,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET costo_envio = -1, total = subtotal_productos - 1 WHERE id = %s",
+                   (PED_A_BORRADOR,))
+    cx.execute("UPDATE pedido SET costo_envio = 0, total = subtotal_productos WHERE id = %s", (PED_A_BORRADOR,))
+
+
+@pytest.mark.rf("ADR-027")
+@pytest.mark.parametrize(("tabla", "columna", "valor"), [
+    ("pedido", "estado", "pendiente_recaudacion"),
+    ("pedido", "estado", "autorizado"),
+    ("pedido", "estado", "requiere_decision"),
+    ("pedido", "estado", "captura_pendiente"),
+    ("pedido", "estado", "incobrable"),
+    ("pedido_linea", "estado_linea", "sustituida"),
+    ("cargo", "estado", "capturado"),
+    ("participacion", "estado", "autorizada"),
+    ("transaccion_pasarela", "tipo", "captura"),
+    ("transaccion_pasarela", "tipo", "autorizacion"),
+])
+def test_estados_de_la_captura_diferida_ya_no_existen(cx, tabla, columna, valor):
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     with pytest.raises(errors.CheckViolation):
-        cx.execute("UPDATE participacion SET monto_autorizado = 100, monto_capturado = 101")
+        cx.execute(f"UPDATE {tabla} SET {columna} = %s", (valor,))
+
+
+@pytest.mark.rf("ADR-027")
+def test_estado_del_cargo_coincide_con_sus_montos(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    for estado, cobrado, devuelto in (("pagado", 0, 0), ("pendiente", 28970, 0), ("rechazado", 28970, 0),
+                                      ("anulado", 28970, 100), ("devuelto_parcial", 28970, 0),
+                                      ("devuelto_parcial", 28970, 28970), ("pagado", 28970, 100)):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute("UPDATE cargo SET estado = %s, monto_cobrado = %s, monto_devuelto = %s",
+                       (estado, cobrado, devuelto))
+    # Cancelación sin costo antes de preparar: se anula el total
+    cx.execute("UPDATE cargo SET estado = 'anulado', monto_devuelto = monto_cobrado")
+    cx.execute("UPDATE participacion SET estado = 'anulada', monto_devuelto = monto_cobrado")
+
+
+@pytest.mark.rf("ADR-027")
+def test_pedido_pagado_exige_total_confirmado_y_marca_de_pago(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    # Sin pagar no se envía al comercio
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'enviado_a_comercio' WHERE id = %s", (PED_A_BORRADOR,))
+    # Un total confirmado tiene vencimiento, posterior a la confirmación
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'total_confirmado', total_confirmado_en = now() WHERE id = %s",
+                   (PED_A_BORRADOR,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("""UPDATE pedido SET estado = 'total_confirmado', total_confirmado_en = now(),
+                      total_vence_en = now() - interval '1 minute' WHERE id = %s""", (PED_A_BORRADOR,))
+    # Un borrador no lleva marca de pago
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("""UPDATE pedido SET total_confirmado_en = now(), total_vence_en = now() + interval '15 minutes',
+                      pagado_en = now() WHERE id = %s""", (PED_A_BORRADOR,))
+    cx.execute("""UPDATE pedido SET estado = 'total_confirmado', total_confirmado_en = now(),
+                  total_vence_en = now() + interval '15 minutes' WHERE id = %s""", (PED_A_BORRADOR,))
+    cx.execute("UPDATE pedido SET estado = 'vencido' WHERE id = %s", (PED_A_BORRADOR,))
+    # Si vence, se vuelve a confirmar, y recién entonces se paga
+    cx.execute("""UPDATE pedido SET estado = 'total_confirmado', total_confirmado_en = now() + interval '1 minute',
+                  total_vence_en = now() + interval '16 minutes' WHERE id = %s""", (PED_A_BORRADOR,))
+    cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes' WHERE id = %s",
+               (PED_A_BORRADOR,))
+
+
+@pytest.mark.rf("ADR-027")
+def test_el_precio_pagado_queda_fijo(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    for sql in (
+        f"UPDATE pedido_linea SET precio_unitario = 9990 WHERE pedido_id = '{PED_A_ENVIADO}'",
+        f"UPDATE pedido_linea SET cantidad = 3 WHERE pedido_id = '{PED_A_ENVIADO}'",
+        f"DELETE FROM pedido_linea WHERE pedido_id = '{PED_A_ENVIADO}'",
+        f"""INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)
+            VALUES ('{PED_A_ENVIADO}', '{OFERTA}', '{PRODUCTO}', 1, 12990)""",
+    ):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(sql)
+    # El estado de la línea sí avanza, y antes de pagar el precio todavía puede cambiar
+    cx.execute("UPDATE pedido_linea SET estado_linea = 'preparada' WHERE pedido_id = %s", (PED_A_ENVIADO,))
+    cx.execute("UPDATE pedido_linea SET precio_unitario = 11990 WHERE pedido_id = %s", (PED_A_BORRADOR,))
+
+
+@pytest.mark.rf("ADR-027")
+def test_la_devolucion_de_una_linea_no_supera_lo_pagado(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("""UPDATE pedido_linea SET estado_linea = 'devuelta', devuelta_en = now(),
+                      monto_devuelto = 2 * 12990 + 1 WHERE pedido_id = %s""", (PED_A_ENVIADO,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido_linea SET estado_linea = 'devuelta' WHERE pedido_id = %s", (PED_A_ENVIADO,))
+    cx.execute("""UPDATE pedido_linea SET estado_linea = 'devuelta', devuelta_en = now(),
+                  monto_devuelto = 2 * 12990 WHERE pedido_id = %s""", (PED_A_ENVIADO,))
+
+
+@pytest.mark.rf("ADR-027")
+def test_reasignacion_solo_al_mismo_producto_nunca_otra_marca(cx):
+    otro_comercio, otra_marca = "00000000-0000-0000-0000-0000000004c2", "00000000-0000-0000-0000-000000000f02"
+    misma, distinta = "00000000-0000-0000-0000-000000000f12", "00000000-0000-0000-0000-000000000f13"
+    cx.execute(f"""
+        INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna) VALUES
+         ('{otro_comercio}', 'Farmacia Dos SpA', 'Farmacia Dos', '76.000.000-2', 'Av. Ossa 2', 'La Reina');
+        INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
+         ('{otra_marca}', '00000000-0000-0000-0000-000000000c01', 'Pañal adulto M otra marca', 'x30', 'unidad', 30);
+        INSERT INTO oferta (id, producto_id, comercio_id, precio_referencia) VALUES
+         ('{misma}', '{PRODUCTO}', '{otro_comercio}', 13990), ('{distinta}', '{otra_marca}', '{otro_comercio}', 9990);
+    """)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    reasignar = """UPDATE pedido_linea SET oferta_reasignada_id = %s, precio_reasignado = %s,
+                   reasignada_en = now() WHERE pedido_id = %s"""
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(reasignar, (distinta, 9990, PED_A_ENVIADO))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(reasignar, (OFERTA, 12990, PED_A_ENVIADO))         # la misma oferta no es reasignar
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido_linea SET oferta_reasignada_id = %s WHERE pedido_id = %s", (misma, PED_A_ENVIADO))
+    # Mismo producto en otro comercio, más caro: MATU asume la diferencia y la familia paga lo mismo
+    cx.execute(reasignar, (misma, 13990, PED_A_ENVIADO))
+    assert cx.execute("SELECT precio_unitario FROM pedido_linea WHERE pedido_id = %s",
+                      (PED_A_ENVIADO,)).fetchone()[0] == 12990
+
+
+@pytest.mark.rf("ADR-027")
+@pytest.mark.parametrize("estado", ["total_confirmado", "vencido", "pagado", "cancelado"])
+def test_comercio_no_ve_pedidos_sin_pagar_o_sin_enviar(cx, estado):
+    pagado = estado == "pagado"
+    cx.execute("""INSERT INTO pedido (grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos, total,
+                                      total_confirmado_en, total_vence_en, pagado_en, destinatario_nombre_pila,
+                                      creado_por)
+                  VALUES (%s, %s, %s, %s, 12990, 12990, now(), now() + interval '15 minutes',
+                          CASE WHEN %s THEN now() END, 'María', %s)""",
+               (G_A, P_A, COMERCIO, estado, pagado, U_ADMIN_A))
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    assert contar(cx, "pedido") == 2                          # solo los dos pagados y enviados de la semilla
+
+
+@pytest.mark.rf("ADR-027")
+@pytest.mark.parametrize("quien", ["familia", "comercio"])
+@pytest.mark.parametrize("cambio", [
+    # Hallazgo P2-1 del QA: reabrir el pedido pagado para cambiar el precio
+    "estado = 'borrador', pagado_en = NULL",
+    "estado = 'total_confirmado', pagado_en = NULL",
+    "estado = 'vencido'",
+    "pagado_en = pagado_en + interval '1 minute'",
+    "subtotal_productos = subtotal_productos - 1000, total = total - 1000",
+    "costo_envio = 0, total = subtotal_productos",
+    "total_confirmado_en = total_confirmado_en - interval '1 minute'",
+    "total_vence_en = total_vence_en + interval '1 hour'",
+])
+def test_el_pedido_pagado_no_se_reabre(cx, quien, cambio):
+    """Sin el trigger pedido_pagado_fijo, la familia o el comercio podrían cambiar lo ya cobrado."""
+    ctx = {"usuario_id": U_ADMIN_A, "grupo_id": G_A} if quien == "familia" else \
+          {"usuario_id": U_ENC, "comercio_id": COMERCIO}
+    como(cx, **ctx)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (PED_A_ENVIADO,))
+    # El pedido pagado sí avanza en su ciclo, y lo cobrado sigue igual
+    cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
+    assert cx.execute("SELECT subtotal_productos, costo_envio, total FROM pedido WHERE id = %s",
+                      (PED_A_ENVIADO,)).fetchone() == (25980, 2990, 28970)
+
+
+# ------------------------------------------------------------------ si un producto falta (RF-21)
+
+REGLA = "INSERT INTO regla_sustitucion (pedido_id, producto_id, accion) VALUES (%s, %s, %s)"
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize("accion", ["equivalente", "producto_especifico", "no_sustituir", "consultar"])
+def test_ya_no_se_sustituye_por_otro_producto(cx, accion):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, accion))
+
+
+@pytest.mark.rf("RF-21")
+def test_regla_sin_producto_sustituto_ni_precio_maximo(cx):
+    columnas = {r[0] for r in cx.execute(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'regla_sustitucion'").fetchall()}
+    assert columnas == {"id", "pedido_id", "producto_id", "accion"}
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize("accion", ["otro_comercio", "quitar"])
+def test_si_falta_otro_comercio_o_quitar(cx, accion):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, accion))
+    assert contar(cx, "regla_sustitucion", f"accion = '{accion}'") == 1
+    # Una sola decisión por producto del pedido
+    with pytest.raises(errors.UniqueViolation):
+        cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, "otro_comercio"))
+
+
+@pytest.mark.rf("RF-21")
+def test_regla_de_otro_grupo_no_se_ve_ni_se_crea(cx):
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "quitar"))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "regla_sustitucion") == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "otro_comercio"))
