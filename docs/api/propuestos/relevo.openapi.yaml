@@ -27,8 +27,8 @@ info:
     también en `indice_token`) y el PIN solo como HMAC con *pepper* (`pin_hash`; ver las notas
     para implementar en `docs/api/README.md`). Los dos se muestran **una
     sola vez**, en el 201 de la creación. Ninguna respuesta posterior, log, error ni URL los
-    contiene. La IP se usa solo para el contador del límite por IP en Redis: no se guarda en
-    `auditoria` ni en los logs.
+    contiene. La IP se usa solo para el contador del límite por IP en Redis, que dura una hora:
+    no se guarda en `auditoria` ni en los logs.
 
     **Cabeceras de toda respuesta bajo `/v1/relevo/`**, también las de error:
     `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex` (MATU-23).
@@ -214,14 +214,15 @@ paths:
       operationId: revocarAccesoRelevo
       summary: Revocar un acceso de relevo
       description: |
-        Revocación **inmediata**: fija `revocado_en` y nada más. **No** borra la entrada de
+        Revocación **inmediata**: fija `acceso_relevo.revocado_en` y, en la misma transacción,
+        `indice_token.revocado_en` (decisión 23). Nada más. **No** borra la entrada de
         `indice_token` ni descarta las sesiones de relevo en Redis: el token y la cookie siguen
         identificando el acceso, y lo que cambia es su estado, que la API verifica en **cada**
         petición del relevo. Por eso la siguiente petición responde **410**
         `/errores/relevo-revocado` aunque tenga una cookie válida (MATU-20), y un canje posterior
         con el mismo enlace también responde 410 `relevo-revocado`, no `relevo-no-disponible`.
-        Cómo distingue la API "revocado" de "vencido" es una decisión abierta de MATU-19
-        (`docs/api/README.md`).
+        La API distingue "revocado" de "vencido" con una sola lectura de `indice_token`, que
+        guarda `revocado_en` y `expira_en` (decisión 23 en `docs/api/README.md`).
 
         Es idempotente: revocar un acceso ya revocado o vencido también responde 204. El registro
         no se borra: queda en la lista como `revocado`, para la auditoría.
@@ -260,8 +261,9 @@ paths:
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
         4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
-           `/errores/relevo-vencido`. Revocar no borra `indice_token`, así que un enlace revocado
-           siempre llega a este paso. No cuenta como intento.
+           `/errores/relevo-vencido`. Se decide con `indice_token.revocado_en` y `expira_en`
+           (decisión 23). Revocar no borra `indice_token`, así que un enlace revocado siempre
+           llega a este paso. No cuenta como intento.
         5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
         6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
            responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
@@ -613,8 +615,13 @@ components:
             Celular chileno del relevo: 9 y ocho dígitos, con o sin el prefijo `+56` (o `56`) y con
             o sin espacios. Valen `+56 9 5555 0137`, `+56955550137`, `56 9 5555 0137` y
             `9 5555 0137`; no vale un fijo (`+56 2 …`). Se guarda normalizado
-            (`+569XXXXXXXX`). Lo exige `acceso_relevo.otorgado_a_telefono` y la política de
-            privacidad lo informa; no se devuelve en ninguna respuesta.
+            (`+569XXXXXXXX`) en `acceso_relevo.otorgado_a_telefono`. No se devuelve en ninguna
+            respuesta.
+
+            **Finalidad** (decisión de Jorge del 27-10): que quien comparte le envíe el enlace al
+            relevo, por WhatsApp o SMS desde su propio teléfono, y que la familia pueda contactarlo.
+            La API no envía nada (decisión 21). Se conserva con el registro del acceso, 3 años,
+            igual que la auditoría.
         campos:
           type: array
           minItems: 1
