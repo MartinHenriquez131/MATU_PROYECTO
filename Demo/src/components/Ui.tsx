@@ -191,6 +191,8 @@ export function GrupoOpciones<T extends string>({
   nombre,
   columnas = false,
   ayuda,
+  forma = 'lista',
+  children,
 }: {
   leyenda: string
   opciones: { valor: T; texto: string; detalle?: string }[]
@@ -200,7 +202,42 @@ export function GrupoOpciones<T extends string>({
   /** En varias columnas cuando hay ancho. */
   columnas?: boolean
   ayuda?: ReactNode
+  /**
+   * `chips`: opción única con la piel del chip y un indicador redondo con punto. El cuadrado con
+   * check queda para los chips de varias opciones.
+   */
+  forma?: 'lista' | 'chips'
+  /** Lo que va dentro del grupo, después de las opciones. */
+  children?: ReactNode
 }) {
+  if (forma === 'chips') {
+    return (
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 font-bold">{leyenda}</legend>
+        {ayuda && <div className="-mt-1 mb-1 text-base text-tenue">{ayuda}</div>}
+        <div className="flex flex-wrap gap-2">
+          {opciones.map((o) => {
+            const on = o.valor === valor
+            return (
+              <label
+                key={o.valor}
+                className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
+                  on ? 'bg-rocio text-pino ring-pino' : 'bg-hoja text-tenue ring-borde hover:ring-pino/40'
+                }`}
+              >
+                <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+                <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-pino' : 'ring-tenue'}`}>
+                  {on && <span className="size-2.5 rounded-full bg-pino" />}
+                </span>
+                <span className="min-w-0 break-words">{o.texto}</span>
+              </label>
+            )
+          })}
+        </div>
+        {children}
+      </fieldset>
+    )
+  }
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 font-bold">{leyenda}</legend>
@@ -227,6 +264,7 @@ export function GrupoOpciones<T extends string>({
           )
         })}
       </div>
+      {children}
     </fieldset>
   )
 }

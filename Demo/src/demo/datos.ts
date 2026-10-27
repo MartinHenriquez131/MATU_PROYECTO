@@ -1,7 +1,7 @@
 // Datos sintéticos de la demo. Ninguna persona real: Carmen cuida a María, Rosa la
 // reemplaza y Rodrigo es su hijo. Los textos vienen del prototipo v1.1 y de la política
 // de privacidad v0.9.
-import type { Apoyo, Calidad, CampoId, Insumo } from './tipos'
+import type { Apoyo, Calidad, CampoId, Insumo, Motivo } from './tipos'
 
 export const CAMPOS: CampoId[] = ['su_dia', 'si_se_altera', 'a_quien_llamar']
 
@@ -33,6 +33,9 @@ export const TEXTO_CAMPO: Record<
 }
 
 export const MAX_CARACTERES = 500
+
+/** "¿Para qué lo compartes?" La primera es la elegida de partida y la de `accesoPorDefecto`. */
+export const MOTIVOS: readonly Motivo[] = ['Salgo unas horas', 'Fin de semana fuera', 'Turno de noche', 'Otro motivo']
 
 export const TEXTO_RODRIGO =
   'Bajar las persianas. Si sigue inquieta, llamar a la nieta para que le hable un rato.'

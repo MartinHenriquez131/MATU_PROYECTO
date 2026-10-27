@@ -38,6 +38,7 @@ import type {
   Evento,
   LineaPedido,
   Medio,
+  Motivo,
   Pantalla,
   PantallaComercioId,
   PantallaFamiliaId,
@@ -345,7 +346,7 @@ export interface DatosCompartir {
   campos: CampoId[]
   vigencia: '24h' | 'finde' | 'dias'
   dias: number
-  motivo: string
+  motivo: Motivo
 }
 
 export function crearAcceso(s: Estado, d: DatosCompartir, pinFijo?: string): Estado {

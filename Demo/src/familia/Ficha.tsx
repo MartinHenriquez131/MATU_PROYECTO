@@ -1,7 +1,7 @@
 // Ficha de relevo: los tres campos a la izquierda y la hoja como la verá el relevo a la derecha.
 // Compartir, enlaces, quién la vio y la vista para imprimir son pestañas de la misma sección.
 import { useEffect, useState, type ReactNode } from 'react'
-import { Check, CircleAlert, Circle, Clock3, KeyRound, Link2, Lock, Mic, PencilLine, Send, ShieldCheck, Share2, TriangleAlert, Unlink, UserRound } from 'lucide-react'
+import { Check, CircleAlert, Circle, Clock3, KeyRound, Link2, Lock, Mic, PencilLine, Phone, Send, ShieldCheck, Share2, TriangleAlert, Unlink, UserRound } from 'lucide-react'
 import { useDemo } from '../demo/estado'
 import {
   abrirCampo,
@@ -20,10 +20,10 @@ import {
   volver,
   type DatosCompartir,
 } from '../demo/logica'
-import { CAMPOS, MAX_CARACTERES, TEXTO_CAMPO } from '../demo/datos'
+import { CAMPOS, MAX_CARACTERES, MOTIVOS, TEXTO_CAMPO } from '../demo/datos'
 import { DIA, accesoVigente, estadoAccesoTexto, fmtCuando, fmtFecha, fmtHora, fmtRestante, finDeSemana } from '../demo/calculos'
-import type { CampoId, Estado } from '../demo/tipos'
-import { Acciones, BarraCampos, Boton, CampoTexto, Chip, Etiqueta, Logo, MensajeError, Nota, Stepper, Subtitulo } from '../components/Ui'
+import type { CampoId, Estado, Motivo } from '../demo/tipos'
+import { Acciones, BarraCampos, Boton, CampoTexto, Chip, Etiqueta, GrupoOpciones, Logo, MensajeError, Nota, Stepper, Subtitulo } from '../components/Ui'
 import { HojaFicha } from '../components/HojaFicha'
 import { useMovimientoReducido } from '../components/movimiento'
 import { Columna, Columnas, Pagina, Pestanas } from './Shell'
@@ -317,6 +317,12 @@ export function Conflicto() {
 
 // ---------- Compartir ----------
 
+const VIGENCIAS: { valor: DatosCompartir['vigencia']; texto: string }[] = [
+  { valor: '24h', texto: '24 horas' },
+  { valor: 'finde', texto: 'Fin de semana' },
+  { valor: 'dias', texto: 'Otra cantidad de días' },
+]
+
 export function Compartir() {
   const { s, haz } = useDemo()
   const [nombre, setNombre] = useState('Rosa')
@@ -324,7 +330,7 @@ export function Compartir() {
   const [campos, setCampos] = useState<CampoId[]>([...CAMPOS])
   const [vigencia, setVigencia] = useState<DatosCompartir['vigencia']>('24h')
   const [dias, setDias] = useState(3)
-  const [motivo, setMotivo] = useState('Salgo unas horas')
+  const [motivo, setMotivo] = useState<Motivo>(MOTIVOS[0])
   const [error, setError] = useState<'nombre' | 'campos' | null>(null)
   const vence = vigencia === '24h' ? s.ahora + DIA : vigencia === 'finde' ? finDeSemana(s.ahora) : s.ahora + dias * DIA
   const vacios = campos.filter((c) => !s.ficha[c].texto.trim())
@@ -373,19 +379,14 @@ export function Compartir() {
               </p>
             )}
           </fieldset>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 font-bold">¿Hasta cuándo?</legend>
-            <div className="flex flex-wrap gap-2">
-              <Chip activo={vigencia === '24h'} onClick={() => setVigencia('24h')}>
-                24 horas
-              </Chip>
-              <Chip activo={vigencia === 'finde'} onClick={() => setVigencia('finde')}>
-                Fin de semana
-              </Chip>
-              <Chip activo={vigencia === 'dias'} onClick={() => setVigencia('dias')}>
-                Otra cantidad de días
-              </Chip>
-            </div>
+          <GrupoOpciones
+            forma="chips"
+            leyenda="¿Hasta cuándo?"
+            nombre="vigencia"
+            opciones={VIGENCIAS}
+            valor={vigencia}
+            onCambio={setVigencia}
+          >
             {vigencia === 'dias' && <Stepper etiqueta="¿Cuántos días?" valor={dias} onCambio={setDias} min={1} max={30} unidad="días" ayuda="Hasta 30 días." />}
             <p className="flex items-center gap-2">
               <Clock3 aria-hidden className="size-5 shrink-0 text-pino" />
@@ -393,17 +394,15 @@ export function Compartir() {
                 Vence el <b className="cifras">{fmtFecha(vence)}</b> a las <b className="cifras">{fmtHora(vence)}</b>
               </span>
             </p>
-          </fieldset>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 font-bold">Motivo, si quieres</legend>
-            <div className="flex flex-wrap gap-2">
-              {['Salgo unas horas', 'Fin de semana fuera', 'Turno de noche'].map((m) => (
-                <Chip key={m} activo={motivo === m} onClick={() => setMotivo(motivo === m ? '' : m)}>
-                  {m}
-                </Chip>
-              ))}
-            </div>
-          </fieldset>
+          </GrupoOpciones>
+          <GrupoOpciones
+            forma="chips"
+            leyenda="¿Para qué lo compartes?"
+            nombre="motivo"
+            opciones={MOTIVOS.map((m) => ({ valor: m, texto: m }))}
+            valor={motivo}
+            onCambio={setMotivo}
+          />
           <Acciones>
             <Boton icono={<Link2 aria-hidden className="size-5" />} onClick={crear}>
               Crear enlace
@@ -495,6 +494,12 @@ export function EnlacePin() {
             </p>
             <p className="text-base">
               <b>Díctaselo a {a.nombre} por teléfono.</b> No lo mandes junto con el enlace. Solo lo verás ahora.
+            </p>
+            <p className="flex gap-2 border-t border-linea pt-4 text-base">
+              <Phone aria-hidden className="mt-0.5 size-5 shrink-0 text-pino" />
+              <span>
+                Cuéntale a {a.nombre} que anotaste su nombre y su teléfono en MATU, y que cada vez que abra el enlace o la ficha queda registrado.
+              </span>
             </p>
           </section>
         </Columna>

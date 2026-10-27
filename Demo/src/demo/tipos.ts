@@ -97,6 +97,9 @@ export interface Conflicto {
   mio: string
 }
 
+/** Para qué se comparte la ficha: una opción siempre elegida, sin texto libre. */
+export type Motivo = 'Salgo unas horas' | 'Fin de semana fuera' | 'Turno de noche' | 'Otro motivo'
+
 export type EstadoAcceso = 'activo' | 'revocado' | 'bloqueado'
 
 export interface Acceso {
@@ -106,7 +109,7 @@ export interface Acceso {
   nombre: string
   telefono: string
   campos: CampoId[]
-  motivo: string
+  motivo: Motivo
   creadoMin: number
   venceMin: number
   estado: EstadoAcceso
