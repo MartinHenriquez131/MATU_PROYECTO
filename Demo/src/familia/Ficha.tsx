@@ -355,7 +355,7 @@ export function Compartir() {
               autoComplete="off"
               error={error === 'nombre' ? 'Escribe el nombre de quien te reemplaza.' : null}
             />
-            <CampoTexto etiqueta="Su teléfono" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} autoComplete="off" ayuda="Para enviarle el enlace." />
+            <CampoTexto etiqueta="Su teléfono" type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} autoComplete="off" ayuda="Para enviarle el enlace y poder contactarle." />
           </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 font-bold">¿Qué puede ver?</legend>
