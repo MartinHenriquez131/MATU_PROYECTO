@@ -1,9 +1,9 @@
 // La página del relevo: lo que ve Rosa al abrir /r#<token>. Pública, sin cuenta y sin navegación,
 // centrada en la hoja. El PIN se bloquea al quinto error (MATU-19).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Clock3, KeyRound, RefreshCw } from 'lucide-react'
+import { Clock3, FileText, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useDemo } from '../demo/estado'
-import { accesoDelRelevo, canjear, nombrePila, relevoRevalida } from '../demo/logica'
+import { accesoDelRelevo, avisar, canjear, nombrePila, relevoRevalida } from '../demo/logica'
 import { MAX_INTENTOS_PIN, fmtFecha, fmtHora } from '../demo/calculos'
 import type { CampoId } from '../demo/tipos'
 import { leerTokenDelFragmento } from '../components/RelevoUrl'
@@ -114,7 +114,38 @@ function RelevoPin() {
         </Boton>
       </form>
       <p className="max-w-md text-base text-tenue">No necesitas cuenta ni instalar nada. Al entrar, el enlace se borra de la barra de direcciones.</p>
+      <AvisoDatosRelevo />
     </div>
+  )
+}
+
+/** Qué guarda MATU de quien abre el enlace, antes de que escriba el PIN. Sin acordeón. */
+function AvisoDatosRelevo() {
+  const { haz } = useDemo()
+  return (
+    <section aria-labelledby="aviso-datos-t" className="flex w-full max-w-md flex-col gap-3 border-t border-linea pt-5 text-start">
+      <h2 id="aviso-datos-t" className="flex items-center gap-2 text-base font-bold">
+        <ShieldCheck aria-hidden className="size-5 shrink-0 text-pino" />
+        Tus datos en MATU
+      </h2>
+      <p className="text-base leading-relaxed text-tenue">
+        MATU guarda tu nombre y tu teléfono, que anotó quien te compartió la ficha, para enviarte el enlace y poder contactarte. Tu teléfono se borra 30 días después de que el enlace vence o se corta.
+      </p>
+      <p className="text-base leading-relaxed text-tenue">
+        También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, y guarda ese registro 3 años, para saber a quién se compartió.
+      </p>
+      <p className="text-base leading-relaxed text-tenue">
+        Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos.
+      </p>
+      <Boton
+        variante="texto"
+        className="self-start"
+        icono={<FileText aria-hidden className="size-5" />}
+        onClick={() => haz((x) => avisar(x, 'En la app se abre la política de privacidad, versión 0.9. En la demo no se abre ninguna página.'))}
+      >
+        Política de privacidad
+      </Boton>
+    </section>
   )
 }
 
