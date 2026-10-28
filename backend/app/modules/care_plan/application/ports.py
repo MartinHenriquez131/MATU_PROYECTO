@@ -5,18 +5,25 @@ y ADR-016): la clave maestra (KEK) vive fuera del servidor de aplicación y solo
 envolver y desenvolver la clave de datos (DEK) de cada persona cuidada. La DEK envuelta y la
 versión de KEK que la envolvió se guardan en clave_datos (dek_cifrada_con_kek, kek_version).
 
-Implementaciones: CustodiaEnMemoria (tests/dobles). El adaptador real llega cuando se decida
-el proveedor de custodia (ADR-019).
+Implementaciones: CustodiaEnMemoria (tests/dobles) y CustodiaKekEntorno
+(infrastructure/custodia_kek_entorno.py), que lee la KEK de la configuración: solo para el semestre y
+datos sintéticos (decisión D-A de Jorge del 28-10, desvío explícito del ADR-016). El adaptador de
+producción llega cuando se decida el proveedor de custodia (ADR-019).
 
 CifradorSecciones es el segundo nivel (MATU-11): cifra cada sección de la ficha con AES-256-GCM y
 la DEK de la persona. RepositorioClaves guarda y lee la fila de clave_datos.
+
+RepositorioFicha y AuditoriaFicha son de la ficha de relevo (MATU-12): la persistencia del plan y de
+sus secciones cifradas, y el punto de enganche de la auditoría plan.leer y plan.editar (MATU-14).
 """
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Protocol
 
 from app.modules.care_plan.domain.cifrado import ClaveGuardada, SeccionCifrada
+from app.modules.care_plan.domain.ficha import Autor
 
 
 @dataclass(frozen=True)
@@ -119,3 +126,119 @@ class CifradorSecciones(Protocol):
     ) -> str:
         """Descifra la sección ``tipo`` del plan. Nunca crea una clave."""
         ...
+
+
+# --- Ficha de relevo (MATU-12, RF-02) -------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PlanGuardado:
+    id: uuid.UUID
+
+
+@dataclass(frozen=True)
+class SeccionGuardada:
+    """Una sección de la ficha tal como está en plan_seccion: cifrada, nunca en claro."""
+
+    tipo: str
+    cifrada: SeccionCifrada
+    version: int
+    # None si la cuenta de quien la escribió ya no existe o no es visible para el grupo
+    actualizado_por: Autor | None
+    actualizado_en: datetime
+
+
+class RepositorioFicha(Protocol):
+    """Persistencia de plan_cuidado y de las secciones de la ficha, en la transacción de la petición.
+
+    Trabaja con la sesión del contexto de grupo (sesion_de_grupo): RLS acota plan_cuidado y
+    plan_seccion al grupo, y solo para quien puede ver el plan. Nunca recibe ni devuelve texto en
+    claro: solo SeccionCifrada.
+
+    Implementación: RepositorioFichaSQL (infrastructure/repositorio_ficha.py).
+    """
+
+    def obtener_plan(self, persona_cuidada_id: uuid.UUID) -> PlanGuardado | None:
+        """El plan de la persona, o None si nadie ha escrito su ficha todavía. Leer no lo crea."""
+        ...
+
+    def crear_plan(
+        self, plan_id: uuid.UUID, grupo_id: uuid.UUID, persona_cuidada_id: uuid.UUID, usuario_id: uuid.UUID,
+        ahora: datetime,
+    ) -> bool:
+        """Crea el plan con modo 'ficha_relevo', si la persona todavía no tiene uno.
+
+        Devuelve False si ya existía (otra transacción lo creó primero): entonces no escribe nada.
+        """
+        ...
+
+    def secciones(self, plan_id: uuid.UUID) -> list[SeccionGuardada]:
+        """Las secciones de la ficha del plan (solo los tres tipos de la ficha), con su autor."""
+        ...
+
+    def version_para_escribir(self, plan_id: uuid.UUID, tipo: str) -> int | None:
+        """La versión de la sección, bloqueada hasta el fin de la transacción, o None si no existe."""
+        ...
+
+    def insertar_seccion(
+        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, usuario_id: uuid.UUID, ahora: datetime
+    ) -> bool:
+        """Crea la sección con versión 1. False si ya existía (otra transacción la creó primero)."""
+        ...
+
+    def actualizar_seccion(
+        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version: int, usuario_id: uuid.UUID,
+        ahora: datetime,
+    ) -> None:
+        """Reemplaza el contenido cifrado de la sección y la deja en ``version``."""
+        ...
+
+    def campos_con_texto(self, plan_id: uuid.UUID) -> int:
+        """Cuántas secciones de la ficha tienen texto, sin descifrarlas.
+
+        AES-GCM conserva el largo: un campo vaciado se guarda cifrado con largo 0. Así la completitud
+        se calcula sin abrir los otros campos.
+        """
+        ...
+
+    def actualizar_plan(self, plan_id: uuid.UUID, completitud_pct: int, usuario_id: uuid.UUID, ahora: datetime) -> None:
+        """Guarda la completitud, quién escribió y cuándo."""
+        ...
+
+    def autor(self, usuario_id: uuid.UUID) -> Autor | None:
+        """El id y el nombre del usuario, nunca su email."""
+        ...
+
+
+@dataclass(frozen=True)
+class EventoFicha:
+    """Lo que la auditoría de MATU-14 necesita de una lectura o una escritura de la ficha.
+
+    Solo identificadores: nunca el texto, el ETag ni el nombre de nadie.
+    """
+
+    grupo_id: uuid.UUID
+    usuario_id: uuid.UUID
+    persona_cuidada_id: uuid.UUID
+    # None si se leyó una ficha que nadie ha escrito: todavía no hay plan
+    plan_id: uuid.UUID | None
+    # El campo escrito, o None en una lectura de la ficha completa
+    campo: str | None
+    request_id: str | None
+    ocurrido_en: datetime
+
+
+class AuditoriaFicha(Protocol):
+    """Punto de enganche de la auditoría de la ficha (MATU-14): plan.leer y plan.editar.
+
+    Los casos de uso lo llaman dentro de la transacción de la petición, después de leer o escribir y
+    antes de responder: si la auditoría falla, la petición falla y la escritura se deshace. Nunca se
+    llama cuando la petición se rechaza antes (401, 404, 403 o 422).
+
+    Implementación de MATU-12: AuditoriaFichaPendiente (infrastructure/auditoria_ficha.py), que no
+    escribe nada. MATU-14 la reemplaza por la que inserta en auditoria, sin tocar los casos de uso.
+    """
+
+    def registrar_lectura(self, evento: EventoFicha) -> None: ...
+
+    def registrar_edicion(self, evento: EventoFicha) -> None: ...
