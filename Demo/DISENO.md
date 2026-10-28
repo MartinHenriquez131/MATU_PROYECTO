@@ -78,6 +78,8 @@ Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no co
 
 Lo que está fuera de la app (la franja y el distintivo del presentador) no tiene el contenedor `app`, así que usa `max-sm:`, el mismo corte de 40 rem.
 
+**Lo fijo abajo no tapa el foco (28/10/2026).** Bajo 40 rem, la capa base de `src/index.css` le da al `html` un `scroll-padding-bottom` de 10 rem (`--spacing(40)`): la barra de secciones mide unos 69 px y el distintivo flotante va encima. Así, lo que recibe el foco o se desplaza a la vista queda sobre los dos (WCAG 2.4.11). Va en la capa base y no como clase en `index.html`, porque es una regla del documento entero.
+
 **Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (16,5 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
 
 **Alineación a la izquierda** en todo el contenido. Se centran solo el PIN (se lee en voz alta como un bloque) y la hoja en la página de Rosa (es el único objeto de la página).

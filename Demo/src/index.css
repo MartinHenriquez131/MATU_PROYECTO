@@ -128,6 +128,14 @@
     -webkit-text-size-adjust: 100%;
     color-scheme: light dark;
   }
+  /* En el teléfono, lo que recibe el foco o se desplaza a la vista no queda bajo lo que va fijo
+     abajo: la barra de secciones (unos 69 px) y el distintivo flotante, que va sobre ella (WCAG
+     2.4.11; ESPEC-ADR-027, 7.6). Es el mismo corte de 40 rem de `telefono:` y `max-sm:`. */
+  @media (width < 40rem) {
+    html {
+      scroll-padding-bottom: --spacing(40);
+    }
+  }
   body {
     @apply bg-papel text-tinta font-sans antialiased;
     line-height: 1.5;
