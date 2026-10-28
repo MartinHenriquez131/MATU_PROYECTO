@@ -327,7 +327,7 @@ export function DistintivoFlotante({ arriba = false, sobreBarra = false }: { arr
         aria-expanded={cajon}
         aria-controls="guia-presentador"
         aria-label="Abrir la guía del presentador"
-        className="grid size-10 shrink-0 place-items-center rounded-full bg-hoja text-tenue shadow-md ring-1 ring-linea hover:text-tinta"
+        className="grid size-10 max-sm:size-12 shrink-0 place-items-center rounded-full bg-hoja text-tenue shadow-md ring-1 ring-linea hover:text-tinta"
       >
         <BookOpen aria-hidden className="size-4.5" />
       </button>
