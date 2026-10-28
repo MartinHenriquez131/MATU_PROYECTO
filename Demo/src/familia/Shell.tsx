@@ -94,15 +94,15 @@ function estadoPista(s: Estado, seccion: Seccion): EstadoPista {
  */
 function Pista({ pista }: { pista: EstadoPista }) {
   if (!pista) return null
-  if (pista.tipo === 'campos') return <span className="cifras text-base text-tenue telefono:sr-only">{pista.hechos} de 3</span>
+  if (pista.tipo === 'campos') return <span className="cifras text-base text-tenue telefono:sr-only angosto:basis-full angosto:ps-8">{pista.hechos} de 3</span>
   if (pista.tipo === 'pronto')
     return (
-      <span className="inline-flex items-center gap-1 text-base font-bold text-pronto telefono:sr-only">
+      <span className="inline-flex items-center gap-1 text-base font-bold text-pronto telefono:sr-only angosto:basis-full angosto:ps-8">
         <span aria-hidden className="size-2 rounded-full bg-current" />
         Pronto
       </span>
     )
-  return <span className="text-base font-bold text-pino telefono:sr-only">En curso</span>
+  return <span className="text-base font-bold text-pino telefono:sr-only angosto:basis-full angosto:ps-8">En curso</span>
 }
 
 /** El punto sobre el ícono de la barra inferior: hay pista o no la hay, además del color. */
