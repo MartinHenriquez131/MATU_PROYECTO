@@ -174,3 +174,48 @@ _VISTA_POR_ROL = {
 def vista_para_rol(rol: str) -> VistaPersona:
     """La vista del rol. Un rol desconocido recibe la más restringida."""
     return _VISTA_POR_ROL.get(rol, VistaPersona.NOMBRE)
+
+
+# --- Autorización vigente para usar el plan de cuidado (MATU-12, RF-02) ---------------------------
+
+
+class EstadoAutorizacion(StrEnum):
+    """Si hay una autorización vigente para tratar el plan de cuidado de la persona.
+
+    Cada estado no vigente tiene su propio 403 en la ficha (contrato, decisión D-B del 28-10): la
+    pantalla muestra un texto distinto para "falta la autorización" y para "venció la revisión anual".
+    """
+
+    VIGENTE = "vigente"
+    SIN_CONSENTIMIENTO = "sin_consentimiento"
+    REVISION_VENCIDA = "revision_vencida"
+
+
+@dataclass(frozen=True)
+class AutorizacionGuardada:
+    """El consentimiento no revocado de la persona para plan_cuidado, tal como está en la base."""
+
+    calidad_otorgante: str
+    revision_vence_en: datetime | None
+
+
+def estado_autorizacion(autorizacion: AutorizacionGuardada | None, ahora: datetime) -> EstadoAutorizacion:
+    """Decide si el consentimiento para plan_cuidado autoriza leer o escribir la ficha en ``ahora``.
+
+    - Sin consentimiento no revocado para plan_cuidado: SIN_CONSENTIMIENTO.
+    - Otorgado por un cuidador de hecho con la revisión anual vencida (``revision_vence_en`` igual o
+      anterior a ``ahora``): REVISION_VENCIDA. Vencida la revisión no hay autorización vigente
+      (decisión D-B de Jorge, 28-10).
+    - Si no, VIGENTE. Las demás calidades no tienen revisión.
+
+    ``ahora`` viene del puerto Reloj: este módulo nunca lee la hora del sistema.
+    """
+    if autorizacion is None:
+        return EstadoAutorizacion.SIN_CONSENTIMIENTO
+    if (
+        autorizacion.calidad_otorgante == CalidadOtorgante.CUIDADOR_DE_HECHO.value
+        and autorizacion.revision_vence_en is not None
+        and autorizacion.revision_vence_en <= ahora
+    ):
+        return EstadoAutorizacion.REVISION_VENCIDA
+    return EstadoAutorizacion.VIGENTE
