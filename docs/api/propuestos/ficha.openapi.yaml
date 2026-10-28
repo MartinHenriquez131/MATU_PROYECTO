@@ -136,6 +136,8 @@ paths:
           $ref: '#/components/responses/SinAutorizacion'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
         '503':
           $ref: '#/components/responses/ServicioNoDisponible'
 
@@ -177,6 +179,11 @@ paths:
         actualizó. El `ETag` nuevo viaja en la cabecera y en el cuerpo.
 
         Escriben `admin` y `cuidador`. Registra `plan.editar`.
+
+        Si la clave de datos de la persona fue destruida (borrado criptográfico), **404**, como una
+        persona eliminada, y nunca se crea una clave nueva. Escribir no descifra las secciones ya
+        guardadas, así que aquí no hay un 500 por sección ilegible: un **500**
+        `/errores/error-interno` es solo el error inesperado genérico, sin el texto.
       x-matu-historia: MATU-12, MATU-13
       x-matu-auditoria: plan.editar
       parameters:
@@ -260,6 +267,8 @@ paths:
           $ref: '#/components/responses/ValidacionCampo'
         '428':
           $ref: '#/components/responses/FaltaVersion'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
         '503':
           $ref: '#/components/responses/ServicioNoDisponible'
 
@@ -599,6 +608,33 @@ components:
                 detail: Venció la revisión anual de la autorización para usar la ficha de esta persona
                 errores: []
                 request_id: 9b2f4c1e-0000-4000-8000-0000000000e7
+
+    ErrorInterno:
+      description: |
+        Error inesperado, genérico. En `GET …/plan/ficha` también cuando una sección guardada no se
+        puede descifrar (alterada, o movida a otro campo o a otro plan). Nunca lleva el texto de la
+        ficha, ni en `detail` ni en `errores[]`. La pantalla muestra el texto genérico de 5xx de
+        `docs/lenguaje.md`, 8.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/error-interno
+                  status:
+                    const: 500
+          example:
+            type: /errores/error-interno
+            title: Error interno
+            status: 500
+            detail: No pudimos abrir la ficha. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e9
 
     ServicioNoDisponible:
       description: |
