@@ -139,7 +139,7 @@ function AvisoDatosRelevo() {
       </p>
       <Boton
         variante="texto"
-        className="self-start"
+        className="self-start ps-0"
         icono={<FileText aria-hidden className="size-5" />}
         onClick={() => haz((x) => avisar(x, 'En la app se abre la política de privacidad, versión 0.9. En la demo no se abre ninguna página.'))}
       >

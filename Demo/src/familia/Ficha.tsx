@@ -399,6 +399,7 @@ export function Compartir() {
             forma="chips"
             leyenda="¿Para qué lo compartes?"
             nombre="motivo"
+            columnas
             opciones={MOTIVOS.map((m) => ({ valor: m, texto: m }))}
             valor={motivo}
             onCambio={setMotivo}

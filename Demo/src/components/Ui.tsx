@@ -213,7 +213,7 @@ export function GrupoOpciones<T extends string>({
   valor: T | null
   onCambio: (v: T) => void
   nombre: string
-  /** En varias columnas cuando hay ancho. */
+  /** En varias columnas cuando hay ancho. En la forma de chips, 2 + 2 desde 20 rem. */
   columnas?: boolean
   ayuda?: ReactNode
   /**
@@ -229,13 +229,14 @@ export function GrupoOpciones<T extends string>({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 font-bold">{leyenda}</legend>
         {ayuda && <div className="-mt-1 mb-1 text-base text-tenue">{ayuda}</div>}
-        <div className="flex flex-wrap gap-2">
+        {/* Con `columnas`, en una grilla de 2 desde 20 rem de la columna (ESPEC-ADR-027, 7.5). */}
+        <div className={columnas ? 'grid grid-cols-1 gap-2 @xs:grid-cols-2' : 'flex flex-wrap gap-2'}>
           {opciones.map((o) => {
             const on = o.valor === valor
             return (
               <label
                 key={o.valor}
-                className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
+                className={`${columnas ? 'flex w-full' : 'inline-flex max-w-full'} min-h-12 cursor-pointer items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-pino ${
                   on ? 'bg-rocio text-pino ring-pino' : 'bg-hoja text-tenue ring-borde hover:ring-pino/40'
                 }`}
               >
