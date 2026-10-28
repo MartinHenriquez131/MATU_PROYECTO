@@ -75,12 +75,13 @@ INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek
  ('{PLAN_A}', 'red_apoyo',          '\\xaa', '\\x000000000000000000000003', '\\x00000000000000000000000000000000', 1),
  ('{PLAN_B}', 'rutina',             '\\xbb', '\\x000000000000000000000004', '\\x00000000000000000000000000000000', 1);
 INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
-                           nombre_pila_persona, secciones_permitidas, motivo, token_hash, pin_hash, expira_en) VALUES
- ('{ACC_VIGENTE}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Relevo',   '+56911111111', 'María',
+                           nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash,
+                           pin_hash, expira_en) VALUES
+ ('{ACC_VIGENTE}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Relevo',   '+56911111111', 'María', 'Ana',
   ARRAY['rutina','manejo_situaciones'], 'fin de semana', sha256('t1'), 'p', now() + interval '1 day'),
- ('{ACC_VENCIDO}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Vencido',  '+56922222222', 'María',
+ ('{ACC_VENCIDO}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Vencido',  '+56922222222', 'María', 'Ana',
   ARRAY['rutina'], 'turno', sha256('t2'), 'p', now() + interval '1 day'),
- ('{ACC_REVOCADO}', '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Revocado', '+56933333333', 'María',
+ ('{ACC_REVOCADO}', '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Revocado', '+56933333333', 'María', 'Ana',
   ARRAY['rutina'], 'turno', sha256('t3'), 'p', now() + interval '1 day');
 UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'
  WHERE id = '{ACC_VENCIDO}';
@@ -271,6 +272,23 @@ def test_operacion_no_alcanza_plan_ni_consumo(cx):
 
 
 # ------------------------------------------------------------------ relevo
+
+@pytest.mark.rf("RF-05")
+def test_familia_no_ve_ni_crea_accesos_de_relevo_de_otro_grupo(cx):
+    """MATU-18: la familia B no ve los accesos de A ni puede crear uno sobre el plan de A."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "acceso_relevo") == 3
+    assert {r[0] for r in cx.execute("SELECT nombre_pila_comparte FROM acceso_relevo").fetchall()} == {"Ana"}
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "acceso_relevo") == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(
+            """INSERT INTO acceso_relevo (grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
+                   nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,
+                   expira_en)
+               VALUES (%s, %s, %s, 'Relevo', '+56955550137', 'María', 'Luis', ARRAY['rutina'], 'otro',
+                   sha256('t9'), 'p', now() + interval '1 day')""", (G_A, PLAN_A, U_ADMIN_B))
+
 
 def test_relevo_ve_exactamente_sus_secciones(cx):
     como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
