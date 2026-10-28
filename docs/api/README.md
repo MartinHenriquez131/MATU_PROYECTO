@@ -127,6 +127,17 @@ Decisiones técnicas del backend que no cambian el contrato. Si alguna no corres
 - **Las preguntas guía y los ejemplos de cada campo** (`docs/lenguaje.md`, 5.1 a 5.3) no van en la respuesta: el contrato los deja en la interfaz.
 - **La decisión 33 vale también para el relevo** (decisión de Jorge del 28-10). Mientras no se renueve la autorización, crear un acceso (`POST …/plan/accesos-relevo`, MATU-18) responde el mismo 403 `revision-vencida`, y un relevo con un enlace anterior tampoco abre la ficha (canje y `GET /v1/relevo/ficha`, MATU-19). Cortar un acceso y ver la lista siguen permitidos (decisión 18). `relevo.openapi.yaml` se actualiza en MATU-18 y MATU-19.
 
+## Notas de implementación de MATU-18
+
+Decisiones técnicas del backend que no cambian el contrato. Si alguna no corresponde, se corrige antes de fusionar.
+
+- **Huellas.** `token_hash` es el SHA-256 de los 32 bytes crudos del token (no del texto base64url), igual en `acceso_relevo` y en `indice_token`. `pin_hash` es HMAC-SHA-256(`PEPPER_PIN`, `"<acceso_id>:<pin>"`) en hexadecimal: ligado al acceso, dos accesos con el mismo PIN tienen huellas distintas. MATU-19 compara con `hmac.compare_digest`.
+- **`PEPPER_PIN`** es un secreto nuevo en `.env` (`SecretStr`, al menos 32 caracteres, distinto de `PEPPER_EMAIL`, `JWT_CLAVE` y `KEK_ENTORNO`). Sin él, crear un acceso responde 503 `/errores/servicio-no-disponible`, después del 403 y antes del 422.
+- **`ORIGEN_WEB`** (`https://…`, sin barra final) arma el enlace `<origen>/r#<token>` del 201. No es un secreto.
+- **Migración 0004:** `acceso_relevo.nombre_pila_comparte text NOT NULL` con `CHECK` de texto no vacío (decisión 28). Es la primera palabra de `usuario.nombre` al crear el acceso. `indice_token.revocado_en` (decisión 23) queda para MATU-19 o MATU-20.
+- **Auditoría `relevo.compartir`:** una fila por acceso con `actor_tipo = 'usuario'`, `entidad = 'acceso_relevo'` y el `motivo` enumerado. Sin nombre ni teléfono del relevo, sin IP, sin token ni PIN.
+- **La lista** se ordena por `creado_en` y `id` descendentes; el cursor es base64url de esos dos valores. El `estado` se calcula en SQL con el reloj de la API, también para el filtro.
+
 ## Contradicciones con la arquitectura v1.1, sección 9.2
 
 Este contrato sigue el **backlog v1.3**, que es más nuevo. Jorge las corrige en la arquitectura v1.2:

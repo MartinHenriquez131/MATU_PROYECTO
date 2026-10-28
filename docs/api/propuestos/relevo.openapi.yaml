@@ -73,10 +73,15 @@ paths:
           se crea con `modo = 'ficha_relevo'`. Un campo vacío se le muestra al relevo como
           "Sin completar".
         - El acceso guarda `nombre_pila_persona` y el nombre de pila de quien comparte en este
-          momento, para que el relevo nunca lea `persona_cuidada` ni `usuario` (decisión 28).
-          Guardar el de quien comparte requiere una migración de MATU-18.
-        - Requiere consentimiento vigente para `plan_cuidado` (403). Comparten `admin` y
-          `cuidador` (si no, 404). Registra `relevo.compartir`.
+          momento (`acceso_relevo.nombre_pila_comparte`, migración 0004 de MATU-18), para que el
+          relevo nunca lea `persona_cuidada` ni `usuario` (decisión 28).
+        - Requiere consentimiento vigente para `plan_cuidado`: sin él, 403
+          `/errores/sin-consentimiento`. Si lo dio un cuidador de hecho y su revisión anual ya
+          venció, 403 `/errores/revision-vencida` (decisión 33). Listar sigue permitido en los dos
+          casos (decisión 18). Comparten `admin` y `cuidador` (si no, 404). Registra
+          `relevo.compartir` con el motivo enumerado, sin el nombre ni el teléfono del relevo.
+        - Orden: 401, 404 (membresía, rol, persona), 403, 503 y recién después el cuerpo (422).
+          Sin `PEPPER_PIN` configurado, 503: compartir falla cerrado.
       x-matu-historia: MATU-18
       x-matu-auditoria: relevo.compartir
       security:
@@ -124,11 +129,15 @@ paths:
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '403':
-          $ref: '#/components/responses/SinConsentimiento'
+          $ref: '#/components/responses/SinAutorizacion'
         '404':
           $ref: '#/components/responses/NoEncontrado'
         '422':
           $ref: '#/components/responses/ValidacionAcceso'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
     get:
       tags: [accesos de relevo]
       operationId: listarAccesosRelevo
@@ -1017,6 +1026,98 @@ components:
               description: Intentos que quedan antes del bloqueo.
 
   responses:
+    SinAutorizacion:
+      description: |
+        No hay una autorización vigente para compartir la ficha de la persona (MATU-18). Dos `type`,
+        igual que en `ficha.openapi.yaml`:
+
+        - `/errores/sin-consentimiento`: no hay consentimiento no revocado para `plan_cuidado`.
+        - `/errores/revision-vencida`: lo dio un cuidador de hecho y su revisión anual
+          (`revision_vence_en`) ya pasó, según el reloj del servidor (decisión 33). La pantalla
+          muestra el aviso de `docs/lenguaje.md`, 6.4b; la API no lo devuelve.
+
+        Listar y revocar accesos no lo exigen (decisión 18).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/sin-consentimiento, /errores/revision-vencida]
+                  status:
+                    const: 403
+          examples:
+            sinConsentimiento:
+              summary: Sin consentimiento vigente
+              value:
+                type: /errores/sin-consentimiento
+                title: Sin permiso
+                status: 403
+                detail: Falta la autorización para usar la ficha de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
+            revisionVencida:
+              summary: Revisión anual del cuidador de hecho vencida
+              value:
+                type: /errores/revision-vencida
+                title: Autorización por renovar
+                status: 403
+                detail: Venció la revisión anual de la autorización para usar la ficha de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-0000000000e7
+
+    ErrorInterno:
+      description: Error inesperado, genérico. Nunca lleva el token, el PIN ni datos del relevo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/error-interno
+                  status:
+                    const: 500
+          example:
+            type: /errores/error-interno
+            title: Error interno
+            status: 500
+            detail: No pudimos compartir la ficha. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e9
+
+    ServicioNoDisponible:
+      description: |
+        Falta `PEPPER_PIN`, la llave del HMAC del PIN. Compartir falla cerrado: no se crea el acceso
+        ni se guarda un PIN sin pepper.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+          example:
+            type: /errores/servicio-no-disponible
+            title: Servicio no disponible
+            status: 503
+            detail: No se puede compartir la ficha en este momento. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e8
+
     NoAutenticado:
       description: |
         Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
@@ -1099,9 +1200,9 @@ components:
     ValidacionAcceso:
       description: |
         Cuerpo inválido: falta un campo, `campos` vacío o repetido, teléfono que no es un celular
-        chileno, `motivo` fuera del enumerado, `expira_en` en el pasado o a más de 30 días, o un
-        campo extra. `errores[]` nombra
-        el campo y nunca repite el valor.
+        chileno, `motivo` fuera del enumerado, `expira_en` sin zona, en el pasado
+        (`tipo: vigencia_pasada`) o a más de 30 días (`tipo: vigencia_maxima`), o un campo extra.
+        `errores[]` nombra el campo y nunca repite el valor.
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
