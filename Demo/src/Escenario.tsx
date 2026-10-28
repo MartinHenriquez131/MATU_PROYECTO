@@ -43,7 +43,10 @@ function useFocoAlNavegar(k: string) {
     const enPresentador = !!activo?.closest('#guia-presentador, [data-presentador]')
     const detalle = document.querySelector<HTMLElement>('[data-foco="detalle"]')
     if (detalle) {
-      detalle.scrollIntoView({ block: 'nearest' })
+      // En el teléfono el detalle va debajo de la lista: se lleva arriba para que se vea entero
+      // (ESPEC-ADR-027, 7.6). En pantalla ancha está al lado y basta con 'nearest'.
+      const telefono = window.matchMedia('(width < 40rem)').matches
+      detalle.scrollIntoView({ block: telefono ? 'start' : 'nearest' })
       if (!enPresentador) detalle.focus({ preventScroll: true })
       return
     }
