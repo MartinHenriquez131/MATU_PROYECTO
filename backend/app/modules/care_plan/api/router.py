@@ -66,6 +66,7 @@ _ERRORES_LECTURA: dict[int | str, dict[str, Any]] = {
     401: {"description": "Falta el access token, o es inválido o vencido", **_PROBLEMA},
     403: {"description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida", **_PROBLEMA},
     404: {"description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente", **_PROBLEMA},
+    500: {"description": "Error inesperado o sección ilegible, sin el texto", **_PROBLEMA},
     503: {"description": "La custodia de la clave maestra no está configurada", **_PROBLEMA},
 }
 _ERRORES_ESCRITURA: dict[int | str, dict[str, Any]] = {
