@@ -231,7 +231,7 @@ function Dato({ termino, children }: { termino: string; children: ReactNode }) {
  *  la boleta va entre los productos y las condiciones. */
 function DosZonas({ arriba, boleta, abajo }: { arriba: ReactNode; boleta: ReactNode; abajo?: ReactNode }) {
   return (
-    <div className="grid items-start gap-x-8 @3xl:gap-x-16 gap-y-8 @2xl/main:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 items-start gap-x-8 @3xl:gap-x-16 gap-y-8 @2xl/main:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
       <div className="@container flex min-w-0 flex-col gap-5 @2xl/main:col-start-1">{arriba}</div>
       <div className="@container flex min-w-0 flex-col gap-5 @2xl/main:col-start-2 @2xl/main:row-span-2 @2xl/main:row-start-1">{boleta}</div>
       {abajo && <div className="@container flex min-w-0 flex-col gap-5 @2xl/main:col-start-1">{abajo}</div>}
@@ -415,7 +415,7 @@ export function Pasarela() {
   }, [procesando, medio, haz])
   if (!p || p.estado !== 'apartado' || totalVencido(p, s.ahora)) {
     return (
-      <main id="contenido" tabIndex={-1} className="grid min-h-96 place-items-center px-4 outline-none">
+      <main id="contenido" tabIndex={-1} className="grid min-h-96 place-items-center px-4 angosto:px-2 outline-none">
         <div className="flex flex-col items-start gap-3">
           <h1 id="titulo-pagina" tabIndex={-1} className="text-2xl font-bold outline-none">
             No hay un pago pendiente
@@ -430,7 +430,7 @@ export function Pasarela() {
     { valor: 'debito', texto: 'Tarjeta de débito de prueba', final: '4051', Icono: Landmark },
   ]
   return (
-    <main id="contenido" tabIndex={-1} className="flex-1 bg-pasarela px-4 py-10 text-pasarela-tinta outline-none [color-scheme:light] [&_:focus-visible]:outline-pasarela-tinta">
+    <main id="contenido" tabIndex={-1} className="flex-1 bg-pasarela px-4 angosto:px-2 py-10 text-pasarela-tinta outline-none [color-scheme:light] [&_:focus-visible]:outline-pasarela-tinta">
       <div className="mx-auto flex max-w-xl flex-col gap-4">
         <header className="rounded-xl bg-pasarela-tinta px-5 py-4 text-pasarela-hoja">
           <h1 id="titulo-pagina" tabIndex={-1} className="text-xl font-bold outline-none">
@@ -443,13 +443,13 @@ export function Pasarela() {
           Pago de prueba. No se cobra dinero real.
         </p>
         <div className="rounded-xl bg-pasarela-hoja px-5 py-4 ring-1 ring-pasarela-tinta/10">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+          <dl className="grid grid-cols-[auto_1fr] angosto:grid-cols-1 gap-x-4 gap-y-1.5">
             <dt className="text-pasarela-tenue">Comercio</dt>
-            <dd className="text-right font-bold">MATU</dd>
+            <dd className="text-right angosto:text-left font-bold">MATU</dd>
             <dt className="text-pasarela-tenue">Orden</dt>
-            <dd className="cifras text-right">{p.numero}</dd>
+            <dd className="cifras text-right angosto:text-left">{p.numero}</dd>
             <dt className="text-pasarela-tenue">Monto a pagar</dt>
-            <dd className="cifras text-right text-2xl font-bold">{fmtDinero(p.total)}</dd>
+            <dd className="cifras text-right angosto:text-left text-2xl font-bold">{fmtDinero(p.total)}</dd>
           </dl>
         </div>
         <fieldset className="flex flex-col gap-2">
@@ -715,7 +715,7 @@ export function Entregado() {
     <Pagina titulo="Pedido entregado">
       <Columnas izquierda="ancha">
         <Columna etiqueta="Resumen de la entrega">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 angosto:flex-col angosto:items-start angosto:gap-3">
             <span className="grid size-14 shrink-0 place-items-center rounded-full bg-ok text-ok-fondo">
               <Check aria-hidden className="size-8" strokeWidth={3} />
             </span>

@@ -23,7 +23,7 @@ import {
 import { CAMPOS, MAX_CARACTERES, MOTIVOS, TEXTO_CAMPO } from '../demo/datos'
 import { DIA, accesoVigente, estadoAccesoTexto, fmtCuando, fmtFecha, fmtHora, fmtRestante, finDeSemana } from '../demo/calculos'
 import type { CampoId, Estado, Motivo } from '../demo/tipos'
-import { Acciones, BarraCampos, Boton, CampoTexto, Chip, Etiqueta, GrupoOpciones, Logo, MensajeError, Nota, Stepper, Subtitulo } from '../components/Ui'
+import { Acciones, BarraCampos, Boton, CampoTexto, Chip, Cuando, Etiqueta, GrupoOpciones, Logo, MensajeError, Nota, Stepper, Subtitulo } from '../components/Ui'
 import { HojaFicha } from '../components/HojaFicha'
 import { useMovimientoReducido } from '../components/movimiento'
 import { Columna, Columnas, Pagina, Pestanas } from './Shell'
@@ -288,7 +288,7 @@ export function Conflicto() {
           <p>No guardamos lo tuyo encima de lo suyo. Elige qué versión dejar: la otra se descarta.</p>
         </div>
       </div>
-      <div className="mt-6 grid items-stretch gap-5 @2xl/main:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 items-stretch gap-5 @2xl/main:grid-cols-2">
         <section aria-labelledby="v-suya" className="flex flex-col gap-3 bg-hoja px-5 py-4 ring-1 ring-linea">
           <h3 id="v-suya" className="font-bold">
             La de {c.suyo.autor}
@@ -350,7 +350,7 @@ export function Compartir() {
     <PaginaFicha bajada="Quien te reemplaza recibe un enlace por WhatsApp y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.">
       <Columnas>
         <Columna etiqueta="Datos del enlace">
-          <div className="grid gap-4 @lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 @lg:grid-cols-2">
             <CampoTexto
               etiqueta="¿Quién te va a reemplazar?"
               value={nombre}
@@ -441,7 +441,7 @@ export function EnlacePin() {
     <PaginaFicha>
       <Columnas>
         <Columna etiqueta="Enlace creado">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 angosto:flex-col angosto:items-start angosto:gap-3">
             <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-pino text-papel">
               <svg viewBox="0 0 24 24" className="size-9" aria-hidden fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" pathLength={1} strokeDasharray="1" className="animate-trazo" />
@@ -475,17 +475,17 @@ export function EnlacePin() {
         </Columna>
 
         <Columna etiqueta="PIN">
-          <section aria-labelledby="pin-t" className="flex flex-col gap-4 bg-rocio px-6 py-6">
+          <section aria-labelledby="pin-t" className="flex flex-col gap-4 bg-rocio px-6 py-6 angosto:px-3">
             <h2 id="pin-t" className="flex items-center gap-2 text-xl font-bold">
               <KeyRound aria-hidden className="size-5 text-pino" />
               PIN para abrir la ficha
             </h2>
-            <p className="flex justify-center gap-3" aria-label={`PIN: ${a.pin.split('').join(' ')}`}>
+            <p className="flex justify-center gap-3 angosto:gap-1.5" aria-label={`PIN: ${a.pin.split('').join(' ')}`}>
               {a.pin.split('').map((d, i) => (
                 <span
                   key={i}
                   aria-hidden
-                  className="digitos grid h-22 w-17 place-items-center rounded-xl bg-hoja text-6xl leading-none font-bold text-pino animate-digito"
+                  className="digitos grid h-22 w-17 place-items-center rounded-xl bg-hoja text-6xl leading-none font-bold text-pino animate-digito angosto:h-16 angosto:w-auto angosto:min-w-0 angosto:flex-1 angosto:text-3xl"
                   style={{ animationDelay: `${600 + i * 160}ms` }}
                 >
                   {d}
@@ -583,7 +583,7 @@ function Eventos({ maximo }: { maximo?: number }) {
   return (
     <ol className="flex flex-col">
       {lista.map((e) => (
-        <li key={e.id} className="flex items-start gap-3 border-b border-linea py-3 last:border-0">
+        <li key={e.id} className="flex items-start gap-3 angosto:flex-col angosto:gap-2 border-b border-linea py-3 last:border-0">
           <span className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-full ${e.tono === 'atento' ? 'bg-atenta-fondo text-atenta' : 'bg-rocio text-pino'}`}>
             {e.tono === 'atento' ? (
               <CircleAlert aria-hidden className="size-5" />
@@ -597,7 +597,7 @@ function Eventos({ maximo }: { maximo?: number }) {
           </span>
           <span className="min-w-0">
             <span className="block font-bold">{e.texto}</span>
-            <span className="cifras text-base text-tenue">{fmtCuando(e.minuto, s.ahora)}</span>
+            <Cuando texto={fmtCuando(e.minuto, s.ahora)} className="text-base text-tenue" />
           </span>
         </li>
       ))}

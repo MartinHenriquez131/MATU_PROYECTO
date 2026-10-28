@@ -22,7 +22,7 @@ function MarcoRelevo({ children }: { children: ReactNode }) {
           <span className="text-tenue">Ficha de cuidado compartida</span>
         </div>
       </header>
-      <main id="contenido" tabIndex={-1} className="@container/main px-4 @3xl:px-10 pt-6 @3xl:pt-14 pb-16 outline-none">
+      <main id="contenido" tabIndex={-1} className="@container/main px-4 angosto:px-2 @3xl:px-10 pt-6 @3xl:pt-14 pb-16 outline-none">
         {children}
       </main>
     </div>
@@ -161,7 +161,7 @@ function RelevoFicha() {
     a_quien_llamar: s.ficha.a_quien_llamar.texto,
   }
   return (
-    <div className="mx-auto grid max-w-6xl items-start gap-8 @4xl/main:grid-cols-[minmax(0,1fr)_17rem]">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-8 @4xl/main:grid-cols-[minmax(0,1fr)_17rem]">
       <div className="@container mx-auto w-full max-w-3xl @4xl/main:order-none">
         <HojaFicha
           etiqueta={`Ficha de ${pila}`}

@@ -82,7 +82,7 @@ function Horizonte({ seleccionado }: { seleccionado: string | null }) {
                   <span className="min-w-0">
                     <span className="font-bold">{i.nombre}</span> <span className="text-tenue">{i.presentacion}</span>
                   </span>
-                  <span className="flex items-center gap-3">
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <b className="cifras">{d} días</b>
                     <EtiquetaNivel nivel={n} />
                   </span>
@@ -106,7 +106,7 @@ function Horizonte({ seleccionado }: { seleccionado: string | null }) {
 function Detalle({ titulo, children }: { titulo: ReactNode; children: ReactNode }) {
   return (
     <Columna etiqueta="Detalle del producto">
-      <section aria-labelledby="detalle-t" className="flex flex-col gap-5 bg-hoja px-4 @3xl:px-7 py-5 ring-1 ring-linea">
+      <section aria-labelledby="detalle-t" className="flex flex-col gap-5 bg-hoja px-4 angosto:px-2 @3xl:px-7 py-5 ring-1 ring-linea">
         <h2 id="detalle-t" data-foco="detalle" tabIndex={-1} className="text-xl font-bold leading-snug outline-none">
           {titulo}
         </h2>
@@ -128,7 +128,7 @@ function VerProducto({ i }: { i: Insumo }) {
   const n = nivel(d)
   return (
     <Detalle titulo={nombreProducto(i)}>
-      <p className="text-2xl leading-snug" role="status">
+      <p className="text-2xl angosto:text-xl leading-snug" role="status">
         Le alcanza <b className="cifras">{d} días</b>, hasta el <b className="cifras">{fechaFin(i, s.ahora)}</b>.
       </p>
       <div className="flex flex-col items-start gap-2">
@@ -165,9 +165,9 @@ function Declarar({ i }: { i: Insumo }) {
     <Detalle titulo={<>¿Cuánto usa {nombrePila(s)}? <span className="block text-base font-normal text-tenue">{i.nombre} {i.presentacion}</span></>}>
       <Stepper etiqueta={i.preguntaDia} valor={porDia} onCambio={setPorDia} min={1} max={30} unidad={`${i.unidad} al día`} />
       <Stepper etiqueta="¿Cuántos le quedan, más o menos?" valor={quedan} onCambio={setQuedan} min={0} max={999} paso={i.tamanoPaquete >= 30 ? 2 : 1} unidad={i.unidad} />
-      <div className="flex flex-col gap-2 border-l-4 border-pino bg-rocio px-4 py-3">
+      <div className="flex flex-col gap-2 border-l-4 border-pino bg-rocio px-4 angosto:px-2 py-3">
         <p className="flex items-center gap-2 font-bold" aria-live="polite">
-          <CalendarCheck aria-hidden className="size-5 shrink-0" />
+          <CalendarCheck aria-hidden className="size-5 shrink-0 angosto:hidden" />
           <span>
             Le alcanza <span className="cifras">{d} días</span>, hasta el <span className="cifras">{fechaFin(vista, s.ahora)}</span>
           </span>
@@ -325,8 +325,8 @@ function ListaReposicion() {
         </h2>
         <ul className="flex flex-col divide-y divide-linea">
           {lineas.map((l) => (
-            <li key={l.insumo.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
-              <span className="min-w-48 flex-1">
+            <li key={l.insumo.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 angosto:px-2 py-3">
+              <span className="min-w-0 grow basis-48">
                 <span className="block font-bold">
                   {l.insumo.nombre} <span className="font-normal text-tenue">{l.insumo.presentacion}</span>
                 </span>
@@ -334,7 +334,7 @@ function ListaReposicion() {
                   {fmtDinero(l.insumo.precio)} el paquete. Sugerimos {l.sugeridos}.
                 </span>
               </span>
-              <span className="flex items-center gap-2" role="group" aria-label={`Paquetes de ${l.insumo.nombre}`}>
+              <span className="flex flex-wrap items-center gap-2" role="group" aria-label={`Paquetes de ${l.insumo.nombre}`}>
                 <button type="button" className={btn} aria-label={`Un paquete menos de ${l.insumo.nombre}`} disabled={l.paquetes === 0} onClick={() => haz((x) => ajustarLista(x, l.insumo.id, l.paquetes - 1))}>
                   <span aria-hidden className="text-2xl leading-none font-bold">−</span>
                 </button>
@@ -345,7 +345,7 @@ function ListaReposicion() {
                   <span aria-hidden className="text-2xl leading-none font-bold">+</span>
                 </button>
               </span>
-              <span className="cifras ml-auto w-26 text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
+              <span className="cifras ml-auto w-26 angosto:w-auto text-right font-bold">{fmtDinero(l.paquetes * l.insumo.precio)}</span>
             </li>
           ))}
         </ul>

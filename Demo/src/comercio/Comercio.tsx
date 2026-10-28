@@ -113,7 +113,7 @@ function Pasos({ paso }: { paso: number }) {
         const estado = n < paso ? 'hecho' : n === paso ? 'ahora' : 'falta'
         return (
           <li key={t} className="flex items-center gap-2" aria-current={estado === 'ahora' ? 'step' : undefined}>
-            {i > 0 && <span aria-hidden className={`h-0.5 w-6 ${n <= paso ? 'bg-pino' : 'bg-tinta/15'}`} />}
+            {i > 0 && <span aria-hidden className={`h-0.5 w-6 angosto:hidden ${n <= paso ? 'bg-pino' : 'bg-tinta/15'}`} />}
             <span
               aria-hidden
               className={`grid size-8 place-items-center rounded-full text-sm font-bold ${
@@ -356,8 +356,8 @@ export function Consola() {
           </span>
         </div>
       </header>
-      <main id="contenido" tabIndex={-1} className="@container/main px-4 @3xl:px-10 pt-6 pb-16 outline-none">
-        <div className="mx-auto grid max-w-7xl items-start gap-x-8 gap-y-8 @3xl/main:grid-cols-[19rem_minmax(0,1fr)]">
+      <main id="contenido" tabIndex={-1} className="@container/main px-4 angosto:px-2 @3xl:px-10 pt-6 pb-16 outline-none">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-x-8 gap-y-8 @3xl/main:grid-cols-[19rem_minmax(0,1fr)]">
           <Cola apartadoElegido={apartadoElegido} elegirApartado={setApartadoElegido} />
           <div key={`${top.n}-${apartadoElegido}`} className="min-w-0">
             {detalle}

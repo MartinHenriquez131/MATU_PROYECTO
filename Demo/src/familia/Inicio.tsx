@@ -7,7 +7,7 @@ import { abrirCampo, completados, ir, nombrePila, pilaFamilia, siguienteCampoVac
 import { CAMPOS, TEXTO_CAMPO } from '../demo/datos'
 import { DIA, accesoVigente, diasRestantes, fmtCuando, fmtFecha, fmtRestante, nivel } from '../demo/calculos'
 import type { Cambio } from '../demo/estado'
-import { Acciones, BarraCampos, BarraDias, Boton, EtiquetaNivel, Hoja, Subtitulo } from '../components/Ui'
+import { Acciones, BarraCampos, BarraDias, Boton, Cuando, EtiquetaNivel, Hoja, Subtitulo } from '../components/Ui'
 import { Columna, Columnas, Pagina } from './Shell'
 
 const ESTADO_PEDIDO: Record<string, string> = {
@@ -177,7 +177,9 @@ export function Inicio() {
                 accion="Ver quién la vio"
                 onAccion={a((x) => pilaFamilia(x, ['ficha', 'quien-vio']))}
               >
-                <p className="cifras text-tenue">{fmtCuando(ultimaApertura.minuto, s.ahora)}</p>
+                <p>
+                  <Cuando texto={fmtCuando(ultimaApertura.minuto, s.ahora)} className="text-tenue" />
+                </p>
               </Atencion>
             )}
           </ul>

@@ -90,7 +90,7 @@ const ESTILO_NIVEL: Record<Nivel, string> = {
 
 export function EtiquetaNivel({ nivel }: { nivel: Nivel }) {
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${ESTILO_NIVEL[nivel]}`}>
+    <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${ESTILO_NIVEL[nivel]}`}>
       <FormaNivel nivel={nivel} />
       {ETIQUETA_NIVEL[nivel]}
     </span>
@@ -107,7 +107,21 @@ export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; t
     atenta: 'bg-atenta-fondo text-atenta',
     pino: 'bg-rocio text-pino',
   }[tono]
-  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
+  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
+}
+
+/**
+ * Fecha con hora ("24/10/2026, 10:05" o "Hoy, 10:05"): cada parte en su propio `cifras`, para que
+ * la hora pueda bajar de renglón sin cortar nunca la fecha (ESPEC-ADR-027, 7.3, R3).
+ */
+export function Cuando({ texto, className = '' }: { texto: string; className?: string }) {
+  const corte = texto.indexOf(', ')
+  if (corte < 0) return <span className={`cifras ${className}`}>{texto}</span>
+  return (
+    <span className={`tabular-nums ${className}`}>
+      <span className="cifras">{texto.slice(0, corte + 1)}</span> <span className="cifras">{texto.slice(corte + 2)}</span>
+    </span>
+  )
 }
 
 /** Avance de la ficha, por campos: tres tramos, no un porcentaje. */
@@ -242,7 +256,7 @@ export function GrupoOpciones<T extends string>({
     <fieldset className="flex flex-col gap-2">
       <legend className="mb-2 font-bold">{leyenda}</legend>
       {ayuda && <div className="-mt-1 mb-1 text-base text-tenue">{ayuda}</div>}
-      <div className={`grid gap-2 ${columnas ? '@2xl:grid-cols-3' : ''}`}>
+      <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl:grid-cols-3' : ''}`}>
         {opciones.map((o) => {
           const on = o.valor === valor
           return (

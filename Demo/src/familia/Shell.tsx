@@ -161,7 +161,7 @@ export function ShellFamilia({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-col">
         <Encabezado />
-        <main id="contenido" tabIndex={-1} className="@container/main flex-1 px-4 @3xl:px-11 pt-6 pb-16 outline-none">
+        <main id="contenido" tabIndex={-1} className="@container/main flex-1 px-4 angosto:px-2 @3xl:px-11 pt-6 pb-16 outline-none">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
@@ -247,7 +247,7 @@ export function Columnas({ children, izquierda = 'equilibrada' }: { children: Re
     ancha: '@2xl/main:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]',
     angosta: '@2xl/main:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]',
   }[izquierda]
-  return <div className={`grid items-start gap-x-6 @3xl:gap-x-16 gap-y-10 ${g}`}>{children}</div>
+  return <div className={`grid grid-cols-1 items-start gap-x-6 @3xl:gap-x-16 gap-y-10 ${g}`}>{children}</div>
 }
 
 /** Una columna que es contenedor: sus piezas se acomodan a su propio ancho. */

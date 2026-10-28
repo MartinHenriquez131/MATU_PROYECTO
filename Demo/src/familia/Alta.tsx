@@ -70,7 +70,7 @@ function MarcoAlta({ paso, children, panel }: { paso?: 1 | 2 | 3; children: Reac
           </>
         )}
       </aside>
-      <main id="contenido" tabIndex={-1} className="@container/main px-5 @3xl:px-18 py-6 @3xl:py-14 outline-none">
+      <main id="contenido" tabIndex={-1} className="@container/main px-5 angosto:px-2 @3xl:px-18 py-6 @3xl:py-14 outline-none">
         <div className="flex max-w-3xl flex-col gap-6">{children}</div>
       </main>
     </div>
