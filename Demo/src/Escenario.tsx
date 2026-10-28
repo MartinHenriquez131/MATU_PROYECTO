@@ -6,7 +6,7 @@ import { useDemo } from './demo/estado'
 import { pantallaComercio, pantallaFamilia } from './demo/logica'
 import type { Estado } from './demo/tipos'
 import { RelevoUrl } from './components/RelevoUrl'
-import { AppFamilia } from './familia/AppFamilia'
+import { AppFamilia, conBarraDeSecciones } from './familia/AppFamilia'
 import { RelevoApp } from './relevo/Relevo'
 import { Consola } from './comercio/Comercio'
 import { ProveedorPresentador, usePresentador } from './presentador/contexto'
@@ -53,7 +53,7 @@ function useFocoAlNavegar(k: string) {
 }
 
 /** El aviso breve de cada acción. Se anuncia a lectores de pantalla y se va solo. */
-function Aviso({ corrido, presentacion }: { corrido: boolean; presentacion: boolean }) {
+function Aviso({ corrido, presentacion, sobreBarra }: { corrido: boolean; presentacion: boolean; sobreBarra: boolean }) {
   const { s, haz } = useDemo()
   const a = s.aviso
   useEffect(() => {
@@ -64,8 +64,21 @@ function Aviso({ corrido, presentacion }: { corrido: boolean; presentacion: bool
   // Con el texto al 200% la app tiene zoom 2: la distancia al borde se divide por dos para que
   // el aviso no quede bajo el cajón de la guía.
   const derecha = corrido ? (s.texto200 ? 'right-50' : 'right-100') : s.texto200 ? 'right-3' : 'right-5'
+  // En el teléfono, sobre la barra de secciones de la familia y, si está, sobre el distintivo
+  // flotante, que también sube. Con el texto al 200% no hay barra fija (ESPEC-ADR-027, 7.6.2).
+  const abajo = presentacion
+    ? s.texto200
+      ? 'bottom-12'
+      : sobreBarra
+        ? 'bottom-24 max-sm:bottom-40'
+        : 'bottom-24'
+    : s.texto200
+      ? 'bottom-3'
+      : sobreBarra
+        ? 'bottom-5 max-sm:bottom-20'
+        : 'bottom-5'
   return (
-    <div aria-live="polite" className={`pointer-events-none fixed left-5 z-30 ml-auto flex max-w-md justify-end ${derecha} ${presentacion ? (s.texto200 ? 'bottom-12' : 'bottom-24') : s.texto200 ? 'bottom-3' : 'bottom-5'}`}>
+    <div aria-live="polite" className={`pointer-events-none fixed left-5 z-30 ml-auto flex max-w-md justify-end ${derecha} ${abajo}`}>
       {a && (
         <p key={a.id} className="pointer-events-auto rounded-xl bg-tinta px-4 py-3 text-papel shadow-lg motion-safe:animate-aparecer">
           {a.texto}
@@ -104,6 +117,7 @@ function Marco() {
     return () => obs.disconnect()
   }, [p.presentacion])
   const flotante = p.presentacion || !franjaVisible
+  const sobreBarra = conBarraDeSecciones(s)
   return (
     <>
       <RelevoUrl />
@@ -123,12 +137,12 @@ function Marco() {
         )}
         <div style={zoom} className="@container/app flex flex-1 flex-col">
           <AppActual />
-          <Aviso corrido={corrido} presentacion={flotante && !p.presentacion} />
+          <Aviso corrido={corrido} presentacion={flotante && !p.presentacion} sobreBarra={sobreBarra} />
         </div>
       </div>
       {flotante && (
         <div data-presentador>
-          <DistintivoFlotante arriba={p.presentacion} />
+          <DistintivoFlotante arriba={p.presentacion} sobreBarra={sobreBarra && !s.texto200} />
         </div>
       )}
       {p.cajon && <Cajon />}

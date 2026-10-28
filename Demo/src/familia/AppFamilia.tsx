@@ -2,7 +2,7 @@
 // dentro del marco con barra lateral.
 import { useDemo } from '../demo/estado'
 import { pantallaFamilia } from '../demo/logica'
-import type { PantallaFamiliaId } from '../demo/tipos'
+import type { Estado, PantallaFamiliaId } from '../demo/tipos'
 import { Alta } from './Alta'
 import { ShellFamilia } from './Shell'
 import { Inicio } from './Inicio'
@@ -12,6 +12,16 @@ import { Entregado, Pasarela, PedidoPantalla, Rechazado, Seguimiento } from './P
 import { Grupo } from './Grupo'
 
 const ALTA: PantallaFamiliaId[] = ['bienvenida', 'cuenta', 'entrar', 'a-quien', 'permiso']
+
+/**
+ * Si la familia ve el marco con la barra de secciones, que en el teléfono va fija abajo. El alta y
+ * la pasarela no la tienen. Lo usa el escenario para subir lo que flota (ESPEC-ADR-027, 7.6.2).
+ */
+export function conBarraDeSecciones(s: Estado): boolean {
+  if (s.rol !== 'familia') return false
+  const id = pantallaFamilia(s).id
+  return !ALTA.includes(id) && id !== 'pasarela'
+}
 
 function Contenido({ id }: { id: PantallaFamiliaId }) {
   switch (id) {

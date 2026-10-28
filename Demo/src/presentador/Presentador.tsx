@@ -129,7 +129,7 @@ function ListaAyudas({ compacta = false }: { compacta?: boolean }) {
             <button
               type="button"
               onClick={() => haz(a.accion!)}
-              className={`rounded-lg border-2 border-dashed border-tenue/50 px-3 text-left font-bold text-tinta hover:border-pino hover:text-pino ${compacta ? 'min-h-10 text-sm' : 'min-h-11 w-full'}`}
+              className={`rounded-lg border-2 border-dashed border-tenue/50 px-3 text-left font-bold text-tinta hover:border-pino hover:text-pino ${compacta ? 'min-h-10 text-sm max-sm:min-h-12' : 'min-h-11 w-full'}`}
             >
               {a.texto}
             </button>
@@ -200,7 +200,8 @@ function SelectorRol({ compacto = false }: { compacto?: boolean }) {
   const { s } = useDemo()
   const cambiar = useCambiarRol()
   return (
-    <fieldset className="min-w-0">
+    // En el teléfono, el selector de la franja se oculta: el completo está en la guía (ESPEC-ADR-027, 7.6.3).
+    <fieldset className={`min-w-0 ${compacto ? 'max-sm:hidden' : ''}`}>
       <legend className={compacto ? 'sr-only' : 'mb-2 font-bold'}>Ver como</legend>
       <div className={`flex flex-wrap gap-1 rounded-xl bg-tinta/6 p-1 ${compacto ? '' : ''}`}>
         {ROLES.map(({ rol, texto, quien, Icono }) => {
@@ -227,11 +228,11 @@ function SelectorRol({ compacto = false }: { compacto?: boolean }) {
   )
 }
 
-function EtiquetaModo({ real }: { real: boolean }) {
+function EtiquetaModo({ real, className = '' }: { real: boolean; className?: string }) {
   return real ? (
-    <span className="rounded-full bg-ok-fondo px-2 py-0.5 text-xs font-bold text-ok">Real</span>
+    <span className={`rounded-full bg-ok-fondo px-2 py-0.5 text-xs font-bold text-ok ${className}`}>Real</span>
   ) : (
-    <span className="rounded-full px-2 py-0.5 text-xs font-bold text-tenue ring-1 ring-linea ring-inset">Simulado</span>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-bold text-tenue ring-1 ring-linea ring-inset ${className}`}>Simulado</span>
   )
 }
 
@@ -239,7 +240,7 @@ function NavEscena() {
   const { s } = useDemo()
   const { indice, escena, siguiente, anterior } = useEscenas()
   const esReal = useEsReal()
-  const btn = 'grid size-10 shrink-0 place-items-center rounded-lg text-tinta hover:bg-tinta/7 disabled:opacity-35'
+  const btn = 'grid size-10 max-sm:size-12 shrink-0 place-items-center rounded-lg text-tinta hover:bg-tinta/7 disabled:opacity-35'
   return (
     <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Escenas">
       <button type="button" className={btn} onClick={anterior} disabled={indice <= 0} aria-label="Escena anterior" title="Escena anterior ([ o Re Pág)">
@@ -249,8 +250,9 @@ function NavEscena() {
         <span className="cifras text-sm text-tenue">
           {indice + 1} de {ESCENAS.length}
         </span>
-        <span className="font-bold">{escena?.titulo ?? 'Fuera del guion'}</span>
-        {escena && <EtiquetaModo real={esReal(escena.id)} />}
+        {/* En el teléfono, el título y la etiqueta están en la guía; el título se sigue anunciando. */}
+        <span className="font-bold max-sm:sr-only">{escena?.titulo ?? 'Fuera del guion'}</span>
+        {escena && <EtiquetaModo real={esReal(escena.id)} className="max-sm:hidden" />}
         {s.texto200 && escena?.id !== 'texto-200' && <span className="rounded-full bg-rocio px-2 py-0.5 text-sm font-bold text-pino">Texto al 200%</span>}
       </p>
       <button type="button" className={btn} onClick={siguiente} disabled={indice >= ESCENAS.length - 1} aria-label="Escena siguiente" title="Escena siguiente (] o Av Pág)">
@@ -266,7 +268,7 @@ function DireccionRelevo() {
   if (s.rol !== 'relevo') return null
   const limpia = s.relevo.urlLimpia || !s.relevo.token
   return (
-    <p className="text-sm text-tenue">
+    <p className="text-sm text-tenue max-sm:hidden">
       {/* Bajo 90 rem queda solo el valor: el rótulo y la aclaración no caben en una línea. */}
       <span className="sr-only @min-[90rem]:not-sr-only">Dirección: </span>
       <span className="cifras font-bold text-tinta">{limpia ? '/r' : `/r#${s.relevo.token!.slice(0, 6)}…`}</span>
@@ -277,39 +279,47 @@ function DireccionRelevo() {
 
 export function Franja() {
   const { cajon, setCajon } = usePresentador()
+  // El botón de la guía va al final de la franja y, en el teléfono, arriba a la derecha junto al
+  // distintivo (ESPEC-ADR-027, 7.6.3). Son dos botones y se ve uno, para que el orden del foco
+  // siga al visual en los dos anchos.
+  const guia = (clase: string) => (
+    <button
+      type="button"
+      onClick={() => setCajon((x) => !x)}
+      aria-expanded={cajon}
+      aria-controls="guia-presentador"
+      aria-label="Abrir la guía"
+      className={`min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 font-bold text-pino hover:bg-rocio ${clase}`}
+    >
+      <BookOpen aria-hidden className="size-5" />
+      {/* Bajo 90 rem la franja no cabe en una línea con el texto: quedan el ícono y la tecla. */}
+      <span className="hidden @min-[90rem]:inline">Guía</span>
+      <kbd className="rounded-md bg-tinta/7 px-1.5 text-xs font-bold text-tenue">?</kbd>
+    </button>
+  )
   return (
     <header aria-label="Controles de la demo" className="@container border-b border-linea bg-papel">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 @min-[90rem]:gap-x-3">
         <Distintivo />
+        {guia('hidden max-sm:ms-auto max-sm:inline-flex max-sm:min-h-12 max-sm:min-w-12')}
         <SelectorRol compacto />
         <NavEscena />
         <DireccionRelevo />
         <ListaAyudas compacta />
-        <span className="flex-1" />
-        <button
-          type="button"
-          onClick={() => setCajon((x) => !x)}
-          aria-expanded={cajon}
-          aria-controls="guia-presentador"
-          aria-label="Abrir la guía"
-          className="inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 font-bold text-pino hover:bg-rocio"
-        >
-          <BookOpen aria-hidden className="size-5" />
-          {/* Bajo 90 rem la franja no cabe en una línea con el texto: quedan el ícono y la tecla. */}
-          <span className="hidden @min-[90rem]:inline">Guía</span>
-          <kbd className="rounded-md bg-tinta/7 px-1.5 text-xs font-bold text-tenue">?</kbd>
-        </button>
+        <span className="flex-1 max-sm:hidden" />
+        {guia('inline-flex max-sm:hidden')}
       </div>
     </header>
   )
 }
 
 /** En modo presentación queda solo esto: el distintivo y una forma de volver a la guía. */
-export function DistintivoFlotante({ arriba = false }: { arriba?: boolean }) {
+/** `sobreBarra`: en el teléfono queda sobre la barra de secciones de la familia (ESPEC-ADR-027, 7.6.2). */
+export function DistintivoFlotante({ arriba = false, sobreBarra = false }: { arriba?: boolean; sobreBarra?: boolean }) {
   const { setCajon, cajon } = usePresentador()
   return (
     // Entre los dos bordes de la pantalla: el distintivo se acomoda al ancho que haya.
-    <div className={`pointer-events-none fixed inset-x-3 z-30 flex items-center gap-1 [&>*]:pointer-events-auto ${arriba ? 'top-3' : 'bottom-3'}`}>
+    <div className={`pointer-events-none fixed inset-x-3 z-30 flex items-center gap-1 [&>*]:pointer-events-auto ${arriba ? 'top-3' : sobreBarra ? 'bottom-3 max-sm:bottom-20' : 'bottom-3'}`}>
       <Distintivo flotante />
       <button
         type="button"

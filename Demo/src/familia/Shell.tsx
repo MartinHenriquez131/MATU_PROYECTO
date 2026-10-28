@@ -61,58 +61,92 @@ function destinoPedidos(s: Estado): PantallaFamiliaId {
   return e === 'entregado' ? 'entregado' : 'seguimiento'
 }
 
-const SECCIONES: { id: Seccion; texto: string; Icono: typeof House; destino: (s: Estado) => PantallaFamiliaId }[] = [
-  { id: 'inicio', texto: 'Inicio', Icono: House, destino: () => 'inicio' },
-  { id: 'ficha', texto: 'Ficha de relevo', Icono: ClipboardList, destino: () => 'ficha' },
-  { id: 'insumos', texto: 'Insumos', Icono: Package, destino: () => 'se-acaba' },
-  { id: 'pedidos', texto: 'Pedidos', Icono: ShoppingBag, destino: destinoPedidos },
-  { id: 'grupo', texto: 'Grupo familiar', Icono: UsersRound, destino: () => 'grupo' },
+/** `corto` es el rótulo de la barra inferior del teléfono (ESPEC-ADR-027, 7.6.1). */
+const SECCIONES: { id: Seccion; texto: string; corto: string; Icono: typeof House; destino: (s: Estado) => PantallaFamiliaId }[] = [
+  { id: 'inicio', texto: 'Inicio', corto: 'Inicio', Icono: House, destino: () => 'inicio' },
+  { id: 'ficha', texto: 'Ficha de relevo', corto: 'Ficha', Icono: ClipboardList, destino: () => 'ficha' },
+  { id: 'insumos', texto: 'Insumos', corto: 'Insumos', Icono: Package, destino: () => 'se-acaba' },
+  { id: 'pedidos', texto: 'Pedidos', corto: 'Pedidos', Icono: ShoppingBag, destino: destinoPedidos },
+  { id: 'grupo', texto: 'Grupo familiar', corto: 'Grupo', Icono: UsersRound, destino: () => 'grupo' },
 ]
 
-/** Una pista de estado junto a cada sección: siempre con palabra. */
-function Pista({ seccion }: { seccion: Seccion }) {
-  const { s } = useDemo()
+type EstadoPista = { tipo: 'campos'; hechos: number } | { tipo: 'pronto' } | { tipo: 'curso' } | null
+
+function estadoPista(s: Estado, seccion: Seccion): EstadoPista {
   if (seccion === 'ficha') {
     const h = completados(s)
-    return h < 3 ? <span className="cifras text-base text-tenue">{h} de 3</span> : null
+    return h < 3 ? { tipo: 'campos', hechos: h } : null
   }
   if (seccion === 'insumos') {
     const pronto = s.insumos.filter((i) => i.declarado && nivel(diasRestantes(i)) === 'pronto').length
-    return pronto ? (
-      <span className="inline-flex items-center gap-1 text-base font-bold text-pronto">
-        <span aria-hidden className="size-2 rounded-full bg-current" />
-        Pronto
-      </span>
-    ) : null
+    return pronto ? { tipo: 'pronto' } : null
   }
   if (seccion === 'pedidos') {
     const e = s.pedido?.estado
-    return e && ['pagado', 'preparando', 'listo', 'en_camino'].includes(e) ? <span className="text-base font-bold text-pino">En curso</span> : null
+    return e && ['pagado', 'preparando', 'listo', 'en_camino'].includes(e) ? { tipo: 'curso' } : null
   }
   return null
+}
+
+/**
+ * Una pista de estado junto a cada sección: siempre con palabra. En el teléfono la palabra queda
+ * para el lector de pantalla y se ve un punto sobre el ícono (`PuntoPista`).
+ */
+function Pista({ pista }: { pista: EstadoPista }) {
+  if (!pista) return null
+  if (pista.tipo === 'campos') return <span className="cifras text-base text-tenue telefono:sr-only">{pista.hechos} de 3</span>
+  if (pista.tipo === 'pronto')
+    return (
+      <span className="inline-flex items-center gap-1 text-base font-bold text-pronto telefono:sr-only">
+        <span aria-hidden className="size-2 rounded-full bg-current" />
+        Pronto
+      </span>
+    )
+  return <span className="text-base font-bold text-pino telefono:sr-only">En curso</span>
+}
+
+/** El punto sobre el ícono de la barra inferior: hay pista o no la hay, además del color. */
+function PuntoPista({ pista }: { pista: EstadoPista }) {
+  if (!pista) return null
+  return (
+    <span
+      aria-hidden
+      className={`absolute -top-0.5 -right-1 hidden size-2.5 rounded-full bg-current telefono:block ${pista.tipo === 'pronto' ? 'text-pronto' : 'text-pino'}`}
+    />
+  )
 }
 
 function Navegacion() {
   const { s, haz } = useDemo()
   const actual = SECCION_DE[pantallaFamilia(s).id]
   return (
-    <nav aria-label="Secciones">
-      <ul className="flex flex-wrap gap-1 @4xl/app:flex-col">
-        {SECCIONES.map(({ id, texto, Icono, destino }) => {
+    <nav
+      aria-label="Secciones"
+      className="telefono:fixed telefono:inset-x-0 telefono:bottom-0 telefono:z-20 telefono:border-t telefono:border-linea telefono:bg-hoja telefono:px-1 telefono:py-1"
+    >
+      <ul className="flex flex-wrap gap-1 @4xl/app:flex-col telefono:grid telefono:grid-cols-5 telefono:gap-1">
+        {SECCIONES.map(({ id, texto, corto, Icono, destino }) => {
           const on = actual === id
+          const pista = estadoPista(s, id)
           return (
             <li key={id} className="max-w-full min-w-0">
               <button
                 type="button"
                 aria-current={on ? 'page' : undefined}
                 onClick={() => haz((x) => pilaFamilia(x, [destino(x)]))}
-                className={`flex min-h-11 telefono:min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap ${
-                  on ? 'bg-hoja font-bold text-pino ring-1 ring-linea' : 'text-tinta hover:bg-tinta/6'
+                className={`flex min-h-11 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap telefono:min-h-14 telefono:flex-col telefono:flex-nowrap telefono:justify-center telefono:gap-0.5 telefono:px-1 telefono:text-center telefono:text-sm telefono:leading-tight ${
+                  on ? 'bg-hoja font-bold text-pino ring-1 ring-linea telefono:bg-rocio telefono:ring-0' : 'text-tinta hover:bg-tinta/6'
                 }`}
               >
-                <Icono aria-hidden className="size-5 shrink-0" strokeWidth={on ? 2.4 : 2} />
-                <span className="min-w-0 flex-1 break-words @4xl/app:whitespace-nowrap">{texto}</span>
-                <Pista seccion={id} />
+                <span className="relative grid shrink-0">
+                  <Icono aria-hidden className="size-5 shrink-0" strokeWidth={on ? 2.4 : 2} />
+                  <PuntoPista pista={pista} />
+                </span>
+                <span className="min-w-0 flex-1 break-words @4xl/app:whitespace-nowrap telefono:flex-none">
+                  <span className="telefono:hidden">{texto}</span>
+                  <span className="hidden telefono:inline">{corto}</span>
+                </span>
+                <Pista pista={pista} />
               </button>
             </li>
           )
@@ -153,7 +187,7 @@ function Encabezado() {
 export function ShellFamilia({ children }: { children: ReactNode }) {
   return (
     <div className="grid flex-1 @4xl/app:grid-cols-[16.5rem_minmax(0,1fr)]">
-      <aside className="border-b border-linea px-3 py-3 @4xl/app:border-r @4xl/app:border-b-0 @4xl/app:py-5">
+      <aside className="border-b border-linea px-3 py-3 telefono:py-2 @4xl/app:border-r @4xl/app:border-b-0 @4xl/app:py-5">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 @4xl/app:sticky @4xl/app:top-4 @4xl/app:flex-col @4xl/app:items-stretch @4xl/app:gap-7">
           <Marca className="px-2" />
           <Navegacion />
@@ -161,7 +195,7 @@ export function ShellFamilia({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex min-w-0 flex-col">
         <Encabezado />
-        <main id="contenido" tabIndex={-1} className="@container/main flex-1 px-4 angosto:px-2 @3xl:px-11 pt-6 pb-16 outline-none">
+        <main id="contenido" tabIndex={-1} className="@container/main flex-1 px-4 angosto:px-2 @3xl:px-11 pt-6 pb-16 telefono:pb-36 outline-none">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
