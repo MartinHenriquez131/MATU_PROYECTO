@@ -16,6 +16,8 @@ Cada historia agrega aquí lo suyo:
   Jorge del 28-10, desvío explícito del ADR-016). Solo con ENTORNO local o pruebas y datos
   sintéticos: con cualquier otro entorno, definir una de ellas impide cargar la configuración y la
   API no arranca. Ver app/modules/care_plan/infrastructure/custodia_kek_entorno.py
+- MATU-18: PEPPER_PIN, la llave del HMAC del PIN del acceso de relevo, y ORIGEN_WEB, el origen https
+  del enlace /r#<token> que se entrega al compartir
 """
 
 import base64
@@ -87,7 +89,16 @@ class Configuracion(BaseSettings):
     # bajo la misma versión no se desenvuelve, y nunca se reemplaza por una nueva.
     kek_version: int = Field(default=1, ge=1)
 
-    @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", mode="before")
+    # Llave del HMAC-SHA256 del PIN del acceso de relevo (MATU-18, contrato: notas para implementar).
+    # Vive fuera de la base: sin ella, una copia de acceso_relevo no basta para recuperar un PIN de 4
+    # dígitos por fuerza bruta. Distinta de los otros secretos. Opcional para cargar la configuración;
+    # sin ella, compartir responde 503 y falla cerrado.
+    pepper_pin: SecretStr | None = Field(default=None, min_length=32)
+
+    # Origen https de la aplicación web, sin barra final: el enlace del relevo es <origen>/r#<token>
+    origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
+
+    @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", mode="before")
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
@@ -142,6 +153,19 @@ class Configuracion(BaseSettings):
                 raise ValueError(f"KEK_ENTORNO y {nombre} deben ser claves distintas")
         if kek in self.database_url:
             raise ValueError("KEK_ENTORNO no puede ser parte de DATABASE_URL")
+        return self
+
+    @model_validator(mode="after")
+    def _pepper_pin_distinto_de_otros_secretos(self) -> "Configuracion":
+        # El mensaje nombra las variables, nunca sus valores
+        if self.pepper_pin is None:
+            return self
+        pin = self.pepper_pin.get_secret_value()
+        for nombre, secreto in (
+            ("PEPPER_EMAIL", self.pepper_email), ("JWT_CLAVE", self.jwt_clave), ("KEK_ENTORNO", self.kek_entorno)
+        ):
+            if secreto is not None and secreto.get_secret_value() == pin:
+                raise ValueError(f"PEPPER_PIN y {nombre} deben ser claves distintas")
         return self
 
     @model_validator(mode="after")
