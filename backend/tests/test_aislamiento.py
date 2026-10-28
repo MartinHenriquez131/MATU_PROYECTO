@@ -377,6 +377,49 @@ def test_borrado_criptografico_es_explicito(cx):
     cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()")
 
 
+# MATU-11, migración 0003: una clave destruida no resucita, ni borrándola ni actualizándola
+
+def test_la_api_no_borra_la_clave_de_datos(cx):
+    """Sin la fila, la persona quedaría en "no existe" y la escritura siguiente crearía otra DEK."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "clave_datos") == 1
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM clave_datos WHERE persona_cuidada_id = %s", (P_A,))
+
+
+@pytest.mark.parametrize("db_rol", ["matu_app", None])   # None: superusuario, el trigger también lo alcanza
+@pytest.mark.parametrize("cambio", [
+    "dek_cifrada_con_kek = '\\x03', destruida_en = NULL",          # devolverle una DEK
+    "dek_cifrada_con_kek = '\\x03'",                               # DEK con marca de destrucción (también el CHECK)
+    "destruida_en = NULL",                                         # quitar la marca (también el CHECK)
+    "destruida_en = destruida_en + interval '1 day'",              # mover la marca
+    "kek_version = 2",
+    "rotada_en = now()",
+])
+def test_clave_destruida_no_vuelve_a_tener_dek(cx, db_rol, cambio):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now() WHERE persona_cuidada_id = %s",
+               (P_A,))
+    if db_rol is None:
+        cx.execute("RESET ROLE")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(f"UPDATE clave_datos SET {cambio} WHERE persona_cuidada_id = %s", (P_A,))
+    # Tampoco se crea otra clave para la misma persona
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        cx.execute("""INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)
+                      VALUES (%s, %s, '\\x04', 1)""", (G_A, P_A))
+    assert cx.execute("SELECT dek_cifrada_con_kek IS NULL FROM clave_datos WHERE persona_cuidada_id = %s",
+                      (P_A,)).fetchone() == (True,)
+
+
+def test_clave_vigente_se_sigue_actualizando(cx):
+    """El trigger solo fija la fila destruida: la vigente se puede volver a envolver (rotación futura)."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = '\\x05', kek_version = 2, rotada_en = now()"
+               " WHERE persona_cuidada_id = %s", (P_A,))
+    assert cx.execute("SELECT kek_version FROM clave_datos WHERE persona_cuidada_id = %s", (P_A,)).fetchone() == (2,)
+
+
 def test_nonce_no_se_repite(cx):
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     with pytest.raises(errors.UniqueViolation):

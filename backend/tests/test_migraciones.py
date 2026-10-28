@@ -187,3 +187,54 @@ def test_0002_sube_convierte_las_filas_y_baja_al_esquema_de_0001(base_desechable
 
     # ---- y vuelve a subir
     alembic("upgrade", "head")
+
+
+# ---- 0003 (MATU-11): una clave de datos destruida no resucita
+
+CLAVE_VIGENTE, CLAVE_DESTRUIDA = ("00000000-0000-0000-0000-0000000009" + s for s in ("a1", "a2"))
+P2 = "00000000-0000-0000-0000-0000000000" + "1b"
+
+FILAS_CLAVES = f"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U}', 'a@correo.ejemplo', 'Persona A', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G}', 'Familia A', '{U}');
+INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VALUES
+ ('{P}', '{G}', 'Persona Cuidada', 'Persona', 'apoyo_total'),
+ ('{P2}', '{G}', 'Otra Persona', 'Otra', 'apoyo_parcial');
+INSERT INTO clave_datos (id, grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version, destruida_en) VALUES
+ ('{CLAVE_VIGENTE}', '{G}', '{P}', '\x01', 1, NULL),
+ ('{CLAVE_DESTRUIDA}', '{G}', '{P2}', NULL, 1, now());
+"""
+
+
+def _permisos_clave_datos() -> set[str]:
+    return {r[0] for r in consultar(
+        "SELECT privilege_type FROM information_schema.role_table_grants"
+        " WHERE table_name = 'clave_datos' AND grantee = 'matu_app'")}
+
+
+def test_0003_fija_la_clave_destruida_y_baja_al_esquema_de_0002(base_desechable):
+    alembic("upgrade", "0002")
+    esquema_0002 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_CLAVES)
+    assert "DELETE" in _permisos_clave_datos()
+
+    # ---- sube: matu_app pierde DELETE y la clave destruida queda fija; la vigente no cambia
+    alembic("upgrade", "0003")
+    assert _permisos_clave_datos() == {"SELECT", "INSERT", "UPDATE"}
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE clave_datos SET dek_cifrada_con_kek = '\x02', destruida_en = NULL"
+                  f" WHERE id = '{CLAVE_DESTRUIDA}'")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE clave_datos SET kek_version = 2 WHERE id = '{CLAVE_VIGENTE}'")
+    assert sorted(consultar("SELECT kek_version, destruida_en IS NULL FROM clave_datos")) == [(1, False), (2, True)]
+
+    # ---- baja: el esquema vuelve a ser exactamente el de 0002, con las filas intactas
+    alembic("downgrade", "0002")
+    despues = catalogo()
+    for parte, filas in esquema_0002.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM clave_datos") == [(2,)]
+
+    # ---- y vuelve a subir
+    alembic("upgrade", "head")
