@@ -242,3 +242,101 @@ class AuditoriaFicha(Protocol):
     def registrar_lectura(self, evento: EventoFicha) -> None: ...
 
     def registrar_edicion(self, evento: EventoFicha) -> None: ...
+
+
+# --- Acceso de relevo (MATU-18, RF-05) ------------------------------------------------------------------
+
+
+class GeneradorCredencialesRelevo(Protocol):
+    """El token (32 bytes aleatorios, 256 bits) y el PIN de 4 dígitos de un acceso nuevo.
+
+    Implementación: GeneradorSecrets (infrastructure/credenciales_relevo.py), con el módulo secrets.
+    """
+
+    def token(self) -> bytes: ...
+
+    def pin(self) -> str: ...
+
+
+class HuellasRelevo(Protocol):
+    """Lo único que se guarda del token y del PIN (contrato, notas para implementar).
+
+    - El token: su SHA-256. 256 bits aleatorios no se recuperan por fuerza bruta.
+    - El PIN: un HMAC-SHA-256 con pepper (PEPPER_PIN), ligado al acceso. 10.000 valores sí se
+      recuperan con un hash simple: el pepper vive fuera de la base.
+
+    Implementación: HuellasHmac (infrastructure/credenciales_relevo.py).
+    """
+
+    def huella_token(self, token: bytes) -> bytes: ...
+
+    def huella_pin(self, acceso_id: uuid.UUID, pin: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class AccesoNuevo:
+    """La fila de acceso_relevo y de indice_token, sin el token ni el PIN en claro."""
+
+    id: uuid.UUID
+    grupo_id: uuid.UUID
+    plan_id: uuid.UUID
+    otorgado_por: uuid.UUID
+    nombre_relevo: str
+    telefono_relevo: str = field(repr=False)
+    nombre_pila_persona: str
+    nombre_pila_comparte: str
+    campos: tuple[str, ...]
+    motivo: str
+    token_hash: bytes = field(repr=False)
+    pin_hash: str = field(repr=False)
+    creado_en: datetime
+    expira_en: datetime
+    request_id: str | None
+
+
+@dataclass(frozen=True)
+class AccesoListado:
+    id: uuid.UUID
+    nombre_relevo: str
+    telefono_relevo: str | None = field(repr=False)
+    campos: tuple[str, ...]
+    motivo: str
+    creado_en: datetime
+    expira_en: datetime
+    revocado_en: datetime | None
+    pin_intentos_fallidos: int
+    usos: int
+    ultimo_uso_en: datetime | None
+    otorgado_por: Autor | None
+
+
+@dataclass(frozen=True)
+class Posicion:
+    """Dónde sigue la página siguiente: la lista va por (creado_en, id) descendente."""
+
+    creado_en: datetime
+    id: uuid.UUID
+
+
+class RepositorioAccesos(Protocol):
+    """Persistencia de acceso_relevo e indice_token, en la transacción de la petición.
+
+    Trabaja con la sesión del contexto de grupo: la política acceso_familia acota acceso_relevo al
+    grupo y a quien puede ver el plan. Nunca recibe el token ni el PIN en claro.
+
+    Implementación: RepositorioAccesosSQL (infrastructure/repositorio_accesos.py).
+    """
+
+    def nombre_pila_persona(self, persona_cuidada_id: uuid.UUID) -> str | None: ...
+
+    def nombre_usuario(self, usuario_id: uuid.UUID) -> str | None: ...
+
+    def crear(self, acceso: AccesoNuevo) -> None:
+        """Inserta el acceso, su fila de indice_token y la auditoría relevo.compartir."""
+        ...
+
+    def listar(
+        self, plan_id: uuid.UUID, ahora: datetime, estado: str | None, despues_de: Posicion | None, limite: int
+    ) -> list[AccesoListado]:
+        """Hasta ``limite`` accesos del plan, del más nuevo al más antiguo, con ``estado`` si se pide."""
+        ...
