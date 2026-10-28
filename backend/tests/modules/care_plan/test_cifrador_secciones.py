@@ -429,6 +429,13 @@ def test_repr_del_cifrador_y_de_la_seccion_sin_texto_ni_claves() -> None:
     for secreto in (texto, espia.deks[0].hex(), espia.envueltas[0].dek_cifrada.hex()):
         assert secreto not in vistas
 
+    # La DEK envuelta tampoco sale en el repr de DekEnvuelta, como en ClaveGuardada
+    envuelta = espia.envueltas[0]
+    vista_envuelta = repr(envuelta) + str(envuelta)
+    assert envuelta.dek_cifrada.hex() not in vista_envuelta
+    assert repr(envuelta.dek_cifrada) not in vista_envuelta
+    assert f"kek_version={envuelta.kek_version}" in vista_envuelta
+
 
 def test_el_cifrador_no_guarda_la_dek_en_claro() -> None:
     # Condición 5: la DEK en claro vive solo durante la operación. Ni el cifrador ni lo que se

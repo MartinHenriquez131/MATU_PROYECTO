@@ -13,7 +13,7 @@ la DEK de la persona. RepositorioClaves guarda y lee la fila de clave_datos.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.modules.care_plan.domain.cifrado import ClaveGuardada, SeccionCifrada
@@ -21,9 +21,10 @@ from app.modules.care_plan.domain.cifrado import ClaveGuardada, SeccionCifrada
 
 @dataclass(frozen=True)
 class DekEnvuelta:
-    """Una DEK cifrada con la KEK, tal como se guarda en clave_datos."""
+    """Una DEK cifrada con la KEK, tal como se guarda en clave_datos. La DEK envuelta no sale
+    en el repr, igual que en ClaveGuardada."""
 
-    dek_cifrada: bytes
+    dek_cifrada: bytes = field(repr=False)
     kek_version: int
 
 
