@@ -21,6 +21,7 @@ from app.modules.iam.api.dependencias import obtener_clave_jwt
 from app.modules.iam.api.router import obtener_pepper_email
 from app.modules.iam.domain.credenciales import indice_email
 from tests.base_datos import DSN, requiere_base
+from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.fabricas import Fabrica
 from tests.fabricas.datos import DOMINIO_CORREO
 
@@ -231,6 +232,43 @@ def test_ficha_es_un_plan_ficha_relevo_sin_secciones(fabrica: Fabrica) -> None:
     )
     assert fila == (persona.grupo_id, persona.id, "ficha_relevo", 0)
     assert _contar("SELECT count(*) FROM plan_seccion WHERE plan_id = %s", ficha.plan_id) == 0
+
+
+def test_ficha_con_textos_escribe_las_secciones_cifradas(fabrica: Fabrica) -> None:
+    # MATU-12: la fábrica cifra con el mismo CifradorAesGcm que la API y nunca guarda texto en claro
+    grupo = fabrica.grupo()
+    persona = fabrica.persona_cuidada(grupo)
+    marca = secrets.token_hex(6)
+    textos = {"rutina": f"08:00 Despierta. Marca {marca}", "red_apoyo": f"Rodrigo: +56 9 5555 0102. Marca {marca}"}
+
+    ficha = fabrica.ficha(persona, textos=textos, custodia=CustodiaEnMemoria(), actualizado_por=grupo.admin_id)
+
+    assert ficha.campos == ("rutina", "red_apoyo")
+    assert _una("SELECT modo, completitud_pct FROM plan_cuidado WHERE id = %s", ficha.plan_id) == ("ficha_relevo", 67)
+    with psycopg.connect(DSN) as cx:
+        secciones = cx.execute(
+            "SELECT tipo, contenido_cifrado, version, actualizado_por FROM plan_seccion"
+            " WHERE plan_id = %s ORDER BY tipo",
+            (ficha.plan_id,),
+        ).fetchall()
+    assert [(tipo, version, autor) for tipo, _, version, autor in secciones] == [
+        ("red_apoyo", 1, grupo.admin_id),
+        ("rutina", 1, grupo.admin_id),
+    ]
+    assert all(marca.encode() not in bytes(contenido) for _, contenido, _, _ in secciones)
+    assert _contar("SELECT count(*) FROM clave_datos WHERE persona_cuidada_id = %s", persona.id) == 1
+    assert "clave_datos" in {tabla for tabla, _ in fabrica.creados}
+
+
+def test_ficha_con_textos_sin_custodia_no_escribe_nada(fabrica: Fabrica) -> None:
+    persona = fabrica.persona_cuidada(fabrica.grupo())
+
+    with pytest.raises(ValueError, match="custodia"):
+        fabrica.ficha(persona, textos={"rutina": "Hola"})
+    with pytest.raises(ValueError):
+        fabrica.ficha(persona, textos={"diagnostico": "Hola"}, custodia=object())  # type: ignore[arg-type]
+
+    assert _contar("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", persona.id) == 0
 
 
 def test_familia_tiene_un_miembro_por_rol(fabrica: Fabrica) -> None:

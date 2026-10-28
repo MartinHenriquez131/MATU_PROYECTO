@@ -32,6 +32,20 @@ INSERTAR_PLAN = (
 )
 
 
+# Las secciones de la ficha, siempre cifradas (MATU-12): la fábrica nunca escribe texto en claro
+INSERTAR_SECCION = (
+    "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
+    " actualizado_por) VALUES (%s, %s, %s, %s, %s, %s, 1, %s)"
+)
+ACTUALIZAR_COMPLETITUD = "UPDATE plan_cuidado SET completitud_pct = %s WHERE id = %s"
+LEER_CLAVE = "SELECT dek_cifrada_con_kek, kek_version FROM clave_datos WHERE persona_cuidada_id = %s"
+CREAR_CLAVE = (
+    "INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+    " VALUES (%s, %s, %s, %s) ON CONFLICT (persona_cuidada_id) DO NOTHING"
+)
+CLAVE_DE_PERSONA = "SELECT id FROM clave_datos WHERE persona_cuidada_id = %s"
+
+
 def insertar_grupo(cx: Any, grupo_id: uuid.UUID, nombre: str, creado_por: uuid.UUID) -> None:
     """Solo la fila de grupo_familiar. La membresía admin del creador va aparte (insertar_membresia)."""
     cx.execute(INSERTAR_GRUPO, (grupo_id, nombre, creado_por))

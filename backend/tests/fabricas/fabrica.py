@@ -11,7 +11,8 @@ por argumento, y devuelve un dataclass con los identificadores creados:
     rodrigo = fabrica.usuario(nombre="Rodrigo Soto")
     fabrica.membresia(grupo, rodrigo, "pagador", puede_ver_plan=True)
     maria = fabrica.persona_cuidada(grupo, calidad="cuidador_de_hecho")
-    ficha = fabrica.ficha(maria)
+    ficha = fabrica.ficha(maria)                      # el plan, sin secciones
+    con_texto = fabrica.ficha(otra, textos={"rutina": "..."}, custodia=custodia)  # secciones cifradas
     fabrica.limpiar()
 
 Siembran como superusuario (MATU_TEST_DSN), igual que las pruebas existentes: la API no tiene aún
@@ -28,6 +29,7 @@ razón por la que la aplicación los genera en vez de usar RETURNING).
 import json
 import secrets
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -41,17 +43,26 @@ from app.modules.care_circle.domain.personas import (
     evidencia,
     revision_vence_en,
 )
+from app.modules.care_plan.application.ports import CustodiaClaves, DekEnvuelta
+from app.modules.care_plan.domain.cifrado import ClaveGuardada
+from app.modules.care_plan.domain.ficha import CampoFicha, completitud, normalizar_texto
+from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.iam.domain.credenciales import indice_email, normalizar_email
 from tests.base_datos import DSN
 from tests.fabricas import datos
 from tests.fabricas.sql import (
+    ACTUALIZAR_COMPLETITUD,
     BORRAR_CONTENIDO_DE_GRUPOS,
+    CLAVE_DE_PERSONA,
+    CREAR_CLAVE,
     INSERTAR_CONSENTIMIENTO,
     INSERTAR_DIRECCION,
     INSERTAR_INDICE,
     INSERTAR_PERSONA,
     INSERTAR_PLAN,
+    INSERTAR_SECCION,
     INSERTAR_USUARIO,
+    LEER_CLAVE,
     insertar_grupo,
     insertar_membresia,
 )
@@ -67,7 +78,16 @@ MIEMBROS_POR_OMISION = ("cuidador", "pagador_con_plan", "pagador", "observador")
 # Las únicas tablas que anotar() acepta y limpiar() borra por id. limpiar() interpola el nombre en el
 # DELETE, y anotar() es público: la lista blanca evita que un nombre arbitrario llegue al SQL.
 TABLAS_ANOTABLES = frozenset(
-    {"usuario", "grupo_familiar", "membresia", "direccion", "persona_cuidada", "consentimiento", "plan_cuidado"}
+    {
+        "usuario",
+        "grupo_familiar",
+        "membresia",
+        "direccion",
+        "persona_cuidada",
+        "consentimiento",
+        "plan_cuidado",
+        "clave_datos",
+    }
 )
 
 
@@ -120,6 +140,8 @@ class FichaCreada:
     plan_id: uuid.UUID
     grupo_id: uuid.UUID
     persona_cuidada_id: uuid.UUID
+    # Los campos que la fábrica escribió, cifrados. Vacío si se creó sin textos
+    campos: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -369,24 +391,77 @@ class Fabrica:
 
     # --- Ficha de relevo ----------------------------------------------------------------------------
 
-    def ficha(self, persona: PersonaCreada, *, actualizado_por: uuid.UUID | None = None) -> FichaCreada:
-        """El plan de cuidado de la persona en modo 'ficha_relevo', SIN secciones.
+    def ficha(
+        self,
+        persona: PersonaCreada,
+        *,
+        actualizado_por: uuid.UUID | None = None,
+        textos: Mapping[str, str] | None = None,
+        custodia: CustodiaClaves | None = None,
+    ) -> FichaCreada:
+        """El plan de cuidado de la persona en modo 'ficha_relevo' y, si llegan ``textos``, sus secciones
+        cifradas, como las deja el PUT de la ficha (MATU-12).
 
         Es un paso aparte y no lo da familia() por omisión: plan_cuidado.persona_cuidada_id es
         UNIQUE, así que la persona admite un solo plan. Las pruebas de MATU-12 (el plan nace en la
         primera escritura) necesitan a la persona sin plan; las que parten de una ficha existente
         la piden con ficha() o con familia(con_ficha=True).
 
-        TODO(MATU-11): las tres secciones (rutina, manejo_situaciones, red_apoyo) van cifradas con
-        AES-256-GCM y la clave de datos de la persona. Cuando MATU-11 entregue CifradorSecciones,
-        esta fábrica recibe los textos y los escribe cifrados con él, más su fila de clave_datos.
-        Nunca se escribe texto de la ficha en claro, ni siquiera sintético.
+        - ``textos``: campo de la ficha (rutina, manejo_situaciones o red_apoyo) → texto sintético.
+          Se normalizan igual que en la API y se cifran con CifradorAesGcm (AES-256-GCM, AAD
+          plan_id ‖ tipo) y la DEK de la persona, que se crea y se envuelve con ``custodia`` si no
+          existe. Cada sección queda en versión 1, escrita por ``actualizado_por``, y el plan con su
+          completitud. Nunca se escribe texto de la ficha en claro, ni siquiera sintético.
+        - ``custodia``: obligatoria con ``textos``. Para que la API de la prueba lea la ficha, debe ser
+          la misma custodia que usa la API (por ejemplo la fixture ``custodia``, entregada también a
+          ``app.dependency_overrides[obtener_custodia]``).
         """
+        pedidos = dict(textos or {})
+        if pedidos and custodia is None:
+            raise ValueError("para escribir textos hace falta la custodia que usa la API")
+        # CampoFicha(...) lanza ValueError si el campo no es uno de los tres
+        normalizados = {CampoFicha(campo): normalizar_texto(texto) for campo, texto in pedidos.items()}
+
         plan_id = uuid.uuid4()
-        with self._conectar() as cx:
+        clave_id: uuid.UUID | None = None
+        with self._conectar() as cx, cx.transaction():
             cx.execute(INSERTAR_PLAN, (plan_id, persona.grupo_id, persona.id, actualizado_por))
+            if normalizados:
+                assert custodia is not None
+                cifrador = CifradorAesGcm(custodia, _RepositorioClavesFabrica(cx))
+                for campo, texto in normalizados.items():
+                    seccion = cifrador.cifrar(
+                        grupo_id=persona.grupo_id,
+                        persona_cuidada_id=persona.id,
+                        plan_id=plan_id,
+                        tipo=campo.value,
+                        texto=texto,
+                    )
+                    cx.execute(
+                        INSERTAR_SECCION,
+                        (
+                            plan_id,
+                            campo.value,
+                            seccion.contenido_cifrado,
+                            seccion.nonce,
+                            seccion.tag_auth,
+                            seccion.kek_version,
+                            actualizado_por,
+                        ),
+                    )
+                pct = completitud(sum(1 for texto in normalizados.values() if texto))
+                cx.execute(ACTUALIZAR_COMPLETITUD, (pct, plan_id))
+                fila = cx.execute(CLAVE_DE_PERSONA, (persona.id,)).fetchone()
+                clave_id = None if fila is None else fila[0]
         self.anotar("plan_cuidado", plan_id)
-        return FichaCreada(plan_id=plan_id, grupo_id=persona.grupo_id, persona_cuidada_id=persona.id)
+        if clave_id is not None:
+            self.anotar("clave_datos", clave_id)
+        return FichaCreada(
+            plan_id=plan_id,
+            grupo_id=persona.grupo_id,
+            persona_cuidada_id=persona.id,
+            campos=tuple(campo.value for campo in normalizados),
+        )
 
     # --- Una familia completa -------------------------------------------------------------------------
 
@@ -457,3 +532,30 @@ class Fabrica:
                 cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM usuario WHERE id = ANY(%s::uuid[])", (usuarios,))
         self.creados.clear()
+
+
+class _RepositorioClavesFabrica:
+    """El puerto RepositorioClaves sobre la conexión de superusuario de la fábrica.
+
+    Mismas sentencias que RepositorioClavesSQL (FOR SHARE al escribir y ON CONFLICT DO NOTHING al
+    crear), dentro de la transacción de la fábrica: la clave y las secciones quedan juntas o no quedan.
+    """
+
+    def __init__(self, cx: Any) -> None:
+        self._cx = cx
+
+    def obtener(self, persona_cuidada_id: uuid.UUID, *, para_escribir: bool = False) -> ClaveGuardada | None:
+        sentencia = LEER_CLAVE + (" FOR SHARE" if para_escribir else "")
+        fila = self._cx.execute(sentencia, (persona_cuidada_id,)).fetchone()
+        if fila is None:
+            return None
+        dek_cifrada, kek_version = fila
+        return ClaveGuardada(
+            kek_version=kek_version, dek_cifrada=bytes(dek_cifrada) if dek_cifrada is not None else None
+        )
+
+    def crear(self, grupo_id: uuid.UUID, persona_cuidada_id: uuid.UUID, envuelta: DekEnvuelta) -> bool:
+        cursor = self._cx.execute(
+            CREAR_CLAVE, (grupo_id, persona_cuidada_id, envuelta.dek_cifrada, envuelta.kek_version)
+        )
+        return bool(cursor.rowcount == 1)
