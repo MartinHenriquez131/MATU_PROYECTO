@@ -368,7 +368,7 @@ export function PedidoPantalla() {
                 Leí y acepto las condiciones del pedido.
               </label>
               <details className="group">
-                <summary className="inline-flex min-h-10 cursor-pointer items-center px-1 font-bold text-pino underline decoration-pino/40 underline-offset-4">
+                <summary className="inline-flex min-h-10 telefono:min-h-12 cursor-pointer items-center px-1 font-bold text-pino underline decoration-pino/40 underline-offset-4">
                   Ver las condiciones
                 </summary>
                 <ul className="mt-2 flex list-disc flex-col gap-1.5 bg-hoja py-3 pr-4 pl-9 ring-1 ring-linea">

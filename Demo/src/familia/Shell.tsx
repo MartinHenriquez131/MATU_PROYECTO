@@ -106,7 +106,7 @@ function Navegacion() {
                 type="button"
                 aria-current={on ? 'page' : undefined}
                 onClick={() => haz((x) => pilaFamilia(x, [destino(x)]))}
-                className={`flex min-h-11 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap ${
+                className={`flex min-h-11 telefono:min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap ${
                   on ? 'bg-hoja font-bold text-pino ring-1 ring-linea' : 'text-tinta hover:bg-tinta/6'
                 }`}
               >
@@ -202,7 +202,7 @@ export function Volver() {
     <button
       type="button"
       onClick={() => haz((x) => volverHasta(x, pila.length - 2))}
-      className="inline-flex min-h-10 items-center gap-1 self-start rounded-lg pr-2 font-bold text-pino hover:underline"
+      className="inline-flex min-h-10 telefono:min-h-12 items-center gap-1 self-start rounded-lg pr-2 font-bold text-pino hover:underline"
     >
       <ChevronLeft aria-hidden className="size-5" />
       Volver a {NOMBRE[anterior.id] ?? 'la pantalla anterior'}
