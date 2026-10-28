@@ -133,6 +133,10 @@
     line-height: 1.5;
     min-height: 100dvh;
     overflow-x: hidden;
+    /* Red de seguridad del reflujo (ESPEC-ADR-027, 7.2): una palabra que no cabe sola en su renglón
+       se parte en vez de salirse. `break-word` y no `anywhere`: no cambia el ancho mínimo de nada,
+       así que a 1280 y 1920 px no mueve una sola caja, y no deja columnas de una letra. */
+    overflow-wrap: break-word;
   }
   button,
   input,
@@ -162,6 +166,30 @@
   }
   p {
     text-wrap: pretty;
+  }
+}
+
+/*
+ * Variantes de composición (DISENO.md, sección 3; ESPEC-ADR-027, sección 7).
+ *   angosto   la app mide menos de 16 rem. Solo pasa con "Texto al 200%" en una pantalla de menos
+ *             de 544 px (o con el zoom del navegador sobre 400%). Ahí se quitan rellenos y se apila
+ *             lo que va lado a lado. Nunca se activa a 320 px sin zoom ni en el proyector.
+ *   telefono  la pantalla mide menos de 40 rem (640 px) y la app no está en modo angosto: la vista
+ *             de app móvil, con la barra de secciones abajo. Nunca se activa a 1280 px, tampoco con
+ *             "Texto al 200%", porque mira el ancho de la pantalla y no el de la app.
+ * Las dos miran el contenedor `app` del escenario, así que solo sirven dentro de la app. Lo que
+ * está fuera de ella (la franja y el distintivo del presentador) usa `max-sm:`, el mismo 40 rem.
+ */
+@custom-variant angosto {
+  @container app (width < 16rem) {
+    @slot;
+  }
+}
+@custom-variant telefono {
+  @media (width < 40rem) {
+    @container app (width >= 16rem) {
+      @slot;
+    }
   }
 }
 

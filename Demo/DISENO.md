@@ -4,7 +4,7 @@
 
 **Quién la usa de verdad:** Carmen, que cuida a su mamá, está cansada y tiene poco tiempo. Rosa, que la reemplaza el fin de semana y abre un enlace sin cuenta. Y quien atiende el mostrador de Farmacia Los Aromos.
 
-> **Nota del 26/10/2026: ADR-027 aprobado.** MATU pasa a precios exactos, confirmación de stock y un solo cobro del total con envío. Las pantallas de pedido, pago, comercio y entregado (escenas 21 a 29 y 32) se rediseñan: desaparecen la reserva del 15 %, el "monto real" y la devolución con débito. Lo que este documento dice de esas pantallas (la tabla de la sección 3, la boleta con estimado, reserva y monto real, y la consola con "Monto real") queda vigente solo hasta que llegue su especificación nueva. No se construye nada nuevo sobre el modelo anterior. **La especificación nueva ya está en [`ESPEC-ADR-027.md`](ESPEC-ADR-027.md)** (26/10) y manda sobre este documento en esas pantallas. Su sección 6 (27/10) especifica cinco ajustes de la ficha, el compartir, el PIN del relevo y "Quién la vio".
+> **Nota del 26/10/2026: ADR-027 aprobado.** MATU pasa a precios exactos, confirmación de stock y un solo cobro del total con envío. Las pantallas de pedido, pago, comercio y entregado (escenas 21 a 29 y 32) se rediseñan: desaparecen la reserva del 15 %, el "monto real" y la devolución con débito. Lo que este documento dice de esas pantallas (la tabla de la sección 3, la boleta con estimado, reserva y monto real, y la consola con "Monto real") queda vigente solo hasta que llegue su especificación nueva. No se construye nada nuevo sobre el modelo anterior. **La especificación nueva ya está en [`ESPEC-ADR-027.md`](ESPEC-ADR-027.md)** (26/10) y manda sobre este documento en esas pantallas. Su sección 6 (27/10) especifica cinco ajustes de la ficha, el compartir, el PIN del relevo y "Quién la vio". Su sección 7 (27/10) especifica el reflujo a 320 px con el texto al 200%, los P3 del 27/10 y la vista de app en el teléfono.
 
 **De dónde sale la identidad:** del mundo de Carmen. La **hoja pegada en el refrigerador** con el día de María, el **PIN dictado por teléfono** y la **boleta** de la farmacia. La hoja es lo memorable: se dibuja igual en el inicio, al editar, en la página de Rosa y para imprimir.
 
@@ -59,11 +59,24 @@ La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos
 | `text-3xl`, `text-4xl` | 1,875 y 2,25 | 32 y 38 | Título de página en pantalla ancha |
 | `text-5xl`, `text-6xl` | 3 y 3,75 | 51 y 64 | El nombre en la hoja del relevo, el PIN, la bienvenida |
 
-`text-xs` (12,75 px) no se usa. El dinero, las fechas y los días van con números tabulares en la cara del texto, nunca monoespaciada. La utilidad `cifras` (tabular y sin salto de línea) envuelve **solo una cifra, fecha u hora suelta**, para que "$27.980" o "30/10/2026" no se partan. Una frase que contiene cifras ("$13.990 el paquete. Sugerimos 2.") usa `tabular-nums` sin `cifras`, para que refluya a 320 px. Párrafos de 65 caracteres como máximo.
+`text-xs` (12,75 px) no se usa. El dinero, las fechas y los días van con números tabulares en la cara del texto, nunca monoespaciada. La utilidad `cifras` (tabular y sin salto de línea) envuelve **solo una cifra, fecha u hora suelta**, para que "$27.980" o "30/10/2026" no se partan. Una fecha con su hora son **dos** `cifras` ("24/10/2026," y "10:05"), para que la hora pueda bajar de renglón sin cortar la fecha (pieza `Cuando`, ESPEC-ADR-027, 7.3). Una frase que contiene cifras ("$13.990 el paquete. Sugerimos 2.") usa `tabular-nums` sin `cifras`, para que refluya a 320 px. Párrafos de 65 caracteres como máximo.
 
 ## 3. Composición
 
 Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no con media queries. Así, "Texto al 200%" (que aplica `zoom: 2` solo a la app) y el zoom del navegador al 400% en 1280 px (320 px efectivos) hacen que todo fluya a una columna sin desplazamiento horizontal. No hay una experiencia móvil aparte: es el mismo layout que se estrecha.
+
+**Reflujo literal (27/10/2026).** El criterio es el de `CLAUDE.md` tomado al pie de la letra: 320 px de pantalla **con** "Texto al 200%", o sea 160 px efectivos para la app. Para que las 36 escenas pasen sin tocar lo que se ve en el proyector, hay dos piezas en `src/index.css`:
+- **`overflow-wrap: break-word` en `body`.** Una palabra que no cabe sola en su renglón se parte. Es `break-word` y no `anywhere`, porque `anywhere` achica el ancho mínimo de todo y deja columnas de una letra por renglón.
+- **Toda grilla declara sus columnas también en el ancho más chico** (`grid-cols-1`). Una pista `auto` no baja del ancho de su contenido.
+
+**Dos variantes de composición.** Son las únicas reglas de layout que miran un ancho fijo, y por eso se definen una vez en `src/index.css` (`@custom-variant`) y no en cada componente:
+
+| Variante | Cuándo | Para qué | Por qué ese corte |
+|---|---|---|---|
+| `angosto:` | La app mide menos de 16 rem (`@container app`) | Quitar rellenos (`px-2`), apilar un ícono grande y su título, y achicar el PIN y las fechas en tamaño de título | Solo pasa con "Texto al 200%" en una pantalla de menos de 544 px. Nunca a 320 px sin zoom ni en el proyector, así que no cambia nada de lo que ya se aprobó |
+| `telefono:` | La pantalla mide menos de 40 rem (640 px) y la app no está en modo angosto | La vista de app móvil: la barra de secciones abajo | Mira la pantalla y no la app, así que "Texto al 200%" en el proyector nunca la activa. Con el texto al 200% en un teléfono, la app está en modo angosto y la barra vuelve arriba, porque cinco secciones fijas no caben en 160 px |
+
+Lo que está fuera de la app (la franja y el distintivo del presentador) no tiene el contenedor `app`, así que usa `max-sm:`, el mismo corte de 40 rem.
 
 **Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (16,5 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
 
@@ -89,7 +102,7 @@ Todo se diseña para 1280 a 1920 px y se ordena con **container queries**, no co
 └──────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Barra lateral** sobre `papel`, sin fondo propio, de **16,5 rem**: logo, cinco secciones y una pista de estado en cada una ("1 de 3", un punto de Pronto, "En curso"), en la misma línea que el nombre y en `text-base`, porque es un estado que el público lee en el proyector. La medida sale del renglón más largo: "Ficha de relevo 1 de 3" en negrita, cuando está activa, mide unos 248 px más la píldora y los márgenes. Con 14 rem sobresalía 22 px. Bajo 56 rem de ancho se vuelve una fila superior.
+- **Barra lateral** sobre `papel`, sin fondo propio, de **16,5 rem**: logo, cinco secciones y una pista de estado en cada una ("1 de 3", un punto de Pronto, "En curso"), en la misma línea que el nombre y en `text-base`, porque es un estado que el público lee en el proyector. La medida sale del renglón más largo: "Ficha de relevo 1 de 3" en negrita, cuando está activa, mide unos 248 px más la píldora y los márgenes. Con 14 rem sobresalía 22 px. Bajo 56 rem de ancho se vuelve una fila superior. **En el teléfono** (`telefono:`) es una barra fija abajo, con cinco columnas iguales de ícono y rótulo corto ("Inicio", "Ficha", "Insumos", "Pedidos", "Grupo"). Cada sección mide 56 px de alto como mínimo, la elegida va sobre `rocio`, y la pista pasa a un punto sobre el ícono, con su texto para el lector de pantalla (ESPEC-ADR-027, 7.6).
 - **Encabezado** con la persona cuidada a la izquierda y quien está conectada a la derecha, con la fecha y la hora de la demo.
 - **Pestañas** dentro de una sección cuando hay vistas hermanas: Ficha (Campos, Compartir, Enlaces, Quién la vio, Para imprimir) e Insumos (Qué se acaba, Lista de reposición).
 - **Dos columnas** desde 48 rem de ancho de contenido. La izquierda es lo que se hace; la derecha, el resultado:
@@ -175,6 +188,7 @@ Más densa y más sobria: la barra superior en `tinta`, la cola a la izquierda c
 - **Modo presentación** (`p`): desaparece la franja y queda solo el distintivo, pequeño, en la esquina inferior izquierda, con un botón para volver a abrir la guía.
 - **El distintivo** dice "**Piloto académico con datos de prueba**", con el punto `miel` delante, en una píldora `tinta` al 7 % con texto `tenue` en negrita. Lo exige la figura legal del piloto (4.1), así que la regla es: **visible siempre, en todas las pantallas y en las tres apps, también en modo presentación y con "Texto al 200%"**. Ningún modo, atajo ni ancho lo oculta. Bajo 90 rem se parte en dos líneas ("Piloto académico / con datos de prueba") dentro de la misma píldora. No se abrevia.
 - **Bajo 90 rem, la franja se compacta** para caber en una línea: la guía queda como ícono y `?` (con `aria-label="Abrir la guía"`), los roles van sin ícono, la dirección del relevo se abrevia, las ayudas usan rótulos cortos ("PIN 4821", "Código 4729") y "Ver lo que ve la familia" se oculta mientras se muestra el código de retiro.
+- **En el teléfono** (`max-sm:`), la franja queda en dos renglones de 48 px: el distintivo y la guía, y "‹ 6 de 36 ›" con la ayuda de la escena. El selector de rol, la dirección del relevo, el título de la escena y la etiqueta Real o Simulado se ven en el cajón (ESPEC-ADR-027, 7.6.3).
 
 ### Rótulos del piloto
 

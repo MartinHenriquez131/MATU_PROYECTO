@@ -825,3 +825,347 @@ La diferencia está en la **figura** del ícono (un eslabón frente a una person
 | 6.5 Quién la vio | `src/demo/tipos.ts` (`Evento.tipo`), `src/demo/logica.ts` (`registrar`, `abrirRelevo`, `canjear` y la historia previa), `src/familia/Ficha.tsx` (`Eventos` y `QuienVio`), `src/familia/Inicio.tsx:54`, `src/demo/escenas.ts` (notas) |
 
 **Fuera de lo aprobado, para que decida el orquestador:** en la misma pantalla, "¿Hasta cuándo?" también es de una sola opción, pero usa el `Chip` de varias (cuadrado con check y `aria-pressed`). Con 6.3 quedan dos grupos de una sola opción con figuras distintas, uno debajo del otro. Pasarlo a la misma variante es un cambio de una línea. Lo recomiendo (P3), pero no está en lo que aprobó Jorge.
+
+---
+
+## 7. Reflujo, P3 del 27/10 y vista de app en el teléfono
+
+**Del diseñador, 27/10/2026.** Jorge decidió tres cosas:
+- corregir ahora los P3 de mi revisión del 27/10;
+- exigir el reflujo con el criterio literal de `CLAUDE.md`;
+- que la demo se vea como app en un teléfono.
+
+La parte "llenar el proyector" (escalar la raíz en pantallas grandes) **quedó fuera** por decisión de Jorge: la demo se proyecta con la vista de escritorio tal como está.
+
+**Orden de entrega, por prioridad.** El frontend puede entregar por partes, y cada una se revisa sola.
+
+| Parte | Qué | Tamaño |
+|---|---|---|
+| 7.3 | Reflujo: 0 escenas con desplazamiento horizontal a 320 px con el texto al 200% | **Media**: unas 30 clases en 9 archivos y una pieza chica, sin lógica. De 2 a 3 horas con la verificación |
+| 7.4 | Áreas táctiles bajo 48 px que encontré al medir | **Chica**: 4 clases. Media hora |
+| 7.5 | Los tres P3 | **Chica**: 2 cambios y una confirmación. Media hora |
+| 7.6 | Vista de app en el teléfono | **Media**: la barra inferior, la franja compacta y dos desplazamientos. De 3 a 4 horas. Lo que conviene dejar para después está en 7.6.5 |
+
+**Lo que ya hice yo**, en este mismo commit y en `src/index.css` (capa `base` y variantes):
+- **`overflow-wrap: break-word` en `body`.** Si una palabra no cabe sola en su renglón, se parte en vez de salirse.
+  - Es `break-word` y no `anywhere` a propósito. Lo probé con `anywhere`, y en la barra de secciones "Ficha de relevo" quedaba en una columna de una letra por renglón, porque `anywhere` achica el ancho mínimo de todo.
+  - `break-word` no cambia ningún ancho mínimo: a 1280 y 1920 px no mueve una sola caja.
+- **Dos variantes nuevas**, justificadas en `DISENO.md`, sección 3:
+  - `angosto:` se activa cuando la app mide menos de 16 rem. Solo pasa con "Texto al 200%" en una pantalla de menos de 544 px. Ahí se quitan rellenos y se apila lo que va lado a lado.
+  - `telefono:` se activa cuando la pantalla mide menos de 40 rem (640 px) **y** la app no está en modo angosto. Es la vista de app móvil.
+- **Las dos miran el contenedor `app` del escenario.** Lo que está fuera de la app (la franja y el distintivo del presentador) usa `max-sm:` de Tailwind, que es el mismo corte de 40 rem, medido sobre la pantalla.
+- **Ninguna de las dos se activa a 1280 px**, tampoco con "Texto al 200%": ahí la app mide 640 px y la pantalla 1280. Lo verifiqué compilando:
+  - `angosto:px-2` sale como `@container app not (width>=16rem)`;
+  - `telefono:fixed` sale como `@media not all and (width>=40rem)` con `@container app (width>=16rem)` adentro.
+
+### 7.1 Cómo medí
+
+- **El script.** Usé el del QA (`qa2710c.mjs`), extendido para decir **qué elemento** provoca el desborde: el que se sale cuando su padre todavía cabe.
+  - Ancho de 320 px y "Texto al 200%" desde la guía. Es el `zoom: 2` sobre la app, o sea **160 px efectivos**.
+  - Las 36 escenas.
+  - Desborde = `document.documentElement.scrollWidth - innerWidth`.
+- **Una aclaración para el informe.** 320 px con el texto al 200% es más exigente que WCAG, que pide **o** 320 px de ancho (1.4.10, que equivale a 1280 px al 400%) **o** texto al 200% (1.4.4), no las dos cosas a la vez. Es lo que pide `CLAUDE.md` y lo que decidió Jorge, así que se cumple tal cual.
+- **La medición de hoy (HEAD `752f541`).** A 320 px con el texto al 200%, **23 de 36 escenas desbordan**, igual que en la medición del QA. Con el mismo método y el texto al 200%:
+  - a 360 px desbordan 16;
+  - a 400 px, 13;
+  - a 480 px, 1;
+  - desde 540 px, ninguna.
+- **El prototipo.** Antes de escribir esta sección probé todas las correcciones inyectando su CSS equivalente en la demo, sin tocar componentes:
+  - Con el texto al 200%, a 320, 360, 400, 480, 540 y 600 px: **0 de 36** escenas desbordan.
+  - Sin zoom, a 320, 360, 390 y 430 px, con la vista de teléfono puesta: **0 de 36**.
+  - A 1280 × 800, 1366 × 768 y 1920 × 1080, y a 1280 px con el texto al 200%, comparé la caja de cada elemento de la app en las 36 escenas, con y sin el prototipo. **Ninguna caja cambia.** Las únicas diferencias fueron ruido de la medición: el aviso flotante, y la guía, que quedó abierta en una de las dos tomas de la escena 7.
+
+### 7.2 Escenas que desbordan hoy y por qué
+
+El desborde está en px de pantalla, a 320 px con el texto al 200%. Los patrones (R1 a R11) están en 7.3.
+
+| # | Escena | Desborde | Elemento que se sale | Patrón |
+|---|---|---|---|---|
+| 1 | Bienvenida | +13 | Los textos de las tres tarjetas, junto a su ícono de 44 px | R10 |
+| 4 | ¿A quién cuidas? | +54 | Las opciones de apoyo: la grilla tiene una pista `auto` que no baja del ancho de su contenido | R1, R10 |
+| 5 | Permiso | +107 | Las tres opciones del permiso, igual que en la escena 4 | R1, R10 |
+| 6 | Inicio | +66 | "24/10/2026, 10:05" en un solo `cifras` y la etiqueta "Pronto" | R3, R2 |
+| 10 | Enlace y PIN | +95 | Los cuatro dígitos `w-17` (289 px en total). Además, "Vence el 31/10/2026" va junto al ícono de 64 px, que le deja 41 px | R6, R7, R8 |
+| 12 | Relevo: la ficha | +20 | La grilla de la página del relevo, que tiene una pista `auto` | R1 |
+| 13 | Quién la vio | +126 | "25/10/2026, 23:59" en un solo `cifras`, con 75 px disponibles | R3 |
+| 14 | Cortar un acceso | +195 | La etiqueta "Activo, vence en 23 h" con `shrink-0` y las fechas de los eventos | R2, R3 |
+| 16 | Qué se está acabando | +129 | "6 días · Pronto" sin `flex-wrap`, las etiquetas y "05/11/2026" en `text-2xl` | R2, R4, R7 |
+| 17 | Declarar consumo | +129 | Lo mismo de la 16, más "hasta el 05/11/2026", que queda dentro de dos rellenos y junto a un ícono | R2, R4, R8 |
+| 18 | Ya lo compré | +129 | "6 días · Pronto" y las etiquetas | R2, R4 |
+| 19 | Lista de reposición | +156 | El nombre con `min-w-48` (204 px de mínimo) y el selector de paquetes sin `flex-wrap` | R5 |
+| 20 | Exportar o compartir la lista | +156 | Lo mismo de la 19 | R5 |
+| 21 | Tu pedido, antes de pagar | +111 | Las etiquetas "Cambió el precio" y "Salió del pedido" | R2 |
+| 22 | Pasarela simulada | +140 | La lista de dos columnas `[auto_1fr]`, con los montos alineados a la derecha | R9, R10 |
+| 24 | Comercio: pedidos del día | +37 | La grilla de la consola (pista `auto`), la etiqueta "Por preparar" y el paso "2 Preparar" con su conector | R1, R2, R11 |
+| 25 | Comercio: preparar | +49 | La grilla de la consola y los pasos | R1, R11 |
+| 26 | Comercio: código de retiro | +91 | La etiqueta "Listo para retiro" y los pasos | R2, R11 |
+| 27 | Cambio de local | +5 | "Suplemento", dentro de una `Nota` con ícono que le deja 58 px al texto | R10 |
+| 28 | Entregado | +36 | "Llegó a las 15:58" en `text-3xl`, junto al círculo de 56 px | R7 |
+| 30 | Dos versiones | +16 | La grilla de las dos versiones (pista `auto`) y el aviso | R1, R10 |
+| 31 | El total venció | +111 | La etiqueta "Cambió el precio" | R2 |
+| 33 | Un producto no llegó | +36 | "Llegó a las 17:00", igual que en la 28 | R7 |
+
+Hoy no desbordan las escenas 2, 3, 7, 8, 9, 11, 15, 23, 29, 32, 34, 35 y 36.
+
+### 7.3 Patrones y su corrección
+
+Son once patrones. Los cuatro primeros están en componentes compartidos y arreglan la mitad de las escenas. Todo usa clases de Tailwind y tokens que ya existen, más las variantes `angosto:` y `telefono:`. **Nada cambia a 1280 ni a 1920 px**, salvo donde lo digo.
+
+**R1 · Grillas de una columna sin `grid-cols-1`.** Una grilla sin columnas declaradas crea una pista `auto`, que nunca es más angosta que su contenido más ancho. `grid-cols-1` es `repeat(1, minmax(0, 1fr))`, que sí puede achicarse. Se agrega **además** de la variante que ya tiene cada grilla, que la sigue reemplazando en pantalla ancha:
+- `familia/Shell.tsx`, `Columnas`: `grid grid-cols-1 items-start …`. Sirve a todas las páginas de la familia.
+- `familia/Pedidos.tsx`, `DosZonas`: `grid grid-cols-1 items-start …`.
+- `relevo/Relevo.tsx`, `RelevoFicha`: `mx-auto grid max-w-6xl grid-cols-1 …`.
+- `comercio/Comercio.tsx`, cerca de la línea 360: `mx-auto grid max-w-7xl grid-cols-1 …`.
+- `familia/Ficha.tsx`, en dos lugares: "Dos versiones" (`mt-6 grid …`, cerca de la línea 291) y los datos del enlace (`grid gap-4 @lg:grid-cols-2`, cerca de la 353).
+- `components/Ui.tsx`, `GrupoOpciones` en forma de lista: `grid grid-cols-1 gap-2 …`.
+- **Regla para lo que venga:** toda grilla declara sus columnas también en el ancho más chico.
+
+**R2 · Etiquetas de estado que no se pueden achicar.** `Etiqueta` y `EtiquetaNivel` (`components/Ui.tsx`) tienen `shrink-0` y ningún tope, así que "Activo, vence en 23 h" mide lo que mide aunque no quepa.
+- Se agrega **`max-w-full`** a las dos y se deja `shrink-0`. Así la palabra que no cabe pasa al renglón siguiente dentro de la píldora.
+- La figura (● ◐ ○) no se mueve, porque es otro elemento del `flex`.
+
+**R3 · Fecha y hora en un solo `cifras`.** `cifras` no deja cortar, así que "24/10/2026, 10:05" es un bloque de 155 px en una columna de 75.
+- **Pieza nueva en `components/Ui.tsx`: `Cuando({ texto, className })`.**
+  - Recibe lo que ya devuelve `fmtCuando` ("Hoy, 10:05" o "24/10/2026, 10:05").
+  - Lo corta en ", " y pone cada parte en su propio `cifras`, con la coma pegada a la primera parte y un espacio normal entre las dos.
+  - El envoltorio lleva `tabular-nums` y la `className` que se le pase.
+- Así puede pasar al renglón siguiente **entre la fecha y la hora, nunca dentro de "30/10/2026"**. No cambia `fmtCuando` ni ningún dato.
+- Se usa en dos lugares:
+  - `familia/Ficha.tsx`, en `Eventos` (cerca de la línea 600), con `className="text-base text-tenue"`;
+  - `familia/Inicio.tsx:180`, con `className="text-tenue"`. Ese `p` deja de tener `cifras`.
+- La regla de `DISENO.md`, sección 2, queda así: `cifras` envuelve una sola cifra, fecha **u** hora. Una fecha con su hora son dos `cifras`.
+
+**R4 · "6 días · Pronto" sin `flex-wrap`.** En `familia/Insumos.tsx`, cerca de la línea 85, `flex items-center gap-3` pasa a **`flex flex-wrap items-center gap-x-3 gap-y-1`**. La etiqueta baja debajo de los días solo si no cabe al lado.
+
+**R5 · Anchos fijos en la lista de reposición** (`familia/Insumos.tsx`, cerca de las líneas 312 a 345):
+- **El nombre:** `min-w-48 flex-1` pasa a **`min-w-0 grow basis-48`**.
+  - En pantalla ancha se comporta igual: la base de 12 rem decide cuándo baja de renglón, y el nombre toma el resto del espacio.
+  - La diferencia es que, cuando queda solo en su renglón, ahora puede medir menos de 12 rem.
+- **El selector de paquetes** (`role="group"`): `flex items-center gap-2` pasa a **`flex flex-wrap items-center gap-2`**.
+- **Cada fila:** `px-4` pasa a **`px-4 angosto:px-2`**.
+- **El subtotal:** `w-26` pasa a **`w-26 angosto:w-auto`**.
+- Los botones − y + se corrigen en 7.4.
+
+**R6 · Los dígitos del PIN** (`familia/Ficha.tsx`, `EnlacePin`, cerca de las líneas 483 a 494). No se tocan, así que no necesitan 48 px. En pantalla ancha quedan exactamente igual:
+- El `p`: `flex justify-center gap-3` pasa a **`flex justify-center gap-3 angosto:gap-1.5`**.
+- **Cada dígito** suma **`angosto:h-16 angosto:w-auto angosto:min-w-0 angosto:flex-1 angosto:text-3xl`**.
+  - Los cuatro se reparten el ancho en partes iguales.
+  - El número baja de `text-6xl` a `text-3xl`. Con el zoom de 200%, en la pantalla sigue midiendo 64 px.
+- Los dígitos quedan siempre en **una sola fila de cuatro**, nunca en 2 + 2, porque se dictan como un bloque.
+- **La sección del PIN:** `px-6 py-6` pasa a **`px-6 py-6 angosto:px-3`**.
+
+**R7 · Un ícono grande al lado de un título, o una fecha en tamaño de título.**
+- **"Enlace creado"** (`familia/Ficha.tsx`, el `div` `flex items-center gap-4` con el ícono `size-16`, cerca de la línea 444) y **"Pedido entregado"** (`familia/Pedidos.tsx`, el `div` con el círculo `size-14`, cerca de la línea 718) suman **`angosto:flex-col angosto:items-start angosto:gap-3`**.
+  - El ícono queda arriba y el texto usa todo el ancho.
+  - Así "Vence el 31/10/2026" y "Llegó a las 15:58" caben sin partir la fecha.
+- **"Le alcanza 6 días, hasta el 05/11/2026"** (`familia/Insumos.tsx:131`, hoy en `text-2xl`) pasa a **`text-2xl angosto:text-xl`**.
+
+**R8 · Rellenos anidados.** Con 160 px de ancho, cada `px-4` se come 34 px. En modo angosto se reducen a `px-2` en el borde de la página y en las superficies que tienen fechas o controles adentro:
+- **Los `main`:** se agrega **`angosto:px-2`** a cada uno:
+  - `familia/Shell.tsx:164`;
+  - `relevo/Relevo.tsx:25`;
+  - `comercio/Comercio.tsx:359`;
+  - `familia/Alta.tsx:73` (hoy `px-5`);
+  - `familia/Pedidos.tsx`, líneas 418 y 433 (la pasarela).
+- **El `Detalle` de `familia/Insumos.tsx`** (el `section` `px-4 @3xl:px-7`): **`angosto:px-2`**.
+- **El recuadro "Le alcanza…" de "Declarar consumo"** (`border-l-4 border-pino bg-rocio px-4`, cerca de la línea 168): **`angosto:px-2`**. Su ícono `CalendarCheck` lleva **`angosto:hidden`**, porque es decorativo y la frase dice lo mismo.
+
+**R9 · La lista de dos columnas de la pasarela** (`familia/Pedidos.tsx:446`):
+- El `dl`: `grid grid-cols-[auto_1fr]` pasa a **`grid grid-cols-[auto_1fr] angosto:grid-cols-1`**.
+- Cada `dd`: `text-right` pasa a **`text-right angosto:text-left`**.
+- En modo angosto, cada dato va debajo de su nombre: "Monto a pagar" y, abajo, "$57.460".
+
+**R10 · Palabras largas en columnas angostas.** "representación", "Suplemento" y "comprenderlo" no caben en 58 px. Lo cubren R8, que da más ancho, y el `overflow-wrap: break-word` de la capa base, que ya está hecho. No hay que tocar componentes.
+
+**R11 · Los pasos del pedido en la consola** (`comercio/Comercio.tsx`, `Pasos`, línea 116). El conector `h-0.5 w-6` lleva **`angosto:hidden`**: cuando los pasos bajan de renglón, el conector ya no une nada.
+
+### 7.4 Áreas táctiles bajo 48 px (P2)
+
+Al medir encontré cuatro controles de menos de 48 px:
+- `size-11` y `min-h-11` son 2,75 rem, que con la raíz de 17 px dan **46,75 px**;
+- `min-h-10` da **42,5 px**.
+
+| Dónde | Hoy | Corrección | ¿Se ve a 1280 px? |
+|---|---|---|---|
+| `familia/Insumos.tsx:312`, botones − y + de la lista | `size-11` (46,75 px) | `size-12` (51 px) | Sí: cada botón crece 4 px |
+| `familia/Shell.tsx:109`, secciones de la barra lateral | `min-h-11` (46,75 px) | `min-h-12` | Sí: la barra lateral crece unos 21 px de alto en total |
+| `familia/Shell.tsx:205`, "Volver a…" | `min-h-10` (42,5 px) | `min-h-12` | Sí: 9 px más de alto |
+| `familia/Pedidos.tsx:371`, "Ver las condiciones" | `min-h-10` (42,5 px) | `min-h-12` | Sí: 9 px más de alto |
+
+**Son los únicos cambios visibles a 1280 px fuera de los P3.** Los recomiendo, porque el mínimo de 48 px no se negocia. Si Jorge prefiere no mover nada a 1280 px, los cuatro se pueden limitar al teléfono con `telefono:size-12` y `telefono:min-h-12`. Lo decide él.
+
+Los controles del presentador (`size-10` y `min-h-10` en la franja) no son parte de MATU. En el teléfono pasan a 48 px (ver 7.6.3).
+
+### 7.5 Los P3
+
+**P3 · "Política de privacidad" alineado con los párrafos** (`relevo/Relevo.tsx`, cerca de la línea 141).
+- **Lo que medí a 1280 px:** los párrafos empiezan en x = 402 y el ícono del botón en x = 423,25. En la variante `texto` de `Boton`, el `px-1` pierde contra el `px-5` de la base, así que el relleno real es de 21,25 px. Por eso `-ms-1` no alcanza.
+- **La corrección:** `className="self-start ps-0"`. El relleno inicial queda en 0 y el ícono se alinea con el texto.
+  - Si `ps-0` no le ganara a `px-5` por el orden del CSS, se usa `-ms-5`. El criterio se mide igual.
+  - No cambio `Boton` para todos, porque movería los demás botones de texto de la demo a 1280 px.
+- **Criterio:** el borde izquierdo del ícono `FileText` coincide con el de los párrafos del aviso, con 1 px de tolerancia.
+
+**P3 · Los motivos en 2 + 2** (`familia/Ficha.tsx`, `Compartir`, y `components/Ui.tsx`, `GrupoOpciones` en forma de chips).
+- **Lo que medí a 1280 px:** la columna mide 419 px y los chips quedan en tres filas: "Salgo unas horas", luego "Fin de semana fuera", y al final "Turno de noche" y "Otro motivo".
+- **El `@md` que se propuso no sirve.** `@md` es 28 rem (476 px), más que los 419 px de la columna, así que a 1280 px los motivos quedarían en **una** columna de cuatro filas.
+- **La corrección:** `GrupoOpciones` con `forma="chips"` recibe la propiedad `columnas`, que ya existe en la forma de lista. Si viene:
+  - el contenedor pasa de `flex flex-wrap gap-2` a **`grid grid-cols-1 gap-2 @xs:grid-cols-2`** (`@xs` es 20 rem, 340 px, medido sobre la `Columna`);
+  - cada `label` pasa de `inline-flex … max-w-full` a **`flex w-full …`**. El resto de la piel no cambia.
+- Solo "¿Para qué lo compartes?" pasa `columnas`.
+- **Cómo se ve, según el ancho:**
+  - **A 1280 px** (lo probé): 2 + 2, con cada chip de 205 px. "Fin de semana fuera" ocupa **dos renglones** dentro de su chip, y su vecino toma la misma altura. Es un cambio visible, y es el que se pidió.
+  - **A 1920 px**, cada chip cabe en un renglón.
+  - **A 360 px**, la columna mide menos de 340 px y los motivos quedan en una columna de cuatro chips de ancho completo.
+- **"¿Hasta cuándo?" no lo necesita.** Ya queda en 2 + 1: "24 horas" y "Fin de semana", y abajo "Otra cantidad de días". En la grilla, "Otra cantidad de días" se partiría en dos renglones sin ganar nada. Se queda en `flex flex-wrap`.
+
+**P3 · Ayudas en `text-sm`: confirmo que no requieren acción.**
+- Las ayudas de `CampoTexto` y `Stepper` (14,9 px) son justo el uso que `DISENO.md` reserva para `text-sm`: la ayuda bajo un campo, que el público no necesita leer.
+- El criterio nuevo de reflujo no las afecta. Con el texto al 200% crecen igual que todo lo demás (30 px en pantalla), y ninguna provocó un desborde en la medición.
+- Las ayudas que el público sí lee ya están en `text-base`: la de "¿Hasta cuándo?" y el aviso del relevo.
+
+### 7.6 Vista de app en el teléfono
+
+**Objetivo:** quien abre la demo en su teléfono ve MATU como la app móvil que es (ADR-026). Tiene una columna, la barra de secciones abajo, al alcance del pulgar, y los controles de la demo no ocupan media pantalla.
+
+**Lo que medí hoy a 390 × 844:**
+- La franja del presentador ocupa **225 px**: distintivo, roles, escena y guía, en cuatro renglones.
+- Las cinco secciones de la familia ocupan otros **200 px** arriba, en tres renglones.
+- El título de la página empieza cerca de y = 590, así que la primera pantalla casi no muestra contenido.
+- El relevo y el comercio ya son de una columna.
+
+**Cuándo se activa:** con la variante `telefono:`, o sea con una pantalla de menos de 640 px y la app de 16 rem o más.
+- Con "Texto al 200%" en un teléfono, la app entra en modo angosto. La barra vuelve a su lugar de hoy, arriba, y todo refluye según 7.3. Una barra fija de cinco secciones no cabe en 160 px.
+- A 1280 px no se activa nunca.
+
+#### 7.6.1 Barra de secciones abajo (familia)
+
+```
+┌────────────────────────────────────┐
+│ (M) MATU                           │  aside: solo la marca
+├────────────────────────────────────┤
+│ Cuidas a                           │
+│ María Soto        viernes 30/10…   │
+│ …contenido…                        │
+│                                    │
+├────────────────────────────────────┤  fija, fondo hoja, borde superior linea
+│ (⌂)    (▤)•   (□)•   (◫)    (⚇)    │
+│Inicio Ficha Insumos Pedidos Grupo  │  5 columnas iguales, mín. 56 px de alto
+└────────────────────────────────────┘
+```
+
+Se construye en `familia/Shell.tsx`, todo con `telefono:`.
+
+- **`nav`:** `telefono:fixed telefono:inset-x-0 telefono:bottom-0 telefono:z-20 telefono:border-t telefono:border-linea telefono:bg-hoja telefono:px-1 telefono:py-1`.
+- **`ul`:** `telefono:grid telefono:grid-cols-5 telefono:gap-1` (hoy es `flex flex-wrap gap-1`).
+- **El botón de cada sección:** `telefono:min-h-14 telefono:flex-col telefono:flex-nowrap telefono:justify-center telefono:gap-0.5 telefono:px-1 telefono:text-center telefono:text-sm telefono:leading-tight`.
+  - Con `min-h-14` mide 59,5 px de alto, y unos 70 px de ancho a 360 px.
+  - **La sección elegida** lleva `telefono:bg-rocio telefono:ring-0`, además del `font-bold`, el trazo más grueso del ícono y el `aria-current="page"` que ya tiene. Se distingue por la píldora de fondo y por el peso, no solo por el color.
+  - **`text-sm` en la barra es una excepción.** La barra nunca se ve en el proyector, y ese es el tamaño estándar de una barra de pestañas en un teléfono.
+- **Rótulos cortos.** `SECCIONES` suma el campo `corto`: "Inicio", "Ficha", "Insumos", "Pedidos" y "Grupo".
+  - Se escriben los dos textos: `<span className="telefono:hidden">{texto}</span>` y `<span className="hidden telefono:inline">{corto}</span>`.
+  - El nombre accesible es el que se ve.
+- **La pista** ("1 de 3", "Pronto", "En curso") no cabe abajo del rótulo:
+  - En el teléfono, su texto pasa a `telefono:sr-only`. El lector de pantalla sigue diciendo "Insumos, Pronto".
+  - Sobre el ícono aparece un punto `size-2.5 rounded-full bg-current`, `aria-hidden`, arriba a la derecha (`absolute -top-0.5 -right-1`, con el ícono envuelto en un `span relative`). Es `text-pronto` para "Pronto" y `text-pino` para las otras dos.
+  - Es una figura (hay punto o no hay), no solo un color, y la palabra se lee al entrar a la sección.
+- **El `aside`** queda solo con la marca: `telefono:py-2`.
+- **El espacio para la barra:** el `main` lleva `telefono:pb-36`, para que el último botón de la página no quede debajo de la barra ni del distintivo flotante.
+
+#### 7.6.2 Lo que flota sobre la barra
+
+Dos elementos flotan en la parte de abajo de la pantalla y la barra los taparía. Los dos se suben **solo cuando el rol es familia** (`Escenario.tsx` ya sabe el rol):
+- **`DistintivoFlotante`** (`presentador/Presentador.tsx`, hoy `bottom-3`). Sigue siendo obligatorio y siempre visible. Recibe una propiedad `sobreBarra` y suma **`max-sm:bottom-20`**: queda a 85 px del borde, sobre la barra, que mide unos 69 px.
+- **El `Aviso`** (`Escenario.tsx`): con el mismo criterio, **`max-sm:bottom-20`** en vez de `bottom-5`.
+
+Usan `max-sm:` porque están fuera del contenedor `app`. Con "Texto al 200%" en el teléfono no hay barra, así que los dos quedan 64 px más arriba de lo necesario, sin tapar nada.
+
+#### 7.6.3 La franja del presentador en el teléfono
+
+**Lo que propongo:** una franja compacta, en el flujo de la página como hoy (no es fija y no tapa la app), en **dos renglones de 48 px**:
+
+```
+┌────────────────────────────────────┐
+│ (● Piloto académico   )     [📖 ?] │  distintivo (siempre) y guía
+│ (  con datos de prueba)            │
+│  [‹]  6 de 36  [›]     PIN 4821    │  escena y la ayuda de la escena
+└────────────────────────────────────┘
+```
+
+Se construye en `presentador/Presentador.tsx`, con `max-sm:`.
+
+- **Se ocultan:**
+  - el `SelectorRol` compacto (`max-sm:hidden` en su `fieldset`);
+  - la `DireccionRelevo` (`max-sm:hidden`);
+  - el título de la escena (`max-sm:sr-only`, para que el lector de pantalla lo siga anunciando);
+  - la etiqueta Real o Simulado (`max-sm:hidden`).
+- **Todo eso ya está en el cajón de la guía:** el selector de rol completo, la escena con su nota y su etiqueta, y las ayudas. En el teléfono, el cajón ya ocupa toda la pantalla (`w-full max-w-sm`).
+- **Se quedan:**
+  - el distintivo;
+  - "‹ 6 de 36 ›";
+  - las ayudas de la escena ("PIN 4821", "Abrir como Rosa"), que bajan de renglón si no caben;
+  - el botón de la guía.
+- **48 px:** los botones ‹ y › pasan a `max-sm:size-12`, y el de la guía a `max-sm:min-h-12 max-sm:min-w-12`. A 1280 px siguen como hoy.
+- **Lo que medí en el prototipo a 390 px:** la franja baja de 225 a unos 110 px. La marca, el encabezado y el título de la página quedan en la primera pantalla.
+
+**Lo que descarté:**
+- **Una franja plegable:** suma un estado y un botón más.
+- **El modo presentación en el teléfono:** el distintivo flotante taparía el encabezado.
+
+#### 7.6.4 Relevo y comercio
+
+- **Relevo:** ya es una página de una columna, centrada y sin navegación, que es lo que tiene que ser en un teléfono.
+  - Solo le aplican los cambios de 7.3.
+  - Con la franja compacta, a 390 × 844 el PIN y "Ver la ficha" quedan en la primera pantalla.
+- **Comercio:** es una consola de escritorio. En el teléfono se ve en una columna: la cola y, debajo, el pedido elegido. Al elegir uno, el foco y el scroll ya van al detalle.
+  - No le pongo barra inferior, porque tiene una sola sección.
+  - Solo le aplican R1, R2, R8 y R11.
+
+#### 7.6.5 Riesgo y qué dejar para después
+
+- **Lo que entra antes del jueves: 7.6.1 a 7.6.3.** Son clases con variantes, dos textos cortos y una propiedad, sin lógica ni estado nuevos, y se revisan con el mismo script de reflujo.
+- **Lo que dejaría para después del viernes:**
+  - **Compactar el encabezado de la familia en el teléfono.** "Cuidas a / María Soto / viernes…, 14:20 / Carmen" ocupa unos 130 px, y se podría llevar a un renglón con el avatar.
+  - **El área segura de los iPhone** (`env(safe-area-inset-bottom)`). Sin `viewport-fit=cover`, Safari ya deja la barra sobre su propia barra de herramientas.
+  - **Ocultar la franja al hacer scroll.**
+- **Si el plazo aprieta,** el corte natural es **entregar primero 7.3 a 7.5**. La vista de teléfono es independiente y no cambia nada a 1280 px.
+
+### 7.7 Archivos que toca el frontend
+
+| Archivo | Qué |
+|---|---|
+| `src/components/Ui.tsx` | R1 (`GrupoOpciones` en forma de lista), R2 (`Etiqueta` y `EtiquetaNivel`), R3 (pieza `Cuando`), P3 de los motivos (`columnas` en la forma de chips) |
+| `src/familia/Shell.tsx` | R1 (`Columnas`), R8 (`main`), 7.4 (`min-h-12` en las secciones y en "Volver"), 7.6.1 (barra inferior, `corto`, punto de la pista y `pb-36`) |
+| `src/familia/Ficha.tsx` | R1 ("Dos versiones" y datos del enlace), R3 (`Eventos`), R6 (PIN), R7 ("Enlace creado"), P3 de los motivos (`columnas`) |
+| `src/familia/Insumos.tsx` | R4, R5, R7 (`text-xl`), R8 (`Detalle`, el recuadro y su ícono), 7.4 (`size-12`) |
+| `src/familia/Inicio.tsx` | R3 (línea 180) |
+| `src/familia/Pedidos.tsx` | R1 (`DosZonas`), R7 ("Pedido entregado"), R8 (los dos `main`), R9 (pasarela), 7.4 ("Ver las condiciones") |
+| `src/familia/Alta.tsx` | R8 (`main`) |
+| `src/relevo/Relevo.tsx` | R1, R8 y el P3 de la política |
+| `src/comercio/Comercio.tsx` | R1, R8 y R11 |
+| `src/presentador/Presentador.tsx` | 7.6.2 (`sobreBarra` en `DistintivoFlotante`) y 7.6.3 (franja compacta) |
+| `src/Escenario.tsx` | 7.6.2 (pasa `sobreBarra` y sube el `Aviso` cuando el rol es familia) |
+
+`src/index.css` y `DISENO.md` ya quedan hechos en este commit. No se toca nada de `src/demo/` ni de `src/datos/`.
+
+### 7.8 Criterios verificables
+
+1. **Reflujo.** Con el script de 7.1, **0 de 36** escenas tienen `scrollWidth > innerWidth`:
+   - a 320 px con el texto al 200%;
+   - a 360, 400, 480 y 540 px con el texto al 200%;
+   - a 320, 360, 390 y 430 px sin zoom.
+2. **Ninguna fecha partida.** En esas medidas, ningún "DD/MM/AAAA" ni "HH:MM" se corta entre dos renglones: cada uno está en su propio `cifras`.
+3. **PIN.** A 320 px con el texto al 200%, los cuatro dígitos están en una sola fila, dentro de la sección `rocio`.
+4. **Sin cambios a 1280 y 1920 px.** La caja de cada elemento de la app en las 36 escenas, a 1280 × 800, 1366 × 768 y 1920 × 1080, es la misma que en `752f541`. La guía del presentador se cierra antes de cada toma. Las únicas excepciones permitidas son:
+   - los dos P3 que se ven (la política y los motivos en 2 + 2);
+   - los cuatro controles de 7.4, si Jorge los acepta así.
+5. **48 px.** Todo lo que se toca en la app mide 48 px o más de alto y de ancho, a 360 y a 1280 px. Incluye las cinco secciones de la barra inferior, los botones − y + de la lista, y ‹ y › en la franja del teléfono.
+6. **Teléfono, a 390 × 844 y en el rol familia:**
+   - la barra inferior está fija y tiene cinco secciones con ícono y rótulo;
+   - la sección elegida tiene `aria-current="page"` y fondo `rocio`;
+   - el título de la página se ve sin hacer scroll;
+   - el distintivo flotante y el aviso quedan sobre la barra, sin taparse.
+7. **Teléfono con el texto al 200%.** No hay barra fija: las secciones vuelven arriba, como hoy, y se cumple el punto 1.
+8. **Distintivo.** "Piloto académico con datos de prueba" se ve completo en todas las escenas a 360 px, con y sin scroll, en los dos temas.
+9. **`prefers-reduced-motion`.** Nada de esto agrega animaciones.
+10. **Política.** El ícono de "Política de privacidad" empieza en la misma x que los párrafos del aviso, con ±1 px de tolerancia.
+11. **Motivos.** A 1280 px, "Salgo unas horas" y "Fin de semana fuera" están en la misma fila, y "Turno de noche" y "Otro motivo" en la siguiente. Siguen siendo un grupo de radio nativo y cumplen los criterios de 6.3.
