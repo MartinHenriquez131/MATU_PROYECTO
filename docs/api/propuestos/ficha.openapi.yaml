@@ -571,11 +571,10 @@ components:
           hay autorización vigente. La pantalla no muestra un error sino un **aviso** que explica cómo
           renovar la autorización o cómo hacerse cuidador formal, con un enlace externo oficial.
 
-        **Pendiente de `docs/lenguaje.md`:** el texto de ese aviso y el enlace oficial. Este
-        contrato no los fija ni los inventa; la API no los devuelve.
+        El texto del aviso y el enlace oficial están en `docs/lenguaje.md`, sección 6.4b
+        (repositorio MATU, PR #15). La API no los devuelve.
 
         `SinConsentimiento` (abajo) se conserva igual que en `relevo.openapi.yaml`.
-      x-matu-pendiente: Texto del aviso de revisión vencida y enlace oficial, en docs/lenguaje.md
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
