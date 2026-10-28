@@ -12,15 +12,21 @@ es sintética y se genera en la prueba.
 """
 
 import base64
+import io
+import json
 import logging
 import secrets
 import uuid
+from collections.abc import Iterator
 
 import pytest
 from pydantic import SecretStr, ValidationError
 from pydantic_settings import SettingsConfigDict
 
+from app.core import config
 from app.core.config import Configuracion
+from app.main import crear_app
+from app.modules.care_plan.api import dependencias
 from app.modules.care_plan.application.ports import DekCifradaInvalida, KekNoDisponible
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.custodia_kek_entorno import (
@@ -55,6 +61,16 @@ def entorno_limpio(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv("POLITICA_VERSION", "0.9")
     return monkeypatch
+
+
+@pytest.fixture
+def cachés_limpias() -> Iterator[None]:
+    """La configuración y la custodia se arman una vez por proceso: se vacían antes y después."""
+    config.obtener_configuracion.cache_clear()
+    dependencias.custodia_configurada.cache_clear()
+    yield
+    config.obtener_configuracion.cache_clear()
+    dependencias.custodia_configurada.cache_clear()
 
 
 # --- El adaptador -------------------------------------------------------------------------------
@@ -262,3 +278,57 @@ def test_kek_distinta_de_los_demas_secretos(entorno_limpio: pytest.MonkeyPatch, 
 
     assert f"KEK_ENTORNO y {otra} deben ser claves distintas" in str(error.value)
     assert kek not in str(error.value)
+
+
+def test_la_api_no_arranca_con_la_kek_en_produccion(
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None
+) -> None:
+    kek = _kek()
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", "produccion")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    entorno_limpio.setenv("KEK_ENTORNO", kek)
+
+    with pytest.raises(ValidationError) as error:
+        crear_app()
+
+    assert kek not in str(error.value)
+
+
+def test_la_api_arranca_con_la_kek_en_local_y_avisa(entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None) -> None:
+    kek = _kek()
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", "local")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    entorno_limpio.setenv("KEK_ENTORNO", kek)
+
+    # crear_app configura los logs de la API (reemplaza los manejadores de la raíz): se leen de su salida
+    salida = io.StringIO()
+    crear_app(stream_logs=salida)
+    custodia = dependencias.obtener_custodia()
+
+    assert isinstance(custodia, CustodiaKekEntorno)
+    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
+    avisos = [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.care_plan.custodia"]
+    assert avisos == [("WARNING", AVISO_ARRANQUE)]
+    assert kek not in salida.getvalue()
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [{}, {"KEK_ENTORNO": "kek"}, {"CUSTODIA_KEK": "entorno_sintetico"}],
+    ids=["nada", "kek-sin-encender", "encendida-sin-kek"],
+)
+def test_sin_kek_encendida_no_hay_custodia_ni_se_genera_una(
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, variables: dict[str, str]
+) -> None:
+    # (b) Apagada o sin KEK, la API arranca sin custodia: las rutas de la ficha responden 503.
+    # Nunca se genera una KEK ni se usa el doble de pruebas.
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", "local")
+    for nombre, valor in variables.items():
+        entorno_limpio.setenv(nombre, _kek() if valor == "kek" else valor)
+
+    crear_app()
+
+    assert dependencias.obtener_custodia() is None

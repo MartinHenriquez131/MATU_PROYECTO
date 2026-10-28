@@ -17,6 +17,8 @@ from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_personas import router as router_personas
+from app.modules.care_plan.api.dependencias import preparar_custodia
+from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.iam.api.router import router as router_iam
 
 router_salud = APIRouter(tags=["salud"])
@@ -30,6 +32,9 @@ def salud() -> dict[str, str]:
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     config = obtener_configuracion()
     configurar_logs(config.log_nivel, stream_logs)
+    # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de local o pruebas,
+    # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
+    preparar_custodia()
 
     documentacion = config.entorno != "produccion"
     app = FastAPI(
@@ -47,6 +52,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_iam, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
+    app.include_router(router_ficha, prefix="/v1")
 
     return app
 
