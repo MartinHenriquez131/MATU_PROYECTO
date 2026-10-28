@@ -118,6 +118,15 @@ class Configuracion(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _custodia_encendida_exige_kek(self) -> "Configuracion":
+        # Condición (b): encender la custodia sin la clave es un error de configuración y la API no
+        # arranca, en vez de quedar en silencio respondiendo 503. Sin CUSTODIA_KEK la ficha sigue
+        # fallando cerrada con 503. El mensaje nombra las variables, nunca sus valores.
+        if self.custodia_kek is not None and self.kek_entorno is None:
+            raise ValueError("CUSTODIA_KEK está encendida pero falta KEK_ENTORNO")
+        return self
+
+    @model_validator(mode="after")
     def _kek_distinta_de_otros_secretos(self) -> "Configuracion":
         # Condición (c): la KEK no reutiliza otro secreto. Se compara el texto y los bytes. El mensaje
         # nombra las variables, nunca sus valores.

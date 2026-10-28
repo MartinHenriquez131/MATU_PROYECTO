@@ -314,16 +314,42 @@ def test_la_api_arranca_con_la_kek_en_local_y_avisa(entorno_limpio: pytest.Monke
     assert kek not in salida.getvalue()
 
 
+@pytest.mark.parametrize("entorno", ["local", "pruebas"])
+def test_custodia_encendida_sin_kek_no_carga(entorno_limpio: pytest.MonkeyPatch, entorno: str) -> None:
+    # (b) Encenderla sin la clave es un error de configuración, no un 503 silencioso
+    entorno_limpio.setenv("ENTORNO", entorno)
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+
+    with pytest.raises(ValidationError) as error:
+        ConfiguracionSinArchivo()
+
+    assert "CUSTODIA_KEK está encendida pero falta KEK_ENTORNO" in str(error.value)
+    assert "entorno_sintetico" not in str(error.value)
+
+
+def test_la_api_no_arranca_con_la_custodia_encendida_sin_kek(
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None
+) -> None:
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", "local")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+
+    with pytest.raises(ValidationError) as error:
+        crear_app()
+
+    assert "falta KEK_ENTORNO" in str(error.value)
+
+
 @pytest.mark.parametrize(
     "variables",
-    [{}, {"KEK_ENTORNO": "kek"}, {"CUSTODIA_KEK": "entorno_sintetico"}],
-    ids=["nada", "kek-sin-encender", "encendida-sin-kek"],
+    [{}, {"KEK_ENTORNO": "kek"}],
+    ids=["nada", "kek-sin-encender"],
 )
 def test_sin_kek_encendida_no_hay_custodia_ni_se_genera_una(
     entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, variables: dict[str, str]
 ) -> None:
-    # (b) Apagada o sin KEK, la API arranca sin custodia: las rutas de la ficha responden 503.
-    # Nunca se genera una KEK ni se usa el doble de pruebas.
+    # (b) Sin CUSTODIA_KEK, la API arranca sin custodia: las rutas de la ficha responden 503 y fallan
+    # cerradas. Nunca se genera una KEK ni se usa el doble de pruebas.
     entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
     entorno_limpio.setenv("ENTORNO", "local")
     for nombre, valor in variables.items():

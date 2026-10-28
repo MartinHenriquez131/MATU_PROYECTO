@@ -10,9 +10,9 @@ entorno del servidor puede descifrar todas las fichas. Por eso este adaptador:
 (a) Solo se construye con ENTORNO en {local, pruebas}, una lista permitida y no una prohibida: con
     produccion o cualquier otro valor lanza CustodiaNoPermitida, y la configuración ya impide que la
     API arranque (app/core/config.py).
-(b) Se enciende explícitamente con CUSTODIA_KEK=entorno_sintetico. Sin KEK configurada, las rutas
-    de la ficha responden 503 y fallan cerradas: nunca se genera una KEK al arrancar ni se usa el
-    doble de pruebas (api/dependencias.py).
+(b) Se enciende explícitamente con CUSTODIA_KEK=entorno_sintetico, y encendida sin KEK_ENTORNO la
+    configuración no carga. Sin CUSTODIA_KEK, las rutas de la ficha responden 503 y fallan cerradas:
+    nunca se genera una KEK al arrancar ni se usa el doble de pruebas (api/dependencias.py).
 (c) La KEK son 32 bytes aleatorios en base64 (KEK_ENTORNO), como SecretStr, con largo validado y
     distinta de JWT_CLAVE y PEPPER_EMAIL. No sale del adaptador: no hay método que la devuelva, el
     repr la oculta y ningún error ni log la incluye. Nunca va en el repositorio ni en docker-compose;

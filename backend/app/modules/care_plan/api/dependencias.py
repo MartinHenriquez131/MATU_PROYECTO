@@ -58,12 +58,12 @@ CampoRuta = Annotated[str, Path(json_schema_extra={"enum": [c.value for c in CAM
 
 @lru_cache
 def custodia_configurada() -> CustodiaClaves | None:
-    """La custodia de la configuración, o None si está apagada o sin KEK.
+    """La custodia de la configuración, o None si está apagada.
 
-    Solo CUSTODIA_KEK=entorno_sintetico con KEK_ENTORNO la enciende. Nunca genera una KEK ni usa el
-    doble de pruebas: sin configuración, None, y las rutas de la ficha responden 503. Se construye
-    una vez, al arrancar (preparar_custodia): ahí CustodiaKekEntorno registra su WARNING y rechaza un
-    entorno que no esté en su lista permitida.
+    Solo CUSTODIA_KEK=entorno_sintetico la enciende, y la configuración exige KEK_ENTORNO con ella.
+    Nunca genera una KEK ni usa el doble de pruebas: apagada, None, y las rutas de la ficha
+    responden 503. Se construye una vez, al arrancar (preparar_custodia): ahí CustodiaKekEntorno
+    registra su WARNING y rechaza un entorno que no esté en su lista permitida.
     """
     config = obtener_configuracion()
     if config.custodia_kek != "entorno_sintetico" or config.kek_entorno is None:
