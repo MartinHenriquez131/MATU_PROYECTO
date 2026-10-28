@@ -451,11 +451,11 @@ export function Exportar() {
       <Columnas izquierda="ancha">
         <ListaReposicion />
         <Columna etiqueta="Exportar o compartir">
-          <section aria-labelledby="exportar-t" className="flex flex-col gap-4 bg-hoja px-5 py-5 ring-1 ring-linea">
+          <section aria-labelledby="exportar-t" className="flex flex-col gap-4 bg-hoja px-5 angosto:px-2 py-5 ring-1 ring-linea">
             <h2 id="exportar-t" data-foco="detalle" tabIndex={-1} className="text-2xl font-bold outline-none">
               Exportar o compartir
             </h2>
-            <pre className="rounded-lg bg-papel p-4 text-base leading-relaxed break-words whitespace-pre-wrap tabular-nums">{texto}</pre>
+            <pre className="rounded-lg bg-papel p-4 angosto:p-2 text-base leading-relaxed break-words whitespace-pre-wrap tabular-nums">{texto}</pre>
             <Acciones>
               <Boton icono={<Copy aria-hidden className="size-5" />} onClick={copiar}>
                 Copiar la lista
