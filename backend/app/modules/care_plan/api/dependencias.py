@@ -36,12 +36,17 @@ from app.modules.care_plan.application.ports import (
     AuditoriaFicha,
     CifradorSecciones,
     CustodiaClaves,
+    GeneradorCredencialesRelevo,
+    HuellasRelevo,
+    RepositorioAccesos,
     RepositorioFicha,
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
 from app.modules.care_plan.infrastructure.auditoria_ficha import AuditoriaFichaPendiente
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
+from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
 from app.modules.care_plan.infrastructure.custodia_kek_entorno import CustodiaKekEntorno
+from app.modules.care_plan.infrastructure.repositorio_accesos import RepositorioAccesosSQL
 from app.modules.care_plan.infrastructure.repositorio_claves import RepositorioClavesSQL
 from app.modules.care_plan.infrastructure.repositorio_ficha import RepositorioFichaSQL
 from app.modules.iam.api.dependencias import obtener_reloj
@@ -188,3 +193,55 @@ def cifrador_para_escribir(
 
 def obtener_repositorio_ficha(contexto: SesionDeGrupo) -> RepositorioFicha:
     return RepositorioFichaSQL(contexto.sesion, contexto.grupo_id)
+
+
+# --- Acceso de relevo (MATU-18) ---------------------------------------------------------------------------
+
+
+def acceso_para_compartir(
+    contexto: Annotated[ContextoGrupo, Depends(_contexto_que_escribe)],
+    persona_id: PersonaIdRuta,
+    reloj: Annotated[Reloj, Depends(obtener_reloj)],
+) -> FichaAutorizada:
+    """Comparten admin y cuidador (si no, 404), con consentimiento vigente y la revisión al día (403).
+
+    Es la misma regla que escribir la ficha: la decisión 33 vale también para compartir.
+    """
+    return _autorizar(contexto, _uuid_o_404(persona_id), reloj)
+
+
+def persona_para_listar(
+    contexto: Annotated[ContextoGrupo, Depends(_contexto_que_lee)],
+    persona_id: PersonaIdRuta,
+) -> FichaAutorizada:
+    """Listan admin, cuidador y pagador con puede_ver_plan. No exige consentimiento (decisión 18)."""
+    persona = _uuid_o_404(persona_id)
+    if persona_con_autorizacion(contexto.sesion, contexto.grupo_id, persona) is None:
+        raise ErrorMATU(404)
+    return FichaAutorizada(contexto=contexto, persona_id=persona)
+
+
+def obtener_pepper_pin() -> bytes | None:
+    """El pepper del HMAC del PIN, o None si falta. Las pruebas la sobreescriben."""
+    pepper = obtener_configuracion().pepper_pin
+    return None if pepper is None else pepper.get_secret_value().encode("utf-8")
+
+
+def huellas_para_compartir(
+    autorizado: Annotated[FichaAutorizada, Depends(acceso_para_compartir)],
+    pepper: Annotated[bytes | None, Depends(obtener_pepper_pin)],
+) -> HuellasRelevo:
+    """Sin PEPPER_PIN compartir falla cerrado con 503, después del 403 y antes del 422."""
+    if pepper is None:
+        raise ErrorMATU(
+            503, detalle="No se puede compartir la ficha en este momento. Cita el request_id si lo reportas"
+        )
+    return HuellasHmac(pepper)
+
+
+def obtener_generador_credenciales() -> GeneradorCredencialesRelevo:
+    return GeneradorSecrets()
+
+
+def obtener_repositorio_accesos(contexto: SesionDeGrupo) -> RepositorioAccesos:
+    return RepositorioAccesosSQL(contexto.sesion, contexto.grupo_id)
