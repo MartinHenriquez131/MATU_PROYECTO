@@ -17,6 +17,7 @@ docs/api/
 - **`openapi.json`** tiene solo rutas implementadas. Una ruta pasa de `propuestos/` a `openapi.json` cuando su historia se termina: se exporta desde `GET /openapi.json` de la API y se quita del archivo propuesto en el mismo PR.
 - **La puerta openapi-diff** compara `openapi.json` contra lo que expone la API, y nunca mira `propuestos/`. Un cambio en un contrato propuesto no rompe el pipeline; un cambio en una ruta implementada sí.
 - Hoy ni `openapi.json` ni la puerta openapi-diff existen en el pipeline (`.github/workflows/ci.yml`). Las rutas ya implementadas (`/v1/usuarios`, `/v1/sesiones`, `/v1/grupos`, `/v1/grupos/{grupo_id}/personas-cuidadas`) se ven en `GET /openapi.json` con la API levantada. Crear los dos queda pendiente, fuera de MATU-09.
+- **Las rutas de la ficha (MATU-12) están implementadas pero siguen en `propuestos/`** (revisado el 28-10). El contrato promete dos cosas que llegan después: 412 y 428 con `If-Match` / `If-None-Match` (MATU-13) y el registro de `plan.leer` y `plan.editar` (MATU-14). Pasarlas a `openapi.json` ahora fijaría como "implementado" un contrato que la API todavía no cumple. Como la puerta openapi-diff no existe y, cuando exista, no mirará `propuestos/`, el CI no puede fallar por esto: MATU-12 no crea `openapi.json` ni toca `ci.yml`. La historia que cierre la última de las dos (MATU-13 o MATU-14) exporta las rutas a `openapi.json` y las quita del propuesto, como dice la regla de arriba. Diferencias que verá openapi-diff ese día: FastAPI agrega un 422 genérico a `GET …/plan/ficha` (por sus parámetros), y `X-Grupo-Id` sale como `string | null` sin `format: uuid`, igual que en las rutas de MATU-07.
 - Cada archivo propuesto es autocontenido: no hace `$ref` a otro archivo. Los componentes comunes (`Problema`, `ProblemaValidacion`, `ErrorCampo`, `CampoFicha`, `Autor`, `XGrupoId`, `PersonaId`, `bearerAuth`, las cabeceras `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`, y el cuerpo de `NoAutenticado`, `NoEncontrado` y `SinConsentimiento`) son idénticos en los dos.
 - **Cabeceras de respuesta.** Toda respuesta, también las de error, declara `X-Request-ID` (UUID, el mismo `request_id` de los logs y del problema; lo pone `app/core/logs.py`). Llevan `Cache-Control: no-store` las que traen texto de la ficha, PIN o enlace, y también la lista de accesos y `/plan/aperturas`, porque dicen a quién se compartió la ficha y cuándo la abrió.
 
@@ -24,8 +25,8 @@ docs/api/
 
 | Método y ruta | Historia | Estado |
 |---|---|---|
-| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Propuesto |
-| `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Propuesto |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado por MATU-12, sin la auditoría (MATU-14). Sigue en propuestos |
+| `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Implementado por MATU-12, sin 412/428 (MATU-13) ni la auditoría (MATU-14). Sigue en propuestos |
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Propuesto |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Propuesto |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Propuesto |
@@ -42,7 +43,8 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 |---|---|---|---|
 | `/errores/no-autenticado` | 401 | Falta el access token | Existe (por defecto del 401) |
 | `/errores/token-invalido` | 401 | Token inválido, alterado o vencido | Existe (MATU-05a) |
-| `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado` | **Nuevo** (MATU-12). MATU-07 no definió uno |
+| `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado` | Existe (MATU-12). MATU-07 no definió uno |
+| `/errores/revision-vencida` | 403 | El consentimiento lo dio un cuidador de hecho y venció su revisión anual (decisión 33) | Existe (MATU-12) |
 | `/errores/no-encontrado` | 404 | No miembro, rol que no alcanza, recurso de otro grupo o inexistente | Existe |
 | `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe | Existe (por defecto del 412) |
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
@@ -53,6 +55,8 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
 | `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | **Nuevo** (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | **Nuevo** (MATU-19) |
+| `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
+| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32) | Existe (MATU-12, por defecto del 503) |
 | `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones o más de 10 canjes por hora desde una IP, en contadores separados | Existe (por defecto del 429), lo usa MATU-25 |
 
 ## Decisiones tomadas en este contrato
@@ -95,6 +99,33 @@ Jorge aprobó la parte 1 (ficha) y la parte 2 (acceso de relevo) el 27-10, despu
 29. **Contadores por IP separados** (decisión de Jorge del 27-10). `POST /v1/relevo/presentacion` admite 30 por hora por IP y `POST /v1/relevo/canje` sigue en 10. Los dos usan la huella HMAC de la decisión 27, con TTL de 1 hora y claves distintas. Razón: en Chile muchos celulares comparten IP pública (CGNAT), y la presentación no permite adivinar enlaces, porque el token tiene 256 bits, ni muestra más que dos nombres de pila.
 30. **La presentación se audita** (decisión de Jorge del 27-10). Cada presentación con 200 queda en `auditoria` como `relevo.presentar`, sin IP. `/plan/aperturas` la muestra con `tipo: presentacion`, junto a `apertura`, `pin_incorrecto` y `bloqueo`. Sirve para detectar un enlace reenviado: se abrió la página y nunca se escribió el PIN. Se agrega ahora, antes de implementar, para no cambiar `tipo` después (decisión 19).
 31. **La lista de accesos devuelve `telefono_relevo` a `admin` y `cuidador`** (decisión de Jorge del 27-10). Así la familia puede contactar al relevo (decisión 24). Para el `pagador` con `puede_ver_plan` la propiedad no aparece. Es `null` cuando ya se borró, a los 30 días (decisión 25). La respuesta ya lleva `Cache-Control: no-store`.
+
+## Decisiones de Jorge del 28-10
+
+Las tomó Jorge al implementar MATU-12, con las condiciones del analista normativo. Siguen la numeración de las decisiones del contrato.
+
+32. **D-A · La KEK en una variable de entorno, solo en el semestre y solo con datos sintéticos** (desvío explícito del ADR-016). El adaptador `CustodiaKekEntorno` (`backend/app/modules/care_plan/infrastructure/custodia_kek_entorno.py`) implementa el puerto `CustodiaClaves` con la KEK de la configuración. Condiciones del analista normativo:
+    - (a) Solo se construye con `ENTORNO` en {`local`, `pruebas`}, una lista permitida: con `produccion` o cualquier otro valor, la configuración no carga y la API no arranca.
+    - (b) Se enciende explícitamente con `CUSTODIA_KEK=entorno_sintetico`. Sin KEK configurada, las rutas de la ficha responden **503** `/errores/servicio-no-disponible` y fallan cerradas: nunca se genera una KEK al arrancar ni se usa el doble de pruebas.
+    - (c) `KEK_ENTORNO` son 32 bytes aleatorios en base64, como `SecretStr`, con el largo validado y distinta de `JWT_CLAVE` y `PEPPER_EMAIL`. No sale del adaptador ni aparece en su `repr`, en los errores ni en los logs. Nunca va en el repositorio ni en `docker-compose.yml`, y `.env.example` solo tiene el marcador vacío.
+    - (d) `KEK_VERSION` es fija (1 por omisión) y viene de la configuración. Si la clave cambia sin cambiar la versión, el resultado es un error genérico (503), nunca una DEK nueva.
+    - (e) Al arrancar registra un WARNING fijo, sin la clave: "KEK en variable de entorno: solo datos sintéticos". El docstring del adaptador declara la limitación de la arquitectura 11.4: la KEK vive en el mismo servidor que las DEK envueltas.
+    - (f) Lo prueban `backend/tests/modules/care_plan/test_custodia_kek_entorno.py` (no arranca con `produccion` ni con un entorno desconocido; la KEK no aparece en el `repr`, los errores ni los logs) y `test_ficha_api.py` (503 sin custodia; otra KEK con la misma versión no crea una DEK nueva).
+    - **Envoltura: AES Key Wrap (RFC 3394, NIST SP 800-38F), no AES-GCM.** Es el algoritmo hecho para envolver claves: determinista y sin nonce (no hay nonce que generar ni riesgo de repetirlo con la misma KEK) y con su propio control de integridad, así que una DEK envuelta alterada o desenvuelta con otra KEK falla en vez de entregar bytes erróneos. Los datos asociados de GCM no aportan aquí: el puerto `envolver(dek)` no recibe contexto y la versión ya elige la KEK. La DEK envuelta ocupa 40 bytes.
+    - El adaptador de producción lo decide el ADR-019. Con este, MATU no recibe datos reales.
+33. **D-B · Revisión anual vencida = sin autorización vigente.** Si el consentimiento para `plan_cuidado` lo dio un cuidador de hecho y `revision_vence_en` ya pasó (con el puerto `Reloj`; vencida desde el instante exacto), leer o escribir la ficha responde **403** con un `type` propio, `/errores/revision-vencida`, distinto de `/errores/sin-consentimiento`. Así la pantalla no muestra un error sino un aviso que explica cómo renovar la autorización o hacerse cuidador formal, con un enlace externo. **Pendiente de `docs/lenguaje.md`** (repositorio MATU): el texto del aviso y el enlace oficial. El contrato los marca como pendientes y la API no los devuelve. Lo prueba `test_revision_vencida_403`.
+
+## Notas de implementación de MATU-12
+
+Decisiones técnicas del backend que no cambian el contrato. Si alguna no corresponde, se corrige antes de fusionar.
+
+- **Orden de los controles.** El rol, la persona, el campo, el consentimiento (y la revisión) y la custodia son dependencias de FastAPI: corren antes de validar el cuerpo y antes de leer el plan. Sin consentimiento no se descifra, no se valida el texto y no se crea ni el plan ni la clave de datos (lo prueba `test_sin_consentimiento_403`). El 503 de custodia va después del 403 y antes del 422.
+- **Hasta MATU-13, las escrituras sin cabeceras se aceptan.** 201 si crean el campo, 200 si lo actualizan. Dos escrituras del mismo campo se ordenan por el bloqueo de la fila (`SELECT … FOR UPDATE`) y gana la última; dos primeras escrituras concurrentes dejan un solo plan y una sola sección (`ON CONFLICT DO NOTHING`). Un `texto` vacío sobre un campo nunca escrito responde 422 `vacio_sin_crear` leyendo la base, porque todavía no hay `If-None-Match` que permita decidirlo sin leerla (decisión 6).
+- **Un campo vaciado se guarda cifrado con largo 0.** AES-GCM conserva el largo, así que la completitud se calcula con `octet_length(contenido_cifrado) > 0`, sin descifrar los otros campos. El largo de un campo ya se deduce del texto cifrado; esto no revela nada nuevo.
+- **Clave de datos destruida (borrado criptográfico): 404**, como una persona eliminada. **Sección ilegible** (alterada o movida de plan o de campo): 500 genérico. **La custodia no envuelve o no desenvuelve:** 503 genérico. Ninguno lleva el texto, y el log solo registra el tipo de error.
+- **Auditoría (MATU-14).** Los casos de uso llaman al puerto `AuditoriaFicha` (`registrar_lectura` y `registrar_edicion`) dentro de la transacción, con un `EventoFicha` de solo identificadores. MATU-12 lo cablea con `AuditoriaFichaPendiente`, que no escribe nada; MATU-14 cambia solo `obtener_auditoria_ficha`.
+- **Las preguntas guía y los ejemplos de cada campo** (`docs/lenguaje.md`, 5.1 a 5.3) no van en la respuesta: el contrato los deja en la interfaz.
+- **Pendiente de decidir:** si la decisión 33 aplica también a compartir (`POST …/plan/accesos-relevo`, MATU-18), que hoy exige "consentimiento vigente" con `SinConsentimiento`. `relevo.openapi.yaml` no se cambió.
 
 ## Contradicciones con la arquitectura v1.1, sección 9.2
 
