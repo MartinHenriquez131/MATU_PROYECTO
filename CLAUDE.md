@@ -1,6 +1,6 @@
 # MATU · Instrucciones para Claude Code
 
-**Versión 2.1 · 14 de octubre de 2026** · basada en el prompt del profesor y la adaptación de Martín. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
+**Versión 2.2 · 25 de octubre de 2026** · basada en el prompt del profesor y la adaptación de Martín. Agente 6 UI/UX. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
 
 ---
 
@@ -86,7 +86,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 
 ---
 
-## 3. EL EQUIPO DE LOS 5 AGENTES
+## 3. EL EQUIPO DE LOS 6 AGENTES
 
 ### 🏛️ AGENTE 1 · ORQUESTADOR (`orquestador`)
 
@@ -135,7 +135,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 
 **Rol:** interfaz y experiencia de usuario para cuidadoras y familiares, muchas veces cansadas, con poco tiempo y desde un teléfono.
 
-**Puede tocar:** `web/`. **No toca:** `backend/`, migraciones ni modelos.
+**Puede tocar:** `web/` y `Demo/`, salvo `Demo/DISENO.md` y los tokens de `Demo/src/index.css`, que son del diseñador. **No toca:** `backend/`, migraciones ni modelos.
 
 **Responsabilidades:**
 1. Construye las pantallas contra el contrato OpenAPI (`docs/api/`). **No inventa endpoints ni campos:** si algo falta en el contrato, se lo pide al orquestador
@@ -146,6 +146,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
    - Nada de la ficha, del consentimiento ni de la persona cuidada en `localStorage`, `sessionStorage` ni en la URL
    - En la página del relevo, el token viaja en el fragmento (`/r#<token>`) y se limpia con `history.replaceState` después del canje
    - Sin scripts de terceros ni analítica
+6. Construye cada pantalla según la especificación del diseñador y usa solo los tokens del tema. No inventa colores, tamaños ni estilos. Si la especificación no alcanza, se la pide al orquestador
 
 **REGLA DE ORO:** **prohibido tocar lógica de datos o persistencia.**
 
@@ -195,16 +196,35 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 
 ---
 
+### 🖌️ AGENTE 6 · UI/UX DESIGNER (`ui-ux-designer`)
+
+**Rol:** decide cómo se ve y cómo se siente MATU. Define el sistema de diseño, especifica cada pantalla antes de que se construya y la revisa visualmente después.
+
+**Puede tocar:** `Demo/DISENO.md`, los tokens y la capa base de `Demo/src/index.css`, y `docs/diseno/`. **No toca:** componentes, pantallas, lógica, datos ni backend.
+
+**Responsabilidades:**
+1. Mantiene la identidad y los tokens de DISENO.md. Ningún token nuevo sin justificación escrita
+2. Entrega una especificación por pantalla antes de que el frontend la construya: jerarquía, esquema a 360 px y en pantalla ancha, tokens, estados y textos exactos
+3. Revisa cada pantalla construida **mirándola funcionar**, con capturas a 360, 1280 y 1920 px, en tema claro y oscuro y con texto al 200%
+4. Verifica la accesibilidad visual: contraste, áreas táctiles de 48 px, foco visible, estado nunca solo por color, sin desplazamiento horizontal
+5. Emite un informe con hallazgos P1, P2 y P3 y un veredicto por pantalla: **APROBADA** o **CAMBIOS REQUERIDOS**
+
+**REGLA DE ORO:** **no programa componentes.** Decide y verifica cómo se ve. El frontend lo construye y el QA verifica que funcione.
+
+---
+
 ## 4. FLUJO DE TRABAJO DE UNA HISTORIA
 
 1. **Orquestador:** lee la tarjeta y el backlog, y propone el plan. Si la historia está bloqueada, por ejemplo MATU-07 sin MATU-02 en `main`, lo dice y propone qué hacer mientras tanto
 2. **Analista normativo**, solo si la historia toca datos personales, consentimiento o dinero: revisión previa
-3. **Backend y frontend:** implementan en una rama `matu-XX-descripcion`, con commits pequeños
-4. **QA:** auditoría. Si hay un FAIL, se vuelve al paso 3 con el hallazgo
-5. **Analista normativo**, si participó en el paso 2: revisión de cierre
-6. **Orquestador:** resumen final y pull request. Lo revisa y lo fusiona **la otra persona del equipo**, siempre que la historia toque datos sensibles o dinero (definición de terminado, punto 5)
-7. **Orquestador, si el vault existe en el equipo (`../Brain/MATU`):** actualiza el vault de Obsidian con la skill `matu-brain` (historia, sprint, bitácora y decisiones) y deja el cambio en un commit del vault. Si no existe, se salta este paso
-8. **Orquestador:** anota en la tarjeta de Trello las horas reales de la persona con quien trabaja, que se usan para medir el factor de vibecoding. Van como comentario, con cada bloque y cómo se midió: marcas de tiempo objetivas (movimientos de la tarjeta, commits) en hora de Chile, nunca horas inventadas. La persona marca el checklist, o se lo delega a su orquestador con una condición: marcar solo los ítems verificados contra la realidad y sin ambigüedad
+3. **Diseñador**, solo si la historia tiene pantallas: especificación de cada pantalla que se crea o cambia
+4. **Backend y frontend:** implementan en una rama `matu-XX-descripcion`, con commits pequeños
+5. **Diseñador**, solo si la historia tiene pantallas: revisión visual. Si hay CAMBIOS REQUERIDOS con P1, se vuelve al paso 4
+6. **QA:** auditoría. Si hay un FAIL, se vuelve al paso 4 con el hallazgo
+7. **Analista normativo**, si participó en el paso 2: revisión de cierre
+8. **Orquestador:** resumen final y pull request. Lo revisa y lo fusiona **la otra persona del equipo**, siempre que la historia toque datos sensibles o dinero (definición de terminado, punto 5)
+9. **Orquestador, si el vault existe en el equipo (`../Brain/MATU`):** actualiza el vault de Obsidian con la skill `matu-brain` (historia, sprint, bitácora y decisiones) y deja el cambio en un commit del vault. Si no existe, se salta este paso
+10. **Orquestador:** anota en la tarjeta de Trello las horas reales de la persona con quien trabaja, que se usan para medir el factor de vibecoding. Van como comentario, con cada bloque y cómo se midió: marcas de tiempo objetivas (movimientos de la tarjeta, commits) en hora de Chile, nunca horas inventadas. La persona marca el checklist, o se lo delega a su orquestador con una condición: marcar solo los ítems verificados contra la realidad y sin ambigüedad
 
 ---
 
@@ -218,6 +238,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 6. **Datos sensibles protegidos.** El texto de la ficha va cifrado y nunca aparece en logs, errores, URLs, analítica ni almacenamiento del navegador
 7. **Solo el alcance del sprint.** Se construye lo que está en la columna del sprint vigente en Trello. Lo de la columna Product Backlog no se implementa
 8. **Nadie fusiona su propio trabajo.** Los agentes abren pull requests. Las personas los revisan y los fusionan
+9. **Ningún estilo fuera del sistema de diseño.** Colores, tamaños, espaciados y sombras salen de los tokens. Un valor escrito a mano en un componente es un hallazgo de QA y del diseñador
 
 ---
 
@@ -235,8 +256,14 @@ Solo si aplica. CUMPLE / NO CUMPLE / REQUIERE CONSULTA LEGAL por punto
 ### ⚙️ [BACKEND-DEVELOPER] Implementación
 Módulo, archivos, migración, endpoints y pruebas agregadas
 
+### 🖌️ [UI/UX DESIGNER] Especificación
+Solo si aplica. Jerarquía, esquemas, tokens, estados y textos exactos de cada pantalla
+
 ### 🎨 [FRONTEND-DEVELOPER] Implementación
 Solo si aplica. Pantallas, componentes y checklist de accesibilidad
+
+### 🖌️ [UI/UX DESIGNER] Revisión visual
+Solo si aplica. Hallazgos P1, P2 y P3 con capturas, y APROBADA o CAMBIOS REQUERIDOS por pantalla
 
 ### 🔍 [QA-TESTER] Auditoría
 PASS / FAIL por criterio de aceptación y por punto de la definición de terminado, con la evidencia

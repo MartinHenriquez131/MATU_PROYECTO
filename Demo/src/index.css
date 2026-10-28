@@ -1,0 +1,242 @@
+@import 'tailwindcss';
+
+/* Fuentes locales, sin CDN: la demo funciona sin conexión en el proyector. */
+@import '@fontsource/atkinson-hyperlegible/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible/latin-700.css';
+@import '@fontsource/atkinson-hyperlegible/latin-400-italic.css';
+@import '@fontsource/atkinson-hyperlegible-mono/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible-mono/latin-700.css';
+@import '@fontsource-variable/bricolage-grotesque/wght.css';
+
+/*
+ * Identidad de MATU (DISENO.md, sección 1). Siete tokens de marca y tres pares semánticos.
+ * Paleta turquesa (directriz de Jorge, 25/10/2026). Contrastes medidos en DISENO.md.
+ *   papel  fondo general y barra lateral, neblina de agua
+ *   hoja   la hoja de la ficha, formularios y listas
+ *   tinta  texto principal; barra de la consola de la farmacia
+ *   tenue  texto secundario (6,4:1 sobre papel)
+ *   pino   turquesa profundo: texto de acción, enlaces, botones, foco y navegación activa
+ *          (6,0:1 sobre papel, 6,7:1 sobre hoja). Conserva el nombre para no tocar componentes
+ *   marca  turquesa de marca: el círculo del logo y los acentos grandes. Igual en los dos temas.
+ *          Nunca texto: el corazón blanco sobre ella mide 3,5:1
+ *   miel   calidez: el imán de la hoja y los puntos de "Su día". Nunca texto ni dato
+ */
+@theme {
+  --color-papel: #ecf3f2;
+  --color-hoja: #ffffff;
+  --color-tinta: #13252a;
+  --color-tenue: #485b5f;
+  --color-pino: #086764;
+  --color-marca: #0d9a94;
+  --color-miel: #e3a43a;
+
+  --color-pronto: #a8261b;
+  --color-pronto-fondo: #fbe9e6;
+  --color-atenta: #835000;
+  --color-atenta-fondo: #fcefd8;
+  --color-ok: #22663d;
+  --color-ok-fondo: #e1f1e6;
+
+  /* Derivados, no son tokens nuevos */
+  --color-linea: color-mix(in oklab, var(--color-tinta) 14%, transparent);
+  --color-rocio: color-mix(in oklab, var(--color-pino) 12%, var(--color-hoja));
+  /* Borde de los controles (campos, opciones, chips sin elegir): 3,5:1 sobre hoja y 3,1:1 sobre
+     papel en claro, 4:1 sobre hoja en oscuro (WCAG 1.4.11). `linea` queda para divisores. */
+  --color-borde: color-mix(in oklab, var(--color-tinta) 50%, var(--color-hoja));
+
+  /* La pasarela de pago simulada no usa la marca: es otra empresa. Grises fijos, sin tema oscuro. */
+  --color-pasarela: #eef0f3;
+  --color-pasarela-hoja: #ffffff;
+  --color-pasarela-tinta: #1f2a37;
+  --color-pasarela-presionado: #111827;
+  --color-pasarela-tenue: #4b5563;
+  --color-pasarela-rechazo: #9f1c14;
+  --color-pasarela-rechazo-fondo: #fef2f2;
+
+  --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Atkinson Hyperlegible', ui-sans-serif, sans-serif;
+  --font-cifras: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+  /* Tailwind usa --font-mono en pre, code y kbd: que sea la cara local, nunca una del sistema. */
+  --font-mono: var(--font-cifras);
+
+  --ease-calma: cubic-bezier(0.22, 0.8, 0.24, 1);
+
+  --animate-digito: digito 520ms var(--ease-calma) both;
+  --animate-trazo: trazo 900ms var(--ease-calma) both;
+  --animate-aparecer: aparecer 180ms ease-out both;
+
+  @keyframes digito {
+    0% { opacity: 0; transform: translateY(-0.6em) scale(0.9); }
+    60% { opacity: 1; transform: translateY(0.06em) scale(1.02); }
+    100% { opacity: 1; transform: none; }
+  }
+  @keyframes trazo {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes aparecer {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/*
+ * Tema oscuro: sigue al sistema, salvo que el presentador fije uno desde la guía.
+ * Los valores van repetidos en el selector y en la media query porque CSS no deja compartir un
+ * bloque entre los dos. Si cambia uno, cambia el otro. `marca` no cambia: es la misma en los dos.
+ */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+  --color-papel: #0d1719;
+  --color-hoja: #152427;
+  --color-tinta: #e4eeeb;
+  --color-tenue: #a9bcb8;
+  --color-pino: #52ccc3;
+  --color-miel: #e8b866;
+  --color-pronto: #ffa395;
+  --color-pronto-fondo: #3b1b17;
+  --color-atenta: #f2c46b;
+  --color-atenta-fondo: #33270f;
+  --color-ok: #8fd9a8;
+  --color-ok-fondo: #13301f;
+}
+:root[data-tema='claro'] {
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    color-scheme: dark;
+    --color-papel: #0d1719;
+    --color-hoja: #152427;
+    --color-tinta: #e4eeeb;
+    --color-tenue: #a9bcb8;
+    --color-pino: #52ccc3;
+    --color-miel: #e8b866;
+    --color-pronto: #ffa395;
+    --color-pronto-fondo: #3b1b17;
+    --color-atenta: #f2c46b;
+    --color-atenta-fondo: #33270f;
+    --color-ok: #8fd9a8;
+    --color-ok-fondo: #13301f;
+  }
+}
+
+@layer base {
+  /* 1rem = 17 px: el texto base y todo el espaciado escalan con la preferencia del usuario. */
+  html {
+    font-size: 106.25%;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light dark;
+  }
+  /* En el teléfono, lo que recibe el foco o se desplaza a la vista no queda bajo lo que va fijo
+     abajo: la barra de secciones (unos 69 px) y el distintivo flotante, que va sobre ella (WCAG
+     2.4.11; ESPEC-ADR-027, 7.6). Es el mismo corte de 40 rem de `telefono:` y `max-sm:`. */
+  @media (width < 40rem) {
+    html {
+      scroll-padding-bottom: --spacing(40);
+    }
+  }
+  body {
+    @apply bg-papel text-tinta font-sans antialiased;
+    line-height: 1.5;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    /* Red de seguridad del reflujo (ESPEC-ADR-027, 7.2): una palabra que no cabe sola en su renglón
+       se parte en vez de salirse. `break-word` y no `anywhere`: no cambia el ancho mínimo de nada,
+       así que a 1280 y 1920 px no mueve una sola caja, y no deja columnas de una letra. */
+    overflow-wrap: break-word;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-pino);
+    outline-offset: 2px;
+    border-radius: 0.4rem;
+  }
+  /* Un fieldset mide por defecto lo que su contenido: con el texto al 200% desbordaría. */
+  fieldset {
+    min-width: 0;
+  }
+  /* La lista para exportar va en un <pre> por los saltos de línea, no por la cara: se lee en la
+     cara del texto. La monoespaciada es solo para el PIN y el código de retiro. */
+  pre {
+    font-family: inherit;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/*
+ * Variantes de composición (DISENO.md, sección 3; ESPEC-ADR-027, sección 7).
+ *   angosto   la app mide menos de 16 rem. Solo pasa con "Texto al 200%" en una pantalla de menos
+ *             de 544 px (o con el zoom del navegador sobre 400%). Ahí se quitan rellenos y se apila
+ *             lo que va lado a lado. Nunca se activa a 320 px sin zoom ni en el proyector.
+ *   telefono  la pantalla mide menos de 40 rem (640 px) y la app no está en modo angosto: la vista
+ *             de app móvil, con la barra de secciones abajo. Nunca se activa a 1280 px, tampoco con
+ *             "Texto al 200%", porque mira el ancho de la pantalla y no el de la app.
+ * Las dos miran el contenedor `app` del escenario, así que solo sirven dentro de la app. Lo que
+ * está fuera de ella (la franja y el distintivo del presentador) usa `max-sm:`, el mismo 40 rem.
+ */
+@custom-variant angosto {
+  @container app (width < 16rem) {
+    @slot;
+  }
+}
+@custom-variant telefono {
+  @media (width < 40rem) {
+    @container app (width >= 16rem) {
+      @slot;
+    }
+  }
+}
+
+/* Utilidades propias con @utility, para que acepten variantes como [&_input]:digitos. */
+/* Cifras de dinero, fechas y horas: alineadas, en la cara del texto. */
+@utility cifras {
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+/* Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. */
+@utility digitos {
+  font-family: var(--font-cifras);
+  font-variant-numeric: tabular-nums;
+}
+@utility titular {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+/* Renglones de cuaderno en la hoja de la ficha. */
+@utility renglones {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(1.75rem - 1px),
+    color-mix(in oklab, var(--color-pino) 12%, transparent) calc(1.75rem - 1px),
+    color-mix(in oklab, var(--color-pino) 12%, transparent) 1.75rem
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
