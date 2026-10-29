@@ -414,6 +414,7 @@ def test_si_falla_la_auditoria_no_sale_texto(entorno: EntornoAbrir) -> None:
     entorno.ficha.app.dependency_overrides[obtener_fabrica_registro] = fabrica_que_falla
     respuesta = entorno.leer()
     assert respuesta.status_code == 500
+    _cabeceras_relevo(respuesta)  # también en el 500, que arma ServerErrorMiddleware
     assert RUTINA not in respuesta.text
     assert _una("SELECT usos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
 

@@ -8,6 +8,8 @@ validación, un 500 o un 404 de ruta inexistente, que no pasan por el código de
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+PREFIJO_RELEVO = "/v1/relevo/"
+
 CABECERAS_RELEVO = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",

@@ -12,7 +12,7 @@ from typing import TextIO
 
 from fastapi import APIRouter, FastAPI
 
-from app.core.cabeceras import CABECERAS_RELEVO, MiddlewareCabecerasPrefijo
+from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabecerasPrefijo
 from app.core.config import obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
@@ -49,7 +49,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     )
     registrar_manejadores(app)
     # MATU-19 (C11): no-store, no-referrer y noindex en toda respuesta bajo /v1/relevo/, también errores
-    app.add_middleware(MiddlewareCabecerasPrefijo, prefijo="/v1/relevo/", cabeceras=CABECERAS_RELEVO)
+    app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
     app.add_middleware(MiddlewareRequestId)
 
     # Routers por historia (una línea cada uno)

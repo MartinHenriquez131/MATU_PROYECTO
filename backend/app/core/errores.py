@@ -21,6 +21,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO
+
 TIPO_PROBLEMA = "application/problem+json"
 
 TITULOS: dict[int, str] = {
@@ -169,7 +171,14 @@ async def _manejar_validacion(request: Request, exc: Exception) -> JSONResponse:
 
 async def _manejar_inesperado(request: Request, exc: Exception) -> JSONResponse:
     # El MiddlewareRequestId ya registró la traza, con su request_id y sin el mensaje.
-    return respuesta_problema(request, 500, detalle="Ocurrió un error inesperado. Cita el request_id si lo reportas")
+    # Este manejador corre en ServerErrorMiddleware, por fuera de los demás middlewares: las cabeceras del
+    # relevo (MATU-19, C11) se ponen aquí. Un 500 nunca se guarda en caché.
+    cabeceras = {"Cache-Control": "no-store"}
+    if request.url.path.startswith(PREFIJO_RELEVO):
+        cabeceras.update(CABECERAS_RELEVO)
+    return respuesta_problema(
+        request, 500, detalle="Ocurrió un error inesperado. Cita el request_id si lo reportas", headers=cabeceras
+    )
 
 
 def registrar_manejadores(app: FastAPI) -> None:
