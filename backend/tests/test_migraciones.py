@@ -315,15 +315,48 @@ def test_0005_reemplaza_la_lectura_de_auditoria_y_baja_al_esquema_de_0004(base_d
     alembic("upgrade", "head")
 
 
-# ---- 0006 (MATU-19): revocado_en en indice_token, políticas del relevo y autorización vigente
+# ---- 0006: el consentimiento es inalterable; solo se registra la revocación
 
 
-@pytest.mark.rf("RF-06")
-def test_0006_agrega_lo_del_relevo_y_baja_al_esquema_de_0005(base_desechable):
+@pytest.mark.rf("RF-01")
+def test_0006_consentimiento_inalterable_y_baja_al_esquema_de_0005(base_desechable):
     alembic("upgrade", "0005")
     esquema_0005 = catalogo()
 
     alembic("upgrade", "0006")
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'consentimiento' ORDER BY 1"))
+    assert politicas == {
+        "consentimiento_familia_crear": "INSERT", "consentimiento_familia_leer": "SELECT",
+        "consentimiento_familia_revocar": "UPDATE", "consentimiento_operacion": "SELECT"}
+    permisos = {p for (p,) in consultar(
+        "SELECT privilege_type FROM information_schema.role_table_grants"
+        " WHERE table_name = 'consentimiento' AND grantee = 'matu_app'")}
+    assert not {"UPDATE", "DELETE"} & permisos
+    columnas = {c for (c,) in consultar(
+        "SELECT column_name FROM information_schema.column_privileges WHERE table_name = 'consentimiento'"
+        " AND grantee = 'matu_app' AND privilege_type = 'UPDATE'")}
+    assert columnas == {"revocado_en"}
+    disparadores = {t for (t,) in consultar(
+        "SELECT tgname FROM pg_trigger WHERE tgrelid = 'consentimiento'::regclass AND NOT tgisinternal")}
+    assert {"consentimiento_solo_revocacion", "consentimiento_sin_borrado"} <= disparadores
+
+    alembic("downgrade", "0005")
+    despues = catalogo()
+    for parte, filas in esquema_0005.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
+
+
+# ---- 0007 (MATU-19): revocado_en en indice_token, políticas del relevo y autorización vigente
+
+
+@pytest.mark.rf("RF-06")
+def test_0007_agrega_lo_del_relevo_y_baja_al_esquema_de_0006(base_desechable):
+    alembic("upgrade", "0006")
+    esquema_0006 = catalogo()
+
+    alembic("upgrade", "0007")
     assert consultar(
         "SELECT data_type, is_nullable FROM information_schema.columns"
         " WHERE table_name = 'indice_token' AND column_name = 'revocado_en'"
@@ -335,8 +368,8 @@ def test_0006_agrega_lo_del_relevo_y_baja_al_esquema_de_0005(base_desechable):
     assert definer and config == ["search_path=pg_catalog, public, pg_temp"]
     assert "matu_app=X" in acl and "=X/" not in acl.replace("matu_app=X/", "").replace("matu_owner=X/", "")
 
-    alembic("downgrade", "0005")
+    alembic("downgrade", "0006")
     despues = catalogo()
-    for parte, filas in esquema_0005.items():
+    for parte, filas in esquema_0006.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")

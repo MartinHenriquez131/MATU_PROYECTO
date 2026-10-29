@@ -31,6 +31,7 @@ class AccionAuditoria(StrEnum):
     PLAN_LEER = "plan.leer"
     PLAN_EDITAR = "plan.editar"
     CONSENTIMIENTO_OTORGAR = "consentimiento.otorgar"
+    CONSENTIMIENTO_REVOCAR = "consentimiento.revocar"
     RELEVO_COMPARTIR = "relevo.compartir"
     RELEVO_REVOCAR = "relevo.revocar"
     RELEVO_PRESENTAR = "relevo.presentar"
