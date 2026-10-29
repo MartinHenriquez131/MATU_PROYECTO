@@ -235,8 +235,8 @@ class AuditoriaFicha(Protocol):
     antes de responder: si la auditoría falla, la petición falla y la escritura se deshace. Nunca se
     llama cuando la petición se rechaza antes (401, 404, 403 o 422).
 
-    Implementación de MATU-12: AuditoriaFichaPendiente (infrastructure/auditoria_ficha.py), que no
-    escribe nada. MATU-14 la reemplaza por la que inserta en auditoria, sin tocar los casos de uso.
+    Implementación: AuditoriaFichaRegistro (infrastructure/auditoria_ficha.py), sobre el puerto
+    RegistroAuditoria de app/shared (MATU-14).
     """
 
     def registrar_lectura(self, evento: EventoFicha) -> None: ...

@@ -291,3 +291,25 @@ def test_0004_agrega_el_nombre_de_quien_comparte_y_baja_al_esquema_de_0003(base_
 
     # ---- y vuelve a subir
     alembic("upgrade", "head")
+
+
+# ---- 0005 (MATU-14): quién lee la auditoría (decisión 36)
+
+
+@pytest.mark.rf("RF-08")
+def test_0005_reemplaza_la_lectura_de_auditoria_y_baja_al_esquema_de_0004(base_desechable):
+    alembic("upgrade", "0004")
+    esquema_0004 = catalogo()
+
+    alembic("upgrade", "0005")
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'auditoria' ORDER BY 1"))
+    assert politicas == {"auditoria_familia": "SELECT", "auditoria_insertar": "INSERT", "auditoria_relevo": "INSERT"}
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'auditoria_familia'")
+    assert "app_usuario()" in qual and "'admin'" in qual
+
+    alembic("downgrade", "0004")
+    despues = catalogo()
+    for parte, filas in esquema_0004.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")

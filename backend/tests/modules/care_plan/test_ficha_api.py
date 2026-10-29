@@ -18,10 +18,14 @@ from typing import Any
 
 import psycopg
 import pytest
+from sqlalchemy import event
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.modules.care_plan.api.dependencias import obtener_custodia
+from app.core.db import obtener_fabrica_sesiones
+from app.modules.care_plan.api.dependencias import obtener_auditoria_ficha, obtener_custodia, obtener_registro_auditoria
 from tests.base_datos import DSN, requiere_base
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
+from tests.dobles.registro_auditoria_en_memoria import RegistroAuditoriaEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
 
@@ -649,3 +653,127 @@ def test_log_sin_texto_de_ficha(entorno_ficha: EntornoFicha, caplog: pytest.LogC
         marca = texto.rsplit(" ", 1)[-1]
         assert marca not in caplog.text
         assert marca not in salida
+
+
+# --- MATU-14 · Auditoría real de lectura y escritura (RF-08) ------------------------------------------------
+
+
+def _auditoria_real(entorno_ficha: EntornoFicha) -> None:
+    """Quita el espía: la ruta usa AuditoriaFichaRegistro sobre RegistroAuditoriaSql."""
+    entorno_ficha.app.dependency_overrides.pop(obtener_auditoria_ficha, None)
+
+
+def _filas_auditoria(request_id: str) -> list[tuple[Any, ...]]:
+    with psycopg.connect(DSN) as cx:
+        return cx.execute(
+            "SELECT grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, ip, ocurrido_en"
+            " FROM auditoria WHERE request_id = %s",
+            (request_id,),
+        ).fetchall()
+
+
+@requiere_base
+@pytest.mark.rf("RF-08")
+def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
+    _auditoria_real(entorno_ficha)
+    familia = entorno_ficha.familia()
+    grupo, persona = familia.grupo.id, familia.persona.id
+    cuidador = familia.miembros["cuidador"].usuario
+    texto = _texto("rutina")
+
+    respuesta = entorno_ficha.escribir(cuidador, grupo, persona, "rutina", {"texto": texto})
+
+    assert respuesta.status_code == 201
+    seccion = _una(
+        "SELECT s.id FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+        " WHERE p.persona_cuidada_id = %s AND s.tipo = 'rutina'",
+        persona,
+    )
+    assert seccion is not None
+    [fila] = _filas_auditoria(respuesta.headers["x-request-id"])
+    assert fila[:8] == (grupo, "usuario", cuidador.id, "plan.editar", "plan_seccion", seccion[0], None, None)
+    assert fila[8] == AHORA
+    # Ninguna columna lleva el texto, el ETag ni la versión
+    assert texto not in repr(fila) and respuesta.headers.get("etag", "§") not in repr(fila)
+
+
+@requiere_base
+@pytest.mark.rf("RF-08")
+def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
+    _auditoria_real(entorno_ficha)
+    familia = entorno_ficha.familia()
+    grupo, persona = familia.grupo.id, familia.persona.id
+    texto = _texto("red_apoyo")
+    assert entorno_ficha.escribir(familia.admin, grupo, persona, "red_apoyo", {"texto": texto}).status_code == 201
+
+    respuesta = entorno_ficha.leer(familia.admin, grupo, persona)
+
+    assert respuesta.status_code == 200
+    plan = _una("SELECT id FROM plan_cuidado WHERE persona_cuidada_id = %s", persona)
+    assert plan is not None
+    [fila] = _filas_auditoria(respuesta.headers["x-request-id"])
+    assert fila[:8] == (grupo, "usuario", familia.admin.id, "plan.leer", "plan_cuidado", plan[0], None, None)
+    assert texto not in repr(fila)
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.parametrize("accion", ["leer", "escribir"])
+def test_si_la_auditoria_falla_no_se_devuelve_el_texto(entorno_ficha: EntornoFicha, accion: str) -> None:
+    familia = entorno_ficha.familia()
+    grupo, persona = familia.grupo.id, familia.persona.id
+    texto = _texto("rutina")
+    if accion == "leer":
+        assert entorno_ficha.escribir(familia.admin, grupo, persona, "rutina", {"texto": texto}).status_code == 201
+    _auditoria_real(entorno_ficha)
+    registro = RegistroAuditoriaEnMemoria()
+    registro.fallar_con(RuntimeError("la base rechazó la fila"))
+    entorno_ficha.app.dependency_overrides[obtener_registro_auditoria] = lambda: registro
+    try:
+        try:
+            if accion == "leer":
+                respuesta = entorno_ficha.leer(familia.admin, grupo, persona)
+            else:
+                respuesta = entorno_ficha.escribir(familia.admin, grupo, persona, "rutina", {"texto": texto})
+        except RuntimeError:
+            respuesta = None
+    finally:
+        entorno_ficha.app.dependency_overrides.pop(obtener_registro_auditoria, None)
+
+    if respuesta is not None:
+        assert respuesta.status_code == 500
+        assert texto not in respuesta.text
+    assert registro.entradas == ()
+    if accion == "escribir":
+        # La escritura se deshizo: ni plan ni sección
+        assert _planes(persona) == 0
+
+
+def _commit_que_falla(sesion: Session) -> None:
+    raise RuntimeError("el commit falló")
+
+
+@pytest.mark.rf("RF-08")
+def test_si_el_commit_falla_no_se_entrega_la_ficha(entorno_ficha: EntornoFicha) -> None:
+    """Regresión: Depends(sesion_de_grupo, scope="function") cierra la transacción antes de responder."""
+    _auditoria_real(entorno_ficha)
+    familia = entorno_ficha.familia()
+    grupo, persona = familia.grupo.id, familia.persona.id
+    texto = _texto("rutina")
+    assert entorno_ficha.escribir(familia.admin, grupo, persona, "rutina", {"texto": texto}).status_code == 201
+
+    overrides = entorno_ficha.app.dependency_overrides
+    previo = overrides.get(obtener_fabrica_sesiones)
+    real = (previo or obtener_fabrica_sesiones)()
+    fallida = sessionmaker(bind=real.kw["bind"])
+    event.listen(fallida, "before_commit", _commit_que_falla)
+    overrides[obtener_fabrica_sesiones] = lambda: fallida
+    try:
+        respuesta = entorno_ficha.leer(familia.admin, grupo, persona)
+    finally:
+        if previo is None:
+            overrides.pop(obtener_fabrica_sesiones, None)
+        else:
+            overrides[obtener_fabrica_sesiones] = previo
+
+    assert respuesta.status_code == 500
+    assert texto not in respuesta.text

@@ -8,8 +8,8 @@ Limpieza: la fixture ``fabrica`` borra grupos y cuentas. Las filas de auditoría
 las del alta de MATU-07 (tests/fabricas/sql.py): la tabla es de solo inserción y solo lleva
 identificadores sintéticos. Cada prueba las encuentra por un request_id único.
 
-Las pruebas test_lectura_queda_auditada y test_escritura_queda_auditada llegan con MATU-12, que
-crea los endpoints de la ficha.
+Las pruebas test_lectura_queda_auditada y test_escritura_queda_auditada están en
+tests/modules/care_plan/test_ficha_api.py, contra los endpoints de la ficha.
 """
 
 import uuid

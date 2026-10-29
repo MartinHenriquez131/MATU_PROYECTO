@@ -671,3 +671,43 @@ def test_regla_de_otro_grupo_no_se_ve_ni_se_crea(cx):
     assert contar(cx, "regla_sustitucion") == 0
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "otro_comercio"))
+
+
+# ------------------------------------------------------------------ lectura de la auditoría (decisión 36)
+
+U_CUID_A = uuid.UUID("00000000-0000-0000-0000-0000000000a9")
+
+
+def _sembrar_auditoria(cx):
+    """Como superusuario, dentro de la transacción que se revierte: un cuidador y una fila por actor."""
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'cuid.a@x.cl', 'Cuid A', 'h')",
+               (U_CUID_A,))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES (%s, %s, 'cuidador', false)",
+               (G_A, U_CUID_A))
+    for grupo, actor in ((G_A, U_ADMIN_A), (G_A, U_CUID_A), (G_A, U_OBS_A), (G_B, U_ADMIN_B)):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+                   " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (grupo, actor))
+
+
+def _actores_visibles(cx):
+    return {r[0] for r in cx.execute("SELECT actor_ref FROM auditoria").fetchall()}
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.parametrize("usuario, grupo, esperado", [
+    (U_ADMIN_A, G_A, {U_ADMIN_A, U_CUID_A, U_OBS_A}),   # el admin ve todo su grupo
+    (U_CUID_A, G_A, {U_CUID_A}),                         # el cuidador, solo lo suyo
+    (U_OBS_A, G_A, {U_OBS_A}),                           # el observador, solo lo suyo
+    (U_ADMIN_A, G_B, set()),                             # otro grupo: nada
+])
+def test_lectura_de_auditoria_por_rol(cx, usuario, grupo, esperado):
+    _sembrar_auditoria(cx)
+    como(cx, usuario_id=usuario, grupo_id=grupo)
+    assert _actores_visibles(cx) == esperado
+
+
+@pytest.mark.rf("RF-08")
+def test_operacion_no_lee_la_auditoria(cx):
+    _sembrar_auditoria(cx)
+    como(cx, rol="operacion")
+    assert _actores_visibles(cx) == set()

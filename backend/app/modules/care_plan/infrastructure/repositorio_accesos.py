@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from app.modules.care_plan.application.ports import AccesoListado, AccesoNuevo, Posicion
 from app.modules.care_plan.domain.ficha import Autor
 from app.modules.care_plan.domain.relevo import INTENTOS_PIN_MAXIMOS
+from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria, MotivoAuditoria
+from app.shared.puertos import RegistroAuditoria
 
 _NOMBRE_PILA_PERSONA = text(
     "SELECT nombre_pila FROM persona_cuidada"
@@ -37,13 +39,6 @@ _INSERTAR_ACCESO = text(
 _INSERTAR_INDICE = text(
     "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, creado_en)"
     " VALUES (:token_hash, 'relevo', :grupo_id, :id, :expira_en, :creado_en)"
-)
-
-_INSERTAR_AUDITORIA = text(
-    "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, request_id,"
-    " ocurrido_en)"
-    " VALUES (:grupo_id, 'usuario', :otorgado_por, 'relevo.compartir', 'acceso_relevo', :id, :motivo,"
-    " :request_id, :creado_en)"
 )
 
 # El estado en el orden del contrato: revocado, vencido, bloqueado y vigente
@@ -74,9 +69,10 @@ def _utc(instante: datetime | None) -> datetime | None:
 
 
 class RepositorioAccesosSQL:
-    def __init__(self, sesion: Session, grupo_id: uuid.UUID) -> None:
+    def __init__(self, sesion: Session, grupo_id: uuid.UUID, registro: RegistroAuditoria) -> None:
         self._sesion = sesion
         self._grupo_id = grupo_id
+        self._registro = registro
 
     def nombre_pila_persona(self, persona_cuidada_id: uuid.UUID) -> str | None:
         fila = self._sesion.execute(
@@ -109,7 +105,19 @@ class RepositorioAccesosSQL:
         }
         self._sesion.execute(_INSERTAR_ACCESO, parametros)
         self._sesion.execute(_INSERTAR_INDICE, parametros)
-        self._sesion.execute(_INSERTAR_AUDITORIA, parametros)
+        # relevo.compartir con el instante del acceso: RegistroAuditoriaSql lo toma del mismo Reloj
+        self._registro.registrar(
+            EntradaAuditoria(
+                grupo_id=acceso.grupo_id,
+                actor_tipo=ActorTipo.USUARIO,
+                actor_ref=acceso.otorgado_por,
+                accion=AccionAuditoria.RELEVO_COMPARTIR,
+                entidad=EntidadAuditoria.ACCESO_RELEVO,
+                entidad_id=acceso.id,
+                motivo=MotivoAuditoria(acceso.motivo),
+                request_id=acceso.request_id,
+            )
+        )
 
     def listar(
         self, plan_id: uuid.UUID, ahora: datetime, estado: str | None, despues_de: Posicion | None, limite: int

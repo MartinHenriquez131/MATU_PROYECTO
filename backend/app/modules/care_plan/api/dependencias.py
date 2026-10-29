@@ -42,7 +42,7 @@ from app.modules.care_plan.application.ports import (
     RepositorioFicha,
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
-from app.modules.care_plan.infrastructure.auditoria_ficha import AuditoriaFichaPendiente
+from app.modules.care_plan.infrastructure.auditoria_ficha import AuditoriaFichaRegistro
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
 from app.modules.care_plan.infrastructure.custodia_kek_entorno import CustodiaKekEntorno
@@ -50,7 +50,8 @@ from app.modules.care_plan.infrastructure.repositorio_accesos import Repositorio
 from app.modules.care_plan.infrastructure.repositorio_claves import RepositorioClavesSQL
 from app.modules.care_plan.infrastructure.repositorio_ficha import RepositorioFichaSQL
 from app.modules.iam.api.dependencias import obtener_reloj
-from app.shared.puertos import Reloj
+from app.shared.auditoria_sql import RegistroAuditoriaSql
+from app.shared.puertos import RegistroAuditoria, Reloj
 
 # Los path params se declaran str, no UUID ni enum: un valor inválido responde 404, no 422. El
 # esquema de OpenAPI igual dice lo que el contrato (formato uuid y los tres campos).
@@ -86,9 +87,19 @@ def obtener_custodia() -> CustodiaClaves | None:
     return custodia_configurada()
 
 
-def obtener_auditoria_ficha() -> AuditoriaFicha:
-    """Punto de enganche de la auditoría plan.leer y plan.editar. TODO(MATU-14): el adaptador real."""
-    return AuditoriaFichaPendiente()
+def obtener_registro_auditoria(
+    contexto: SesionDeGrupo, reloj: Annotated[Reloj, Depends(obtener_reloj)]
+) -> RegistroAuditoria:
+    """El registro de auditoría en la transacción de la petición (MATU-14). Las pruebas lo sobreescriben
+    con RegistroAuditoriaEnMemoria."""
+    return RegistroAuditoriaSql(contexto.sesion, reloj)
+
+
+def obtener_auditoria_ficha(
+    contexto: SesionDeGrupo, registro: Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria)]
+) -> AuditoriaFicha:
+    """La auditoría plan.leer y plan.editar de la ficha, sobre RegistroAuditoria (MATU-14)."""
+    return AuditoriaFichaRegistro(contexto.sesion, registro)
 
 
 # --- Rol, persona, campo y autorización ---------------------------------------------------------------
@@ -243,5 +254,7 @@ def obtener_generador_credenciales() -> GeneradorCredencialesRelevo:
     return GeneradorSecrets()
 
 
-def obtener_repositorio_accesos(contexto: SesionDeGrupo) -> RepositorioAccesos:
-    return RepositorioAccesosSQL(contexto.sesion, contexto.grupo_id)
+def obtener_repositorio_accesos(
+    contexto: SesionDeGrupo, registro: Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria)]
+) -> RepositorioAccesos:
+    return RepositorioAccesosSQL(contexto.sesion, contexto.grupo_id, registro)

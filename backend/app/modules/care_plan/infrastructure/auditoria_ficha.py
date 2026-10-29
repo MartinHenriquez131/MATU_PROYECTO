@@ -1,24 +1,56 @@
-"""Auditoría de la ficha mientras llega MATU-14: el punto de enganche, sin registro todavía.
+"""Auditoría de la ficha: plan.leer y plan.editar sobre el puerto RegistroAuditoria (MATU-14, RF-08).
 
-El contrato (docs/api/propuestos/ficha.openapi.yaml) promete que toda lectura registra plan.leer y
-toda escritura plan.editar en auditoria. Eso es MATU-14 (Martín). MATU-12 deja el puerto
-AuditoriaFicha (application/ports.py) cableado en la API y llamado por los casos de uso en la misma
-transacción, con un EventoFicha que lleva solo identificadores.
+Los casos de uso (application/ficha.py) llaman al puerto AuditoriaFicha dentro de la transacción de
+la petición, después de leer o escribir y antes de devolver el texto. Este adaptador traduce el
+EventoFicha a una EntradaAuditoria y la registra con RegistroAuditoria, en la misma sesión: si
+registrar falla, la excepción sube, sesion_tenant hace rollback y no hay respuesta con texto.
 
-TODO(MATU-14): reemplazar AuditoriaFichaPendiente por un adaptador que inserte en auditoria con la
-sesión de la petición: actor_tipo 'usuario', actor_ref = usuario_id, accion 'plan.leer' o
-'plan.editar', entidad 'plan_cuidado', entidad_id = plan_id, request_id y ocurrido_en. Basta con
-cambiar obtener_auditoria_ficha en api/dependencias.py: los casos de uso no cambian.
+- Lectura: plan.leer sobre plan_cuidado (entidad_id = plan_id, o null si aún no hay plan).
+- Escritura: plan.editar sobre plan_seccion (entidad_id = la sección escrita).
+
+Actor: USUARIO con el usuario_id de la sesión de grupo. Solo identificadores: ni texto, ni ETag, ni
+versión, ni IP. El instante lo pone RegistroAuditoriaSql con el puerto Reloj.
 """
 
+import uuid
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.modules.care_plan.application.ports import EventoFicha
+from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
+from app.shared.puertos import RegistroAuditoria
+
+_ID_SECCION = text("SELECT id FROM plan_seccion WHERE plan_id = :plan_id AND tipo = :tipo")
 
 
-class AuditoriaFichaPendiente:
-    """No registra nada. Existe para que la API ya llame al puerto en el lugar correcto."""
+class AuditoriaFichaRegistro:
+    def __init__(self, sesion: Session, registro: RegistroAuditoria) -> None:
+        self._sesion = sesion
+        self._registro = registro
+
+    def _entrada(
+        self, evento: EventoFicha, accion: AccionAuditoria, entidad: EntidadAuditoria, entidad_id: uuid.UUID | None
+    ) -> EntradaAuditoria:
+        return EntradaAuditoria(
+            grupo_id=evento.grupo_id,
+            actor_tipo=ActorTipo.USUARIO,
+            actor_ref=evento.usuario_id,
+            accion=accion,
+            entidad=entidad,
+            entidad_id=entidad_id,
+            request_id=evento.request_id,
+        )
 
     def registrar_lectura(self, evento: EventoFicha) -> None:
-        return None
+        self._registro.registrar(
+            self._entrada(evento, AccionAuditoria.PLAN_LEER, EntidadAuditoria.PLAN_CUIDADO, evento.plan_id)
+        )
 
     def registrar_edicion(self, evento: EventoFicha) -> None:
-        return None
+        seccion_id = self._sesion.execute(
+            _ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}
+        ).scalar_one()
+        self._registro.registrar(
+            self._entrada(evento, AccionAuditoria.PLAN_EDITAR, EntidadAuditoria.PLAN_SECCION, seccion_id)
+        )
