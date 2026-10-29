@@ -289,6 +289,10 @@ paths:
            revocado → **410** `/errores/relevo-revocado`, vencido → **410**
            `/errores/relevo-vencido`.
         5. Bloqueado (5 PIN incorrectos) → **423**.
+        5b. Autorización de la persona no vigente (consentimiento retirado, o revisión anual del
+           cuidador de hecho vencida según el reloj del servidor) → **410** `/errores/relevo-pausado`,
+           sin decir el motivo (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión
+           de Jorge).
         6. Si no, **200** con los dos nombres. Se leen de `acceso_relevo` con `app.rol = 'relevo'`
            y `app.acceso_relevo_id`, igual que la sesión de relevo.
 
@@ -363,6 +367,9 @@ paths:
            (decisión 23). Revocar no borra `indice_token`, así que un enlace revocado siempre
            llega a este paso. No cuenta como intento.
         5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
+        5b. Autorización de la persona no vigente → **410** `/errores/relevo-pausado` (decisión 33 en
+           el relevo). No cuenta como intento ni crea sesión. Si la familia renueva la autorización,
+           el mismo enlace vuelve a servir.
         6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
            responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
            `relevo.bloqueo` y responde **423**. Un acceso bloqueado se reemplaza creando otro.
@@ -435,9 +442,12 @@ paths:
            válida. Revocar no descarta la sesión: es esta verificación la que corta el acceso.
         3. Acceso vencido → **410** `/errores/relevo-vencido`.
         4. Acceso bloqueado después del canje (alguien probó 5 PIN con el mismo enlace) → **423**.
+        4b. Autorización de la persona no vigente → **410** `/errores/relevo-pausado` (decisión 33 en
+           el relevo).
         5. Si no, **200**.
 
-        Las respuestas 410 y 423 borran la cookie y descartan la sesión en Redis en ese momento.
+        Las respuestas 410 (también `relevo-pausado`) y 423 borran la cookie y descartan la sesión en
+        Redis en ese momento.
       x-matu-historia: MATU-19, MATU-20, MATU-23
       x-matu-auditoria: relevo.abrir
       security:
@@ -1345,7 +1355,9 @@ components:
         `/errores/relevo-vencido`, `/errores/relevo-revocado` (revocar no borra `indice_token`, así
         que un enlace revocado siempre responde este), o `/errores/relevo-no-disponible` cuando el
         token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
-        después de vencer).
+        después de vencer). Además `/errores/relevo-pausado`: la autorización de la persona no está
+        vigente (decisión 33 en el relevo). Su `title` es «Ya no está disponible» y su `detail` no
+        dice el motivo.
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
@@ -1362,7 +1374,8 @@ components:
               - $ref: '#/components/schemas/Problema'
               - properties:
                   type:
-                    enum: [/errores/relevo-vencido, /errores/relevo-revocado, /errores/relevo-no-disponible]
+                    enum: [/errores/relevo-vencido, /errores/relevo-revocado, /errores/relevo-no-disponible,
+                           /errores/relevo-pausado]
                   status:
                     const: 410
           example:
@@ -1397,7 +1410,7 @@ components:
               - $ref: '#/components/schemas/Problema'
               - properties:
                   type:
-                    enum: [/errores/relevo-vencido, /errores/relevo-revocado]
+                    enum: [/errores/relevo-vencido, /errores/relevo-revocado, /errores/relevo-pausado]
                   status:
                     const: 410
           example:

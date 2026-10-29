@@ -54,6 +54,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/relevo-vencido` | 410 | El acceso venció (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-19) |
 | `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
 | `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | **Nuevo** (MATU-19) |
+| `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | **Nuevo** (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | **Nuevo** (MATU-19) |
 | `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
 | `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32) | Existe (MATU-12, por defecto del 503) |
@@ -198,3 +199,11 @@ Lo que coincide: tope de 500 caracteres, 5 intentos de PIN, contador que vuelve 
 Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vigentes" (backlog, sección 8, sprint 3), retirar el consentimiento no corta los accesos ya creados: `GET /v1/relevo/ficha` no puede leer `consentimiento`, porque la sesión de relevo no fija `app.grupo_id`. Se cierra cuando esa historia revoque los accesos al retirar el consentimiento.
 
 **Condición de Jorge (27-10):** esa historia es requisito para operar con datos reales. La política de privacidad v0.9 promete cortar los accesos al retirar la autorización, y MATU no recibe datos reales mientras la historia no esté terminada.
+
+## Notas de implementación de MATU-19
+
+- **Decisión 33 en el relevo: `410 /errores/relevo-pausado`** (decisión de Martín del 28-10, **pendiente de revisión de Jorge**). Si la autorización de la persona del acceso no está vigente (consentimiento para `plan_cuidado` revocado, o cuidador de hecho con `revision_vence_en` igual o anterior al instante del Reloj), presentación, canje y `GET /v1/relevo/ficha` responden 410 `relevo-pausado`, con `title` «Ya no está disponible» y un `detail` neutro. Se evalúa después de los 410 de estado y del 423, y antes del PIN. No cuenta como intento ni crea sesión; en la ficha borra la cookie y descarta la sesión. Si se renueva la autorización, el mismo enlace vuelve a servir. Lo decide la función `relevo_autorizacion_vigente(ahora)` (migración 0006), `SECURITY DEFINER`, que devuelve solo un booleano: el relevo sigue sin leer `consentimiento`. Esto cierra en parte el "Riesgo abierto" de más arriba: retirar la autorización ya corta la lectura del relevo, aunque no revoca los accesos.
+- **Migración 0006:** `indice_token.revocado_en` (decisión 23), la política `acceso_relevo_propio` (FOR ALL) reemplazada por `acceso_relevo_leer` (SELECT) y `acceso_relevo_contar` (UPDATE) más un trigger que limita al relevo a `pin_intentos_fallidos`, `usos` y `ultimo_uso_en`, y la función de la decisión 33.
+- **Canje sin `PEPPER_PIN`:** 503 `/errores/servicio-no-disponible` después de los 410/423 y antes de comparar el PIN. Tampoco con Redis caído (503). El contrato no lista el 503 en el canje ni en la ficha: desvío menor, falla cerrado.
+- **Sin entrada en `indice_token`** con una cookie válida (purgado tras vencer), la ficha responde 410 `relevo-vencido`.
+- **429 por IP** (MATU-25) y **`/plan/aperturas`** (sprint 3) no están implementados.
