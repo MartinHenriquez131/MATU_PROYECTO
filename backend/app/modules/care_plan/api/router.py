@@ -24,6 +24,7 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.core.errores import ErrorMATU, respuesta_problema
 from app.modules.care_plan.api.dependencias import (
@@ -43,6 +44,8 @@ from app.modules.care_plan.api.esquemas import (
     Completitud,
     EstadoCampoVista,
     FichaVista,
+    ProblemaFaltaVersionVista,
+    ProblemaVersionVista,
     SolicitudCampo,
 )
 from app.modules.care_plan.application.ficha import (
@@ -85,15 +88,124 @@ _ERRORES_LECTURA: dict[int | str, dict[str, Any]] = {
     500: {"description": "Error inesperado o sección ilegible, sin el texto", **_PROBLEMA},
     503: {"description": "La custodia de la clave maestra no está configurada", **_PROBLEMA},
 }
+
+
+def _esquema_en_linea(modelo: type[BaseModel]) -> dict[str, Any]:
+    """El esquema del modelo para el OpenAPI, con referencias a componentes que ya registra la ficha.
+
+    Solo admite modelos anidados que FichaVista ya registra (EstadoCampoVista y AutorVista): así no
+    queda un $ref colgando.
+    """
+    esquema = modelo.model_json_schema(ref_template="#/components/schemas/{model}", mode="serialization")
+    anidados = set(esquema.pop("$defs", {}))
+    if not anidados <= {"EstadoCampoVista", "AutorVista"}:
+        raise ValueError("el problema usa un modelo que la ficha no registra en el OpenAPI")
+    return esquema
+
+
+_X_REQUEST_ID: dict[str, Any] = {
+    "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+    "schema": {"type": "string", "format": "uuid"},
+}
+_NO_STORE: dict[str, Any] = {
+    "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+    "schema": {"type": "string", "const": NO_STORE},
+}
+_ETAG: dict[str, Any] = {
+    "description": 'Versión del campo recién guardado, por ejemplo "v4". Se envía tal cual en el próximo If-Match',
+    "schema": {"type": "string"},
+}
+_ETAG_ACTUAL: dict[str, Any] = {
+    "description": "Versión actual del campo. Ausente si el campo nunca se escribió",
+    "required": False,
+    "schema": {"type": "string"},
+}
+_CABECERAS_GUARDADO: dict[str, Any] = {"X-Request-ID": _X_REQUEST_ID, "ETag": _ETAG, "Cache-Control": _NO_STORE}
+
+_EJEMPLO_412: dict[str, Any] = {
+    "type": "/errores/version-desactualizada",
+    "title": "Otra persona cambió este contenido",
+    "status": 412,
+    "detail": "Pedro guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya",
+    "errores": [],
+    "request_id": "9b2f4c1e-0000-4000-8000-0000000000e4",
+    "campo": "rutina",
+    "actual": {
+        "texto": "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza con Pedro los domingos.",
+        "etag": '"v4"',
+        "actualizado_por": {"id": "0c4b5a10-0000-4000-8000-00000000000d", "nombre": "Pedro"},
+        "actualizado_en": "2026-10-30T18:01:00Z",
+    },
+}
+_EJEMPLO_428: dict[str, Any] = {
+    "type": "/errores/falta-version",
+    "title": "Falta la versión del contenido",
+    "status": 428,
+    "detail": "Vuelve a abrir el campo y guarda de nuevo",
+    "errores": [],
+    "request_id": "9b2f4c1e-0000-4000-8000-0000000000e6",
+}
+
 _ERRORES_ESCRITURA: dict[int | str, dict[str, Any]] = {
     **_ERRORES_LECTURA,
-    201: {"description": "Campo creado: primera escritura", "model": CampoGuardadoVista},
-    412: {"description": "If-Match desactualizado o If-None-Match: * sobre un campo que ya existe. Trae `actual`",
-          **_PROBLEMA},
-    422: {"description": "Cuerpo o cabeceras de precondición inválidos. errores[] nombra el campo, nunca el valor",
-          **_PROBLEMA},
-    428: {"description": "Sin If-Match ni If-None-Match, o con If-Match: *", **_PROBLEMA},
+    200: {"description": "Campo actualizado, con If-Match", "headers": _CABECERAS_GUARDADO},
+    201: {
+        "description": "Campo creado: primera escritura, con If-None-Match: *",
+        "model": CampoGuardadoVista,
+        "headers": _CABECERAS_GUARDADO,
+    },
+    412: {
+        "description": (
+            "Otra persona guardó el campo después de que lo leíste (If-Match desactualizado), lo creó antes que"
+            " tú (If-None-Match: * sobre un campo que ya existe), o enviaste If-Match sobre un campo que nunca se"
+            " escribió (actual.etag null). `actual` trae el contenido vigente para que la persona decida: no hay"
+            " fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer"
+        ),
+        "headers": {"X-Request-ID": _X_REQUEST_ID, "ETag": _ETAG_ACTUAL, "Cache-Control": _NO_STORE},
+        "content": {
+            "application/problem+json": {"schema": _esquema_en_linea(ProblemaVersionVista), "example": _EJEMPLO_412}
+        },
+    },
+    422: {
+        "description": (
+            "Cuerpo inválido (texto falta, supera 500 caracteres o trae caracteres de control, o hay un campo"
+            " extra); llegaron If-Match e If-None-Match a la vez (tipo precondicion_doble); If-None-Match distinto"
+            " de * (tipo precondicion_invalida); o texto vacío con If-None-Match: * (tipo vacio_sin_crear)."
+            " errores[] nombra el campo o la cabecera, nunca el valor"
+        ),
+        "headers": {"X-Request-ID": _X_REQUEST_ID},
+        **_PROBLEMA,
+    },
+    428: {
+        "description": "La escritura no fue condicional: faltan If-Match e If-None-Match, o vino If-Match vacío o *",
+        "headers": {"X-Request-ID": _X_REQUEST_ID},
+        "content": {
+            "application/problem+json": {
+                "schema": _esquema_en_linea(ProblemaFaltaVersionVista),
+                "example": _EJEMPLO_428,
+            }
+        },
+    },
 }
+
+_DESCRIPCION_PUT = """Escribe **un** campo. Toda escritura es condicional (MATU-13, ADR-015) y lleva exactamente una
+de dos cabeceras:
+
+| Situación | Cabecera | Si otra persona se adelantó |
+|---|---|---|
+| El campo nunca se escribió (`etag: null` en la lectura) | `If-None-Match: *` | 412 con lo que ella guardó |
+| El campo ya existe | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+
+- Sin ninguna, o con `If-Match` vacío o `*`, responde **428**.
+- `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.
+- Las dos a la vez, o `If-None-Match` distinto de `*`, responde **422**.
+- `texto` vacío con `If-Match` vacía el campo, que conserva su `etag`. Con `If-None-Match: *`, **422**
+  `vacio_sin_crear`.
+
+Orden de evaluación: 401, 404 (grupo, rol, persona, campo), 403 (consentimiento), 503 (custodia), 422 (cuerpo
+y cabeceras) y al final la precondición (428 o 412). Responde **201** si creó el campo y **200** si lo
+actualizó. Escriben `admin` y `cuidador`. Registra `plan.editar`; el 412, `plan.leer`.
+"""
 
 _MENSAJES_PRECONDICION = {
     "precondicion_doble": "envía If-Match o If-None-Match, no las dos",
@@ -193,7 +305,13 @@ def _version_desactualizada(request: Request, conflicto: CampoEnConflicto) -> JS
     )
 
 
-@router.put(RUTA_CAMPO, response_model=CampoGuardadoVista, responses=_ERRORES_ESCRITURA)
+@router.put(
+    RUTA_CAMPO,
+    response_model=CampoGuardadoVista,
+    responses=_ERRORES_ESCRITURA,
+    summary="Guardar un campo de la ficha",
+    description=_DESCRIPCION_PUT,
+)
 def guardar(
     request: Request,
     response: Response,
@@ -203,8 +321,26 @@ def guardar(
     auditoria: Annotated[AuditoriaFicha, Depends(obtener_auditoria_ficha)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
     solicitud: SolicitudCampo,
-    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
-    if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
+    if_match: Annotated[
+        str | None,
+        Header(
+            alias="If-Match",
+            description=(
+                'ETag del campo tal como se leyó, por ejemplo "v3". Obligatorio si el campo ya existe. Un solo'
+                " valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428"
+            ),
+        ),
+    ] = None,
+    if_none_match: Annotated[
+        str | None,
+        Header(
+            alias="If-None-Match",
+            description=(
+                "Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422,"
+                " y enviarla junto con If-Match también"
+            ),
+        ),
+    ] = None,
 ) -> CampoGuardadoVista | JSONResponse:
     try:
         precondicion = precondicion_de(if_match, if_none_match)
