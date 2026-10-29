@@ -49,12 +49,12 @@ export function TextoCampo({ texto }: { texto: string | null }) {
 function LineaDeTiempo({ items }: { items: { hora: string; texto: string }[] }) {
   return (
     <div className="relative">
-      <span aria-hidden className="absolute top-2 bottom-2 left-18 w-0.5 rounded-full bg-miel/45" />
+      <span aria-hidden className="absolute top-2 bottom-2 left-18 w-0.5 angosto:hidden rounded-full bg-miel/45" />
       <ol className="flex flex-col gap-3 pl-1">
         {items.map((it, i) => (
-          <li key={i} className="relative flex items-start gap-3">
-            <span className="cifras w-13 shrink-0 pt-px text-right font-bold text-turquesa">{it.hora}</span>
-            <span aria-hidden className="relative z-10 mt-1.5 size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
+          <li key={i} className="relative flex items-start gap-3 angosto:flex-col angosto:gap-1">
+            <span className="cifras w-13 shrink-0 pt-px text-right angosto:w-auto angosto:text-left font-bold text-turquesa">{it.hora}</span>
+            <span aria-hidden className="relative z-10 mt-1.5 angosto:hidden size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
             <span className="min-w-0 text-lg">{it.texto}</span>
           </li>
         ))}
