@@ -2,6 +2,7 @@
 
     POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo   admin y cuidador. 201 con el enlace y el PIN
     GET  /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo   admin, cuidador y pagador con puede_ver_plan
+    DELETE /v1/accesos-relevo/{acceso_id}                          admin y cuidador. 204 sin cuerpo (MATU-20)
 
 Orden del POST: token (401), membresía y rol (404), persona (404), consentimiento y revisión anual
 (403), PEPPER_PIN (503) y recién después el cuerpo (422). El GET no exige consentimiento (decisión 18).
@@ -22,8 +23,10 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
 from app.modules.care_plan.api.dependencias import (
+    AccesoARevocar,
     FichaAutorizada,
     acceso_para_compartir,
+    acceso_para_revocar,
     huellas_para_compartir,
     obtener_generador_credenciales,
     obtener_repositorio_accesos,
@@ -45,7 +48,14 @@ from app.modules.care_plan.application.ports import (
     RepositorioAccesos,
     RepositorioFicha,
 )
-from app.modules.care_plan.application.relevo import SolicitudCompartir, compartir, listar
+from app.modules.care_plan.application.relevo import (
+    AccesoNoEncontrado,
+    PeticionRevocar,
+    SolicitudCompartir,
+    compartir,
+    listar,
+    revocar,
+)
 from app.modules.care_plan.domain.relevo import (
     EstadoAcceso,
     MotivoAcceso,
@@ -63,6 +73,7 @@ log = logging.getLogger("matu.care_plan.relevo")
 router = APIRouter(tags=["accesos de relevo"])
 
 RUTA_ACCESOS = "/personas-cuidadas/{persona_id}/plan/accesos-relevo"
+RUTA_ACCESO = "/accesos-relevo/{acceso_id}"
 NO_STORE = "no-store"
 
 _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
@@ -70,6 +81,10 @@ _ERRORES_LISTA: dict[int | str, dict[str, Any]] = {
     401: {"description": "Falta el access token, o es inválido o vencido", **_PROBLEMA},
     404: {"description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente", **_PROBLEMA},
     422: {"description": "cursor inválido o limite fuera de 1 a 100", **_PROBLEMA},
+}
+_ERRORES_REVOCAR: dict[int | str, dict[str, Any]] = {
+    401: _ERRORES_LISTA[401],
+    404: {"description": "No miembro, rol que no alcanza, acceso de otro grupo, inexistente o id no UUID", **_PROBLEMA},
 }
 _ERRORES_CREAR: dict[int | str, dict[str, Any]] = {
     **_ERRORES_LISTA,
@@ -221,3 +236,29 @@ def listar_accesos(
         items=items,
         siguiente_cursor=None if pagina.siguiente is None else codificar_cursor(pagina.siguiente),
     )
+
+
+@router.delete(
+    RUTA_ACCESO,
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses=_ERRORES_REVOCAR,
+)
+def revocar_acceso(
+    request: Request,
+    autorizado: Annotated[AccesoARevocar, Depends(acceso_para_revocar)],
+    accesos: Annotated[RepositorioAccesos, Depends(obtener_repositorio_accesos)],
+    reloj: Annotated[Reloj, Depends(obtener_reloj)],
+) -> Response:
+    """Revoca el acceso en la transacción de la petición. Idempotente: ya revocado o vencido, 204."""
+    peticion = PeticionRevocar(
+        grupo_id=autorizado.contexto.grupo_id,
+        usuario_id=autorizado.contexto.usuario_id,
+        acceso_id=autorizado.acceso_id,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    try:
+        revocar(peticion, accesos, reloj)
+    except AccesoNoEncontrado:
+        raise ErrorMATU(404) from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": NO_STORE})

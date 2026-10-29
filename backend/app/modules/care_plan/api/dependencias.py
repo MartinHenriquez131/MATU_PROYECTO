@@ -42,6 +42,7 @@ from app.modules.care_plan.application.ports import (
     RepositorioFicha,
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
+from app.modules.care_plan.domain.relevo import puede_revocar
 from app.modules.care_plan.infrastructure.auditoria_ficha import AuditoriaFichaRegistro
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
@@ -56,6 +57,7 @@ from app.shared.puertos import RegistroAuditoria, Reloj
 # Los path params se declaran str, no UUID ni enum: un valor inválido responde 404, no 422. El
 # esquema de OpenAPI igual dice lo que el contrato (formato uuid y los tres campos).
 PersonaIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
+AccesoIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 CampoRuta = Annotated[str, Path(json_schema_extra={"enum": [c.value for c in CAMPOS_FICHA]})]
 
 
@@ -258,3 +260,17 @@ def obtener_repositorio_accesos(
     contexto: SesionDeGrupo, registro: Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria)]
 ) -> RepositorioAccesos:
     return RepositorioAccesosSQL(contexto.sesion, contexto.grupo_id, registro)
+
+
+@dataclass(frozen=True)
+class AccesoARevocar:
+    contexto: ContextoGrupo
+    acceso_id: uuid.UUID
+
+
+def acceso_para_revocar(contexto: SesionDeGrupo, acceso_id: AccesoIdRuta) -> AccesoARevocar:
+    """Revocan admin y cuidador (MATU-20). Otro rol, incluido el pagador con puede_ver_plan que la RLS
+    acceso_familia deja pasar, o un id que no es UUID: 404. No exige consentimiento (decisión 18)."""
+    if not puede_revocar(contexto.rol):
+        raise ErrorMATU(404)
+    return AccesoARevocar(contexto=contexto, acceso_id=_uuid_o_404(acceso_id))
