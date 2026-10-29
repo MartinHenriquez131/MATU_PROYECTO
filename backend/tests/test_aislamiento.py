@@ -322,7 +322,7 @@ def test_relevo_registra_su_apertura_en_auditoria(cx):
                       VALUES (%s, 'relevo', 'relevo.abrir', 'plan_cuidado')""", (G_B,))
 
 
-# ---- MATU-19 (migración 0006): lo que el relevo puede cambiar de su acceso y la autorización vigente
+# ---- MATU-19 (migración 0007): lo que el relevo puede cambiar de su acceso y la autorización vigente
 
 
 @pytest.mark.rf("RF-06")
@@ -362,12 +362,12 @@ def test_relevo_no_toca_el_acceso_de_otro(cx):
 
 @pytest.mark.rf("RF-05")
 def test_familia_sigue_actualizando_sus_accesos(cx):
-    """El trigger de 0006 solo limita al relevo: la familia sigue revocando (MATU-20) y cambiando su acceso."""
+    """El trigger de 0007 solo limita al relevo: la familia sigue revocando (MATU-20) y cambiando su acceso."""
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     assert cx.execute("UPDATE acceso_relevo SET revocado_en = now() WHERE id = %s", (ACC_VIGENTE,)).rowcount == 1
 
 
-def _consentimiento(cx, calidad="titular", revision="NULL", revocado="NULL"):
+def _consentimiento_relevo(cx, calidad="titular", revision="NULL", revocado="NULL"):
     """Un consentimiento para plan_cuidado de P_A, como superusuario y dentro de la transacción de la prueba."""
     cx.execute(f"""INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,
                        version_politica, evidencia, revision_vence_en, revocado_en)
@@ -389,7 +389,7 @@ def _vigente(cx, ahora="now()"):
 ])
 def test_autorizacion_vigente_del_relevo_devuelve_solo_un_booleano(cx, calidad, revision, revocado, esperado):
     if calidad is not None:
-        _consentimiento(cx, calidad, revision, revocado)
+        _consentimiento_relevo(cx, calidad, revision, revocado)
     como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
     assert _vigente(cx) is esperado
     # El relevo no lee consentimiento, ni siquiera con la función disponible
@@ -398,7 +398,7 @@ def test_autorizacion_vigente_del_relevo_devuelve_solo_un_booleano(cx, calidad, 
 
 @pytest.mark.rf("RF-06")
 def test_autorizacion_vigente_usa_el_instante_del_reloj(cx):
-    _consentimiento(cx, "cuidador_de_hecho", "now() + interval '1 day'")
+    _consentimiento_relevo(cx, "cuidador_de_hecho", "now() + interval '1 day'")
     como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
     assert _vigente(cx, "now() + interval '2 days'") is False
     assert _vigente(cx, "now()") is True
@@ -406,12 +406,12 @@ def test_autorizacion_vigente_usa_el_instante_del_reloj(cx):
 
 @pytest.mark.rf("RF-06")
 def test_autorizacion_vigente_solo_en_contexto_de_relevo(cx):
-    _consentimiento(cx)
+    _consentimiento_relevo(cx)
     # Sin contexto, con la familia o con otro acceso (vencido): falso, nunca un dato
     for ctx in ({}, {"usuario_id": U_ADMIN_A, "grupo_id": G_A}, {"rol": "relevo", "acceso_relevo_id": ACC_VENCIDO}):
         como(cx, **ctx)
         assert _vigente(cx) is False, ctx
-    # matu_owner es el único con la política de lectura de 0006; matu_publisher no ejecuta la función
+    # matu_owner es el único con la política de lectura de 0007; matu_publisher no ejecuta la función
     cx.execute("RESET ROLE")
     cx.execute("SAVEPOINT s")
     cx.execute("SET LOCAL ROLE matu_publisher")

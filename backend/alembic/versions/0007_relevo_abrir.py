@@ -19,12 +19,12 @@ c) relevo_autorizacion_vigente(ahora): SECURITY DEFINER, dueño matu_owner, sear
    a matu_owner y solo en contexto de relevo, el consentimiento de la persona del acceso. matu_app
    sigue sin ver consentimiento como relevo.
 
-backend/db/*.sql no se tocan: son el esquema de 0001, igual que en 0004 y 0005.
+backend/db/*.sql no se tocan: son el esquema de 0001, igual que en 0004 a 0006.
 
-downgrade() deja el esquema como en 0005. Lo verifica tests/test_migraciones.py.
+downgrade() deja el esquema como en 0006. Lo verifica tests/test_migraciones.py.
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0007
+Revises: 0006
 Create Date: 2026-10-29
 """
 
@@ -32,8 +32,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0006"
-down_revision: str | None = "0005"
+revision: str = "0007"
+down_revision: str | None = "0006"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -43,7 +43,7 @@ def _ejecutar(sql: str) -> None:
     if contexto.as_sql:
         contexto.impl.static_output(sql)
         return
-    # Igual que en 0001 a 0005: el SQL llega tal cual al driver, sin interpretar ':' ni '%'.
+    # Igual que en 0001 a 0006: el SQL llega tal cual al driver, sin interpretar ':' ni '%'.
     with op.get_bind().connection.cursor() as cursor:
         cursor.execute(sql)
 

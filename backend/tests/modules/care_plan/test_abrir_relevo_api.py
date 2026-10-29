@@ -363,6 +363,21 @@ def test_indice_vigente_pero_rls_sin_filas_410_vencido(entorno: EntornoAbrir) ->
     _problema(entorno.canjear(token, pin), 410, "relevo-vencido")
 
 
+def _revocar_consentimientos(familia: FamiliaCreada) -> None:
+    # El consentimiento es inalterable (migración 0006): solo se registra la revocación, una vez
+    _ejecutar("UPDATE consentimiento SET revocado_en = now() WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
+              familia.persona.id)
+
+
+def _otorgar(familia: FamiliaCreada, calidad: str, revision_vence_en: datetime | None) -> None:
+    """Una autorización nueva, como la registra una renovación: otra fila, nunca un UPDATE."""
+    _ejecutar(
+        "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+        " version_politica, evidencia, revision_vence_en) VALUES (%s, %s, %s, %s, 'plan_cuidado', '0.0', '{}', %s)",
+        familia.grupo.id, familia.persona.id, familia.admin.id, calidad, revision_vence_en,
+    )
+
+
 @pytest.mark.parametrize("motivo", ["consentimiento_revocado", "revision_vencida"])
 def test_relevo_pausado_410_y_vuelve_al_renovar(entorno: EntornoAbrir, motivo: str) -> None:
     """Decisión 33 en el relevo: sin autorización vigente, 410 relevo-pausado sin decir por qué."""
@@ -370,13 +385,11 @@ def test_relevo_pausado_410_y_vuelve_al_renovar(entorno: EntornoAbrir, motivo: s
     familia = entorno.familia_con_ficha(calidad=calidad)
     acceso_id, token, pin = entorno.compartir(familia)
     assert entorno.canjear(token, pin).status_code == 204
-    consentimiento = familia.persona.consentimiento_id
+    _revocar_consentimientos(familia)
     if motivo == "revision_vencida":
-        _ejecutar("UPDATE consentimiento SET revision_vence_en = %s WHERE id = %s",
-                  entorno.reloj.ahora() + timedelta(minutes=5), consentimiento)
+        # Una autorización de cuidador de hecho cuya revisión anual vence en 5 minutos, y pasan 5 minutos
+        _otorgar(familia, calidad, entorno.reloj.ahora() + timedelta(minutes=5))
         entorno.reloj.avanzar(timedelta(minutes=5))
-    else:
-        _ejecutar("UPDATE consentimiento SET revocado_en = now() WHERE id = %s", consentimiento)
 
     for respuesta in (entorno.presentar(token), entorno.canjear(token, pin)):
         cuerpo = _problema(respuesta, 410, "relevo-pausado")
@@ -389,12 +402,9 @@ def test_relevo_pausado_410_y_vuelve_al_renovar(entorno: EntornoAbrir, motivo: s
     # No cuenta como intento
     assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
 
-    # Renovada la autorización, el mismo enlace vuelve a servir
-    if motivo == "revision_vencida":
-        _ejecutar("UPDATE consentimiento SET revision_vence_en = %s WHERE id = %s",
-                  entorno.reloj.ahora() + timedelta(days=365), consentimiento)
-    else:
-        _ejecutar("UPDATE consentimiento SET revocado_en = NULL WHERE id = %s", consentimiento)
+    # Renovada la autorización (una fila nueva), el mismo enlace vuelve a servir
+    _revocar_consentimientos(familia)
+    _otorgar(familia, calidad, entorno.reloj.ahora() + timedelta(days=365) if motivo == "revision_vencida" else None)
     assert entorno.abrir(token, pin).status_code == 200
 
 

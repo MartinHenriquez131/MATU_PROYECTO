@@ -383,7 +383,7 @@ class AccesoDelRelevo:
 
 class RepositorioAccesoRelevo(Protocol):
     """acceso_relevo en la sesión de relevo (app.rol = 'relevo' y app.acceso_relevo_id, nunca
-    app.grupo_id). Solo lee y cambia pin_intentos_fallidos, usos y ultimo_uso_en (migración 0006).
+    app.grupo_id). Solo lee y cambia pin_intentos_fallidos, usos y ultimo_uso_en (migración 0007).
 
     Implementación: RepositorioAccesoRelevoSQL (infrastructure/repositorio_relevo.py).
     """
