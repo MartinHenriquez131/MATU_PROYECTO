@@ -36,15 +36,15 @@ export function Boton({
         }
         onClick?.(e)
       }}
-      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 font-bold leading-tight ${VARIANTES[variante]} ${className}`}
+      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight ${VARIANTES[variante]} ${className}`}
       {...resto}
     >
-      {icono}
+      {icono && <span className="contents angosto:hidden">{icono}</span>}
       {/* Los dos textos ocupan la misma celda: el botón mide lo que el más largo y no salta. */}
       <span className="grid min-w-0">
-        <span className={`col-start-1 row-start-1 break-words ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
+        <span className={`col-start-1 row-start-1 break-words hyphens-auto ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
         {textoOcupado && (
-          <span className={`col-start-1 row-start-1 break-words ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
+          <span className={`col-start-1 row-start-1 break-words hyphens-auto ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
             {textoOcupado}
           </span>
         )}
