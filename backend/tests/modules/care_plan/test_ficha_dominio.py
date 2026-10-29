@@ -1,4 +1,5 @@
-"""MATU-12 · Reglas puras de la ficha de relevo (RF-02): campos, roles, texto, completitud y ETag.
+"""MATU-12 y MATU-13 · Reglas puras de la ficha de relevo (RF-02, RF-04): campos, roles, texto, completitud,
+ETag y precondición de escritura.
 
 Sin base ni reloj. La regla de la autorización vigente está en
 tests/modules/care_circle/test_autorizacion_dominio.py.
@@ -10,14 +11,20 @@ from app.modules.care_plan.domain.ficha import (
     CAMPOS_FICHA,
     LARGO_MAXIMO_CAMPO,
     CampoFicha,
+    FaltaPrecondicion,
+    PrecondicionInvalida,
+    SiCoincide,
+    SiNoExiste,
     campo_de,
     completitud,
     etag,
     normalizar_texto,
+    precondicion_de,
     puede_escribir,
     puede_leer,
     texto_visible,
     tiene_caracteres_de_control,
+    version_de_etag,
 )
 
 pytestmark = pytest.mark.rf("RF-02")
@@ -103,3 +110,56 @@ def test_salto_de_linea_y_tildes_se_admiten() -> None:
 def test_campo_vaciado_se_muestra_como_null() -> None:
     assert texto_visible("") is None
     assert texto_visible("Hola") == "Hola"
+
+
+# --- MATU-13 · Editar sin pisar lo que escribió otro (RF-04, ADR-015) ---------------------------------
+
+
+@pytest.mark.rf("RF-04")
+@pytest.mark.parametrize("version", [1, 2, 41])
+def test_version_de_etag_devuelve_la_version_de_un_etag_emitido(version: int) -> None:
+    assert version_de_etag(etag(version)) == version
+
+
+@pytest.mark.rf("RF-04")
+@pytest.mark.parametrize(
+    "valor", ['W/"v3"', "v3", '"3"', '"v"', '"v0"', '"v03"', '"v-1"', '"v3", "v4"', '"v٣"', "", '"vx"']
+)
+def test_version_de_etag_rechaza_lo_que_no_emitio_matu(valor: str) -> None:
+    # Comparación fuerte: un ETag débil, una lista u otro valor nunca coincide (412)
+    assert version_de_etag(valor) is None
+
+
+@pytest.mark.rf("RF-04")
+@pytest.mark.parametrize("if_match", [None, "*", " * ", ""])
+def test_sin_precondicion_o_if_match_comodin_es_428(if_match: str | None) -> None:
+    with pytest.raises(FaltaPrecondicion):
+        precondicion_de(if_match, None)
+
+
+@pytest.mark.rf("RF-04")
+def test_if_none_match_comodin_es_primera_escritura() -> None:
+    assert precondicion_de(None, "*") == SiNoExiste()
+
+
+@pytest.mark.rf("RF-04")
+def test_if_match_lleva_la_version_leida() -> None:
+    assert precondicion_de('"v3"', None) == SiCoincide(3)
+
+
+@pytest.mark.rf("RF-04")
+def test_if_match_que_no_es_de_matu_nunca_coincide() -> None:
+    assert precondicion_de('W/"v3"', None) == SiCoincide(None)
+
+
+@pytest.mark.rf("RF-04")
+@pytest.mark.parametrize(
+    ("if_match", "if_none_match", "tipo"),
+    [('"v1"', "*", "precondicion_doble"), ("*", "*", "precondicion_doble"), (None, '"v1"', "precondicion_invalida")],
+)
+def test_cabeceras_mal_formadas_son_422(if_match: str | None, if_none_match: str, tipo: str) -> None:
+    with pytest.raises(PrecondicionInvalida) as error:
+        precondicion_de(if_match, if_none_match)
+    assert (error.value.cabecera, error.value.tipo) == ("If-None-Match", tipo)
+    # El error nombra la cabecera, nunca su valor
+    assert '"v1"' not in str(error.value)
