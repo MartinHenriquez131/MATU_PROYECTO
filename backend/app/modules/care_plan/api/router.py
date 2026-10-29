@@ -6,7 +6,7 @@
 El rol, la persona, el campo, el consentimiento y la custodia se verifican en las dependencias
 (api/dependencias.py), antes de leer el cuerpo. Queda fuera de MATU-12, y el contrato lo promete:
 - If-Match / If-None-Match con 412 y 428 (MATU-13). El ETag de cada campo ya se devuelve.
-- La auditoría plan.leer y plan.editar (MATU-14). Ya se llama al puerto AuditoriaFicha.
+- La auditoría plan.leer y plan.editar (MATU-14). Implementada sobre RegistroAuditoria.
 
 Ni el texto ni nada derivado de él llega a los logs: la línea de la petición lleva la plantilla de la
 ruta, el usuario y el grupo; los errores del cifrado tienen mensajes fijos; y un 422 nombra el campo,

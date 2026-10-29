@@ -4,7 +4,7 @@
   mismo pepper que la API, así que cada miembro inicia sesión por POST /v1/sesiones.
 - La custodia es CustodiaEnMemoria (fixture ``custodia``) por override de obtener_custodia: la
   misma que usa la fábrica para escribir fichas ya cifradas. Nunca se usa la KEK de un .env.
-- La auditoría es un espía del puerto AuditoriaFicha: MATU-14 la reemplaza por la real.
+- La auditoría es un espía del puerto AuditoriaFicha: las pruebas de RF-08 lo quitan para usar la real.
 - El reloj es el RelojFijo de entorno_iam: emite y valida los tokens y decide la vigencia del
   consentimiento.
 """
