@@ -89,8 +89,8 @@ export function PantallaPin({ presentacion, onCanjear }: { presentacion: Present
           onPaste={pegar}
           aria-invalid={conError || undefined}
           aria-describedby={mensaje ? 'pin-bajada pin-mensaje' : 'pin-bajada'}
-          className={`digitos min-h-18 w-full max-w-60 rounded-xl bg-hoja text-center text-5xl angosto:text-3xl font-bold tracking-widest ring-2 ring-inset focus-visible:ring-turquesa ${
-            conError ? 'text-pronto ring-pronto' : 'ring-borde'
+          className={`digitos min-h-18 w-full max-w-60 rounded-xl bg-hoja text-center text-5xl angosto:text-3xl font-bold tracking-widest ring-2 ring-inset ${
+            conError ? 'text-pronto ring-pronto' : 'ring-borde focus-visible:ring-turquesa'
           }`}
         />
         {mensaje && <MensajePin key={vez} mensaje={mensaje} />}
