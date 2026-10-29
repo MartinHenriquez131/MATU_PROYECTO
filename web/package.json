@@ -1,0 +1,36 @@
+{
+  "name": "matu-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cliente web de MATU (ADR-026). Primera ruta: la página del relevo, /r",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "vite --mode api",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "preview:api": "vite preview --mode api",
+    "typecheck": "tsc --noEmit",
+    "contrato": "openapi-typescript ../docs/api/propuestos/relevo.openapi.yaml -o src/compartido/api/relevo.openapi.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource/atkinson-hyperlegible": "^5.3.0",
+    "@fontsource/atkinson-hyperlegible-mono": "^5.3.0",
+    "axios": "^1.20.0",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "openapi-typescript": "^7.13.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5"
+  }
+}
