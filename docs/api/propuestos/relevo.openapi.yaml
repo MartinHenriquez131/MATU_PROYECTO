@@ -417,6 +417,8 @@ paths:
           $ref: '#/components/responses/RelevoBloqueado'
         '429':
           $ref: '#/components/responses/DemasiadasPeticiones'
+        '503':
+          $ref: '#/components/responses/RelevoSinServicio'
 
   /v1/relevo/ficha:
     get:
@@ -486,6 +488,8 @@ paths:
           $ref: '#/components/responses/RelevoNoDisponibleSesion'
         '423':
           $ref: '#/components/responses/RelevoBloqueadoSesion'
+        '503':
+          $ref: '#/components/responses/RelevoSinServicio'
 
   /v1/personas-cuidadas/{persona_id}/plan/aperturas:
     parameters:
@@ -1484,6 +1488,40 @@ components:
             detail: El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000ee
+
+    RelevoSinServicio:
+      description: |
+        Falla cerrado (MATU-19). En el canje: falta `PEPPER_PIN` (después de los 410 y el 423, antes de
+        comparar el PIN; no cuenta como intento), o el almacén de sesiones (Redis) no respondió al crear
+        la sesión: el canje ya quedó registrado como `relevo.canje`, pero no hay cookie y la página
+        vuelve a pedir el PIN. En la ficha: Redis no respondió, la custodia de la clave no está
+        configurada o no pudo descifrar. Nunca devuelve texto de la ficha ni dice qué falló.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+          example:
+            type: /errores/servicio-no-disponible
+            title: Servicio no disponible
+            status: 503
+            detail: La ficha no está disponible en este momento. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000f2
 
     SinSesionRelevo:
       description: |
