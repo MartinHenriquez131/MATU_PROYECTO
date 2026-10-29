@@ -102,3 +102,32 @@ class CampoGuardadoVista(BaseModel):
     actualizado_por: AutorVista
     actualizado_en: datetime
     completitud: Completitud
+
+
+# --- Problemas RFC 7807 de la escritura (MATU-13). Solo documentan el OpenAPI: la respuesta la arma
+# app/core/errores.py. Sin modelos anidados nuevos, para que el esquema vaya en línea en el contrato.
+
+
+class _ProblemaVista(BaseModel):
+    detail: str | None
+    errores: list[dict[str, str]]
+    request_id: str | None
+
+
+class ProblemaVersionVista(_ProblemaVista):
+    """412: If-Match desactualizado o sobre un campo nunca escrito, o If-None-Match: * sobre uno que existe."""
+
+    type: Literal["/errores/version-desactualizada"]
+    title: str
+    status: Literal[412]
+    campo: CampoFichaVista
+    # El contenido vigente del campo, descifrado. etag null: el campo nunca se escribió
+    actual: EstadoCampoVista
+
+
+class ProblemaFaltaVersionVista(_ProblemaVista):
+    """428: sin If-Match ni If-None-Match, o con If-Match vacío o ``*``."""
+
+    type: Literal["/errores/falta-version"]
+    title: str
+    status: Literal[428]

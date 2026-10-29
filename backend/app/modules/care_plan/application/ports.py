@@ -177,21 +177,29 @@ class RepositorioFicha(Protocol):
         """Las secciones de la ficha del plan (solo los tres tipos de la ficha), con su autor."""
         ...
 
-    def version_para_escribir(self, plan_id: uuid.UUID, tipo: str) -> int | None:
-        """La versión de la sección, bloqueada hasta el fin de la transacción, o None si no existe."""
+    def seccion(self, plan_id: uuid.UUID, tipo: str) -> SeccionGuardada | None:
+        """Una sección de la ficha con su autor, o None si nunca se escribió. Sin bloquearla."""
         ...
 
     def insertar_seccion(
         self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, usuario_id: uuid.UUID, ahora: datetime
     ) -> bool:
-        """Crea la sección con versión 1. False si ya existía (otra transacción la creó primero)."""
+        """Crea la sección con versión 1, de forma atómica (``ON CONFLICT DO NOTHING``).
+
+        False si ya existía: otra transacción la creó primero, y no escribe nada (412, MATU-13).
+        """
         ...
 
-    def actualizar_seccion(
-        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version: int, usuario_id: uuid.UUID,
+    def actualizar_seccion_si_version(
+        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version_esperada: int, usuario_id: uuid.UUID,
         ahora: datetime,
-    ) -> None:
-        """Reemplaza el contenido cifrado de la sección y la deja en ``version``."""
+    ) -> int | None:
+        """Reemplaza la sección solo si sigue en ``version_esperada``, y la deja en la siguiente.
+
+        La comparación y la escritura son una sola sentencia (``UPDATE … WHERE version = … RETURNING``):
+        de dos escrituras simultáneas con la misma versión gana exactamente una (MATU-13, ADR-015).
+        Devuelve la versión nueva, o None si la sección no existe o ya cambió, sin escribir nada.
+        """
         ...
 
     def campos_con_texto(self, plan_id: uuid.UUID) -> int:

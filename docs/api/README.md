@@ -5,7 +5,7 @@ Esta carpeta guarda los contratos OpenAPI 3.1 que el frontend usa para construir
 ```
 docs/api/
 ├── README.md                     este archivo
-├── openapi.json                  rutas implementadas (todavía no existe, ver abajo)
+├── openapi.json                  rutas implementadas, exportadas de GET /openapi.json (MATU-13)
 └── propuestos/
     ├── ficha.openapi.yaml        MATU-09 parte 1: ficha de relevo
     └── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
@@ -18,6 +18,7 @@ docs/api/
 - **La puerta openapi-diff** compara `openapi.json` contra lo que expone la API, y nunca mira `propuestos/`. Un cambio en un contrato propuesto no rompe el pipeline; un cambio en una ruta implementada sí.
 - Hoy ni `openapi.json` ni la puerta openapi-diff existen en el pipeline (`.github/workflows/ci.yml`). Las rutas ya implementadas (`/v1/usuarios`, `/v1/sesiones`, `/v1/grupos`, `/v1/grupos/{grupo_id}/personas-cuidadas`) se ven en `GET /openapi.json` con la API levantada. Crear los dos queda pendiente, fuera de MATU-09.
 - **Las rutas de la ficha (MATU-12) están implementadas pero siguen en `propuestos/`** (revisado el 28-10). El contrato promete dos cosas: 412 y 428 con `If-Match` / `If-None-Match` (MATU-13, pendiente) y el registro de `plan.leer` y `plan.editar` (MATU-14, ya cumplido). Siguen en `propuestos/` solo por MATU-13. Pasarlas a `openapi.json` ahora fijaría como "implementado" un contrato que la API todavía no cumple. Como la puerta openapi-diff no existe y, cuando exista, no mirará `propuestos/`, el CI no puede fallar por esto: MATU-12 no crea `openapi.json` ni toca `ci.yml`. La historia que cierre la última de las dos (MATU-13 o MATU-14) exporta las rutas a `openapi.json` y las quita del propuesto, como dice la regla de arriba. Diferencias que verá openapi-diff ese día: FastAPI agrega un 422 genérico a `GET …/plan/ficha` (por sus parámetros), y `X-Grupo-Id` sale como `string | null` sin `format: uuid`, igual que en las rutas de MATU-07.
+- **MATU-13 (29-10) exportó `openapi.json`** desde `app.openapi()` con un comando puntual (no hay script ni puerta openapi-diff todavía; `backend/tests/modules/care_plan/test_ficha_contrato.py` falla si las rutas de la ficha cambian sin volver a exportar): todas las rutas de la API salvo las del relevo, y solo los componentes que esas rutas usan. Las rutas del relevo (`accesos-relevo`, `/v1/relevo/…`) quedan fuera aunque estén implementadas: su contrato sigue en `propuestos/relevo.openapi.yaml` hasta que la historia que lo cierre las exporte, y `/plan/aperturas` aún no existe. `propuestos/ficha.openapi.yaml` se conserva como explicación del orden de evaluación y de las decisiones, que el JSON generado no trae; manda `openapi.json`. Diferencias con el propuesto que se aceptan: `If-Match` e `If-None-Match` salen como `string` sin `const: '*'` (el valor lo valida la ruta: 422 o 428), el 412 y el 428 del PUT llevan esquema (`ProblemaVersion` con `campo` y `actual`, y `falta-version`), ejemplo y cabeceras, pero en línea y no como componentes con nombre; los demás errores (401, 403, 404, 422, 500 y 503) se declaran como `application/problem+json` sin esquema, FastAPI agrega un 422 genérico a `GET …/plan/ficha`, y `X-Grupo-Id` sale como `string | null` sin `format: uuid`.
 - Cada archivo propuesto es autocontenido: no hace `$ref` a otro archivo. Los componentes comunes (`Problema`, `ProblemaValidacion`, `ErrorCampo`, `CampoFicha`, `Autor`, `XGrupoId`, `PersonaId`, `bearerAuth`, las cabeceras `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`, y el cuerpo de `NoAutenticado`, `NoEncontrado` y `SinConsentimiento`) son idénticos en los dos.
 - **Cabeceras de respuesta.** Toda respuesta, también las de error, declara `X-Request-ID` (UUID, el mismo `request_id` de los logs y del problema; lo pone `app/core/logs.py`). Llevan `Cache-Control: no-store` las que traen texto de la ficha, PIN o enlace, y también la lista de accesos y `/plan/aperturas`, porque dicen a quién se compartió la ficha y cuándo la abrió.
 
@@ -25,8 +26,8 @@ docs/api/
 
 | Método y ruta | Historia | Estado |
 |---|---|---|
-| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado por MATU-12, con la auditoría `plan.leer` de MATU-14. Sigue en propuestos solo por MATU-13 |
-| `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Implementado por MATU-12, con la auditoría `plan.editar` de MATU-14, sin 412/428 (MATU-13). Sigue en propuestos solo por MATU-13 |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado. En `openapi.json` desde MATU-13 |
+| `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Implementado, con `If-Match` / `If-None-Match`, 412 y 428 (MATU-13). En `openapi.json` desde MATU-13 |
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Propuesto |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Propuesto |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Propuesto |

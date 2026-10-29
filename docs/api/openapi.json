@@ -1,0 +1,1771 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MATU API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/salud": {
+      "get": {
+        "tags": [
+          "salud"
+        ],
+        "summary": "Salud",
+        "operationId": "salud_v1_salud_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Salud V1 Salud Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usuarios": {
+      "post": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Crear Cuenta",
+        "operationId": "crear_cuenta_v1_usuarios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudRegistro"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuentaCreadaRespuesta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sesiones": {
+      "post": {
+        "tags": [
+          "usuarios",
+          "sesiones"
+        ],
+        "summary": "Crear Sesion",
+        "operationId": "crear_sesion_v1_sesiones_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudSesion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SesionRespuesta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/grupos": {
+      "get": {
+        "tags": [
+          "grupos"
+        ],
+        "summary": "Listar",
+        "operationId": "listar_v1_grupos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GrupoRespuesta"
+                  },
+                  "type": "array",
+                  "title": "Response Listar V1 Grupos Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "grupos"
+        ],
+        "summary": "Crear",
+        "operationId": "crear_v1_grupos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudGrupo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrupoRespuesta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/grupos/{grupo_id}/personas-cuidadas": {
+      "post": {
+        "tags": [
+          "personas cuidadas"
+        ],
+        "summary": "Crear",
+        "operationId": "crear_v1_grupos__grupo_id__personas_cuidadas_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPersona"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaCreada"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "personas cuidadas"
+        ],
+        "summary": "Listar",
+        "operationId": "listar_v1_grupos__grupo_id__personas_cuidadas_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PersonaVistaCompleta"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PersonaVistaPagador"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PersonaVistaObservador"
+                      }
+                    }
+                  ],
+                  "title": "Response Listar V1 Grupos  Grupo Id  Personas Cuidadas Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/plan/ficha": {
+      "get": {
+        "tags": [
+          "ficha"
+        ],
+        "summary": "Leer",
+        "operationId": "leer_v1_personas_cuidadas__persona_id__plan_ficha_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FichaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "500": {
+            "description": "Error inesperado o sección ilegible, sin el texto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "La custodia de la clave maestra no está configurada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}": {
+      "put": {
+        "tags": [
+          "ficha"
+        ],
+        "summary": "Guardar un campo de la ficha",
+        "description": "Escribe **un** campo. Toda escritura es condicional (MATU-13, ADR-015) y lleva exactamente una\nde dos cabeceras:\n\n| Situación | Cabecera | Si otra persona se adelantó |\n|---|---|---|\n| El campo nunca se escribió (`etag: null` en la lectura) | `If-None-Match: *` | 412 con lo que ella guardó |\n| El campo ya existe | `If-Match: \"<etag leído>\"` | 412 con el contenido actual |\n\n- Sin ninguna, o con `If-Match` vacío o `*`, responde **428**.\n- `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.\n- Las dos a la vez, o `If-None-Match` distinto de `*`, responde **422**.\n- `texto` vacío con `If-Match` vacía el campo, que conserva su `etag`. Con `If-None-Match: *`, **422**\n  `vacio_sin_crear`.\n\nOrden de evaluación: 401, 404 (grupo, rol, persona, campo), 403 (consentimiento), 503 (custodia), 422 (cuerpo\ny cabeceras) y al final la precondición (428 o 412). Responde **201** si creó el campo y **200** si lo\nactualizó. Escriben `admin` y `cuidador`. Registra `plan.editar`; el 412, `plan.leer`.",
+        "operationId": "guardar_v1_personas_cuidadas__persona_id__plan_ficha__campo__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "campo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "rutina",
+                "manejo_situaciones",
+                "red_apoyo"
+              ],
+              "title": "Campo"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del campo tal como se leyó, por ejemplo \"v3\". Obligatorio si el campo ya existe. Un solo valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428",
+              "title": "If-Match"
+            },
+            "description": "ETag del campo tal como se leyó, por ejemplo \"v3\". Obligatorio si el campo ya existe. Un solo valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422, y enviarla junto con If-Match también",
+              "title": "If-None-Match"
+            },
+            "description": "Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422, y enviarla junto con If-Match también"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCampo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campo actualizado, con If-Match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampoGuardadoVista"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión del campo recién guardado, por ejemplo \"v4\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "500": {
+            "description": "Error inesperado o sección ilegible, sin el texto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "La custodia de la clave maestra no está configurada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "201": {
+            "description": "Campo creado: primera escritura, con If-None-Match: *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión del campo recién guardado, por ejemplo \"v4\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampoGuardadoVista"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Otra persona guardó el campo después de que lo leíste (If-Match desactualizado), lo creó antes que tú (If-None-Match: * sobre un campo que ya existe), o enviaste If-Match sobre un campo que nunca se escribió (actual.etag null). `actual` trae el contenido vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión actual del campo. Ausente si el campo nunca se escribió",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: If-Match desactualizado o sobre un campo nunca escrito, o If-None-Match: * sobre uno que existe.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/version-desactualizada",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 412,
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "campo": {
+                      "enum": [
+                        "rutina",
+                        "manejo_situaciones",
+                        "red_apoyo"
+                      ],
+                      "title": "Campo",
+                      "type": "string"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/EstadoCampoVista"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status",
+                    "campo",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/version-desactualizada",
+                  "title": "Otra persona cambió este contenido",
+                  "status": 412,
+                  "detail": "Pedro guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000e4",
+                  "campo": "rutina",
+                  "actual": {
+                    "texto": "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza con Pedro los domingos.",
+                    "etag": "\"v4\"",
+                    "actualizado_por": {
+                      "id": "0c4b5a10-0000-4000-8000-00000000000d",
+                      "nombre": "Pedro"
+                    },
+                    "actualizado_en": "2026-10-30T18:01:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido (texto falta, supera 500 caracteres o trae caracteres de control, o hay un campo extra); llegaron If-Match e If-None-Match a la vez (tipo precondicion_doble); If-None-Match distinto de * (tipo precondicion_invalida); o texto vacío con If-None-Match: * (tipo vacio_sin_crear). errores[] nombra el campo o la cabecera, nunca el valor",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "La escritura no fue condicional: faltan If-Match e If-None-Match, o vino If-Match vacío o *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "428: sin If-Match ni If-None-Match, o con If-Match vacío o ``*``.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/falta-version",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 428,
+                      "title": "Status",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status"
+                  ],
+                  "title": "ProblemaFaltaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/falta-version",
+                  "title": "Falta la versión del contenido",
+                  "status": 428,
+                  "detail": "Vuelve a abrir el campo y guarda de nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000e6"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AutorVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre"
+        ],
+        "title": "AutorVista"
+      },
+      "AvisoMostradoEntrada": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "AvisoMostradoEntrada",
+        "description": "El aviso que se mostró al elegir la calidad: solo su identificador y su versión."
+      },
+      "AvisoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "parrafos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parrafos"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "titulo",
+          "parrafos",
+          "sha256"
+        ],
+        "title": "AvisoVista",
+        "description": "El aviso canónico que se mostró, con su texto completo y su huella."
+      },
+      "CalidadOtorgante": {
+        "type": "string",
+        "enum": [
+          "titular",
+          "representante_legal",
+          "cuidador_de_hecho"
+        ],
+        "title": "CalidadOtorgante"
+      },
+      "CampoGuardadoVista": {
+        "properties": {
+          "campo": {
+            "type": "string",
+            "enum": [
+              "rutina",
+              "manejo_situaciones",
+              "red_apoyo"
+            ],
+            "title": "Campo"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag"
+          },
+          "actualizado_por": {
+            "$ref": "#/components/schemas/AutorVista"
+          },
+          "actualizado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Actualizado En"
+          },
+          "completitud": {
+            "type": "integer",
+            "enum": [
+              0,
+              33,
+              67,
+              100
+            ],
+            "title": "Completitud"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "campo",
+          "texto",
+          "etag",
+          "actualizado_por",
+          "actualizado_en",
+          "completitud"
+        ],
+        "title": "CampoGuardadoVista",
+        "description": "Respuesta 200 o 201 de PUT …/plan/ficha/{campo}."
+      },
+      "CamposVista": {
+        "properties": {
+          "rutina": {
+            "$ref": "#/components/schemas/EstadoCampoVista"
+          },
+          "manejo_situaciones": {
+            "$ref": "#/components/schemas/EstadoCampoVista"
+          },
+          "red_apoyo": {
+            "$ref": "#/components/schemas/EstadoCampoVista"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rutina",
+          "manejo_situaciones",
+          "red_apoyo"
+        ],
+        "title": "CamposVista"
+      },
+      "ConsentimientoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "calidad_otorgante": {
+            "$ref": "#/components/schemas/CalidadOtorgante"
+          },
+          "finalidad": {
+            "type": "string",
+            "title": "Finalidad"
+          },
+          "version_politica": {
+            "type": "string",
+            "title": "Version Politica"
+          },
+          "otorgado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Otorgado En"
+          },
+          "revision_vence_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Vence En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "calidad_otorgante",
+          "finalidad",
+          "version_politica",
+          "otorgado_en",
+          "revision_vence_en"
+        ],
+        "title": "ConsentimientoVista",
+        "description": "El consentimiento vigente para plan_cuidado. Sin la referencia al documento ni la evidencia."
+      },
+      "CuentaCreadaRespuesta": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "email"
+        ],
+        "title": "CuentaCreadaRespuesta"
+      },
+      "DireccionNueva": {
+        "properties": {
+          "etiqueta": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Etiqueta",
+            "default": "Casa"
+          },
+          "calle": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Calle"
+          },
+          "numero": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Numero"
+          },
+          "depto": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depto"
+          },
+          "comuna": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Comuna"
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Region",
+            "default": "Metropolitana"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calle",
+          "numero",
+          "comuna"
+        ],
+        "title": "DireccionNueva",
+        "description": "Dirección de entrega opcional del alta. Sin lat ni lng: un campo extra responde 422."
+      },
+      "DireccionVista": {
+        "properties": {
+          "etiqueta": {
+            "type": "string",
+            "title": "Etiqueta"
+          },
+          "calle": {
+            "type": "string",
+            "title": "Calle"
+          },
+          "numero": {
+            "type": "string",
+            "title": "Numero"
+          },
+          "depto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depto"
+          },
+          "comuna": {
+            "type": "string",
+            "title": "Comuna"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "etiqueta",
+          "calle",
+          "numero",
+          "depto",
+          "comuna",
+          "region",
+          "referencia"
+        ],
+        "title": "DireccionVista"
+      },
+      "EstadoCampoVista": {
+        "properties": {
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actualizado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actualizado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "texto",
+          "etag",
+          "actualizado_por",
+          "actualizado_en"
+        ],
+        "title": "EstadoCampoVista",
+        "description": "Un campo: nunca escrito (todo null), vaciado (texto null con etag) o escrito."
+      },
+      "FichaVista": {
+        "properties": {
+          "persona_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Persona Id"
+          },
+          "completitud": {
+            "type": "integer",
+            "enum": [
+              0,
+              33,
+              67,
+              100
+            ],
+            "title": "Completitud"
+          },
+          "actualizado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actualizado En"
+          },
+          "campos": {
+            "$ref": "#/components/schemas/CamposVista"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "persona_id",
+          "completitud",
+          "actualizado_en",
+          "campos"
+        ],
+        "title": "FichaVista",
+        "description": "Respuesta 200 de GET …/plan/ficha: siempre los tres campos."
+      },
+      "GrupoRespuesta": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "rol": {
+            "type": "string",
+            "title": "Rol"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "rol"
+        ],
+        "title": "GrupoRespuesta"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PersonaCreada": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "nombre_pila": {
+            "type": "string",
+            "title": "Nombre Pila"
+          },
+          "nivel_apoyo": {
+            "type": "string",
+            "enum": [
+              "autovalente_con_supervision",
+              "apoyo_parcial",
+              "apoyo_total"
+            ],
+            "title": "Nivel Apoyo"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DireccionVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consentimiento": {
+            "$ref": "#/components/schemas/ConsentimientoVista"
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvisoVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "nombre_pila",
+          "nivel_apoyo",
+          "direccion",
+          "consentimiento",
+          "aviso"
+        ],
+        "title": "PersonaCreada",
+        "description": "Respuesta 201 del alta. ``aviso`` es el texto del aviso de limitación para un cuidador de\nhecho, y null para las demás calidades."
+      },
+      "PersonaVistaCompleta": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "nombre_pila": {
+            "type": "string",
+            "title": "Nombre Pila"
+          },
+          "nivel_apoyo": {
+            "type": "string",
+            "enum": [
+              "autovalente_con_supervision",
+              "apoyo_parcial",
+              "apoyo_total"
+            ],
+            "title": "Nivel Apoyo"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DireccionVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consentimiento": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsentimientoVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "nombre_pila",
+          "nivel_apoyo",
+          "direccion",
+          "consentimiento"
+        ],
+        "title": "PersonaVistaCompleta",
+        "description": "Lo que ven admin y cuidador."
+      },
+      "PersonaVistaObservador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre"
+        ],
+        "title": "PersonaVistaObservador",
+        "description": "Lo que ve el observador: el nombre."
+      },
+      "PersonaVistaPagador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DireccionVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "direccion"
+        ],
+        "title": "PersonaVistaPagador",
+        "description": "Lo que ve el pagador: nombre y dirección."
+      },
+      "SesionRespuesta": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expira_en": {
+            "type": "integer",
+            "title": "Expira En"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expira_en"
+        ],
+        "title": "SesionRespuesta"
+      },
+      "SolicitudCampo": {
+        "properties": {
+          "texto": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Texto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "texto"
+        ],
+        "title": "SolicitudCampo",
+        "description": "Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422."
+      },
+      "SolicitudGrupo": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre"
+        ],
+        "title": "SolicitudGrupo",
+        "description": "Cuerpo de POST /v1/grupos."
+      },
+      "SolicitudPersona": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "nombre_pila": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Nombre Pila"
+          },
+          "nivel_apoyo": {
+            "type": "string",
+            "enum": [
+              "autovalente_con_supervision",
+              "apoyo_parcial",
+              "apoyo_total"
+            ],
+            "title": "Nivel Apoyo"
+          },
+          "calidad_otorgante": {
+            "$ref": "#/components/schemas/CalidadOtorgante"
+          },
+          "referencia_documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia Documento"
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvisoMostradoEntrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DireccionNueva"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "nombre_pila",
+          "nivel_apoyo",
+          "calidad_otorgante"
+        ],
+        "title": "SolicitudPersona",
+        "description": "Cuerpo de POST /v1/grupos/{grupo_id}/personas-cuidadas."
+      },
+      "SolicitudRegistro": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email"
+          },
+          "contrasena": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10,
+            "title": "Contrasena"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "email",
+          "contrasena"
+        ],
+        "title": "SolicitudRegistro"
+      },
+      "SolicitudSesion": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "title": "Email"
+          },
+          "contrasena": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Contrasena"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "contrasena"
+        ],
+        "title": "SolicitudSesion",
+        "description": "Cuerpo de POST /v1/sesiones.\n\nSin largo mínimo ni forma de email: un 422 por esas razones distinguiría casos que el login\nresponde siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

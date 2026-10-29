@@ -4,6 +4,9 @@ info:
   version: 0.2.0-propuesto
   summary: Lectura y escritura de los tres campos de la ficha de relevo, con control de versiones por campo.
   description: |
+    **Implementado (MATU-13, 29-10): el contrato vigente de estas rutas es `docs/api/openapi.json`.**
+    Este archivo se conserva por la explicación del orden de evaluación y de las decisiones.
+
     Contrato **propuesto** de MATU-09, parte 1. Lo implementan MATU-12 (completar la ficha),
     MATU-13 (editar sin pisar lo que escribió otro), MATU-11 (cifrado) y MATU-14 (auditoría).
     Mientras una ruta no esté implementada vive aquí, en `docs/api/propuestos/`, y no la compara
@@ -170,9 +173,6 @@ paths:
           cabecera y el cuerpo, en el paso 6 del orden de evaluación; por eso responde 422 aunque
           otra persona ya haya creado el campo. No crea el plan, no gasta una versión y no registra
           `plan.editar`.
-        - Mientras MATU-13 no exija las cabeceras, un `texto` vacío sobre un campo que nunca se
-          escribió también responde **422** `vacio_sin_crear`, sin crear nada; sin la cabecera, eso
-          se decide leyendo la base.
 
         La primera escritura de cualquier campo crea el plan con `modo = 'ficha_relevo'` y la
         clave de datos de la persona (MATU-11). Responde **201** si el campo se creó y **200** si se
