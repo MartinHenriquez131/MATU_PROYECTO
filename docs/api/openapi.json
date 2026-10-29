@@ -440,7 +440,8 @@
         "tags": [
           "ficha"
         ],
-        "summary": "Guardar",
+        "summary": "Guardar un campo de la ficha",
+        "description": "Escribe **un** campo. Toda escritura es condicional (MATU-13, ADR-015) y lleva exactamente una\nde dos cabeceras:\n\n| Situación | Cabecera | Si otra persona se adelantó |\n|---|---|---|\n| El campo nunca se escribió (`etag: null` en la lectura) | `If-None-Match: *` | 412 con lo que ella guardó |\n| El campo ya existe | `If-Match: \"<etag leído>\"` | 412 con el contenido actual |\n\n- Sin ninguna, o con `If-Match` vacío o `*`, responde **428**.\n- `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.\n- Las dos a la vez, o `If-None-Match` distinto de `*`, responde **422**.\n- `texto` vacío con `If-Match` vacía el campo, que conserva su `etag`. Con `If-None-Match: *`, **422**\n  `vacio_sin_crear`.\n\nOrden de evaluación: 401, 404 (grupo, rol, persona, campo), 403 (consentimiento), 503 (custodia), 422 (cuerpo\ny cabeceras) y al final la precondición (428 o 412). Responde **201** si creó el campo y **200** si lo\nactualizó. Escriben `admin` y `cuidador`. Registra `plan.editar`; el 412, `plan.leer`.",
         "operationId": "guardar_v1_personas_cuidadas__persona_id__plan_ficha__campo__put",
         "security": [
           {
@@ -485,8 +486,10 @@
                   "type": "null"
                 }
               ],
+              "description": "ETag del campo tal como se leyó, por ejemplo \"v3\". Obligatorio si el campo ya existe. Un solo valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428",
               "title": "If-Match"
-            }
+            },
+            "description": "ETag del campo tal como se leyó, por ejemplo \"v3\". Obligatorio si el campo ya existe. Un solo valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428"
           },
           {
             "name": "If-None-Match",
@@ -501,8 +504,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422, y enviarla junto con If-Match también",
               "title": "If-None-Match"
-            }
+            },
+            "description": "Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422, y enviarla junto con If-Match también"
           },
           {
             "name": "X-Grupo-Id",
@@ -533,11 +538,33 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Campo actualizado, con If-Match",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CampoGuardadoVista"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión del campo recién guardado, por ejemplo \"v4\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
                 }
               }
             }
@@ -573,7 +600,29 @@
             }
           },
           "201": {
-            "description": "Campo creado: primera escritura",
+            "description": "Campo creado: primera escritura, con If-None-Match: *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión del campo recién guardado, por ejemplo \"v4\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -583,21 +632,226 @@
             }
           },
           "412": {
-            "description": "If-Match desactualizado o If-None-Match: * sobre un campo que ya existe. Trae `actual`",
+            "description": "Otra persona guardó el campo después de que lo leíste (If-Match desactualizado), lo creó antes que tú (If-None-Match: * sobre un campo que ya existe), o enviaste If-Match sobre un campo que nunca se escribió (actual.etag null). `actual` trae el contenido vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión actual del campo. Ausente si el campo nunca se escribió",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta lleva texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
             "content": {
-              "application/problem+json": {}
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: If-Match desactualizado o sobre un campo nunca escrito, o If-None-Match: * sobre uno que existe.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/version-desactualizada",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 412,
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "campo": {
+                      "enum": [
+                        "rutina",
+                        "manejo_situaciones",
+                        "red_apoyo"
+                      ],
+                      "title": "Campo",
+                      "type": "string"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/EstadoCampoVista"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status",
+                    "campo",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/version-desactualizada",
+                  "title": "Otra persona cambió este contenido",
+                  "status": 412,
+                  "detail": "Pedro guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000e4",
+                  "campo": "rutina",
+                  "actual": {
+                    "texto": "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza con Pedro los domingos.",
+                    "etag": "\"v4\"",
+                    "actualizado_por": {
+                      "id": "0c4b5a10-0000-4000-8000-00000000000d",
+                      "nombre": "Pedro"
+                    },
+                    "actualizado_en": "2026-10-30T18:01:00Z"
+                  }
+                }
+              }
             }
           },
           "422": {
-            "description": "Cuerpo o cabeceras de precondición inválidos. errores[] nombra el campo, nunca el valor",
+            "description": "Cuerpo inválido (texto falta, supera 500 caracteres o trae caracteres de control, o hay un campo extra); llegaron If-Match e If-None-Match a la vez (tipo precondicion_doble); If-None-Match distinto de * (tipo precondicion_invalida); o texto vacío con If-None-Match: * (tipo vacio_sin_crear). errores[] nombra el campo o la cabecera, nunca el valor",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
             "content": {
               "application/problem+json": {}
             }
           },
           "428": {
-            "description": "Sin If-Match ni If-None-Match, o con If-Match: *",
+            "description": "La escritura no fue condicional: faltan If-Match e If-None-Match, o vino If-Match vacío o *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
             "content": {
-              "application/problem+json": {}
+              "application/problem+json": {
+                "schema": {
+                  "description": "428: sin If-Match ni If-None-Match, o con If-Match vacío o ``*``.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/falta-version",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 428,
+                      "title": "Status",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status"
+                  ],
+                  "title": "ProblemaFaltaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/falta-version",
+                  "title": "Falta la versión del contenido",
+                  "status": 428,
+                  "detail": "Vuelve a abrir el campo y guarda de nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000e6"
+                }
+              }
             }
           }
         }

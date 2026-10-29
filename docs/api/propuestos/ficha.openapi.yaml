@@ -173,9 +173,6 @@ paths:
           cabecera y el cuerpo, en el paso 6 del orden de evaluación; por eso responde 422 aunque
           otra persona ya haya creado el campo. No crea el plan, no gasta una versión y no registra
           `plan.editar`.
-        - Mientras MATU-13 no exija las cabeceras, un `texto` vacío sobre un campo que nunca se
-          escribió también responde **422** `vacio_sin_crear`, sin crear nada; sin la cabecera, eso
-          se decide leyendo la base.
 
         La primera escritura de cualquier campo crea el plan con `modo = 'ficha_relevo'` y la
         clave de datos de la persona (MATU-11). Responde **201** si el campo se creó y **200** si se
