@@ -12,8 +12,14 @@ Cada historia agrega aquí lo suyo:
 - MATU-07: POLITICA_VERSION pasa a ser obligatoria fuera del ambiente de pruebas. Sin ella la
   configuración no carga y la API no arranca. Con ENTORNO=pruebas, si falta, se usa
   POLITICA_VERSION_FABRICA
+- MATU-12: CUSTODIA_KEK, KEK_ENTORNO y KEK_VERSION, la KEK en variable de entorno (decisión D-A de
+  Jorge del 28-10, desvío explícito del ADR-016). Solo con ENTORNO local o pruebas y datos
+  sintéticos: con cualquier otro entorno, definir una de ellas impide cargar la configuración y la
+  API no arranca. Ver app/modules/care_plan/infrastructure/custodia_kek_entorno.py
 """
 
+import base64
+import binascii
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -27,6 +33,11 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[3]
 # Versión de la política que usan las pruebas cuando POLITICA_VERSION no está definida (MATU-07).
 # 0.0 no es una versión publicada: un consentimiento guardado con ella es, a la vista, sintético.
 POLITICA_VERSION_FABRICA = "0.0"
+
+# Entornos donde se admite la KEK en variable de entorno (MATU-12, decisión D-A). Lista permitida:
+# produccion, o un valor nuevo, quedan fuera
+ENTORNOS_KEK_SINTETICA = frozenset({"local", "pruebas"})
+LARGO_KEK = 32
 
 
 class Configuracion(BaseSettings):
@@ -63,11 +74,75 @@ class Configuracion(BaseSettings):
     # configuración; emitir o validar un token sin ella falla.
     jwt_clave: SecretStr | None = Field(default=None, min_length=32)
 
-    @field_validator("pepper_email", "jwt_clave", mode="before")
+    # Custodia de la KEK de la ficha (MATU-12, decisión D-A). Apagada por omisión: sin ella las rutas
+    # de la ficha responden 503. "entorno_sintetico" la enciende con la KEK de KEK_ENTORNO, solo en
+    # local o pruebas y solo con datos sintéticos. El proveedor de producción lo decide el ADR-019.
+    custodia_kek: Literal["entorno_sintetico"] | None = None
+
+    # La KEK: 32 bytes aleatorios en base64. Nunca en el repositorio ni en docker-compose. Genérala
+    # con: python -c "import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+    kek_entorno: SecretStr | None = None
+
+    # Versión fija de la KEK. Si la clave cambia, cambia la versión: una DEK envuelta con otra clave
+    # bajo la misma versión no se desenvuelve, y nunca se reemplaza por una nueva.
+    kek_version: int = Field(default=1, ge=1)
+
+    @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", mode="before")
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
-        # PEPPER_EMAIL= o JWT_CLAVE= en el .env cuentan como no definidas
+        # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @field_validator("kek_entorno")
+    @classmethod
+    def _kek_de_32_bytes(cls, valor: SecretStr | None) -> SecretStr | None:
+        # El mensaje es fijo: nunca lleva la clave (y hide_input_in_errors oculta el valor recibido)
+        if valor is None:
+            return None
+        try:
+            crudo = base64.b64decode(valor.get_secret_value(), validate=True)
+        except (binascii.Error, ValueError):
+            crudo = b""
+        if len(crudo) != LARGO_KEK:
+            raise ValueError("KEK_ENTORNO debe ser una clave de 32 bytes aleatorios en base64")
+        return valor
+
+    @model_validator(mode="after")
+    def _kek_solo_en_entornos_sinteticos(self) -> "Configuracion":
+        # Condición (a) del analista normativo: lista permitida. Con produccion, una KEK en el entorno
+        # o la custodia encendida impiden cargar la configuración, y la API no arranca.
+        if (self.custodia_kek is not None or self.kek_entorno is not None) and (
+            self.entorno not in ENTORNOS_KEK_SINTETICA
+        ):
+            raise ValueError("La KEK en variable de entorno solo se admite con ENTORNO local o pruebas")
+        return self
+
+    @model_validator(mode="after")
+    def _custodia_encendida_exige_kek(self) -> "Configuracion":
+        # Condición (b): encender la custodia sin la clave es un error de configuración y la API no
+        # arranca, en vez de quedar en silencio respondiendo 503. Sin CUSTODIA_KEK la ficha sigue
+        # fallando cerrada con 503. El mensaje nombra las variables, nunca sus valores.
+        if self.custodia_kek is not None and self.kek_entorno is None:
+            raise ValueError("CUSTODIA_KEK está encendida pero falta KEK_ENTORNO")
+        return self
+
+    @model_validator(mode="after")
+    def _kek_distinta_de_otros_secretos(self) -> "Configuracion":
+        # Condición (c): la KEK no reutiliza otro secreto. Se compara el texto y los bytes. El mensaje
+        # nombra las variables, nunca sus valores.
+        if self.kek_entorno is None:
+            return self
+        kek = self.kek_entorno.get_secret_value()
+        kek_bytes = base64.b64decode(kek)
+        for nombre, secreto in (("JWT_CLAVE", self.jwt_clave), ("PEPPER_EMAIL", self.pepper_email)):
+            if secreto is None:
+                continue
+            valor = secreto.get_secret_value()
+            if valor == kek or valor.encode("utf-8") == kek_bytes:
+                raise ValueError(f"KEK_ENTORNO y {nombre} deben ser claves distintas")
+        if kek in self.database_url:
+            raise ValueError("KEK_ENTORNO no puede ser parte de DATABASE_URL")
+        return self
 
     @model_validator(mode="after")
     def _jwt_clave_distinta_de_pepper(self) -> "Configuracion":

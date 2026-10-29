@@ -38,6 +38,7 @@ TITULOS: dict[int, str] = {
     428: "Falta la versión del contenido",
     429: "Demasiadas peticiones",
     500: "Error interno",
+    503: "Servicio no disponible",
 }
 
 TIPOS: dict[int, str] = {
@@ -55,6 +56,7 @@ TIPOS: dict[int, str] = {
     428: "falta-version",
     429: "demasiadas-peticiones",
     500: "error-interno",
+    503: "servicio-no-disponible",
 }
 
 

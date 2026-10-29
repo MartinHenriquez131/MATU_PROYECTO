@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
-from app.modules.care_circle.infrastructure.membresia import rol_activo
+from app.modules.care_circle.infrastructure.membresia import membresia_activa
 from app.modules.iam.api.dependencias import UsuarioActual, usuario_actual
 
 
@@ -37,12 +37,14 @@ class ContextoGrupo:
 
     rol es el de su membresía activa (admin, cuidador, pagador u observador). Cada ruta decide con él
     qué puede hacer y qué ve (arquitectura 11.2), y responde 404 cuando el rol no alcanza.
+    puede_ver_plan es el permiso explícito del pagador para ver el plan de cuidado (MATU-12).
     """
 
     usuario_id: uuid.UUID
     grupo_id: uuid.UUID
     sesion: Session
     rol: str
+    puede_ver_plan: bool = False
 
 
 def _grupo_de_cabecera(valor: str | None) -> uuid.UUID:
@@ -67,13 +69,19 @@ def sesion_de_grupo(
     """
     grupo_id = _grupo_de_cabecera(x_grupo_id)
     with sesion_tenant(fabrica, usuario_id=usuario.id, grupo_id=grupo_id) as sesion:
-        rol = rol_activo(sesion, usuario.id, grupo_id)
-        if rol is None:
+        membresia = membresia_activa(sesion, usuario.id, grupo_id)
+        if membresia is None:
             # El mismo 404 por omisión que un grupo inexistente o una ruta que no existe
             raise ErrorMATU(404)
         # El log de la petición registra el grupo ya verificado
         request.state.grupo_id = str(grupo_id)
-        yield ContextoGrupo(usuario_id=usuario.id, grupo_id=grupo_id, sesion=sesion, rol=rol)
+        yield ContextoGrupo(
+            usuario_id=usuario.id,
+            grupo_id=grupo_id,
+            sesion=sesion,
+            rol=membresia.rol,
+            puede_ver_plan=membresia.puede_ver_plan,
+        )
 
 
 # scope="function": la transacción se cierra (commit o rollback) antes de enviar la respuesta,

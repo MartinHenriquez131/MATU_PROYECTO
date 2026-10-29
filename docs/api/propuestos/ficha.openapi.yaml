@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MATU API · Ficha de relevo (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.2.0-propuesto
   summary: Lectura y escritura de los tres campos de la ficha de relevo, con control de versiones por campo.
   description: |
     Contrato **propuesto** de MATU-09, parte 1. Lo implementan MATU-12 (completar la ficha),
@@ -23,6 +23,12 @@ info:
     Las preguntas guía, los ejemplos y los textos de error que ve la persona salen de
     `docs/lenguaje.md` (MATU-30), no de este contrato. Los `detail` de los ejemplos son orientativos.
 
+    **Estado (0.2.0, MATU-12).** Las dos rutas están implementadas en
+    `backend/app/modules/care_plan/api/router.py`, salvo dos promesas de este contrato: la exigencia
+    de `If-Match` / `If-None-Match` con 412 y 428 (MATU-13) y el registro de `plan.leer` y
+    `plan.editar` en `auditoria` (MATU-14). Mientras falten, el contrato sigue en `propuestos/`.
+    Hasta MATU-13, una escritura sin cabeceras se acepta: 201 si crea el campo, 200 si lo actualiza.
+
     **Contexto de grupo.** Toda ruta exige `Authorization: Bearer` y `X-Grupo-Id` (MATU-02;
     declarada `required: false` porque sin ella responde 404, no 422). La API
     verifica la membresía activa en cada petición y nunca confía en la cabecera.
@@ -34,9 +40,16 @@ info:
     3. El rol alcanza: leer `admin`, `cuidador` y `pagador` con `puede_ver_plan`; escribir `admin` y
        `cuidador`. Si no, **404**, igual que en MATU-07 (un observador nunca sabe si la ficha existe).
     4. La persona es del grupo, `persona_id` es un UUID y `campo` es uno de los tres. Si no, **404**.
-    5. Consentimiento vigente para `plan_cuidado`. Si no, **403** `/errores/sin-consentimiento`.
-    6. Cuerpo válido. Si no, **422**.
-    7. Precondición (`If-Match` o `If-None-Match`). Si falta, **428**. Si no se cumple, **412**.
+    5. Consentimiento vigente para `plan_cuidado`. Si no hay, **403** `/errores/sin-consentimiento`.
+       Si lo dio un cuidador de hecho y venció su revisión anual, **403** `/errores/revision-vencida`
+       (decisión D-B del 28-10). La vigencia se decide con el reloj del servidor.
+    6. La custodia de la clave maestra está configurada. Si no, **503**
+       `/errores/servicio-no-disponible`: la ficha falla cerrada (decisión D-A del 28-10).
+    7. Cuerpo válido. Si no, **422**.
+    8. Precondición (`If-Match` o `If-None-Match`). Si falta, **428**. Si no se cumple, **412** (MATU-13).
+
+    Sin consentimiento vigente no se lee el plan, no se descifra, no se valida el cuerpo y no se
+    crea ni el plan ni la clave de datos de la persona.
 
     **Datos sensibles.** El texto se guarda cifrado (MATU-11), nunca aparece en logs, errores ni
     URLs, y las respuestas que lo llevan van con `Cache-Control: no-store`. Toda lectura (incluido
@@ -72,6 +85,10 @@ paths:
         `completitud: 0`. Leer no crea el plan.
 
         Lo leen `admin`, `cuidador` y `pagador` con `puede_ver_plan`. Registra `plan.leer`.
+
+        Si la clave de datos de la persona fue destruida (borrado criptográfico), **404**, como una
+        persona eliminada. Si una sección guardada no se puede descifrar (alterada o movida), **500**
+        `/errores/error-interno`, genérico y sin el texto.
       x-matu-historia: MATU-12
       x-matu-auditoria: plan.leer
       responses:
@@ -116,9 +133,13 @@ paths:
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '403':
-          $ref: '#/components/responses/SinConsentimiento'
+          $ref: '#/components/responses/SinAutorizacion'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
 
   /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}:
     parameters:
@@ -149,12 +170,20 @@ paths:
           cabecera y el cuerpo, en el paso 6 del orden de evaluación; por eso responde 422 aunque
           otra persona ya haya creado el campo. No crea el plan, no gasta una versión y no registra
           `plan.editar`.
+        - Mientras MATU-13 no exija las cabeceras, un `texto` vacío sobre un campo que nunca se
+          escribió también responde **422** `vacio_sin_crear`, sin crear nada; sin la cabecera, eso
+          se decide leyendo la base.
 
         La primera escritura de cualquier campo crea el plan con `modo = 'ficha_relevo'` y la
         clave de datos de la persona (MATU-11). Responde **201** si el campo se creó y **200** si se
         actualizó. El `ETag` nuevo viaja en la cabecera y en el cuerpo.
 
         Escriben `admin` y `cuidador`. Registra `plan.editar`.
+
+        Si la clave de datos de la persona fue destruida (borrado criptográfico), **404**, como una
+        persona eliminada, y nunca se crea una clave nueva. Escribir no descifra las secciones ya
+        guardadas, así que aquí no hay un 500 por sección ilegible: un **500**
+        `/errores/error-interno` es solo el error inesperado genérico, sin el texto.
       x-matu-historia: MATU-12, MATU-13
       x-matu-auditoria: plan.editar
       parameters:
@@ -229,7 +258,7 @@ paths:
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '403':
-          $ref: '#/components/responses/SinConsentimiento'
+          $ref: '#/components/responses/SinAutorizacion'
         '404':
           $ref: '#/components/responses/NoEncontrado'
         '412':
@@ -238,6 +267,10 @@ paths:
           $ref: '#/components/responses/ValidacionCampo'
         '428':
           $ref: '#/components/responses/FaltaVersion'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
 
 components:
   securitySchemes:
@@ -526,6 +559,109 @@ components:
               $ref: '#/components/schemas/EstadoCampo'
 
   responses:
+    SinAutorizacion:
+      description: |
+        No hay una autorización vigente para usar la ficha de la persona. Es la única causa de 403 en
+        la ficha: un rol sin permiso recibe 404. Dos `type`, porque la pantalla muestra cosas distintas:
+
+        - `/errores/sin-consentimiento`: no hay consentimiento no revocado para `plan_cuidado`
+          (arquitectura 11.1 y 11.5). La pantalla muestra el error de `docs/lenguaje.md`, 6.4.
+        - `/errores/revision-vencida`: el consentimiento lo dio un cuidador de hecho y su revisión
+          anual (`revision_vence_en`) ya pasó (decisión D-B de Jorge, 28-10). Vencida la revisión no
+          hay autorización vigente. La pantalla no muestra un error sino un **aviso** que explica cómo
+          renovar la autorización o cómo hacerse cuidador formal, con un enlace externo oficial.
+
+        El texto del aviso y el enlace oficial están en `docs/lenguaje.md`, sección 6.4b
+        (repositorio MATU, PR #15). La API no los devuelve.
+
+        `SinConsentimiento` (abajo) se conserva igual que en `relevo.openapi.yaml`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/sin-consentimiento, /errores/revision-vencida]
+                  status:
+                    const: 403
+          examples:
+            sinConsentimiento:
+              summary: Sin consentimiento vigente
+              value:
+                type: /errores/sin-consentimiento
+                title: Sin permiso
+                status: 403
+                detail: Falta la autorización para usar la ficha de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
+            revisionVencida:
+              summary: Revisión anual del cuidador de hecho vencida
+              value:
+                type: /errores/revision-vencida
+                title: Autorización por renovar
+                status: 403
+                detail: Venció la revisión anual de la autorización para usar la ficha de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-0000000000e7
+
+    ErrorInterno:
+      description: |
+        Error inesperado, genérico. En `GET …/plan/ficha` también cuando una sección guardada no se
+        puede descifrar (alterada, o movida a otro campo o a otro plan). Nunca lleva el texto de la
+        ficha, ni en `detail` ni en `errores[]`. La pantalla muestra el texto genérico de 5xx de
+        `docs/lenguaje.md`, 8.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/error-interno
+                  status:
+                    const: 500
+          example:
+            type: /errores/error-interno
+            title: Error interno
+            status: 500
+            detail: No pudimos abrir la ficha. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e9
+
+    ServicioNoDisponible:
+      description: |
+        La custodia de la clave maestra no está configurada, o no pudo envolver o desenvolver la
+        clave de datos de la persona (por ejemplo, la clave maestra cambió sin cambiar su versión).
+        La ficha falla cerrada: no se lee, no se escribe y no se crea una clave nueva (decisión D-A
+        de Jorge, 28-10). La pantalla muestra el texto genérico de 5xx de `docs/lenguaje.md`, 8.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+          example:
+            type: /errores/servicio-no-disponible
+            title: Servicio no disponible
+            status: 503
+            detail: La ficha no está disponible en este momento. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e8
+
     NoAutenticado:
       description: |
         Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
