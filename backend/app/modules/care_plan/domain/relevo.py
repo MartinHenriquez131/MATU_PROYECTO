@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from app.modules.care_plan.domain.ficha import CAMPOS_FICHA
+from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, puede_escribir
 
 VIGENCIA_POR_DEFECTO = timedelta(hours=24)
 VIGENCIA_MAXIMA = timedelta(days=30)
@@ -156,3 +156,21 @@ def campos_para_relevo(permitidos: tuple[str, ...], textos: dict[str, str]) -> d
     return {
         c.value: (textos.get(c.value) or None) for c in CAMPOS_FICHA if c.value in permitidos
     }
+
+
+# --- Revocar un acceso de relevo (MATU-20, RF-07) ----------------------------------------------------
+
+
+def debe_revocar(acceso: VidaAcceso, ahora: datetime) -> bool:
+    """Si revocar cambia el estado del acceso.
+
+    Solo un acceso no revocado y no vencido se revoca. Uno ya revocado conserva su primer revocado_en
+    (C15) y uno vencido queda vencido, sin revocado_en: los dos son un 204 sin cambios ni auditoría
+    (C16). Un acceso bloqueado sí se revoca: el bloqueo no lo corta para siempre en la lista.
+    """
+    return acceso.revocado_en is None and acceso.expira_en > ahora
+
+
+def puede_revocar(rol: str) -> bool:
+    """Revocan admin y cuidador, los mismos que comparten. El pagador no, ni con puede_ver_plan."""
+    return puede_escribir(rol)

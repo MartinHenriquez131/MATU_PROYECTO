@@ -1,4 +1,5 @@
-"""Casos de uso del acceso de relevo: compartir la ficha y listar los accesos (MATU-18, RF-05).
+"""Casos de uso del acceso de relevo: compartir la ficha y listar los accesos (MATU-18, RF-05) y
+revocar un acceso (MATU-20, RF-07).
 
 Llegan aquí solo peticiones que ya pasaron por el token (401), la membresía, el rol y la persona
 (404) y, para compartir, el consentimiento vigente y la revisión anual (403). Lo hacen las
@@ -28,7 +29,7 @@ from app.modules.care_plan.application.ports import (
     RepositorioFicha,
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha
-from app.modules.care_plan.domain.relevo import MotivoAcceso, nombre_pila, vigencia
+from app.modules.care_plan.domain.relevo import MotivoAcceso, debe_revocar, nombre_pila, vigencia
 from app.shared.puertos import Reloj
 
 
@@ -146,3 +147,32 @@ def listar(
         ultimo = pagina[-1]
         siguiente = Posicion(creado_en=ultimo.creado_en, id=ultimo.id)
     return PaginaAccesos(accesos=pagina, siguiente=siguiente)
+
+
+class AccesoNoEncontrado(LookupError):
+    """El acceso no existe, es de otro grupo o RLS no lo muestra: la API responde 404."""
+
+
+@dataclass(frozen=True)
+class PeticionRevocar:
+    grupo_id: uuid.UUID
+    usuario_id: uuid.UUID
+    acceso_id: uuid.UUID
+    request_id: str | None
+
+
+def revocar(peticion: PeticionRevocar, accesos: RepositorioAccesos, reloj: Reloj) -> bool:
+    """Revoca el acceso. Devuelve si el estado cambió.
+
+    Idempotente: uno ya revocado conserva su primer revocado_en (C15) y uno vencido queda sin
+    revocado_en; en los dos casos no se escribe nada ni se audita (C16). No exige consentimiento
+    vigente (decisión 18): cortar un acceso siempre es posible. AccesoNoEncontrado si no hay acceso.
+    """
+    vida = accesos.vida_para_revocar(peticion.acceso_id)
+    if vida is None:
+        raise AccesoNoEncontrado
+    ahora = reloj.ahora()
+    if not debe_revocar(vida, ahora):
+        return False
+    accesos.revocar(peticion.acceso_id, ahora, peticion.usuario_id, peticion.request_id)
+    return True
