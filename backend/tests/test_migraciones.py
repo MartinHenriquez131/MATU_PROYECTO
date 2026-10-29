@@ -313,3 +313,30 @@ def test_0005_reemplaza_la_lectura_de_auditoria_y_baja_al_esquema_de_0004(base_d
     for parte, filas in esquema_0004.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0006 (MATU-19): revocado_en en indice_token, políticas del relevo y autorización vigente
+
+
+@pytest.mark.rf("RF-06")
+def test_0006_agrega_lo_del_relevo_y_baja_al_esquema_de_0005(base_desechable):
+    alembic("upgrade", "0005")
+    esquema_0005 = catalogo()
+
+    alembic("upgrade", "0006")
+    assert consultar(
+        "SELECT data_type, is_nullable FROM information_schema.columns"
+        " WHERE table_name = 'indice_token' AND column_name = 'revocado_en'"
+    ) == [("timestamp with time zone", "YES")]
+    politicas = dict(consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'acceso_relevo'"))
+    assert politicas == {"acceso_familia": "ALL", "acceso_relevo_leer": "SELECT", "acceso_relevo_contar": "UPDATE"}
+    [(definer, config, acl)] = consultar(
+        "SELECT prosecdef, proconfig, proacl::text FROM pg_proc WHERE proname = 'relevo_autorizacion_vigente'")
+    assert definer and config == ["search_path=pg_catalog, public"]
+    assert "matu_app=X" in acl and "=X/" not in acl.replace("matu_app=X/", "").replace("matu_owner=X/", "")
+
+    alembic("downgrade", "0005")
+    despues = catalogo()
+    for parte, filas in esquema_0005.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
