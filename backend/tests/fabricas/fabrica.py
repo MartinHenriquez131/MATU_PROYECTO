@@ -519,7 +519,14 @@ class Fabrica:
         with self._conectar() as cx, cx.transaction():
             if grupos:
                 for sentencia in BORRAR_CONTENIDO_DE_GRUPOS:
-                    cx.execute(sentencia, (grupos,))
+                    if "FROM consentimiento" in sentencia:
+                        # consentimiento no se borra (trigger consentimiento_sin_borrado, 0006): solo
+                        # para esta sentencia, el superusuario apaga los triggers con el rol de réplica
+                        cx.execute("SET LOCAL session_replication_role = replica")
+                        cx.execute(sentencia, (grupos,))
+                        cx.execute("SET LOCAL session_replication_role = origin")
+                    else:
+                        cx.execute(sentencia, (grupos,))
             for tabla, fila_id in reversed(self.creados):
                 if tabla != "usuario":
                     # tabla puede venir de un argumento de anotar(), pero ya pasó por la lista

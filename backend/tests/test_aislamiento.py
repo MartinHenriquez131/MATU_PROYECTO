@@ -322,6 +322,104 @@ def test_relevo_registra_su_apertura_en_auditoria(cx):
                       VALUES (%s, 'relevo', 'relevo.abrir', 'plan_cuidado')""", (G_B,))
 
 
+# ---- MATU-19 (migración 0007): lo que el relevo puede cambiar de su acceso y la autorización vigente
+
+
+@pytest.mark.rf("RF-06")
+def test_relevo_cuenta_intentos_pero_no_borra_ni_cambia_su_acceso(cx):
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    # Sube el contador, los usos y el último uso: lo único que el canje y la ficha escriben
+    cx.execute("UPDATE acceso_relevo SET pin_intentos_fallidos = pin_intentos_fallidos + 1")
+    cx.execute("UPDATE acceso_relevo SET usos = usos + 1, ultimo_uso_en = now()")
+    assert cx.execute("SELECT pin_intentos_fallidos, usos FROM acceso_relevo").fetchone() == (1, 1)
+    # No borra su acceso: sin política de DELETE, cero filas afectadas
+    assert cx.execute("DELETE FROM acceso_relevo").rowcount == 0
+    assert contar(cx, "acceso_relevo") == 1
+    # No amplía los campos, no se alarga el vencimiento, no se des-revoca ni cambia el PIN
+    for cambio in ("secciones_permitidas = ARRAY['rutina','manejo_situaciones','red_apoyo']",
+                   "expira_en = expira_en + interval '1 day'", "pin_hash = 'otro'", "otorgado_a_nombre = 'X'"):
+        cx.execute("SAVEPOINT s")
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(f"UPDATE acceso_relevo SET {cambio}")
+        cx.execute("ROLLBACK TO SAVEPOINT s")
+    # Tampoco inserta un acceso
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(
+            """INSERT INTO acceso_relevo (grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
+                   nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,
+                   expira_en, relevo_informado_en)
+               VALUES (%s, %s, %s, 'Relevo', '+56955550137', 'María', 'Ana', ARRAY['rutina'], 'otro',
+                   sha256('t8'), 'p', now() + interval '1 day', now())""", (G_A, PLAN_A, U_ADMIN_A))
+
+
+@pytest.mark.rf("RF-06")
+def test_relevo_no_toca_el_acceso_de_otro(cx):
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    assert cx.execute("UPDATE acceso_relevo SET usos = usos + 1 WHERE id = %s", (ACC_VENCIDO,)).rowcount == 0
+    como(cx, rol="relevo", acceso_relevo_id=ACC_REVOCADO)
+    assert cx.execute("UPDATE acceso_relevo SET pin_intentos_fallidos = 1").rowcount == 0
+
+
+@pytest.mark.rf("RF-05")
+def test_familia_sigue_actualizando_sus_accesos(cx):
+    """El trigger de 0007 solo limita al relevo: la familia sigue revocando (MATU-20) y cambiando su acceso."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE acceso_relevo SET revocado_en = now() WHERE id = %s", (ACC_VIGENTE,)).rowcount == 1
+
+
+def _consentimiento_relevo(cx, calidad="titular", revision="NULL", revocado="NULL"):
+    """Un consentimiento para plan_cuidado de P_A, como superusuario y dentro de la transacción de la prueba."""
+    cx.execute(f"""INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,
+                       version_politica, evidencia, revision_vence_en, revocado_en)
+                   VALUES (%s, %s, %s, %s, 'plan_cuidado', '0.0', '{{}}', {revision}, {revocado})""",
+               (G_A, P_A, U_ADMIN_A, calidad))
+
+
+def _vigente(cx, ahora="now()"):
+    return cx.execute(f"SELECT relevo_autorizacion_vigente({ahora})").fetchone()[0]
+
+
+@pytest.mark.rf("RF-06")
+@pytest.mark.parametrize(("calidad", "revision", "revocado", "esperado"), [
+    ("titular", "NULL", "NULL", True),
+    ("cuidador_de_hecho", "now() + interval '1 day'", "NULL", True),
+    ("cuidador_de_hecho", "now() - interval '1 day'", "NULL", False),   # revisión anual vencida
+    ("titular", "NULL", "now()", False),                                 # consentimiento revocado
+    (None, None, None, False),                                           # sin consentimiento
+])
+def test_autorizacion_vigente_del_relevo_devuelve_solo_un_booleano(cx, calidad, revision, revocado, esperado):
+    if calidad is not None:
+        _consentimiento_relevo(cx, calidad, revision, revocado)
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    assert _vigente(cx) is esperado
+    # El relevo no lee consentimiento, ni siquiera con la función disponible
+    assert contar(cx, "consentimiento") == 0
+
+
+@pytest.mark.rf("RF-06")
+def test_autorizacion_vigente_usa_el_instante_del_reloj(cx):
+    _consentimiento_relevo(cx, "cuidador_de_hecho", "now() + interval '1 day'")
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    assert _vigente(cx, "now() + interval '2 days'") is False
+    assert _vigente(cx, "now()") is True
+
+
+@pytest.mark.rf("RF-06")
+def test_autorizacion_vigente_solo_en_contexto_de_relevo(cx):
+    _consentimiento_relevo(cx)
+    # Sin contexto, con la familia o con otro acceso (vencido): falso, nunca un dato
+    for ctx in ({}, {"usuario_id": U_ADMIN_A, "grupo_id": G_A}, {"rol": "relevo", "acceso_relevo_id": ACC_VENCIDO}):
+        como(cx, **ctx)
+        assert _vigente(cx) is False, ctx
+    # matu_owner es el único con la política de lectura de 0007; matu_publisher no ejecuta la función
+    cx.execute("RESET ROLE")
+    cx.execute("SAVEPOINT s")
+    cx.execute("SET LOCAL ROLE matu_publisher")
+    with pytest.raises(errors.InsufficientPrivilege):
+        _vigente(cx)
+    cx.execute("ROLLBACK TO SAVEPOINT s")
+
+
 # ------------------------------------------------------------------ comercio y repartidor
 
 def test_comercio_ve_pedidos_enviados_sin_direccion_ni_pago(cx):
@@ -711,3 +809,43 @@ def test_operacion_no_lee_la_auditoria(cx):
     _sembrar_auditoria(cx)
     como(cx, rol="operacion")
     assert _actores_visibles(cx) == set()
+
+
+# ---- consentimiento inalterable (0006): solo se registra la revocación
+
+def _consentimiento(cx):
+    """Un consentimiento de G_A, insertado por el superusuario dentro de la transacción de la prueba."""
+    return cx.execute(
+        "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+        " version_politica, evidencia) VALUES (%s, %s, %s, 'titular', 'plan_cuidado', 'v1',"
+        " '{\"esquema\": 1}'::jsonb) RETURNING id",
+        (G_A, P_A, U_ADMIN_A),
+    ).fetchone()[0]
+
+
+@pytest.mark.rf("RF-01")
+def test_consentimiento_no_se_modifica(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE consentimiento SET calidad_otorgante = 'cuidador_de_hecho' WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-01")
+def test_consentimiento_no_se_borra(cx):
+    cid = _consentimiento(cx)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():  # tampoco el superusuario
+        cx.execute("DELETE FROM consentimiento WHERE id = %s", (cid,))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM consentimiento WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-01")
+def test_revocar_registra_fecha_una_vez(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cur = cx.execute("UPDATE consentimiento SET revocado_en = now() WHERE id = %s", (cid,))
+    assert cur.rowcount == 1
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE consentimiento SET revocado_en = now() + interval '1 day' WHERE id = %s", (cid,))
