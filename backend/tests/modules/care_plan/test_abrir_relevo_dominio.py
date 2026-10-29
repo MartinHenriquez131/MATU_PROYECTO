@@ -199,7 +199,8 @@ def test_quinto_pin_incorrecto_bloquea_y_audita_el_bloqueo(reloj: RelojFijo) -> 
     registro = RegistroAuditoriaEnMemoria()
     resultado = canjear("0000", repo, HUELLAS, registro, SesionesRelevoEnMemoria(reloj), reloj, None)
     assert isinstance(resultado, AccesoBloqueadoAhora)
-    assert [e.accion for e in registro.entradas] == [AccionAuditoria.RELEVO_PIN_INCORRECTO, AccionAuditoria.RELEVO_BLOQUEO]
+    esperadas = [AccionAuditoria.RELEVO_PIN_INCORRECTO, AccionAuditoria.RELEVO_BLOQUEO]
+    assert [e.accion for e in registro.entradas] == esperadas
     # Bloqueado, ni el PIN correcto abre
     with pytest.raises(RelevoBloqueado):
         canjear("4821", repo, HUELLAS, registro, SesionesRelevoEnMemoria(reloj), reloj, None)
