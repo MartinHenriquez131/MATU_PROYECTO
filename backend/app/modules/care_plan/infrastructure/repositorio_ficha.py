@@ -8,7 +8,12 @@ fija contexto, y nunca recibe texto en claro: solo SeccionCifrada.
 Los INSERT no usan RETURNING (los identificadores los genera el caso de uso) y usan
 ON CONFLICT DO NOTHING sobre los UNIQUE de plan_cuidado.persona_cuidada_id y de
 plan_seccion (plan_id, tipo): dos primeras escrituras concurrentes dejan un solo plan y una sola
-sección, y el caso de uso decide con el resultado.
+sección, y el caso de uso decide con el resultado (la que no escribió responde 412, MATU-13).
+
+La actualización compara y escribe en una sola sentencia (``UPDATE … WHERE version = :esperada
+RETURNING version``). Bajo READ COMMITTED, si otra transacción tiene la fila bloqueada, PostgreSQL
+espera su commit y vuelve a evaluar el WHERE sobre la fila nueva: de dos escrituras con el mismo
+If-Match gana exactamente una, y la otra no escribe nada.
 """
 
 import uuid
@@ -35,16 +40,15 @@ _CREAR_PLAN = text(
 )
 
 # El autor: id y nombre, nunca el email. Una cuenta eliminada o que RLS no muestra queda sin autor
-_SECCIONES = text(
+_SELECT_SECCION = (
     "SELECT s.tipo, s.contenido_cifrado, s.nonce, s.tag_auth, s.kek_version, s.version, s.actualizado_en,"
     " u.id AS autor_id, u.nombre AS autor_nombre"
     " FROM plan_seccion s LEFT JOIN usuario u ON u.id = s.actualizado_por AND u.eliminado_en IS NULL"
-    f" WHERE s.plan_id = :plan_id AND s.tipo IN ({_TIPOS_FICHA})"
 )
 
-_VERSION_PARA_ESCRIBIR = text(
-    "SELECT version FROM plan_seccion WHERE plan_id = :plan_id AND tipo = :tipo FOR UPDATE"
-)
+_SECCIONES = text(_SELECT_SECCION + f" WHERE s.plan_id = :plan_id AND s.tipo IN ({_TIPOS_FICHA})")
+
+_SECCION = text(_SELECT_SECCION + " WHERE s.plan_id = :plan_id AND s.tipo = :tipo")
 
 _INSERTAR_SECCION = text(
     "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
@@ -53,10 +57,11 @@ _INSERTAR_SECCION = text(
     " ON CONFLICT (plan_id, tipo) DO NOTHING"
 )
 
-_ACTUALIZAR_SECCION = text(
+_ACTUALIZAR_SECCION_SI_VERSION = text(
     "UPDATE plan_seccion SET contenido_cifrado = :contenido, nonce = :nonce, tag_auth = :tag,"
-    " kek_version = :kek_version, version = :version, actualizado_por = :usuario_id, actualizado_en = :ahora"
-    " WHERE plan_id = :plan_id AND tipo = :tipo"
+    " kek_version = :kek_version, version = version + 1, actualizado_por = :usuario_id, actualizado_en = :ahora"
+    " WHERE plan_id = :plan_id AND tipo = :tipo AND version = :esperada"
+    " RETURNING version"
 )
 
 # AES-GCM conserva el largo: un campo vaciado tiene contenido cifrado de largo 0
@@ -115,22 +120,23 @@ class RepositorioFichaSQL:
         )
         return resultado.rowcount == 1
 
+    @staticmethod
+    def _seccion_guardada(f: Any) -> SeccionGuardada:
+        return SeccionGuardada(
+            tipo=f.tipo,
+            cifrada=_cifrada(f.contenido_cifrado, f.nonce, f.tag_auth, f.kek_version),
+            version=f.version,
+            actualizado_por=None if f.autor_id is None else Autor(id=f.autor_id, nombre=f.autor_nombre),
+            actualizado_en=_utc(f.actualizado_en),
+        )
+
     def secciones(self, plan_id: uuid.UUID) -> list[SeccionGuardada]:
         filas = self._sesion.execute(_SECCIONES, {"plan_id": plan_id}).all()
-        return [
-            SeccionGuardada(
-                tipo=f.tipo,
-                cifrada=_cifrada(f.contenido_cifrado, f.nonce, f.tag_auth, f.kek_version),
-                version=f.version,
-                actualizado_por=None if f.autor_id is None else Autor(id=f.autor_id, nombre=f.autor_nombre),
-                actualizado_en=_utc(f.actualizado_en),
-            )
-            for f in filas
-        ]
+        return [self._seccion_guardada(f) for f in filas]
 
-    def version_para_escribir(self, plan_id: uuid.UUID, tipo: str) -> int | None:
-        fila = self._sesion.execute(_VERSION_PARA_ESCRIBIR, {"plan_id": plan_id, "tipo": tipo}).one_or_none()
-        return None if fila is None else int(fila.version)
+    def seccion(self, plan_id: uuid.UUID, tipo: str) -> SeccionGuardada | None:
+        fila = self._sesion.execute(_SECCION, {"plan_id": plan_id, "tipo": tipo}).one_or_none()
+        return None if fila is None else self._seccion_guardada(fila)
 
     def insertar_seccion(
         self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, usuario_id: uuid.UUID, ahora: datetime
@@ -141,13 +147,14 @@ class RepositorioFichaSQL:
         )
         return resultado.rowcount == 1
 
-    def actualizar_seccion(
-        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version: int, usuario_id: uuid.UUID,
+    def actualizar_seccion_si_version(
+        self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, version_esperada: int, usuario_id: uuid.UUID,
         ahora: datetime,
-    ) -> None:
+    ) -> int | None:
         parametros = self._parametros(plan_id, tipo, cifrada, usuario_id, ahora)
-        parametros["version"] = version
-        self._sesion.execute(_ACTUALIZAR_SECCION, parametros)
+        parametros["esperada"] = version_esperada
+        nueva = self._sesion.execute(_ACTUALIZAR_SECCION_SI_VERSION, parametros).scalar_one_or_none()
+        return None if nueva is None else int(nueva)
 
     def campos_con_texto(self, plan_id: uuid.UUID) -> int:
         return int(self._sesion.execute(_CAMPOS_CON_TEXTO, {"plan_id": plan_id}).scalar_one())

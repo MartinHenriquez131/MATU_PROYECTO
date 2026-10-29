@@ -4,9 +4,15 @@
     PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}   admin y cuidador. 201 si se crea, 200 si se actualiza
 
 El rol, la persona, el campo, el consentimiento y la custodia se verifican en las dependencias
-(api/dependencias.py), antes de leer el cuerpo. Queda fuera de MATU-12, y el contrato lo promete:
-- If-Match / If-None-Match con 412 y 428 (MATU-13). El ETag de cada campo ya se devuelve.
-- La auditoría plan.leer y plan.editar (MATU-14). Implementada sobre RegistroAuditoria.
+(api/dependencias.py), antes de leer el cuerpo. Después el cuerpo (422) y recién entonces la
+precondición, paso 8 del orden del contrato (MATU-13, RF-04, ADR-015):
+- Sin If-Match ni If-None-Match, o con If-Match: *, 428 /errores/falta-version.
+- Las dos a la vez, o If-None-Match distinto de *, 422 (errores[] nombra la cabecera, no el valor).
+- If-Match desactualizado, If-Match sobre un campo nunca escrito, o If-None-Match: * sobre un campo
+  que ya existe: 412 /errores/version-desactualizada con ``campo`` y ``actual`` (el contenido
+  vigente, descifrado). El 412 se devuelve como respuesta, no como excepción, para que la
+  transacción confirme el plan.leer que registra esa lectura (MATU-14). No hay fusión automática.
+La auditoría plan.leer y plan.editar es de MATU-14, sobre RegistroAuditoria.
 
 Ni el texto ni nada derivado de él llega a los logs: la línea de la petición lleva la plantilla de la
 ruta, el usuario y el grupo; los errores del cifrado tienen mensajes fijos; y un 422 nombra el campo,
@@ -16,9 +22,10 @@ nunca el valor. Las respuestas con texto llevan Cache-Control: no-store.
 import logging
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
+from fastapi.responses import JSONResponse
 
-from app.core.errores import ErrorMATU
+from app.core.errores import ErrorMATU, respuesta_problema
 from app.modules.care_plan.api.dependencias import (
     CampoAutorizado,
     FichaAutorizada,
@@ -39,6 +46,7 @@ from app.modules.care_plan.api.esquemas import (
     SolicitudCampo,
 )
 from app.modules.care_plan.application.ficha import (
+    CampoEnConflicto,
     PeticionFicha,
     PlanNoDisponible,
     VacioSinCrear,
@@ -47,7 +55,15 @@ from app.modules.care_plan.application.ficha import (
 )
 from app.modules.care_plan.application.ports import AuditoriaFicha, CifradorSecciones, RepositorioFicha
 from app.modules.care_plan.domain.cifrado import ClaveDestruida, ClaveNoDisponible, ErrorCifrado
-from app.modules.care_plan.domain.ficha import Autor, CampoFicha, EstadoCampo, etag
+from app.modules.care_plan.domain.ficha import (
+    Autor,
+    CampoFicha,
+    EstadoCampo,
+    FaltaPrecondicion,
+    PrecondicionInvalida,
+    etag,
+    precondicion_de,
+)
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.shared.puertos import Reloj
 
@@ -72,7 +88,16 @@ _ERRORES_LECTURA: dict[int | str, dict[str, Any]] = {
 _ERRORES_ESCRITURA: dict[int | str, dict[str, Any]] = {
     **_ERRORES_LECTURA,
     201: {"description": "Campo creado: primera escritura", "model": CampoGuardadoVista},
-    422: {"description": "Cuerpo inválido. errores[] nombra el campo, nunca el valor", **_PROBLEMA},
+    412: {"description": "If-Match desactualizado o If-None-Match: * sobre un campo que ya existe. Trae `actual`",
+          **_PROBLEMA},
+    422: {"description": "Cuerpo o cabeceras de precondición inválidos. errores[] nombra el campo, nunca el valor",
+          **_PROBLEMA},
+    428: {"description": "Sin If-Match ni If-None-Match, o con If-Match: *", **_PROBLEMA},
+}
+
+_MENSAJES_PRECONDICION = {
+    "precondicion_doble": "envía If-Match o If-None-Match, no las dos",
+    "precondicion_invalida": "If-None-Match solo admite *",
 }
 
 
@@ -147,6 +172,27 @@ def leer(
     )
 
 
+def _version_desactualizada(request: Request, conflicto: CampoEnConflicto) -> JSONResponse:
+    """412 con el contenido vigente (contrato, decisión 8). Se devuelve, no se lanza: así se confirma
+    la transacción con el plan.leer de esa lectura. El texto va solo en el cuerpo, nunca en un log."""
+    actual = conflicto.actual
+    if actual.version is None:
+        detalle = "Este campo no tiene una versión guardada. Vuelve a abrirlo antes de guardar"
+    else:
+        quien = actual.actualizado_por.nombre if actual.actualizado_por is not None else "Otra persona"
+        detalle = f"{quien} guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya"
+    cabeceras = {"Cache-Control": NO_STORE}
+    if actual.version is not None:
+        cabeceras["ETag"] = etag(actual.version)
+    return respuesta_problema(
+        request,
+        status.HTTP_412_PRECONDITION_FAILED,
+        detalle=detalle,
+        headers=cabeceras,
+        extension={"campo": conflicto.campo.value, "actual": _estado(actual).model_dump(mode="json")},
+    )
+
+
 @router.put(RUTA_CAMPO, response_model=CampoGuardadoVista, responses=_ERRORES_ESCRITURA)
 def guardar(
     request: Request,
@@ -157,12 +203,25 @@ def guardar(
     auditoria: Annotated[AuditoriaFicha, Depends(obtener_auditoria_ficha)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
     solicitud: SolicitudCampo,
-) -> CampoGuardadoVista:
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+    if_none_match: Annotated[str | None, Header(alias="If-None-Match")] = None,
+) -> CampoGuardadoVista | JSONResponse:
+    try:
+        precondicion = precondicion_de(if_match, if_none_match)
+    except PrecondicionInvalida as error:
+        raise ErrorMATU(
+            422,
+            detalle="Revisa los campos indicados",
+            errores=[{"campo": error.cabecera, "mensaje": _MENSAJES_PRECONDICION[error.tipo], "tipo": error.tipo}],
+        ) from None
+    except FaltaPrecondicion:
+        raise ErrorMATU(428, detalle="Vuelve a abrir el campo y guarda de nuevo") from None
     try:
         guardado = guardar_campo(
             _peticion(request, autorizado.ficha),
             autorizado.campo,
             solicitud.texto,
+            precondicion,
             repositorio,
             cifrador,
             auditoria,
@@ -180,6 +239,8 @@ def guardar(
     except PlanNoDisponible:
         log.error("no se pudo crear ni leer el plan de cuidado")
         raise ErrorMATU(500, detalle="No pudimos guardar la ficha. Cita el request_id si lo reportas") from None
+    if isinstance(guardado, CampoEnConflicto):
+        return _version_desactualizada(request, guardado)
 
     estado = guardado.estado
     assert estado.version is not None and estado.actualizado_por is not None and estado.actualizado_en is not None

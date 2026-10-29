@@ -7,6 +7,9 @@
 - La auditoría es un espía del puerto AuditoriaFicha: las pruebas de RF-08 lo quitan para usar la real.
 - El reloj es el RelojFijo de entorno_iam: emite y valida los tokens y decide la vigencia del
   consentimiento.
+- ``escribir`` envía por omisión la precondición correcta de MATU-13 (If-None-Match: * si el campo
+  nunca se escribió, If-Match con su versión si existe), leída como superusuario: no pasa por la API
+  ni registra plan.leer. Las pruebas de RF-04 pasan ``precondicion`` explícita (None: sin cabeceras).
 """
 
 import uuid
@@ -14,16 +17,32 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+import psycopg
 import pytest
 from fastapi import FastAPI
 
 from app.modules.care_plan.api.dependencias import obtener_auditoria_ficha, obtener_custodia
 from app.modules.care_plan.application.ports import EventoFicha
+from tests.base_datos import DSN
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.fabricas import Fabrica, FamiliaCreada, UsuarioCreado
 from tests.modules.conftest import EntornoIam
 
 RUTA_FICHA = "/v1/personas-cuidadas/{}/plan/ficha"
+
+# Valor por omisión de ``precondicion`` en EntornoFicha.escribir: la correcta según la base
+AUTO: Any = object()
+
+
+def precondicion_correcta(persona: uuid.UUID | str, campo: str) -> dict[str, str]:
+    """If-Match con la versión guardada del campo, o If-None-Match: * si nunca se escribió."""
+    with psycopg.connect(DSN) as cx:
+        fila = cx.execute(
+            "SELECT s.version FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+            " WHERE p.persona_cuidada_id::text = %s AND s.tipo = %s",
+            (str(persona), campo),
+        ).fetchone()
+    return {"If-None-Match": "*"} if fila is None else {"If-Match": f'"v{fila[0]}"'}
 
 
 @dataclass
@@ -81,9 +100,14 @@ class EntornoFicha:
         persona: uuid.UUID | str,
         campo: str,
         cuerpo: Any,
+        precondicion: dict[str, str] | None = AUTO,
     ) -> Any:
         ruta = RUTA_FICHA.format(persona) + f"/{campo}"
-        return self.iam.cliente.put(ruta, json=cuerpo, headers=self._cabeceras(usuario, grupo))
+        cabeceras = self._cabeceras(usuario, grupo)
+        if precondicion is AUTO:
+            precondicion = precondicion_correcta(persona, campo)
+        cabeceras.update(precondicion or {})
+        return self.iam.cliente.put(ruta, json=cuerpo, headers=cabeceras)
 
 
 @pytest.fixture
