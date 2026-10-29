@@ -4,8 +4,8 @@ Corren como matu_app, con cuentas sembradas por las fábricas e iniciadas por PO
 custodia es CustodiaEnMemoria (override) y la auditoría un espía del puerto de MATU-14. Lo que quedó
 en la base se revisa como superusuario.
 
-Contrato: docs/api/propuestos/ficha.openapi.yaml. Fuera de alcance: If-Match / If-None-Match con
-412 y 428 (MATU-13) y la fila de auditoria (MATU-14).
+Contrato: docs/api/openapi.json. Cada escritura envía la precondición correcta de MATU-13 (la
+pone EntornoFicha.escribir); el 412 y el 428 se prueban en test_ficha_concurrencia_api.py.
 
 Solo textos sintéticos: Carmen cuida a María y los teléfonos son de la serie 5555.
 """
