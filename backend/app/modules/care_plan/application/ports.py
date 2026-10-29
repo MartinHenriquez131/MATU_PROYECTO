@@ -24,6 +24,7 @@ from typing import Protocol
 
 from app.modules.care_plan.domain.cifrado import ClaveGuardada, SeccionCifrada
 from app.modules.care_plan.domain.ficha import Autor
+from app.modules.care_plan.domain.relevo import VidaAcceso
 
 
 @dataclass(frozen=True)
@@ -340,6 +341,16 @@ class RepositorioAccesos(Protocol):
         self, plan_id: uuid.UUID, ahora: datetime, estado: str | None, despues_de: Posicion | None, limite: int
     ) -> list[AccesoListado]:
         """Hasta ``limite`` accesos del plan, del más nuevo al más antiguo, con ``estado`` si se pide."""
+        ...
+
+    def vida_para_revocar(self, acceso_id: uuid.UUID) -> VidaAcceso | None:
+        """El vencimiento y la revocación del acceso del grupo, con la fila bloqueada (FOR UPDATE) hasta
+        el fin de la transacción. None si no existe, es de otro grupo o RLS no lo muestra."""
+        ...
+
+    def revocar(self, acceso_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> None:
+        """Fija acceso_relevo.revocado_en e indice_token.revocado_en con ``ahora``, en la misma
+        transacción (decisión 23), y registra relevo.revocar sin el nombre ni el teléfono del relevo."""
         ...
 
 

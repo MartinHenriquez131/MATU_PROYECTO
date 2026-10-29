@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.care_plan.application.ports import AccesoListado, AccesoNuevo, Posicion
 from app.modules.care_plan.domain.ficha import Autor
-from app.modules.care_plan.domain.relevo import INTENTOS_PIN_MAXIMOS
+from app.modules.care_plan.domain.relevo import INTENTOS_PIN_MAXIMOS, VidaAcceso
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria, MotivoAuditoria
 from app.shared.puertos import RegistroAuditoria
 
@@ -61,6 +61,24 @@ _LISTAR = text(
     " AND (CAST(:despues_en AS timestamptz) IS NULL"
     "      OR (a.creado_en, a.id) < (CAST(:despues_en AS timestamptz), CAST(:despues_id AS uuid)))"
     " ORDER BY a.creado_en DESC, a.id DESC LIMIT :limite"
+)
+
+# MATU-20. FOR UPDATE: dos revocaciones simultáneas no fijan dos instantes distintos (C15)
+_VIDA_PARA_REVOCAR = text(
+    "SELECT expira_en, revocado_en, pin_intentos_fallidos FROM acceso_relevo"
+    " WHERE id = :id AND grupo_id = :grupo_id FOR UPDATE"
+)
+
+_REVOCAR_ACCESO = text(
+    "UPDATE acceso_relevo SET revocado_en = :ahora"
+    " WHERE id = :id AND grupo_id = :grupo_id AND revocado_en IS NULL RETURNING token_hash"
+)
+
+# indice_token no tiene RLS: se acota por la huella, el grupo y el acceso, y no se borra (decisión 23)
+_REVOCAR_INDICE = text(
+    "UPDATE indice_token SET revocado_en = :ahora"
+    " WHERE token_hash = :token_hash AND tipo = 'relevo' AND grupo_id = :grupo_id AND referencia_id = :id"
+    " AND revocado_en IS NULL"
 )
 
 
@@ -151,3 +169,32 @@ class RepositorioAccesosSQL:
             )
             for f in filas
         ]
+
+    def vida_para_revocar(self, acceso_id: uuid.UUID) -> VidaAcceso | None:
+        fila = self._sesion.execute(_VIDA_PARA_REVOCAR, {"id": acceso_id, "grupo_id": self._grupo_id}).one_or_none()
+        if fila is None:
+            return None
+        return VidaAcceso(
+            expira_en=fila.expira_en.astimezone(UTC),
+            revocado_en=_utc(fila.revocado_en),
+            pin_intentos_fallidos=fila.pin_intentos_fallidos,
+        )
+
+    def revocar(self, acceso_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> None:
+        parametros = {"id": acceso_id, "grupo_id": self._grupo_id, "ahora": ahora}
+        fila = self._sesion.execute(_REVOCAR_ACCESO, parametros).one_or_none()
+        if fila is None:  # ya revocado: la fila está bloqueada, no debería ocurrir
+            return
+        self._sesion.execute(_REVOCAR_INDICE, {**parametros, "token_hash": fila.token_hash})
+        # relevo.revocar con el instante del Reloj: solo identificadores, sin el nombre ni el teléfono
+        self._registro.registrar(
+            EntradaAuditoria(
+                grupo_id=self._grupo_id,
+                actor_tipo=ActorTipo.USUARIO,
+                actor_ref=usuario_id,
+                accion=AccionAuditoria.RELEVO_REVOCAR,
+                entidad=EntidadAuditoria.ACCESO_RELEVO,
+                entidad_id=acceso_id,
+                request_id=request_id,
+            )
+        )
