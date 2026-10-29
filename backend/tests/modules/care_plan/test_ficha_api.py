@@ -18,7 +18,10 @@ from typing import Any
 
 import psycopg
 import pytest
+from sqlalchemy import event
+from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.db import obtener_fabrica_sesiones
 from app.modules.care_plan.api.dependencias import obtener_auditoria_ficha, obtener_custodia, obtener_registro_auditoria
 from tests.base_datos import DSN, requiere_base
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
@@ -743,3 +746,34 @@ def test_si_la_auditoria_falla_no_se_devuelve_el_texto(entorno_ficha: EntornoFic
     if accion == "escribir":
         # La escritura se deshizo: ni plan ni sección
         assert _planes(persona) == 0
+
+
+def _commit_que_falla(sesion: Session) -> None:
+    raise RuntimeError("el commit falló")
+
+
+@pytest.mark.rf("RF-08")
+def test_si_el_commit_falla_no_se_entrega_la_ficha(entorno_ficha: EntornoFicha) -> None:
+    """Regresión: Depends(sesion_de_grupo, scope="function") cierra la transacción antes de responder."""
+    _auditoria_real(entorno_ficha)
+    familia = entorno_ficha.familia()
+    grupo, persona = familia.grupo.id, familia.persona.id
+    texto = _texto("rutina")
+    assert entorno_ficha.escribir(familia.admin, grupo, persona, "rutina", {"texto": texto}).status_code == 201
+
+    overrides = entorno_ficha.app.dependency_overrides
+    previo = overrides.get(obtener_fabrica_sesiones)
+    real = (previo or obtener_fabrica_sesiones)()
+    fallida = sessionmaker(bind=real.kw["bind"])
+    event.listen(fallida, "before_commit", _commit_que_falla)
+    overrides[obtener_fabrica_sesiones] = lambda: fallida
+    try:
+        respuesta = entorno_ficha.leer(familia.admin, grupo, persona)
+    finally:
+        if previo is None:
+            overrides.pop(obtener_fabrica_sesiones, None)
+        else:
+            overrides[obtener_fabrica_sesiones] = previo
+
+    assert respuesta.status_code == 500
+    assert texto not in respuesta.text
