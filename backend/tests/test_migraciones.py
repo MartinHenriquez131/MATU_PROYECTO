@@ -332,7 +332,7 @@ def test_0006_agrega_lo_del_relevo_y_baja_al_esquema_de_0005(base_desechable):
     assert politicas == {"acceso_familia": "ALL", "acceso_relevo_leer": "SELECT", "acceso_relevo_contar": "UPDATE"}
     [(definer, config, acl)] = consultar(
         "SELECT prosecdef, proconfig, proacl::text FROM pg_proc WHERE proname = 'relevo_autorizacion_vigente'")
-    assert definer and config == ["search_path=pg_catalog, public"]
+    assert definer and config == ["search_path=pg_catalog, public, pg_temp"]
     assert "matu_app=X" in acl and "=X/" not in acl.replace("matu_app=X/", "").replace("matu_owner=X/", "")
 
     alembic("downgrade", "0005")

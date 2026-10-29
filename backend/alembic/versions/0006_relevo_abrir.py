@@ -9,7 +9,8 @@ b) La política acceso_relevo_propio (FOR ALL, 02_rls.sql) se reemplaza por dos:
    trigger acceso_relevo_cambios_relevo rechaza, cuando app.rol = 'relevo', cualquier cambio fuera
    de pin_intentos_fallidos, usos y ultimo_uso_en. Lo que hace la familia (acceso_familia) no cambia.
 
-c) relevo_autorizacion_vigente(ahora): SECURITY DEFINER, dueño matu_owner, search_path fijo,
+c) relevo_autorizacion_vigente(ahora): SECURITY DEFINER, dueño matu_owner, search_path fijo (pg_temp al
+   final), tablas calificadas con public.
    EXECUTE solo para matu_app. Usa el acceso de app.acceso_relevo_id y devuelve SOLO un booleano: si
    la persona del acceso tiene consentimiento no revocado para plan_cuidado y, si lo dio un cuidador
    de hecho, la revisión anual vence después de ``ahora`` (decisión 33 en el relevo, de Martín del
@@ -86,13 +87,13 @@ CREATE POLICY consentimiento_autorizacion_relevo ON consentimiento FOR SELECT TO
           AND a.grupo_id = consentimiento.grupo_id));
 
 CREATE FUNCTION relevo_autorizacion_vigente(ahora timestamptz) RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
 $$
-    SELECT app_rol() = 'relevo' AND EXISTS (
-        SELECT 1 FROM acceso_relevo a
-          JOIN plan_cuidado p ON p.id = a.plan_id
-          JOIN consentimiento c ON c.persona_cuidada_id = p.persona_cuidada_id AND c.grupo_id = a.grupo_id
-         WHERE a.id = app_acceso_relevo()
+    SELECT public.app_rol() = 'relevo' AND EXISTS (
+        SELECT 1 FROM public.acceso_relevo a
+          JOIN public.plan_cuidado p ON p.id = a.plan_id
+          JOIN public.consentimiento c ON c.persona_cuidada_id = p.persona_cuidada_id AND c.grupo_id = a.grupo_id
+         WHERE a.id = public.app_acceso_relevo()
            -- Explícito además de RLS: no depende de que matu_owner esté sujeto a las políticas
            AND a.revocado_en IS NULL AND a.expira_en > now()
            AND c.finalidad = 'plan_cuidado' AND c.revocado_en IS NULL
