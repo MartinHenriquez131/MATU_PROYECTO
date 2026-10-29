@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
+from app.modules.care_plan.domain.ficha import CAMPOS_FICHA
+
 VIGENCIA_POR_DEFECTO = timedelta(hours=24)
 VIGENCIA_MAXIMA = timedelta(days=30)
 INTENTOS_PIN_MAXIMOS = 5
@@ -98,3 +100,59 @@ def estado_acceso(acceso: VidaAcceso, ahora: datetime) -> EstadoAcceso:
     if acceso.pin_intentos_fallidos >= INTENTOS_PIN_MAXIMOS:
         return EstadoAcceso.BLOQUEADO
     return EstadoAcceso.VIGENTE
+
+
+# --- Abrir la ficha como relevo (MATU-19, RF-06) -----------------------------------------------------
+
+# La sesión de relevo dura lo que ocurra primero: 12 horas o el vencimiento del acceso (decisión 14)
+MAX_AGE_SESION = 43_200
+
+
+def segundos_de_sesion(expira_en: datetime, ahora: datetime) -> int:
+    """Max-Age de la cookie y TTL de la sesión: mín(43200, segundos enteros que le quedan al acceso).
+
+    0 si el acceso ya venció: la sesión no se crea.
+    """
+    restantes = int((expira_en - ahora).total_seconds())
+    return max(0, min(MAX_AGE_SESION, restantes))
+
+
+@dataclass(frozen=True)
+class IntentoFallido:
+    """Cómo queda el acceso después de un PIN incorrecto."""
+
+    intentos: int
+    bloqueado: bool
+    restantes: int
+
+
+def intento_fallido(intentos_previos: int) -> IntentoFallido:
+    """Suma un intento. El 5.º bloquea el acceso (contrato, canje paso 6). Nunca pasa de 5."""
+    intentos = min(INTENTOS_PIN_MAXIMOS, intentos_previos + 1)
+    return IntentoFallido(
+        intentos=intentos, bloqueado=intentos >= INTENTOS_PIN_MAXIMOS, restantes=INTENTOS_PIN_MAXIMOS - intentos
+    )
+
+
+def tras_intento(intentos_actuales: int) -> IntentoFallido:
+    """Cómo quedó el acceso según el contador que devolvió el incremento atómico de la base (C4).
+
+    Se decide con el valor confirmado por la base, no con uno calculado desde una lectura previa:
+    dos canjes simultáneos no se pisan.
+    """
+    intentos = min(INTENTOS_PIN_MAXIMOS, intentos_actuales)
+    return IntentoFallido(
+        intentos=intentos, bloqueado=intentos >= INTENTOS_PIN_MAXIMOS, restantes=INTENTOS_PIN_MAXIMOS - intentos
+    )
+
+
+def bloqueado(intentos: int) -> bool:
+    return intentos >= INTENTOS_PIN_MAXIMOS
+
+
+def campos_para_relevo(permitidos: tuple[str, ...], textos: dict[str, str]) -> dict[str, str | None]:
+    """Solo los campos habilitados, en el orden de la ficha. Un campo vacío o nunca escrito es None
+    ("Sin completar"). Un campo no habilitado no aparece aunque tenga texto."""
+    return {
+        c.value: (textos.get(c.value) or None) for c in CAMPOS_FICHA if c.value in permitidos
+    }

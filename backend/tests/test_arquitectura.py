@@ -576,3 +576,23 @@ def test_reloj_del_sistema_fuera_de_domain_se_permite(tmp_path: Path) -> None:
 
     # Cuando se verifica la pureza de domain/, entonces no aplica
     assert verificar_pureza_dominio(raiz) == []
+
+
+# ---------------------------------------------------------------------------
+# MATU-19 (condición C2): antes del PIN no se toca la ficha
+# ---------------------------------------------------------------------------
+
+ANTES_DEL_PIN = APP / "modules" / "care_plan" / "application" / "canje_relevo.py"
+NADA_DE_LA_FICHA = (
+    "CifradorSecciones", "CustodiaClaves", "RepositorioClaves", "RepositorioFicha", "SeccionesRelevo",
+    ".infrastructure", ".domain.cifrado", "cifrador", "repositorio_claves", "repositorio_ficha",
+)
+
+
+@pytest.mark.rf("RF-06")
+def test_presentacion_y_canje_no_importan_nada_de_la_ficha() -> None:
+    arbol = ast.parse(ANTES_DEL_PIN.read_text(encoding="utf-8"))
+    destinos = [i.destino for i in _importaciones(APP, ANTES_DEL_PIN, arbol)]
+    assert destinos, "el verificador no encontró importaciones"
+    prohibidas = [d for d in destinos if any(p in d for p in NADA_DE_LA_FICHA)]
+    assert prohibidas == [], f"canje_relevo.py importa lo de la ficha: {prohibidas}"

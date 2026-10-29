@@ -341,3 +341,103 @@ class RepositorioAccesos(Protocol):
     ) -> list[AccesoListado]:
         """Hasta ``limite`` accesos del plan, del más nuevo al más antiguo, con ``estado`` si se pide."""
         ...
+
+
+# --- Abrir la ficha como relevo (MATU-19, RF-06) ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class EntradaIndice:
+    """La fila de indice_token de un acceso de relevo: el estado se decide aquí (decisión 23)."""
+
+    acceso_id: uuid.UUID
+    expira_en: datetime
+    revocado_en: datetime | None
+
+
+class IndiceTokensRelevo(Protocol):
+    """Lectura de indice_token (sin RLS, sin contexto). Nunca devuelve ni guarda el token en claro.
+
+    Implementación: IndiceTokensSQL (infrastructure/repositorio_relevo.py).
+    """
+
+    def por_token(self, token_hash: bytes) -> EntradaIndice | None: ...
+
+    def por_acceso(self, acceso_id: uuid.UUID) -> EntradaIndice | None: ...
+
+
+@dataclass(frozen=True)
+class AccesoDelRelevo:
+    """El acceso tal como lo ve su relevo (política acceso_relevo_leer). Sin teléfono ni nombre del relevo."""
+
+    id: uuid.UUID
+    grupo_id: uuid.UUID
+    plan_id: uuid.UUID
+    campos: tuple[str, ...]
+    nombre_pila_persona: str
+    nombre_pila_comparte: str
+    pin_hash: str = field(repr=False)
+    pin_intentos_fallidos: int
+    expira_en: datetime
+
+
+class RepositorioAccesoRelevo(Protocol):
+    """acceso_relevo en la sesión de relevo (app.rol = 'relevo' y app.acceso_relevo_id, nunca
+    app.grupo_id). Solo lee y cambia pin_intentos_fallidos, usos y ultimo_uso_en (migración 0007).
+
+    Implementación: RepositorioAccesoRelevoSQL (infrastructure/repositorio_relevo.py).
+    """
+
+    def leer(self, *, bloquear: bool = False) -> AccesoDelRelevo | None:
+        """El acceso de la sesión, o None si RLS no lo muestra (vencido según now() de la base).
+
+        Con ``bloquear`` (el canje), SELECT … FOR UPDATE: los canjes simultáneos del mismo acceso se
+        atienden de a uno hasta el fin de la transacción (C4).
+        """
+        ...
+
+    def autorizacion_vigente(self, ahora: datetime) -> bool:
+        """relevo_autorizacion_vigente(ahora): solo un booleano, sin columnas de consentimiento."""
+        ...
+
+    def sumar_intento(self) -> int | None:
+        """Incremento atómico: SET pin_intentos_fallidos = LEAST(… + 1, 5) WHERE … < 5 RETURNING.
+
+        Devuelve el contador ya incrementado, o None si el acceso ya estaba bloqueado (C4).
+        """
+        ...
+
+    def reiniciar_intentos(self) -> None: ...
+
+    def registrar_uso(self, ahora: datetime) -> None: ...
+
+
+class SeccionesRelevo(Protocol):
+    """El plan y las secciones que RLS deja ver al relevo (seccion_relevo: solo las habilitadas).
+
+    Solo lo usa la lectura de la ficha, después del PIN. Nunca la presentación ni el canje.
+    """
+
+    def persona_del_plan(self, plan_id: uuid.UUID) -> uuid.UUID | None: ...
+
+    def secciones(self, plan_id: uuid.UUID) -> list[tuple[str, SeccionCifrada]]: ...
+
+
+class SesionesNoDisponibles(Exception):
+    """El almacén de sesiones (Redis) no respondió. La API responde 503 y falla cerrada."""
+
+
+class SesionesRelevo(Protocol):
+    """Sesiones efímeras del relevo. Guardan solo el id del acceso, bajo el SHA-256 del id de sesión.
+
+    Implementaciones: SesionesRelevoRedis (infrastructure/sesiones_relevo_redis.py) y
+    SesionesRelevoEnMemoria (tests/dobles).
+    """
+
+    def crear(self, acceso_id: uuid.UUID, segundos: int) -> str:
+        """Crea la sesión con TTL ``segundos`` y devuelve su id (≥ 128 bits, de secrets)."""
+        ...
+
+    def acceso_de(self, sesion_id: str) -> uuid.UUID | None: ...
+
+    def descartar(self, sesion_id: str) -> None: ...

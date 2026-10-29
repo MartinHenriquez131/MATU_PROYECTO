@@ -99,3 +99,42 @@ class ListaAccesosVista(BaseModel):
 
     items: list[AccesoResumenVista]
     siguiente_cursor: str | None
+
+
+# --- Abrir la ficha como relevo (MATU-19) ---------------------------------------------------------------
+
+
+class SolicitudPresentacionVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # No se valida la forma: un token desconocido o cortado responde 410, no 422
+    token: Annotated[str, Field(min_length=1, max_length=128)]
+
+
+class SolicitudCanjeVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=1, max_length=128)]
+    pin: Annotated[str, Field(pattern=r"^[0-9]{4}$")]
+
+
+class PresentacionVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nombre_pila_comparte: str
+    nombre_pila: str
+
+
+class CampoRelevoVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    texto: str | None
+
+
+class FichaRelevoVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nombre_pila: str
+    nombre_pila_comparte: str
+    vence_en: datetime
+    campos: dict[CampoFicha, CampoRelevoVista]
