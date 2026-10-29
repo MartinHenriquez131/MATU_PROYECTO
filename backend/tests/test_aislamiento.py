@@ -711,3 +711,43 @@ def test_operacion_no_lee_la_auditoria(cx):
     _sembrar_auditoria(cx)
     como(cx, rol="operacion")
     assert _actores_visibles(cx) == set()
+
+
+# ---- consentimiento inalterable (0006): solo se registra la revocación
+
+def _consentimiento(cx):
+    """Un consentimiento de G_A, insertado por el superusuario dentro de la transacción de la prueba."""
+    return cx.execute(
+        "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+        " version_politica, evidencia) VALUES (%s, %s, %s, 'titular', 'plan_cuidado', 'v1',"
+        " '{\"esquema\": 1}'::jsonb) RETURNING id",
+        (G_A, P_A, U_ADMIN_A),
+    ).fetchone()[0]
+
+
+@pytest.mark.rf("RF-01")
+def test_consentimiento_no_se_modifica(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE consentimiento SET calidad_otorgante = 'cuidador_de_hecho' WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-01")
+def test_consentimiento_no_se_borra(cx):
+    cid = _consentimiento(cx)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():  # tampoco el superusuario
+        cx.execute("DELETE FROM consentimiento WHERE id = %s", (cid,))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM consentimiento WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-01")
+def test_revocar_registra_fecha_una_vez(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cur = cx.execute("UPDATE consentimiento SET revocado_en = now() WHERE id = %s", (cid,))
+    assert cur.rowcount == 1
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE consentimiento SET revocado_en = now() + interval '1 day' WHERE id = %s", (cid,))

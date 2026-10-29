@@ -191,13 +191,17 @@ class EntornoPersonas:
 def _borrar_personas(grupos: list[uuid.UUID], usuarios: list[uuid.UUID]) -> None:
     """Borra como superusuario lo que el alta escribió en esos grupos. La auditoría es de solo
     inserción (trigger auditoria_solo_insercion) y se queda: solo lleva identificadores."""
-    with psycopg.connect(DSN, autocommit=True) as cx:
+    with psycopg.connect(DSN, autocommit=True) as cx, cx.transaction():
         filas = cx.execute(
             "SELECT id FROM grupo_familiar WHERE id = ANY(%s::uuid[]) OR creado_por = ANY(%s::uuid[])",
             (grupos, usuarios),
         ).fetchall()
         ids = [fila[0] for fila in filas]
+        # consentimiento no se borra (trigger consentimiento_sin_borrado, 0006): solo para esta
+        # sentencia, el superusuario apaga los triggers con el rol de réplica
+        cx.execute("SET LOCAL session_replication_role = replica")
         cx.execute("DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])", (ids,))
+        cx.execute("SET LOCAL session_replication_role = origin")
         cx.execute("DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])", (ids,))
         cx.execute("DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])", (ids,))
 

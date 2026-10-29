@@ -42,6 +42,7 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "plan.leer",
         "plan.editar",
         "consentimiento.otorgar",
+        "consentimiento.revocar",
         "relevo.compartir",
         "relevo.revocar",
         "relevo.presentar",
