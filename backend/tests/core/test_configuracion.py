@@ -22,6 +22,11 @@ class ConfiguracionSinArchivo(Configuracion):
     model_config = SettingsConfigDict(env_file=None)
 
 
+@pytest.fixture(autouse=True)
+def _sin_env(configuracion_sin_env: None) -> None:
+    """Ninguna prueba de este archivo ve el .env del equipo, ni el copiado a os.environ."""
+
+
 def cargar() -> Configuracion:
     return ConfiguracionSinArchivo()
 
