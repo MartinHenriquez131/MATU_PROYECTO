@@ -41,6 +41,7 @@ def _cuerpo(**cambios: Any) -> dict[str, Any]:
         "telefono_relevo": "+56 9 5555 0137",
         "campos": ["rutina", "manejo_situaciones", "red_apoyo"],
         "motivo": "fin_de_semana_fuera",
+        "relevo_informado": True,
     }
     cuerpo.update(cambios)
     return {k: v for k, v in cuerpo.items() if v is not None}
@@ -350,7 +351,8 @@ def test_lista_con_estado_telefono_por_rol_y_cursor(entorno: EntornoRelevo) -> N
     assert estados == {ids[0]: "revocado", ids[1]: "bloqueado", ids[2]: "vigente"}
     primero = items[0]
     assert primero["telefono_relevo"] == "+56955550137"
-    assert primero["otorgado_por"] == {"id": str(familia.admin.id), "nombre": familia.admin.nombre}
+    # Solo el nombre de pila de quien compartió (decisión 35)
+    assert primero["otorgado_por"] == {"id": str(familia.admin.id), "nombre": familia.admin.nombre.split()[0]}
     assert primero["usos"] == 0 and primero["ultimo_uso_en"] is None
 
     # El pagador con permiso ve la lista sin la propiedad telefono_relevo
@@ -384,3 +386,38 @@ def test_lista_marca_vencido_con_el_reloj(entorno: EntornoRelevo) -> None:
     entorno.ficha.tokens.clear()  # el access token dura 15 minutos: se vuelve a iniciar sesión
     items = entorno.listar(familia.admin, familia.grupo.id, familia.persona.id).json()["items"]
     assert [i["estado"] for i in items] == ["vencido"]
+
+
+def test_sin_declaracion_de_aviso_422(entorno: EntornoRelevo) -> None:
+    """Decisión 34: sin relevo_informado, o en false, 422 con el campo y sin crear nada."""
+    familia = entorno.familia()
+    sin_campo = _cuerpo()
+    del sin_campo["relevo_informado"]
+    for cuerpo in (sin_campo, {**_cuerpo(), "relevo_informado": False}):
+        respuesta = entorno.crear(familia.admin, familia.grupo.id, familia.persona.id, cuerpo)
+        assert respuesta.status_code == 422
+        assert [e["campo"] for e in respuesta.json()["errores"]] == ["relevo_informado"]
+    assert _una("SELECT count(*) FROM acceso_relevo WHERE grupo_id = %s", familia.grupo.id) == (0,)
+    assert _una("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == (0,)
+
+
+def test_declaracion_de_aviso_queda_fechada_con_el_reloj(entorno: EntornoRelevo) -> None:
+    familia = entorno.familia()
+    respuesta = entorno.crear(familia.admin, familia.grupo.id, familia.persona.id, _cuerpo())
+    assert respuesta.status_code == 201
+    assert "relevo_informado" not in respuesta.json()
+    assert _una(
+        "SELECT relevo_informado_en FROM acceso_relevo WHERE id = %s", uuid.UUID(respuesta.json()["id"])
+    ) == (AHORA,)
+
+
+def test_lista_no_trae_el_nombre_completo_de_quien_comparte(entorno: EntornoRelevo) -> None:
+    """Decisión 35: de quien compartió, la lista trae solo el nombre de pila."""
+    fabrica = entorno.ficha.fabrica
+    admin = fabrica.usuario(nombre="Carmen Sintética Pérez")
+    grupo = fabrica.grupo(admin=admin)
+    persona = fabrica.persona_cuidada(grupo)
+    assert entorno.crear(admin, grupo.id, persona.id, _cuerpo()).status_code == 201
+    lista = entorno.listar(admin, grupo.id, persona.id)
+    assert lista.json()["items"][0]["otorgado_por"]["nombre"] == "Carmen"
+    assert "Sintética" not in lista.text and "Pérez" not in lista.text

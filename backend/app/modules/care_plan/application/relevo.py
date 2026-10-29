@@ -104,6 +104,8 @@ def compartir(
             pin_hash=huellas.huella_pin(acceso_id, pin),
             creado_en=ahora,
             expira_en=expira_en,
+            # La declaración de aviso la exige el esquema (decisión 34); se fecha con el reloj
+            relevo_informado_en=ahora,
             request_id=peticion.request_id,
         )
     )

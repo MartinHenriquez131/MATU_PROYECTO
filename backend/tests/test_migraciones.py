@@ -259,9 +259,10 @@ def _insertar_acceso(nombre_comparte: str | None) -> None:
     with psycopg.connect(_dsn(BASE)) as c:
         c.execute(
             "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
-            f" nombre_pila_persona, secciones_permitidas, motivo, token_hash, pin_hash, expira_en{columna})"
+            f" nombre_pila_persona, secciones_permitidas, motivo, token_hash, pin_hash, expira_en,"
+            f" relevo_informado_en{columna})"
             f" VALUES ('{ACCESO}', '{G}', '{PLAN}', '{U}', 'Relevo', '+56955550137', 'Persona', ARRAY['rutina'],"
-            f" 'otro', sha256('t'), 'p', now() + interval '1 day'{valor})")
+            f" 'otro', sha256('t'), 'p', now() + interval '1 day', now(){valor})")
 
 
 @pytest.mark.rf("RF-05")

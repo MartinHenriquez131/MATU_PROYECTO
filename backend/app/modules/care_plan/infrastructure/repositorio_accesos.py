@@ -29,9 +29,9 @@ _NOMBRE_USUARIO = text("SELECT nombre FROM usuario WHERE id = :usuario_id AND el
 _INSERTAR_ACCESO = text(
     "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
     " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,"
-    " creado_en, expira_en)"
+    " creado_en, expira_en, relevo_informado_en)"
     " VALUES (:id, :grupo_id, :plan_id, :otorgado_por, :nombre, :telefono, :nombre_persona, :nombre_comparte,"
-    " :campos, :motivo, :token_hash, :pin_hash, :creado_en, :expira_en)"
+    " :campos, :motivo, :token_hash, :pin_hash, :creado_en, :expira_en, :informado_en)"
 )
 
 _INSERTAR_INDICE = text(
@@ -54,11 +54,12 @@ _ESTADO = (
     " ELSE 'vigente' END"
 )
 
-# Quien compartió: id y nombre, nunca el email. Una cuenta eliminada o que RLS no muestra queda en null
+# Quien compartió: su id y el nombre de pila copiado en el acceso, nunca el nombre completo ni el email
+# (decisión 35). Una cuenta eliminada o que RLS no muestra queda en null
 _LISTAR = text(
     "SELECT a.id, a.otorgado_a_nombre, a.otorgado_a_telefono, a.secciones_permitidas, a.motivo, a.creado_en,"
     " a.expira_en, a.revocado_en, a.pin_intentos_fallidos, a.usos, a.ultimo_uso_en,"
-    " u.id AS autor_id, u.nombre AS autor_nombre"
+    " u.id AS autor_id, a.nombre_pila_comparte AS autor_nombre"
     " FROM acceso_relevo a LEFT JOIN usuario u ON u.id = a.otorgado_por AND u.eliminado_en IS NULL"
     " WHERE a.plan_id = :plan_id AND a.grupo_id = :grupo_id"
     f" AND (CAST(:estado AS text) IS NULL OR {_ESTADO} = CAST(:estado AS text))"
@@ -103,6 +104,7 @@ class RepositorioAccesosSQL:
             "pin_hash": acceso.pin_hash,
             "creado_en": acceso.creado_en,
             "expira_en": acceso.expira_en,
+            "informado_en": acceso.relevo_informado_en,
             "request_id": acceso.request_id,
         }
         self._sesion.execute(_INSERTAR_ACCESO, parametros)

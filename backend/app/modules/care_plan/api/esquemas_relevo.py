@@ -27,6 +27,15 @@ class SolicitudAccesoVista(BaseModel):
     campos: Annotated[list[CampoFicha], Field(min_length=1, max_length=3)]
     expira_en: AwareDatetime | None = None
     motivo: MotivoAcceso
+    # Decisión 34: quien comparte declara que le avisó al relevo qué datos guarda MATU. Obligatorio y true
+    relevo_informado: bool
+
+    @field_validator("relevo_informado")
+    @classmethod
+    def _aviso_declarado(cls, valor: bool) -> bool:
+        if valor is not True:
+            raise ValueError("hay que declarar que se le avisó al relevo")
+        return valor
 
     @field_validator("nombre_relevo")
     @classmethod
@@ -66,7 +75,8 @@ class AutorAccesoVista(BaseModel):
 
 
 class AccesoResumenVista(BaseModel):
-    """telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31)."""
+    """telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31).
+    otorgado_por.nombre es el nombre de pila de quien compartió, nunca el completo (decisión 35)."""
 
     model_config = ConfigDict(extra="forbid")
 

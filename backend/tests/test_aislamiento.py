@@ -76,13 +76,13 @@ INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek
  ('{PLAN_B}', 'rutina',             '\\xbb', '\\x000000000000000000000004', '\\x00000000000000000000000000000000', 1);
 INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
                            nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash,
-                           pin_hash, expira_en) VALUES
+                           pin_hash, expira_en, relevo_informado_en) VALUES
  ('{ACC_VIGENTE}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Relevo',   '+56911111111', 'María', 'Ana',
-  ARRAY['rutina','manejo_situaciones'], 'fin de semana', sha256('t1'), 'p', now() + interval '1 day'),
+  ARRAY['rutina','manejo_situaciones'], 'fin de semana', sha256('t1'), 'p', now() + interval '1 day', now()),
  ('{ACC_VENCIDO}',  '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Vencido',  '+56922222222', 'María', 'Ana',
-  ARRAY['rutina'], 'turno', sha256('t2'), 'p', now() + interval '1 day'),
+  ARRAY['rutina'], 'turno', sha256('t2'), 'p', now() + interval '1 day', now()),
  ('{ACC_REVOCADO}', '{G_A}', '{PLAN_A}', '{U_ADMIN_A}', 'Revocado', '+56933333333', 'María', 'Ana',
-  ARRAY['rutina'], 'turno', sha256('t3'), 'p', now() + interval '1 day');
+  ARRAY['rutina'], 'turno', sha256('t3'), 'p', now() + interval '1 day', now());
 UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now() - interval '1 day'
  WHERE id = '{ACC_VENCIDO}';
 UPDATE acceso_relevo SET revocado_en = now() WHERE id = '{ACC_REVOCADO}';
@@ -285,9 +285,9 @@ def test_familia_no_ve_ni_crea_accesos_de_relevo_de_otro_grupo(cx):
         cx.execute(
             """INSERT INTO acceso_relevo (grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
                    nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,
-                   expira_en)
+                   expira_en, relevo_informado_en)
                VALUES (%s, %s, %s, 'Relevo', '+56955550137', 'María', 'Luis', ARRAY['rutina'], 'otro',
-                   sha256('t9'), 'p', now() + interval '1 day')""", (G_A, PLAN_A, U_ADMIN_B))
+                   sha256('t9'), 'p', now() + interval '1 day', now())""", (G_A, PLAN_A, U_ADMIN_B))
 
 
 def test_relevo_ve_exactamente_sus_secciones(cx):

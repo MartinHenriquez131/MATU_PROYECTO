@@ -291,6 +291,7 @@ class AccesoNuevo:
     pin_hash: str = field(repr=False)
     creado_en: datetime
     expira_en: datetime
+    relevo_informado_en: datetime
     request_id: str | None
 
 
