@@ -19,6 +19,8 @@ Cada historia agrega aquí lo suyo:
 - MATU-18: PEPPER_PIN, la llave del HMAC del PIN del acceso de relevo, y ORIGEN_WEB, el origen https
   del enlace /r#<token> que se entrega al compartir
 - MATU-19: REDIS_URL, el Redis de las sesiones de relevo
+- MATU-23: WEB_DIST, la carpeta del build de web/ que la API sirve en /r. Por omisión <repo>/web/dist.
+  Si no existe (el CI no hace build), la API arranca igual y /r responde 404 RFC 7807
 """
 
 import base64
@@ -101,6 +103,10 @@ class Configuracion(BaseSettings):
 
     # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
     redis_url: str = "redis://127.0.0.1:6379/0"
+
+    # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y los archivos de
+    # /assets en el mismo origen. Sin la carpeta, /r responde 404 y el resto de la API no cambia
+    web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
 
     @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", mode="before")
     @classmethod

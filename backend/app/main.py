@@ -16,6 +16,7 @@ from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabec
 from app.core.config import obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
+from app.core.web import montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_personas import router as router_personas
 from app.modules.care_plan.api.dependencias import preparar_custodia
@@ -60,6 +61,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_ficha, prefix="/v1")
     app.include_router(router_relevo, prefix="/v1")
     app.include_router(router_relevo_publico, prefix="/v1")
+
+    # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
+    montar_pagina_relevo(app, config.web_dist)
 
     return app
 
