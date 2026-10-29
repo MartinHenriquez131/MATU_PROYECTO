@@ -39,8 +39,8 @@ from app.modules.care_plan.domain.relevo import (
     VidaAcceso,
     bloqueado,
     estado_acceso,
-    intento_fallido,
     segundos_de_sesion,
+    tras_intento,
 )
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria, Reloj
@@ -81,9 +81,9 @@ def verificar_indice(entrada: EntradaIndice | None, ahora: datetime) -> uuid.UUI
     return entrada.acceso_id
 
 
-def acceso_utilizable(accesos: RepositorioAccesoRelevo, reloj: Reloj) -> AccesoDelRelevo:
-    """Pasos 2 a 4, en la sesión de relevo. No escribe nada."""
-    acceso = accesos.leer()
+def acceso_utilizable(accesos: RepositorioAccesoRelevo, reloj: Reloj, *, bloquear: bool = False) -> AccesoDelRelevo:
+    """Pasos 2 a 4, en la sesión de relevo. No escribe nada. ``bloquear``: FOR UPDATE (canje)."""
+    acceso = accesos.leer(bloquear=bloquear)
     if acceso is None:
         raise RelevoNoDisponible(TipoNoDisponible.VENCIDO)
     if bloqueado(acceso.pin_intentos_fallidos):
@@ -162,12 +162,14 @@ def canjear(
     request_id: str | None,
 ) -> ResultadoCanje:
     """Pasos 2 a 7 del canje. Lanza solo antes de escribir (410, 423, 503)."""
-    acceso = acceso_utilizable(accesos, reloj)
+    acceso = acceso_utilizable(accesos, reloj, bloquear=True)
     if huellas is None:
         raise PinNoVerificable
     if not hmac.compare_digest(huellas.huella_pin(acceso.id, pin), acceso.pin_hash):
-        intento = intento_fallido(acceso.pin_intentos_fallidos)
-        accesos.fijar_intentos(intento.intentos)
+        contador = accesos.sumar_intento()
+        if contador is None:  # otro canje lo bloqueó primero: este intento no cuenta
+            raise RelevoBloqueado
+        intento = tras_intento(contador)
         registro.registrar(entrada_relevo(acceso, AccionAuditoria.RELEVO_PIN_INCORRECTO, request_id))
         if intento.bloqueado:
             registro.registrar(entrada_relevo(acceso, AccionAuditoria.RELEVO_BLOQUEO, request_id))
@@ -177,6 +179,6 @@ def canjear(
     if segundos <= 0:
         raise RelevoNoDisponible(TipoNoDisponible.VENCIDO)
     if acceso.pin_intentos_fallidos:
-        accesos.fijar_intentos(0)
+        accesos.reiniciar_intentos()
     registro.registrar(entrada_relevo(acceso, AccionAuditoria.RELEVO_CANJE, request_id))
     return SesionCreada(sesion_id=sesiones.crear(acceso.id, segundos), max_age=segundos)

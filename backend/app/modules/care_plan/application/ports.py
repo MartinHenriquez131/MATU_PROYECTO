@@ -388,15 +388,26 @@ class RepositorioAccesoRelevo(Protocol):
     Implementación: RepositorioAccesoRelevoSQL (infrastructure/repositorio_relevo.py).
     """
 
-    def leer(self) -> AccesoDelRelevo | None:
-        """El acceso de la sesión, o None si RLS no lo muestra (vencido según now() de la base)."""
+    def leer(self, *, bloquear: bool = False) -> AccesoDelRelevo | None:
+        """El acceso de la sesión, o None si RLS no lo muestra (vencido según now() de la base).
+
+        Con ``bloquear`` (el canje), SELECT … FOR UPDATE: los canjes simultáneos del mismo acceso se
+        atienden de a uno hasta el fin de la transacción (C4).
+        """
         ...
 
     def autorizacion_vigente(self, ahora: datetime) -> bool:
         """relevo_autorizacion_vigente(ahora): solo un booleano, sin columnas de consentimiento."""
         ...
 
-    def fijar_intentos(self, intentos: int) -> None: ...
+    def sumar_intento(self) -> int | None:
+        """Incremento atómico: SET pin_intentos_fallidos = LEAST(… + 1, 5) WHERE … < 5 RETURNING.
+
+        Devuelve el contador ya incrementado, o None si el acceso ya estaba bloqueado (C4).
+        """
+        ...
+
+    def reiniciar_intentos(self) -> None: ...
 
     def registrar_uso(self, ahora: datetime) -> None: ...
 

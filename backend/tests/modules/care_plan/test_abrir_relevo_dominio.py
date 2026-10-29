@@ -30,6 +30,7 @@ from app.modules.care_plan.domain.relevo import (
     campos_para_relevo,
     intento_fallido,
     segundos_de_sesion,
+    tras_intento,
 )
 from app.modules.care_plan.infrastructure.credenciales_relevo import HuellasHmac
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria
@@ -50,15 +51,22 @@ class AccesoEnMemoria:
         self.vigente = vigente
         self.usos: list[datetime] = []
 
-    def leer(self) -> AccesoDelRelevo | None:
+    def leer(self, *, bloquear: bool = False) -> AccesoDelRelevo | None:
         return self.acceso
 
     def autorizacion_vigente(self, ahora: datetime) -> bool:
         return self.vigente
 
-    def fijar_intentos(self, intentos: int) -> None:
+    def sumar_intento(self) -> int | None:
         assert self.acceso is not None
-        self.acceso = replace(self.acceso, pin_intentos_fallidos=intentos)
+        if self.acceso.pin_intentos_fallidos >= 5:
+            return None
+        self.acceso = replace(self.acceso, pin_intentos_fallidos=self.acceso.pin_intentos_fallidos + 1)
+        return self.acceso.pin_intentos_fallidos
+
+    def reiniciar_intentos(self) -> None:
+        assert self.acceso is not None
+        self.acceso = replace(self.acceso, pin_intentos_fallidos=0)
 
     def registrar_uso(self, ahora: datetime) -> None:
         self.usos.append(ahora)
@@ -94,6 +102,9 @@ def test_quinto_intento_bloquea() -> None:
     assert intento_fallido(3).restantes == 1 and not intento_fallido(3).bloqueado
     assert intento_fallido(4).bloqueado and intento_fallido(4).intentos == 5
     assert intento_fallido(5).intentos == 5  # nunca pasa de 5 (CHECK de la base)
+    # Con el valor devuelto por el incremento atómico
+    assert tras_intento(1).restantes == 4 and not tras_intento(4).bloqueado
+    assert tras_intento(5).bloqueado and tras_intento(5).restantes == 0
 
 
 def test_solo_campos_habilitados_y_vacio_es_null() -> None:

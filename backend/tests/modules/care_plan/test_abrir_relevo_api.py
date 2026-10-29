@@ -431,3 +431,53 @@ def test_logs_sin_token_pin_ni_sesion(entorno: EntornoAbrir) -> None:
     assert f'"{pin}"' not in log
     rutas = {linea.get("ruta") for linea in entorno.ficha.iam.lineas_log()}
     assert {"/v1/relevo/presentacion", "/v1/relevo/canje", "/v1/relevo/ficha"} <= rutas
+
+
+@pytest.mark.parametrize("hilos", [2, 8])
+def test_canjes_simultaneos_no_pierden_intentos_ni_pasan_de_cinco(entorno: EntornoAbrir, hilos: int) -> None:
+    """C4: varios canjes con PIN incorrecto a la vez, en conexiones distintas. El contador refleja cada
+    intento aceptado y nunca se aceptan más de 5."""
+    import threading
+
+    from app.core.db import fabrica_sesiones, sesion_tenant
+    from app.modules.care_plan.application.canje_relevo import AccesoBloqueadoAhora, PinIncorrecto, canjear
+    from app.modules.care_plan.infrastructure.credenciales_relevo import HuellasHmac
+    from app.modules.care_plan.infrastructure.repositorio_relevo import RepositorioAccesoRelevoSQL
+    from app.shared.auditoria_sql import RegistroAuditoriaSql
+
+    familia = entorno.familia_con_ficha()
+    acceso_id, _, pin = entorno.compartir(familia)
+    malo = "0000" if pin != "0000" else "1111"
+    pepper = entorno.ficha.app.dependency_overrides[obtener_pepper_pin]()
+    fabrica = fabrica_sesiones()
+    barrera: threading.Barrier
+    resultados: list[str] = []
+
+    def intentar() -> None:
+        barrera.wait()
+        try:
+            with sesion_tenant(fabrica, acceso_relevo_id=acceso_id, rol="relevo") as sesion:
+                resultado = canjear(
+                    malo, RepositorioAccesoRelevoSQL(sesion), HuellasHmac(pepper),
+                    RegistroAuditoriaSql(sesion, entorno.reloj), entorno.sesiones, entorno.reloj, None,
+                )
+            resultados.append("aceptado" if isinstance(resultado, PinIncorrecto | AccesoBloqueadoAhora) else "otro")
+        except Exception as error:  # noqa: BLE001 - el bloqueo de otro hilo es un resultado esperado
+            resultados.append(type(error).__name__)
+
+    # 8 intentos en total: una ronda de 8 hilos, o cuatro rondas de 2 hilos simultáneos
+    for _ronda in range(8 // hilos):
+        barrera = threading.Barrier(hilos)
+        trabajadores = [threading.Thread(target=intentar) for _ in range(hilos)]
+        for t in trabajadores:
+            t.start()
+        for t in trabajadores:
+            t.join(timeout=30)
+
+    aceptados = resultados.count("aceptado")
+    assert set(resultados) <= {"aceptado", "RelevoBloqueado"}, resultados
+    assert len(resultados) == 8 and aceptados == 5
+    [(contador,)] = _todas("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id)
+    assert contador == aceptados
+    assert _acciones(acceso_id).count("relevo.pin_incorrecto") == aceptados
+    assert _acciones(acceso_id).count("relevo.bloqueo") == (1 if aceptados == 5 else 0)

@@ -134,6 +134,18 @@ def intento_fallido(intentos_previos: int) -> IntentoFallido:
     )
 
 
+def tras_intento(intentos_actuales: int) -> IntentoFallido:
+    """Cómo quedó el acceso según el contador que devolvió el incremento atómico de la base (C4).
+
+    Se decide con el valor confirmado por la base, no con uno calculado desde una lectura previa:
+    dos canjes simultáneos no se pisan.
+    """
+    intentos = min(INTENTOS_PIN_MAXIMOS, intentos_actuales)
+    return IntentoFallido(
+        intentos=intentos, bloqueado=intentos >= INTENTOS_PIN_MAXIMOS, restantes=INTENTOS_PIN_MAXIMOS - intentos
+    )
+
+
 def bloqueado(intentos: int) -> bool:
     return intentos >= INTENTOS_PIN_MAXIMOS
 

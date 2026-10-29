@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.modules.care_plan.application.ports import AccesoDelRelevo, EntradaIndice
 from app.modules.care_plan.domain.cifrado import SeccionCifrada
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA
+from app.modules.care_plan.domain.relevo import INTENTOS_PIN_MAXIMOS
 
 _INDICE = "SELECT referencia_id, expira_en, revocado_en FROM indice_token WHERE tipo = 'relevo'"
 _POR_TOKEN = text(_INDICE + " AND token_hash = :token_hash")
@@ -27,7 +28,13 @@ _LEER = text(
     " pin_intentos_fallidos, expira_en FROM acceso_relevo"
 )
 _AUTORIZACION = text("SELECT relevo_autorizacion_vigente(:ahora)")
-_INTENTOS = text("UPDATE acceso_relevo SET pin_intentos_fallidos = :intentos")
+_LEER_PARA_CANJE = text(_LEER.text + " FOR UPDATE")
+# C4: incremento atómico. Nunca se escribe un valor calculado en la aplicación
+_SUMAR_INTENTO = text(
+    "UPDATE acceso_relevo SET pin_intentos_fallidos = LEAST(pin_intentos_fallidos + 1, :maximo)"
+    " WHERE pin_intentos_fallidos < :maximo RETURNING pin_intentos_fallidos"
+)
+_REINICIAR = text("UPDATE acceso_relevo SET pin_intentos_fallidos = 0")
 _USO = text("UPDATE acceso_relevo SET usos = usos + 1, ultimo_uso_en = :ahora")
 
 _PLAN = text("SELECT persona_cuidada_id FROM plan_cuidado WHERE id = :plan_id")
@@ -65,8 +72,8 @@ class RepositorioAccesoRelevoSQL:
     def __init__(self, sesion: Session) -> None:
         self._sesion = sesion
 
-    def leer(self) -> AccesoDelRelevo | None:
-        f = self._sesion.execute(_LEER).one_or_none()
+    def leer(self, *, bloquear: bool = False) -> AccesoDelRelevo | None:
+        f = self._sesion.execute(_LEER_PARA_CANJE if bloquear else _LEER).one_or_none()
         if f is None:
             return None
         return AccesoDelRelevo(
@@ -84,8 +91,12 @@ class RepositorioAccesoRelevoSQL:
     def autorizacion_vigente(self, ahora: datetime) -> bool:
         return bool(self._sesion.execute(_AUTORIZACION, {"ahora": ahora}).scalar_one())
 
-    def fijar_intentos(self, intentos: int) -> None:
-        self._sesion.execute(_INTENTOS, {"intentos": intentos})
+    def sumar_intento(self) -> int | None:
+        valor = self._sesion.execute(_SUMAR_INTENTO, {"maximo": INTENTOS_PIN_MAXIMOS}).scalar_one_or_none()
+        return None if valor is None else int(valor)
+
+    def reiniciar_intentos(self) -> None:
+        self._sesion.execute(_REINICIAR)
 
     def registrar_uso(self, ahora: datetime) -> None:
         self._sesion.execute(_USO, {"ahora": ahora})
