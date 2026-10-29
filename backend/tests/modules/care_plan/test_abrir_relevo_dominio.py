@@ -12,12 +12,13 @@ import pytest
 
 from app.modules.care_plan.application.canje_relevo import (
     AccesoBloqueadoAhora,
+    CanjeAceptado,
     PinIncorrecto,
     PinNoVerificable,
     RelevoBloqueado,
     RelevoNoDisponible,
-    SesionCreada,
     TipoNoDisponible,
+    abrir_sesion,
     canjear,
     presentar,
     verificar_indice,
@@ -183,8 +184,10 @@ def test_relevo_pausado_no_dice_el_motivo(reloj: RelojFijo) -> None:
 def test_canje_correcto_crea_sesion_y_reinicia_el_contador(reloj: RelojFijo) -> None:
     repo = AccesoEnMemoria(_acceso(intentos=2, expira_en=AHORA + timedelta(hours=3)))
     registro, sesiones = RegistroAuditoriaEnMemoria(), SesionesRelevoEnMemoria(reloj)
-    resultado = canjear("4821", repo, HUELLAS, registro, sesiones, reloj, None)
-    assert isinstance(resultado, SesionCreada)
+    aceptado = canjear("4821", repo, HUELLAS, registro, reloj, None)
+    assert isinstance(aceptado, CanjeAceptado)
+    assert sesiones.guardadas == {}  # el caso de uso no crea la sesión: la crea abrir_sesion tras el commit
+    resultado = abrir_sesion(aceptado, sesiones)
     assert resultado.max_age == 3 * 3600 and sesiones.ttls == [3 * 3600]
     assert len(resultado.sesion_id) >= 43  # 256 bits en base64url
     assert resultado.sesion_id not in repr(resultado)
@@ -198,7 +201,7 @@ def test_canje_correcto_crea_sesion_y_reinicia_el_contador(reloj: RelojFijo) -> 
 def test_pin_incorrecto_cuenta_y_audita_sin_crear_sesion(reloj: RelojFijo) -> None:
     repo = AccesoEnMemoria(_acceso())
     registro, sesiones = RegistroAuditoriaEnMemoria(), SesionesRelevoEnMemoria(reloj)
-    resultado = canjear("0000", repo, HUELLAS, registro, sesiones, reloj, None)
+    resultado = canjear("0000", repo, HUELLAS, registro, reloj, None)
     assert resultado == PinIncorrecto(restantes=4)
     assert repo.acceso is not None and repo.acceso.pin_intentos_fallidos == 1
     assert [e.accion for e in registro.entradas] == [AccionAuditoria.RELEVO_PIN_INCORRECTO]
@@ -208,26 +211,26 @@ def test_pin_incorrecto_cuenta_y_audita_sin_crear_sesion(reloj: RelojFijo) -> No
 def test_quinto_pin_incorrecto_bloquea_y_audita_el_bloqueo(reloj: RelojFijo) -> None:
     repo = AccesoEnMemoria(_acceso(intentos=4))
     registro = RegistroAuditoriaEnMemoria()
-    resultado = canjear("0000", repo, HUELLAS, registro, SesionesRelevoEnMemoria(reloj), reloj, None)
+    resultado = canjear("0000", repo, HUELLAS, registro, reloj, None)
     assert isinstance(resultado, AccesoBloqueadoAhora)
     esperadas = [AccionAuditoria.RELEVO_PIN_INCORRECTO, AccionAuditoria.RELEVO_BLOQUEO]
     assert [e.accion for e in registro.entradas] == esperadas
     # Bloqueado, ni el PIN correcto abre
     with pytest.raises(RelevoBloqueado):
-        canjear("4821", repo, HUELLAS, registro, SesionesRelevoEnMemoria(reloj), reloj, None)
+        canjear("4821", repo, HUELLAS, registro, reloj, None)
 
 
 def test_canje_pausado_no_cuenta_intento(reloj: RelojFijo) -> None:
     repo = AccesoEnMemoria(_acceso(), vigente=False)
     with pytest.raises(RelevoNoDisponible):
-        canjear("0000", repo, HUELLAS, RegistroAuditoriaEnMemoria(), SesionesRelevoEnMemoria(reloj), reloj, None)
+        canjear("0000", repo, HUELLAS, RegistroAuditoriaEnMemoria(), reloj, None)
     assert repo.acceso is not None and repo.acceso.pin_intentos_fallidos == 0
 
 
 def test_canje_sin_pepper_falla_cerrado(reloj: RelojFijo) -> None:
     with pytest.raises(PinNoVerificable):
         canjear("4821", AccesoEnMemoria(_acceso()), None, RegistroAuditoriaEnMemoria(),
-                SesionesRelevoEnMemoria(reloj), reloj, None)
+                reloj, None)
 
 
 # --- Ficha -------------------------------------------------------------------------------------------

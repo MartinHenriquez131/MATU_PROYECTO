@@ -41,12 +41,13 @@ from app.modules.care_plan.api.esquemas_relevo import (
 )
 from app.modules.care_plan.application.canje_relevo import (
     AccesoBloqueadoAhora,
+    CanjeAceptado,
     PinIncorrecto,
     PinNoVerificable,
     RelevoBloqueado,
     RelevoNoDisponible,
-    SesionCreada,
     TipoNoDisponible,
+    abrir_sesion,
     canjear,
     presentar,
     verificar_indice,
@@ -223,15 +224,15 @@ def canjear_relevo(
     try:
         with sesion_tenant(fabrica, acceso_relevo_id=acceso_id, rol="relevo") as sesion:
             resultado = canjear(
-                solicitud.pin, RepositorioAccesoRelevoSQL(sesion), huellas, registro(sesion), sesiones, reloj,
+                solicitud.pin, RepositorioAccesoRelevoSQL(sesion), huellas, registro(sesion), reloj,
                 getattr(request.state, "request_id", None),
             )
     except RelevoNoDisponible as error:
         raise _no_disponible(error.tipo) from None
     except RelevoBloqueado:
         raise _bloqueado() from None
-    except (PinNoVerificable, SesionesNoDisponibles):
-        log.error("el canje no pudo verificar el PIN o crear la sesión")
+    except PinNoVerificable:
+        log.error("el canje no pudo verificar el PIN")
         raise _sin_servicio() from None
     # La transacción ya confirmó el contador y la auditoría (C6)
     if isinstance(resultado, AccesoBloqueadoAhora):
@@ -244,9 +245,15 @@ def canjear_relevo(
             detalle=f"El PIN no coincide. Te quedan {resultado.restantes} intentos",
             extension={"intentos_restantes": resultado.restantes},
         )
-    assert isinstance(resultado, SesionCreada)
+    assert isinstance(resultado, CanjeAceptado)
+    # Después del commit (P3): si Redis falla, el canje quedó auditado pero sin sesión, y responde 503
+    try:
+        creada = abrir_sesion(resultado, sesiones)
+    except SesionesNoDisponibles:
+        log.error("el canje no pudo crear la sesión")
+        raise _sin_servicio() from None
     respuesta = Response(status_code=status.HTTP_204_NO_CONTENT)
-    respuesta.headers["Set-Cookie"] = f"{COOKIE}={resultado.sesion_id}; Max-Age={resultado.max_age}; {_ATRIBUTOS}"
+    respuesta.headers["Set-Cookie"] = f"{COOKIE}={creada.sesion_id}; Max-Age={creada.max_age}; {_ATRIBUTOS}"
     return respuesta
 
 

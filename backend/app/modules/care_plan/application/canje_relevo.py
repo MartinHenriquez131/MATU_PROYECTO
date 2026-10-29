@@ -131,6 +131,15 @@ def presentar(
 
 
 @dataclass(frozen=True)
+class CanjeAceptado:
+    """PIN correcto. La sesión se crea con abrir_sesion DESPUÉS del commit de la transacción del canje:
+    si el commit falla, no queda una sesión sin su fila relevo.canje."""
+
+    acceso_id: uuid.UUID
+    max_age: int
+
+
+@dataclass(frozen=True)
 class SesionCreada:
     sesion_id: str
     max_age: int
@@ -149,7 +158,7 @@ class AccesoBloqueadoAhora:
     """Este intento fue el 5.º."""
 
 
-ResultadoCanje = SesionCreada | PinIncorrecto | AccesoBloqueadoAhora
+ResultadoCanje = CanjeAceptado | PinIncorrecto | AccesoBloqueadoAhora
 
 
 def canjear(
@@ -157,7 +166,6 @@ def canjear(
     accesos: RepositorioAccesoRelevo,
     huellas: HuellasRelevo | None,
     registro: RegistroAuditoria,
-    sesiones: SesionesRelevo,
     reloj: Reloj,
     request_id: str | None,
 ) -> ResultadoCanje:
@@ -181,4 +189,9 @@ def canjear(
     if acceso.pin_intentos_fallidos:
         accesos.reiniciar_intentos()
     registro.registrar(entrada_relevo(acceso, AccionAuditoria.RELEVO_CANJE, request_id))
-    return SesionCreada(sesion_id=sesiones.crear(acceso.id, segundos), max_age=segundos)
+    return CanjeAceptado(acceso_id=acceso.id, max_age=segundos)
+
+
+def abrir_sesion(aceptado: CanjeAceptado, sesiones: SesionesRelevo) -> SesionCreada:
+    """Paso 7, ya confirmada la transacción: la sesión en el almacén, con TTL = Max-Age."""
+    return SesionCreada(sesion_id=sesiones.crear(aceptado.acceso_id, aceptado.max_age), max_age=aceptado.max_age)

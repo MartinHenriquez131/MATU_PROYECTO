@@ -459,7 +459,7 @@ def test_canjes_simultaneos_no_pierden_intentos_ni_pasan_de_cinco(entorno: Entor
             with sesion_tenant(fabrica, acceso_relevo_id=acceso_id, rol="relevo") as sesion:
                 resultado = canjear(
                     malo, RepositorioAccesoRelevoSQL(sesion), HuellasHmac(pepper),
-                    RegistroAuditoriaSql(sesion, entorno.reloj), entorno.sesiones, entorno.reloj, None,
+                    RegistroAuditoriaSql(sesion, entorno.reloj), entorno.reloj, None,
                 )
             resultados.append("aceptado" if isinstance(resultado, PinIncorrecto | AccesoBloqueadoAhora) else "otro")
         except Exception as error:  # noqa: BLE001 - el bloqueo de otro hilo es un resultado esperado
@@ -481,3 +481,26 @@ def test_canjes_simultaneos_no_pierden_intentos_ni_pasan_de_cinco(entorno: Entor
     assert contador == aceptados
     assert _acciones(acceso_id).count("relevo.pin_incorrecto") == aceptados
     assert _acciones(acceso_id).count("relevo.bloqueo") == (1 if aceptados == 5 else 0)
+
+
+def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -> None:
+    """P3: si el almacén de sesiones falla, la transacción del canje ya confirmó (relevo.canje queda) y la
+    respuesta es 503 sin cookie. Nunca al revés: una sesión sin su fila de auditoría."""
+    from app.modules.care_plan.application.ports import SesionesNoDisponibles
+
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    orden: list[str] = []
+
+    class SesionesQueMiran(SesionesRelevoEnMemoria):
+        def crear(self, acceso: uuid.UUID, segundos: int) -> str:
+            # Desde otra conexión: la fila relevo.canje ya es visible, o sea, ya se confirmó
+            orden.append("auditado" if "relevo.canje" in _acciones(acceso) else "sin-auditar")
+            raise SesionesNoDisponibles
+
+    entorno.ficha.app.dependency_overrides[obtener_sesiones_relevo] = lambda: SesionesQueMiran(entorno.reloj)
+    respuesta = entorno.canjear(token, pin)
+    _problema(respuesta, 503, "servicio-no-disponible")
+    assert "set-cookie" not in respuesta.headers
+    assert orden == ["auditado"]
+    assert _acciones(acceso_id) == ["relevo.canje"]
