@@ -18,6 +18,7 @@ Cada historia agrega aquí lo suyo:
   API no arranca. Ver app/modules/care_plan/infrastructure/custodia_kek_entorno.py
 - MATU-18: PEPPER_PIN, la llave del HMAC del PIN del acceso de relevo, y ORIGEN_WEB, el origen https
   del enlace /r#<token> que se entrega al compartir
+- MATU-19: REDIS_URL, el Redis de las sesiones de relevo
 """
 
 import base64
@@ -97,6 +98,9 @@ class Configuracion(BaseSettings):
 
     # Origen https de la aplicación web, sin barra final: el enlace del relevo es <origen>/r#<token>
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
+
+    # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
+    redis_url: str = "redis://127.0.0.1:6379/0"
 
     @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", mode="before")
     @classmethod

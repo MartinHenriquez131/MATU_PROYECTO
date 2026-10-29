@@ -15,6 +15,7 @@ dependencies = [
     "argon2-cffi>=23.1",
     "pyjwt>=2.8",
     "cryptography>=43",  # AES-256-GCM de las secciones de la ficha (MATU-11)
+    "redis>=5.0",  # sesiones de relevo (MATU-19)
 ]
 
 [project.optional-dependencies]

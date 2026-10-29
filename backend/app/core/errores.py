@@ -88,6 +88,7 @@ class ErrorMATU(Exception):
         detalle: str | None = None,
         errores: list[dict[str, str]] | None = None,
         headers: dict[str, str] | None = None,
+        extension: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(titulo or _titulo(status))
         self.status = status
@@ -96,6 +97,8 @@ class ErrorMATU(Exception):
         self.detalle = detalle
         self.errores = errores or []
         self.headers = headers
+        # Miembros de extensión del problema (RFC 7807, 3.2), por ejemplo intentos_restantes
+        self.extension = extension or {}
 
 
 def respuesta_problema(
@@ -107,6 +110,7 @@ def respuesta_problema(
     detalle: str | None = None,
     errores: list[dict[str, str]] | None = None,
     headers: dict[str, str] | None = None,
+    extension: dict[str, Any] | None = None,
 ) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
     cuerpo: dict[str, Any] = {
@@ -117,6 +121,8 @@ def respuesta_problema(
         "errores": errores or [],
         "request_id": request_id,
     }
+    for clave, valor in (extension or {}).items():
+        cuerpo.setdefault(clave, valor)
     cabeceras = dict(headers or {})
     if request_id:
         cabeceras["X-Request-ID"] = request_id
@@ -141,6 +147,7 @@ async def _manejar_error_matu(request: Request, exc: Exception) -> JSONResponse:
         detalle=exc.detalle,
         errores=exc.errores,
         headers=exc.headers,
+        extension=exc.extension,
     )
 
 

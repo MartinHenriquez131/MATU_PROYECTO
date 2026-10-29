@@ -12,6 +12,7 @@ from typing import TextIO
 
 from fastapi import APIRouter, FastAPI
 
+from app.core.cabeceras import CABECERAS_RELEVO, MiddlewareCabecerasPrefijo
 from app.core.config import obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
@@ -20,6 +21,7 @@ from app.modules.care_circle.api.router_personas import router as router_persona
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
+from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
 from app.modules.iam.api.router import router as router_iam
 
 router_salud = APIRouter(tags=["salud"])
@@ -46,6 +48,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
         openapi_url="/openapi.json" if documentacion else None,
     )
     registrar_manejadores(app)
+    # MATU-19 (C11): no-store, no-referrer y noindex en toda respuesta bajo /v1/relevo/, también errores
+    app.add_middleware(MiddlewareCabecerasPrefijo, prefijo="/v1/relevo/", cabeceras=CABECERAS_RELEVO)
     app.add_middleware(MiddlewareRequestId)
 
     # Routers por historia (una línea cada uno)
@@ -55,6 +59,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")
     app.include_router(router_relevo, prefix="/v1")
+    app.include_router(router_relevo_publico, prefix="/v1")
 
     return app
 
