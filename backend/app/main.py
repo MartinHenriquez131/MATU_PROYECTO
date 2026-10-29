@@ -19,6 +19,7 @@ from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_personas import router as router_personas
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
+from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.iam.api.router import router as router_iam
 
 router_salud = APIRouter(tags=["salud"])
@@ -53,6 +54,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")
+    app.include_router(router_relevo, prefix="/v1")
 
     return app
 

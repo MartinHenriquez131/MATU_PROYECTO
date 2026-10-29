@@ -162,6 +162,7 @@ def test_es_idempotente(fabrica: Fabrica, sembradora: Any) -> None:
     assert conteo == [(4, 2, 2)]
 
 
+@pytest.mark.usefixtures("configuracion_sin_env")
 def test_no_corre_en_produccion(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setenv("ENTORNO", "produccion")
     monkeypatch.setenv("POLITICA_VERSION", "0.9")

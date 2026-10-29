@@ -238,3 +238,56 @@ def test_0003_fija_la_clave_destruida_y_baja_al_esquema_de_0002(base_desechable)
 
     # ---- y vuelve a subir
     alembic("upgrade", "head")
+
+
+# ---- 0004 (MATU-18): el acceso de relevo guarda el nombre de pila de quien comparte
+
+PLAN = "00000000-0000-0000-0000-0000000000" + "b1"
+ACCESO = "00000000-0000-0000-0000-0000000000" + "c1"
+
+FILAS_ACCESO = f"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U}', 'a@correo.ejemplo', 'Persona A', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G}', 'Familia A', '{U}');
+INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VALUES
+ ('{P}', '{G}', 'Persona Cuidada', 'Persona', 'apoyo_total');
+INSERT INTO plan_cuidado (id, grupo_id, persona_cuidada_id) VALUES ('{PLAN}', '{G}', '{P}');
+"""
+
+
+def _insertar_acceso(nombre_comparte: str | None) -> None:
+    columna, valor = ("", "") if nombre_comparte is None else (", nombre_pila_comparte", f", '{nombre_comparte}'")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(
+            "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
+            f" nombre_pila_persona, secciones_permitidas, motivo, token_hash, pin_hash, expira_en,"
+            f" relevo_informado_en{columna})"
+            f" VALUES ('{ACCESO}', '{G}', '{PLAN}', '{U}', 'Relevo', '+56955550137', 'Persona', ARRAY['rutina'],"
+            f" 'otro', sha256('t'), 'p', now() + interval '1 day', now(){valor})")
+
+
+@pytest.mark.rf("RF-05")
+def test_0004_agrega_el_nombre_de_quien_comparte_y_baja_al_esquema_de_0003(base_desechable):
+    alembic("upgrade", "0003")
+    esquema_0003 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_ACCESO)
+
+    # ---- sube: la columna es obligatoria y no admite un nombre vacío
+    alembic("upgrade", "0004")
+    with pytest.raises(psycopg.errors.NotNullViolation):
+        _insertar_acceso(None)
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _insertar_acceso("  ")
+    _insertar_acceso("Persona")
+    assert consultar("SELECT nombre_pila_comparte FROM acceso_relevo") == [("Persona",)]
+
+    # ---- baja: sin filas de acceso, el esquema vuelve a ser exactamente el de 0003
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("DELETE FROM acceso_relevo")
+    alembic("downgrade", "0003")
+    despues = catalogo()
+    for parte, filas in esquema_0003.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+
+    # ---- y vuelve a subir
+    alembic("upgrade", "head")

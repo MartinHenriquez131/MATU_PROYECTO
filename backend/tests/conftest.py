@@ -46,3 +46,25 @@ def fabrica() -> Iterator["Fabrica"]:
     sembradora = Fabrica()
     yield sembradora
     sembradora.limpiar()
+
+
+@pytest.fixture
+def configuracion_sin_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """La configuración de la API sin el .env del equipo, ni el archivo ni lo que load_dotenv ya copió.
+
+    tests/base_datos.py carga el .env de la raíz en os.environ para las pruebas con base. Las pruebas
+    de configuración suponen que solo existen las variables que ellas fijan: esta fixture borra del
+    entorno cada variable de Configuracion (salvo DATABASE_URL, que no valida nada) y apaga el
+    archivo, y deja ENTORNO=pruebas. No cambia el comportamiento de la API, solo lo que ven estas pruebas.
+    """
+    from app.core import config
+
+    monkeypatch.setitem(config.Configuracion.model_config, "env_file", None)
+    for campo in config.Configuracion.model_fields:
+        if campo != "database_url":
+            monkeypatch.delenv(campo.upper(), raising=False)
+    # El ambiente de las pruebas, como lo fija este conftest; la prueba que necesita otro lo cambia
+    monkeypatch.setenv("ENTORNO", "pruebas")
+    config.obtener_configuracion.cache_clear()
+    yield
+    config.obtener_configuracion.cache_clear()

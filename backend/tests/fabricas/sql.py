@@ -73,6 +73,7 @@ def insertar_membresia(
 # identificadores, sin llave foránea al grupo.
 BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM plan_seccion WHERE plan_id IN (SELECT id FROM plan_cuidado WHERE grupo_id = ANY(%s::uuid[]))",
+    "DELETE FROM indice_token WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM acceso_relevo WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM plan_cuidado WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM clave_datos WHERE grupo_id = ANY(%s::uuid[])",
