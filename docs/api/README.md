@@ -8,7 +8,8 @@ docs/api/
 ├── openapi.json                  rutas implementadas, exportadas de GET /openapi.json (MATU-13)
 └── propuestos/
     ├── ficha.openapi.yaml        MATU-09 parte 1: ficha de relevo
-    └── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
+    ├── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
+    └── app-familia.openapi.yaml  MATU-32: sesión, dispositivos, autorización para el consumo, consumo y alertas
 ```
 
 ## Propuestos e implementados
@@ -20,7 +21,8 @@ docs/api/
 - **Las rutas de la ficha (MATU-12) están implementadas pero siguen en `propuestos/`** (revisado el 28-10). El contrato promete dos cosas: 412 y 428 con `If-Match` / `If-None-Match` (MATU-13, pendiente) y el registro de `plan.leer` y `plan.editar` (MATU-14, ya cumplido). Siguen en `propuestos/` solo por MATU-13. Pasarlas a `openapi.json` ahora fijaría como "implementado" un contrato que la API todavía no cumple. Como la puerta openapi-diff no existe y, cuando exista, no mirará `propuestos/`, el CI no puede fallar por esto: MATU-12 no crea `openapi.json` ni toca `ci.yml`. La historia que cierre la última de las dos (MATU-13 o MATU-14) exporta las rutas a `openapi.json` y las quita del propuesto, como dice la regla de arriba. Diferencias que verá openapi-diff ese día: FastAPI agrega un 422 genérico a `GET …/plan/ficha` (por sus parámetros), y `X-Grupo-Id` sale como `string | null` sin `format: uuid`, igual que en las rutas de MATU-07.
 - **MATU-13 (29-10) exportó `openapi.json`** desde `app.openapi()` con un comando puntual (no hay script ni puerta openapi-diff todavía; `backend/tests/modules/care_plan/test_ficha_contrato.py` falla si las rutas de la ficha cambian sin volver a exportar): todas las rutas de la API salvo las del relevo, y solo los componentes que esas rutas usan. Las rutas del relevo (`accesos-relevo`, `/v1/relevo/…`) quedan fuera aunque estén implementadas: su contrato sigue en `propuestos/relevo.openapi.yaml` hasta que la historia que lo cierre las exporte, y `/plan/aperturas` aún no existe. `propuestos/ficha.openapi.yaml` se conserva como explicación del orden de evaluación y de las decisiones, que el JSON generado no trae; manda `openapi.json`. Diferencias con el propuesto que se aceptan: `If-Match` e `If-None-Match` salen como `string` sin `const: '*'` (el valor lo valida la ruta: 422 o 428), el 412 y el 428 del PUT llevan esquema (`ProblemaVersion` con `campo` y `actual`, y `falta-version`), ejemplo y cabeceras, pero en línea y no como componentes con nombre; los demás errores (401, 403, 404, 422, 500 y 503) se declaran como `application/problem+json` sin esquema, FastAPI agrega un 422 genérico a `GET …/plan/ficha`, y `X-Grupo-Id` sale como `string | null` sin `format: uuid`.
 - Cada archivo propuesto es autocontenido: no hace `$ref` a otro archivo. Los componentes comunes (`Problema`, `ProblemaValidacion`, `ErrorCampo`, `CampoFicha`, `Autor`, `XGrupoId`, `PersonaId`, `bearerAuth`, las cabeceras `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`, y el cuerpo de `NoAutenticado`, `NoEncontrado` y `SinConsentimiento`) son idénticos en los dos.
-- **Cabeceras de respuesta.** Toda respuesta, también las de error, declara `X-Request-ID` (UUID, el mismo `request_id` de los logs y del problema; lo pone `app/core/logs.py`). Llevan `Cache-Control: no-store` las que traen texto de la ficha, PIN o enlace, y también la lista de accesos y `/plan/aperturas`, porque dicen a quién se compartió la ficha y cuándo la abrió.
+- **`app-familia.openapi.yaml` (MATU-32)** copia idénticos de `relevo.openapi.yaml` `Problema`, `ProblemaValidacion`, `ErrorCampo`, `XGrupoId`, `PersonaId`, `Cursor`, `Limite`, `bearerAuth`, `XRequestId`, `CacheControlNoStore`, `WWWAuthenticateBearer`, `NoAutenticado`, `NoEncontrado` y `SinConsentimiento` (verificado con un script que compara los dos YAML). No usa `CampoFicha` ni `Autor`. La descripción de `CacheControlNoStore` habla de la ficha y del relevo; se deja igual para no romper la copia, y el `info.description` del archivo aclara que vale también para sesión, dispositivos, consumo y alertas. `POST /v1/sesiones` aparece en los dos lugares a propósito: `openapi.json` dice lo implementado y `app-familia.openapi.yaml` el cambio que hace MATU-38, que vuelve a exportar `openapi.json`.
+- **Cabeceras de respuesta.** Toda respuesta, también las de error, declara `X-Request-ID` (UUID, el mismo `request_id` de los logs y del problema; lo pone `app/core/logs.py`). Llevan `Cache-Control: no-store` las que traen texto de la ficha, PIN o enlace, y también la lista de accesos y `/plan/aperturas`, porque dicen a quién se compartió la ficha y cuándo la abrió. En `app-familia.openapi.yaml` la llevan todas las respuestas de sesión, dispositivos, autorización, consumo y alertas.
 
 ## Rutas
 
@@ -28,38 +30,113 @@ docs/api/
 |---|---|---|
 | `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado. En `openapi.json` desde MATU-13 |
 | `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Implementado, con `If-Match` / `If-None-Match`, 412 y 428 (MATU-13). En `openapi.json` desde MATU-13 |
-| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Propuesto |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Propuesto |
-| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Propuesto |
-| `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Propuesto |
-| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Propuesto |
-| `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Propuesto |
+| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
+| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
+| `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
+| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
+| `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-19 (RF-08) | Propuesto |
+| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado en `openapi.json`. **Nuevo:** cambio propuesto en `app-familia.openapi.yaml` (cookie del refresh, dispositivo y 429) |
+| `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `GET /v1/dispositivos` | MATU-38 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml`. Solo `finalidad: consumo` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml`, con `If-Match`, 412 y 428 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+
+Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`.
 
 ## Catálogo de `type` (RFC 7807)
 
-Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `detail`, `errores[]` y `request_id`, en `application/problem+json`. Los `type` marcados **nuevo** no existen todavía en el código y los agrega la historia que los usa.
+Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `detail`, `errores[]` y `request_id`, en `application/problem+json`. Los `type` marcados **nuevo** no existen todavía en el código y los agrega la historia que los usa. Los del relevo pasaron de **nuevo** a "Existe" en MATU-32 (31-10), porque MATU-19 y MATU-20 ya los agregaron (`backend/app/modules/care_plan/api/`).
 
 | `type` | Status | Cuándo | Origen |
 |---|---|---|---|
 | `/errores/no-autenticado` | 401 | Falta el access token | Existe (por defecto del 401) |
-| `/errores/token-invalido` | 401 | Token inválido, alterado o vencido | Existe (MATU-05a) |
-| `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado` | Existe (MATU-12). MATU-07 no definió uno |
-| `/errores/revision-vencida` | 403 | El consentimiento lo dio un cuidador de hecho y venció su revisión anual (decisión 33) | Existe (MATU-12) |
+| `/errores/token-invalido` | 401 | Token inválido, alterado o vencido. En la app de familia significa "renueva" (`POST /v1/sesiones/renovar`) | Existe (MATU-05a) |
+| `/errores/credenciales-invalidas` | 401 | `POST /v1/sesiones`: email o contraseña incorrectos, o cuenta que no puede entrar. El mismo cuerpo en todos los casos | Existe (MATU-05a). Faltaba en este catálogo |
+| `/errores/sesion-expirada` | 401 | `POST /v1/sesiones/renovar`: sin cookie, cookie desconocida, sesión vencida o revocada, o refresh reutilizado (que revoca la familia). El mismo 401, borra la cookie. Significa "vuelve a entrar" (decisión 44) | **Nuevo** (MATU-38) |
+| `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado`. **Nuevo uso:** en el consumo, sin consentimiento vigente para `consumo`, con el miembro de extensión `finalidad: consumo` (decisión 44) | Existe (MATU-12). MATU-07 no definió uno. El uso en el consumo lo agrega MATU-36 |
+| `/errores/revision-vencida` | 403 | El consentimiento lo dio un cuidador de hecho y venció su revisión anual (decisión 33). **Nuevo uso:** en el consumo, con `finalidad: consumo` | Existe (MATU-12). El uso en el consumo lo agrega MATU-36 |
 | `/errores/no-encontrado` | 404 | No miembro, rol que no alcanza, recurso de otro grupo o inexistente | Existe |
-| `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe | Existe (por defecto del 412) |
+| `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe. **Nuevo uso:** `PATCH` de un perfil de consumo con `If-Match` desactualizado, con el perfil en `actual` | Existe (por defecto del 412) |
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
-| `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match` | Existe (por defecto del 428) |
-| `/errores/pin-incorrecto` | 401 | PIN incorrecto, del 1.º al 4.º intento, con `intentos_restantes` | **Nuevo** (MATU-19) |
-| `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie, o con una cookie que no corresponde a una sesión en Redis (alterada o vencida por su TTL). Nunca por revocar | **Nuevo** (MATU-19) |
-| `/errores/relevo-vencido` | 410 | El acceso venció (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-19) |
-| `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | **Nuevo** (MATU-20) |
-| `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | **Nuevo** (MATU-19) |
-| `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | **Nuevo** (MATU-19) |
-| `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | **Nuevo** (MATU-19) |
+| `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match`. **Nuevo uso:** `PATCH` de un perfil de consumo sin `If-Match` o con `If-Match: *` | Existe (por defecto del 428) |
+| `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Faltaba en este catálogo |
+| `/errores/autorizacion-vigente` | 409 | `POST …/consentimientos`: la persona ya tiene una autorización no revocada para esa finalidad (`consentimiento_vigente_uq`) | **Nuevo** (MATU-36) |
+| `/errores/perfil-duplicado` | 409 | `POST …/consumo`: ya hay un perfil activo de la persona con ese `producto_id` (`perfil_consumo_producto_uq`) | **Nuevo** (MATU-36) |
+| `/errores/perfil-inactivo` | 409 | `PATCH …/consumo/{perfil_id}` sobre un perfil desactivado | **Nuevo** (MATU-36) |
+| `/errores/alerta-cerrada` | 409 | `POST …/alertas/{alerta_id}/descartar` sobre una alerta `resuelta` o `descartada`, con el `estado` actual como miembro de extensión | **Nuevo** (MATU-37) |
+| `/errores/pin-incorrecto` | 401 | PIN incorrecto, del 1.º al 4.º intento, con `intentos_restantes` | Existe (MATU-19) |
+| `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie, o con una cookie que no corresponde a una sesión en Redis (alterada o vencida por su TTL). Nunca por revocar | Existe (MATU-19) |
+| `/errores/relevo-vencido` | 410 | El acceso venció (presentación, canje, o cualquier petición con cookie válida) | Existe (MATU-19) |
+| `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | Existe (MATU-20) |
+| `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | Existe (MATU-19) |
+| `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | Existe (MATU-19) |
+| `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | Existe (MATU-19) |
 | `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
-| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32) | Existe (MATU-12, por defecto del 503) |
-| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones o más de 10 canjes por hora desde una IP, en contadores separados | Existe (por defecto del 429), lo usa MATU-25 |
+| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49) | Existe (MATU-12, por defecto del 503) |
+| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones o más de 10 canjes por hora desde una IP, en contadores separados. **Nuevo uso:** demora progresiva de `POST /v1/sesiones`, con `Retry-After` de hasta 900 segundos (decisión 49) | Existe (por defecto del 429), lo usan MATU-25 y MATU-38 |
+
+## Lo que usa la app de familia (MATU-32)
+
+Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (sus pantallas), MATU-36 (consumo) y MATU-37 (predicción y alertas). La columna "Historia" es la que implementa la ruta en el backend. Revisado contra `backend/app/` el 31-10.
+
+| Método y ruta | Historia | Estado | Contrato |
+|---|---|---|---|
+| `POST /v1/usuarios` | MATU-04 | Implementado | `openapi.json` |
+| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado. Cambio propuesto: cookie del refresh, dispositivo y 429 | `openapi.json`; el cambio en `app-familia.openapi.yaml` |
+| `GET /v1/grupos` | MATU-06 | Implementado. Devuelve `id`, `nombre` y `rol`: la app elige el grupo para `X-Grupo-Id` y sabe su rol | `openapi.json` |
+| `POST /v1/grupos` | MATU-06 | Implementado | `openapi.json` |
+| `GET /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado, con la vista de cada rol | `openapi.json` |
+| `POST /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado | `openapi.json` |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado | `openapi.json` |
+| `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-14 | Implementado | `openapi.json` |
+| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado | `relevo.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado | `relevo.openapi.yaml` |
+| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `relevo.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-19 (RF-08) | Propuesto, sin implementar | `relevo.openapi.yaml` |
+| `POST /v1/sesiones/renovar` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/sesiones/cerrar` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/dispositivos` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `PUT /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `DELETE /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | **Nuevo**, propuesto. Pendiente de Jorge (decisión 37) y de la política 0.10 | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+
+La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni `GET /v1/salud`.
+
+**Cómo arranca la app** (decisiones 39 y 40): al abrir o recargar no tiene access token, porque vive solo en memoria. Llama a `POST /v1/sesiones/renovar` con `X-MATU-Cliente: web`: un 200 trae el access token, y un 401 `sesion-expirada` lleva a la pantalla de entrada. Después, `GET /v1/grupos` para elegir el grupo y conocer el rol. Ante un 401 `token-invalido` en cualquier ruta, renueva una vez y repite la petición; si la renovación responde 401, vuelve a la entrada.
+
+**Lo que no hay, y la app no debe inventar** (verificado en `backend/app/` el 31-10):
+
+- **`GET /v1/usuarios/yo` no existe.** Tras recargar, la app no sabe el nombre de quien entró: solo sus grupos y su rol (`GET /v1/grupos`). Si una pantalla lo necesita (un saludo, "Tus dispositivos"), queda como pregunta para Jorge: se propondría `GET /v1/usuarios/yo` con `{id, nombre}` en una historia del eje B. Este contrato no la define.
+- **`GET /v1/personas-cuidadas/{persona_id}` no existe**, ni editar o borrar una persona. La app usa la lista `GET /v1/grupos/{grupo_id}/personas-cuidadas` y elige por `id`.
+- **No hay ruta para consultar las autorizaciones.** La vista de la persona trae solo la de `plan_cuidado` (`consentimiento`). Que falta la de `consumo` se sabe por el 403 con `finalidad: consumo` de `GET …/consumo`.
+- **No hay catálogo** (`/v1/catalogo/…`, arquitectura 9.4). En el sprint 3 la app anota insumos con `nombre_libre`.
+- **No hay invitaciones ni cambio de roles** (MATU-42 y MATU-53, sprint 4), ni salir de un grupo.
+- **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4).
+- **No hay `/v1/consumo/{id}` ni `/v1/alertas`** sin la persona, como dice la arquitectura 9.3: todo cuelga de `/v1/personas-cuidadas/{persona_id}/consumo…` (decisión 54).
+- **No hay preferencias de aviso** (`preferencia_notificacion`), ni cambiar o recuperar la contraseña, ni "cerrar todas las sesiones" (se sacan los dispositivos uno por uno).
+- **No hay exportación de la ficha** (`GET …/plan/exportar`, RF-09).
 
 ## Decisiones tomadas en este contrato
 
