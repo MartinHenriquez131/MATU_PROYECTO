@@ -977,10 +977,12 @@ paths:
         - Si cambia la tasa o el stock, se recalcula `fecha_quiebre_estimada` en la misma
           transacción, desde `stock_medido_en`.
 
-        **Escritura condicional, como la ficha (MATU-13).** `If-Match` con el `ETag` del perfil
-        (`"v<version>"`) es obligatorio: sin él, o con `If-Match: *`, **428**
-        `/errores/falta-version`. Si el perfil cambió, **412** `/errores/version-desactualizada`
-        con el perfil actual en `actual`. Hace falta una columna nueva
+        **Escritura condicional, igual que la ficha (MATU-13).** `If-Match` con el `ETag` del perfil
+        (`"v<version>"`) es obligatorio: sin él, vacío o con `*`, **428** `/errores/falta-version`.
+        Cualquier otro valor que no coincida con la versión actual responde **412**
+        `/errores/version-desactualizada` con el perfil actual en `actual`: un `ETag` viejo y
+        también un valor que no es un `ETag` de MATU (que nunca coincide). `If-Match` nunca
+        responde 422. Hace falta una columna nueva
         `perfil_consumo.version integer NOT NULL DEFAULT 1`, que suma 1 en cada escritura: la agrega
         una migración reversible de MATU-36.
 
@@ -1073,7 +1075,10 @@ paths:
 
         - En la misma transacción, las alertas abiertas del perfil (`pendiente` y `notificada`)
           pasan a `descartada` con `cerrada_en`: un insumo que ya no se sigue no avisa.
-        - Suma 1 a `version`, así que un `If-Match` anterior responde 412 o 409.
+        - Suma 1 a `version`. Después, un `PATCH` sobre el perfil responde **409**
+          `perfil-inactivo` con cualquier `If-Match` que no sea vacío ni `*`, viejo o actual, porque
+          el 409 se evalúa antes que el 412 (orden del `PATCH`: 422, 428, 409, 412). Sin `If-Match`,
+          vacío o con `*`, sigue siendo 428.
         - **Idempotente:** un perfil ya desactivado responde 200 igual, sin cambiar nada.
         - No hay reactivar en este contrato: para volver a seguirlo se crea otro perfil.
         - Libera `perfil_consumo_producto_uq`: después se puede crear otro perfil del mismo producto.
@@ -1215,10 +1220,12 @@ components:
       required: false
       description: |
         `ETag` del perfil tal como se leyó, por ejemplo `"v3"`. **Obligatorio**: se declara
-        `required: false` porque su ausencia responde **428**, no 422 (como `If-Match` en la ficha).
-        Un solo valor; `*` responde 428.
+        `required: false` porque su ausencia responde **428**, no 422. Igual que `If-Match` en la
+        ficha implementada (`openapi.json`): un `string` sin patrón, un solo valor comparado en
+        forma fuerte. Vacío o `*` responde **428**; cualquier otro valor que no coincida con la
+        versión actual, aunque no tenga la forma de un `ETag`, responde **412**.
       schema:
-        $ref: '#/components/schemas/ETag'
+        type: string
     Cursor:
       name: cursor
       in: query
@@ -1311,7 +1318,7 @@ components:
   schemas:
     ETag:
       type: string
-      pattern: '^"v[0-9]+"$'
+      pattern: '^"v[1-9][0-9]*"$'
       description: '`"v<version>"`, con las comillas, tal como va en la cabecera `ETag`.'
       examples:
         - '"v3"'
@@ -2330,8 +2337,8 @@ components:
       description: |
         Cuerpo inválido: vacío, un campo no editable (`extra_forbidden`), `null`, un número fuera de
         rango, `nombre_libre` en un perfil de producto (`tipo: nombre_libre_con_producto`) o una
-        cobertura de más de 3650 días (`tipo: cobertura_maxima`). Nunca repite el valor. También
-        responde 422 un `If-Match` que no tiene la forma `"v<n>"`.
+        cobertura de más de 3650 días (`tipo: cobertura_maxima`). Nunca repite el valor. Un
+        `If-Match` mal formado no responde 422 sino 412 (o 428 si está vacío o es `*`).
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
@@ -2354,7 +2361,8 @@ components:
 
     FaltaVersionPerfil:
       description: |
-        Falta `If-Match`, o es `*`. Toda edición del perfil es condicional, como la ficha (MATU-13).
+        Falta `If-Match`, está vacío o es `*`. Toda edición del perfil es condicional, como la
+        ficha (MATU-13).
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
