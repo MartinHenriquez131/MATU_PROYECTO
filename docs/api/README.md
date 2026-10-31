@@ -198,6 +198,35 @@ Las tomó Jorge al implementar MATU-12, con las condiciones del analista normati
 35. **Minimización en la lista de accesos** (decisión de Jorge del 28-10). `GET …/plan/accesos-relevo` devuelve de quien compartió solo el nombre de pila (`acceso_relevo.nombre_pila_comparte`) en `otorgado_por.nombre`, nunca `usuario.nombre` completo.
 36. **Quién lee la auditoría** (decisión de Jorge del 28-10). El administrador del grupo lee todas las filas de `auditoria` de su grupo. Cada miembro lee solo las suyas (`actor_ref = app.usuario_id`). El observador lee solo las suyas, y operación y los demás roles no tienen lectura amplia. Lo aplica la migración 0005, que reemplaza la política de SELECT `auditoria_familia` y quita `auditoria_operacion`, sin tocar las de INSERT. Lo prueban `test_lectura_de_auditoria_por_rol`, `test_operacion_no_lee_la_auditoria` y `test_0005_...`.
 
+## Decisiones de Martín del 31-10 (MATU-32), pendientes de aprobación de Jorge
+
+Contrato `propuestos/app-familia.openapi.yaml`. Siguen la numeración de las decisiones del contrato. Las 37 a 40 las tomó Martín el 31-10; las 41 a 54 son de diseño del contrato. **Todas están pendientes de aprobación de Jorge**, que usa el contrato desde el lunes 02-11 para MATU-36, MATU-37 y MATU-39.
+
+37. **Autorización propia para el consumo** (opción (a) del analista normativo). El cálculo de insumos exige un consentimiento con `finalidad = 'consumo'`, separado del de `plan_cuidado`, como ya anuncia la política v0.9 ("Cada uso se autoriza por separado"). Se da con `POST /v1/personas-cuidadas/{persona_id}/consentimientos` (`finalidad: "consumo"`), una ruta de recurso que sirve también para las otras finalidades de la tabla cuando se prioricen. Reutiliza **exactamente** el alta de MATU-07: la misma `calidad_otorgante`, las reglas de `validar_otorgamiento` para `aviso` y `referencia_documento`, el mismo aviso del cuidador de hecho, la evidencia mínima de la migración 0006 con una declaración nueva (`declaracion_consumo_<calidad>`) y la revisión anual de 12 meses. La dan `admin` y `cuidador`. Sin ella, toda ruta de consumo responde 403 con `finalidad: consumo`.
+    - **Exige la política 0.10**, con la declaración nueva que el analista dejó como borrador. MATU-36 no habilita la ruta mientras `POLITICA_VERSION` sea 0.9.
+    - **Revocar no está en este contrato** (ver "Contradicciones (MATU-32)"): queda con MATU-44.
+38. **`nombre_libre` solo con RLS, sin cifrar, de 1 a 60 caracteres.** Una línea, sin caracteres de control, con la descripción "Nombre del producto tal como se vende. No es para remedios ni para explicar para qué se usa". Nunca en logs, errores, auditoría ni eventos, y el 422 no repite el valor.
+    - **Consecuencia:** la política v0.9, sección 8, dice que la ficha y el consumo de insumos se dejan "ilegibles de inmediato destruyendo su clave". El consumo no tiene clave propia: para el consumo, la 0.10 debe decir que **se borra**, no que se deja ilegible. Lo redacta el analista normativo en el repositorio MATU.
+39. **El refresh va en una cookie `HttpOnly`, con un máximo de 30 días desde el inicio de sesión y sin ventana deslizante.** `__Secure-matu-refresh`, `Secure`, `SameSite=Strict`, `Path=/v1/sesiones`, 256 bits en base64url; la base guarda su SHA-256. Todos los tokens de una familia heredan su `expira_en`: renovar no alarga la sesión, y a los 30 días hay que volver a entrar. Cumple el `CHECK sesion_refresh_vigencia` sin migración.
+40. **El access token vive solo en memoria** en el cliente: ni `localStorage`, ni `sessionStorage`, ni IndexedDB, ni la URL. Al recargar se pide otro con la cookie. Al cerrar sesión o sacar un dispositivo, el access token ya emitido sigue valiendo hasta 15 minutos (arquitectura 11.6), y el contrato lo declara.
+41. **La edición de un perfil es `PATCH` con `If-Match` obligatorio**, coherente con MATU-13. `PATCH` porque la pantalla más común cambia un solo dato ("quedan 20") y no debería reenviar la tasa ni el aviso. `If-Match` porque dos personas de la familia pueden anotar el stock casi al mismo tiempo y la segunda pisaría a la primera sin saberlo: sin `If-Match` o con `*`, 428; desactualizado, 412 con el perfil actual en `actual`. El `ETag` es `"v<version>"`, como en la ficha, y viene también en el cuerpo (`etag`) para que la lista sirva para editar sin otro `GET`. Hace falta la columna `perfil_consumo.version integer NOT NULL DEFAULT 1`: la agrega una migración reversible de MATU-36. `producto_id` y `unidad` no se editan (otro producto u otra unidad es otro perfil).
+42. **`stock_medido_en` lo fija el servidor con el `Reloj`**: la fecha de hoy en America/Santiago, al crear y cada vez que el `PATCH` trae `stock_unidades` (aunque sea el mismo número: contar de nuevo vuelve a anclar el cálculo). El cliente no lo envía (422 por campo extra). Razones: la pantalla pregunta "¿cuántos quedan?" sin un selector de fecha, se evita validar fechas futuras y la zona horaria del teléfono, y una cuenta antigua se corrige anotando de nuevo.
+43. **Topes:** `tasa_unidades` de 1 a 10.000, `tasa_dias` de 1 a 90, `stock_unidades` de 0 a 100.000, `dias_aviso` de 0 a 60 (7 por omisión) y una cobertura de **3.650 días como máximo** (`piso(stock_unidades * tasa_dias / tasa_unidades)`; si no, 422 `cobertura_maxima`). 10.000 alcanza para ml y g; el tope de cobertura evita fechas absurdas y que `stock_medido_en + días` se salga del rango de fechas de Python (año 9999).
+44. **`type` nuevos:**
+    - `/errores/sesion-expirada` (401 de la renovación), en vez de reutilizar `token-invalido`: `token-invalido` en una ruta cualquiera significa "renueva", y `sesion-expirada` en la renovación significa "vuelve a entrar". Con uno solo la app podría quedar renovando en un ciclo.
+    - `/errores/autorizacion-vigente`, `/errores/perfil-duplicado`, `/errores/perfil-inactivo` y `/errores/alerta-cerrada` (409), uno por conflicto, para que la pantalla elija el texto por `type`.
+    - El 403 del consumo reutiliza `sin-consentimiento` y `revision-vencida` con el miembro de extensión `finalidad: consumo`. El 403 de la ficha no lo trae hoy; agregarlo (`plan_cuidado`) sería un cambio a una ruta implementada y no se propone aquí.
+45. **Sin `X-MATU-Cliente: web`, 422, no 401.** Se evalúa antes de mirar la cookie, así que no revela nada de ella, y no rota, no revoca ni borra la cookie. Es un error de programación del cliente, no un estado de la sesión: con 401 la app mandaría a la persona a la entrada y escondería el error. Además, así lo hace FastAPI con una cabecera obligatoria (`Header` con `Literal["web"]`), y el contrato coincide con lo que exportará `openapi.json`. Vale para renovar y cerrar.
+46. **Desactivar es `POST …/consumo/{perfil_id}/desactivar`**, idempotente y sin `If-Match` (archivar no pisa lo que escribió otro). Nunca borra. En la misma transacción pasa a `descartada` las alertas abiertas del perfil. No hay reactivar: se crea otro perfil.
+47. **Un dispositivo es un navegador con sesión.** Iniciar sesión crea un dispositivo `web` con un `nombre` grueso ("Chrome en Android") que arma el servidor sin guardar el agente de usuario, o reutiliza el de la cookie si es del mismo usuario y no está revocado (revocando la familia anterior: una sesión viva por dispositivo). **Cerrar sesión revoca también el dispositivo y borra su `push_token`**: un navegador sin sesión no recibe avisos, y "Tus dispositivos" muestra solo los que tienen una sesión abierta. Sin una cookie propia de dispositivo, que sería un identificador más del navegador.
+48. **El access token lleva el claim `did`** (id del dispositivo): así `GET /v1/dispositivos` marca el `actual` y `PUT /v1/dispositivos/actual/push` sabe dónde escribir, sin que la cookie del refresh (que solo viaja a `/v1/sesiones`) salga de su ruta. El access token vence a los 15 minutos **o** cuando vence la familia, lo que ocurra primero. Cambia `tokens_jwt.py` en MATU-38.
+49. **Demora progresiva de la entrada.** Dos contadores de fallos en Redis, por huella de la IP y por huella del email normalizado (HMAC-SHA-256 con un secreto nuevo de `.env`, por ejemplo `PEPPER_LIMITES`, que MATU-25 puede compartir con otro prefijo), que vencen a la hora del primer fallo. Sin demora hasta 5 fallos por email y 20 por IP (CGNAT); después 30 s, 1, 2, 4 y 8 minutos, con tope de 15. El mismo 429 exista o no el email, sin leer la base. Nunca bloquea la cuenta. Un 200 borra el contador del email, nunca el de la IP. **Sin Redis, 503**: falla cerrada, como el canje del relevo; quien ya entró sigue con su refresh, que no usa Redis. **Riesgo aceptado, por confirmar:** alguien que conoce un email puede hacer esperar a esa persona hasta 15 minutos por vez, sin bloquearla.
+50. **`push_token` es solo un endpoint de Web Push**, `https`, de hasta 1024 caracteres, con el host en una lista cerrada de servicios de push. Sin la lista, un usuario podría hacer que el servidor envíe peticiones a cualquier dirección (incluidas las internas) al avisar. Con solo el endpoint, MATU envía avisos sin contenido (RFC 8030 con VAPID) y el service worker muestra un texto fijo, lo que calza con avisar sin el nombre de la persona ni del producto. Si MATU-41 necesita contenido cifrado, hacen falta las claves `p256dh` y `auth`, y es un cambio a este contrato.
+51. **Sin período de gracia para la reutilización.** Dos renovaciones simultáneas con la misma cookie (dos pestañas) revocan la familia. El cliente serializa la renovación entre pestañas (por ejemplo con `navigator.locks`) y nunca la reintenta con la cookie anterior. Si el piloto muestra cierres de sesión inesperados, se evalúa una gracia de pocos segundos (pregunta para Jorge).
+52. **Se auditan las escrituras del consumo, no las lecturas.** `consumo.crear`, `consumo.editar`, `consumo.desactivar` y `alerta.descartar` (acciones nuevas en `AccionAuditoria`), más `consentimiento.otorgar`, sin `nombre_libre`, sin cantidades y sin IP. Las lecturas no se auditan: el consumo no está cifrado, se lee en cada pantalla, y "quién la vio" es una vista de la ficha.
+53. **Paginación.** La lista de perfiles y la de alertas usan cursor (`cursor`, `limite`), como los accesos de relevo. "Qué se acaba pronto" y los dispositivos no: están acotados. "Qué se acaba pronto" sale de `perfil_consumo` (fecha estimada dentro de `dias_aviso`, incluidos los ya pasados), no de `alerta_quiebre`: se ve aunque el trabajo diario no haya corrido y aunque la alerta se haya descartado.
+54. **Consumo y alertas cuelgan de la persona** (`/v1/personas-cuidadas/{persona_id}/consumo…`), con `X-Grupo-Id`, igual que la ficha (decisión 1). La arquitectura 9.3 dice `PATCH /v1/consumo/{id}`, `GET /v1/alertas` y `POST /v1/alertas/{id}/descartar` (ver "Contradicciones (MATU-32)"). Al implementar, las rutas fijas `por-acabarse` y `alertas` se registran antes que `{perfil_id}`.
+
 ## Notas de implementación de MATU-12
 
 Decisiones técnicas del backend que no cambian el contrato. Si alguna no corresponde, se corrige antes de fusionar.
@@ -287,3 +316,79 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 - **429 por IP** (MATU-25) y **`/plan/aperturas`** (sprint 3) no están implementados.
 - **Un 500** lleva `Cache-Control: no-store` siempre y, bajo `/v1/relevo/`, también `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. Lo pone el manejador de `app/core/errores.py`, porque el 500 lo arma `ServerErrorMiddleware` por fuera del middleware de cabeceras.
 - **Privilegios del dueño para `relevo_autorizacion_vigente`.** La función corre como su dueño (`matu_owner`). Con un dueño sin superusuario ni `BYPASSRLS`, como en CI y como manda `00_roles.sql`, las políticas que alcanzan sus lecturas (por ejemplo `plan_familia`, que llama a `app_puede_ver_plan()`) leen `membresia`: el dueño necesita `SELECT` sobre `membresia`. El QA lo comprobó con un rol no superusuario. En la base local de desarrollo `matu_owner` es superusuario y no lo nota: revisar cómo se crearon los roles allí.
+
+## Notas para implementar MATU-36, MATU-37, MATU-38 y MATU-41
+
+- **Migraciones de MATU-38**, reversibles y probadas: el valor `dispositivo` en el `CHECK` de `sesion_refresh.motivo_revocacion`. Las políticas de RLS de `dispositivo` y `sesion_refresh` van en "Pendientes para Jorge (MATU-32)".
+- **Migraciones de MATU-36**: `perfil_consumo.version integer NOT NULL DEFAULT 1` (decisión 41). Opcionales, en la misma migración: un `CHECK` de exactamente uno de `producto_id` y `nombre_libre` (hoy el `CHECK perfil_consumo_producto` acepta los dos) y otro de `char_length(nombre_libre) <= 60`.
+- **La renovación resuelve el token antes de tener contexto** con `indice_token` (`tipo = 'refresh'`, sin RLS, ya previsto en el esquema), y recién después fija `app.usuario_id` para leer `sesion_refresh`, como el relevo (arquitectura 7.7, excepción b).
+- **El trabajo diario de MATU-37** (arquitectura 8.5) revisa, por persona, que la autorización para `consumo` esté vigente (no revocada y, si es de un cuidador de hecho, con la revisión al día según el `Reloj`) **antes** de materializar una alerta o de avisar. Sin ella no crea alertas ni avisa. Los eventos del outbox (`QuiebreProximo`) llevan solo identificadores (`alerta_id`, `perfil_id`), como exige `payload_solo_identificadores`.
+- **Alertas y cambios del perfil (MATU-37):** cuando un `PATCH` cambia `fecha_quiebre_estimada`, una alerta abierta con otra `fecha_prevista` queda desalineada. Este contrato no decide qué pasa con ella (cerrarla o dejar que el trabajo diario cree la nueva): lo decide MATU-37 y, si cambia lo que ve la app, actualiza este contrato.
+- **MATU-41** lee el `push_token` solo para enviar, y el aviso no lleva el nombre de la persona ni del producto (pendiente de Jorge).
+- **Logs:** la línea de la petición lleva la plantilla de la ruta, el usuario y el grupo, nunca el cuerpo. La reutilización de un refresh se registra como evento de seguridad con el id de la familia, sin el token.
+
+## Pendientes para Jorge (MATU-32)
+
+1. **Aprobar las decisiones 37 a 54**, en especial la 37 (autorización propia para el consumo), que es la opción (a) del analista.
+2. **Quién descarta alertas:** hoy `admin` y `cuidador`. ¿También el `pagador`? Hasta que decidas, recibe 404.
+3. **Plazos de conservación** que propone el analista: borrar las filas de `sesion_refresh` 7 días después de que vencen, y un dispositivo 30 días después de sacarlo. Relacionado: un dispositivo cuya sesión venció sin cerrarse sigue en "Tus dispositivos" hasta que se saca; la tarea de conservación podría revocarlo al vencer su última sesión.
+4. **Avisos por push y por correo sin el nombre de la persona ni del producto** (MATU-41). Con la decisión 50 el push no lleva contenido.
+5. **RLS de `dispositivo` y `sesion_refresh` para operación** (para MATU-38): hoy `dispositivo_operacion` deja a operación leer `push_token`, y `sesion_operacion` es `FOR ALL`. Se propone una migración que acote a operación a lo que necesita (por ejemplo, ver dispositivos sin `push_token` y revocar sesiones), sin leer ni escribir el resto.
+6. **Política de escritura por rol en `perfil_consumo`** (opcional): hoy `perfil_familia` es `FOR ALL` por grupo y el rol lo controla solo la API. Una política que exija `admin` o `cuidador` para escribir sería una segunda barrera.
+7. **Política de privacidad 0.10 y entradas 5 y 6 del registro de tratamientos** (consumo y sesión/dispositivos). Las redacta el analista normativo y van en otro PR, en el repositorio MATU. Deben cubrir, al menos: la declaración de la autorización para el consumo (decisión 37); la sección 4, "Tu sesión", que hoy dice que la sesión dura 15 minutos y pasa a 30 días con la cookie; los dispositivos y el endpoint de push; la huella de la IP y del email en la demora progresiva; y la sección 8 (decisión 38). MATU-36 no habilita la autorización mientras `POLITICA_VERSION` sea 0.9.
+8. **Renovar la revisión anual de la autorización para el consumo**: como hay un solo consentimiento no revocado por persona y finalidad, una fila nueva exige registrar antes la revocación de la vigente, en la misma transacción. Hasta MATU-44, un cuidador de hecho con la revisión vencida queda con 403 `revision-vencida`, igual que hoy en la ficha.
+9. **El nombre de quien entra:** ¿alguna pantalla de MATU-39 lo necesita? Si sí, falta `GET /v1/usuarios/yo` (ver "Lo que no hay").
+10. **Gracia en la renovación** (decisión 51) y **riesgo de la demora por email** (decisión 49): confirmar que se aceptan.
+11. **Para la tarjeta de consulta legal en Trello:**
+    - si el consumo de insumos es un dato de salud según la Ley 21.719 y si basta RLS sin cifrado cuando haya datos reales (la política ya lo trata como dato sensible);
+    - la base de licitud de los contadores por huella de IP y de email de la demora progresiva.
+
+## Textos propuestos para `lenguaje.md` (MATU-32)
+
+Pendientes de Jorge y del analista normativo. El contrato remite a ellos y no los fija: van a `docs/lenguaje.md` del repositorio MATU en otro PR.
+
+| Dónde | Texto propuesto |
+|---|---|
+| Qué se acaba pronto, `dias_restantes > 1` | Se acaban en {n} días |
+| Qué se acaba pronto, `dias_restantes = 1` | Se acaba en 1 día |
+| Qué se acaba pronto, `dias_restantes = 0` | Se acaban hoy |
+| Qué se acaba pronto, encabezado, o `dias_restantes < 0` | Pronto se acaba |
+| Nota bajo la fecha estimada | Es un cálculo con lo que anotaste. Revisa de vez en cuando cuánto queda |
+| Ayuda de `nombre_libre` | Escribe el nombre como aparece en el envase, por ejemplo «Toallitas húmedas». No escribas remedios ni para qué lo usa |
+| Botón de descartar | No avisar esta vez |
+| 429 de la entrada (`demasiadas-peticiones`), con `{minutos}` = `Retry-After` / 60 redondeado hacia arriba | Hubo varios intentos de entrar. Espera {minutos} minutos y vuelve a intentarlo |
+| Dispositivos, título | Tus dispositivos |
+| Dispositivos, el `actual` | Este dispositivo |
+| Dispositivos, `ultimo_uso_en` | Último uso: {fecha} a las {hora} |
+| Dispositivos, botón | Sacar este dispositivo |
+
+Falta definir el texto de `sesion-expirada`, de los cuatro 409 nuevos y de los 422 propios del consumo (`producto_o_nombre`, `cobertura_maxima`, …).
+
+**Inconsistencia en `lenguaje.md`:** la sección 3.2 pide evitar "sesión" (jerga técnica; dice usar "entrar"), pero la sección 8 usa "Tu sesión terminó" para `no-autenticado` y `token-invalido`. Hay que elegir antes de escribir el texto de `sesion-expirada`.
+
+## Contradicciones (MATU-32)
+
+Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las migraciones) y las decisiones de Martín del 31-10. Jorge corrige la arquitectura en la v1.2 (MATU-43).
+
+| Documento | Dice | Este contrato | Fuente |
+|---|---|---|---|
+| Arquitectura 9.3 | Cuerpo `{producto_id, tasa_uso, unidad_tasa, stock_estimado, dias_aviso}` | `tasa_unidades` / `tasa_dias`, `stock_unidades`, `unidad`, `producto_id` o `nombre_libre` | Esquema (`perfil_consumo`) |
+| Arquitectura 7.3 | Campo `tasa_uso_diaria` y `dias_de_cobertura = piso(stock_unidades / tasa_uso_diaria)` | Fracción entera: `piso(stock_unidades * tasa_dias / tasa_unidades)` | Esquema, comentario de `perfil_consumo` |
+| Arquitectura 9.3 | `PATCH /v1/consumo/{id}`, `GET /v1/alertas?estado=`, `POST /v1/alertas/{id}/descartar` | Todo bajo `/v1/personas-cuidadas/{persona_id}/consumo…`, con `X-Grupo-Id` | Decisión 54, instrucción de MATU-32 |
+| Arquitectura 9.3 | `GET …/lista-reposicion` | `GET …/consumo/por-acabarse`. La lista de reposición (con sugerencias de envases) es del sprint 4 | Decisión 53 |
+| Arquitectura 9.1 | "refresh rotativo de 30 días por dispositivo" | 30 días **desde el inicio de sesión**, sin ventana deslizante | Decisión 39 |
+| Arquitectura 11.6 | Aplicación móvil: "tokens en el keystore del sistema" | Web (ADR-026): refresh en cookie `HttpOnly` y access token en memoria | Decisiones 39 y 40 |
+| Política v0.9, sección 4, "Tu sesión" | "Cuando entras, tu sesión dura 15 minutos" | El access token dura 15 minutos, pero la sesión dura hasta 30 días con la cookie | Decisión 39. Se corrige en la 0.10 |
+| Política v0.9, sección 8 | Ficha y consumo: "los dejamos ilegibles de inmediato destruyendo su clave" | El consumo no se cifra: se borra | Decisión 38. Se corrige en la 0.10 |
+| Instrucción de MATU-32 | "El consentimiento es inalterable: la revocación y la confirmación anual son filas nuevas" | La migración 0006 registra la revocación **fijando `revocado_en` una sola vez** en la misma fila (trigger `consentimiento_solo_revocacion`), no con una fila nueva. Y `consentimiento_vigente_uq` impide una segunda fila no revocada para la misma finalidad, así que la confirmación anual como fila nueva exige revocar antes la anterior | Migración 0006 y esquema. Por eso revocar queda fuera, con MATU-44 |
+| `lenguaje.md` 3.2 frente a 8 | Evitar "sesión" / "Tu sesión terminó" | Sin texto propio: se pregunta | Ver "Textos propuestos" |
+
+## Fuera de este contrato (MATU-32)
+
+- **Las secciones complementarias de la ficha del ADR-028** (MATU-49).
+- **Invitaciones y roles** (MATU-42 y MATU-53, sprint 4).
+- **Registrar una reposición** ("Ya lo compré", `resuelta`, `reposicion`): MATU-51, sprint 4.
+- **La lista de reposición**, con envases sugeridos, y exportarla (sprint 4).
+- **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
+- **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
+- **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
