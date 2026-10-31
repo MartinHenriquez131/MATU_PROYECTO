@@ -469,7 +469,13 @@ paths:
         - la versión de la política la fija el servidor (`POLITICA_VERSION`), nunca el cliente.
 
         **Exige la política 0.10**, con la declaración nueva que el analista dejó como borrador.
-        MATU-36 no habilita esta ruta mientras `POLITICA_VERSION` sea 0.9 (pendiente de Jorge).
+        **Mientras `POLITICA_VERSION` sea 0.9, la ruta no responde un error propio.** Igual que el
+        alta de MATU-07 (`obtener_politica_version` en `router_personas.py`), no compara versiones:
+        registra la que diga la configuración, que solo exige el formato `MAYOR.MENOR` y que exista
+        (sin ella la API no arranca fuera de pruebas). Con 0.9 respondería **201** con
+        `version_politica: "0.9"` y una evidencia que cita una declaración que la 0.9 no tiene. Por
+        eso es una condición de despliegue, no de la API: `POLITICA_VERSION` pasa a 0.10 antes de
+        que la ruta llegue a un ambiente con usuarios (pendiente de Jorge).
 
         **Inalterable** (migración 0006): la fila nunca se edita ni se borra. Solo admite fijar
         `revocado_en` una vez. Hay un solo consentimiento no revocado por persona y finalidad
