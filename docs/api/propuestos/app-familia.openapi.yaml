@@ -333,7 +333,7 @@ paths:
                         ultimo_uso_en: '2026-10-29T23:50:00Z'
                         actual: false
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
 
   /v1/dispositivos/{dispositivo_id}:
     parameters:
@@ -371,7 +371,7 @@ paths:
             Set-Cookie:
               $ref: '#/components/headers/BorrarCookieRefreshOpcional'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '404':
           $ref: '#/components/responses/NoEncontradoPropio'
 
@@ -415,7 +415,7 @@ paths:
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '404':
           $ref: '#/components/responses/NoEncontradoPropio'
         '422':
@@ -439,7 +439,7 @@ paths:
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '404':
           $ref: '#/components/responses/NoEncontradoPropio'
 
@@ -533,9 +533,9 @@ paths:
                       revision_vence_en: null
                     aviso: null
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '409':
           $ref: '#/components/responses/AutorizacionVigente'
         '422':
@@ -617,13 +617,13 @@ paths:
                         etag: '"v1"'
                     siguiente_cursor: null
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '422':
-          $ref: '#/components/responses/ValidacionConsulta'
+          $ref: '#/components/responses/ValidacionConsultaApp'
     post:
       tags: [consumo]
       operationId: crearPerfilConsumo
@@ -709,11 +709,11 @@ paths:
                 panal:
                   $ref: '#/components/examples/PerfilPanal'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '409':
           $ref: '#/components/responses/PerfilDuplicado'
         '422':
@@ -777,11 +777,11 @@ paths:
                         activo: true
                         etag: '"v1"'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
 
   /v1/personas-cuidadas/{persona_id}/consumo/alertas:
     parameters:
@@ -849,13 +849,13 @@ paths:
                         cerrada_en: null
                     siguiente_cursor: null
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '422':
-          $ref: '#/components/responses/ValidacionConsulta'
+          $ref: '#/components/responses/ValidacionConsultaApp'
 
   /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar:
     parameters:
@@ -912,11 +912,11 @@ paths:
                     notificada_en: '2026-10-31T07:00:40Z'
                     cerrada_en: '2026-10-31T13:15:00Z'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '409':
           $ref: '#/components/responses/AlertaCerrada'
 
@@ -955,11 +955,11 @@ paths:
                 panal:
                   $ref: '#/components/examples/PerfilPanal'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
     patch:
       tags: [consumo]
       operationId: editarPerfilConsumo
@@ -1046,11 +1046,11 @@ paths:
                     activo: true
                     etag: '"v2"'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
         '409':
           $ref: '#/components/responses/PerfilInactivo'
         '412':
@@ -1123,11 +1123,11 @@ paths:
                     activo: false
                     etag: '"v2"'
         '401':
-          $ref: '#/components/responses/NoAutenticado'
+          $ref: '#/components/responses/NoAutenticadoApp'
         '403':
           $ref: '#/components/responses/SinAutorizacionConsumo'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          $ref: '#/components/responses/NoEncontradoApp'
 
 components:
   securitySchemes:
@@ -1920,6 +1920,94 @@ components:
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000e3
 
+    NoAutenticadoApp:
+      description: |
+        El 401 de `NoAutenticado` (idéntico a `relevo.openapi.yaml`), más `Cache-Control: no-store`.
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`).
+
+        **En la app de familia, `token-invalido` significa "renueva":** la app llama una vez a
+        `POST /v1/sesiones/renovar` y repite la petición. Solo si la renovación responde 401
+        `sesion-expirada` vuelve a la pantalla de entrada. El `detail` del ejemplo es el que
+        devuelve hoy `usuario_actual` (MATU-05a); la app no lo muestra (`docs/lenguaje.md`,
+        sección 8).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+          example:
+            type: /errores/token-invalido
+            title: No autenticado
+            status: 401
+            detail: Inicia sesión de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000116
+
+    NoEncontradoApp:
+      description: |
+        El mismo 404 para todos estos casos, para no revelar qué existe, con `Cache-Control:
+        no-store`: falta `X-Grupo-Id` o no es un UUID; el usuario no es miembro activo del grupo; su
+        rol no alcanza para escribir (`pagador` y `observador` al dar la autorización, crear,
+        editar o desactivar un perfil, o descartar una alerta); la persona no existe o es de otro
+        grupo; el perfil o la alerta no existen o no son de esa persona.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+          example:
+            type: /errores/no-encontrado
+            title: No encontrado
+            status: 404
+            detail: null
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000117
+
+    ValidacionConsultaApp:
+      description: '`cursor` inválido, `limite` fuera de 1 a 100, `activo` que no es booleano, o un `estado` fuera de la lista.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: limite
+                mensaje: Input should be less than or equal to 100
+                tipo: less_than_equal
+            request_id: 9b2f4c1e-0000-4000-8000-000000000118
+
     NoEncontradoPropio:
       description: |
         El dispositivo no existe, es de otro usuario, su id no es un UUID, o el access token no
@@ -2253,26 +2341,6 @@ components:
                 request_id: 9b2f4c1e-0000-4000-8000-00000000010c
                 finalidad: consumo
 
-    ValidacionConsulta:
-      description: '`cursor` inválido, `limite` fuera de 1 a 100, `activo` que no es booleano, o un `estado` fuera de la lista.'
-      headers:
-        X-Request-ID:
-          $ref: '#/components/headers/XRequestId'
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/ProblemaValidacion'
-          example:
-            type: /errores/validacion
-            title: Datos inválidos
-            status: 422
-            detail: Revisa los campos indicados
-            errores:
-              - campo: limite
-                mensaje: Input should be less than or equal to 100
-                tipo: less_than_equal
-            request_id: 9b2f4c1e-0000-4000-8000-0000000000e8
-
     ValidacionPerfil:
       description: |
         Cuerpo inválido. `errores[]` nombra el campo y **nunca repite el valor**, tampoco el de
@@ -2527,29 +2595,3 @@ components:
         dias_restantes: 6
         activo: true
         etag: '"v1"'
-    PerfilToallitas:
-      summary: Toallitas húmedas, diez al día, quedan 160
-      value:
-        id: 3c9d4e20-0000-4000-8000-0000000000c2
-        producto: null
-        nombre_libre: Toallitas húmedas
-        unidad: unidad
-        tasa_unidades: 10
-        tasa_dias: 1
-        stock_unidades: 160
-        stock_medido_en: '2026-10-31'
-        dias_aviso: 7
-        fecha_quiebre_estimada: '2026-11-16'
-        dias_restantes: 16
-        activo: true
-        etag: '"v1"'
-    AlertaNotificada:
-      summary: Aviso enviado por los pañales
-      value:
-        id: 4f0a1b30-0000-4000-8000-0000000000d1
-        perfil_id: 3c9d4e20-0000-4000-8000-0000000000c1
-        fecha_prevista: '2026-11-06'
-        estado: notificada
-        creada_en: '2026-10-31T07:00:05Z'
-        notificada_en: '2026-10-31T07:00:40Z'
-        cerrada_en: null
