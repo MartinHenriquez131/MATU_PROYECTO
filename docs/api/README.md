@@ -343,6 +343,10 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 11. **Para la tarjeta de consulta legal en Trello:**
     - si el consumo de insumos es un dato de salud según la Ley 21.719 y si basta RLS sin cifrado cuando haya datos reales (la política ya lo trata como dato sensible);
     - la base de licitud de los contadores por huella de IP y de email de la demora progresiva.
+12. **H5 de la QA, anterior a MATU-32:** en la API viva, `DELETE /v1/accesos-relevo/{acceso_id}` expone un 422 genérico de FastAPI (por el UUID del path) que `relevo.openapi.yaml` no declara. Lo corrige la historia que exporte las rutas del relevo a `openapi.json`.
+13. **H9 de la QA, dos cosas que no están en el esquema:**
+    - Que `nombre_libre` vaya "en una sola línea" está solo en la descripción, no en un `pattern`. La validación queda para la implementación de MATU-36, que rechaza los saltos de línea y los caracteres de control con 422.
+    - `SesionRespuesta` no tiene `additionalProperties: false`, igual que hoy en `openapi.json`.
 
 ## Textos propuestos para `lenguaje.md` (MATU-32)
 
