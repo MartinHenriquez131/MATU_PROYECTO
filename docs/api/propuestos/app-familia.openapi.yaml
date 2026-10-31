@@ -1,0 +1,2547 @@
+openapi: 3.1.0
+info:
+  title: MATU API · App de familia (propuesto)
+  version: 0.1.0-propuesto
+  summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto y alertas.
+  description: |
+    Contrato **propuesto** de MATU-32, acordado antes de implementar (arquitectura 15.5, regla 1).
+    Lo implementan MATU-38 (sesión y dispositivos), MATU-36 (autorización para el consumo y
+    perfiles), MATU-37 (qué se acaba pronto y alertas) y MATU-41 (avisos por push, que usa
+    `PUT /v1/dispositivos/actual/push`). Lo consume la app de familia (MATU-39). Ver
+    `docs/api/README.md`, sección "Lo que usa la app de familia (MATU-32)".
+
+    **Estado de las decisiones.** Las decisiones de Martín del 31-10 y las de diseño de este
+    contrato están **pendientes de aprobación de Jorge** (decisiones 37 a 54 del README).
+
+    **Sesión (MATU-38, RF-37).**
+
+    - El access token (JWT de 15 minutos, MATU-05a) vive **solo en memoria** en el cliente: nunca en
+      `localStorage`, `sessionStorage`, IndexedDB, una cookie legible ni la URL. Al recargar la
+      página, la app llama a `POST /v1/sesiones/renovar` y obtiene uno nuevo.
+    - El refresh token viaja **solo** en la cookie `__Secure-matu-refresh` (`HttpOnly`, `Secure`,
+      `SameSite=Strict`, `Path=/v1/sesiones`). Nunca en un cuerpo, una URL, un log, un error, la
+      auditoría ni un evento. La base guarda solo su SHA-256 (`sesion_refresh.token_hash` e
+      `indice_token.token_hash`, `tipo = 'refresh'`).
+    - **Vigencia: 30 días desde el inicio de sesión, sin ventana deslizante** (decisión de Martín
+      del 31-10). Iniciar sesión crea una familia (`familia_id`) con su `expira_en`, y cada token
+      que nace al renovar hereda ese mismo `expira_en`. Renovar no alarga la sesión.
+    - **Revocar no es inmediato para el access token.** Al cerrar sesión o sacar un dispositivo, el
+      refresh deja de servir en ese momento, pero un access token ya emitido sigue valiendo hasta
+      sus 15 minutos (arquitectura 11.6). Se acepta y se declara.
+
+    **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
+    (MATU-02) y fijan el contexto con `sesion_de_grupo`. Las de sesión y dispositivos no dependen de
+    un grupo: no llevan `X-Grupo-Id`.
+
+    **Lo que nunca sale ni se registra.** Los logs, los errores, la auditoría y los eventos del
+    outbox nunca llevan `nombre_libre`, `push_token`, el refresh token, el access token, el email
+    ni la IP. Un 422 nombra el campo y nunca repite el valor (`app/core/errores.py`). Los eventos
+    del outbox llevan solo identificadores (`payload_solo_identificadores`).
+
+    **`Cache-Control: no-store`** en toda respuesta de sesión, dispositivos, autorización, consumo
+    y alertas. La cabecera `CacheControlNoStore` es la misma, idéntica, de `ficha.openapi.yaml` y
+    `relevo.openapi.yaml`: su descripción habla de la ficha y del relevo, y aquí vale igual para
+    lo que dice cuánto usa la persona de cada insumo o cómo entra la familia.
+
+    **Ninguna ruta `/v1/relevo/…` devuelve consumo**, perfiles, alertas ni dispositivos.
+
+    **Auditoría propuesta** (`auditoria.accion`, catálogo `AccionAuditoria`):
+    `consentimiento.otorgar` (ya existe), `consumo.crear`, `consumo.editar`,
+    `consumo.desactivar` y `alerta.descartar` (nuevas). Sin `nombre_libre`, sin cantidades y sin
+    IP. Las lecturas del consumo no se auditan (decisión 52).
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: sesiones
+    description: Entrar, renovar y salir (MATU-05a y MATU-38)
+  - name: dispositivos
+    description: Los navegadores con una sesión abierta y su endpoint de push (MATU-38 y MATU-41)
+  - name: autorizaciones
+    description: Autorización para el cálculo de insumos (MATU-36)
+  - name: consumo
+    description: Cuánto se usa de cada insumo y cuándo se acaba (capa 2, MATU-36 y MATU-37)
+  - name: alertas
+    description: Avisos antes de que algo se acabe (capa 2, MATU-37)
+
+paths:
+  /v1/sesiones:
+    post:
+      tags: [sesiones]
+      operationId: iniciarSesion
+      summary: Iniciar sesión (cambio propuesto a una ruta implementada)
+      description: |
+        **Ruta implementada** (MATU-05a, en `docs/api/openapi.json`). Este contrato propone un
+        **cambio** que hace MATU-38, y MATU-38 **vuelve a exportar `openapi.json`** en el mismo PR.
+
+        **Lo que no cambia:** el cuerpo (`SolicitudSesion`, sin largo mínimo ni forma de email) y la
+        respuesta (`SesionRespuesta`: `access_token`, `token_type` y `expira_en` en **segundos**),
+        el mismo 401 `credenciales-invalidas` exista o no el email, y `Cache-Control: no-store`.
+
+        **Lo que agrega MATU-38:**
+
+        1. **Cookie del refresh.** El 200 lleva `Set-Cookie: __Secure-matu-refresh=<refresh>` con
+           `Max-Age=2592000` (30 días). El refresh son 256 bits aleatorios en base64url
+           (43 caracteres). Crea una familia nueva (`familia_id`) con
+           `expira_en = ahora + 30 días`, según el puerto `Reloj`.
+        2. **Dispositivo.** Si la petición trae una cookie de refresh vigente **del mismo usuario** y
+           su dispositivo no está revocado, reutiliza ese dispositivo y revoca la familia anterior
+           (`motivo_revocacion = 'logout'`): un dispositivo tiene una sola sesión viva. Si no,
+           crea un dispositivo con `plataforma = 'web'` y un `nombre` grueso que arma el servidor
+           ("Chrome en Android", decisión 47), sin guardar el agente de usuario. En los dos casos
+           fija `ultimo_uso_en`. Una cookie de otro usuario se ignora y se reemplaza.
+        3. **El access token lleva el claim `did`** con el id del dispositivo, para que
+           `GET /v1/dispositivos` sepa cuál es el `actual` (decisión 48).
+        4. **Demora progresiva** (429), descrita abajo.
+
+        **Orden de evaluación:**
+
+        1. Cuerpo válido (topes de largo). Si no, **422**. No cuenta como intento.
+        2. Demora progresiva: si la huella de la IP o la del email están en espera, **429** con
+           `Retry-After`. No verifica la contraseña (no corre Argon2) y no cuenta como intento.
+           Sin Redis, **503**: la entrada falla cerrada, igual que el canje del relevo (decisión 49).
+        3. Credenciales. Si no corresponden, la cuenta no existe o no está activa, **401**
+           `credenciales-invalidas`, y suma un fallo a las dos huellas.
+        4. **200**: crea la familia, la cookie y el dispositivo, y borra el contador del email.
+
+        **Demora progresiva** (decisión 49):
+
+        - Dos contadores de fallos en Redis por petición fallida: uno por la huella de la IP y otro
+          por la huella del email normalizado (la misma normalización de `indice_credencial`). Cada
+          huella es `HMAC-SHA-256(PEPPER_LIMITES, "<prefijo>:<valor>")`, con un secreto nuevo de
+          `.env` vía `pydantic-settings`, distinto de los demás. **Nunca la IP ni el email en
+          claro**, ni en Redis ni en los logs. Cada contador vence a la hora del primer fallo.
+        - **Los primeros intentos van sin demora:** hasta 5 fallos por email y 20 por IP en la hora
+          (la IP es más permisiva porque en Chile muchos celulares comparten IP pública, CGNAT).
+        - Desde ahí, la espera desde el último fallo crece: 30 s, 1, 2, 4 y 8 minutos, con un
+          **tope de 15 minutos**. Mientras dura, la ruta responde 429 sin evaluar.
+        - **El mismo trato exista o no el email.** El contador se lleva por la huella, sin leer la
+          base, así que el 429 no revela si hay una cuenta.
+        - **Nunca bloquea la cuenta:** no cambia `usuario.estado`. Pasada la espera, se puede
+          volver a intentar. Un 200 borra el contador del email, nunca el de la IP.
+      x-matu-historia: MATU-05a (implementada), MATU-38 (cambio), RF-37
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudSesion'
+            examples:
+              carmen:
+                summary: Carmen entra con su email y su contraseña
+                value:
+                  email: carmen@ejemplo.cl
+                  contrasena: '<contraseña de ejemplo>'
+      responses:
+        '200':
+          description: |
+            Sesión iniciada. El access token va en el cuerpo y el cliente lo guarda solo en memoria.
+            El refresh va solo en la cookie.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookieRefreshInicio'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SesionRespuesta'
+              examples:
+                iniciada:
+                  summary: Access token de 15 minutos
+                  value:
+                    access_token: ejemplo.de-access-token.no-valido
+                    token_type: bearer
+                    expira_en: 900
+        '401':
+          $ref: '#/components/responses/CredencialesInvalidas'
+        '422':
+          $ref: '#/components/responses/ValidacionSesion'
+        '429':
+          $ref: '#/components/responses/DemasiadosIntentos'
+        '503':
+          $ref: '#/components/responses/SesionSinServicio'
+
+  /v1/sesiones/renovar:
+    post:
+      tags: [sesiones]
+      operationId: renovarSesion
+      summary: Obtener un access token nuevo con la cookie del refresh
+      description: |
+        Sin `Authorization` y sin cuerpo. Usa la cookie `__Secure-matu-refresh` y la cabecera fija
+        `X-MATU-Cliente: web`. La app la llama al abrir o recargar la página (el access token vive
+        solo en memoria) y cuando una ruta responde 401 `token-invalido`.
+
+        **Rotación con detección de reutilización** (arquitectura 11.6, `sesion_refresh`): cada
+        refresh sirve **una vez**. Al renovar, el token presentado queda con `usado_en` y nace otro
+        de la misma familia, con el mismo `expira_en`.
+
+        **Orden de evaluación:**
+
+        1. `X-MATU-Cliente: web`. Si falta o trae otro valor, **422**, antes de mirar la cookie: no
+           toca la familia, no rota y no borra la cookie (decisión 45).
+        2. Cookie presente y con forma de refresh. Si no, **401** `sesion-expirada`.
+        3. El SHA-256 corresponde a una entrada de `indice_token` con `tipo = 'refresh'` (tabla sin
+           RLS, que traduce el hash a `usuario_id` y al id de la sesión). Si no, **401**.
+        4. Con `app.usuario_id` fijado, la sesión en `sesion_refresh` (`FOR UPDATE`):
+           - revocada, vencida (`expira_en` igual o anterior al `Reloj`), de un dispositivo
+             revocado, o de una cuenta que no está activa → **401**;
+           - **ya usada** (`usado_en` no nulo) → **reutilización**: revoca toda la familia con
+             `motivo_revocacion = 'reutilizacion'` en la misma transacción y responde **401**.
+        5. Si no, **200**: marca `usado_en`, crea el token nuevo de la familia (y su entrada en
+           `indice_token`), actualiza `dispositivo.ultimo_uso_en` y emite un access token.
+
+        **Todos los 401 son el mismo** (`sesion-expirada`, mismo cuerpo, misma cookie borrada):
+        sin cookie, desconocida, vencida, revocada o reutilizada son indistinguibles para el
+        cliente. El servidor registra la reutilización como evento de seguridad en el log JSON,
+        con el id de la familia y sin el token.
+
+        **El access token** vence a los 15 minutos o cuando vence la familia, lo que ocurra
+        primero: `expira_en` puede ser menor que 900 en el último cuarto de hora de la sesión.
+
+        **Varias pestañas.** Dos renovaciones simultáneas con la misma cookie cuentan como
+        reutilización y cierran la sesión. El cliente serializa la renovación entre pestañas (por
+        ejemplo con `navigator.locks`) y nunca la reintenta con la cookie anterior (decisión 51).
+      x-matu-historia: MATU-38, RF-37
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/XMatuCliente'
+      responses:
+        '200':
+          description: Access token nuevo, y una cookie nueva que reemplaza a la anterior.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/SetCookieRefreshRenovado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SesionRespuesta'
+              examples:
+                renovada:
+                  summary: Access token de 15 minutos
+                  value:
+                    access_token: ejemplo.de-access-token-renovado.no-valido
+                    token_type: bearer
+                    expira_en: 900
+                ultimo_cuarto_de_hora:
+                  summary: A la familia le quedan 4 minutos y 10 segundos
+                  value:
+                    access_token: ejemplo.de-access-token-final.no-valido
+                    token_type: bearer
+                    expira_en: 250
+        '401':
+          $ref: '#/components/responses/SesionExpirada'
+        '422':
+          $ref: '#/components/responses/FaltaCabeceraCliente'
+
+  /v1/sesiones/cerrar:
+    post:
+      tags: [sesiones]
+      operationId: cerrarSesion
+      summary: Cerrar la sesión de este navegador
+      description: |
+        Sin cuerpo. Con la cookie `__Secure-matu-refresh` y `X-MATU-Cliente: web`. **No necesita el
+        access token**: funciona aunque esté vencido o falte, y si viene, se ignora.
+
+        - Si la cookie corresponde a una sesión, revoca **toda su familia**
+          (`motivo_revocacion = 'logout'`) y, en la misma transacción, revoca el dispositivo
+          (`revocado_en`) y pone su `push_token = NULL` (decisión 47): un navegador sin sesión no
+          recibe avisos y deja de aparecer en `GET /v1/dispositivos`.
+        - **Idempotente:** sin cookie, con una cookie desconocida, vencida o ya revocada, también
+          responde 204. Siempre borra la cookie con `Max-Age=0`.
+        - Un access token ya emitido sigue valiendo hasta sus 15 minutos. La app lo borra de la
+          memoria al recibir el 204.
+
+        Orden: `X-MATU-Cliente` (si falta, **422**, sin tocar nada) y después **204**.
+      x-matu-historia: MATU-38, RF-37
+      security:
+        - refreshCookie: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/XMatuCliente'
+      responses:
+        '204':
+          description: Sesión cerrada, o no había ninguna. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/BorrarCookieRefresh'
+        '422':
+          $ref: '#/components/responses/FaltaCabeceraCliente'
+
+  /v1/dispositivos:
+    get:
+      tags: [dispositivos]
+      operationId: listarDispositivos
+      summary: Ver los dispositivos propios con una sesión abierta
+      description: |
+        Solo los dispositivos **del usuario del access token** que no están revocados. Sin
+        `X-Grupo-Id`: no dependen de un grupo. RLS (`dispositivo_propio`) acota la consulta a
+        `app.usuario_id`.
+
+        Devuelve `id`, `plataforma`, `nombre`, `creado_en`, `ultimo_uso_en` y `actual`. **Nunca**
+        devuelve `push_token` (ni si existe), `familia_id`, hashes, la IP ni el agente de usuario.
+        `actual` es `true` para el dispositivo del claim `did` del access token; un access token
+        anterior a MATU-38, sin `did`, deja todos en `false`.
+
+        Orden: primero el actual y después por `ultimo_uso_en` descendente. Sin paginación: son
+        pocos. Un dispositivo cuya sesión venció sin cerrarse sigue en la lista hasta que se saca
+        (ver "Pendientes para Jorge" en el README).
+      x-matu-historia: MATU-38
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Los dispositivos propios no revocados.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaDispositivos'
+              examples:
+                dos:
+                  summary: El teléfono de Carmen y el computador de su casa
+                  value:
+                    items:
+                      - id: 6b2c3d40-0000-4000-8000-0000000000f1
+                        plataforma: web
+                        nombre: Chrome en Android
+                        creado_en: '2026-10-20T22:14:00Z'
+                        ultimo_uso_en: '2026-10-31T12:40:00Z'
+                        actual: true
+                      - id: 6b2c3d40-0000-4000-8000-0000000000f2
+                        plataforma: web
+                        nombre: Firefox en Windows
+                        creado_en: '2026-10-12T01:05:00Z'
+                        ultimo_uso_en: '2026-10-29T23:50:00Z'
+                        actual: false
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+
+  /v1/dispositivos/{dispositivo_id}:
+    parameters:
+      - $ref: '#/components/parameters/DispositivoId'
+    delete:
+      tags: [dispositivos]
+      operationId: sacarDispositivo
+      summary: Sacar un dispositivo
+      description: |
+        En **una sola transacción**: revoca todas las sesiones del dispositivo
+        (`sesion_refresh.revocado_en` con `motivo_revocacion = 'dispositivo'`), fija
+        `dispositivo.revocado_en` y pone `push_token = NULL`. Desde ese momento su refresh no
+        renueva y no recibe avisos. Su access token sigue valiendo hasta 15 minutos.
+
+        - **`'dispositivo'` es un valor nuevo de `motivo_revocacion`.** El `CHECK` de
+          `sesion_refresh` admite hoy `logout`, `reutilizacion`, `cambio_clave` y `operacion`: lo
+          agrega una migración de Alembic reversible de MATU-38.
+        - Un dispositivo de otro usuario, inexistente o con un id que no es UUID responde el mismo
+          **404**.
+        - Un dispositivo propio ya revocado responde **204** (idempotente).
+        - Si es el **actual** (el `did` del access token), la respuesta además borra la cookie del
+          refresh, y la app vuelve a la pantalla de entrada.
+      x-matu-historia: MATU-38
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: |
+            Dispositivo sacado. Sin cuerpo. `Set-Cookie` viene solo si era el actual.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Set-Cookie:
+              $ref: '#/components/headers/BorrarCookieRefreshOpcional'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPropio'
+
+  /v1/dispositivos/actual/push:
+    put:
+      tags: [dispositivos]
+      operationId: guardarPushDispositivo
+      summary: Guardar el endpoint de push de este navegador
+      description: |
+        Guarda el endpoint de Web Push del dispositivo del claim `did` del access token, para los
+        avisos de MATU-41. Reemplaza el anterior.
+
+        - **El token solo se escribe.** Nunca aparece en una respuesta, un error, un log, la
+          auditoría ni un evento del outbox. `GET /v1/dispositivos` no dice si existe.
+        - Es un endpoint `https` de un servicio de push conocido, con un largo máximo (decisión 50).
+          MATU le envía peticiones: aceptar cualquier URL le permitiría a un usuario hacer que el
+          servidor llame a direcciones internas.
+        - Sin `did` en el access token, o con el dispositivo revocado, **404**.
+
+        Orden: 401, 404 (dispositivo actual), 422 y 204.
+      x-matu-historia: MATU-38, MATU-41
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPush'
+            examples:
+              web_push:
+                summary: Endpoint de un servicio de push del navegador (sintético)
+                value:
+                  push_token: https://fcm.googleapis.com/fcm/send/ejemplo-sintetico-no-valido
+      responses:
+        '204':
+          description: Guardado. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPropio'
+        '422':
+          $ref: '#/components/responses/ValidacionPush'
+    delete:
+      tags: [dispositivos]
+      operationId: borrarPushDispositivo
+      summary: Dejar de recibir avisos en este navegador
+      description: |
+        Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente: sin token guardado
+        también responde 204. Sin `did`, o con el dispositivo revocado, **404**.
+      x-matu-historia: MATU-38, MATU-41
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Sin endpoint de push. Sin cuerpo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPropio'
+
+  /v1/personas-cuidadas/{persona_id}/consentimientos:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [autorizaciones]
+      operationId: otorgarAutorizacion
+      summary: Dar la autorización para calcular cuándo se acaban los insumos
+      description: |
+        Registra un consentimiento con `finalidad = 'consumo'` para la persona (decisión 37, opción
+        (a) del analista normativo, **pendiente de aprobación de Jorge**). La política de privacidad
+        v0.9 ya lo anuncia: "Antes de activar el cálculo de insumos […] te pediremos una
+        autorización". Sin ella, toda ruta de consumo responde 403.
+
+        **Reutiliza exactamente el alta de MATU-07** (`care_circle/domain/personas.py`):
+
+        - la misma `calidad_otorgante` (`titular`, `representante_legal`, `cuidador_de_hecho`) y las
+          mismas reglas cruzadas de `validar_otorgamiento` para `aviso` y `referencia_documento`;
+        - el mismo aviso del cuidador de hecho (`aviso_cuidador_de_hecho`, versión 1.0), que habla
+          de "organizar su cuidado" y sirve igual;
+        - la misma evidencia mínima (`consentimiento.evidencia`, migración 0006), con una
+          **declaración nueva**: `{"id": "declaracion_consumo_<calidad>", "version": "<version_politica>"}`;
+        - la misma revisión anual: `revision_vence_en` = 12 meses después para el cuidador de hecho;
+        - la versión de la política la fija el servidor (`POLITICA_VERSION`), nunca el cliente.
+
+        **Exige la política 0.10**, con la declaración nueva que el analista dejó como borrador.
+        MATU-36 no habilita esta ruta mientras `POLITICA_VERSION` sea 0.9 (pendiente de Jorge).
+
+        **Inalterable** (migración 0006): la fila nunca se edita ni se borra. Solo admite fijar
+        `revocado_en` una vez. Hay un solo consentimiento no revocado por persona y finalidad
+        (`consentimiento_vigente_uq`): si ya hay uno para `consumo`, **409**
+        `/errores/autorizacion-vigente`, también cuando su revisión anual venció. Renovar la
+        revisión y revocar quedan fuera de este contrato, con MATU-44.
+
+        No depende del consentimiento para `plan_cuidado`: son autorizaciones separadas.
+
+        Dan la autorización `admin` y `cuidador`, los mismos roles del alta (si no, 404). Registra
+        `consentimiento.otorgar` sobre `consentimiento`, sin la referencia al documento.
+
+        **Orden de evaluación:** 401, 404 (membresía, rol, persona), 422 (cuerpo y reglas de la
+        calidad), 409 y 201.
+      x-matu-historia: MATU-36 (decisión de Martín del 31-10)
+      x-matu-auditoria: consentimiento.otorgar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudAutorizacion'
+            examples:
+              cuidadora_de_hecho:
+                summary: Carmen cuida a María sin ser su representante legal
+                value:
+                  finalidad: consumo
+                  calidad_otorgante: cuidador_de_hecho
+                  aviso:
+                    id: aviso_cuidador_de_hecho
+                    version: '1.0'
+              titular:
+                summary: María decide por sí misma y Carmen registra su decisión
+                value:
+                  finalidad: consumo
+                  calidad_otorgante: titular
+      responses:
+        '201':
+          description: Autorización registrada.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutorizacionCreada'
+              examples:
+                titular:
+                  summary: Sin aviso ni revisión anual
+                  value:
+                    consentimiento:
+                      id: 1a2b3c40-0000-4000-8000-0000000000a7
+                      calidad_otorgante: titular
+                      finalidad: consumo
+                      version_politica: '0.10'
+                      otorgado_en: '2026-11-03T14:20:00Z'
+                      revision_vence_en: null
+                    aviso: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/AutorizacionVigente'
+        '422':
+          $ref: '#/components/responses/ValidacionAutorizacion'
+
+  /v1/personas-cuidadas/{persona_id}/consumo:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [consumo]
+      operationId: listarPerfilesConsumo
+      summary: Ver los insumos declarados de la persona
+      description: |
+        Los perfiles de consumo de la persona, por fecha estimada (lo que se acaba primero arriba) y
+        después por `id`. Por omisión solo los activos. Paginado por cursor.
+
+        Leen `admin`, `cuidador`, `pagador` y `observador` (arquitectura 11.2). Sin `grupo_id` y sin
+        precios.
+
+        **Orden de evaluación:** 401, 404 (membresía, persona), 403 (autorización para `consumo`),
+        422 (consulta) y 200. La app sabe que falta la autorización por este 403, con
+        `finalidad: consumo`, y muestra la pantalla para darla.
+      x-matu-historia: MATU-36, RF-10, RF-11
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: activo
+          in: query
+          required: false
+          description: '`true` (por omisión) los activos; `false` los desactivados.'
+          schema:
+            type: boolean
+            default: true
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de perfiles.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaPerfiles'
+              examples:
+                dos:
+                  summary: Pañal adulto M y toallitas húmedas, anotados hoy
+                  value:
+                    items:
+                      - id: 3c9d4e20-0000-4000-8000-0000000000c1
+                        producto: null
+                        nombre_libre: Pañal adulto M
+                        unidad: unidad
+                        tasa_unidades: 4
+                        tasa_dias: 1
+                        stock_unidades: 24
+                        stock_medido_en: '2026-10-31'
+                        dias_aviso: 7
+                        fecha_quiebre_estimada: '2026-11-06'
+                        dias_restantes: 6
+                        activo: true
+                        etag: '"v1"'
+                      - id: 3c9d4e20-0000-4000-8000-0000000000c2
+                        producto: null
+                        nombre_libre: Toallitas húmedas
+                        unidad: unidad
+                        tasa_unidades: 10
+                        tasa_dias: 1
+                        stock_unidades: 160
+                        stock_medido_en: '2026-10-31'
+                        dias_aviso: 7
+                        fecha_quiebre_estimada: '2026-11-16'
+                        dias_restantes: 16
+                        activo: true
+                        etag: '"v1"'
+                    siguiente_cursor: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '422':
+          $ref: '#/components/responses/ValidacionConsulta'
+    post:
+      tags: [consumo]
+      operationId: crearPerfilConsumo
+      summary: Anotar cuánto se usa de un insumo y cuánto queda
+      description: |
+        Crea un perfil de consumo. El servidor fija `stock_medido_en` con el puerto `Reloj` (la
+        fecha de hoy en America/Santiago, decisión 42) y calcula la fecha estimada:
+
+        ```
+        dias_cobertura         = piso(stock_unidades * tasa_dias / tasa_unidades)
+        fecha_quiebre_estimada = stock_medido_en + dias_cobertura
+        ```
+
+        **`producto_id` o `nombre_libre`, exactamente uno** (el `CHECK` de la tabla admite los dos;
+        la API exige uno). En el sprint 3 **no hay ruta de catálogo** (`GET /v1/catalogo/…` es de
+        la capa 3, arquitectura 9.4) y la tabla `producto` puede estar vacía: **la app usa
+        `nombre_libre`**. `producto_id` queda en el contrato para cuando exista el catálogo.
+
+        - Un `producto_id` que no existe, inactivo o con `requiere_receta = true` responde **422**
+          con `tipo: producto_no_admitido` (ADR-022: MATU no trata remedios). Los tres casos dan el
+          mismo error.
+        - Con `producto_id`, `unidad` es la del producto: si llega y es otra, **422**
+          `tipo: unidad_distinta`.
+        - Con `producto_id`, un perfil activo de la misma persona y el mismo producto responde
+          **409** `/errores/perfil-duplicado` (`perfil_consumo_producto_uq`). Con `nombre_libre` no
+          hay esa restricción.
+        - `nombre_libre` se guarda **sin cifrar, protegido por RLS** (decisión 38). Nunca va en
+          logs, errores, auditoría ni eventos.
+
+        Escriben `admin` y `cuidador`. `pagador` y `observador` reciben **404** (decisión 4).
+        Registra `consumo.crear` sobre `perfil_consumo`, sin `nombre_libre` ni cantidades.
+
+        **Orden de evaluación:** 401, 404 (membresía, rol, persona), 403 (autorización para
+        `consumo`), 422 (cuerpo, y después producto y unidad), 409 y 201.
+      x-matu-historia: MATU-36, RF-10, RF-11
+      x-matu-auditoria: consumo.crear
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPerfil'
+            examples:
+              panal:
+                summary: Cuatro pañales al día y quedan 24
+                value:
+                  nombre_libre: Pañal adulto M
+                  unidad: unidad
+                  tasa_unidades: 4
+                  tasa_dias: 1
+                  stock_unidades: 24
+                  dias_aviso: 7
+              protector_cada_dos_dias:
+                summary: Uno cada dos días, sin decir cuándo avisar (7 por omisión)
+                value:
+                  nombre_libre: Protector de cama desechable
+                  tasa_unidades: 1
+                  tasa_dias: 2
+                  stock_unidades: 10
+      responses:
+        '201':
+          description: Perfil creado.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPerfil'
+            Location:
+              description: Ruta del perfil creado.
+              required: true
+              schema:
+                type: string
+              example: /v1/personas-cuidadas/7d1e2f30-0000-4000-8000-000000000001/consumo/3c9d4e20-0000-4000-8000-0000000000c1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerfilConsumo'
+              examples:
+                panal:
+                  $ref: '#/components/examples/PerfilPanal'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/PerfilDuplicado'
+        '422':
+          $ref: '#/components/responses/ValidacionPerfil'
+
+  /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [consumo]
+      operationId: listarPorAcabarse
+      summary: Qué se acaba pronto
+      description: |
+        Los perfiles **activos** cuya fecha estimada está dentro de su ventana de aviso:
+        `fecha_quiebre_estimada − hoy ≤ dias_aviso`, con hoy según el `Reloj` en America/Santiago.
+        Incluye los que ya pasaron su fecha estimada (`dias_restantes` negativo). Ordenados por
+        `fecha_quiebre_estimada` y después por `id`.
+
+        Es una consulta sobre `perfil_consumo` (índice `perfil_consumo_quiebre_ix`), no sobre
+        `alerta_quiebre`: muestra lo que se acaba aunque el trabajo diario todavía no haya creado
+        la alerta, y no depende de que se haya descartado. Sin paginación: está acotada por los
+        perfiles activos de una persona.
+
+        La fecha es **una estimación** con lo que anotó la familia (política v0.9, sección 3). La
+        pantalla usa los textos de `docs/lenguaje.md` (ver "Textos propuestos" en el README).
+
+        Leen los cuatro roles. **Orden de evaluación:** 401, 404 (membresía, persona), 403
+        (autorización para `consumo`) y 200.
+      x-matu-historia: MATU-37, RF-11, RF-12
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lo que se acaba pronto.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaPorAcabarse'
+              examples:
+                panal:
+                  summary: Los pañales se acaban en 6 días y avisan con 7
+                  value:
+                    items:
+                      - id: 3c9d4e20-0000-4000-8000-0000000000c1
+                        producto: null
+                        nombre_libre: Pañal adulto M
+                        unidad: unidad
+                        tasa_unidades: 4
+                        tasa_dias: 1
+                        stock_unidades: 24
+                        stock_medido_en: '2026-10-31'
+                        dias_aviso: 7
+                        fecha_quiebre_estimada: '2026-11-06'
+                        dias_restantes: 6
+                        activo: true
+                        etag: '"v1"'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /v1/personas-cuidadas/{persona_id}/consumo/alertas:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [alertas]
+      operationId: listarAlertasQuiebre
+      summary: Ver las alertas de la persona
+      description: |
+        Las alertas (`alerta_quiebre`) de los perfiles de la persona, por `fecha_prevista` y
+        después por `id`. Por omisión, las abiertas (`pendiente` y `notificada`). Paginado por
+        cursor. Cada alerta trae `perfil_id`: el nombre del insumo sale del perfil, no se repite
+        aquí.
+
+        Las crea el trabajo diario de MATU-37 (arquitectura 8.5), una por perfil y fecha prevista
+        (`alerta_quiebre_uq`), solo si la autorización para `consumo` está vigente.
+
+        Leen los cuatro roles. **Orden de evaluación:** 401, 404 (membresía, persona), 403
+        (autorización para `consumo`), 422 (consulta) y 200.
+      x-matu-historia: MATU-37, RF-12
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: |
+            Uno o más estados (`?estado=pendiente&estado=notificada`). Sin el parámetro, las abiertas
+            (`pendiente` y `notificada`). Un valor fuera de la lista responde 422.
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 4
+            uniqueItems: true
+            items:
+              $ref: '#/components/schemas/EstadoAlerta'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limite'
+      responses:
+        '200':
+          description: Página de alertas.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaAlertas'
+              examples:
+                una:
+                  summary: Se avisó que los pañales se acaban el 06/11/2026
+                  value:
+                    items:
+                      - id: 4f0a1b30-0000-4000-8000-0000000000d1
+                        perfil_id: 3c9d4e20-0000-4000-8000-0000000000c1
+                        fecha_prevista: '2026-11-06'
+                        estado: notificada
+                        creada_en: '2026-10-31T07:00:05Z'
+                        notificada_en: '2026-10-31T07:00:40Z'
+                        cerrada_en: null
+                    siguiente_cursor: null
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '422':
+          $ref: '#/components/responses/ValidacionConsulta'
+
+  /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/AlertaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [alertas]
+      operationId: descartarAlertaQuiebre
+      summary: No avisar esta vez
+      description: |
+        Pasa la alerta a `descartada` y fija `cerrada_en` con el `Reloj`. **Nunca la borra.** Sin
+        cuerpo.
+
+        - Solo desde `pendiente` o `notificada`. Desde `resuelta` o `descartada`, **409**
+          `/errores/alerta-cerrada`, con el `estado` actual como miembro de extensión. Así un doble
+          toque no cambia `cerrada_en`.
+        - Descartar no cambia el perfil ni su fecha estimada: si la familia sigue sin anotar
+          cuánto queda, el insumo sigue en "Qué se acaba pronto".
+        - Descartan `admin` y `cuidador`. El `pagador` queda **pendiente de Jorge**: hasta que
+          decida, recibe 404, igual que el `observador`.
+        - Registra `alerta.descartar` sobre `alerta_quiebre`, **sin `nombre_libre`**.
+
+        "Ya lo compré" (`resuelta`) es declarar una reposición: es MATU-51, del sprint 4, y no está
+        en este contrato.
+
+        **Orden de evaluación:** 401, 404 (membresía, rol, persona), 403 (autorización para
+        `consumo`), 404 (la alerta no es de un perfil de esta persona), 409 y 200.
+      x-matu-historia: MATU-37, RF-12
+      x-matu-auditoria: alerta.descartar
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: La alerta descartada.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alerta'
+              examples:
+                descartada:
+                  summary: Carmen eligió "No avisar esta vez"
+                  value:
+                    id: 4f0a1b30-0000-4000-8000-0000000000d1
+                    perfil_id: 3c9d4e20-0000-4000-8000-0000000000c1
+                    fecha_prevista: '2026-11-06'
+                    estado: descartada
+                    creada_en: '2026-10-31T07:00:05Z'
+                    notificada_en: '2026-10-31T07:00:40Z'
+                    cerrada_en: '2026-10-31T13:15:00Z'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/AlertaCerrada'
+
+  /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/PerfilId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [consumo]
+      operationId: verPerfilConsumo
+      summary: Ver un insumo declarado
+      description: |
+        Un perfil de la persona, activo o desactivado, con su `ETag`. Leen los cuatro roles.
+
+        **Orden de evaluación:** 401, 404 (membresía, persona), 403 (autorización para `consumo`),
+        404 (el perfil no es de esta persona) y 200.
+      x-matu-historia: MATU-36, RF-10, RF-11
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: El perfil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPerfil'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerfilConsumo'
+              examples:
+                panal:
+                  $ref: '#/components/examples/PerfilPanal'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+    patch:
+      tags: [consumo]
+      operationId: editarPerfilConsumo
+      summary: Corregir cuánto se usa o anotar cuánto queda
+      description: |
+        Edición parcial (decisión 41): los campos que vienen se reemplazan y los que no vienen no
+        cambian. `null` no se admite. Al menos un campo.
+
+        - **Editables:** `nombre_libre` (solo si el perfil es de nombre libre; si es de un
+          producto, **422** `tipo: nombre_libre_con_producto`), `tasa_unidades`, `tasa_dias`,
+          `stock_unidades` y `dias_aviso`. `producto_id`, `unidad` y `activo` no se editan: un
+          campo extra responde 422. Cambiar de producto o de unidad es otro perfil.
+        - **Si viene `stock_unidades`**, aunque sea el mismo número, `stock_medido_en` pasa a hoy
+          (`Reloj`, America/Santiago): anotar cuánto queda vuelve a anclar el cálculo.
+        - Si cambia la tasa o el stock, se recalcula `fecha_quiebre_estimada` en la misma
+          transacción, desde `stock_medido_en`.
+
+        **Escritura condicional, como la ficha (MATU-13).** `If-Match` con el `ETag` del perfil
+        (`"v<version>"`) es obligatorio: sin él, o con `If-Match: *`, **428**
+        `/errores/falta-version`. Si el perfil cambió, **412** `/errores/version-desactualizada`
+        con el perfil actual en `actual`. Hace falta una columna nueva
+        `perfil_consumo.version integer NOT NULL DEFAULT 1`, que suma 1 en cada escritura: la agrega
+        una migración reversible de MATU-36.
+
+        Un perfil desactivado no se edita: **409** `/errores/perfil-inactivo`.
+
+        Escriben `admin` y `cuidador` (si no, 404). Registra `consumo.editar`, sin `nombre_libre`
+        ni cantidades.
+
+        **Orden de evaluación:** 401, 404 (membresía, rol, persona), 403 (autorización para
+        `consumo`), 404 (perfil), 422 (cuerpo), 428, 409 (`perfil-inactivo`), 412 y 200.
+      x-matu-historia: MATU-36, RF-10, RF-11
+      x-matu-auditoria: consumo.editar
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IfMatchPerfil'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudEdicionPerfil'
+            examples:
+              quedan:
+                summary: Carmen contó y quedan 20 pañales
+                value:
+                  stock_unidades: 20
+              tasa:
+                summary: Ahora usa 5 al día
+                value:
+                  tasa_unidades: 5
+      responses:
+        '200':
+          description: El perfil editado, con su `ETag` nuevo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPerfil'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerfilConsumo'
+              examples:
+                quedan_20:
+                  summary: Quedan 20 hoy, se acaban en 5 días
+                  value:
+                    id: 3c9d4e20-0000-4000-8000-0000000000c1
+                    producto: null
+                    nombre_libre: Pañal adulto M
+                    unidad: unidad
+                    tasa_unidades: 4
+                    tasa_dias: 1
+                    stock_unidades: 20
+                    stock_medido_en: '2026-10-31'
+                    dias_aviso: 7
+                    fecha_quiebre_estimada: '2026-11-05'
+                    dias_restantes: 5
+                    activo: true
+                    etag: '"v2"'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/PerfilInactivo'
+        '412':
+          $ref: '#/components/responses/VersionPerfil'
+        '422':
+          $ref: '#/components/responses/ValidacionEdicionPerfil'
+        '428':
+          $ref: '#/components/responses/FaltaVersionPerfil'
+
+  /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/PerfilId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [consumo]
+      operationId: desactivarPerfilConsumo
+      summary: Dejar de seguir un insumo
+      description: |
+        Archiva el perfil: `activo = false`. **Nunca lo borra** (borrado duro, no). Sin cuerpo y sin
+        `If-Match`: archivar no pisa lo que escribió otro (decisión 46).
+
+        - En la misma transacción, las alertas abiertas del perfil (`pendiente` y `notificada`)
+          pasan a `descartada` con `cerrada_en`: un insumo que ya no se sigue no avisa.
+        - Suma 1 a `version`, así que un `If-Match` anterior responde 412 o 409.
+        - **Idempotente:** un perfil ya desactivado responde 200 igual, sin cambiar nada.
+        - No hay reactivar en este contrato: para volver a seguirlo se crea otro perfil.
+        - Libera `perfil_consumo_producto_uq`: después se puede crear otro perfil del mismo producto.
+
+        Escriben `admin` y `cuidador` (si no, 404). Registra `consumo.desactivar`.
+
+        **Orden de evaluación:** 401, 404 (membresía, rol, persona), 403 (autorización para
+        `consumo`), 404 (perfil) y 200.
+      x-matu-historia: MATU-36, RF-10
+      x-matu-auditoria: consumo.desactivar
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: El perfil desactivado.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPerfil'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerfilConsumo'
+              examples:
+                toallitas:
+                  summary: Ya no usan toallitas húmedas
+                  value:
+                    id: 3c9d4e20-0000-4000-8000-0000000000c2
+                    producto: null
+                    nombre_libre: Toallitas húmedas
+                    unidad: unidad
+                    tasa_unidades: 10
+                    tasa_dias: 1
+                    stock_unidades: 160
+                    stock_medido_en: '2026-10-31'
+                    dias_aviso: 7
+                    fecha_quiebre_estimada: '2026-11-16'
+                    dias_restantes: 16
+                    activo: false
+                    etag: '"v2"'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionConsumo'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: __Secure-matu-refresh
+      description: |
+        Refresh token de la sesión de la familia (MATU-38): 256 bits aleatorios en base64url
+        (43 caracteres). `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/v1/sesiones`: el navegador
+        la envía solo a `/v1/sesiones`, `/v1/sesiones/renovar` y `/v1/sesiones/cerrar`, y el
+        JavaScript de la página no la puede leer. El prefijo `__Secure-` obliga a recibirla solo
+        por HTTPS. La base guarda su SHA-256.
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+    PerfilId:
+      name: perfil_id
+      in: path
+      required: true
+      description: |
+        Perfil de consumo. Si no es un UUID, o no es de la persona del path, responde **404**.
+        Al implementar, las rutas fijas (`por-acabarse`, `alertas`) se registran antes que
+        `{perfil_id}`.
+      schema:
+        type: string
+        format: uuid
+      example: 3c9d4e20-0000-4000-8000-0000000000c1
+    AlertaId:
+      name: alerta_id
+      in: path
+      required: true
+      description: Alerta. Si no es un UUID, o no es de un perfil de la persona del path, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 4f0a1b30-0000-4000-8000-0000000000d1
+    DispositivoId:
+      name: dispositivo_id
+      in: path
+      required: true
+      description: Dispositivo propio. Si no es un UUID, no existe o es de otro usuario, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 6b2c3d40-0000-4000-8000-0000000000f2
+    XMatuCliente:
+      name: X-MATU-Cliente
+      in: header
+      required: true
+      description: |
+        Cabecera fija **anti-CSRF** de las rutas que usan la cookie del refresh. Un formulario de
+        otro sitio no puede agregar cabeceras propias, y `fetch` desde otro origen con una cabecera
+        propia exige un CORS que MATU no habilita. Se suma a `SameSite=Strict`. Si falta o trae
+        otro valor, **422** (decisión 45).
+      schema:
+        type: string
+        const: web
+    IfMatchPerfil:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `ETag` del perfil tal como se leyó, por ejemplo `"v3"`. **Obligatorio**: se declara
+        `required: false` porque su ausencia responde **428**, no 422 (como `If-Match` en la ficha).
+        Un solo valor; `*` responde 428.
+      schema:
+        $ref: '#/components/schemas/ETag'
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Valor opaco de `siguiente_cursor` de la página anterior. Uno inválido responde 422.
+      schema:
+        type: string
+        maxLength: 200
+    Limite:
+      name: limite
+      in: query
+      required: false
+      description: Elementos por página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    SetCookieRefreshInicio:
+      description: |
+        Cookie del refresh de una familia nueva. `Max-Age` son 30 días (2592000 segundos), el
+        máximo que admite `sesion_refresh_vigencia`.
+      required: true
+      schema:
+        type: string
+      example: __Secure-matu-refresh=<refresh>; Max-Age=2592000; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
+    SetCookieRefreshRenovado:
+      description: |
+        Cookie con el refresh nuevo de la misma familia. `Max-Age` son los segundos que le quedan a
+        la familia: renovar **no** alarga la sesión (sin ventana deslizante).
+      required: true
+      schema:
+        type: string
+      example: __Secure-matu-refresh=<refresh>; Max-Age=1728000; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
+    BorrarCookieRefresh:
+      description: Borra la cookie del refresh.
+      required: true
+      schema:
+        type: string
+      example: __Secure-matu-refresh=; Max-Age=0; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
+    BorrarCookieRefreshOpcional:
+      description: |
+        Borra la cookie del refresh. Solo viene cuando el dispositivo sacado es el actual. El
+        navegador acepta borrar una cookie de `Path=/v1/sesiones` desde una respuesta de otra ruta
+        del mismo origen.
+      required: false
+      schema:
+        type: string
+      example: __Secure-matu-refresh=; Max-Age=0; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
+    RetryAfterDemora:
+      description: |
+        Segundos que faltan para poder volver a intentar la entrada: entre 1 y 900 (tope de 15
+        minutos). La pantalla los muestra en minutos, redondeando hacia arriba.
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 900
+    ETagPerfil:
+      description: Versión del perfil, `"v<version>"`. Fuerte y opaca para el cliente, como en la ficha.
+      required: true
+      schema:
+        $ref: '#/components/schemas/ETag'
+
+  schemas:
+    ETag:
+      type: string
+      pattern: '^"v[0-9]+"$'
+      description: '`"v<version>"`, con las comillas, tal como va en la cabecera `ETag`.'
+      examples:
+        - '"v3"'
+
+    SolicitudSesion:
+      type: object
+      additionalProperties: false
+      required: [email, contrasena]
+      description: |
+        Cuerpo de `POST /v1/sesiones`, **sin cambios** respecto de `openapi.json`. Sin largo mínimo
+        ni forma de email: un 422 por esas razones distinguiría casos que la entrada responde
+        siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes.
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        contrasena:
+          type: string
+          maxLength: 128
+
+    SesionRespuesta:
+      type: object
+      required: [access_token, expira_en]
+      description: |
+        Respuesta de `POST /v1/sesiones` (sin cambios respecto de `openapi.json`) y de
+        `POST /v1/sesiones/renovar`. **Nunca** lleva el refresh: va solo en la cookie.
+      properties:
+        access_token:
+          type: string
+          description: JWT de acceso. El cliente lo guarda solo en memoria.
+        token_type:
+          type: string
+          const: bearer
+          default: bearer
+        expira_en:
+          type: integer
+          description: |
+            **Segundos** de vida del access token (como en MATU-05a), no una fecha. 900 salvo en el
+            último cuarto de hora de la familia, cuando es lo que le queda.
+
+    Dispositivo:
+      type: object
+      additionalProperties: false
+      required: [id, plataforma, nombre, creado_en, ultimo_uso_en, actual]
+      description: |
+        Un dispositivo propio. **Nunca** lleva `push_token`, `familia_id`, hashes, la IP ni el
+        agente de usuario.
+      properties:
+        id:
+          type: string
+          format: uuid
+        plataforma:
+          type: string
+          enum: [android, ios, web]
+          description: En el semestre la app es web (ADR-026), así que es `web`.
+        nombre:
+          type: string
+          maxLength: 60
+          description: |
+            Lo arma el servidor al crear el dispositivo, de forma gruesa: navegador y sistema de una
+            lista cerrada ("Chrome en Android", "Safari en iPhone", "Firefox en Windows"), o
+            "Navegador web" si no los reconoce. **No guarda el agente de usuario completo.** No se
+            edita en este contrato.
+        creado_en:
+          type: string
+          format: date-time
+        ultimo_uso_en:
+          type: [string, 'null']
+          format: date-time
+          description: Se actualiza al iniciar sesión y en cada renovación.
+        actual:
+          type: boolean
+          description: '`true` si es el dispositivo del access token de esta petición (claim `did`).'
+
+    ListaDispositivos:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dispositivo'
+
+    SolicitudPush:
+      type: object
+      additionalProperties: false
+      required: [push_token]
+      properties:
+        push_token:
+          type: string
+          format: uri
+          minLength: 12
+          maxLength: 1024
+          pattern: '^https://[^\s]+$'
+          writeOnly: true
+          description: |
+            Endpoint de Web Push del navegador (RFC 8030), **solo escritura**. `https`, sin espacios,
+            de hasta 1024 caracteres, y su host debe estar en la lista cerrada de servicios de push
+            que fija el servidor (por ejemplo `fcm.googleapis.com`,
+            `updates.push.services.mozilla.com`, `*.push.apple.com`, `*.notify.windows.com`). Si
+            no, 422 `tipo: push_no_admitido`, sin repetir el valor.
+
+            Con solo el endpoint, MATU envía avisos **sin contenido** (RFC 8030 lo admite, con
+            VAPID, RFC 8292) y el service worker muestra un texto fijo. Si MATU-41 necesita
+            enviar contenido cifrado, hacen falta también las claves `p256dh` y `auth` de la
+            suscripción: es un cambio a este contrato.
+
+    CalidadOtorgante:
+      type: string
+      enum: [titular, representante_legal, cuidador_de_hecho]
+      description: La misma de `openapi.json` (MATU-07).
+
+    AvisoMostradoEntrada:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      description: El aviso que se mostró al elegir la calidad, igual que en el alta (MATU-07).
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 60
+        version:
+          type: string
+          minLength: 1
+          maxLength: 20
+
+    SolicitudAutorizacion:
+      type: object
+      additionalProperties: false
+      required: [finalidad, calidad_otorgante]
+      description: |
+        Las mismas reglas cruzadas del alta (`validar_otorgamiento`):
+
+        | calidad             | aviso                              | referencia_documento |
+        |---------------------|------------------------------------|----------------------|
+        | titular             | prohibido                          | prohibida            |
+        | representante_legal | prohibido                          | obligatoria          |
+        | cuidador_de_hecho   | obligatorio, y debe ser el vigente | prohibida            |
+
+        Un campo extra responde 422.
+      properties:
+        finalidad:
+          type: string
+          const: consumo
+          description: |
+            Solo `consumo` en este contrato. `plan_cuidado` se da en el alta (MATU-07); `despacho` y
+            `comunicaciones` son de otras historias.
+        calidad_otorgante:
+          $ref: '#/components/schemas/CalidadOtorgante'
+        referencia_documento:
+          type: [string, 'null']
+          maxLength: 200
+          description: Solo para `representante_legal`. La referencia, nunca el documento.
+        aviso:
+          oneOf:
+            - $ref: '#/components/schemas/AvisoMostradoEntrada'
+            - type: 'null'
+
+    ConsentimientoVista:
+      type: object
+      additionalProperties: false
+      required: [id, calidad_otorgante, finalidad, version_politica, otorgado_en, revision_vence_en]
+      description: La misma vista de `openapi.json`. Sin la referencia al documento ni la evidencia.
+      properties:
+        id:
+          type: string
+          format: uuid
+        calidad_otorgante:
+          $ref: '#/components/schemas/CalidadOtorgante'
+        finalidad:
+          type: string
+        version_politica:
+          type: string
+        otorgado_en:
+          type: string
+          format: date-time
+        revision_vence_en:
+          type: [string, 'null']
+          format: date-time
+
+    AvisoVista:
+      type: object
+      additionalProperties: false
+      required: [id, version, titulo, parrafos, sha256]
+      description: El aviso canónico que se mostró, con su texto completo y su huella (MATU-07).
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        titulo:
+          type: string
+        parrafos:
+          type: array
+          items:
+            type: string
+        sha256:
+          type: string
+
+    AutorizacionCreada:
+      type: object
+      additionalProperties: false
+      required: [consentimiento, aviso]
+      properties:
+        consentimiento:
+          $ref: '#/components/schemas/ConsentimientoVista'
+        aviso:
+          description: El aviso del cuidador de hecho, o `null` para las demás calidades (como en el alta).
+          oneOf:
+            - $ref: '#/components/schemas/AvisoVista'
+            - type: 'null'
+
+    UnidadConsumo:
+      type: string
+      enum: [unidad, sobre, ml, g]
+      description: Unidad base de la tasa y del stock. Todo en unidades base, nunca en envases (arquitectura 7.3).
+
+    NombreLibre:
+      type: string
+      minLength: 1
+      maxLength: 60
+      description: |
+        **Nombre del producto tal como se vende. No es para remedios ni para explicar para qué se
+        usa.**
+
+        De 1 a 60 caracteres después de quitar los espacios de los extremos, una sola línea y sin
+        caracteres de control. Se guarda sin cifrar, protegido por RLS (decisión 38). Los mensajes
+        del 422 nunca repiten el valor. Nunca va en logs, errores, auditoría ni eventos.
+
+    SolicitudPerfil:
+      type: object
+      additionalProperties: false
+      required: [tasa_unidades, stock_unidades]
+      description: |
+        Cuerpo de la creación. `producto_id` o `nombre_libre`, **exactamente uno**. Un campo extra
+        (por ejemplo `stock_medido_en` o `grupo_id`) responde 422.
+      oneOf:
+        - required: [producto_id]
+        - required: [nombre_libre]
+      properties:
+        producto_id:
+          type: string
+          format: uuid
+          description: |
+            Producto del catálogo, activo y sin receta (ADR-022). Sin ruta de catálogo en el sprint 3:
+            la app usa `nombre_libre`.
+        nombre_libre:
+          $ref: '#/components/schemas/NombreLibre'
+        unidad:
+          allOf:
+            - $ref: '#/components/schemas/UnidadConsumo'
+          description: |
+            Con `nombre_libre`, `unidad` por omisión. Con `producto_id`, la del producto; si llega y
+            es otra, 422 `unidad_distinta`.
+        tasa_unidades:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Cuántas unidades se usan cada `tasa_dias` días. "4 al día" = 4 cada 1.
+        tasa_dias:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 1
+          description: Cada cuántos días se usan `tasa_unidades`. "1 cada 5 días" = 1 cada 5.
+        stock_unidades:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          description: |
+            Cuántas unidades quedan hoy. La cobertura (`piso(stock_unidades * tasa_dias /
+            tasa_unidades)`) no puede pasar de 3650 días: si no, 422 `tipo: cobertura_maxima`
+            (decisión 43).
+        dias_aviso:
+          type: integer
+          minimum: 0
+          maximum: 60
+          default: 7
+          description: Con cuántos días de anticipación avisar. 7 por omisión.
+
+    SolicitudEdicionPerfil:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: |
+        Edición parcial. Los campos que vienen se reemplazan; `null` no se admite. `producto_id`,
+        `unidad`, `activo` y `stock_medido_en` no se editan: responden 422 como campo extra.
+      properties:
+        nombre_libre:
+          $ref: '#/components/schemas/NombreLibre'
+        tasa_unidades:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        tasa_dias:
+          type: integer
+          minimum: 1
+          maximum: 90
+        stock_unidades:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          description: Si viene, `stock_medido_en` pasa a hoy.
+        dias_aviso:
+          type: integer
+          minimum: 0
+          maximum: 60
+
+    ProductoResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, presentacion]
+      description: Lo mínimo del producto del catálogo. Sin precio, sin marca y sin oferta.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        presentacion:
+          type: string
+          description: Por ejemplo "Pañal adulto talla M x30".
+
+    PerfilConsumo:
+      type: object
+      additionalProperties: false
+      required: [id, producto, nombre_libre, unidad, tasa_unidades, tasa_dias, stock_unidades, stock_medido_en,
+                 dias_aviso, fecha_quiebre_estimada, dias_restantes, activo, etag]
+      description: |
+        Un perfil de consumo. Exactamente uno de `producto` y `nombre_libre` no es `null`. **Sin
+        `grupo_id` y sin precios.**
+      properties:
+        id:
+          type: string
+          format: uuid
+        producto:
+          oneOf:
+            - $ref: '#/components/schemas/ProductoResumen'
+            - type: 'null'
+        nombre_libre:
+          oneOf:
+            - $ref: '#/components/schemas/NombreLibre'
+            - type: 'null'
+        unidad:
+          $ref: '#/components/schemas/UnidadConsumo'
+        tasa_unidades:
+          type: integer
+          minimum: 1
+        tasa_dias:
+          type: integer
+          minimum: 1
+          maximum: 90
+        stock_unidades:
+          type: integer
+          minimum: 0
+          description: Lo que quedaba en `stock_medido_en`, no lo que queda hoy.
+        stock_medido_en:
+          type: string
+          format: date
+          description: Fecha (America/Santiago) en que se anotó `stock_unidades`. La fija el servidor.
+        dias_aviso:
+          type: integer
+          minimum: 0
+          maximum: 60
+        fecha_quiebre_estimada:
+          type: string
+          format: date
+          readOnly: true
+          description: |
+            **Es una estimación** con lo que anotó la familia, no una promesa: no prevé un
+            desabastecimiento ni un cambio de uso (arquitectura 7.3). Solo lectura:
+            `stock_medido_en + piso(stock_unidades * tasa_dias / tasa_unidades)`, materializada al
+            crear o editar.
+        dias_restantes:
+          type: integer
+          readOnly: true
+          description: |
+            `fecha_quiebre_estimada − hoy`, con hoy según el `Reloj` en America/Santiago. 0 = se
+            acaba hoy; negativo = la fecha estimada ya pasó y conviene anotar cuánto queda.
+        activo:
+          type: boolean
+          description: '`false` = desactivado (archivado). Nunca se borra.'
+        etag:
+          $ref: '#/components/schemas/ETag'
+
+    ListaPerfiles:
+      type: object
+      additionalProperties: false
+      required: [items, siguiente_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PerfilConsumo'
+        siguiente_cursor:
+          type: [string, 'null']
+          description: '`null` si no hay más.'
+
+    ListaPorAcabarse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PerfilConsumo'
+
+    EstadoAlerta:
+      type: string
+      enum: [pendiente, notificada, resuelta, descartada]
+      description: |
+        `pendiente`: creada, sin avisar. `notificada`: ya se avisó. `resuelta`: se anotó una
+        reposición (MATU-51, sprint 4). `descartada`: "No avisar esta vez", o el perfil se
+        desactivó.
+
+    Alerta:
+      type: object
+      additionalProperties: false
+      required: [id, perfil_id, fecha_prevista, estado, creada_en, notificada_en, cerrada_en]
+      properties:
+        id:
+          type: string
+          format: uuid
+        perfil_id:
+          type: string
+          format: uuid
+        fecha_prevista:
+          type: string
+          format: date
+          description: La fecha estimada del perfil cuando se creó la alerta.
+        estado:
+          $ref: '#/components/schemas/EstadoAlerta'
+        creada_en:
+          type: string
+          format: date-time
+        notificada_en:
+          type: [string, 'null']
+          format: date-time
+        cerrada_en:
+          type: [string, 'null']
+          format: date-time
+
+    ListaAlertas:
+      type: object
+      additionalProperties: false
+      required: [items, siguiente_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alerta'
+        siguiente_cursor:
+          type: [string, 'null']
+          description: '`null` si no hay más.'
+
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    ProblemaVersionPerfil:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            actual:
+              $ref: '#/components/schemas/PerfilConsumo'
+
+  responses:
+    NoAutenticado:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+          example:
+            type: /errores/token-invalido
+            title: No autenticado
+            status: 401
+            detail: Inicia sesión de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e1
+
+    SinConsentimiento:
+      description: |
+        La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
+        Es la única causa de 403 en la ficha y en el relevo: un rol sin permiso recibe 404.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/sin-consentimiento
+                  status:
+                    const: 403
+          example:
+            type: /errores/sin-consentimiento
+            title: Sin permiso
+            status: 403
+            detail: Falta la autorización para usar la ficha de esta persona
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e2
+
+    NoEncontrado:
+      description: |
+        El mismo 404 para todos estos casos, para no revelar qué existe: falta `X-Grupo-Id` o no
+        es un UUID; el usuario no es miembro activo del grupo; su rol no alcanza (`observador`;
+        `pagador` sin `puede_ver_plan`; `pagador` que intenta compartir o revocar); la persona o el
+        acceso no existen o son de otro grupo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+          example:
+            type: /errores/no-encontrado
+            title: No encontrado
+            status: 404
+            detail: null
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e3
+
+    NoEncontradoPropio:
+      description: |
+        El dispositivo no existe, es de otro usuario, su id no es un UUID, o el access token no
+        tiene `did` o su dispositivo está revocado (rutas `actual/push`). El mismo 404 en todos los
+        casos.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+          example:
+            type: /errores/no-encontrado
+            title: No encontrado
+            status: 404
+            detail: null
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000101
+
+    CredencialesInvalidas:
+      description: |
+        Email o contraseña incorrectos, o una cuenta que no puede entrar. El mismo cuerpo en todos
+        los casos (MATU-05a, ya implementado). Suma un fallo a la huella de la IP y a la del email.
+        Igual que hoy, no lleva `WWW-Authenticate`: no hay un esquema HTTP estándar para una
+        contraseña en un cuerpo JSON.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/credenciales-invalidas
+                  status:
+                    const: 401
+          example:
+            type: /errores/credenciales-invalidas
+            title: No autenticado
+            status: 401
+            detail: Email o contraseña incorrectos
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000102
+
+    ValidacionSesion:
+      description: Falta el email o la contraseña, pasan del tope de largo, o hay un campo extra. No cuenta como intento.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: contrasena
+                mensaje: Field required
+                tipo: missing
+            request_id: 9b2f4c1e-0000-4000-8000-000000000103
+
+    DemasiadosIntentos:
+      description: |
+        Demora progresiva de la entrada (MATU-38, decisión 49). La huella de la IP o la del email
+        está en espera. **El mismo cuerpo exista o no el email.** No dice cuál de las dos huellas
+        lo causó. No bloquea la cuenta: pasados `Retry-After` segundos, se puede volver a intentar.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfterDemora'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/demasiadas-peticiones
+                  status:
+                    const: 429
+          example:
+            type: /errores/demasiadas-peticiones
+            title: Demasiadas peticiones
+            status: 429
+            detail: Espera un rato antes de volver a intentarlo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000104
+
+    SesionSinServicio:
+      description: |
+        Redis no respondió al revisar la demora progresiva: la entrada falla cerrada (decisión 49).
+        No verifica la contraseña ni crea la sesión.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+          example:
+            type: /errores/servicio-no-disponible
+            title: Servicio no disponible
+            status: 503
+            detail: No se puede entrar en este momento. Cita el request_id si lo reportas
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000105
+
+    SesionExpirada:
+      description: |
+        `type` **nuevo** `/errores/sesion-expirada` (decisión 44). El mismo 401 para: sin cookie,
+        cookie desconocida o alterada, sesión vencida, revocada, de un dispositivo revocado, de una
+        cuenta que no está activa, o **refresh reutilizado** (que además revoca toda la familia con
+        `motivo_revocacion = 'reutilizacion'`). Siempre borra la cookie. La app vuelve a la
+        pantalla de entrada y **no** reintenta renovar.
+
+        Es distinto de `token-invalido` a propósito: `token-invalido` en una ruta cualquiera
+        significa "renueva", y `sesion-expirada` en la renovación significa "vuelve a entrar". Con
+        un solo `type` la app podría quedar en un ciclo de renovaciones. No lleva
+        `WWW-Authenticate`: la renovación no usa `Bearer`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Set-Cookie:
+          $ref: '#/components/headers/BorrarCookieRefresh'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/sesion-expirada
+                  status:
+                    const: 401
+          example:
+            type: /errores/sesion-expirada
+            title: No autenticado
+            status: 401
+            detail: Vuelve a entrar con tu email y tu contraseña
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000106
+
+    FaltaCabeceraCliente:
+      description: |
+        Falta `X-MATU-Cliente: web` o trae otro valor (decisión 45). Se evalúa antes de mirar la
+        cookie: no rota, no revoca y no borra nada. Es un error del cliente, no un estado de la
+        sesión, y por eso no es un 401: la app no confunde un error de programación con "tu sesión
+        terminó", y la respuesta no revela nada de la cookie.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: X-MATU-Cliente
+                mensaje: Field required
+                tipo: missing
+            request_id: 9b2f4c1e-0000-4000-8000-000000000107
+
+    ValidacionPush:
+      description: |
+        Falta `push_token`, no es `https`, pasa de 1024 caracteres, su host no es un servicio de push
+        admitido (`tipo: push_no_admitido`), o hay un campo extra. **Nunca repite el valor.**
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: push_token
+                mensaje: el servicio de avisos de este navegador no está admitido
+                tipo: push_no_admitido
+            request_id: 9b2f4c1e-0000-4000-8000-000000000108
+
+    AutorizacionVigente:
+      description: |
+        `type` **nuevo** `/errores/autorizacion-vigente`. La persona ya tiene una autorización no
+        revocada para `consumo` (`consentimiento_vigente_uq`), aunque su revisión anual haya
+        vencido. La app no la vuelve a pedir: si `GET …/consumo` responde 403 `revision-vencida`,
+        muestra el aviso de renovación.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/autorizacion-vigente
+                  status:
+                    const: 409
+          example:
+            type: /errores/autorizacion-vigente
+            title: Conflicto
+            status: 409
+            detail: Esta persona ya tiene la autorización para calcular sus insumos
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000109
+
+    ValidacionAutorizacion:
+      description: |
+        Cuerpo inválido: `finalidad` distinta de `consumo`, calidad fuera del enumerado, un campo
+        extra, o una combinación que no cumple las reglas de la calidad (`tipo:
+        regla_calidad_otorgante`, el mismo del alta), por ejemplo un cuidador de hecho sin el aviso
+        vigente.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: aviso
+                mensaje: falta el aviso que se mostró al elegir esta calidad
+                tipo: regla_calidad_otorgante
+            request_id: 9b2f4c1e-0000-4000-8000-00000000010a
+
+    SinAutorizacionConsumo:
+      description: |
+        No hay una autorización vigente para `consumo` (decisión 37). Es la única causa de 403 en el
+        consumo: un rol sin permiso recibe 404. Dos `type`, los mismos de la ficha, con el miembro
+        de extensión **`finalidad: consumo`** para que la app sepa qué autorización falta:
+
+        - `/errores/sin-consentimiento`: no hay consentimiento no revocado para `consumo`. La app
+          muestra la pantalla para darla (`POST …/consentimientos`).
+        - `/errores/revision-vencida`: lo dio un cuidador de hecho y su revisión anual
+          (`revision_vence_en`) ya pasó, según el `Reloj` (decisión 33). La app muestra el aviso de
+          `docs/lenguaje.md`, 6.4b.
+
+        Se evalúa antes de leer el perfil o la alerta: sin autorización no se lee nada del consumo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - type: object
+                required: [finalidad]
+                properties:
+                  type:
+                    enum: [/errores/sin-consentimiento, /errores/revision-vencida]
+                  status:
+                    const: 403
+                  finalidad:
+                    type: string
+                    const: consumo
+          examples:
+            sinConsentimiento:
+              summary: Falta la autorización para el consumo
+              value:
+                type: /errores/sin-consentimiento
+                title: Sin permiso
+                status: 403
+                detail: Falta la autorización para calcular los insumos de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-00000000010b
+                finalidad: consumo
+            revisionVencida:
+              summary: Revisión anual del cuidador de hecho vencida
+              value:
+                type: /errores/revision-vencida
+                title: Autorización por renovar
+                status: 403
+                detail: Venció la revisión anual de la autorización para calcular los insumos de esta persona
+                errores: []
+                request_id: 9b2f4c1e-0000-4000-8000-00000000010c
+                finalidad: consumo
+
+    ValidacionConsulta:
+      description: '`cursor` inválido, `limite` fuera de 1 a 100, `activo` que no es booleano, o un `estado` fuera de la lista.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: limite
+                mensaje: Input should be less than or equal to 100
+                tipo: less_than_equal
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e8
+
+    ValidacionPerfil:
+      description: |
+        Cuerpo inválido. `errores[]` nombra el campo y **nunca repite el valor**, tampoco el de
+        `nombre_libre`. Además de los errores de Pydantic (`missing`, `greater_than_equal`,
+        `less_than_equal`, `string_too_long`, `extra_forbidden`, …), estos `tipo` propios:
+
+        - `producto_o_nombre`: vienen los dos o ninguno de `producto_id` y `nombre_libre`;
+        - `producto_no_admitido`: el producto no existe, está inactivo o requiere receta (ADR-022);
+        - `unidad_distinta`: `unidad` no es la del producto;
+        - `cobertura_maxima`: el stock cubre más de 3650 días con esa tasa;
+        - `value_error` en `nombre_libre`: saltos de línea o caracteres de control.
+
+        El `mensaje` de un error de Pydantic viene en inglés (decisión 20).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          examples:
+            dosNombres:
+              summary: Vienen producto_id y nombre_libre
+              value:
+                type: /errores/validacion
+                title: Datos inválidos
+                status: 422
+                detail: Revisa los campos indicados
+                errores:
+                  - campo: nombre_libre
+                    mensaje: indica producto_id o nombre_libre, solo uno
+                    tipo: producto_o_nombre
+                request_id: 9b2f4c1e-0000-4000-8000-00000000010d
+            receta:
+              summary: El producto requiere receta
+              value:
+                type: /errores/validacion
+                title: Datos inválidos
+                status: 422
+                detail: Revisa los campos indicados
+                errores:
+                  - campo: producto_id
+                    mensaje: ese producto no se puede seguir en MATU
+                    tipo: producto_no_admitido
+                request_id: 9b2f4c1e-0000-4000-8000-00000000010e
+            nombreLargo:
+              summary: nombre_libre de más de 60 caracteres
+              value:
+                type: /errores/validacion
+                title: Datos inválidos
+                status: 422
+                detail: Revisa los campos indicados
+                errores:
+                  - campo: nombre_libre
+                    mensaje: String should have at most 60 characters
+                    tipo: string_too_long
+                request_id: 9b2f4c1e-0000-4000-8000-00000000010f
+
+    ValidacionEdicionPerfil:
+      description: |
+        Cuerpo inválido: vacío, un campo no editable (`extra_forbidden`), `null`, un número fuera de
+        rango, `nombre_libre` en un perfil de producto (`tipo: nombre_libre_con_producto`) o una
+        cobertura de más de 3650 días (`tipo: cobertura_maxima`). Nunca repite el valor. También
+        responde 422 un `If-Match` que no tiene la forma `"v<n>"`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+          example:
+            type: /errores/validacion
+            title: Datos inválidos
+            status: 422
+            detail: Revisa los campos indicados
+            errores:
+              - campo: tasa_dias
+                mensaje: Input should be less than or equal to 90
+                tipo: less_than_equal
+            request_id: 9b2f4c1e-0000-4000-8000-000000000110
+
+    FaltaVersionPerfil:
+      description: |
+        Falta `If-Match`, o es `*`. Toda edición del perfil es condicional, como la ficha (MATU-13).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/falta-version
+                  status:
+                    const: 428
+          example:
+            type: /errores/falta-version
+            title: Falta la versión del contenido
+            status: 428
+            detail: Vuelve a abrir el insumo y guarda de nuevo
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000111
+
+    VersionPerfil:
+      description: |
+        Otra persona cambió el perfil desde que se leyó. Trae el perfil actual en `actual`, con su
+        `etag`, para que la pantalla muestre el conflicto en vez de ocultarlo (CLAUDE.md, agente 3).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        ETag:
+          $ref: '#/components/headers/ETagPerfil'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaVersionPerfil'
+          example:
+            type: /errores/version-desactualizada
+            title: Otra persona cambió este contenido
+            status: 412
+            detail: Revisa lo que guardó la otra persona antes de guardar
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000112
+            actual:
+              id: 3c9d4e20-0000-4000-8000-0000000000c1
+              producto: null
+              nombre_libre: Pañal adulto M
+              unidad: unidad
+              tasa_unidades: 4
+              tasa_dias: 1
+              stock_unidades: 18
+              stock_medido_en: '2026-10-31'
+              dias_aviso: 7
+              fecha_quiebre_estimada: '2026-11-04'
+              dias_restantes: 4
+              activo: true
+              etag: '"v3"'
+
+    PerfilDuplicado:
+      description: |
+        `type` **nuevo** `/errores/perfil-duplicado`. Ya hay un perfil activo de la misma persona y
+        el mismo `producto_id` (`perfil_consumo_producto_uq`). No aplica a `nombre_libre`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/perfil-duplicado
+                  status:
+                    const: 409
+          example:
+            type: /errores/perfil-duplicado
+            title: Conflicto
+            status: 409
+            detail: Ese producto ya está anotado para esta persona
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000113
+
+    PerfilInactivo:
+      description: |
+        `type` **nuevo** `/errores/perfil-inactivo`. El perfil está desactivado y no se edita. Para
+        volver a seguir el insumo se crea otro perfil.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/perfil-inactivo
+                  status:
+                    const: 409
+          example:
+            type: /errores/perfil-inactivo
+            title: Conflicto
+            status: 409
+            detail: Este insumo ya no se sigue
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000114
+
+    AlertaCerrada:
+      description: |
+        `type` **nuevo** `/errores/alerta-cerrada`. La alerta ya está `resuelta` o `descartada` y
+        no se puede descartar. Trae el `estado` actual como miembro de extensión.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - type: object
+                required: [estado]
+                properties:
+                  type:
+                    const: /errores/alerta-cerrada
+                  status:
+                    const: 409
+                  estado:
+                    type: string
+                    enum: [resuelta, descartada]
+          example:
+            type: /errores/alerta-cerrada
+            title: Conflicto
+            status: 409
+            detail: Este aviso ya estaba cerrado
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-000000000115
+            estado: descartada
+
+  examples:
+    PerfilPanal:
+      summary: Pañal adulto M, cuatro al día, quedan 24 anotados hoy
+      value:
+        id: 3c9d4e20-0000-4000-8000-0000000000c1
+        producto: null
+        nombre_libre: Pañal adulto M
+        unidad: unidad
+        tasa_unidades: 4
+        tasa_dias: 1
+        stock_unidades: 24
+        stock_medido_en: '2026-10-31'
+        dias_aviso: 7
+        fecha_quiebre_estimada: '2026-11-06'
+        dias_restantes: 6
+        activo: true
+        etag: '"v1"'
+    PerfilToallitas:
+      summary: Toallitas húmedas, diez al día, quedan 160
+      value:
+        id: 3c9d4e20-0000-4000-8000-0000000000c2
+        producto: null
+        nombre_libre: Toallitas húmedas
+        unidad: unidad
+        tasa_unidades: 10
+        tasa_dias: 1
+        stock_unidades: 160
+        stock_medido_en: '2026-10-31'
+        dias_aviso: 7
+        fecha_quiebre_estimada: '2026-11-16'
+        dias_restantes: 16
+        activo: true
+        etag: '"v1"'
+    AlertaNotificada:
+      summary: Aviso enviado por los pañales
+      value:
+        id: 4f0a1b30-0000-4000-8000-0000000000d1
+        perfil_id: 3c9d4e20-0000-4000-8000-0000000000c1
+        fecha_prevista: '2026-11-06'
+        estado: notificada
+        creada_en: '2026-10-31T07:00:05Z'
+        notificada_en: '2026-10-31T07:00:40Z'
+        cerrada_en: null
