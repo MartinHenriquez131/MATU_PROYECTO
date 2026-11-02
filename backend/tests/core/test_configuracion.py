@@ -170,3 +170,42 @@ def test_jwt_clave_distinta_de_pepper_email_carga(monkeypatch: pytest.MonkeyPatc
     assert configuracion.jwt_clave is not None
     assert configuracion.pepper_email is not None
     assert configuracion.jwt_clave.get_secret_value() != configuracion.pepper_email.get_secret_value()
+
+
+# --- MATU-38: PEPPER_LIMITES, la llave de las huellas de la demora de la entrada (RF-37) ----------
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("valor", [None, ""])
+def test_pepper_limites_ausente_o_vacio_carga_como_none(monkeypatch: pytest.MonkeyPatch, valor: str | None) -> None:
+    if valor is not None:
+        monkeypatch.setenv("PEPPER_LIMITES", valor)
+    assert cargar().pepper_limites is None
+
+
+@pytest.mark.rf("RF-37")
+def test_pepper_limites_corto_no_carga_ni_aparece_en_el_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PEPPER_LIMITES", "l" * 31)
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "l" * 31 not in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("otra", ["PEPPER_EMAIL", "JWT_CLAVE", "PEPPER_PIN"])
+def test_pepper_limites_igual_a_otro_secreto_no_carga(monkeypatch: pytest.MonkeyPatch, otra: str) -> None:
+    clave = "z" * 64
+    monkeypatch.setenv("PEPPER_LIMITES", clave)
+    monkeypatch.setenv(otra, clave)
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "deben ser claves distintas" in str(error.value)
+    assert clave not in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+def test_pepper_limites_distinto_carga_como_secreto(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PEPPER_LIMITES", "l" * 64)
+    configuracion = cargar()
+    assert configuracion.pepper_limites is not None
+    assert "l" * 64 not in repr(configuracion)

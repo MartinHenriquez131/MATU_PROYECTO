@@ -21,6 +21,9 @@ Cada historia agrega aquí lo suyo:
 - MATU-19: REDIS_URL, el Redis de las sesiones de relevo
 - MATU-23: WEB_DIST, la carpeta del build de web/ que la API sirve en /r. Por omisión <repo>/web/dist.
   Si no existe (el CI no hace build), la API arranca igual y /r responde 404 RFC 7807
+- MATU-38: PEPPER_LIMITES, la llave del HMAC de las huellas de la IP y del email de la demora
+  progresiva de la entrada (decisión 49). Distinta de los demás secretos. Sin ella, la entrada
+  responde 503 y falla cerrada
 """
 
 import base64
@@ -98,6 +101,12 @@ class Configuracion(BaseSettings):
     # sin ella, compartir responde 503 y falla cerrado.
     pepper_pin: SecretStr | None = Field(default=None, min_length=32)
 
+    # Llave del HMAC-SHA256 de las huellas de la demora progresiva de la entrada (MATU-38, decisión 49):
+    # la IP y el email nunca llegan en claro a Redis. MATU-25 puede compartirla con otro prefijo.
+    # Distinta de los otros secretos. Opcional para cargar la configuración; sin ella, POST /v1/sesiones
+    # responde 503 y falla cerrada.
+    pepper_limites: SecretStr | None = Field(default=None, min_length=32)
+
     # Origen https de la aplicación web, sin barra final: el enlace del relevo es <origen>/r#<token>
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
 
@@ -108,7 +117,9 @@ class Configuracion(BaseSettings):
     # /assets en el mismo origen. Sin la carpeta, /r responde 404 y el resto de la API no cambia
     web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
 
-    @field_validator("pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", mode="before")
+    @field_validator(
+        "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites", mode="before"
+    )
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
@@ -176,6 +187,22 @@ class Configuracion(BaseSettings):
         ):
             if secreto is not None and secreto.get_secret_value() == pin:
                 raise ValueError(f"PEPPER_PIN y {nombre} deben ser claves distintas")
+        return self
+
+    @model_validator(mode="after")
+    def _pepper_limites_distinto_de_otros_secretos(self) -> "Configuracion":
+        # El mensaje nombra las variables, nunca sus valores
+        if self.pepper_limites is None:
+            return self
+        limites = self.pepper_limites.get_secret_value()
+        for nombre, secreto in (
+            ("PEPPER_EMAIL", self.pepper_email),
+            ("JWT_CLAVE", self.jwt_clave),
+            ("KEK_ENTORNO", self.kek_entorno),
+            ("PEPPER_PIN", self.pepper_pin),
+        ):
+            if secreto is not None and secreto.get_secret_value() == limites:
+                raise ValueError(f"PEPPER_LIMITES y {nombre} deben ser claves distintas")
         return self
 
     @model_validator(mode="after")
