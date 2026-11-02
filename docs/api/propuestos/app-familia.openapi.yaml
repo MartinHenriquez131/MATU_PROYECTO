@@ -11,7 +11,8 @@ info:
     `docs/api/README.md`, sección "Lo que usa la app de familia (MATU-32)".
 
     **Estado de las decisiones.** Las decisiones de Martín del 31-10 y las de diseño de este
-    contrato están **pendientes de aprobación de Jorge** (decisiones 37 a 54 del README).
+    contrato (37 a 54 del README) están **aprobadas por Jorge el 31-10**, salvo la sesión (decisión
+    39), que Jorge cambió a una ventana deslizante. Sus decisiones son las 55 a 63 del README.
 
     **Sesión (MATU-38, RF-37).**
 
@@ -22,9 +23,13 @@ info:
       `SameSite=Strict`, `Path=/v1/sesiones`). Nunca en un cuerpo, una URL, un log, un error, la
       auditoría ni un evento. La base guarda solo su SHA-256 (`sesion_refresh.token_hash` e
       `indice_token.token_hash`, `tipo = 'refresh'`).
-    - **Vigencia: 30 días desde el inicio de sesión, sin ventana deslizante** (decisión de Martín
-      del 31-10). Iniciar sesión crea una familia (`familia_id`) con su `expira_en`, y cada token
-      que nace al renovar hereda ese mismo `expira_en`. Renovar no alarga la sesión.
+    - **Vigencia: ventana deslizante de 30 días, sin tope absoluto** (decisión de Jorge del 31-10,
+      que cambia la de Martín de 30 días fijos). Cada renovación emite un refresh nuevo que vence
+      30 días después de esa renovación, y la cookie lleva `Max-Age` de 30 días desde ella. Un
+      refresh que no se usa en 30 días vence solo. Cumple el `CHECK sesion_refresh_vigencia`
+      (`expira_en <= emitido_en + 30 days`), que se evalúa por fila, es decir, por token. Motivo:
+      volver a escribir la contraseña es una causa de abandono para una cuidadora mayor; el riesgo
+      de un teléfono robado se cubre con sacar el dispositivo y con la detección de reutilización.
     - **Revocar no es inmediato para el access token.** Al cerrar sesión o sacar un dispositivo, el
       refresh deja de servir en ese momento, pero un access token ya emitido sigue valiendo hasta
       sus 15 minutos (arquitectura 11.6). Se acepta y se declara.
@@ -84,8 +89,8 @@ paths:
 
         1. **Cookie del refresh.** El 200 lleva `Set-Cookie: __Secure-matu-refresh=<refresh>` con
            `Max-Age=2592000` (30 días). El refresh son 256 bits aleatorios en base64url
-           (43 caracteres). Crea una familia nueva (`familia_id`) con
-           `expira_en = ahora + 30 días`, según el puerto `Reloj`.
+           (43 caracteres). Crea una familia nueva (`familia_id`) y su primer token con
+           `emitido_en = ahora` y `expira_en = ahora + 30 días`, según el puerto `Reloj`.
         2. **Dispositivo.** Si la petición trae una cookie de refresh vigente **del mismo usuario** y
            su dispositivo no está revocado, reutiliza ese dispositivo y revoca la familia anterior
            (`motivo_revocacion = 'logout'`): un dispositivo tiene una sola sesión viva. Si no,
@@ -179,7 +184,9 @@ paths:
 
         **Rotación con detección de reutilización** (arquitectura 11.6, `sesion_refresh`): cada
         refresh sirve **una vez**. Al renovar, el token presentado queda con `usado_en` y nace otro
-        de la misma familia, con el mismo `expira_en`.
+        de la misma familia con `emitido_en = ahora` y `expira_en = ahora + 30 días`, según el
+        `Reloj` (ventana deslizante, decisión de Jorge del 31-10). La familia no tiene un vencimiento
+        propio: sigue viva mientras se renueve antes de que venza su último token.
 
         **Orden de evaluación:**
 
@@ -201,8 +208,9 @@ paths:
         cliente. El servidor registra la reutilización como evento de seguridad en el log JSON,
         con el id de la familia y sin el token.
 
-        **El access token** vence a los 15 minutos o cuando vence la familia, lo que ocurra
-        primero: `expira_en` puede ser menor que 900 en el último cuarto de hora de la sesión.
+        **El access token** vence siempre a los 15 minutos (`expira_en: 900`): con la ventana
+        deslizante la familia no tiene un vencimiento propio que lo acorte, y renovar emite un
+        refresh nuevo de 30 días.
 
         **Varias pestañas.** Dos renovaciones simultáneas con la misma cookie cuentan como
         reutilización y cierran la sesión. El cliente serializa la renovación entre pestañas (por
@@ -233,12 +241,6 @@ paths:
                     access_token: ejemplo.de-access-token-renovado.no-valido
                     token_type: bearer
                     expira_en: 900
-                ultimo_cuarto_de_hora:
-                  summary: A la familia le quedan 4 minutos y 10 segundos
-                  value:
-                    access_token: ejemplo.de-access-token-final.no-valido
-                    token_type: bearer
-                    expira_en: 250
         '401':
           $ref: '#/components/responses/SesionExpirada'
         '422':
@@ -298,8 +300,9 @@ paths:
         anterior a MATU-38, sin `did`, deja todos en `false`.
 
         Orden: primero el actual y después por `ultimo_uso_en` descendente. Sin paginación: son
-        pocos. Un dispositivo cuya sesión venció sin cerrarse sigue en la lista hasta que se saca
-        (ver "Pendientes para Jorge" en el README).
+        pocos. Un dispositivo cuya sesión venció sin cerrarse sigue en la lista hasta que se saca o
+        hasta que la tarea de conservación de MATU-38 lo borra, 90 días después de su último uso
+        (decisión 59).
       x-matu-historia: MATU-38
       security:
         - bearerAuth: []
@@ -453,9 +456,14 @@ paths:
       summary: Dar la autorización para calcular cuándo se acaban los insumos
       description: |
         Registra un consentimiento con `finalidad = 'consumo'` para la persona (decisión 37, opción
-        (a) del analista normativo, **pendiente de aprobación de Jorge**). La política de privacidad
+        (a) del analista normativo, aprobada por Jorge el 31-10, decisión 55). La política de privacidad
         v0.9 ya lo anuncia: "Antes de activar el cálculo de insumos […] te pediremos una
         autorización". Sin ella, toda ruta de consumo responde 403.
+
+        **Un solo paso dentro del flujo del perfil de consumo** (decisión de Jorge del 31-10), no
+        un trámite aparte: la app llama a esta ruta desde el flujo de crear el primer perfil, cuando
+        `GET …/consumo` o `POST …/consumo` responden 403 con `finalidad: consumo`. Al recibir el 201,
+        sigue con la creación del perfil.
 
         **Reutiliza exactamente el alta de MATU-07** (`care_circle/domain/personas.py`):
 
@@ -475,7 +483,8 @@ paths:
         (sin ella la API no arranca fuera de pruebas). Con 0.9 respondería **201** con
         `version_politica: "0.9"` y una evidencia que cita una declaración que la 0.9 no tiene. Por
         eso es una condición de despliegue, no de la API: `POLITICA_VERSION` pasa a 0.10 antes de
-        que la ruta llegue a un ambiente con usuarios (pendiente de Jorge).
+        que la ruta llegue a un ambiente con usuarios. La 0.10 la redacta el analista en un PR al
+        repositorio MATU, con MATU-36 y MATU-38 (decisión 62).
 
         **Inalterable** (migración 0006): la fila nunca se edita ni se borra. Solo admite fijar
         `revocado_en` una vez. Hay un solo consentimiento no revocado por persona y finalidad
@@ -881,8 +890,8 @@ paths:
           toque no cambia `cerrada_en`.
         - Descartar no cambia el perfil ni su fecha estimada: si la familia sigue sin anotar
           cuánto queda, el insumo sigue en "Qué se acaba pronto".
-        - Descartan `admin` y `cuidador`. El `pagador` queda **pendiente de Jorge**: hasta que
-          decida, recibe 404, igual que el `observador`.
+        - Descartan solo `admin` y `cuidador` (decisión de Jorge del 31-10). El `pagador` y el
+          `observador` solo leen: reciben 404.
         - Registra `alerta.descartar` sobre `alerta_quiebre`, **sin `nombre_libre`**.
 
         "Ya lo compré" (`resuelta`) es declarar una reposición: es MATU-51, del sprint 4, y no está
@@ -1278,19 +1287,20 @@ components:
     SetCookieRefreshInicio:
       description: |
         Cookie del refresh de una familia nueva. `Max-Age` son 30 días (2592000 segundos), el
-        máximo que admite `sesion_refresh_vigencia`.
+        máximo que admite `sesion_refresh_vigencia` para cada token.
       required: true
       schema:
         type: string
       example: __Secure-matu-refresh=<refresh>; Max-Age=2592000; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
     SetCookieRefreshRenovado:
       description: |
-        Cookie con el refresh nuevo de la misma familia. `Max-Age` son los segundos que le quedan a
-        la familia: renovar **no** alarga la sesión (sin ventana deslizante).
+        Cookie con el refresh nuevo de la misma familia. `Max-Age` son 30 días (2592000 segundos)
+        desde esta renovación: cada renovación alarga la sesión (ventana deslizante, decisión de
+        Jorge del 31-10).
       required: true
       schema:
         type: string
-      example: __Secure-matu-refresh=<refresh>; Max-Age=1728000; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
+      example: __Secure-matu-refresh=<refresh>; Max-Age=2592000; Path=/v1/sesiones; HttpOnly; Secure; SameSite=Strict
     BorrarCookieRefresh:
       description: Borra la cookie del refresh.
       required: true
@@ -1362,8 +1372,8 @@ components:
         expira_en:
           type: integer
           description: |
-            **Segundos** de vida del access token (como en MATU-05a), no una fecha. 900 salvo en el
-            último cuarto de hora de la familia, cuando es lo que le queda.
+            **Segundos** de vida del access token (como en MATU-05a), no una fecha. Siempre 900:
+            con la ventana deslizante la familia no tiene un vencimiento propio que lo acorte.
 
     Dispositivo:
       type: object
@@ -1429,7 +1439,9 @@ components:
             no, 422 `tipo: push_no_admitido`, sin repetir el valor.
 
             Con solo el endpoint, MATU envía avisos **sin contenido** (RFC 8030 lo admite, con
-            VAPID, RFC 8292) y el service worker muestra un texto fijo. Si MATU-41 necesita
+            VAPID, RFC 8292) y el service worker muestra un texto fijo y genérico, sin el nombre
+            de la persona ni del insumo: "MATU: un insumo se está acabando. Abre la app para ver
+            cuál" (decisión de Jorge del 31-10). El correo puede llevar el detalle (MATU-41). Si MATU-41 necesita
             enviar contenido cifrado, hacen falta también las claves `p256dh` y `auth` de la
             suscripción: es un cambio a este contrato.
 
