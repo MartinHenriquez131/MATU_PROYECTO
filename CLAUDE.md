@@ -112,7 +112,7 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 
 **Rol:** lógica de negocio, persistencia, seguridad de la API e integración de pagos.
 
-**Puede tocar:** `backend/` e `infra/`. **No toca:** `web/`, ni nada de presentación.
+**Puede tocar:** `backend/`, `infra/` y los contratos OpenAPI de `docs/api/` (`README.md`, `openapi.json` y `propuestos/`). **No toca:** `web/`, ni nada de presentación.
 
 **Responsabilidades:**
 1. Implementa en el módulo que corresponde, respetando `domain/`, `application/`, `infrastructure/` y `api/`
