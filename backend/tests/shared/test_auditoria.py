@@ -50,6 +50,13 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "relevo.pin_incorrecto",
         "relevo.bloqueo",
         "relevo.abrir",
+        "sesion.iniciar",
+        "sesion.inicio_fallido",
+        "sesion.reutilizacion_detectada",
+        "sesion.cerrar",
+        "dispositivo.sacar",
+        "dispositivo.push_registrar",
+        "dispositivo.push_borrar",
     }
 
 
@@ -58,8 +65,15 @@ def test_catalogo_de_motivos_es_el_de_la_decision_16() -> None:
 
 
 def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
-    assert {a.value for a in ActorTipo} == {"usuario", "relevo"}
-    assert {e.value for e in EntidadAuditoria} == {"plan_cuidado", "plan_seccion", "consentimiento", "acceso_relevo"}
+    assert {a.value for a in ActorTipo} == {"usuario", "relevo", "sistema"}
+    assert {e.value for e in EntidadAuditoria} == {
+        "plan_cuidado",
+        "plan_seccion",
+        "consentimiento",
+        "acceso_relevo",
+        "usuario",
+        "dispositivo",
+    }
 
 
 @pytest.mark.parametrize(
@@ -69,7 +83,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         pytest.param(AccionAuditoria, "PLAN.LEER", id="accion-en-mayusculas"),
         pytest.param(MotivoAuditoria, "se fue al hospital", id="motivo-texto-libre"),
         pytest.param(MotivoAuditoria, "", id="motivo-vacio"),
-        pytest.param(ActorTipo, "sistema", id="actor-aun-no-usado"),
+        pytest.param(ActorTipo, "comercio", id="actor-aun-no-usado"),
         pytest.param(EntidadAuditoria, "persona_cuidada", id="entidad-fuera-de-catalogo"),
     ],
 )
@@ -103,6 +117,8 @@ def test_entrada_solo_lleva_identificadores_sin_ip_ni_contenido() -> None:
         "entidad_id",
         "motivo",
         "request_id",
+        "huella_email",
+        "sesiones_revocadas",
     }
     assert "ip" not in nombres
     # El momento lo pone el adaptador con el Reloj, no quien llama
@@ -138,3 +154,72 @@ def test_entrada_rechaza_str_libre_o_grupo_ausente(cambio: dict[str, Any]) -> No
     # Aunque "plan.leer" == AccionAuditoria.PLAN_LEER, un str suelto no pasa: el catálogo es el tipo
     with pytest.raises(TypeError):
         EntradaAuditoria(**_campos(**cambio))
+
+
+# --- MATU-38: acciones de la cuenta, sin grupo, y detalle acotado (RF-37) ---------------------
+
+HUELLA = "ab" * 32
+
+
+@pytest.mark.rf("RF-37")
+def test_accion_de_cuenta_va_sin_grupo() -> None:
+    entrada = EntradaAuditoria(
+        grupo_id=None,
+        actor_tipo=ActorTipo.USUARIO,
+        actor_ref=USUARIO,
+        accion=AccionAuditoria.SESION_INICIAR,
+        entidad=EntidadAuditoria.DISPOSITIVO,
+    )
+    assert entrada.grupo_id is None and entrada.detalle() is None
+
+
+@pytest.mark.rf("RF-37")
+def test_inicio_fallido_lleva_solo_la_huella_y_ningun_actor() -> None:
+    entrada = EntradaAuditoria(
+        grupo_id=None,
+        actor_tipo=ActorTipo.SISTEMA,
+        actor_ref=None,
+        accion=AccionAuditoria.SESION_INICIO_FALLIDO,
+        entidad=EntidadAuditoria.USUARIO,
+        huella_email=HUELLA,
+    )
+    assert entrada.detalle() == {"huella_email": HUELLA}
+
+
+@pytest.mark.rf("RF-37")
+def test_sacar_dispositivo_lleva_la_cantidad() -> None:
+    entrada = EntradaAuditoria(
+        grupo_id=None,
+        actor_tipo=ActorTipo.USUARIO,
+        actor_ref=USUARIO,
+        accion=AccionAuditoria.DISPOSITIVO_SACAR,
+        entidad=EntidadAuditoria.DISPOSITIVO,
+        sesiones_revocadas=2,
+    )
+    assert entrada.detalle() == {"sesiones_revocadas": 2}
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize(
+    "cambio",
+    [
+        pytest.param({"huella_email": "familiar@ejemplo.cl"}, id="email-en-claro"),
+        pytest.param({"huella_email": "AB" * 32}, id="huella-en-mayusculas"),
+        pytest.param({"accion": AccionAuditoria.SESION_INICIAR, "huella_email": HUELLA}, id="huella-en-otra-accion"),
+        pytest.param({"sesiones_revocadas": 1}, id="cantidad-en-otra-accion"),
+        pytest.param({"actor_tipo": ActorTipo.USUARIO}, id="usuario-sin-actor-ref"),
+        pytest.param({"accion": AccionAuditoria.PLAN_LEER, "huella_email": None}, id="accion-de-familia-sin-grupo"),
+    ],
+)
+def test_detalle_y_grupo_fuera_de_lo_acotado_se_rechazan(cambio: dict[str, Any]) -> None:
+    campos: dict[str, Any] = {
+        "grupo_id": None,
+        "actor_tipo": ActorTipo.SISTEMA,
+        "actor_ref": None,
+        "accion": AccionAuditoria.SESION_INICIO_FALLIDO,
+        "entidad": EntidadAuditoria.USUARIO,
+        "huella_email": HUELLA,
+    }
+    campos.update(cambio)
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**campos)

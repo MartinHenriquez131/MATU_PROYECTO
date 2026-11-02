@@ -13,6 +13,8 @@ el instante sale del puerto Reloj. No registra nada en los logs: ni los valores 
 error de la base, que puede traerlos.
 """
 
+import json
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -22,9 +24,9 @@ from app.shared.puertos import Reloj
 # Sin RETURNING: matu_app solo ve la auditoría de su grupo, y el id lo genera la base
 _INSERTAR = text(
     "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, request_id,"
-    " ocurrido_en)"
+    " ocurrido_en, detalle)"
     " VALUES (:grupo_id, :actor_tipo, :actor_ref, :accion, :entidad, :entidad_id, :motivo, :request_id,"
-    " :ocurrido_en)"
+    " :ocurrido_en, CAST(:detalle AS jsonb))"
 )
 
 
@@ -57,5 +59,6 @@ class RegistroAuditoriaSql:
                 "motivo": None if entrada.motivo is None else entrada.motivo.value,
                 "request_id": entrada.request_id,
                 "ocurrido_en": self._reloj.ahora(),
+                "detalle": None if (detalle := entrada.detalle()) is None else json.dumps(detalle),
             },
         )
