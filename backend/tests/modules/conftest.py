@@ -17,7 +17,9 @@ from fastapi.testclient import TestClient
 from app.main import crear_app
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_clave_jwt, obtener_reloj, usuario_actual
 from app.modules.iam.api.router import obtener_pepper_email
+from app.modules.iam.api.sesion_web import obtener_contadores, obtener_pepper_limites
 from tests.base_datos import DSN
+from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
 
 
@@ -28,6 +30,8 @@ class EntornoIam:
     pepper: bytes
     clave_jwt: bytes
     reloj: RelojFijo
+    contadores: ContadoresEnMemoria = field(default_factory=ContadoresEnMemoria)
+    pepper_limites: bytes = b""
     creados: list[uuid.UUID] = field(default_factory=list)
 
     def registrar(self, **cuerpo: Any) -> Any:
@@ -75,8 +79,13 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     salida = io.StringIO()
     pepper = secrets.token_bytes(32)
     clave_jwt = secrets.token_hex(32).encode()
+    pepper_limites = secrets.token_bytes(32)
+    contadores = ContadoresEnMemoria()
     app = crear_app(stream_logs=salida)
     app.dependency_overrides[obtener_pepper_email] = lambda: pepper
+    # MATU-38: la demora de la entrada con contadores en memoria (el pipeline no tiene Redis)
+    app.dependency_overrides[obtener_pepper_limites] = lambda: pepper_limites
+    app.dependency_overrides[obtener_contadores] = lambda: contadores
     app.dependency_overrides[obtener_clave_jwt] = lambda: clave_jwt
     # El mismo reloj emite y valida: la prueba lo hace avanzar para vencer el token
     app.dependency_overrides[obtener_reloj] = lambda: reloj_fijo
@@ -93,10 +102,18 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
         pepper=pepper,
         clave_jwt=clave_jwt,
         reloj=reloj_fijo,
+        contadores=contadores,
+        pepper_limites=pepper_limites,
     )
     with entorno.cliente:
         yield entorno
     if entorno.creados:
         # Las filas se borran como superusuario: matu_app no ve las cuentas de otros (RLS)
         with psycopg.connect(DSN, autocommit=True) as cx:
+            # MATU-38: las sesiones y los dispositivos cuelgan del usuario (indice_token no tiene llave)
+            cx.execute(
+                "DELETE FROM indice_token WHERE tipo = 'refresh' AND usuario_id = ANY(%s)", (entorno.creados,)
+            )
+            cx.execute("DELETE FROM sesion_refresh WHERE usuario_id = ANY(%s)", (entorno.creados,))
+            cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM usuario WHERE id = ANY(%s)", (entorno.creados,))

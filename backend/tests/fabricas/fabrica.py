@@ -535,6 +535,9 @@ class Fabrica:
             if usuarios:
                 # Lo que la prueba pudo crear para esas cuentas fuera de los grupos de la fábrica
                 cx.execute("DELETE FROM membresia WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
+                cx.execute(
+                    "DELETE FROM indice_token WHERE tipo = 'refresh' AND usuario_id = ANY(%s::uuid[])", (usuarios,)
+                )
                 cx.execute("DELETE FROM sesion_refresh WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM usuario WHERE id = ANY(%s::uuid[])", (usuarios,))
