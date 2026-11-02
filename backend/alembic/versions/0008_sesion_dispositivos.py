@@ -12,6 +12,11 @@ b) RLS de operación sobre dispositivo y sesion_refresh (decisión 61). Hoy oper
    - la conservación (decisión 59) es la función iam_conservar(...), SECURITY DEFINER, dueño
      matu_owner, search_path fijo, EXECUTE solo para matu_app, que exige app.rol = 'operacion'. Solo
      BORRA filas vencidas o revocadas y devuelve dos contadores. No devuelve ninguna columna;
+   - el instante ahora viene del puerto Reloj (el dominio calcula los límites y las pruebas usan un
+     RelojFijo), pero la función exige ahora <= now() + 5 minutos: un ahora en el futuro haría pasar
+     por vencidas sesiones que siguen vigentes y las borraría. Se prefiere la cota a usar now() a secas
+     para conservar el Reloj del dominio; los 5 minutos absorben el desfase entre el reloj de la
+     aplicación y el de la base. Un ahora en el pasado solo borra menos;
    - matu_owner está sujeto a RLS (FORCE): las políticas sesion_conservacion y
      dispositivo_conservacion le dejan leer y borrar, solo a matu_owner y solo con app.rol =
      'operacion', igual que consentimiento_autorizacion_relevo en 0007. Sin UPDATE ni INSERT.
@@ -21,10 +26,9 @@ c) Políticas de usuario: dispositivo_propio y sesion_propia ya acotan a usuario
    escribir, que el dispositivo sea del mismo usuario: así nadie cuelga una sesión propia de un
    dispositivo ajeno.
 
-d) auditoria.detalle (jsonb), para los dos datos que MATU-38 registra y que no caben en las columnas
-   de 0001: la huella del email de sesion.inicio_fallido y la cantidad de sesiones revocadas de
-   dispositivo.sacar. Un CHECK admite solo esas dos claves, la huella como 64 hex y la cantidad como
-   número: no puede llevar texto libre, ni el email, ni la IP.
+d) auditoria.detalle (jsonb), para el dato que MATU-38 registra y que no cabe en las columnas de
+   0001: la cantidad de sesiones revocadas de dispositivo.sacar. Un CHECK admite solo esa clave, como
+   entero: no puede llevar texto libre, ni el email ni su huella (decisión 64), ni la IP.
 
 backend/db/*.sql no se tocan: son el esquema de 0001, igual que en 0004 a 0007.
 
@@ -88,6 +92,9 @@ BEGIN
     IF public.app_rol() IS DISTINCT FROM 'operacion' THEN
         RAISE EXCEPTION 'iam_conservar exige app.rol = operacion' USING ERRCODE = 'insufficient_privilege';
     END IF;
+    IF ahora IS NULL OR ahora > now() + interval '5 minutes' THEN
+        RAISE EXCEPTION 'ahora no puede estar en el futuro' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
     IF NOT (limite_sesion <= ahora AND limite_dispositivo <= ahora) THEN
         RAISE EXCEPTION 'los límites deben ser anteriores a ahora' USING ERRCODE = 'invalid_parameter_value';
     END IF;
@@ -142,15 +149,12 @@ ALTER TABLE auditoria ADD COLUMN detalle jsonb;
 ALTER TABLE auditoria ADD CONSTRAINT auditoria_detalle_acotado CHECK (
     detalle IS NULL OR (
         jsonb_typeof(detalle) = 'object'
-        AND (detalle - ARRAY['huella_email', 'sesiones_revocadas']) = '{}'::jsonb
-        AND (NOT detalle ? 'huella_email'
-             OR (jsonb_typeof(detalle -> 'huella_email') = 'string'
-                 AND detalle ->> 'huella_email' ~ '^[0-9a-f]{64}$'))
+        AND (detalle - 'sesiones_revocadas') = '{}'::jsonb
         AND (NOT detalle ? 'sesiones_revocadas'
              OR (jsonb_typeof(detalle -> 'sesiones_revocadas') = 'number'
                  AND (detalle ->> 'sesiones_revocadas') ~ '^[0-9]{1,6}$'))));
 COMMENT ON COLUMN auditoria.detalle IS
-    'MATU-38: solo huella_email (HMAC-SHA-256 en hex) y sesiones_revocadas (entero). Nunca texto libre';
+    'MATU-38: solo sesiones_revocadas (entero). Nunca texto libre, el email ni su huella (decisión 64)';
 """
 
 DOWNGRADE = """

@@ -117,7 +117,6 @@ def test_entrada_solo_lleva_identificadores_sin_ip_ni_contenido() -> None:
         "entidad_id",
         "motivo",
         "request_id",
-        "huella_email",
         "sesiones_revocadas",
     }
     assert "ip" not in nombres
@@ -174,16 +173,29 @@ def test_accion_de_cuenta_va_sin_grupo() -> None:
 
 
 @pytest.mark.rf("RF-37")
-def test_inicio_fallido_lleva_solo_la_huella_y_ningun_actor() -> None:
+def test_inicio_fallido_va_sin_actor_ni_detalle() -> None:
     entrada = EntradaAuditoria(
         grupo_id=None,
         actor_tipo=ActorTipo.SISTEMA,
         actor_ref=None,
         accion=AccionAuditoria.SESION_INICIO_FALLIDO,
         entidad=EntidadAuditoria.USUARIO,
-        huella_email=HUELLA,
     )
-    assert entrada.detalle() == {"huella_email": HUELLA}
+    assert entrada.detalle() is None
+
+
+@pytest.mark.rf("RF-37")
+def test_la_entrada_no_admite_la_huella_del_email() -> None:
+    # Decisión 64: la huella del email no se guarda en la auditoría
+    with pytest.raises(TypeError):
+        EntradaAuditoria(
+            grupo_id=None,
+            actor_tipo=ActorTipo.SISTEMA,
+            actor_ref=None,
+            accion=AccionAuditoria.SESION_INICIO_FALLIDO,
+            entidad=EntidadAuditoria.USUARIO,
+            huella_email=HUELLA,  # type: ignore[call-arg]
+        )
 
 
 @pytest.mark.rf("RF-37")
@@ -203,12 +215,10 @@ def test_sacar_dispositivo_lleva_la_cantidad() -> None:
 @pytest.mark.parametrize(
     "cambio",
     [
-        pytest.param({"huella_email": "familiar@ejemplo.cl"}, id="email-en-claro"),
-        pytest.param({"huella_email": "AB" * 32}, id="huella-en-mayusculas"),
-        pytest.param({"accion": AccionAuditoria.SESION_INICIAR, "huella_email": HUELLA}, id="huella-en-otra-accion"),
         pytest.param({"sesiones_revocadas": 1}, id="cantidad-en-otra-accion"),
         pytest.param({"actor_tipo": ActorTipo.USUARIO}, id="usuario-sin-actor-ref"),
-        pytest.param({"accion": AccionAuditoria.PLAN_LEER, "huella_email": None}, id="accion-de-familia-sin-grupo"),
+        pytest.param({"accion": AccionAuditoria.PLAN_LEER}, id="accion-de-familia-sin-grupo"),
+        pytest.param({"sesiones_revocadas": -1, "accion": AccionAuditoria.DISPOSITIVO_SACAR}, id="cantidad-negativa"),
     ],
 )
 def test_detalle_y_grupo_fuera_de_lo_acotado_se_rechazan(cambio: dict[str, Any]) -> None:
@@ -218,7 +228,6 @@ def test_detalle_y_grupo_fuera_de_lo_acotado_se_rechazan(cambio: dict[str, Any])
         "actor_ref": None,
         "accion": AccionAuditoria.SESION_INICIO_FALLIDO,
         "entidad": EntidadAuditoria.USUARIO,
-        "huella_email": HUELLA,
     }
     campos.update(cambio)
     with pytest.raises(TypeError):

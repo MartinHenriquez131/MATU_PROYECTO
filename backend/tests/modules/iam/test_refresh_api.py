@@ -10,7 +10,7 @@ cookie Secure por http. Así cada prueba elige qué cookie presenta.
 import json
 import re
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
@@ -329,14 +329,14 @@ def test_intentos_seguidos_responden_429_con_retry_after(
     assert _filas("SELECT estado FROM usuario WHERE id = %s", cuenta) == [("activo",)]
     assert len(entorno_iam.contadores.datos) == 2  # la IP y el email sin cuenta
 
-    # Cada fallo con cuenta deja sesion.inicio_fallido con la huella del email, sin actor
+    # Cada fallo deja sesion.inicio_fallido sin actor y sin la huella del email (decisión 64)
     fallidos = _filas(
         "SELECT actor_tipo, actor_ref, grupo_id, detalle FROM auditoria WHERE accion = 'sesion.inicio_fallido'"
         " AND request_id = ANY(%s)", [r.headers["x-request-id"] for r in (sexto,)])
     assert len(fallidos) == 1
     actor_tipo, actor_ref, grupo_id, detalle = fallidos[0]
     assert (actor_tipo, actor_ref, grupo_id) == ("sistema", None, None)
-    assert set(detalle) == {"huella_email"} and re.fullmatch(r"[0-9a-f]{64}", detalle["huella_email"])
+    assert detalle is None
 
 
 def test_sin_redis_la_entrada_falla_cerrada_con_503(
@@ -485,6 +485,14 @@ def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
     entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str
 ) -> None:
     from app.core.db import fabrica_sesiones
+    from app.modules.iam.api.dependencias import obtener_reloj
+    from tests.dobles.reloj_fijo import RelojFijo
+
+    # iam_conservar rechaza un ahora futuro: la prueba corre 100 días antes de la hora real y avanza
+    reloj = RelojFijo(datetime.now(UTC) - timedelta(days=100))
+    app: Any = entorno_iam.cliente.app
+    app.dependency_overrides[obtener_reloj] = lambda: reloj
+    entorno_iam.reloj = reloj
 
     viejo = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     id_viejo = _did(entorno_iam, viejo.json()["access_token"])
@@ -547,7 +555,7 @@ def test_logs_de_un_ciclo_completo_no_tienen_secretos(
     }
     for nombre, valor in prohibidos.items():
         assert valor not in texto, f"el log contiene {nombre}"
-    # Tampoco en la auditoría, salvo la huella acotada
+    # Tampoco en la auditoría
     auditoria = json.dumps(_filas("SELECT row_to_json(a)::text FROM auditoria a WHERE actor_ref = %s OR "
                                   "accion = 'sesion.inicio_fallido'", cuenta), default=str)
     for nombre, valor in prohibidos.items():
@@ -563,3 +571,20 @@ def test_contadores_en_memoria_respetan_la_ventana(reloj_fijo: Any) -> None:
     reloj_fijo.avanzar(timedelta(minutes=2))
     contadores.sumar_fallo("h", reloj_fijo.ahora())
     assert contadores.leer("h").fallos == 1
+
+
+def test_conservacion_con_ahora_futuro_falla_y_no_borra_nada(
+    entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str
+) -> None:
+    from sqlalchemy.exc import DataError
+
+    from app.core.db import fabrica_sesiones
+    from tests.dobles.reloj_fijo import RelojFijo
+
+    # El fixture reloj_fijo está en 2026-10-20: la sesión creada vence el 19-11
+    _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
+    futuro = RelojFijo(datetime.now(UTC) + timedelta(days=400))
+    with pytest.raises(DataError):
+        conservar(unidad=UnidadIamSql(fabrica_sesiones(), futuro), reloj=futuro)
+    assert _filas("SELECT count(*) FROM sesion_refresh WHERE usuario_id = %s", cuenta) == [(1,)]
+    assert _filas("SELECT count(*) FROM dispositivo WHERE usuario_id = %s", cuenta) == [(1,)]

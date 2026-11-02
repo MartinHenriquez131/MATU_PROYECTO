@@ -106,7 +106,7 @@ def entrar(
     """POST /v1/sesiones (MATU-05a con el cambio de MATU-38).
 
     Orden: demora (DemoraActiva, sin correr Argon2), credenciales (CredencialesInvalidas, suma un fallo
-    a las dos huellas y audita sesion.inicio_fallido con la huella del email), y la sesión: borra el
+    a las dos huellas y audita sesion.inicio_fallido sin la huella del email, decisión 64), y la sesión: borra el
     contador del email, reutiliza el dispositivo de la cookie si es del mismo usuario y sigue vigente
     (revocando la familia anterior) o crea uno, crea la familia y audita sesion.iniciar.
 
@@ -135,7 +135,6 @@ def entrar(
                     actor_ref=None,
                     accion=AccionAuditoria.SESION_INICIO_FALLIDO,
                     entidad=EntidadAuditoria.USUARIO,
-                    huella_email=huella_email,
                     request_id=request_id,
                 )
             )

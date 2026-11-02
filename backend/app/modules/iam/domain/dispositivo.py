@@ -82,6 +82,8 @@ def push_admitido(endpoint: str) -> bool:
 
 CONSERVACION_SESION = timedelta(days=30)
 CONSERVACION_DISPOSITIVO = timedelta(days=90)
+# iam_conservar (0008) rechaza un ahora posterior a now() de la base más esta tolerancia
+TOLERANCIA_RELOJ_CONSERVACION = timedelta(minutes=5)
 
 
 @dataclass(frozen=True)

@@ -70,7 +70,7 @@ def test_inserta_una_fila_con_el_instante_del_reloj(reloj_fijo: RelojFijo) -> No
         "motivo": "salgo_unas_horas",
         "request_id": "req-sintetico-14",
         "ocurrido_en": reloj_fijo.ahora(),
-        # MATU-38: sin huella ni cantidad, la columna detalle queda nula
+        # MATU-38: sin cantidad, la columna detalle queda nula
         "detalle": None,
     }
 

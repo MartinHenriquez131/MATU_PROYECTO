@@ -933,3 +933,23 @@ def test_usuario_no_crea_un_dispositivo_a_nombre_de_otro(cx):
     como(cx, usuario_id=U_ADMIN_A)
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("INSERT INTO dispositivo (usuario_id, plataforma) VALUES (%s, 'web')", (U_ADMIN_B,))
+
+
+@pytest.mark.rf("RF-37")
+def test_conservacion_con_ahora_futuro_falla(cx):
+    _sembrar_sesiones(cx)
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT * FROM iam_conservar(now() + interval '400 days', now() + interval '400 days',"
+                   " now() + interval '430 days')")
+
+
+@pytest.mark.rf("RF-37")
+def test_auditoria_no_admite_la_huella_del_email(cx):
+    """Decisión 64: auditoria.detalle solo admite sesiones_revocadas."""
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(
+            "INSERT INTO auditoria (actor_tipo, accion, entidad, detalle) VALUES ('sistema',"
+            " 'sesion.inicio_fallido', 'usuario', %s::jsonb)",
+            ('{"huella_email": "' + "ab" * 32 + '"}',),
+        )

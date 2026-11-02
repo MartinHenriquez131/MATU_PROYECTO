@@ -16,14 +16,13 @@ Reglas que fijan los tipos, y no la disciplina de quien los usa:
 - grupo_id es obligatorio, salvo en las acciones de la cuenta (ACCIONES_DE_CUENTA, MATU-38): la
   sesión y los dispositivos no pertenecen a una familia. RLS (auditoria_insertar, auditoria_relevo)
   acepta una entrada en el grupo del contexto o sin grupo.
-- detalle solo admite dos datos tipados (MATU-38): la huella del email de un inicio fallido y la
-  cantidad de sesiones revocadas al sacar un dispositivo. Nunca el email, la IP, un token ni texto.
+- detalle solo admite un dato tipado (MATU-38): la cantidad de sesiones revocadas al sacar un
+  dispositivo. Nunca el email ni su huella (decisión 64), la IP, un token ni texto.
 - El momento no viaja en la entrada: lo pone el adaptador con el puerto Reloj.
 
 Solo biblioteca estándar: se importa desde domain/ y application/ de cualquier módulo.
 """
 
-import re
 import uuid
 from dataclasses import dataclass
 from enum import StrEnum
@@ -98,9 +97,6 @@ class EntidadAuditoria(StrEnum):
     DISPOSITIVO = "dispositivo"
 
 
-_HUELLA = re.compile(r"[0-9a-f]{64}")
-
-
 def _exigir(nombre: str, valor: object, tipo: type) -> None:
     # isinstance y no igualdad: "plan.leer" == AccionAuditoria.PLAN_LEER, pero un str suelto no pasa
     if not isinstance(valor, tipo):
@@ -119,7 +115,6 @@ class EntradaAuditoria:
       cuando la fila aún no existe o no aplica.
     - ``motivo``: solo con catálogo, por ejemplo al compartir la ficha.
     - ``request_id``: el de la petición, para cruzar con los logs.
-    - ``huella_email``: solo en sesion.inicio_fallido, la huella HMAC-SHA-256 del email en hex (64).
     - ``sesiones_revocadas``: solo en dispositivo.sacar, un entero de 0 en adelante.
 
     grupo_id puede faltar solo en ACCIONES_DE_CUENTA, y actor_ref solo con el actor SISTEMA.
@@ -136,7 +131,6 @@ class EntradaAuditoria:
     entidad_id: uuid.UUID | None = None
     motivo: MotivoAuditoria | None = None
     request_id: str | None = None
-    huella_email: str | None = None
     sesiones_revocadas: int | None = None
 
     def __post_init__(self) -> None:
@@ -153,10 +147,6 @@ class EntradaAuditoria:
             _exigir("motivo", self.motivo, MotivoAuditoria)
         if self.request_id is not None:
             _exigir("request_id", self.request_id, str)
-        if self.huella_email is not None:
-            _exigir("huella_email", self.huella_email, str)
-            if self.accion is not AccionAuditoria.SESION_INICIO_FALLIDO or not _HUELLA.fullmatch(self.huella_email):
-                raise TypeError("huella_email solo va en sesion.inicio_fallido, como 64 caracteres hex")
         if self.sesiones_revocadas is not None:
             if isinstance(self.sesiones_revocadas, bool) or not isinstance(self.sesiones_revocadas, int):
                 raise TypeError("sesiones_revocadas debe ser int")
@@ -166,8 +156,6 @@ class EntradaAuditoria:
     def detalle(self) -> dict[str, object] | None:
         """El contenido de la columna auditoria.detalle, o None si la entrada no lleva detalle."""
         datos: dict[str, object] = {}
-        if self.huella_email is not None:
-            datos["huella_email"] = self.huella_email
         if self.sesiones_revocadas is not None:
             datos["sesiones_revocadas"] = self.sesiones_revocadas
         return datos or None
