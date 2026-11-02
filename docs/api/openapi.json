@@ -78,6 +78,7 @@
           "sesiones"
         ],
         "summary": "Crear Sesion",
+        "description": "Inicia sesión (MATU-05a). MATU-38 agrega la cookie `__Secure-matu-refresh` (HttpOnly, Secure, SameSite=Strict, Path=/v1/sesiones, Max-Age de 30 días), el dispositivo, el claim `did` del access token y la demora progresiva (429 con Retry-After; sin Redis, 503). Orden: 422, 429 o 503, 401 y 200. Ver docs/api/propuestos/app-familia.openapi.yaml y las decisiones 47 a 49 y 57.",
         "operationId": "crear_sesion_v1_sesiones_post",
         "requestBody": {
           "content": {
@@ -92,12 +93,263 @@
         "responses": {
           "200": {
             "description": "Successful Response",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie del refresh",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SesionRespuesta"
                 }
               }
+            }
+          },
+          "401": {
+            "description": "credenciales-invalidas, el mismo exista o no el email",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido. No cuenta como intento",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiadas-peticiones: la huella de la IP o la del email están en espera",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos, de 1 a 900",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: la entrada falla cerrada",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/sesiones/renovar": {
+      "post": {
+        "tags": [
+          "sesiones"
+        ],
+        "summary": "Renovar Sesion",
+        "description": "Rota el refresh de la cookie `__Secure-matu-refresh` (ventana deslizante de 30 días, decisión 57) y entrega un access token nuevo de 15 minutos. Un refresh ya usado revoca toda su familia (`reutilizacion`). Todo fallo es el mismo 401 `sesion-expirada`, que borra la cookie.",
+        "operationId": "renovar_sesion_v1_sesiones_renovar_post",
+        "parameters": [
+          {
+            "name": "X-MATU-Cliente",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "const": "web",
+              "type": "string",
+              "description": "Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45)",
+              "title": "X-Matu-Cliente"
+            },
+            "description": "Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SesionRespuesta"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Cookie del refresh",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "sesion-expirada",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie del refresh",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Falta X-MATU-Cliente: web o trae otro valor",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/sesiones/cerrar": {
+      "post": {
+        "tags": [
+          "sesiones"
+        ],
+        "summary": "Cerrar Sesion",
+        "description": "Revoca la familia de la cookie (`logout`), el dispositivo y su endpoint de push (decisión 47). Idempotente: sin cookie o con una que no sirve, también 204. Siempre borra la cookie. Un access token ya emitido sigue valiendo hasta sus 15 minutos.",
+        "operationId": "cerrar_sesion_v1_sesiones_cerrar_post",
+        "parameters": [
+          {
+            "name": "X-MATU-Cliente",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "const": "web",
+              "type": "string",
+              "description": "Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45)",
+              "title": "X-Matu-Cliente"
+            },
+            "description": "Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45)"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Cookie del refresh",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Falta X-MATU-Cliente: web o trae otro valor",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/dispositivos": {
+      "get": {
+        "tags": [
+          "dispositivos"
+        ],
+        "summary": "Ver Dispositivos",
+        "description": "Los dispositivos propios no revocados: primero el actual (claim `did`) y después por último uso. Nunca devuelve `push_token`.",
+        "operationId": "ver_dispositivos_v1_dispositivos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaDispositivos"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/dispositivos/{dispositivo_id}": {
+      "delete": {
+        "tags": [
+          "dispositivos"
+        ],
+        "summary": "Sacar",
+        "description": "Revoca las sesiones del dispositivo (`dispositivo`), el dispositivo y su endpoint de push, en una transacción. Ajeno, inexistente o con un id que no es UUID: 404. Ya revocado: 204. Si es el actual, borra además la cookie del refresh.",
+        "operationId": "sacar_v1_dispositivos__dispositivo_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dispositivo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Dispositivo Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El dispositivo no existe, es de otro usuario o el token no trae did",
+            "content": {
+              "application/problem+json": {}
             }
           },
           "422": {
@@ -111,6 +363,100 @@
             }
           }
         }
+      }
+    },
+    "/v1/dispositivos/actual/push": {
+      "put": {
+        "tags": [
+          "dispositivos"
+        ],
+        "summary": "Guardar Push Actual",
+        "description": "Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Orden: 401, 404, 422 y 204.",
+        "operationId": "guardar_push_actual_v1_dispositivos_actual_push_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPush"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El dispositivo no existe, es de otro usuario o el token no trae did",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "push_token inválido o de un servicio no admitido (push_no_admitido)",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "dispositivos"
+        ],
+        "summary": "Borrar Push Actual",
+        "description": "Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente.",
+        "operationId": "borrar_push_actual_v1_dispositivos_actual_push_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El dispositivo no existe, es de otro usuario o el token no trae did",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/grupos": {
@@ -1232,6 +1578,62 @@
         ],
         "title": "DireccionVista"
       },
+      "DispositivoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "plataforma": {
+            "type": "string",
+            "enum": [
+              "android",
+              "ios",
+              "web"
+            ],
+            "title": "Plataforma"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Nombre"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado En"
+          },
+          "ultimo_uso_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso En"
+          },
+          "actual": {
+            "type": "boolean",
+            "title": "Actual"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "plataforma",
+          "nombre",
+          "creado_en",
+          "ultimo_uso_en",
+          "actual"
+        ],
+        "title": "DispositivoVista",
+        "description": "Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario."
+      },
       "EstadoCampoVista": {
         "properties": {
           "texto": {
@@ -1370,6 +1772,23 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "ListaDispositivos": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DispositivoVista"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ListaDispositivos"
       },
       "PersonaCreada": {
         "properties": {
@@ -1566,7 +1985,8 @@
           "access_token",
           "expira_en"
         ],
-        "title": "SesionRespuesta"
+        "title": "SesionRespuesta",
+        "description": "Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh."
       },
       "SolicitudCampo": {
         "properties": {
@@ -1669,6 +2089,27 @@
         "title": "SolicitudPersona",
         "description": "Cuerpo de POST /v1/grupos/{grupo_id}/personas-cuidadas."
       },
+      "SolicitudPush": {
+        "properties": {
+          "push_token": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "pattern": "^https://[^\\s]+$",
+            "format": "uri",
+            "title": "Push Token",
+            "description": "Endpoint de Web Push del navegador (RFC 8030), solo escritura. https, de hasta 1024 caracteres, con el host en la lista cerrada de servicios de push",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "push_token"
+        ],
+        "title": "SolicitudPush",
+        "description": "Cuerpo de PUT /v1/dispositivos/actual/push. El valor nunca se repite en un error."
+      },
       "SolicitudRegistro": {
         "properties": {
           "nombre": {
@@ -1759,12 +2200,6 @@
           "type"
         ],
         "title": "ValidationError"
-      }
-    },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "type": "http",
-        "scheme": "bearer"
       }
     }
   }
