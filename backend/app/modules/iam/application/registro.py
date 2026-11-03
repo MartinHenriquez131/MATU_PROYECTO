@@ -19,6 +19,7 @@ def registrar_usuario(
     nombre: str,
     email: str,
     contrasena: str,
+    telefono: str,
     pepper: bytes,
     hasher: HasherContrasenas,
     repositorio: RepositorioUsuarios,
@@ -38,6 +39,7 @@ def registrar_usuario(
         email=email_normalizado,
         password_hash=hasher.hashear(contrasena),
         email_hash=indice_email(pepper, email_normalizado),
+        telefono=telefono,
     )
     repositorio.crear(nuevo)
     return CuentaCreada(id=nuevo.id, nombre=nuevo.nombre, email=nuevo.email)

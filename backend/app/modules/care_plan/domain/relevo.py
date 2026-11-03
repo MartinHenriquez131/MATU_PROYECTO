@@ -11,12 +11,15 @@ calcular sus huellas vive en infrastructure/credenciales_relevo.py.
 - Ningún error de este módulo lleva el valor recibido.
 """
 
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, puede_escribir
+
+# El celular chileno vive en app.shared (lo usa también la cuenta, MATU-39). Se reexporta aquí
+from app.shared.celular import PATRON_CELULAR as PATRON_CELULAR
+from app.shared.celular import normalizar_celular as normalizar_celular
 
 VIGENCIA_POR_DEFECTO = timedelta(hours=24)
 VIGENCIA_MAXIMA = timedelta(days=30)
@@ -25,9 +28,6 @@ LARGO_MAXIMO_NOMBRE_RELEVO = 60
 
 ROLES_QUE_VEN_TELEFONO = frozenset({"admin", "cuidador"})
 
-# 9 y ocho dígitos, con o sin +56 / 56 y con o sin espacios (contrato, SolicitudAcceso.telefono_relevo)
-PATRON_CELULAR = r"^(\+?56 ?)?9( ?[0-9]){8}$"
-_CELULAR = re.compile(PATRON_CELULAR)
 
 
 class MotivoAcceso(StrEnum):
@@ -64,14 +64,6 @@ def vigencia(ahora: datetime, expira_en: datetime | None) -> datetime:
     if expira_en > ahora + VIGENCIA_MAXIMA:
         raise VigenciaInvalida("vigencia_maxima", "El enlace puede durar como máximo 30 días")
     return expira_en
-
-
-def normalizar_celular(valor: str) -> str | None:
-    """El celular chileno como +569XXXXXXXX, o None si no es un celular (fijos incluidos)."""
-    if not _CELULAR.match(valor):
-        return None
-    digitos = re.sub(r"\D", "", valor)
-    return "+56" + digitos[-9:]
 
 
 def nombre_pila(nombre: str) -> str:
