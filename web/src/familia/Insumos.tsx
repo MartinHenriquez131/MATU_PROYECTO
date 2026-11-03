@@ -3,7 +3,7 @@
 // `If-Match`, el conflicto 412 a la vista y el diálogo de eliminar. Sin interfaz optimista: la
 // lista cambia solo con la respuesta de la API. Nada se guarda en el navegador ni en la URL.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { CalendarCheck, Check, CircleAlert, Hourglass, ListChecks, Lock, Minus, PauseCircle, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, Minus, PauseCircle, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizarConsumo,
@@ -12,6 +12,9 @@ import {
   eliminarPerfil,
   leerConflictoPerfil,
   listarConsumo,
+  listarPorAcabarse,
+  resolverAviso,
+  type PorAcabarse,
   nombreDe,
   seguirPerfil,
   type Perfil,
@@ -27,7 +30,7 @@ import { useDemora } from './Estados'
 import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta } from './ruteo'
 import { AUTORIZACION, FICHA, GENERAL } from './textos'
-import { cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
+import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
 import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
@@ -63,6 +66,13 @@ function useAncho() {
   return { ref, ancho }
 }
 
+/**
+ * MATU-37: el campo opcional «¿Compraste? ¿Cuántos?» de «Ya lo resolví» (aprobado por Jorge el
+ * 03-11). Con cantidad, el backend la suma a lo que estima que queda hoy y devuelve el insumo
+ * recalculado; sin cantidad, solo descarta. Apagarla deja solo la confirmación sin cantidad.
+ */
+const CANTIDAD_EN_RESOLVER = true
+
 const enfocar = (id: string, ms = 40) => window.setTimeout(() => document.getElementById(id)?.focus(), ms)
 
 // ---------------------------------------------------------------- pantalla
@@ -85,20 +95,48 @@ export function Insumos() {
   const [ocupadoId, setOcupadoId] = useState<string | null>(null)
   const [errorFila, setErrorFila] = useState<{ id: string; texto: string } | null>(null)
   const [eliminando, setEliminando] = useState<Perfil | null>(null)
+  // MATU-37: lo que se acaba pronto. `null` mientras no llega o si falló (errorBloque).
+  const [porAcabarse, setPorAcabarse] = useState<PorAcabarse[] | null>(null)
+  const [errorBloque, setErrorBloque] = useState(false)
+  const [avisoAlerta, setAvisoAlerta] = useState<string | null>(null)
 
-  const cargar = useCallback(async () => {
-    if (!personaId) return
-    setCarga('cargando')
-    try {
-      const r = await listarConsumo(personaId, null)
-      setItems(r.items)
-      setCursor(r.siguiente_cursor)
+  /** La lista y el bloque se piden juntos y se pintan cuando llegan ambos (MATU-37, 4.2). */
+  const cargar = useCallback(
+    async (silencioso = false) => {
+      if (!personaId) return
+      if (!silencioso) setCarga('cargando')
+      const [lista, bloque] = await Promise.allSettled([listarConsumo(personaId, null), listarPorAcabarse(personaId)])
+      if (lista.status === 'rejected') {
+        const x: unknown = lista.reason
+        if (esVencida(x)) return
+        const permiso = permisoDe(x)
+        if (permiso) return setCarga(permiso)
+        return setCarga(leerFallo(x).status === 404 ? 'no-encontrado' : 'red')
+      }
+      setItems(lista.value.items)
+      setCursor(lista.value.siguiente_cursor)
+      if (bloque.status === 'fulfilled') {
+        setPorAcabarse(bloque.value)
+        setErrorBloque(false)
+      } else if (!esVencida(bloque.reason)) {
+        setPorAcabarse(null)
+        setErrorBloque(true)
+      }
       setCarga('listo')
+    },
+    [personaId],
+  )
+
+  /** Solo el bloque, después de cambiar un insumo: la fecha estimada y el aviso pudieron cambiar. */
+  const refrescarBloque = useCallback(async () => {
+    if (!personaId) return
+    try {
+      setPorAcabarse(await listarPorAcabarse(personaId))
+      setErrorBloque(false)
     } catch (x) {
       if (esVencida(x)) return
-      const permiso = permisoDe(x)
-      if (permiso) return setCarga(permiso)
-      setCarga(leerFallo(x).status === 404 ? 'no-encontrado' : 'red')
+      setPorAcabarse(null)
+      setErrorBloque(true)
     }
   }, [personaId])
 
@@ -118,6 +156,7 @@ export function Insumos() {
 
   const volverALista = (texto: string | null) => {
     setAviso(texto)
+    setAvisoAlerta(null)
     setEditandoId(null)
     navegar('/insumos')
     if (texto) enfocar('aviso-insumos', 60)
@@ -152,6 +191,7 @@ export function Insumos() {
     try {
       const nuevo = await seguirPerfil(personaId, p.id, seguir)
       reemplazar(nuevo)
+      void refrescarBloque()
       setAviso(seguir ? INSUMOS.volvisteASeguir(nombreDe(nuevo)) : INSUMOS.dejasteDeSeguir(nombreDe(nuevo)))
       enfocar(`seguir-${p.id}`)
     } catch (x) {
@@ -173,6 +213,7 @@ export function Insumos() {
       void cargar()
     } else {
       setItems((xs) => xs.filter((x) => x.id !== p.id))
+      void refrescarBloque()
       setAviso(INSUMOS.eliminaste(nombreDe(p)))
     }
     enfocar('titulo-pagina')
@@ -257,10 +298,12 @@ export function Insumos() {
         onGuardado={(p, texto, nuevo) => {
           if (nuevo) setItems((xs) => [p, ...xs.filter((x) => x.id !== p.id)])
           else reemplazar(p)
+          void refrescarBloque()
           volverALista(texto)
         }}
         onDejarSuyo={(actual) => {
           reemplazar(actual)
+          void refrescarBloque()
           volverALista(INSUMOS.dejasteLoSuyo(actual.actualizado_por?.nombre?.trim() || null))
         }}
         onInactivo={(actual) => actual && reemplazar(actual)}
@@ -282,18 +325,41 @@ export function Insumos() {
         </div>
       )
 
+    const avisos = (porAcabarse ?? []).filter((a) => a.avisando)
+    const avisando = new Set(avisos.map((a) => a.id))
+    const bloque =
+      items.length > 0 && personaId ? (
+        <SeAcabanPronto
+          avisos={avisos}
+          error={errorBloque}
+          editor={editor}
+          personaId={personaId}
+          confirmacion={avisoAlerta}
+          onReintentar={() => void refrescarBloque()}
+          onResuelto={async (texto) => {
+            setAviso(null)
+            await cargar(true)
+            setAvisoAlerta(texto)
+            enfocar('aviso-alertas', 60)
+          }}
+          onVerComoQuedo={() => void cargar(true)}
+          onPermiso={(c) => setCarga(c)}
+        />
+      ) : null
     const activos = items.filter((p) => p.activo).sort(porFecha)
     const inactivos = items.filter((p) => !p.activo)
     const fila = (p: Perfil) => (
       <Fila
         key={p.id}
         perfil={p}
+        avisando={avisando.has(p.id)}
         editor={editor}
         elegida={!!form && modo === 'cambiar' && p.id === editandoId}
         ocupado={ocupadoId === p.id}
         error={errorFila?.id === p.id ? errorFila.texto : null}
         onCambiar={() => {
           setAviso(null)
+          setAvisoAlerta(null)
           setEditandoId(p.id)
           navegar('/insumos/cambiar')
         }}
@@ -308,6 +374,7 @@ export function Insumos() {
         className="self-start"
         onClick={() => {
           setAviso(null)
+          setAvisoAlerta(null)
           navegar('/insumos/nuevo')
         }}
       >
@@ -315,20 +382,26 @@ export function Insumos() {
       </Boton>
     )
 
+    const nota = items.length > 0 && <p className="max-w-prose text-base text-tenue">{editor ? INSUMOS.notaCorta : INSUMOS.notaCortaLector}</p>
+
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.titulo}</Titulo>
           {ancho && botonAnotar}
         </div>
-        {/* 3.2.3: el lugar de «Qué se acaba pronto» (MATU-37). No se pinta nada. */}
-        <section aria-label="Qué se acaba pronto" hidden />
-        {items.length > 0 && <p className="max-w-prose text-base text-tenue">{editor ? INSUMOS.notaCorta : INSUMOS.notaCortaLector}</p>}
+        {/* MATU-37: a 360 px, lo primero bajo el título es «Se acaban pronto». */}
+        {!ancho && bloque}
+        {!ancho && nota}
         {!ancho && botonAnotar}
-        {aviso && <AvisoOk texto={aviso} />}
+        {!ancho && aviso && <AvisoOk texto={aviso} />}
 
         <div className={ancho ? 'grid grid-cols-[3fr_2fr] items-start gap-10' : 'flex flex-col gap-5'}>
           <div className="flex min-w-0 flex-col gap-5">
+            {/* En pantalla ancha, el bloque y la nota van en la columna de la lista (3.4). */}
+            {ancho && bloque}
+            {ancho && nota}
+            {ancho && aviso && <AvisoOk texto={aviso} />}
             {items.length === 0 ? (
               <Vacio pila={pila} editor={editor} />
             ) : (
@@ -482,6 +555,7 @@ function LineaDias({ p }: { p: Perfil }) {
 
 function Fila({
   perfil: p,
+  avisando,
   editor,
   elegida,
   ocupado,
@@ -491,6 +565,7 @@ function Fila({
   onEliminar,
 }: {
   perfil: Perfil
+  avisando: boolean
   editor: boolean
   elegida: boolean
   ocupado: boolean
@@ -511,6 +586,12 @@ function Fila({
           <span id={idNombre} className="min-w-0 font-bold break-words [overflow-wrap:anywhere]">
             {nombre}
           </span>
+          {p.activo && avisando && (
+            <span className="inline-flex max-w-full basis-full items-center gap-1.5 text-base text-tinta">
+              <Bell aria-hidden className="size-5 shrink-0 text-atenta" />
+              {ALERTAS.marca}
+            </span>
+          )}
           {!p.activo && (
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-tinta/7 px-2.5 py-0.5 text-base font-bold text-tenue">
               <PauseCircle aria-hidden className="size-4 shrink-0" />
@@ -1326,5 +1407,240 @@ function DialogoEliminar({
         </Acciones>
       </div>
     </dialog>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-37 «Se acaban pronto»
+
+/** Días y fecha de un aviso (especificación MATU-37, 3.5 y 7). */
+function DiasDelAviso({ a }: { a: PorAcabarse }) {
+  const l = lineaDias(a.dias_restantes)
+  const fecha = <span className="cifras whitespace-nowrap">{fechaCorta(a.fecha_quiebre_estimada)}</span>
+  return (
+    <div className="flex min-w-0 flex-col">
+      <p className="flex items-start gap-2 text-xl font-bold">
+        {l.cifra === null && <CircleAlert aria-hidden className="mt-1 size-5 shrink-0 text-pronto" />}
+        <span className="min-w-0">
+          {l.texto}
+          {l.cifra !== null && (
+            <>
+              {' '}
+              <span className="cifras">{l.cifra}</span> {l.resto}
+            </>
+          )}
+        </span>
+      </p>
+      {a.dias_restantes > 0 && (
+        <p className="text-base">
+          {ALERTAS.fechaEstimada} {fecha}
+        </p>
+      )}
+      {a.dias_restantes < 0 && (
+        <p className="text-base">
+          {INSUMOS.seAcababa} {fecha}.
+        </p>
+      )}
+    </div>
+  )
+}
+
+type ErrorAviso = { texto: string; tipo: 'general' | 'cerrado' | 'campo' }
+
+function SeAcabanPronto({
+  avisos,
+  error,
+  editor,
+  personaId,
+  confirmacion,
+  onReintentar,
+  onResuelto,
+  onVerComoQuedo,
+  onPermiso,
+}: {
+  avisos: PorAcabarse[]
+  error: boolean
+  editor: boolean
+  personaId: string
+  confirmacion: string | null
+  onReintentar: () => void
+  onResuelto: (texto: string) => Promise<void>
+  onVerComoQuedo: () => void
+  onPermiso: (c: 'sin-consentimiento' | 'revision-vencida') => void
+}) {
+  const [abiertoId, setAbiertoId] = useState<string | null>(null)
+  const [valor, setValor] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const [falla, setFalla] = useState<ErrorAviso | null>(null)
+
+  const abrir = (id: string) => {
+    if (ocupado) return
+    setAbiertoId(id)
+    setValor('')
+    setFalla(null)
+    enfocar(CANTIDAD_EN_RESOLVER ? `cantidad-${id}` : `confirmar-${id}`)
+  }
+  const cerrar = (id: string) => {
+    if (ocupado) return
+    setAbiertoId(null)
+    setFalla(null)
+    enfocar(`resolver-${id}`)
+  }
+
+  const confirmar = async (a: PorAcabarse) => {
+    if (ocupado) return
+    const nombre = nombreDe(a)
+    const n = CANTIDAD_EN_RESOLVER ? entero(valor) : null
+    const cant = n === null || n === 0 ? null : n
+    if (cant !== null && cant > 9999) {
+      setFalla({ texto: ALERTAS.errCantidad, tipo: 'campo' })
+      return void enfocar(`cantidad-${a.id}`)
+    }
+    setOcupado(true)
+    setFalla(null)
+    try {
+      // Sin interfaz optimista (4.4): el aviso sigue igual hasta la respuesta.
+      const r = await resolverAviso(personaId, a.id, cant)
+      const texto =
+        cant === null
+          ? ALERTAS.okSinCantidad(nombre)
+          : r.dias_restantes > 0
+            ? ALERTAS.okCantidad(cantidad(cant, a.unidad), nombre, r.dias_restantes)
+            : ALERTAS.okCantidadSinDias(cantidad(cant, a.unidad), nombre)
+      await onResuelto(texto)
+      setAbiertoId(null)
+    } catch (x) {
+      if (esVencida(x)) return
+      const permiso = permisoDe(x)
+      if (permiso) return onPermiso(permiso)
+      const f = leerFallo(x)
+      if (f.status === 409 && esTipo(f.tipo, 'alerta-cerrada')) setFalla({ texto: ALERTAS.errCerrada, tipo: 'cerrado' })
+      else if (f.status === 404 || f.status === 409) setFalla({ texto: ALERTAS.errNoEsta, tipo: 'cerrado' })
+      else if (f.status === 422 && CANTIDAD_EN_RESOLVER) {
+        setFalla({ texto: ALERTAS.errCantidad, tipo: 'campo' })
+        enfocar(`cantidad-${a.id}`)
+      } else setFalla({ texto: ALERTAS.errRed, tipo: 'general' })
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const titulo = !error && avisos.length > 3 ? ALERTAS.tituloCuantos(avisos.length) : ALERTAS.titulo
+  const hayBloque = error || avisos.length > 0
+
+  return (
+    <>
+      {confirmacion && (
+        <div id="aviso-alertas" tabIndex={-1} role="status" className="animate-aparecer flex max-w-prose gap-3 rounded-xl bg-ok-fondo px-4 py-3 text-tinta outline-none">
+          <CircleCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-ok" />
+          <p className="min-w-0 break-words [overflow-wrap:anywhere]">{confirmacion}</p>
+        </div>
+      )}
+      {hayBloque && (
+        <section aria-labelledby="titulo-se-acaban" className="flex flex-col gap-3 rounded-xl bg-atenta-fondo px-4 angosto:px-2 py-4 ring-1 ring-linea">
+          <h2 id="titulo-se-acaban" className="flex items-center gap-2 text-xl font-bold text-tinta">
+            <BellRing aria-hidden className="size-6 shrink-0 text-atenta" />
+            <span className="min-w-0">{titulo}</span>
+          </h2>
+          {error ? (
+            <div className="flex flex-col items-start gap-3">
+              <div role="alert">
+                <MensajeError>{ALERTAS.errCarga}</MensajeError>
+              </div>
+              <Boton variante="secundario" onClick={onReintentar}>
+                {GENERAL.volverAIntentar}
+              </Boton>
+            </div>
+          ) : (
+            <>
+              <ul className="flex flex-col gap-2">
+                {avisos.map((a) => {
+                  const nombre = nombreDe(a)
+                  const abierto = abiertoId === a.id
+                  const panel = `panel-${a.id}`
+                  return (
+                    <li key={a.id} className="flex flex-col rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea">
+                      <div className="flex flex-col gap-2 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-center @3xl/main:justify-between @3xl/main:gap-x-6">
+                        <p className="min-w-0 font-bold break-words [overflow-wrap:anywhere]">{nombre}</p>
+                        <DiasDelAviso a={a} />
+                        {editor && !abierto && (
+                          <Boton
+                            id={`resolver-${a.id}`}
+                            variante="secundario"
+                            aria-label={ALERTAS.botonDe(nombre)}
+                            aria-expanded={false}
+                            aria-controls={panel}
+                            className="self-end @3xl/main:ms-auto @3xl/main:self-auto"
+                            onClick={() => abrir(a.id)}
+                          >
+                            {ALERTAS.boton}
+                          </Boton>
+                        )}
+                      </div>
+                      {editor && abierto && (
+                        <div
+                          id={panel}
+                          className="mt-3 flex flex-col gap-3 border-t border-linea pt-3"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              e.stopPropagation()
+                              cerrar(a.id)
+                            }
+                          }}
+                        >
+                          <div className="flex flex-col gap-3 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-end @3xl/main:gap-4">
+                            {CANTIDAD_EN_RESOLVER && (
+                              <Stepper
+                                id={`cantidad-${a.id}`}
+                                etiqueta={ALERTAS.pregunta(a.unidad)}
+                                ayuda={ALERTAS.ayuda}
+                                sufijo={a.unidad === 'sobre' ? 'sobres' : a.unidad === 'unidad' ? undefined : a.unidad}
+                                valor={valor}
+                                onCambio={(v) => {
+                                  setValor(v)
+                                  if (falla?.tipo === 'campo') setFalla(null)
+                                }}
+                                min={1}
+                                max={9999}
+                                error={falla?.tipo === 'campo' ? falla.texto : null}
+                              />
+                            )}
+                            <div className="flex flex-wrap gap-3">
+                              <Boton id={`confirmar-${a.id}`} aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar(a)}>
+                                {ALERTAS.boton}
+                              </Boton>
+                              <Boton variante="secundario" disabled={ocupado} onClick={() => cerrar(a.id)}>
+                                {ALERTAS.volver}
+                              </Boton>
+                            </div>
+                          </div>
+                          {falla && falla.tipo !== 'campo' && (
+                            <div role="alert" className="flex flex-col items-start gap-3">
+                              <MensajeError>{falla.texto}</MensajeError>
+                              {falla.tipo === 'cerrado' && (
+                                <Boton
+                                  variante="secundario"
+                                  onClick={() => {
+                                    setAbiertoId(null)
+                                    setFalla(null)
+                                    onVerComoQuedo()
+                                  }}
+                                >
+                                  {ALERTAS.verComoQuedo}
+                                </Boton>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="max-w-prose text-base text-tenue">{ALERTAS.nota}</p>
+            </>
+          )}
+        </section>
+      )}
+    </>
   )
 }

@@ -185,3 +185,33 @@ export const diasEnTexto = (n: number) => {
   const l = lineaDias(n)
   return l.cifra === null ? `${l.texto}.` : `${l.texto} ${l.cifra} ${l.resto}.`
 }
+
+/**
+ * MATU-37 «Se acaban pronto» (especificación docs/diseno/matu-37-alertas.md, sección 7). Nunca
+ * «quiebre», «stock» ni «reponer», y nunca se ofrece comprar ni pedir: «compraste» solo pregunta
+ * por lo ya hecho.
+ */
+export const ALERTAS = {
+  titulo: 'Se acaban pronto', // [PROPUESTO]
+  tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // [PROPUESTO] más de 3
+  fechaEstimada: 'Fecha estimada:', // [APROBADO] (decisión de Jorge) + {fecha}
+  nota: 'Es una estimación con lo que anotaste.', // [PROPUESTO]
+  marca: 'Te estamos avisando', // [PROPUESTO]
+  boton: 'Ya lo resolví', // [APROBADO]
+  botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // [PROPUESTO]
+  pregunta: (unidad: Unidad) =>
+    unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // [PROPUESTO]
+  ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // [PROPUESTO]
+  guardando: 'Guardando…', // [PROPUESTO]
+  volver: 'Volver', // [PROPUESTO]
+  okCantidad: (c: string, nombre: string, n: number) => `Anotamos que compraste ${c} de ${nombre}. Ahora alcanza para ${n} ${n === 1 ? 'día' : 'días'}.`, // [PROPUESTO]
+  okCantidadSinDias: (c: string, nombre: string) => `Anotamos que compraste ${c} de ${nombre}. Si te quedan menos, cámbialo en la lista.`, // [PROPUESTO]
+  okSinCantidad: (nombre: string) => `Listo. No te avisaremos de nuevo por ${nombre} hasta que cambie la fecha estimada.`, // [PROPUESTO]
+  errCerrada: 'Alguien de tu familia ya resolvió este aviso.', // [PROPUESTO]
+  errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // [PROPUESTO]
+  errRol: 'Solo quien administra o cuida puede resolver un aviso.', // [PROPUESTO]
+  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // [PROPUESTO]
+  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // [PROPUESTO]
+  verComoQuedo: 'Ver cómo quedó', // [PROPUESTO]
+  errCarga: 'No pudimos ver qué se acaba pronto.', // [PROPUESTO]
+}
