@@ -342,7 +342,7 @@ export function Insumos() {
             setAvisoAlerta(texto)
             enfocar('aviso-alertas', 60)
           }}
-          onVerComoQuedo={() => void cargar(true)}
+          onVerComoQuedo={() => void cargar(true).then(() => enfocar(document.getElementById('titulo-se-acaban') ? 'titulo-se-acaban' : 'titulo-pagina', 80))}
           onPermiso={(c) => setCarga(c)}
         />
       ) : null
@@ -1524,6 +1524,17 @@ function SeAcabanPronto({
     }
   }
 
+  // A 360 px el panel con el error no puede quedar bajo la barra fija: se enfoca el aviso y se
+  // desplaza el panel completo (scroll-mb-28 deja el espacio de la barra).
+  useEffect(() => {
+    if (!falla || !abiertoId) return
+    const t = window.setTimeout(() => {
+      if (falla.tipo !== 'campo') document.getElementById(`falla-${abiertoId}`)?.focus({ preventScroll: true })
+      document.getElementById(`panel-${abiertoId}`)?.scrollIntoView({ block: 'nearest' })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [falla, abiertoId])
+
   const titulo = !error && avisos.length > 3 ? ALERTAS.tituloCuantos(avisos.length) : ALERTAS.titulo
   const hayBloque = error || avisos.length > 0
 
@@ -1537,7 +1548,7 @@ function SeAcabanPronto({
       )}
       {hayBloque && (
         <section aria-labelledby="titulo-se-acaban" className="flex flex-col gap-3 rounded-xl bg-atenta-fondo px-4 angosto:px-2 py-4 ring-1 ring-linea">
-          <h2 id="titulo-se-acaban" className="flex items-center gap-2 text-xl font-bold text-tinta">
+          <h2 id="titulo-se-acaban" tabIndex={-1} className="flex items-center outline-none gap-2 text-xl font-bold text-tinta">
             <BellRing aria-hidden className="size-6 shrink-0 text-atenta" />
             <span className="min-w-0">{titulo}</span>
           </h2>
@@ -1579,7 +1590,7 @@ function SeAcabanPronto({
                       {editor && abierto && (
                         <div
                           id={panel}
-                          className="mt-3 flex flex-col gap-3 border-t border-linea pt-3"
+                          className="mt-3 flex scroll-mb-28 flex-col gap-3 border-t border-linea pt-3"
                           onKeyDown={(e) => {
                             if (e.key === 'Escape') {
                               e.stopPropagation()
@@ -1614,7 +1625,7 @@ function SeAcabanPronto({
                             </div>
                           </div>
                           {falla && falla.tipo !== 'campo' && (
-                            <div role="alert" className="flex flex-col items-start gap-3">
+                            <div id={`falla-${a.id}`} tabIndex={-1} role="alert" className="flex flex-col items-start gap-3 outline-none">
                               <MensajeError>{falla.texto}</MensajeError>
                               {falla.tipo === 'cerrado' && (
                                 <Boton
