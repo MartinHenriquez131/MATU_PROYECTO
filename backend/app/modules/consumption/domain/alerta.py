@@ -15,11 +15,11 @@ Sin I/O y sin reloj del sistema: "hoy" llega calculado con el puerto Reloj (``ho
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 
-from app.modules.consumption.domain.perfil import dias_restantes
+from app.modules.consumption.domain.perfil import Perfil, dias_restantes, fecha_quiebre
 
 
 class EstadoAlerta(StrEnum):
@@ -134,3 +134,32 @@ def limites_conservacion(ahora: datetime) -> tuple[datetime, datetime]:
     if ahora.tzinfo is None or ahora.utcoffset() is None:
         raise ValueError("El instante debe tener zona horaria")
     return ahora - CONSERVACION_ALERTAS, ahora - CONSERVACION_EVENTOS
+
+
+# --- «Ya lo resolví» con cantidad (decisión 79) -------------------------------------------------------
+
+CANTIDAD_MAXIMA = 9999
+
+
+def stock_estimado_hoy(perfil: Perfil, hoy: date) -> int:
+    """Lo que MATU estima que queda hoy, en la unidad del insumo, en enteros y nunca negativo:
+    ``piso(stock - dias_transcurridos * tasa_unidades / tasa_dias)``, o 0 si da negativo."""
+    dias = max(0, (hoy - perfil.stock_medido_en).days)
+    restante = (perfil.stock_unidades * perfil.tasa_dias - dias * perfil.tasa_unidades) // perfil.tasa_dias
+    return max(0, restante)
+
+
+def reponer(perfil: Perfil, cantidad: int, hoy: date, autor: uuid.UUID) -> Perfil:
+    """Suma lo comprado a lo que queda hoy: stock nuevo, stock_medido_en = hoy, fecha recalculada y versión
+    + 1. Lanza CoberturaMaxima (del perfil) si pasa de 3650 días, o ValueError si la cantidad no es 1..9999."""
+    if not 1 <= cantidad <= CANTIDAD_MAXIMA:
+        raise ValueError("la cantidad debe ser de 1 a 9999")
+    stock = stock_estimado_hoy(perfil, hoy) + cantidad
+    return replace(
+        perfil,
+        stock_unidades=stock,
+        stock_medido_en=hoy,
+        fecha_quiebre_estimada=fecha_quiebre(hoy, stock, perfil.tasa_unidades, perfil.tasa_dias),
+        version=perfil.version + 1,
+        actualizado_por=autor,
+    )

@@ -6,8 +6,8 @@ La autorización para ``consumo``, el rol y la persona ya los verificó la API (
   trabajo diario no haya corrido. Cada insumo trae ``avisando`` y el id de la alerta de su fecha
   estimada actual (decisión 74).
 - Descartar una alerta y «Ya lo resolví» sin cantidad la pasan a ``descartada`` y registran
-  ``alerta.descartar`` con solo identificadores. Con cantidad (declarar la compra) no se implementa
-  todavía: espera la decisión de Jorge entre MATU-37 y MATU-51.
+  ``alerta.descartar``. «Ya lo resolví» con cantidad suma lo comprado al stock estimado de hoy, anota
+  la reposición y deja la alerta ``resuelta`` (decisión 79). La auditoría lleva solo identificadores.
 - Ninguna alerta genera un pedido.
 """
 
@@ -24,7 +24,7 @@ from app.modules.consumption.application.ports import (
     RepositorioAlertas,
     RepositorioPerfiles,
 )
-from app.modules.consumption.domain.alerta import EstadoAlerta, avisando, en_ventana, exigir_abierta
+from app.modules.consumption.domain.alerta import EstadoAlerta, avisando, en_ventana, exigir_abierta, reponer
 from app.modules.consumption.domain.perfil import dias_restantes, hoy_en_chile
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria, Reloj
@@ -32,10 +32,6 @@ from app.shared.puertos import RegistroAuditoria, Reloj
 
 class AlertaNoEncontrada(Exception):
     """La alerta no existe o no es de un perfil de la persona del path. 404."""
-
-
-class CantidadAunNoDisponible(Exception):
-    """«Ya lo resolví» con cantidad: pendiente de decisión (MATU-37 o MATU-51). 422 en cantidad."""
 
 
 @dataclass(frozen=True)
@@ -102,6 +98,26 @@ def descartar(
     return cerrada
 
 
+def _auditar(
+    auditoria: RegistroAuditoria,
+    peticion: PeticionConsumo,
+    accion: AccionAuditoria,
+    entidad: EntidadAuditoria,
+    entidad_id: uuid.UUID,
+) -> None:
+    auditoria.registrar(
+        EntradaAuditoria(
+            grupo_id=peticion.grupo_id,
+            actor_tipo=ActorTipo.USUARIO,
+            actor_ref=peticion.usuario_id,
+            accion=accion,
+            entidad=entidad,
+            entidad_id=entidad_id,
+            request_id=peticion.request_id,
+        )
+    )
+
+
 def resolver(
     peticion: PeticionConsumo,
     perfil_id: uuid.UUID,
@@ -111,28 +127,48 @@ def resolver(
     alertas: RepositorioAlertas,
     auditoria: RegistroAuditoria,
 ) -> InsumoAvisado:
-    """«Ya lo resolví» por insumo (decisión 76), aunque el trabajo diario no haya creado la alerta.
+    """«Ya lo resolví» por insumo (decisiones 76 y 79), aunque el trabajo diario no haya creado la alerta.
 
-    Orden: 404 (perfil), 422 (cantidad, aún no disponible), 409 perfil-inactivo, 409 alerta-cerrada.
-    Si hay una alerta abierta para la fecha estimada actual, pasa a descartada; si no hay ninguna, se
-    crea ya descartada en la misma transacción, para que el trabajo diario no avise por esa fecha.
+    Orden: 404 (perfil), 409 perfil-inactivo, 409 alerta-cerrada (la de la fecha estimada actual) y 422
+    cobertura_maxima. La alerta de la fecha actual (o una nueva, ya cerrada, si no existía) queda:
+
+    - sin cantidad: descartada. El perfil no cambia. Registra alerta.descartar.
+    - con cantidad: resuelta. El stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la
+      cantidad, medido hoy, con la fecha recalculada y la versión + 1; se anota una reposicion declarada a
+      nombre del usuario. Registra reposicion.declarar y alerta.resolver, sin la cantidad.
+
+    Todo en la transacción de la petición. Nunca crea un pedido.
     """
     leido = perfiles.obtener(peticion.persona_id, perfil_id, para_escribir=True)
     if leido is None:
         raise PerfilNoEncontrado()
-    if cantidad is not None:
-        raise CantidadAunNoDisponible()
     perfil = leido.perfil
     if not perfil.activo:
         raise PerfilInactivo()
     ahora = reloj.ahora()
+    hoy = hoy_en_chile(ahora)
     alerta = alertas.de_la_fecha(perfil.id, perfil.fecha_quiebre_estimada)
-    if alerta is None:
-        cerrada = alertas.insertar_cerrada(
-            uuid.uuid4(), perfil.id, perfil.fecha_quiebre_estimada, EstadoAlerta.DESCARTADA, ahora
-        )
-    else:
+    if alerta is not None:
         exigir_abierta(alerta.estado)
-        cerrada = alertas.cerrar(alerta.id, EstadoAlerta.DESCARTADA, ahora)
-    _auditar_descarte(auditoria, peticion, cerrada.id)
-    return _avisado(InsumoEnVentana(leido=leido, alerta=cerrada), hoy_en_chile(ahora))
+    repuesto = None if cantidad is None else reponer(perfil, cantidad, hoy, peticion.usuario_id)
+
+    estado = EstadoAlerta.DESCARTADA if repuesto is None else EstadoAlerta.RESUELTA
+    if alerta is None:
+        cerrada = alertas.insertar_cerrada(uuid.uuid4(), perfil.id, perfil.fecha_quiebre_estimada, estado, ahora)
+    else:
+        cerrada = alertas.cerrar(alerta.id, estado, ahora)
+
+    if repuesto is None or cantidad is None:
+        _auditar(auditoria, peticion, AccionAuditoria.ALERTA_DESCARTAR, EntidadAuditoria.ALERTA_QUIEBRE, cerrada.id)
+        return _avisado(InsumoEnVentana(leido=leido, alerta=cerrada), hoy)
+
+    perfiles.actualizar(repuesto)
+    reposicion_id = uuid.uuid4()
+    alertas.declarar_reposicion(reposicion_id, perfil.id, cantidad, hoy, peticion.usuario_id)
+    _auditar(auditoria, peticion, AccionAuditoria.REPOSICION_DECLARAR, EntidadAuditoria.REPOSICION, reposicion_id)
+    _auditar(auditoria, peticion, AccionAuditoria.ALERTA_RESOLVER, EntidadAuditoria.ALERTA_QUIEBRE, cerrada.id)
+    nuevo = perfiles.obtener(peticion.persona_id, perfil.id)
+    if nuevo is None:  # pragma: no cover - recién escrito en la misma transacción
+        raise PerfilNoEncontrado()
+    # La alerta cerrada es de la fecha anterior: para la fecha nueva todavía no hay ninguna
+    return _avisado(InsumoEnVentana(leido=nuevo, alerta=None), hoy)

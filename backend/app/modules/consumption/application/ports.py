@@ -151,6 +151,12 @@ class RepositorioAlertas(Protocol):
         """Una alerta ya cerrada para un insumo cuya alerta el trabajo diario aún no creó (decisión 76)."""
         ...
 
+    def declarar_reposicion(
+        self, reposicion_id: uuid.UUID, perfil_id: uuid.UUID, cantidad: int, ocurrida_en: date, usuario_id: uuid.UUID
+    ) -> None:
+        """Una reposicion origen 'declarada', registrada_por = usuario_id (decisión 79)."""
+        ...
+
 
 @dataclass(frozen=True)
 class InsumoDelTrabajo:

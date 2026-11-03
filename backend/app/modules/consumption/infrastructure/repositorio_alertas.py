@@ -55,6 +55,11 @@ _INSERTAR_CERRADA = text(
     " VALUES (:id, :perfil_id, :fecha, :estado, :ahora, :ahora)"
 )
 
+_DECLARAR = text(
+    "INSERT INTO reposicion (id, perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+    " VALUES (:id, :perfil_id, :cantidad, 'declarada', :ocurrida_en, :usuario_id)"
+)
+
 _UNA = text("SELECT " + _ALERTA + " FROM alerta_quiebre a WHERE a.id = :id")
 
 
@@ -142,3 +147,17 @@ class RepositorioAlertasSQL:
             {"id": alerta_id, "perfil_id": perfil_id, "fecha": fecha, "estado": estado.value, "ahora": ahora},
         )
         return self._una(alerta_id)
+
+    def declarar_reposicion(
+        self, reposicion_id: uuid.UUID, perfil_id: uuid.UUID, cantidad: int, ocurrida_en: date, usuario_id: uuid.UUID
+    ) -> None:
+        self._sesion.execute(
+            _DECLARAR,
+            {
+                "id": reposicion_id,
+                "perfil_id": perfil_id,
+                "cantidad": cantidad,
+                "ocurrida_en": ocurrida_en,
+                "usuario_id": usuario_id,
+            },
+        )
