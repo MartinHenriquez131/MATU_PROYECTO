@@ -75,7 +75,7 @@ export const ENTRAR = {
   credenciales: 'El correo o la contraseña no coinciden. Revísalos y vuelve a intentarlo.', // [PROPUESTO]
   /** [PROPUESTO] MATU-57 (especificación 4): reemplaza el de lenguaje 13.3; sigue el enlace a recuperar. */
   espera: (minutos: number) => `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1 minuto.' : `Espera ${minutos} minutos.`}`,
-  esperaRecuperar: '¿Olvidaste tu contraseña? Recupera tu cuenta', // [PROPUESTO] MATU-57 // pragma: allowlist secret
+  esperaRecuperar: 'Recupera tu cuenta', // [PROPUESTO] MATU-57 // pragma: allowlist secret
   olvidaste: '¿Olvidaste tu contraseña?', // [PROPUESTO] MATU-57 // pragma: allowlist secret
   /** [PROPUESTO, D2 de Jorge del 03-11] Tras cambiar la contraseña con el código. */
   claveCambiada: 'Listo. Cambiamos tu contraseña. Por seguridad, tendrás que volver a entrar en tus otros teléfonos y computadores.', // pragma: allowlist secret
@@ -276,7 +276,7 @@ export const CELULAR = {
   enviar: 'Enviar código', // [PROPUESTO]
   enviando: 'Enviando…', // [PROPUESTO]
   ahoraNo: 'Ahora no', // [PROPUESTO] D4
-  enviado: (enmascarado: string) => `Te enviamos un código al ${enmascarado}.`, // [PROPUESTO]
+  enviado: 'Te enviamos un código al ', // [PROPUESTO]
   confirmar: 'Confirmar', // [PROPUESTO]
   confirmando: 'Confirmando…', // [PROPUESTO]
   otro: '¿No te llegó? Enviar otro código', // [PROPUESTO]
