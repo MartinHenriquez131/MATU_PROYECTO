@@ -52,8 +52,8 @@ export const APOYOS: { valor: Apoyo; texto: string }[] = [
 
 /**
  * Las tres calidades y sus declaraciones (política v0.9, sección 5). Donde la demo dice «Ella» o
- * «María», va el nombre de pila. Pendiente del analista normativo: «decide por sí misma» y
- * «representarla» llevan género (lenguaje 5).
+ * «María», va el nombre de pila. El género de «decide por sí misma» y «representarla» quedó
+ * resuelto el 03-11 con redacción neutra (lenguaje 5).
  */
 export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detalle: (pila: string) => string; declaracion: string }[] = [
   {
@@ -79,14 +79,14 @@ export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detal
   },
 ]
 
-/** Texto exacto del aviso `aviso_cuidador_de_hecho`, versión 1.0 (política, sección 5). */
+/** Texto exacto del aviso `aviso_cuidador_de_hecho`, versión 1.1 (política, sección 5). */
 export const AVISO_CUIDADOR = {
   id: 'aviso_cuidador_de_hecho',
-  version: '1.0',
+  version: '1.1',
   titulo: 'Aviso: tu autorización tiene un límite',
   parrafos: [
     'Declaraste que cuidas a esta persona y que no eres su representante legal. Con esa declaración puedes organizar su cuidado en MATU, pero tu autorización no equivale a la de la propia persona ni a la de su representante legal. MATU no puede comprobar lo que declaras. Por eso deja registrado que la autorización la diste tú, como cuidadora o cuidador de hecho, con la fecha y la versión de la política.',
-    'Te pedimos tres cosas: anota solo lo necesario para su cuidado, cuéntale qué guardas en MATU si puede comprenderlo, y respeta lo que ella decida. Ella o su representante legal pueden pedir en cualquier momento que se borren sus datos.',
+    'Te pedimos tres cosas: anota solo lo necesario para su cuidado, cuéntale qué guardas en MATU si puede comprenderlo, y respeta lo que esa persona decida. La persona o su representante legal pueden pedir en cualquier momento que se borren sus datos.',
     'En 12 meses te pediremos confirmar que sigues a cargo de su cuidado.',
   ],
 } as const
