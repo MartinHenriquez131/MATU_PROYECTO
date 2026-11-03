@@ -460,3 +460,40 @@ class SesionesRelevo(Protocol):
     def acceso_de(self, sesion_id: str) -> uuid.UUID | None: ...
 
     def descartar(self, sesion_id: str) -> None: ...
+
+
+# --- Ver quién abrió la ficha (MATU-45, RF-08) ------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FilaApertura:
+    """Una fila de auditoria de un relevo, con el acceso que la dejó. Sin IP, teléfono ni request_id."""
+
+    id: int
+    ocurrido_en: datetime
+    accion: str
+    acceso_id: uuid.UUID
+    nombre_relevo: str
+
+
+@dataclass(frozen=True)
+class PosicionApertura:
+    """Dónde sigue la página siguiente: la lista va por (ocurrido_en, id) descendente."""
+
+    ocurrido_en: datetime
+    id: int
+
+
+class RepositorioAperturas(Protocol):
+    """Lectura de auditoria y acceso_relevo con la sesión del contexto de grupo.
+
+    RLS acota: auditoria_aperturas_relevo (0010) muestra las filas del relevo a quien puede ver el plan,
+    y acceso_familia los accesos del grupo. Implementación: RepositorioAperturasSQL.
+    """
+
+    def listar(
+        self, plan_id: uuid.UUID, acciones: tuple[str, ...], despues_de: PosicionApertura | None, limite: int
+    ) -> list[FilaApertura]:
+        """Hasta ``limite`` filas de los accesos del plan con una de ``acciones``, de la más reciente a
+        la más antigua."""
+        ...

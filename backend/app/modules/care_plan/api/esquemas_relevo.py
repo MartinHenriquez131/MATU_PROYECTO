@@ -10,6 +10,7 @@ from typing import Annotated
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.care_plan.domain.aperturas import TipoApertura
 from app.modules.care_plan.domain.ficha import CampoFicha, tiene_caracteres_de_control
 from app.modules.care_plan.domain.relevo import (
     LARGO_MAXIMO_NOMBRE_RELEVO,
@@ -98,6 +99,33 @@ class ListaAccesosVista(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[AccesoResumenVista]
+    siguiente_cursor: str | None
+
+
+# --- Ver quién abrió la ficha (MATU-45) -------------------------------------------------------------------
+
+
+class AccesoDeAperturaVista(BaseModel):
+    """El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    nombre_relevo: str
+
+
+class AperturaVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ocurrido_en: datetime
+    tipo: TipoApertura
+    acceso: AccesoDeAperturaVista
+
+
+class ListaAperturasVista(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AperturaVista]
     siguiente_cursor: str | None
 
 

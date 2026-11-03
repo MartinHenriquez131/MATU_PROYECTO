@@ -953,3 +953,62 @@ def test_auditoria_no_admite_la_huella_del_email(cx):
             " 'sesion.inicio_fallido', 'usuario', %s::jsonb)",
             ('{"huella_email": "' + "ab" * 32 + '"}',),
         )
+
+
+# ---- MATU-45 (migración 0010): quién ve las aperturas del relevo en auditoria
+
+U_CUID_APERTURAS_A = uuid.UUID("00000000-0000-0000-0000-0000000000a7")
+ACCIONES_APERTURA = ("relevo.presentar", "relevo.abrir", "relevo.pin_incorrecto", "relevo.bloqueo")
+
+
+def _sembrar_aperturas(cx):
+    """Como superusuario, en la transacción que se revierte: un cuidador de G_A, las cuatro acciones del
+    relevo y un relevo.canje en G_A, y una apertura en G_B (con actor_ref inventado: no hay acceso en B)."""
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'cuid.ap@x.cl', 'Cuid', 'h')",
+               (U_CUID_APERTURAS_A,))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES (%s, %s, 'cuidador', false)",
+               (G_A, U_CUID_APERTURAS_A))
+    for accion in (*ACCIONES_APERTURA, "relevo.canje"):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                   " VALUES (%s, 'relevo', %s, %s, 'acceso_relevo', %s)", (G_A, ACC_VIGENTE, accion, ACC_VIGENTE))
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+               " VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado')", (G_B, uuid.uuid4()))
+
+
+def _acciones_del_relevo(cx):
+    return sorted(r[0] for r in cx.execute("SELECT accion FROM auditoria WHERE actor_tipo = 'relevo'").fetchall())
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.parametrize("usuario, grupo, esperado", [
+    (U_ADMIN_A, G_A, sorted((*ACCIONES_APERTURA, "relevo.canje"))),  # el admin ya leía todo su grupo (0005)
+    (U_CUID_APERTURAS_A, G_A, sorted(ACCIONES_APERTURA)),           # cuidador: solo las cuatro, sin el canje
+    (U_PAG2_A, G_A, sorted(ACCIONES_APERTURA)),                     # pagador con puede_ver_plan
+    (U_PAG_A, G_A, []),                                             # pagador sin puede_ver_plan
+    (U_OBS_A, G_A, []),                                             # observador
+    (U_ADMIN_B, G_B, ["relevo.abrir"]),                             # B ve solo lo suyo
+    (U_ADMIN_A, G_B, []),                                           # A con el grupo de B: no es miembro
+])
+def test_aperturas_del_relevo_por_rol(cx, usuario, grupo, esperado):
+    _sembrar_aperturas(cx)
+    como(cx, usuario_id=usuario, grupo_id=grupo)
+    assert _acciones_del_relevo(cx) == esperado
+
+
+@pytest.mark.rf("RF-08")
+def test_aperturas_del_relevo_no_las_ve_ni_operacion_ni_el_relevo(cx):
+    _sembrar_aperturas(cx)
+    como(cx, rol="operacion")
+    assert _acciones_del_relevo(cx) == []
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    assert _acciones_del_relevo(cx) == []
+
+
+@pytest.mark.rf("RF-08")
+def test_cuidador_sigue_sin_ver_las_lecturas_de_otros_miembros(cx):
+    """0010 abre solo las filas del relevo: plan.leer del admin sigue fuera del alcance del cuidador."""
+    _sembrar_aperturas(cx)
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (G_A, U_ADMIN_A))
+    como(cx, usuario_id=U_CUID_APERTURAS_A, grupo_id=G_A)
+    assert contar(cx, "auditoria", "actor_tipo = 'usuario'") == 0

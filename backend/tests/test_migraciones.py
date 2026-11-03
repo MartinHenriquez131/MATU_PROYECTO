@@ -409,3 +409,26 @@ def test_0008_acota_operacion_y_baja_al_esquema_de_0007(base_desechable):
     for parte, filas in esquema_0007.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0010 (MATU-45): la familia que ve el plan lee las aperturas del relevo
+
+
+@pytest.mark.rf("RF-08")
+def test_0010_agrega_la_lectura_de_aperturas_y_baja_al_esquema_de_0008(base_desechable):
+    alembic("upgrade", "0008")
+    esquema_0008 = catalogo()
+
+    alembic("upgrade", "0010")
+    politicas = dict(consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'auditoria'"))
+    assert politicas["auditoria_aperturas_relevo"] == "SELECT"
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'auditoria_aperturas_relevo'")
+    assert "app_puede_ver_plan()" in qual and "'relevo'" in qual and "relevo.canje" not in qual
+    for accion in ("relevo.presentar", "relevo.abrir", "relevo.pin_incorrecto", "relevo.bloqueo"):
+        assert accion in qual
+
+    alembic("downgrade", "0008")
+    despues = catalogo()
+    for parte, filas in esquema_0008.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
