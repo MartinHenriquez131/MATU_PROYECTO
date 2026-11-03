@@ -213,6 +213,30 @@ export const ESTADOS = {
   insumosTitulo: 'Insumos',
 }
 
+/** Quién la vio (MATU-45, especificación docs/diseno/matu-45-aperturas.md). */
+export const QUIEN = {
+  titulo: 'Quién la vio', // [lenguaje 9]
+  bajada: 'Una línea por cada vez que alguien abre el enlace o la ficha, o escribe mal el PIN. Es un respaldo para ti, no una vigilancia.', // [lenguaje, aprobado 27-10]
+  presentacion: (n: string) => `${n} abrió el enlace`, // [lenguaje 9]
+  apertura: (n: string) => `${n} abrió la ficha`, // [lenguaje 9]
+  pinIncorrecto: (n: string) => `${n} escribió mal el PIN`, // [lenguaje 9]
+  bloqueo: (n: string) => `El enlace de ${n} se bloqueó por PIN incorrecto`, // [lenguaje 9]
+  aLas: (hora: string) => `a las ${hora}`,
+  // D2, aprobado por Jorge el 03-11. La última oración («…desde Enlaces.») espera a MATU-48 (D4).
+  sinAbrir: 'Todavía no abre la ficha. Puede que no haya escrito el PIN aún, o que el enlace le haya llegado a otra persona.',
+  // Aprobado por Jorge el 03-11.
+  bloqueado: 'Ya no abre con ese enlace. Si fue un error al escribir, crea uno nuevo y díctale el PIN de nuevo.',
+  vacio: 'Todavía nadie ha abierto la ficha. Cuando alguien la abra, aparece aquí.', // [lenguaje 9, D1]
+  error: 'No pudimos traer quién la vio. Revisa tu conexión e inténtalo de nuevo.', // [PROPUESTO]
+  intentar: 'Intentar de nuevo',
+  anteriores: 'Ver aperturas anteriores', // [PROPUESTO]
+  seAgregaron: (n: number) => `Se agregaron ${n} ${n === 1 ? 'línea' : 'líneas'}.`, // [PROPUESTO]
+  noHayMas: 'No hay más.', // [PROPUESTO]
+  nadieDeMatu: 'Nadie de MATU puede abrir la ficha. Si alguna vez pasara, aparecería aquí.', // [demo]
+  ultimas: 'Últimas aperturas', // [demo]
+  verTodo: 'Ver todo en Quién la vio', // [demo]
+}
+
 export const TITULOS: Record<string, string> = {
   '/crear-cuenta': CUENTA.titulo,
   '/entrar': ENTRAR.titulo,
@@ -220,6 +244,7 @@ export const TITULOS: Record<string, string> = {
   '/empezar/persona': PERSONA.titulo,
   '/empezar/autorizacion': AUTORIZACION.titulo,
   '/ficha': FICHA.titulo,
+  '/ficha/quien-la-vio': QUIEN.titulo,
   '/insumos': ESTADOS.insumosTitulo,
   '/compartir': ESTADOS.compartirTitulo,
 }
