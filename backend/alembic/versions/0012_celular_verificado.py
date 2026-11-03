@@ -2,8 +2,8 @@
 
 a) usuario.celular_verificado_en (timestamptz, NULL): cuándo la persona confirmó su celular con un
    código. Mientras sea NULL, la recuperación del acceso va al correo (decisión de Jorge del 03-11).
-b) usuario.celular_canal ('sms' o 'whatsapp', por omisión 'sms'): la preferencia de canal, prevista
-   pero aún sin uso hasta que Jorge decida (pendiente). El envío del semestre es simulado.
+b) usuario.celular_canal ('sms' o 'whatsapp', por omisión 'sms'): la preferencia de canal, que se
+   elige al verificar el celular (decisión de Jorge del 03-11). El envío del semestre es simulado.
 c) Trigger usuario_celular_cambia: si cambia telefono, celular_verificado_en vuelve a NULL. Así un
    número nuevo nunca hereda la verificación del anterior, la cambie quien la cambie.
 
@@ -48,7 +48,7 @@ ALTER TABLE usuario ADD CONSTRAINT usuario_celular_verificado_con_numero CHECK (
     celular_verificado_en IS NULL OR telefono IS NOT NULL);
 COMMENT ON COLUMN usuario.celular_verificado_en IS
     'MATU-57: cuándo se confirmó el celular con un código. NULL: la recuperación va al correo';
-COMMENT ON COLUMN usuario.celular_canal IS 'MATU-57: canal preferido del celular, previsto (pendiente de Jorge)';
+COMMENT ON COLUMN usuario.celular_canal IS 'MATU-57: canal preferido del celular, elegido al verificarlo';
 
 CREATE FUNCTION usuario_celular_cambia() RETURNS trigger
     LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS

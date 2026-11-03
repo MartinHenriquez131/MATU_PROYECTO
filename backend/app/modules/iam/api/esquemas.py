@@ -201,7 +201,7 @@ class SolicitudVerificarCelular(BaseModel):
     codigo: _CODIGO
     canal: Annotated[
         Literal["sms", "whatsapp"],
-        Field(description="Canal preferido del celular. Previsto, pendiente de decisión: por omisión sms"),
+        Field(description="Canal preferido del celular, elegido al verificarlo (decisión 90). Por omisión sms"),
     ] = "sms"
 
 

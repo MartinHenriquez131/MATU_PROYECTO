@@ -2646,7 +2646,7 @@
               "whatsapp"
             ],
             "title": "Canal",
-            "description": "Canal preferido del celular. Previsto, pendiente de decisión: por omisión sms",
+            "description": "Canal preferido del celular, elegido al verificarlo (decisión 90). Por omisión sms",
             "default": "sms"
           }
         },

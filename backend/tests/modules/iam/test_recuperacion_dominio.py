@@ -9,6 +9,7 @@ import pytest
 
 from app.modules.iam.domain.recuperacion import (
     MAX_INTENTOS,
+    MENSAJE_AVISO,
     VIGENCIA_CODIGO,
     Canal,
     EnviosRecientes,
@@ -38,6 +39,13 @@ def test_mensaje_exacto_sin_nombres_ni_enlaces() -> None:
         " MATU nunca te lo pedirá por teléfono."
     )
     assert "http" not in mensaje_codigo("000000")
+
+
+def test_aviso_del_cambio_con_el_texto_de_jorge() -> None:
+    # Decisión 88, texto aprobado por Jorge el 03-11: sin «sesiones», sin nombres ni enlaces
+    assert MENSAJE_AVISO == (
+        "MATU: se cambió la contraseña de tu cuenta. Si no fuiste tú, pide un código para recuperar tu acceso."
+    )
 
 
 @pytest.mark.parametrize("valor", ["12345", "1234567", "12a456", "１２３４５６", " 12345"])
