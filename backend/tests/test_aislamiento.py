@@ -955,6 +955,125 @@ def test_auditoria_no_admite_la_huella_del_email(cx):
         )
 
 
+# ------------------------------------------------------------------ consumo (MATU-36, migración 0009)
+
+U_CUID_CONSUMO_A = uuid.UUID("00000000-0000-0000-0000-0000000000a5")
+
+
+def _con_cuidador_a(cx):
+    """Una cuidadora en el grupo A, sembrada como superusuario dentro de la transacción de la prueba."""
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'cuid.a@x.cl', 'Cuid A', 'h')",
+               (U_CUID_CONSUMO_A,))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_CUID_CONSUMO_A))
+
+
+def _insertar_perfil_libre(cx, grupo=G_A, persona=P_A, nombre="Toallitas húmedas"):
+    cx.execute(
+        "INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, nombre_libre, tasa_unidades, stock_unidades,"
+        " stock_medido_en, fecha_quiebre_estimada) VALUES (%s, %s, %s, 10, 160, current_date, current_date + 16)",
+        (grupo, persona, nombre),
+    )
+
+
+@pytest.mark.rf("RF-10")
+@pytest.mark.parametrize("usuario, escribe", [
+    (U_ADMIN_A, True),
+    (U_CUID_CONSUMO_A, True),
+    (U_PAG_A, False),
+    (U_PAG2_A, False),   # el permiso de ver el plan no da escritura en el consumo
+    (U_OBS_A, False),
+])
+def test_consumo_lo_leen_todos_y_lo_escriben_admin_y_cuidador(cx, usuario, escribe):
+    _con_cuidador_a(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert contar(cx, "perfil_consumo") == 1
+    cx.execute("SAVEPOINT antes_de_insertar")
+    if escribe:
+        _insertar_perfil_libre(cx)
+    else:
+        with pytest.raises(errors.InsufficientPrivilege):
+            _insertar_perfil_libre(cx)
+        # El contexto (SET LOCAL) se fijó antes del savepoint y sigue vigente
+        cx.execute("ROLLBACK TO SAVEPOINT antes_de_insertar")
+    esperado = 1 if escribe else 0
+    assert len(cx.execute("UPDATE perfil_consumo SET dias_aviso = 3 WHERE producto_id IS NOT NULL RETURNING id")
+               .fetchall()) == esperado
+    assert len(cx.execute("DELETE FROM perfil_consumo WHERE producto_id IS NOT NULL RETURNING id")
+               .fetchall()) == esperado
+
+
+@pytest.mark.rf("RF-10")
+def test_consumo_no_se_escribe_en_otro_grupo(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        _insertar_perfil_libre(cx, grupo=G_B, persona=P_B)
+
+
+@pytest.mark.rf("RF-10")
+def test_admin_de_otro_grupo_no_escribe_con_el_grupo_ajeno_en_contexto(cx):
+    """app.grupo_id ajeno sin membresía: la API nunca lo fija, pero la base tampoco lo deja escribir."""
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A)
+    assert cx.execute("UPDATE perfil_consumo SET dias_aviso = 3 RETURNING id").fetchall() == []
+    assert cx.execute("DELETE FROM perfil_consumo RETURNING id").fetchall() == []
+
+
+@pytest.mark.rf("RF-10")
+def test_operacion_no_ve_el_consumo_ni_con_un_grupo_en_contexto(cx):
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A, rol="operacion")
+    assert contar(cx, "perfil_consumo") == 0
+    assert cx.execute("DELETE FROM perfil_consumo RETURNING id").fetchall() == []
+    como(cx, rol="operacion")
+    assert contar(cx, "perfil_consumo") == 0
+
+
+@pytest.mark.rf("RF-10")
+@pytest.mark.parametrize("producto, nombre", [
+    ("00000000-0000-0000-0000-000000000f01", "Pañal adulto M"),   # los dos
+    (None, None),                                                 # ninguno
+    (None, "x" * 61),                                             # nombre largo
+    (None, ""),                                                   # nombre vacío
+])
+def test_perfil_exige_producto_o_nombre_de_hasta_60(cx, producto, nombre):
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(
+            "INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, producto_id, nombre_libre, tasa_unidades,"
+            " stock_unidades, stock_medido_en, fecha_quiebre_estimada)"
+            " VALUES (%s, %s, %s, %s, 1, 1, current_date, current_date)",
+            (G_B, P_B, producto, nombre),
+        )
+
+
+@pytest.mark.rf("RF-10")
+def test_conservacion_del_consumo_solo_con_operacion_y_tras_90_dias(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())")
+    cx.rollback()
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT consumo_conservar(now() - interval '89 days', now())")
+    cx.rollback()
+    como(cx, rol="operacion")
+    # Sin consentimientos de consumo en la semilla: no borra nada y devuelve solo un contador
+    assert cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())").fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-10")
+def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
+    for revocado, queda in (("now() - interval '91 days'", 0), ("now() - interval '89 days'", 1)):
+        cx.execute(
+            "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+            " version_politica, evidencia, otorgado_en, revocado_en)"
+            f" VALUES (%s, %s, %s, 'titular', 'consumo', '0.10', '{{}}', now() - interval '200 days', {revocado})",
+            (G_A, P_A, U_ADMIN_A),
+        )
+        como(cx, rol="operacion")
+        cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())")
+        cx.execute("RESET ROLE")  # superusuario: cuenta sin RLS
+        assert contar(cx, "perfil_consumo", f"grupo_id = '{G_A}'") == queda
+        cx.rollback()
+
+
 # ---- MATU-45 (migración 0010): quién ve las aperturas del relevo en auditoria
 
 U_CUID_APERTURAS_A = uuid.UUID("00000000-0000-0000-0000-0000000000a7")
