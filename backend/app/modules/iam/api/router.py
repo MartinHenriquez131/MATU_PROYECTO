@@ -69,7 +69,7 @@ def obtener_repositorio_usuarios() -> RepositorioUsuarios:
     "/usuarios",
     status_code=status.HTTP_201_CREATED,
     response_model=CuentaCreadaRespuesta,
-    # MATU-25: 5 cuentas por hora por IP, antes de validar el cuerpo. Mitiga que el 409 revela el email
+    # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
     dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
     responses={
         409: {"description": "email-registrado", **PROBLEMA},

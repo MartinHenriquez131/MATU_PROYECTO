@@ -6,8 +6,9 @@
 - La huella es HMAC-SHA-256(PEPPER_LIMITES, "<prefijo>:<ip>"). Cada contador tiene su prefijo, así la
   misma IP deja huellas distintas en cada contador y en la demora de la entrada (MATU-38): ni la IP ni
   una huella que sirva para cruzar contadores llegan a Redis.
-- Se cuenta toda petición, también la que después responde 422 o 410: el límite se evalúa primero
-  (orden de evaluación del contrato del relevo).
+- Se cuenta toda petición con un cuerpo JSON válido, también la que después responde 422 por sus
+  campos o 410: el límite se evalúa antes de validar los campos. Un cuerpo que no es JSON válido
+  responde 422 sin contar (no crea cuenta, no prueba PIN, no revela emails) (decisión 65).
 """
 
 import hashlib

@@ -184,7 +184,7 @@ def _acceso_por_token(fabrica: sessionmaker[Session], token: str, reloj: Reloj) 
 @router.post(
     "/presentacion",
     response_model=PresentacionVista,
-    # MATU-25, decisión 29: 30 por hora por IP, en su propio contador, antes de validar el cuerpo
+    # MATU-25, decisión 29: 30 por hora por IP, en su propio contador, antes de validar los campos
     dependencies=[Depends(limite_por_ip(LIMITE_PRESENTACION))],
     responses={**_ERRORES_ANTES_DEL_PIN, **RESPUESTAS_LIMITE},
 )
@@ -212,7 +212,7 @@ def presentar_relevo(
     "/canje",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    # MATU-25, decisión 29: 10 por hora por IP, en su propio contador, antes de validar el cuerpo
+    # MATU-25, decisión 29: 10 por hora por IP, en su propio contador, antes de validar los campos
     dependencies=[Depends(limite_por_ip(LIMITE_CANJE))],
     responses={
         **_ERRORES_ANTES_DEL_PIN,

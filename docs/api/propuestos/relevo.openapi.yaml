@@ -283,7 +283,9 @@ paths:
         1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
            del canje (decisión 29), en una ventana fija (decisión 65). Si se supera, **429**. Sin
            Redis o sin `PEPPER_LIMITES`, **503**.
-        2. Cuerpo válido. Si no, **422**.
+        2. Cuerpo válido. Si no, **422**. Un cuerpo que no es JSON válido responde 422 antes del
+           paso 1 y no cuenta en el límite (decisión 65); todo cuerpo JSON válido se cuenta en el
+           paso 1, antes de validar sus campos.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`.
         4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
@@ -363,7 +365,9 @@ paths:
         1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
            (MATU-25, decisión 29), en una ventana fija (decisión 65). Si se supera, **429**, sin
            tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
-        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
+        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento. Un cuerpo que
+           no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 65);
+           todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
         4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
