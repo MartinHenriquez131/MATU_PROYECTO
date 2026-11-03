@@ -40,7 +40,7 @@ function Navegacion() {
       aria-label={MARCO.secciones}
       className="telefono:fixed telefono:inset-x-0 telefono:bottom-0 telefono:z-20 telefono:border-t telefono:border-linea telefono:bg-hoja telefono:px-1 telefono:py-1"
     >
-      <ul className={`flex flex-wrap gap-1 @4xl/app:flex-col telefono:grid ${columnas} telefono:gap-1`}>
+      <ul className={`flex flex-wrap gap-1 angosto:flex-col @4xl/app:flex-col telefono:grid ${columnas} telefono:gap-1`}>
         {visibles.map(({ id, texto, corto, Icono, ruta: destino }) => {
           const on = actual === id
           return (
@@ -167,7 +167,9 @@ function Encabezado() {
     <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-linea px-4 angosto:px-2 @3xl/app:px-11 py-3">
       <Persona />
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-        <DistintivoPiloto className="hidden @4xl/app:inline-flex" />
+        <span className="hidden @4xl/app:contents">
+          <DistintivoPiloto />
+        </span>
         <Boton variante="texto" icono={<LogOut aria-hidden className="size-5" />} onClick={() => void salir()}>
           {MARCO.salir}
         </Boton>
