@@ -91,3 +91,36 @@ export function leerConflicto(error: unknown): Conflicto | null {
   const cabecera = error.response.headers?.etag
   return { actual, etag: typeof cabecera === 'string' && cabecera ? cabecera : actual.etag }
 }
+
+// ---------------------------------------------------------------- MATU-57: recuperar y la cuenta
+
+export type Cuenta = S['CuentaVista']
+export type CanalCelular = NonNullable<S['SolicitudVerificarCelular']['canal']>
+
+/** `POST /v1/recuperacion/codigo`: siempre 202, exista o no la cuenta (decisión 84). */
+export async function pedirCodigoRecuperacion(email: string, alCorreo = false): Promise<void> {
+  const cuerpo: S['SolicitudCodigoRecuperacion'] = alCorreo ? { email, canal: 'correo' } : { email }
+  await apiFamilia.post('/v1/recuperacion/codigo', cuerpo)
+}
+
+/** `POST /v1/recuperacion/contrasena`: 204; no emite tokens, se vuelve a entrar (decisión 86). */
+export async function cambiarContrasenaConCodigo(email: string, codigo: string, contrasenaNueva: string): Promise<void> {
+  const cuerpo: S['SolicitudCambioContrasena'] = { email, codigo, contrasena_nueva: contrasenaNueva }
+  await apiFamilia.post('/v1/recuperacion/contrasena', cuerpo)
+}
+
+/** `GET /v1/cuenta`: el celular llega enmascarado, nunca completo. */
+export async function leerCuenta(): Promise<Cuenta> {
+  return (await apiFamilia.get<Cuenta>('/v1/cuenta')).data
+}
+
+/** `POST /v1/cuenta/celular/codigo`: 202, 409 o 429. */
+export async function pedirCodigoCelular(): Promise<void> {
+  await apiFamilia.post('/v1/cuenta/celular/codigo')
+}
+
+/** `POST /v1/cuenta/celular/verificar`: 204, 422 `codigo-invalido` o 429. */
+export async function confirmarCelular(codigo: string, canal: CanalCelular): Promise<void> {
+  const cuerpo: S['SolicitudVerificarCelular'] = { codigo, canal }
+  await apiFamilia.post('/v1/cuenta/celular/verificar', cuerpo)
+}
