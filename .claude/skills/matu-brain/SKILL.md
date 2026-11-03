@@ -80,5 +80,5 @@ actualizado: "2026-10-16"
 
 ## Cerrar
 
-1. `git -C ../Brain add -A` y `git -C ../Brain commit -m "<historia o tarea>: <qué cambió>"`. El vault no tiene remoto, así que no se hace push
+1. `git -C ../Brain add -A` y `git -C ../Brain commit -m "<historia o tarea>: <qué cambió>"`. Después, `git -C ../Brain push`: el vault tiene remoto y la otra persona hace pull para ver los cambios
 2. Informa a la persona, en una lista corta, qué notas creaste, cambiaste o eliminaste
