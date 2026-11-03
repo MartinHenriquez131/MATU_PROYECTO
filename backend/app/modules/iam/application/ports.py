@@ -34,6 +34,8 @@ class NuevoUsuario:
     email: str
     password_hash: str
     email_hash: bytes
+    # Celular en E.164 (+569XXXXXXXX), ya validado por la API
+    telefono: str
 
 
 @dataclass(frozen=True)

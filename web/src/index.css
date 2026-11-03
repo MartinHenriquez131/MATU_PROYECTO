@@ -120,6 +120,13 @@
     -webkit-text-size-adjust: 100%;
     color-scheme: light dark;
   }
+  /* La barra de secciones de la familia es fija abajo en el teléfono (MATU-39, 2.1): el foco no
+     queda tapado por ella (WCAG 2.4.11). Con texto al 200% la barra no es fija y el relleno sobra. */
+  @media (width < 40rem) {
+    html {
+      scroll-padding-bottom: 6rem;
+    }
+  }
   body {
     @apply bg-papel text-tinta font-sans antialiased;
     line-height: 1.5;
