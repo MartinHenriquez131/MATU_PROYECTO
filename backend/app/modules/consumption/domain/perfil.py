@@ -10,7 +10,7 @@ America/Santiago (decisión 42).
 - Topes (decisión 43): tasa_unidades 1..10000, tasa_dias 1..90, stock 0..100000, dias_aviso 0..60
   y una cobertura de 3650 días como máximo.
 - Leen los cuatro roles del grupo (admin, cuidador, pagador y observador). Escriben (crear, editar,
-  desactivar, activar y eliminar) solo admin y cuidador (decisión 68). Un rol que no alcanza recibe
+  desactivar, activar y eliminar) solo admin y cuidador (decisión 71). Un rol que no alcanza recibe
   404, nunca 403.
 - Toda edición es condicional con ``If-Match: "v<version>"`` (decisión 41).
 - ``nombre_libre`` nunca va en un mensaje de error, un log, la auditoría ni un evento.
@@ -35,7 +35,7 @@ LARGO_MAXIMO_NOMBRE_LIBRE = 60
 ROLES_QUE_LEEN = frozenset({"admin", "cuidador", "pagador", "observador"})
 ROLES_QUE_ESCRIBEN = frozenset({"admin", "cuidador"})
 
-# Decisión 67: el consumo de una persona se borra 90 días después de que termina su autorización
+# Decisión 70: el consumo de una persona se borra 90 días después de que termina su autorización
 CONSERVACION_CONSUMO = timedelta(days=90)
 
 
@@ -236,7 +236,7 @@ def con_activo(perfil: Perfil, activo: bool, autor: uuid.UUID) -> Perfil:
     return replace(perfil, activo=activo, version=perfil.version + 1, actualizado_por=autor)
 
 
-# --- Conservación (decisión 67) ------------------------------------------------------------------------
+# --- Conservación (decisión 70) ------------------------------------------------------------------------
 
 
 def limite_conservacion(ahora: datetime) -> datetime:

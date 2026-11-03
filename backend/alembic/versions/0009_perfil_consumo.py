@@ -2,14 +2,14 @@
 
 a) perfil_consumo.version integer NOT NULL DEFAULT 1 (decisión 41): el ETag "v<version>" del PATCH.
 
-b) perfil_consumo.actualizado_por uuid, quién guardó la última vez (decisión 70, pedido del diseñador):
+b) perfil_consumo.actualizado_por uuid, quién guardó la última vez (decisión 73, pedido del diseñador):
    el 412 del PATCH dice "Carmen cambió este insumo" en vez de "Otra persona", como la ficha de MATU-13.
    ON DELETE SET NULL: borrar una cuenta no borra el consumo de la familia.
 
 c) CHECK de exactamente uno de producto_id y nombre_libre (antes admitía los dos) y
    char_length(nombre_libre) BETWEEN 1 AND 60 (decisión 38).
 
-d) Segunda barrera por rol en RLS (decisión 68). perfil_familia (FOR ALL) se separa en:
+d) Segunda barrera por rol en RLS (decisión 71). perfil_familia (FOR ALL) se separa en:
    - perfil_leer (SELECT): el grupo del contexto, como antes, salvo con app.rol = 'operacion'. Leen
      los cuatro roles de la familia y el worker de MATU-37 (app.rol = 'sistema' con app.grupo_id).
    - perfil_crear, perfil_editar y perfil_borrar (INSERT, UPDATE, DELETE): el grupo del contexto y
@@ -17,7 +17,7 @@ d) Segunda barrera por rol en RLS (decisión 68). perfil_familia (FOR ALL) se se
      Un pagador o un observador con contexto válido no escribe ni con SQL directo.
    Operación no ve ninguna fila de perfil_consumo.
 
-e) Conservación (decisión 67): consumo_conservar(limite, ahora), SECURITY DEFINER, dueño matu_owner,
+e) Conservación (decisión 70): consumo_conservar(limite, ahora), SECURITY DEFINER, dueño matu_owner,
    search_path fijo, EXECUTE solo para matu_app, que exige app.rol = 'operacion', igual que
    iam_conservar (0008). Borra los perfiles (activos o no) de las personas sin autorización no revocada
    para consumo y cuya última revocación es igual o anterior a limite. limite debe ser al menos 90 días
@@ -63,7 +63,7 @@ ALTER TABLE perfil_consumo ADD COLUMN version integer NOT NULL DEFAULT 1;
 ALTER TABLE perfil_consumo ADD CONSTRAINT perfil_consumo_version CHECK (version >= 1);
 ALTER TABLE perfil_consumo ADD COLUMN actualizado_por uuid REFERENCES usuario(id) ON DELETE SET NULL;
 COMMENT ON COLUMN perfil_consumo.version IS 'MATU-36: suma 1 en cada escritura; el ETag es "v<version>"';
-COMMENT ON COLUMN perfil_consumo.actualizado_por IS 'MATU-36: quién guardó la última vez (decisión 70)';
+COMMENT ON COLUMN perfil_consumo.actualizado_por IS 'MATU-36: quién guardó la última vez (decisión 73)';
 
 -- (c) Exactamente uno de producto_id y nombre_libre, y nombre_libre de 1 a 60 caracteres
 ALTER TABLE perfil_consumo DROP CONSTRAINT perfil_consumo_producto;

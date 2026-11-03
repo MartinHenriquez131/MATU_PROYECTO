@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol
 
+from app.modules.care_circle.domain.personas import AutorizacionGuardada
+from app.modules.consumption.domain.alerta import EstadoAlerta
 from app.modules.consumption.domain.perfil import Perfil, UnidadConsumo
+from app.modules.consumption.events import QuiebreProximo
 
 
 @dataclass(frozen=True)
@@ -71,7 +74,7 @@ class RepositorioPerfiles(Protocol):
         ...
 
     def eliminar(self, perfil_id: uuid.UUID) -> None:
-        """Borra la fila. Sus reposiciones y alertas caen por ON DELETE CASCADE (decisión 66)."""
+        """Borra la fila. Sus reposiciones y alertas caen por ON DELETE CASCADE (decisión 69)."""
         ...
 
 
@@ -80,4 +83,111 @@ class ConservacionConsumo(Protocol):
 
     def conservar(self, limite: datetime, ahora: datetime) -> int:
         """Devuelve cuántos perfiles borró."""
+        ...
+
+
+# --- MATU-37: alertas de quiebre ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AlertaLeida:
+    """Una fila de alerta_quiebre. Solo identificadores, fechas y estado."""
+
+    id: uuid.UUID
+    perfil_id: uuid.UUID
+    fecha_prevista: date
+    estado: EstadoAlerta
+    creada_en: datetime
+    notificada_en: datetime | None
+    cerrada_en: datetime | None
+
+
+@dataclass(frozen=True)
+class InsumoEnVentana:
+    """Un perfil activo en su ventana de aviso, con la alerta de su fecha estimada actual si existe."""
+
+    leido: PerfilLeido
+    alerta: AlertaLeida | None
+
+
+@dataclass(frozen=True)
+class PaginaAlertas:
+    items: list[AlertaLeida]
+    # La última fila de la página, si hay más: (fecha_prevista, id)
+    siguiente: tuple[date, uuid.UUID] | None
+
+
+class RepositorioAlertas(Protocol):
+    """alerta_quiebre en la transacción del contexto de grupo (políticas de la migración 0011).
+
+    Implementación: RepositorioAlertasSQL (infrastructure/repositorio_alertas.py).
+    """
+
+    def en_ventana(self, persona_id: uuid.UUID, hoy: date) -> list[InsumoEnVentana]:
+        """Perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso, por fecha y después por id."""
+        ...
+
+    def listar(
+        self,
+        persona_id: uuid.UUID,
+        estados: frozenset[EstadoAlerta],
+        despues_de: tuple[date, uuid.UUID] | None,
+        limite: int,
+    ) -> PaginaAlertas: ...
+
+    def obtener(self, persona_id: uuid.UUID, alerta_id: uuid.UUID) -> AlertaLeida | None:
+        """La alerta si es de un perfil de la persona, bloqueada para escribir (FOR UPDATE)."""
+        ...
+
+    def de_la_fecha(self, perfil_id: uuid.UUID, fecha: date) -> AlertaLeida | None:
+        """La alerta del perfil para esa fecha prevista (alerta_quiebre_uq), bloqueada."""
+        ...
+
+    def cerrar(self, alerta_id: uuid.UUID, estado: EstadoAlerta, ahora: datetime) -> AlertaLeida: ...
+
+    def insertar_cerrada(
+        self, alerta_id: uuid.UUID, perfil_id: uuid.UUID, fecha: date, estado: EstadoAlerta, ahora: datetime
+    ) -> AlertaLeida:
+        """Una alerta ya cerrada para un insumo cuya alerta el trabajo diario aún no creó (decisión 76)."""
+        ...
+
+
+@dataclass(frozen=True)
+class InsumoDelTrabajo:
+    """Lo que lee el trabajo diario de un perfil activo, con la autorización de su persona."""
+
+    perfil_id: uuid.UUID
+    persona_cuidada_id: uuid.UUID
+    fecha_quiebre_estimada: date
+    dias_aviso: int
+    autorizacion: AutorizacionGuardada | None
+    hay_alerta_de_la_fecha: bool
+
+
+class RepositorioQuiebres(Protocol):
+    """El trabajo diario en un grupo, con app.rol = 'sistema' y app.grupo_id (arquitectura 8.5).
+
+    Implementación: RepositorioQuiebresSQL (infrastructure/tarea_quiebres.py).
+    """
+
+    def insumos(self) -> list[InsumoDelTrabajo]: ...
+
+    def abiertas(self) -> list[AlertaLeida]: ...
+
+    def materializar(self, alerta_id: uuid.UUID, perfil_id: uuid.UUID, fecha: date, ahora: datetime) -> bool:
+        """Inserta la alerta pendiente. False si ya existía una para el perfil y la fecha."""
+        ...
+
+    def descartar(self, alerta_id: uuid.UUID, ahora: datetime) -> None: ...
+
+    def publicar(self, evento: QuiebreProximo, ahora: datetime) -> None:
+        """Inserta el evento en evento_outbox, en la misma transacción."""
+        ...
+
+
+class ConservacionQuiebres(Protocol):
+    """Llama a quiebre_conservar (migración 0011) con app.rol = 'operacion'."""
+
+    def conservar(self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime) -> tuple[int, int, int]:
+        """(alertas, eventos, notificaciones) borrados."""
         ...

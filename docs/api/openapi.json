@@ -1364,6 +1364,437 @@
         }
       }
     },
+    "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
+      "get": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Qué se acaba pronto",
+        "description": "Los perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso (hoy en America/Santiago con el Reloj), incluidos los ya pasados. Por fecha estimada y después por id, sin paginar. Sale de perfil_consumo, no de alerta_quiebre (decisión 53). Cada ítem trae avisando y alerta_id (decisión 74)",
+        "operationId": "por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPorAcabarse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
+      "get": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Ver las alertas de la persona",
+        "description": "Por fecha_prevista y después por id. Sin estado, las abiertas (pendiente y notificada). Las crea el trabajo diario, una por perfil y fecha prevista, solo con la autorización para consumo vigente",
+        "operationId": "listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas",
+              "items": {
+                "enum": [
+                  "pendiente",
+                  "notificada",
+                  "resuelta",
+                  "descartada"
+                ]
+              },
+              "title": "Estado"
+            },
+            "description": "Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaAlertas"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "estado, cursor o limite inválidos",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar": {
+      "post": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "No avisar esta vez",
+        "description": "Pasa la alerta a descartada y fija cerrada_en con el Reloj. Nunca la borra. Sin cuerpo. Solo admin y cuidador (decisión 58). Desde resuelta o descartada, 409 alerta-cerrada. Registra alerta.descartar",
+        "operationId": "descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alerta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alerta Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/alerta-cerrada: la alerta ya está resuelta o descartada; trae el `estado` actual",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver": {
+      "post": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Ya lo resolví",
+        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisión 76): si existe abierta pasa a descartada; si no existe, se crea ya descartada. Devuelve el insumo con avisando = false. Cuerpo opcional; cantidad está reservada y hoy responde 422. Solo admin y cuidador. Registra alerta.descartar. Nunca crea un pedido",
+        "operationId": "resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SolicitudResolver"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Solicitud"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/alerta-cerrada (la alerta de la fecha estimada actual ya está cerrada, con su `estado`) o /errores/perfil-inactivo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "cantidad fuera de 1..9999 (errores[].campo = cantidad), o cantidad_no_disponible: declarar cuánto se compró aún no está habilitado (decisión 76)",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/consumo": {
       "get": {
         "tags": [
@@ -1393,7 +1824,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 69)",
+              "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)",
               "enum": [
                 "true",
                 "false",
@@ -1402,7 +1833,7 @@
               "default": "true",
               "title": "Activo"
             },
-            "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 69)"
+            "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)"
           },
           {
             "name": "cursor",
@@ -1872,7 +2303,7 @@
           "consumo"
         ],
         "summary": "Eliminar un insumo",
-        "description": "Borra el perfil en el acto, activo o desactivado (decisión 66). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar",
+        "description": "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar",
         "operationId": "eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete",
         "security": [
           {
@@ -2051,7 +2482,7 @@
           "consumo"
         ],
         "summary": "Volver a seguir un insumo",
-        "description": "activo = true (decisión 65). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar",
+        "description": "activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar",
         "operationId": "activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post",
         "security": [
           {
@@ -2147,6 +2578,71 @@
   },
   "components": {
     "schemas": {
+      "AlertaVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "perfil_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Perfil Id"
+          },
+          "fecha_prevista": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Prevista",
+            "description": "La fecha estimada del perfil cuando se creó la alerta"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoAlerta"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "notificada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notificada En"
+          },
+          "cerrada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cerrada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "perfil_id",
+          "fecha_prevista",
+          "estado",
+          "creada_en",
+          "notificada_en",
+          "cerrada_en"
+        ],
+        "title": "AlertaVista",
+        "description": "Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil."
+      },
       "AutorPerfilVista": {
         "properties": {
           "id": {
@@ -2620,6 +3116,16 @@
         "title": "DispositivoVista",
         "description": "Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario."
       },
+      "EstadoAlerta": {
+        "type": "string",
+        "enum": [
+          "pendiente",
+          "notificada",
+          "resuelta",
+          "descartada"
+        ],
+        "title": "EstadoAlerta"
+      },
       "EstadoCampoVista": {
         "properties": {
           "texto": {
@@ -2765,6 +3271,160 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InsumoPorAcabarseVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductoResumen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nombre_libre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre Libre"
+          },
+          "unidad": {
+            "$ref": "#/components/schemas/UnidadConsumo"
+          },
+          "tasa_unidades": {
+            "type": "integer",
+            "title": "Tasa Unidades"
+          },
+          "tasa_dias": {
+            "type": "integer",
+            "title": "Tasa Dias"
+          },
+          "stock_unidades": {
+            "type": "integer",
+            "title": "Stock Unidades"
+          },
+          "stock_medido_en": {
+            "type": "string",
+            "format": "date",
+            "title": "Stock Medido En"
+          },
+          "dias_aviso": {
+            "type": "integer",
+            "title": "Dias Aviso"
+          },
+          "fecha_quiebre_estimada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Quiebre Estimada",
+            "description": "Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura"
+          },
+          "dias_restantes": {
+            "type": "integer",
+            "title": "Dias Restantes",
+            "description": "fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorPerfilVista"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"v[1-9][0-9]*\"$",
+            "title": "Etag"
+          },
+          "avisando": {
+            "type": "boolean",
+            "title": "Avisando",
+            "description": "true si dias_restantes <= dias_aviso y no hay una alerta resuelta ni descartada para la fecha_quiebre_estimada actual (decisión 74). Después de «Ya lo resolví» pasa a false"
+          },
+          "alerta_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alerta Id",
+            "description": "La alerta de la fecha estimada actual, en cualquier estado. null si el trabajo diario aún no la creó"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "nombre_libre",
+          "unidad",
+          "tasa_unidades",
+          "tasa_dias",
+          "stock_unidades",
+          "stock_medido_en",
+          "dias_aviso",
+          "fecha_quiebre_estimada",
+          "dias_restantes",
+          "activo",
+          "actualizado_por",
+          "etag",
+          "avisando",
+          "alerta_id"
+        ],
+        "title": "InsumoPorAcabarseVista",
+        "description": "Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto»."
+      },
+      "ListaAlertas": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertaVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaAlertas"
+      },
       "ListaDispositivos": {
         "properties": {
           "items": {
@@ -2810,6 +3470,23 @@
           "siguiente_cursor"
         ],
         "title": "ListaPerfiles"
+      },
+      "ListaPorAcabarse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ListaPorAcabarse"
       },
       "PerfilConsumoVista": {
         "properties": {
@@ -2887,7 +3564,7 @@
                 "type": "null"
               }
             ],
-            "description": "Quién guardó la última vez, con su nombre de pila (decisión 70). null si la cuenta ya no está"
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
           },
           "etag": {
             "type": "string",
@@ -3490,6 +4167,27 @@
           "telefono"
         ],
         "title": "SolicitudRegistro"
+      },
+      "SolicitudResolver": {
+        "properties": {
+          "cantidad": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cantidad"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudResolver",
+        "description": "Cuerpo opcional de «Ya lo resolví». Sin cantidad (u omitido): la alerta pasa a descartada.\n\ncantidad está reservada: declarar cuánto se compró espera la decisión de Jorge (MATU-37 o MATU-51) y\nhoy responde 422 con tipo cantidad_no_disponible."
       },
       "SolicitudSesion": {
         "properties": {

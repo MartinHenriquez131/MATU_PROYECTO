@@ -446,3 +446,34 @@ def test_0009_perfil_de_consumo_y_baja_al_esquema_de_0008(base_desechable):
     for parte, filas in esquema_0008.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0011 (MATU-37): alertas y reposiciones con políticas por operación, transiciones y conservación
+
+
+@pytest.mark.rf("RF-12")
+def test_0011_alertas_y_reposiciones_y_baja_al_esquema_de_0009(base_desechable):
+    alembic("upgrade", "0009")
+    esquema_0009 = catalogo()
+
+    alembic("upgrade", "0011")
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename IN ('alerta_quiebre', 'reposicion')"))
+    assert "alerta_hereda" not in politicas and "reposicion_hereda" not in politicas
+    assert politicas["alerta_leer"] == "SELECT" and politicas["reposicion_leer"] == "SELECT"
+    assert {politicas[p] for p in ("alerta_materializar", "alerta_cerrar_sin_aviso", "reposicion_declarar",
+                                   "reposicion_pedido")} == {"INSERT"}
+    assert {politicas[p] for p in ("alerta_notificar", "alerta_cerrar")} == {"UPDATE"}
+    # Sin DELETE para matu_app: solo la conservación, de matu_owner
+    borrar = consultar("SELECT policyname, roles::text FROM pg_policies WHERE cmd = 'DELETE'"
+                       " AND tablename IN ('alerta_quiebre', 'reposicion')")
+    assert borrar == [("alerta_conservacion_borrar", "{matu_owner}")]
+    [(definer, acl)] = consultar("SELECT prosecdef, proacl::text FROM pg_proc WHERE proname = 'quiebre_conservar'")
+    assert definer and "matu_app=X" in acl
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'alerta_transicion'") == [("alerta_transicion",)]
+
+    alembic("downgrade", "0009")
+    despues = catalogo()
+    for parte, filas in esquema_0009.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")

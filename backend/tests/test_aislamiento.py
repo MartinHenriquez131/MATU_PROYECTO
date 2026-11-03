@@ -1072,3 +1072,205 @@ def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
         cx.execute("RESET ROLE")  # superusuario: cuenta sin RLS
         assert contar(cx, "perfil_consumo", f"grupo_id = '{G_A}'") == queda
         cx.rollback()
+
+
+# ------------------------------------------------------------------ alertas y reposiciones (MATU-37, migración 0011)
+
+def _perfil_de(cx, grupo):
+    """El perfil de la semilla del grupo, leído como superusuario."""
+    cx.execute("RESET ROLE")
+    return cx.execute("SELECT id FROM perfil_consumo WHERE grupo_id = %s AND producto_id IS NOT NULL",
+                      (grupo,)).fetchone()[0]
+
+
+def _alerta_pendiente(cx, perfil, dias=6):
+    cx.execute("RESET ROLE")
+    return cx.execute("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + %s)"
+                      " RETURNING id", (perfil, dias)).fetchone()[0]
+
+
+@pytest.mark.rf("RF-12")
+def test_alertas_y_reposiciones_de_otro_grupo_no_se_ven(cx):
+    perfil_a = _perfil_de(cx, G_A)
+    _alerta_pendiente(cx, perfil_a)
+    cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en) VALUES"
+               " (%s, 10, 'declarada', current_date)", (perfil_a,))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert (contar(cx, "alerta_quiebre"), contar(cx, "reposicion")) == (1, 1)
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert (contar(cx, "alerta_quiebre"), contar(cx, "reposicion")) == (0, 0)
+    assert cx.execute("UPDATE alerta_quiebre SET estado = 'descartada', cerrada_en = now() RETURNING id"
+                      ).fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+                   " VALUES (%s, 5, 'declarada', current_date, %s)", (perfil_a, U_ADMIN_B))
+
+
+@pytest.mark.rf("RF-12")
+def test_operacion_no_ve_alertas_ni_reposiciones_ni_con_grupo(cx):
+    _alerta_pendiente(cx, _perfil_de(cx, G_A))
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A, rol="operacion")
+    assert (contar(cx, "alerta_quiebre"), contar(cx, "reposicion")) == (0, 0)
+    assert cx.execute("UPDATE alerta_quiebre SET estado = 'descartada', cerrada_en = now() RETURNING id"
+                      ).fetchall() == []
+
+
+@pytest.mark.rf("RF-12")
+@pytest.mark.parametrize("usuario, escribe", [
+    (U_ADMIN_A, True),
+    (U_CUID_CONSUMO_A, True),
+    (U_PAG_A, False),
+    (U_PAG2_A, False),
+    (U_OBS_A, False),
+])
+def test_alertas_las_cierran_solo_admin_y_cuidador(cx, usuario, escribe):
+    _con_cuidador_a(cx)
+    perfil = _perfil_de(cx, G_A)
+    _alerta_pendiente(cx, perfil)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert contar(cx, "alerta_quiebre") == 1   # leen los cuatro roles
+    cerradas = cx.execute("UPDATE alerta_quiebre SET estado = 'descartada', cerrada_en = now() RETURNING id"
+                          ).fetchall()
+    assert len(cerradas) == (1 if escribe else 0)
+    # Nadie de la familia borra una alerta
+    assert cx.execute("DELETE FROM alerta_quiebre RETURNING id").fetchall() == []
+    cx.execute("SAVEPOINT antes")
+    # Nadie de la familia crea una alerta abierta: dispararía un aviso
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 1)", (perfil,))
+    cx.execute("ROLLBACK TO SAVEPOINT antes")
+    insertar_cerrada = ("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, cerrada_en)"
+                        " VALUES (%s, current_date + 2, 'descartada', now())")
+    if escribe:
+        cx.execute(insertar_cerrada, (perfil,))
+    else:
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(insertar_cerrada, (perfil,))
+
+
+@pytest.mark.rf("RF-12")
+def test_el_sistema_materializa_y_avisa_solo_en_su_grupo(cx):
+    perfil = _perfil_de(cx, G_A)
+    perfil_b = _perfil_de(cx, G_B)
+    como(cx, grupo_id=G_A, rol="sistema")
+    alerta = cx.execute("INSERT INTO alerta_quiebre (id, perfil_id, fecha_prevista)"
+                        " VALUES (gen_random_uuid(), %s, current_date + 6) RETURNING id", (perfil,)).fetchone()[0]
+    assert cx.execute("UPDATE alerta_quiebre SET estado = 'notificada', notificada_en = now() WHERE id = %s"
+                      " RETURNING id", (alerta,)).fetchall() == [(alerta,)]
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date)", (perfil_b,))
+
+
+@pytest.mark.rf("RF-12")
+@pytest.mark.parametrize("cambio", [
+    "estado = 'descartada', cerrada_en = now(), fecha_prevista = fecha_prevista + 1",
+    "estado = 'notificada', notificada_en = now()",
+    "creada_en = creada_en",          # sin transición: no se admite ningún otro cambio
+])
+def test_la_familia_solo_cierra_sin_cambiar_la_fecha(cx, cambio):
+    _alerta_pendiente(cx, _perfil_de(cx, G_A))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE alerta_quiebre SET " + cambio)
+
+
+@pytest.mark.rf("RF-12")
+def test_una_alerta_cerrada_no_se_reabre_ni_se_cierra_sin_fecha(cx):
+    alerta = _alerta_pendiente(cx, _perfil_de(cx, G_A))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("SAVEPOINT antes")
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE alerta_quiebre SET estado = 'descartada' WHERE id = %s", (alerta,))  # sin cerrada_en
+    cx.execute("ROLLBACK TO SAVEPOINT antes")
+    cx.execute("UPDATE alerta_quiebre SET estado = 'resuelta', cerrada_en = now() WHERE id = %s", (alerta,))
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE alerta_quiebre SET estado = 'descartada' WHERE id = %s", (alerta,))
+
+
+@pytest.mark.rf("RF-12")
+@pytest.mark.parametrize("usuario, escribe", [
+    (U_ADMIN_A, True),
+    (U_CUID_CONSUMO_A, True),
+    (U_PAG_A, False),
+    (U_OBS_A, False),
+])
+def test_reposiciones_las_declaran_solo_admin_y_cuidador_a_su_nombre(cx, usuario, escribe):
+    _con_cuidador_a(cx)
+    perfil = _perfil_de(cx, G_A)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    declarar = ("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+                " VALUES (%s, 10, 'declarada', current_date, %s)")
+    if not escribe:
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(declarar, (perfil, usuario))
+        return
+    cx.execute(declarar, (perfil, usuario))
+    assert cx.execute("UPDATE reposicion SET cantidad_unidades = 99 RETURNING id").fetchall() == []
+    assert cx.execute("DELETE FROM reposicion RETURNING id").fetchall() == []
+    pedido = ("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, pedido_ref, ocurrida_en, registrada_por)"
+              " VALUES (%s, 10, 'pedido_matu', gen_random_uuid(), current_date, %s)")
+    for sql, params in ((declarar, (perfil, U_OBS_A)), (pedido, (perfil, usuario))):
+        cx.execute("SAVEPOINT antes")
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(sql, params)
+        cx.execute("ROLLBACK TO SAVEPOINT antes")
+
+
+@pytest.mark.rf("RF-12")
+def test_el_sistema_registra_solo_reposiciones_de_pedido(cx):
+    perfil = _perfil_de(cx, G_A)
+    como(cx, grupo_id=G_A, rol="sistema")
+    cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, pedido_ref, ocurrida_en)"
+               " VALUES (%s, 10, 'pedido_matu', gen_random_uuid(), current_date)", (perfil,))
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en)"
+                   " VALUES (%s, 10, 'declarada', current_date)", (perfil,))
+
+
+@pytest.mark.rf("RF-12")
+def test_conservacion_de_alertas_solo_con_operacion_y_con_sus_plazos(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days', now())")
+    cx.rollback()
+    for limites in ("now() - interval '89 days', now() - interval '30 days'",
+                    "now() - interval '90 days', now() - interval '29 days'"):
+        como(cx, rol="operacion")
+        with pytest.raises(errors.InvalidParameterValue):
+            cx.execute(f"SELECT * FROM quiebre_conservar({limites}, now())")
+        cx.rollback()
+
+
+@pytest.mark.rf("RF-12")
+def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
+    perfil = _perfil_de(cx, G_A)
+    cx.execute(
+        "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, creada_en, cerrada_en) VALUES"
+        " (%(p)s, current_date - 200, 'descartada', now() - interval '200 days', now() - interval '91 days'),"
+        " (%(p)s, current_date - 100, 'resuelta', now() - interval '100 days', now() - interval '89 days'),"
+        " (%(p)s, current_date - 300, 'pendiente', now() - interval '300 days', NULL)",
+        {"p": perfil},
+    )
+    cx.execute("DELETE FROM evento_outbox")
+    cx.execute(
+        "INSERT INTO evento_outbox (grupo_id, tipo, agregado_tipo, agregado_id, publicado_en) VALUES"
+        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '31 days'),"
+        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '29 days'),"
+        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), NULL)",
+        {"g": G_A},
+    )
+    cx.execute("DELETE FROM notificacion")
+    cx.execute(
+        "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en) VALUES"
+        " (%(u)s, %(g)s, 1, 'push', 'quiebre_proximo', now() - interval '91 days'),"
+        " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days')",
+        {"u": U_ADMIN_A, "g": G_A},
+    )
+    como(cx, rol="operacion")
+    fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
+                      " now())").fetchone()
+    assert fila == (1, 1, 1)
+    cx.execute("RESET ROLE")
+    assert contar(cx, "alerta_quiebre", f"perfil_id = '{perfil}'") == 2
+    assert contar(cx, "evento_outbox") == 2
+    assert contar(cx, "notificacion") == 1
