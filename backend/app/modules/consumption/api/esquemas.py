@@ -8,11 +8,12 @@
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
+from app.modules.consumption.domain.alerta import CANTIDAD_MAXIMA, EstadoAlerta
 from app.modules.consumption.domain.perfil import (
     DIAS_AVISO_MAXIMO,
     DIAS_AVISO_POR_OMISION,
@@ -126,3 +127,64 @@ class ProblemaVersionPerfilVista(BaseModel):
     errores: list[dict[str, str]]
     request_id: str | None
     actual: PerfilConsumoVista
+
+
+# --- MATU-37: se acaban pronto y alertas -----------------------------------------------------------------
+
+
+class InsumoPorAcabarseVista(PerfilConsumoVista):
+    """Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto»."""
+
+    avisando: bool = Field(
+        description=(
+            "true si dias_restantes <= dias_aviso y no hay una alerta resuelta ni descartada para la"
+            " fecha_quiebre_estimada actual (decisión 74). Después de «Ya lo resolví» pasa a false"
+        )
+    )
+    alerta_id: uuid.UUID | None = Field(
+        description=(
+            "La alerta de la fecha estimada actual, en cualquier estado. null si el trabajo diario aún no la creó"
+        )
+    )
+
+
+class ListaPorAcabarse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[InsumoPorAcabarseVista]
+
+
+class AlertaVista(BaseModel):
+    """Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    perfil_id: uuid.UUID
+    fecha_prevista: date = Field(description="La fecha estimada del perfil cuando se creó la alerta")
+    estado: EstadoAlerta
+    creada_en: datetime
+    notificada_en: datetime | None
+    cerrada_en: datetime | None
+
+
+class ListaAlertas(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AlertaVista]
+    siguiente_cursor: str | None
+
+
+class SolicitudResolver(BaseModel):
+    """Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta
+    pasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la
+    alerta pasa a resuelta."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cantidad: int | None = Field(
+        default=None,
+        ge=1,
+        le=CANTIDAD_MAXIMA,
+        description="Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999",
+    )

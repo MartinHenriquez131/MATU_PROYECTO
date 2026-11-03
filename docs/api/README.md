@@ -53,9 +53,10 @@ docs/api/
 | `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 69) | Implementado. 204. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 68) | Implementado. En `openapi.json` desde MATU-36 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | Implementado, con `avisando` y `alerta_id` (decisión 74). En `openapi.json` desde MATU-37 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
 
 Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`.
 
@@ -121,9 +122,10 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
 | `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 | Implementado | `openapi.json` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | Implementado | `openapi.json` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | Implementado | `openapi.json` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 | Implementado | `openapi.json` |
 
 La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni `GET /v1/salud`.
 
@@ -426,6 +428,33 @@ Implementado el 03-11 en la rama `matu-36-perfil-consumo` (RF-10, RF-11). Las si
 - **`alerta_quiebre` y `reposicion`** siguen con `alerta_hereda` y `reposicion_hereda` (`FOR ALL`, heredado de `perfil_consumo`). Con 0009, un pagador o un observador con un contexto válido podría escribirlas con SQL directo (la API no lo permite). Conviene separar lectura y escritura con MATU-37, que decide qué escribe el trabajo diario.
 - **`plan_reposicion_linea.perfil_consumo_id`** no tiene `ON DELETE`: si algún día hay filas (capa 3), eliminar o conservar un perfil fallaría. Queda fuera del semestre.
 - **Política 0.10:** sigue siendo condición de despliegue (decisión 62). Debe decir que el consumo se borra a los 90 días de terminar la autorización (decisión 70) y que eliminar un insumo lo borra en el acto (decisión 69).
+
+## Decisiones de MATU-37 (03-11), aprobadas por Jorge el 03-11
+
+74. **«Se acaban pronto» trae `avisando` y `alerta_id`** (pedido del diseñador, `docs/diseno/matu-37-alertas.md`, sección 5). `avisando` = el insumo está en su ventana (`dias_restantes <= dias_aviso`) y no hay una alerta `resuelta` ni `descartada` para su `fecha_quiebre_estimada` actual. `alerta_id` es la alerta de esa fecha en cualquier estado, o `null` si el trabajo diario aún no la creó. La regla vive en el backend (`domain/alerta.py`).
+75. **El trabajo diario y las alertas desalineadas** (resuelve la nota de MATU-32 «Alertas y cambios del perfil»): por perfil activo, si la persona no tiene autorización vigente para `consumo` no hace nada; si la tiene, descarta (actor `sistema`, `alerta.descartar`) las alertas abiertas de otra fecha o fuera de la ventana, y materializa la de la fecha actual si no existe ninguna para ella. Una alerta cerrada por la familia para una fecha impide otra para esa misma fecha (`alerta_quiebre_uq`); si la familia anota de nuevo cuánto queda y la fecha cambia, vuelve a avisar. No recalcula `fecha_quiebre_estimada`: se materializa al escribir el perfil y no cambia con el paso de los días.
+76. **«Ya lo resolví» es `POST …/consumo/{perfil_id}/resolver`, por insumo** (pedido del diseñador): funciona aunque el trabajo diario no haya creado la alerta. Si hay una abierta para la fecha actual pasa a `descartada`; si no hay ninguna, se crea ya `descartada` en la misma transacción (política `alerta_cerrar_sin_aviso`: la familia nunca crea una alerta abierta). Devuelve el insumo. Solo `admin` y `cuidador`; los demás 404. Cuerpo opcional `{"cantidad": 1..9999 | null}`: sin cantidad, lo de esta decisión y registra `alerta.descartar`; con cantidad, la decisión 79.
+77. **Conservación (decisión de Jorge):** alertas cerradas 90 días desde `cerrada_en`, eventos del outbox ya publicados 30 días desde `publicado_en` (todos los tipos, no solo `QuiebreProximo`), notificaciones 90 días desde `creada_en`, reposiciones mientras exista el perfil. `quiebre_conservar(limite_alertas, limite_eventos, ahora)` (migración 0011), `SECURITY DEFINER`, solo con `app.rol = 'operacion'`. Jorge aprobó también que borre los eventos publicados de todos los tipos y que el trabajo diario enumere los grupos con `app.rol = 'operacion'`. Corre al final de `python -m app.modules.consumption.infrastructure.tarea_quiebres`.
+78. **A quién se avisa (decisión de Jorge):** por defecto a `admin` y `cuidador`; `pagador` y `observador` solo si lo activan en `preferencia_notificacion`. MATU-37 no crea filas de preferencia ni envía nada: la regla queda en `domain/alerta.py` (`avisa_por_defecto`) para MATU-41.
+
+79. **«Ya lo resolví» con cantidad va en MATU-37 y suma** (Jorge, 03-11): el stock nuevo es lo que MATU estima que queda hoy, `piso(stock − días transcurridos × tasa_unidades / tasa_dias)` y 0 si da negativo, más `cantidad`, en la unidad del insumo; `stock_medido_en` pasa a hoy (puerto `Reloj`), se recalcula `fecha_quiebre_estimada`, sube `version` (ETag nuevo, también en la cabecera) y `actualizado_por` es quien resolvió. En la misma transacción se crea una `reposicion` con `origen = 'declarada'`, `registrada_por` = el usuario, `ocurrida_en` = hoy y la cantidad, y la alerta de la fecha anterior (o una nueva ya cerrada) queda `resuelta` con `cerrada_en`. Registra `reposicion.declarar` y `alerta.resolver`, sin la cantidad ni el nombre. Devuelve el insumo recalculado; `avisando` y `alerta_id` se calculan para la fecha nueva (`alerta_id = null`; `avisando` es `false` salvo que lo comprado no saque el insumo de su ventana de aviso, y entonces el trabajo diario vuelve a avisar por la fecha nueva). Orden: 401, 404, 403, 422 (`cantidad` fuera de 1..9999, al validar el cuerpo), 404 (perfil), 428, 409 `perfil-inactivo`, 412, 409 `alerta-cerrada` y 422 `cobertura_maxima` en `cantidad` si pasa de 3650 días. El doble toque lo impide el `If-Match` (decisión 80). No pide marca ni lugar, y nunca crea un pedido.
+
+80. **«Ya lo resolví» es condicional** (hallazgo P2 de la QA, 03-11): un segundo `POST …/resolver` con cantidad después de uno exitoso sumaba otra vez, porque la primera suma cambia la fecha estimada y el 409 `alerta-cerrada` solo mira la alerta de la fecha actual. Ahora `resolver`, con o sin cantidad, exige `If-Match` con el ETag del perfil, igual que el `PATCH` (decisión 41): sin la cabecera, vacía o `*`, **428** `falta-version`; con una versión que no es la vigente, **412** `version-desactualizada` con `actual` (el perfil vigente, su `etag` y `actualizado_por`) y la cabecera `ETag`, **sin sumar, sin anotar la reposición y sin cerrar la alerta**. Con cantidad, la respuesta trae la versión nueva en `etag` y en la cabecera `ETag`. El ETag que manda la pantalla es el campo **`etag`** de cada ítem de `GET …/consumo/por-acabarse` (y de `GET …/consumo` y `GET …/consumo/{perfil_id}`), con las comillas: `"v3"`. Sin cantidad, el perfil no cambia de versión: un segundo descarte con el mismo ETag responde 409 `alerta-cerrada`.
+
+## Notas de implementación de MATU-37
+
+Implementado el 03-11 en la rama `matu-37-prediccion-quiebre` (RF-12). Las cuatro rutas pasaron a `openapi.json` y se quitaron de `propuestos/app-familia.openapi.yaml` con los componentes que solo ellas usaban; ese archivo ya no tiene rutas y conserva solo las copias de los componentes de `relevo.openapi.yaml`. Lo que dice la sección «Propuestos e implementados» sobre `NoAutenticadoApp`, `NoEncontradoApp` y `ValidacionConsultaApp` es historia de MATU-32. `backend/tests/modules/consumption/test_alertas_contrato.py` falla si las rutas cambian sin volver a exportar.
+
+- **Migración 0011** (`down_revision = "0009"`; al fusionar con MATU-45 se encadena sobre la 0010): reemplaza `alerta_hereda` por `alerta_leer`, `alerta_materializar` (solo `sistema`), `alerta_cerrar_sin_aviso`, `alerta_notificar` (solo `sistema`) y `alerta_cerrar` (admin y cuidador). El trigger `alerta_transicion` impide cambiar perfil o fecha, reabrir o cerrar dos veces, y que alguien que no es `sistema` marque `notificada`; el `CHECK alerta_quiebre_cierre` exige `cerrada_en` solo en las cerradas. Reemplaza `reposicion_hereda` por `reposicion_leer`, `reposicion_declarar` (admin y cuidador, `origen = 'declarada'`, `registrada_por = app.usuario_id`) y `reposicion_pedido` (solo `sistema`, `origen = 'pedido_matu'`). Sin `DELETE` para `matu_app` en ninguna de las dos: solo la cascada del perfil y la conservación. Operación no ve ninguna fila.
+- **Trabajo diario:** `python -m app.modules.consumption.infrastructure.tarea_quiebres`, sin programador todavía. Enumera los grupos activos con `app.rol = 'operacion'` (política `grupo_operacion`; no hay una conexión `matu_scheduler` configurada) y corre cada grupo en su propia transacción con `app.rol = 'sistema'`. `QuiebreProximo` va al outbox con `alerta_id`, `perfil_id` y `persona_cuidada_id`; la auditoría registra `alerta.materializar` y `alerta.descartar` con actor `sistema`. El log lleva solo contadores.
+- **Acciones de auditoría nuevas:** `alerta.materializar`, `alerta.descartar`, `alerta.resolver` y `reposicion.declarar`; entidades nuevas `alerta_quiebre` y `reposicion`.
+- **Ninguna alerta genera un pedido**, ni la API ni el trabajo diario.
+
+### Pendientes de MATU-37
+
+- **Crear un usuario de base de datos para las tareas programadas** antes de tener datos reales (Jorge, 03-11): hoy el trabajo diario enumera los grupos con `app.rol = 'operacion'`.
+- **Al fusionar con MATU-45:** cambiar `down_revision` de la 0011 a `"0010"` y volver a correr `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Programar el trabajo diario a las 04:00** (arquitectura 8.5) y, si se quiere el rol `matu_scheduler`, darle su conexión.
 
 ## Pendientes para Jorge (MATU-32)
 
