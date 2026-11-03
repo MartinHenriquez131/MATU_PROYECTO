@@ -73,7 +73,7 @@ export const INSUMOS = {
   usa: (n: number, cada: number, unidad: Unidad) =>
     cada === 1 ? `Usa ${cantidad(n, unidad)} al día.` : `Usa ${cantidad(n, unidad)} cada ${cada} días.`, // [PROPUESTO]
   quedaban: (n: number, unidad: Unidad) => `Quedaban ${cantidad(n, unidad)} el`, // + fecha [PROPUESTO]
-  quedanHoy: (n: number, unidad: Unidad) => `Quedan ${cantidad(n, unidad)} hoy.`, // [PROPUESTO]
+  quedanHoy: (n: number, unidad: Unidad) => `${n === 1 ? 'Queda' : 'Quedan'} ${cantidad(n, unidad)} hoy.`, // [PROPUESTO]
 
   // 3.3 Vacío
   vacioTitulo: (pila: string) => `Aún no sabemos qué usa ${pila}`, // [demo]

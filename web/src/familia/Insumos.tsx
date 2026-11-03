@@ -528,7 +528,7 @@ function LineaDias({ p }: { p: Perfil }) {
   return (
     <div className="flex flex-col">
       <p className="flex items-start gap-2 text-xl font-bold">
-        {l.cifra === null && <CircleAlert aria-hidden className="mt-1 size-5 shrink-0 text-atenta" />}
+        {l.cifra === null && <CircleAlert aria-hidden className="mt-1 size-5 shrink-0 text-pronto" />}
         <span className="min-w-0">
           {l.texto}
           {l.cifra !== null && (
