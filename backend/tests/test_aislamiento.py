@@ -957,14 +957,14 @@ def test_auditoria_no_admite_la_huella_del_email(cx):
 
 # ------------------------------------------------------------------ consumo (MATU-36, migración 0009)
 
-U_CUID_A = uuid.UUID("00000000-0000-0000-0000-0000000000a5")
+U_CUID_CONSUMO_A = uuid.UUID("00000000-0000-0000-0000-0000000000a5")
 
 
 def _con_cuidador_a(cx):
     """Una cuidadora en el grupo A, sembrada como superusuario dentro de la transacción de la prueba."""
     cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'cuid.a@x.cl', 'Cuid A', 'h')",
-               (U_CUID_A,))
-    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_CUID_A))
+               (U_CUID_CONSUMO_A,))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_CUID_CONSUMO_A))
 
 
 def _insertar_perfil_libre(cx, grupo=G_A, persona=P_A, nombre="Toallitas húmedas"):
@@ -978,7 +978,7 @@ def _insertar_perfil_libre(cx, grupo=G_A, persona=P_A, nombre="Toallitas húmeda
 @pytest.mark.rf("RF-10")
 @pytest.mark.parametrize("usuario, escribe", [
     (U_ADMIN_A, True),
-    (U_CUID_A, True),
+    (U_CUID_CONSUMO_A, True),
     (U_PAG_A, False),
     (U_PAG2_A, False),   # el permiso de ver el plan no da escritura en el consumo
     (U_OBS_A, False),
