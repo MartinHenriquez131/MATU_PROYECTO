@@ -36,6 +36,7 @@
           "usuarios"
         ],
         "summary": "Crear Cuenta",
+        "description": "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422 y 409.",
         "operationId": "crear_cuenta_v1_usuarios_post",
         "requestBody": {
           "content": {
@@ -58,14 +59,86 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "409": {
+            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/email-registrado",
+                      "title": "Type"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 409,
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "title": "Errores"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ],
+                  "title": "ProblemaEmailRegistradoVista",
+                  "description": "409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."
+                },
+                "example": {
+                  "type": "/errores/email-registrado",
+                  "title": "Conflicto",
+                  "status": 409,
+                  "detail": "Ese email ya tiene una cuenta. Inicia sesión",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
                 }
               }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, incluido celular_invalido. Nunca repite el valor",
+            "content": {
+              "application/problem+json": {}
             }
           }
         }
@@ -2663,13 +2736,19 @@
           "rol": {
             "type": "string",
             "title": "Rol"
+          },
+          "puede_ver_plan": {
+            "type": "boolean",
+            "title": "Puede Ver Plan",
+            "description": "Si quien consulta ve el plan de cuidado (la ficha y los accesos de relevo) en este grupo: admin y cuidador siempre, pagador solo con el permiso explícito, observador nunca (decisión 66)"
           }
         },
         "type": "object",
         "required": [
           "id",
           "nombre",
-          "rol"
+          "rol",
+          "puede_ver_plan"
         ],
         "title": "GrupoRespuesta"
       },
@@ -3390,6 +3469,16 @@
             "maxLength": 128,
             "minLength": 10,
             "title": "Contrasena"
+          },
+          "telefono": {
+            "type": "string",
+            "maxLength": 20,
+            "pattern": "^(\\+?56 ?)?9( ?[0-9]){8}$",
+            "title": "Telefono",
+            "description": "Celular chileno, obligatorio (decisión 65): 9 y ocho dígitos, con o sin +56 y con o sin espacios. Se guarda en E.164 (+569XXXXXXXX). Sirve para recuperar el acceso (MATU-57). Nunca aparece en logs ni en la auditoría",
+            "examples": [
+              "+56 9 1234 5678"
+            ]
           }
         },
         "additionalProperties": false,
@@ -3397,7 +3486,8 @@
         "required": [
           "nombre",
           "email",
-          "contrasena"
+          "contrasena",
+          "telefono"
         ],
         "title": "SolicitudRegistro"
       },

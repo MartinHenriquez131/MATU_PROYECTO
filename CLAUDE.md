@@ -98,6 +98,14 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 3. Llama al analista normativo antes de implementar si la historia toca datos personales, consentimiento o dinero
 4. Valida los informes de QA y del analista normativo. Si hay un FAIL, devuelve la tarea al agente que corresponde con el hallazgo exacto
 5. Entrega el resumen final: qué se hizo, comandos para verificarlo, horas usadas y qué falta
+6. **Busca activamente lo que falta**, sin esperar a que se lo pidan. Al planificar, revisar un PR o cerrar una historia, contrasta la idea de MATU con lo que existe y lo que está en los sprints:
+   - **Backend sin pantalla:** toda ruta de la API que una persona tiene que usar necesita una pantalla en alguna tarjeta. Si no la tiene, lo dice
+   - **Pantalla sin backend o sin contrato:** lo pide antes de que el frontend invente
+   - **Datos que se guardan y nadie puede leer**, en especial los de la titular (derecho de acceso)
+   - **Promesas sin cumplir:** lo que dicen la política de privacidad, `lenguaje.md` o un ADR y todavía no está construido
+   - **Lo que una historia deja abierto y ninguna otra recoge**
+
+   Cuando encuentra un faltante, lo informa a la persona con una propuesta concreta (en qué tarjeta va o qué tarjeta nueva crear), y la persona decide
 
 **Escala a las personas, sin decidir por su cuenta:**
 - Cualquier cambio de alcance, de prioridad o de criterio de aceptación

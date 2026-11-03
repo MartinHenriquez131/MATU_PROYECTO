@@ -84,6 +84,8 @@ class CuentaDemo:
     email: str
     rol: str
     puede_ver_plan: bool = False
+    # Celular sintético en E.164, obligatorio desde MATU-39 (decisión 65). Serie 9 0000 00xx, sin dueño
+    telefono: str = "+56900000000"
 
 
 @dataclass(frozen=True)
@@ -195,6 +197,7 @@ class Sembradora:
                 nombre=cuenta.nombre,
                 email=cuenta.email,
                 contrasena=contrasena,
+                telefono=cuenta.telefono,
                 pepper=self.pepper,
                 hasher=self.hasher,
                 repositorio=repositorio,
