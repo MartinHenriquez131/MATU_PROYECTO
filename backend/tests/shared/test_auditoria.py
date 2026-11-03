@@ -57,6 +57,12 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "dispositivo.sacar",
         "dispositivo.push_registrar",
         "dispositivo.push_borrar",
+        "cuenta.recuperar_solicitar",
+        "cuenta.recuperar_verificar_fallido",
+        "cuenta.contrasena_cambiar",
+        "cuenta.celular_solicitar",
+        "cuenta.celular_verificar",
+        "cuenta.celular_verificar_fallido",
     }
 
 

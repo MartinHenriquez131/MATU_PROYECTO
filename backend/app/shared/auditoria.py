@@ -50,6 +50,14 @@ class AccionAuditoria(StrEnum):
     DISPOSITIVO_SACAR = "dispositivo.sacar"
     DISPOSITIVO_PUSH_REGISTRAR = "dispositivo.push_registrar"
     DISPOSITIVO_PUSH_BORRAR = "dispositivo.push_borrar"
+    # MATU-57: recuperar el acceso y verificar el celular. Nunca el código, el celular, el email, sus
+    # huellas ni la IP
+    CUENTA_RECUPERAR_SOLICITAR = "cuenta.recuperar_solicitar"
+    CUENTA_RECUPERAR_VERIFICAR_FALLIDO = "cuenta.recuperar_verificar_fallido"
+    CUENTA_CONTRASENA_CAMBIAR = "cuenta.contrasena_cambiar"  # pragma: allowlist secret
+    CUENTA_CELULAR_SOLICITAR = "cuenta.celular_solicitar"
+    CUENTA_CELULAR_VERIFICAR = "cuenta.celular_verificar"
+    CUENTA_CELULAR_VERIFICAR_FALLIDO = "cuenta.celular_verificar_fallido"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -62,7 +70,18 @@ ACCIONES_DE_CUENTA = frozenset(
         AccionAuditoria.DISPOSITIVO_SACAR,
         AccionAuditoria.DISPOSITIVO_PUSH_REGISTRAR,
         AccionAuditoria.DISPOSITIVO_PUSH_BORRAR,
+        AccionAuditoria.CUENTA_RECUPERAR_SOLICITAR,
+        AccionAuditoria.CUENTA_RECUPERAR_VERIFICAR_FALLIDO,
+        AccionAuditoria.CUENTA_CONTRASENA_CAMBIAR,
+        AccionAuditoria.CUENTA_CELULAR_SOLICITAR,
+        AccionAuditoria.CUENTA_CELULAR_VERIFICAR,
+        AccionAuditoria.CUENTA_CELULAR_VERIFICAR_FALLIDO,
     }
+)
+
+# Las acciones que llevan sesiones_revocadas en detalle (MATU-38 y MATU-57)
+ACCIONES_CON_SESIONES_REVOCADAS = frozenset(
+    {AccionAuditoria.DISPOSITIVO_SACAR, AccionAuditoria.CUENTA_CONTRASENA_CAMBIAR}
 )
 
 
@@ -115,7 +134,8 @@ class EntradaAuditoria:
       cuando la fila aún no existe o no aplica.
     - ``motivo``: solo con catálogo, por ejemplo al compartir la ficha.
     - ``request_id``: el de la petición, para cruzar con los logs.
-    - ``sesiones_revocadas``: solo en dispositivo.sacar, un entero de 0 en adelante.
+    - ``sesiones_revocadas``: solo en dispositivo.sacar y cuenta.contrasena_cambiar (MATU-57), un entero
+      de 0 en adelante.
 
     grupo_id puede faltar solo en ACCIONES_DE_CUENTA, y actor_ref solo con el actor SISTEMA.
 
@@ -150,8 +170,11 @@ class EntradaAuditoria:
         if self.sesiones_revocadas is not None:
             if isinstance(self.sesiones_revocadas, bool) or not isinstance(self.sesiones_revocadas, int):
                 raise TypeError("sesiones_revocadas debe ser int")
-            if self.accion is not AccionAuditoria.DISPOSITIVO_SACAR or self.sesiones_revocadas < 0:
-                raise TypeError("sesiones_revocadas solo va en dispositivo.sacar, como entero no negativo")
+            if self.accion not in ACCIONES_CON_SESIONES_REVOCADAS or self.sesiones_revocadas < 0:
+                raise TypeError(
+                    "sesiones_revocadas solo va en dispositivo.sacar o cuenta.contrasena_cambiar, como entero"
+                    " no negativo"
+                )
 
     def detalle(self) -> dict[str, object] | None:
         """El contenido de la columna auditoria.detalle, o None si la entrada no lleva detalle."""
