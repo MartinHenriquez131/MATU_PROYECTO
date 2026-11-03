@@ -57,7 +57,7 @@ function Navegacion() {
                 }`}
               >
                 <Icono aria-hidden className="size-5 shrink-0" strokeWidth={on ? 2.4 : 2} />
-                <span className="min-w-0 flex-1 break-words @4xl/app:whitespace-nowrap telefono:flex-none">
+                <span className="flex-1 @4xl/app:whitespace-nowrap telefono:flex-none">
                   <span className="telefono:hidden">{texto}</span>
                   <span className="hidden telefono:inline">{corto}</span>
                 </span>
