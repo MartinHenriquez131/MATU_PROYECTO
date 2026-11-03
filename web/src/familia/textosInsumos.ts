@@ -10,11 +10,11 @@ import type { Unidad } from '../compartido/api/consumo'
 /** Declaraciones del permiso para el consumo, tal cual (especificación 7.2, aprobadas el 03-11). */
 export const DECLARACION_CONSUMO: Record<Calidad, string> = {
   titular:
-    'Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban, según la política de privacidad vigente. Yo solo registro su decisión.',
+    'Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarte cuando se esté por acabar, según la política de privacidad vigente. Yo solo registro su decisión.',
   representante_legal:
-    'Declaro que soy representante legal de la persona que cuido y que la referencia que indico corresponde al documento que lo acredita. Como su representante, autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban, según la política de privacidad vigente.',
+    'Declaro que soy representante legal de la persona que cuido y que la referencia que indico corresponde al documento que lo acredita. Como su representante, autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarte cuando se esté por acabar, según la política de privacidad vigente.',
   cuidador_de_hecho:
-    'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
+    'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarte cuando se esté por acabar, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
 }
 
 /** «4», «1 sobre», «2 sobres», «15 ml», «30 g». */
