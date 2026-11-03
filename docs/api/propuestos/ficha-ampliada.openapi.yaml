@@ -1,0 +1,756 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Ficha ampliada con secciones complementarias (propuesto)
+  version: 0.1.0-propuesto
+  summary: Seis secciones opcionales de la ficha, y cómo se comparten con un relevo (ADR-028).
+  description: |
+    Contrato **propuesto** de MATU-49 (sprint 3). Lo implementa MATU-50 (sprint 4). Mientras no
+    esté implementado vive en `docs/api/propuestos/` y no lo compara la puerta openapi-diff. Ver
+    `docs/api/README.md`, sección "MATU-49 (propuesto)".
+
+    **Qué cambia y qué no.** Los tres campos base (`rutina`, `manejo_situaciones`, `red_apoyo`) y
+    sus rutas (`GET …/plan/ficha`, `PUT …/plan/ficha/{campo}`) siguen como están en
+    `docs/api/openapi.json`. Este contrato agrega:
+
+    1. Seis **secciones complementarias**, opcionales, en rutas propias:
+       `PUT` y `DELETE …/plan/secciones/{seccion}`.
+    2. Una propiedad nueva, `secciones`, en la respuesta de `GET …/plan/ficha` (aditiva).
+    3. `secciones_adicionales` al compartir con un relevo, que reemplaza a `campos` (con una
+       transición compatible, ver `POST …/accesos-relevo`).
+    4. `secciones` en la vista del relevo y en cada apertura de la auditoría.
+
+    | Sección en la API | Título en la interfaz | Máximo |
+    |---|---|---|
+    | `quien_es` | Quién es | 500 |
+    | `preferencias` | Lo que la hace bien | 500 |
+    | `alimentacion` | Comer y beber | 500 |
+    | `movilidad` | Moverse y descansar | 500 |
+    | `comunicacion` | Cómo hablarle | 500 |
+    | `remedios` | Sus remedios | 800 |
+
+    El máximo se cuenta en caracteres (puntos de código Unicode) después de quitar los espacios
+    de los extremos, igual que los campos base. Las preguntas guía, los ejemplos y el aviso de
+    los remedios ("Esto lo escribe la familia. No reemplaza la indicación del médico") salen de
+    `docs/lenguaje.md`, no de este contrato.
+
+    **Rutas en otro recurso, no en `/ficha/{campo}`.** Las secciones no cuentan para la
+    completitud, se pueden borrar y tienen otro máximo. Ponerlas en `/ficha/{campo}` cambiaría el
+    enum `CampoFicha` del contrato vigente y la `completitud`, que la pantalla usa para la barra
+    de la ficha inicial (ADR-028: la ficha nunca aparece "incompleta" por no tenerlas).
+
+    **Contexto de grupo, roles y orden de evaluación:** los mismos de la ficha
+    (`docs/api/propuestos/ficha.openapi.yaml`). Leen `admin`, `cuidador` y `pagador` con
+    `puede_ver_plan`; escriben y borran `admin` y `cuidador`. Cualquier otro caso responde **404**.
+    401, 404, 403 (consentimiento), 503 (custodia de la clave), 422 (cuerpo), 428/412 (versión).
+
+    **Datos sensibles.** Cada sección se cifra como un campo base: AES-256-GCM con la clave de la
+    persona y AAD `plan_id ‖ tipo` (puerto `CifradorSecciones`). El texto nunca aparece en logs,
+    errores, URLs ni en `auditoria`. Un 422 nombra el campo (`texto`, `secciones_adicionales`) y
+    nunca repite el valor recibido. Las respuestas con texto van con `Cache-Control: no-store`.
+
+    Los ejemplos son sintéticos.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: ficha
+    description: Ficha de relevo y sus secciones complementarias (capa 1)
+  - name: accesos de relevo
+    description: Compartir la ficha con un relevo
+  - name: relevo
+    description: Lo que ve el relevo con su sesión
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/personas-cuidadas/{persona_id}/plan/ficha:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [ficha]
+      operationId: leerFicha
+      summary: 'Leer la ficha (cambio aditivo: propiedad `secciones`)'
+      description: |
+        Igual que hoy (`docs/api/openapi.json`), con una propiedad nueva, `secciones`: un objeto
+        con **solo** las secciones complementarias agregadas. Una sección que no está no viene, y
+        la pantalla ofrece agregarla con `If-None-Match: *`. `completitud` sigue contando solo los
+        tres campos base. Registra `plan.leer`.
+
+        Solo se muestra aquí la propiedad nueva; el resto de `Ficha` no cambia.
+      x-matu-historia: MATU-50
+      x-matu-auditoria: plan.leer
+      responses:
+        '200':
+          description: La ficha con sus secciones complementarias.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FichaAmpliadaParcial'
+              examples:
+                dos_secciones:
+                  summary: La familia agregó "Lo que la hace bien" y "Sus remedios"
+                  value:
+                    secciones:
+                      preferencias:
+                        texto: "Le gusta escuchar boleros en la radio.\nConversar de cuando trabajaba en la feria."
+                        etag: '"v2"'
+                        actualizado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Alex
+                        actualizado_en: '2026-11-10T14:00:00Z'
+                      remedios:
+                        texto: "Desayuno: 1 pastilla blanca del consultorio.\nNoche: 1 pastilla rosada."
+                        etag: '"v1"'
+                        actualizado_por:
+                          id: 0c4b5a10-0000-4000-8000-00000000000c
+                          nombre: Alex
+                        actualizado_en: '2026-11-10T14:05:00Z'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacion'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/Seccion'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [ficha]
+      operationId: guardarSeccionFicha
+      summary: Agregar o editar una sección complementaria
+      description: |
+        Mismo patrón que `PUT …/plan/ficha/{campo}` (MATU-13), con exactamente una cabecera:
+
+        | Situación | Cabecera | Si otra persona se adelantó |
+        |---|---|---|
+        | La sección no está agregada | `If-None-Match: *` | 412 con el contenido que ella guardó |
+        | La sección ya está | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+
+        - Sin ninguna, o con `If-Match: *`, **428**. Con las dos, **422**.
+        - `If-Match` sobre una sección que no está (nunca agregada, o quitada): **412** con
+          `actual: null`.
+        - `texto` vacío o solo espacios responde **422** `tipo: vacio` en los dos casos. A
+          diferencia de un campo base, una sección no se vacía: se **quita** con `DELETE`.
+        - Más de 500 caracteres (800 en `remedios`) responde **422** `tipo: largo_maximo`.
+        - `seccion` fuera de las seis (incluidos `rutina`, `horarios`, `actividades`, `red_apoyo`)
+          responde **404**, igual que un `campo` desconocido.
+
+        La primera escritura crea el plan y la clave de datos de la persona si no existían, como
+        un campo base. **201** si se agregó, **200** si se editó. Registra `plan.editar` con el
+        tipo de la sección, sin el texto.
+      x-matu-historia: MATU-50
+      x-matu-auditoria: plan.editar
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudSeccion'
+            examples:
+              comunicacion:
+                summary: Agregar "Cómo hablarle"
+                value:
+                  texto: "Oye mejor por el lado derecho. Usa lentes para leer.\nSi algo le duele, se toca el brazo."
+      responses:
+        '200':
+          description: Sección editada.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeccionGuardada'
+        '201':
+          description: 'Sección agregada, con `If-None-Match: *`.'
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeccionGuardada'
+              examples:
+                agregada:
+                  value:
+                    seccion: comunicacion
+                    texto: "Oye mejor por el lado derecho. Usa lentes para leer.\nSi algo le duele, se toca el brazo."
+                    etag: '"v1"'
+                    actualizado_por:
+                      id: 0c4b5a10-0000-4000-8000-00000000000c
+                      nombre: Alex
+                    actualizado_en: '2026-11-10T14:10:00Z'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacion'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '412':
+          $ref: '#/components/responses/VersionDesactualizada'
+        '422':
+          $ref: '#/components/responses/ValidacionCampo'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+    delete:
+      tags: [ficha]
+      operationId: quitarSeccionFicha
+      summary: Quitar una sección complementaria
+      description: |
+        **Borra la fila** de `plan_seccion` (no la deja vacía): el texto cifrado deja de existir.
+        Exige `If-Match: "<etag leído>"`, para no borrar lo que otra persona acaba de escribir:
+
+        - Sin `If-Match`, o con `If-Match: *`, **428**. `If-None-Match` aquí responde **422**.
+        - ETag distinto del actual: **412** con el contenido actual.
+        - La sección no está (nunca agregada, o ya quitada): **412** con `actual: null`. No es 404,
+          para que la pantalla distinga "ya la quitó otra persona" de "no tienes acceso".
+        - Responde **204** sin cuerpo.
+
+        Registra `plan.quitar_seccion` en `auditoria` con el tipo de la sección, sin el texto.
+        Un acceso de relevo que la compartía deja de mostrarla desde ese momento (la fila ya no
+        existe); si después se vuelve a agregar, ese acceso **no** la ve (ver `FichaRelevo`).
+      x-matu-historia: MATU-50
+      x-matu-auditoria: plan.quitar_seccion
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Sección quitada.
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinAutorizacion'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '412':
+          $ref: '#/components/responses/VersionDesactualizada'
+        '422':
+          $ref: '#/components/responses/ValidacionCampo'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+        '503':
+          $ref: '#/components/responses/ServicioNoDisponible'
+
+  /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [accesos de relevo]
+      operationId: crearAccesoRelevo
+      summary: 'Compartir la ficha (cambio en el cuerpo: `secciones_adicionales`)'
+      description: |
+        Todo lo demás sigue como en `docs/api/openapi.json` (MATU-18). Cambia qué se comparte:
+
+        - Los **tres campos base van siempre**, aunque estén vacíos ("Sin completar").
+        - `secciones_adicionales`: lista de 0 a 6 secciones, sin duplicados, por defecto `[]`.
+          El servidor **nunca agrega** una sección por su cuenta; en particular `remedios` solo va
+          si viene en la lista (ADR-028: viene desmarcada por defecto).
+        - Cada sección pedida debe estar **agregada** al momento de compartir. Si no, **422**
+          `campo: secciones_adicionales`, `tipo: seccion_no_agregada`, sin repetir el valor.
+        - Se guarda en `acceso_relevo.secciones_permitidas` como los tres campos base más las
+          secciones pedidas.
+
+        **Transición de `campos` (compatibilidad con MATU-48 y con la pantalla actual).**
+        `campos` queda **deprecado**, no se quita en esta versión:
+
+        | Cuerpo | Resultado |
+        |---|---|
+        | Sin `campos` | Correcto. Es la forma nueva |
+        | `campos` con los tres base, en cualquier orden | Se acepta y se ignora (equivale a omitirlo) |
+        | `campos` con uno o dos | **422** `campo: campos`, `tipo: campos_base_obligatorios` |
+
+        Así un cliente que hoy manda `[rutina, manejo_situaciones, red_apoyo]` (la pantalla de
+        MATU-18 y el ejemplo del contrato) sigue funcionando sin cambios, y nadie puede crear un
+        acceso nuevo con menos de los tres campos. `campos` se quita del cuerpo en la versión
+        siguiente a MATU-50, cuando ningún cliente lo envíe.
+      x-matu-historia: MATU-50 (cambio a MATU-18)
+      x-matu-auditoria: relevo.compartir
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudAcceso'
+            examples:
+              sin_secciones:
+                summary: Solo los tres campos base
+                value:
+                  nombre_relevo: Sam
+                  telefono_relevo: +56 9 5555 0137
+                  expira_en: '2026-11-15T02:00:00Z'
+                  motivo: fin_de_semana_fuera
+                  relevo_informado: true
+              con_remedios:
+                summary: Los tres campos, "Cómo hablarle" y "Sus remedios" marcada a mano
+                value:
+                  nombre_relevo: Sam
+                  telefono_relevo: +56 9 5555 0137
+                  secciones_adicionales: [comunicacion, remedios]
+                  expira_en: '2026-11-15T02:00:00Z'
+                  motivo: fin_de_semana_fuera
+                  relevo_informado: true
+      responses:
+        '201':
+          description: Acceso creado. `AccesoCreado` suma `secciones_adicionales`; `campos` sigue viniendo, siempre con los tres.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccesoCreadoParcial'
+        '422':
+          $ref: '#/components/responses/ValidacionCampo'
+
+  /v1/relevo/ficha:
+    get:
+      tags: [relevo]
+      operationId: leerFichaRelevo
+      summary: 'Leer la ficha como relevo (cambio aditivo: `secciones`)'
+      description: |
+        Igual que hoy (MATU-19, `docs/api/openapi.json`), con `secciones`: **solo** las secciones
+        compartidas en el acceso que todavía existen y que ya existían al crearlo, cada una con su
+        tipo y su texto. Una sección compartida que se quitó no viene (no hay "Sin completar" para
+        secciones).
+
+        **Un acceso no ve secciones agregadas después de crearlo.** Se cumple de dos formas:
+        al compartir solo se pueden elegir secciones agregadas (422 si no), y una sección quitada y
+        vuelta a agregar después de crear el acceso es una fila nueva, con `creado_en` posterior
+        al del acceso, que la consulta del relevo excluye. Editar una sección compartida sí se ve,
+        igual que editar un campo base.
+
+        `campos` sigue igual: un acceso creado antes de MATU-50 conserva los campos que se
+        eligieron entonces (uno, dos o tres) y no ve ninguna sección (`secciones: []`).
+
+        Registra `relevo.abrir` con la lista de tipos de las secciones mostradas en `detalle`
+        (`{"secciones": ["comunicacion", "remedios"]}`), sin texto.
+      x-matu-historia: MATU-50 (cambio a MATU-19)
+      x-matu-auditoria: relevo.abrir
+      security:
+        - relevoCookie: []
+      responses:
+        '200':
+          description: La ficha que ve el relevo.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FichaRelevo'
+              examples:
+                con_dos_secciones:
+                  value:
+                    nombre_pila: Teresa
+                    nombre_pila_comparte: Alex
+                    vence_en: '2026-11-15T02:00:00Z'
+                    campos:
+                      rutina:
+                        texto: "8:00 se levanta y toma desayuno.\n13:00 almuerza.\n15:00 descansa."
+                      manejo_situaciones:
+                        texto: "Si se inquieta, poner su radio y conversar de la feria."
+                      red_apoyo:
+                        texto: null
+                    secciones:
+                      - tipo: comunicacion
+                        texto: "Oye mejor por el lado derecho. Usa lentes para leer."
+                      - tipo: remedios
+                        texto: "Desayuno: 1 pastilla blanca del consultorio.\nNoche: 1 pastilla rosada."
+
+  /v1/personas-cuidadas/{persona_id}/plan/aperturas:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [accesos de relevo]
+      operationId: listarAperturasRelevo
+      summary: 'Ver quién abrió la ficha (cambio aditivo: `secciones` en cada apertura)'
+      description: |
+        Igual que hoy. Cada ítem de `tipo: apertura` suma `secciones`: los tipos de las secciones
+        complementarias que se mostraron en esa apertura, leídos del `detalle` de `relevo.abrir`.
+        Los demás tipos de ítem no la traen. Nunca trae texto.
+      x-matu-historia: MATU-50 (cambio a MATU-19)
+      responses:
+        '200':
+          description: Página de aperturas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaAperturas'
+              examples:
+                apertura:
+                  value:
+                    items:
+                      - ocurrido_en: '2026-11-14T13:02:00Z'
+                        tipo: apertura
+                        acceso:
+                          id: 2e8a6b40-0000-4000-8000-0000000000b1
+                          nombre_relevo: Sam
+                        secciones: [comunicacion, remedios]
+                    siguiente_cursor: null
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    relevoCookie:
+      type: apiKey
+      in: cookie
+      name: matu_relevo
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: Igual que en la ficha. Si falta o no corresponde, 404.
+      schema:
+        type: string
+        format: uuid
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Seccion:
+      name: seccion
+      in: path
+      required: true
+      description: Una de las seis secciones complementarias. Otro valor responde 404.
+      schema:
+        $ref: '#/components/schemas/SeccionComplementaria'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: ETag de la sección tal como se leyó. `*` no se acepta (428).
+      schema:
+        $ref: '#/components/schemas/ETag'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: 'Solo `*`, para agregar una sección que no está.'
+      schema:
+        type: string
+        const: '*'
+
+  headers:
+    ETag:
+      schema:
+        $ref: '#/components/schemas/ETag'
+    CacheControlNoStore:
+      schema:
+        type: string
+        const: no-store
+
+  schemas:
+    CampoFicha:
+      type: string
+      enum: [rutina, manejo_situaciones, red_apoyo]
+    SeccionComplementaria:
+      type: string
+      enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
+      description: Tipos de `plan_seccion` de las secciones complementarias (ADR-028).
+    ETag:
+      type: string
+      pattern: '^"[^"]+"$'
+      example: '"v1"'
+    Autor:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          description: Nombre de pila.
+    SolicitudSeccion:
+      type: object
+      additionalProperties: false
+      required: [texto]
+      properties:
+        texto:
+          type: string
+          minLength: 1
+          maxLength: 800
+          description: |
+            Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios` (la
+            validación depende de `seccion`, por eso el esquema declara el mayor).
+    EstadoSeccion:
+      type: object
+      additionalProperties: false
+      required: [texto, etag, actualizado_por, actualizado_en]
+      properties:
+        texto:
+          type: string
+        etag:
+          $ref: '#/components/schemas/ETag'
+        actualizado_por:
+          oneOf:
+            - $ref: '#/components/schemas/Autor'
+            - type: 'null'
+        actualizado_en:
+          type: string
+          format: date-time
+    SeccionGuardada:
+      allOf:
+        - $ref: '#/components/schemas/EstadoSeccion'
+        - type: object
+          required: [seccion]
+          properties:
+            seccion:
+              $ref: '#/components/schemas/SeccionComplementaria'
+    FichaAmpliadaParcial:
+      type: object
+      description: Solo la propiedad nueva de `Ficha`; el resto sigue como en `openapi.json`.
+      required: [secciones]
+      properties:
+        secciones:
+          type: object
+          additionalProperties: false
+          description: Solo las secciones agregadas. Las que no están no vienen.
+          properties:
+            quien_es: {$ref: '#/components/schemas/EstadoSeccion'}
+            preferencias: {$ref: '#/components/schemas/EstadoSeccion'}
+            alimentacion: {$ref: '#/components/schemas/EstadoSeccion'}
+            movilidad: {$ref: '#/components/schemas/EstadoSeccion'}
+            comunicacion: {$ref: '#/components/schemas/EstadoSeccion'}
+            remedios: {$ref: '#/components/schemas/EstadoSeccion'}
+    SolicitudAcceso:
+      type: object
+      additionalProperties: false
+      required: [nombre_relevo, telefono_relevo, motivo, relevo_informado]
+      description: Igual que en `openapi.json`, salvo `campos` (deprecado) y `secciones_adicionales` (nuevo).
+      properties:
+        nombre_relevo:
+          type: string
+          maxLength: 60
+        telefono_relevo:
+          type: string
+        secciones_adicionales:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeccionComplementaria'
+          minItems: 0
+          maxItems: 6
+          uniqueItems: true
+          default: []
+        campos:
+          deprecated: true
+          type: array
+          items:
+            $ref: '#/components/schemas/CampoFicha'
+          minItems: 3
+          maxItems: 3
+          uniqueItems: true
+          description: Deprecado. Si viene, debe tener los tres campos base; si no, 422.
+        expira_en:
+          type: string
+          format: date-time
+        motivo:
+          type: string
+        relevo_informado:
+          type: boolean
+          const: true
+    AccesoCreadoParcial:
+      type: object
+      description: Propiedades que cambian en `AccesoCreado` y en `AccesoResumen`; el resto sigue igual.
+      required: [campos, secciones_adicionales]
+      properties:
+        campos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampoFicha'
+          description: |
+            Los campos base del acceso. En un acceso nuevo, siempre los tres. En uno creado antes
+            de MATU-50, los que se eligieron entonces.
+        secciones_adicionales:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeccionComplementaria'
+          description: Las secciones compartidas. `[]` en los accesos anteriores a MATU-50.
+    SeccionRelevo:
+      type: object
+      additionalProperties: false
+      required: [tipo, texto]
+      properties:
+        tipo:
+          $ref: '#/components/schemas/SeccionComplementaria'
+        texto:
+          type: string
+    FichaRelevo:
+      type: object
+      additionalProperties: false
+      required: [nombre_pila, nombre_pila_comparte, vence_en, campos, secciones]
+      properties:
+        nombre_pila:
+          type: string
+        nombre_pila_comparte:
+          type: string
+        vence_en:
+          type: string
+          format: date-time
+        campos:
+          type: object
+          additionalProperties: false
+          properties:
+            rutina: {$ref: '#/components/schemas/CampoRelevo'}
+            manejo_situaciones: {$ref: '#/components/schemas/CampoRelevo'}
+            red_apoyo: {$ref: '#/components/schemas/CampoRelevo'}
+        secciones:
+          type: array
+          description: |
+            Las secciones compartidas que se muestran, en el orden de la tabla de ADR-028
+            (quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios).
+          items:
+            $ref: '#/components/schemas/SeccionRelevo'
+    CampoRelevo:
+      type: object
+      additionalProperties: false
+      required: [texto]
+      properties:
+        texto:
+          type: [string, 'null']
+    Apertura:
+      type: object
+      additionalProperties: false
+      required: [ocurrido_en, tipo, acceso]
+      properties:
+        ocurrido_en:
+          type: string
+          format: date-time
+        tipo:
+          type: string
+          enum: [presentacion, apertura, pin_incorrecto, bloqueo]
+        acceso:
+          type: object
+          additionalProperties: false
+          required: [id, nombre_relevo]
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre_relevo:
+              type: string
+        secciones:
+          type: array
+          description: 'Solo en `tipo: apertura`. Tipos mostrados, sin texto.'
+          items:
+            $ref: '#/components/schemas/SeccionComplementaria'
+    ListaAperturas:
+      type: object
+      additionalProperties: false
+      required: [items, siguiente_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Apertura'
+        siguiente_cursor:
+          type: [string, 'null']
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+          examples: [vacio, largo_maximo, seccion_no_agregada, campos_base_obligatorios, duplicado]
+    Problema:
+      type: object
+      description: RFC 7807 (`application/problem+json`). Nunca incluye texto de la ficha.
+      required: [type, title, status]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        actual:
+          description: Solo en 412. La sección actual (`EstadoSeccion`) o `null` si no está.
+          oneOf:
+            - $ref: '#/components/schemas/EstadoSeccion'
+            - type: 'null'
+
+  responses:
+    NoAutenticado:
+      description: Sin access token válido.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+    SinAutorizacion:
+      description: Sin consentimiento vigente o revisión vencida.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+    NoEncontrado:
+      description: Grupo, rol, persona o sección fuera de alcance. Nunca 403.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+    VersionDesactualizada:
+      description: Otra persona se adelantó. Trae `actual`.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+          example:
+            type: /errores/version-desactualizada
+            title: Otra persona cambió esta sección
+            status: 412
+            actual: null
+    FaltaVersion:
+      description: 'Falta `If-Match` o `If-None-Match`, o vino `If-Match: *`.'
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+    ValidacionCampo:
+      description: Cuerpo inválido. Nombra el campo sin repetir el valor.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}
+          example:
+            type: /errores/validacion
+            title: Revisa los datos
+            status: 422
+            errores:
+              - campo: texto
+                mensaje: admite hasta 800 caracteres
+                tipo: largo_maximo
+    ServicioNoDisponible:
+      description: Custodia de la clave sin configurar. Falla cerrado.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problema'}

@@ -451,3 +451,42 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 - **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
 - **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
 - **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
+
+## MATU-49 (propuesto)
+
+Contrato de la ficha ampliada (ADR-028), sin implementación: `docs/api/propuestos/ficha-ampliada.openapi.yaml`. Lo implementa MATU-50 (sprint 4). Decisiones de Jorge del 03-11.
+
+**Rutas**
+
+| Ruta | Qué hace |
+|---|---|
+| `GET …/plan/ficha` | Suma `secciones` (solo las agregadas, con `etag`). `completitud` sigue contando solo los tres campos base |
+| `PUT …/plan/secciones/{seccion}` | Agrega (`If-None-Match: *`, 201) o edita (`If-Match`, 200). 428 sin cabecera, 412 con `actual`. Vacío: 422 |
+| `DELETE …/plan/secciones/{seccion}` | Quita la sección **borrando la fila**. `If-Match` obligatorio, 204. Audita `plan.quitar_seccion` sin texto |
+| `POST …/plan/accesos-relevo` | `secciones_adicionales` (0 a 6, sin duplicados, default `[]`) reemplaza a `campos` |
+| `GET /v1/relevo/ficha` | Suma `secciones: [{tipo, texto}]`, solo las compartidas |
+| `GET …/plan/aperturas` | Cada `apertura` suma `secciones`: los tipos mostrados, sin texto |
+
+Secciones: `quien_es`, `preferencias`, `alimentacion`, `movilidad`, `comunicacion` (500 caracteres) y `remedios` (800). Cifradas como los campos base (AES-256-GCM, AAD `plan_id ‖ tipo`). Roles iguales a la ficha. Un `seccion` fuera de las seis responde 404.
+
+**Rutas propias en vez de `/ficha/{campo}`.** Las secciones se borran, tienen otro máximo y no cuentan en la completitud. Meterlas en `/ficha/{campo}` cambiaría el enum `CampoFicha` y la `completitud` del contrato vigente.
+
+**Cambio al contrato de compartir, sin romper**
+
+- Los tres campos base van siempre. El servidor nunca agrega una sección por su cuenta: `remedios` solo va si viene en la lista.
+- `campos` queda deprecado durante MATU-50: si viene con los tres base se acepta y se ignora (la pantalla de MATU-18 y la de MATU-48 siguen funcionando sin cambios); con uno o dos responde 422 `campos_base_obligatorios`. Se quita en la versión siguiente.
+- La respuesta (`AccesoCreado`, `AccesoResumen`) conserva `campos` y suma `secciones_adicionales`. MATU-48 puede leer las dos.
+- `acceso_relevo.secciones_permitidas` guarda los tres campos base más las secciones elegidas. **Accesos existentes:** no se migran sus filas. Siguen viendo los campos que se eligieron (uno, dos o tres) y `secciones_adicionales: []`; la política RLS del relevo (`tipo = ANY(secciones_permitidas)`) ya los limita.
+- **Un acceso no ve secciones agregadas después de crearlo.** Al compartir solo se eligen secciones ya agregadas (422 `seccion_no_agregada`), y la vista del relevo excluye filas de `plan_seccion` con `creado_en` posterior al `creado_en` del acceso (una sección quitada y vuelta a agregar es otra fila). Editar una sección compartida sí se ve. **Pide confirmación de Jorge:** es la lectura estricta de la decisión.
+
+**Auditoría.** `relevo.abrir` guarda en `detalle` `{"secciones": [...]}` con los tipos mostrados. `plan.editar` y `plan.quitar_seccion` guardan el tipo. Nunca texto, ni en logs, errores, URLs ni auditoría. Un 422 nombra el campo sin repetir el valor.
+
+**Nota de esquema para MATU-50** (migración Alembic reversible, con `op.execute`):
+
+- `plan_seccion.tipo`: el `CHECK` suma `quien_es`, `comunicacion` y `remedios`. No se quita ningún valor que usen filas existentes: `red_apoyo` es campo base, y `horarios` y `actividades` se dejan en el `CHECK` aunque la API ya no los escriba. El `downgrade` vuelve al `CHECK` anterior y falla si existen filas con los tipos nuevos (o las borra explícitamente, a decidir en la revisión; no se pierden datos sin aviso).
+- `acceso_relevo.secciones_permitidas`: su `CHECK` (`<@ ARRAY[...]`) también debe sumar los tres tipos nuevos, o compartir `comunicacion`, `quien_es` o `remedios` fallaría en la base.
+- `TIPOS_SECCION` en `care_plan/domain/cifrado.py` suma los tres tipos (es la lista que valida el AAD).
+- La política RLS del relevo sobre `plan_seccion` suma la condición `plan_seccion.creado_en <= a.creado_en` para las secciones complementarias (o se filtra en el repositorio; se decide en MATU-50 con su prueba en `test_aislamiento.py`).
+- `esquemas_relevo.py`: `campos` pasa de `min 1 max 3` a deprecado opcional (exactamente los tres), y se agrega `secciones_adicionales`.
+
+**Pendiente:** revisión previa del analista normativo sobre `remedios` (ADR-028) antes de MATU-50.
