@@ -29,4 +29,11 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'espera@ejemplo.cl', que: 'Entrar responde 429 con Retry-After: 90 («Espera 2 minutos»)' },
   { email: 'espera-1@ejemplo.cl', que: 'Entrar responde 429 con Retry-After: 30 («Espera 1 minuto»)' },
   { email: 'caido@ejemplo.cl', que: 'Entrar responde 503' },
+  // MATU-57: recuperar el acceso y confirmar el celular. Los códigos solo se ven en la consola del doble.
+  { email: 'celular-verificado@ejemplo.cl', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
+  { email: 'celular-sin-verificar@ejemplo.cl', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },
+  { email: 'celular-espera@ejemplo.cl', que: 'Pedir el código del celular responde 429 con Retry-After: 120' },
+  { email: 'sin-celular@ejemplo.cl', que: 'Cuenta anterior a MATU-39, sin celular: «Tu cuenta» lo dice' },
+  { email: 'recuperar-espera@ejemplo.cl', que: 'Cambiar la contraseña con el código responde 429 con Retry-After: 120' },
+  { email: 'codigo-invalido@ejemplo.cl', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
 ]
