@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { atenderConsumo, listaCompleta, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -23,6 +24,8 @@ interface Persona {
   direccion: Record<string, unknown> | null
   calidad: string
   campos: Record<CampoApi, Campo>
+  /** MATU-36: la autorización con finalidad `consumo` y los insumos. */
+  consumo: ConsumoDoble
 }
 interface Grupo {
   id: string
@@ -62,22 +65,30 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     direccion: null,
     calidad,
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
+    consumo: { autorizacion: 'no', perfiles: [] },
   }
 }
 
 const usuarios = new Map<string, Usuario>()
 
-function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string) {
+function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
   const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo }
   usuarios.set(email, u)
   return u
 }
 const grupo = (nombre: string, rol: Rol, personas: Persona[], puede_ver_plan = false): Grupo => ({ id: randomUUID(), nombre, rol, puede_ver_plan, personas })
 
+/** MATU-36: la primera persona de la cuenta, con su consumo. */
+function insumos(u: Usuario, autorizacion: ConsumoDoble['autorizacion'], lista: boolean) {
+  const p = u.grupos[0].personas[0]
+  p.consumo = { autorizacion, perfiles: lista ? listaCompleta({ id: u.id, nombre: u.nombre }) : [] }
+}
+
 function sembrar() {
   const carmen = cuenta('carmen@ejemplo.cl', 'Carmen', [])
   const yo = { id: carmen.id, nombre: 'Carmen' }
   carmen.grupos.push(grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })]))
+  insumos(carmen, 'vigente', true)
   cuenta('completa@ejemplo.cl', 'Carmen', [
     grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })]),
   ])
@@ -88,7 +99,7 @@ function sembrar() {
   ])
   cuenta('sin-persona@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [])])
   cuenta('sin-persona-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
-  cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])])
+  insumos(cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
   cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })], true)])
   cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])])
   cuenta('sin-autorizacion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'sin-consentimiento')
@@ -97,7 +108,14 @@ function sembrar() {
   cuenta('conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
   cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
   cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
-  cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'lento')
+  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'lento'), 'vigente', true)
+  // MATU-36: insumos
+  cuenta('insumos-permiso@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
+  insumos(cuenta('insumos-vacio@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
+  insumos(cuenta('insumos-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('insumos-renovar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])]), 'vencida', true)
+  insumos(cuenta('insumos-renovar-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vencida', true)
+  insumos(cuenta('insumos-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
   cuenta(
     'largos@ejemplo.cl',
     'Bernardita',
@@ -251,6 +269,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     p.direccion = b.direccion ? { etiqueta: 'Casa', region: 'Metropolitana', referencia: null, depto: null, ...(b.direccion as object) } : null
     g.personas.push(p)
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
+  }
+
+  // MATU-36: el consumo y su autorización.
+  const mConsumo = /^\/v1\/personas-cuidadas\/([^/]+)\/(?:consumo|consentimientos)(?:\/|$)/.exec(ruta)
+  if (mConsumo) {
+    const pc = g?.personas.find((x) => x.id === decodeURIComponent(mConsumo[1]))
+    if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
+    return atenderConsumo(req, res, cuerpo, { rol: g.rol, consumo: pc.consumo, usuario: u }, r), true
   }
 
   const mFicha = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/ficha(?:\/([a-z_]+))?$/.exec(ruta)
