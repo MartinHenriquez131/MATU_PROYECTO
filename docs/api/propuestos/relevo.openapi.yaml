@@ -298,7 +298,7 @@ paths:
 
         No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra
         `relevo.abrir`: no muestra la ficha. Cada 200 registra `relevo.presentar`, sin IP
-        (decisión 30). La familia lo ve en `/plan/aperturas` como `presentacion`: una
+        (decisión 30). La familia lo ve en `/plan/aperturas` (implementada en MATU-45, en `openapi.json`) como `presentacion`: una
         presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN.
       x-matu-historia: MATU-19, MATU-23
       x-matu-auditoria: relevo.presentar
@@ -490,69 +490,6 @@ paths:
           $ref: '#/components/responses/RelevoBloqueadoSesion'
         '503':
           $ref: '#/components/responses/RelevoSinServicio'
-
-  /v1/personas-cuidadas/{persona_id}/plan/aperturas:
-    parameters:
-      - $ref: '#/components/parameters/PersonaId'
-      - $ref: '#/components/parameters/XGrupoId'
-    get:
-      tags: [accesos de relevo]
-      operationId: listarAperturasRelevo
-      summary: Ver quién abrió la ficha con un acceso de relevo
-      description: |
-        Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada
-        presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN
-        incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después
-        indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra
-        la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.
-
-        Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se
-        listan aquí.
-      x-matu-historia: MATU-19 (RF-08)
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/Cursor'
-        - $ref: '#/components/parameters/Limite'
-      responses:
-        '200':
-          description: Página de aperturas.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/XRequestId'
-            Cache-Control:
-              $ref: '#/components/headers/CacheControlNoStore'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListaAperturas'
-              examples:
-                rosa:
-                  summary: Rosa abrió la página, se equivocó una vez de PIN y después abrió la ficha
-                  value:
-                    items:
-                      - ocurrido_en: '2026-10-31T13:02:00Z'
-                        tipo: apertura
-                        acceso:
-                          id: 2e8a6b40-0000-4000-8000-0000000000b1
-                          nombre_relevo: Rosa
-                      - ocurrido_en: '2026-10-31T13:01:30Z'
-                        tipo: pin_incorrecto
-                        acceso:
-                          id: 2e8a6b40-0000-4000-8000-0000000000b1
-                          nombre_relevo: Rosa
-                      - ocurrido_en: '2026-10-31T13:01:00Z'
-                        tipo: presentacion
-                        acceso:
-                          id: 2e8a6b40-0000-4000-8000-0000000000b1
-                          nombre_relevo: Rosa
-                    siguiente_cursor: null
-        '401':
-          $ref: '#/components/responses/NoAutenticado'
-        '404':
-          $ref: '#/components/responses/NoEncontrado'
-        '422':
-          $ref: '#/components/responses/ValidacionConsulta'
 
 components:
   securitySchemes:
@@ -954,41 +891,6 @@ components:
               $ref: '#/components/schemas/CampoRelevo'
             red_apoyo:
               $ref: '#/components/schemas/CampoRelevo'
-
-    Apertura:
-      type: object
-      additionalProperties: false
-      required: [ocurrido_en, tipo, acceso]
-      properties:
-        ocurrido_en:
-          type: string
-          format: date-time
-        tipo:
-          type: string
-          enum: [presentacion, apertura, pin_incorrecto, bloqueo]
-          description: '`presentacion` = `relevo.presentar`, `apertura` = `relevo.abrir`, `pin_incorrecto` = `relevo.pin_incorrecto`, `bloqueo` = `relevo.bloqueo`.'
-        acceso:
-          type: object
-          additionalProperties: false
-          required: [id, nombre_relevo]
-          properties:
-            id:
-              type: string
-              format: uuid
-            nombre_relevo:
-              type: string
-
-    ListaAperturas:
-      type: object
-      additionalProperties: false
-      required: [items, siguiente_cursor]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Apertura'
-        siguiente_cursor:
-          type: [string, 'null']
 
     ErrorCampo:
       type: object

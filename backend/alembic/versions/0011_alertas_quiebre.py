@@ -1,8 +1,7 @@
 """MATU-37: alertas de quiebre y reposiciones con RLS por operación, transiciones y conservación (RF-12).
 
-Cadena: down_revision = "0009". La 0010 vive en la rama de MATU-45; al fusionar las dos ramas, esta
-migración se encadena sobre la 0010 (se cambia down_revision a "0010" en el merge). No toca nada de lo
-que hace la 0010.
+Cadena: 0009 (MATU-36) -> 0010 (MATU-45) -> 0011. down_revision = "0010". No toca nada de lo que hace
+la 0010.
 
 a) alerta_quiebre: alerta_hereda (FOR ALL) se reemplaza por políticas separadas.
    - alerta_leer (SELECT): perfil visible del grupo del contexto, nunca con app.rol = 'operacion'.
@@ -32,10 +31,10 @@ c) Conservación (decisión 77): quiebre_conservar(limite_alertas, limite_evento
    contadores. matu_owner está sujeto a RLS (FORCE): alerta_conservacion, alerta_conservacion_borrar y
    notificacion_conservacion_borrar se lo permiten solo con app.rol = 'operacion'.
 
-backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0009.
+backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0010.
 
 Revision ID: 0011
-Revises: 0009
+Revises: 0010
 Create Date: 2026-11-03
 """
 
@@ -44,7 +43,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0011"
-down_revision: str | None = "0009"
+down_revision: str | None = "0010"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

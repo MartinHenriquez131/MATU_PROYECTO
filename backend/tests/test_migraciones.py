@@ -448,13 +448,36 @@ def test_0009_perfil_de_consumo_y_baja_al_esquema_de_0008(base_desechable):
     alembic("upgrade", "head")
 
 
+# ---- 0010 (MATU-45): la familia que ve el plan lee las aperturas del relevo
+
+
+@pytest.mark.rf("RF-08")
+def test_0010_agrega_la_lectura_de_aperturas_y_baja_al_esquema_de_0009(base_desechable):
+    alembic("upgrade", "0009")
+    esquema_0009 = catalogo()
+
+    alembic("upgrade", "0010")
+    politicas = dict(consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'auditoria'"))
+    assert politicas["auditoria_aperturas_relevo"] == "SELECT"
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'auditoria_aperturas_relevo'")
+    assert "app_puede_ver_plan()" in qual and "'relevo'" in qual and "relevo.canje" not in qual
+    for accion in ("relevo.presentar", "relevo.abrir", "relevo.pin_incorrecto", "relevo.bloqueo"):
+        assert accion in qual
+
+    alembic("downgrade", "0009")
+    despues = catalogo()
+    for parte, filas in esquema_0009.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
+
+
 # ---- 0011 (MATU-37): alertas y reposiciones con políticas por operación, transiciones y conservación
 
 
 @pytest.mark.rf("RF-12")
-def test_0011_alertas_y_reposiciones_y_baja_al_esquema_de_0009(base_desechable):
-    alembic("upgrade", "0009")
-    esquema_0009 = catalogo()
+def test_0011_alertas_y_reposiciones_y_baja_al_esquema_de_0010(base_desechable):
+    alembic("upgrade", "0010")
+    esquema_0010 = catalogo()
 
     alembic("upgrade", "0011")
     politicas = dict(consultar(
@@ -472,8 +495,8 @@ def test_0011_alertas_y_reposiciones_y_baja_al_esquema_de_0009(base_desechable):
     assert definer and "matu_app=X" in acl
     assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'alerta_transicion'") == [("alerta_transicion",)]
 
-    alembic("downgrade", "0009")
+    alembic("downgrade", "0010")
     despues = catalogo()
-    for parte, filas in esquema_0009.items():
+    for parte, filas in esquema_0010.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")

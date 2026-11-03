@@ -26,6 +26,14 @@ interface Persona {
   campos: Record<CampoApi, Campo>
   /** MATU-36: la autorización con finalidad `consumo` y los insumos. */
   consumo: ConsumoDoble
+  /** Lo que hicieron los relevos (MATU-45), del más reciente al más antiguo. */
+  aperturas: Apertura[]
+}
+type TipoApertura = 'presentacion' | 'apertura' | 'pin_incorrecto' | 'bloqueo'
+interface Apertura {
+  ocurrido_en: string
+  tipo: TipoApertura
+  acceso: { id: string; nombre_relevo: string }
 }
 interface Grupo {
   id: string
@@ -66,8 +74,37 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     calidad,
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
     consumo: { autorizacion: 'no', perfiles: [] },
+    aperturas: [],
   }
 }
+
+const DIA = 24 * 60
+/** Una línea de apertura `min` minutos atrás. */
+const linea = (acceso: { id: string; nombre_relevo: string }, tipo: TipoApertura, min: number): Apertura => ({ ocurrido_en: hace(min), tipo, acceso })
+
+/**
+ * Las aperturas de María (MATU-45): los cuatro tipos, una presentación sin apertura (Carla), un
+ * bloqueo (Pedro), varios días (hoy, ayer, hace 3 días y desde hace 10) y 27 líneas, para la paginación.
+ */
+function aperturasDeEjemplo(): Apertura[] {
+  const rosa = { id: randomUUID(), nombre_relevo: 'Rosa' }
+  const carla = { id: randomUUID(), nombre_relevo: 'Carla' }
+  const pedro = { id: randomUUID(), nombre_relevo: 'Pedro' }
+  const rosaAntes = { id: randomUUID(), nombre_relevo: 'Rosa' }
+  const lista: Apertura[] = [
+    linea(rosa, 'apertura', 25),
+    linea(rosa, 'pin_incorrecto', 27),
+    linea(rosa, 'presentacion', 28),
+    linea(carla, 'presentacion', DIA + 120),
+    linea(pedro, 'bloqueo', 3 * DIA),
+    ...[1, 2, 3, 4, 5].map((i) => linea(pedro, 'pin_incorrecto', 3 * DIA + i)),
+    linea(pedro, 'presentacion', 3 * DIA + 7),
+  ]
+  // Desde hace diez días: Rosa, la vez anterior, abre la ficha una vez por día.
+  for (let d = 10; d < 18; d++) lista.push(linea(rosaAntes, 'apertura', d * DIA), linea(rosaAntes, 'presentacion', d * DIA + 1))
+  return lista
+}
+const conAperturas = (p: Persona) => ((p.aperturas = aperturasDeEjemplo()), p)
 
 const usuarios = new Map<string, Usuario>()
 
@@ -89,10 +126,10 @@ function insumos(u: Usuario, autorizacion: ConsumoDoble['autorizacion'], lista: 
 function sembrar() {
   const carmen = cuenta('carmen@ejemplo.cl', 'Carmen', [])
   const yo = { id: carmen.id, nombre: 'Carmen' }
-  carmen.grupos.push(grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })]))
+  carmen.grupos.push(grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))]))
   insumos(carmen, 'vigente', true)
   cuenta('completa@ejemplo.cl', 'Carmen', [
-    grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })]),
+    grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) }))]),
   ])
   cuenta('vacia@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
   cuenta('dos-grupos@ejemplo.cl', 'Carmen', [
@@ -102,15 +139,17 @@ function sembrar() {
   cuenta('sin-persona@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [])])
   cuenta('sin-persona-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
   insumos(cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
-  cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })], true)])
-  cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])])
+  cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))], true)])
+  cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
+  cuenta('cuidador@ejemplo.cl', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
+  cuenta('aperturas-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'aperturas-falla')
   cuenta('sin-autorizacion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'sin-consentimiento')
   cuenta('renovar-autorizacion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])], 'revision-vencida')
   cuenta('revision-al-guardar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'revision-al-guardar')
   cuenta('conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
   cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
   cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
-  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'lento'), 'vigente', true)
+  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento'), 'vigente', true)
   // MATU-36: insumos
   cuenta('insumos-permiso@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
   insumos(cuenta('insumos-vacio@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
@@ -301,6 +340,28 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     const pc = g?.personas.find((x) => x.id === decodeURIComponent(mConsumo[1]))
     if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
     return atenderConsumo(req, res, cuerpo, { rol: g.rol, consumo: pc.consumo, usuario: u }, r), true
+  }
+
+  // MATU-45: GET …/plan/aperturas, paginado con un cursor opaco (aquí, la posición en base64url).
+  const mAperturas = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/aperturas$/.exec(ruta)
+  if (mAperturas && metodo === 'GET') {
+    const pa = g?.personas.find((x) => x.id === decodeURIComponent(mAperturas[1]))
+    const puede = g && (g.rol === 'admin' || g.rol === 'cuidador' || (g.rol === 'pagador' && g.puede_ver_plan))
+    if (!pa || !puede) return problema(res, 404, '/errores/no-encontrado'), true
+    const q = new URL(req.url ?? '', 'http://doble').searchParams
+    const limite = Number(q.get('limite') ?? '20')
+    if (!Number.isInteger(limite) || limite < 1 || limite > 100)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'limite', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' }] }), true
+    const cursor = q.get('cursor')
+    const desde = cursor ? Number(Buffer.from(cursor, 'base64url').toString('utf8')) : 0
+    if (!Number.isInteger(desde) || desde < 0 || desde > pa.aperturas.length)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'cursor', mensaje: 'MENSAJE DEL DOBLE', tipo: 'cursor_invalido' }] }), true
+    // Cuenta «aperturas-falla»: «Ver aperturas anteriores» responde 500.
+    if (u.modo === 'aperturas-falla' && desde > 0) return problema(res, 500, '/errores/error-interno'), true
+    const hasta = desde + limite
+    res.setHeader('Cache-Control', 'no-store')
+    const siguiente = hasta < pa.aperturas.length ? Buffer.from(String(hasta)).toString('base64url') : null
+    return json(res, 200, { items: pa.aperturas.slice(desde, hasta), siguiente_cursor: siguiente }), true
   }
 
   const mFicha = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/ficha(?:\/([a-z_]+))?$/.exec(ruta)

@@ -18,7 +18,7 @@ from tests.modules.consumption.conftest import EntornoConsumo
 pytestmark = requiere_base
 
 PROBLEMA = "application/problem+json"
-AVISO = {"id": "aviso_cuidador_de_hecho", "version": "1.0"}
+AVISO = {"id": "aviso_cuidador_de_hecho", "version": "1.1"}
 
 
 def _una(sql: str, *parametros: Any) -> tuple[Any, ...] | None:
