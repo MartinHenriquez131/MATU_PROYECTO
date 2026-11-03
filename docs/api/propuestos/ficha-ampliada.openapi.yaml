@@ -22,7 +22,7 @@ info:
     | Sección en la API | Título en la interfaz | Máximo |
     |---|---|---|
     | `quien_es` | Quién es | 500 |
-    | `preferencias` | Lo que la hace bien | 500 |
+    | `preferencias` | Lo que le hace bien | 500 |
     | `alimentacion` | Comer y beber | 500 |
     | `movilidad` | Moverse y descansar | 500 |
     | `comunicacion` | Cómo hablarle | 500 |
@@ -94,7 +94,7 @@ paths:
                 $ref: '#/components/schemas/FichaAmpliadaParcial'
               examples:
                 dos_secciones:
-                  summary: La familia agregó "Lo que la hace bien" y "Sus remedios"
+                  summary: La familia agregó "Lo que le hace bien" y "Sus remedios"
                   value:
                     secciones:
                       preferencias:
@@ -134,7 +134,7 @@ paths:
 
         | Situación | Cabecera | Si otra persona se adelantó |
         |---|---|---|
-        | La sección no está agregada | `If-None-Match: *` | 412 con el contenido que ella guardó |
+        | La sección no está agregada | `If-None-Match: *` | 412 con el contenido que esa persona guardó |
         | La sección ya está | `If-Match: "<etag leído>"` | 412 con el contenido actual |
 
         - Sin ninguna, o con `If-Match: *`, **428**. Con las dos, **422**.
@@ -164,7 +164,7 @@ paths:
               comunicacion:
                 summary: Agregar "Cómo hablarle"
                 value:
-                  texto: "Oye mejor por el lado derecho. Usa lentes para leer.\nSi algo le duele, se toca el brazo."
+                  texto: "Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente."
       responses:
         '200':
           description: Sección editada.
@@ -192,7 +192,7 @@ paths:
                 agregada:
                   value:
                     seccion: comunicacion
-                    texto: "Oye mejor por el lado derecho. Usa lentes para leer.\nSi algo le duele, se toca el brazo."
+                    texto: "Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente."
                     etag: '"v1"'
                     actualizado_por:
                       id: 0c4b5a10-0000-4000-8000-00000000000c
@@ -279,6 +279,7 @@ paths:
         | Sin `campos` | Correcto. Es la forma nueva |
         | `campos` con los tres base, en cualquier orden | Se acepta y se ignora (equivale a omitirlo) |
         | `campos` con uno o dos | **422** `campo: campos`, `tipo: campos_base_obligatorios` |
+        | `campos: []` (vacío) | **422** `campo: campos`, `tipo: campos_base_obligatorios` (`minItems: 3`). No equivale a omitirlo |
 
         Así un cliente que hoy manda `[rutina, manejo_situaciones, red_apoyo]` (la pantalla de
         MATU-18 y el ejemplo del contrato) sigue funcionando sin cambios, y nadie puede crear un
@@ -712,7 +713,11 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problema'}
     SinAutorizacion:
-      description: Sin consentimiento vigente o revisión vencida.
+      description: |
+        Sin consentimiento vigente o revisión vencida. No hay un 403 propio para autorizaciones
+        otorgadas con una política anterior a la 0.10 (decisión de Jorge del 03-11): esas versiones
+        solo se usaron con datos sintéticos y ninguna persona real las aceptó, así que basta con que
+        la política 0.10 cubra las secciones complementarias.
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/Problema'}
