@@ -21,6 +21,8 @@ export interface FalloApi {
   tipo: string | null
   /** Campos de `errores[]` de un 422 (solo el nombre del campo). */
   campos: string[]
+  /** `errores[]` de un 422 con su `tipo` (por ejemplo `string_too_long`), nunca el `mensaje`. */
+  errores: { campo: string; tipo: string }[]
   /** `intentos_restantes` de `/errores/pin-incorrecto`. */
   intentosRestantes: number | null
   /** Cabecera `Retry-After` en segundos, si viene y es un entero. */
@@ -28,7 +30,7 @@ export interface FalloApi {
 }
 
 export function leerFallo(error: unknown): FalloApi {
-  const vacio: FalloApi = { status: null, tipo: null, campos: [], intentosRestantes: null, reintentarEnSegundos: null }
+  const vacio: FalloApi = { status: null, tipo: null, campos: [], errores: [], intentosRestantes: null, reintentarEnSegundos: null }
   if (!isAxiosError(error) || !error.response) return vacio
   const { status, data, headers } = error.response
   const cuerpo = (data && typeof data === 'object' ? data : {}) as Partial<Problema> & { intentos_restantes?: unknown }
@@ -38,6 +40,9 @@ export function leerFallo(error: unknown): FalloApi {
     status,
     tipo: typeof cuerpo.type === 'string' ? cuerpo.type : null,
     campos: errores.map((e) => (e && typeof e.campo === 'string' ? e.campo : '')).filter(Boolean),
+    errores: errores
+      .filter((e) => e && typeof e.campo === 'string')
+      .map((e) => ({ campo: String(e.campo), tipo: typeof (e as { tipo?: unknown }).tipo === 'string' ? String((e as { tipo?: unknown }).tipo) : '' })),
     intentosRestantes: typeof cuerpo.intentos_restantes === 'number' ? cuerpo.intentos_restantes : null,
     reintentarEnSegundos: Number.isFinite(retry) && retry > 0 ? retry : null,
   }
