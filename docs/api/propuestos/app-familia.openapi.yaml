@@ -78,7 +78,7 @@ paths:
 
         - la misma `calidad_otorgante` (`titular`, `representante_legal`, `cuidador_de_hecho`) y las
           mismas reglas cruzadas de `validar_otorgamiento` para `aviso` y `referencia_documento`;
-        - el mismo aviso del cuidador de hecho (`aviso_cuidador_de_hecho`, versión 1.0), que habla
+        - el mismo aviso del cuidador de hecho (`aviso_cuidador_de_hecho`, versión 1.1), que habla
           de "organizar su cuidado" y sirve igual;
         - la misma evidencia mínima (`consentimiento.evidencia`, migración 0006), con una
           **declaración nueva**: `{"id": "declaracion_consumo_<calidad>", "version": "<version_politica>"}`;
@@ -126,7 +126,7 @@ paths:
                   calidad_otorgante: cuidador_de_hecho
                   aviso:
                     id: aviso_cuidador_de_hecho
-                    version: '1.0'
+                    version: '1.1'
               titular:
                 summary: María decide por sí misma y Carmen registra su decisión
                 value:

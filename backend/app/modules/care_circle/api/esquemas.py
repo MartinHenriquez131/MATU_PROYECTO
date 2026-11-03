@@ -6,7 +6,7 @@ el mensaje tal cual (app/core/errores.py).
 
 import uuid
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.care_circle.domain.grupos import normalizar_nombre
 
@@ -29,3 +29,9 @@ class GrupoRespuesta(BaseModel):
     id: uuid.UUID
     nombre: str
     rol: str
+    puede_ver_plan: bool = Field(
+        description=(
+            "Si quien consulta ve el plan de cuidado (la ficha y los accesos de relevo) en este grupo:"
+            " admin y cuidador siempre, pagador solo con el permiso explícito, observador nunca (decisión 66)"
+        )
+    )

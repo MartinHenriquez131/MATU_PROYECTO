@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { ESCENARIOS, PIN_DE_EJEMPLO } from './escenarios'
+import { atenderFamilia, esLento } from './familia'
 
 const COOKIE = 'matu-relevo-doble'
 const MAX_INTENTOS = 5
@@ -217,14 +218,16 @@ const idDeCookie = (req: IncomingMessage) => /(?:^|;\s*)matu-relevo-doble=([^;]+
 async function atender(req: IncomingMessage, res: ServerResponse, siguiente: () => void) {
   const ruta = `${req.method} ${(req.url ?? '').split('?')[0]}`
   if (!ruta.includes(' /v1/')) return siguiente()
-  const cuerpo = req.method === 'POST' ? await leerCuerpo(req) : null
+  const cuerpo = req.method === 'POST' || req.method === 'PUT' ? await leerCuerpo(req) : null
   const id = idDeCookie(req)
   // Latencia simulada: 150 ms, o 2 s con `ejemplo-lento` para ver los textos de carga.
-  const lento = cuerpo?.token === 'ejemplo-lento' || (id !== undefined && sesiones.get(id)?.token === 'ejemplo-lento')
+  const lento = cuerpo?.token === 'ejemplo-lento' || esLento(req, cuerpo) || (id !== undefined && sesiones.get(id)?.token === 'ejemplo-lento')
   await new Promise((r) => setTimeout(r, lento ? 2000 : 150))
   if (ruta === 'POST /v1/relevo/presentacion') return presentacion(cuerpo, res)
   if (ruta === 'POST /v1/relevo/canje') return canje(cuerpo, res)
   if (ruta === 'GET /v1/relevo/ficha') return ficha(id, res)
+  // La app de la familia (MATU-39): cuentas, entrada, grupos, personas y ficha.
+  if (await atenderFamilia(req, res, cuerpo, { json, problema })) return
   problema(res, 404, '/errores/no-encontrado')
 }
 
