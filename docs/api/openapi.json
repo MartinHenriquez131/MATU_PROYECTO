@@ -1616,7 +1616,7 @@
           "alertas"
         ],
         "summary": "Ya lo resolví",
-        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisión 76): si existe abierta pasa a descartada; si no existe, se crea ya descartada. Devuelve el insumo con avisando = false. Cuerpo opcional; cantidad está reservada y hoy responde 422. Solo admin y cuidador. Registra alerta.descartar. Nunca crea un pedido",
+        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido",
         "operationId": "resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post",
         "security": [
           {
@@ -1714,7 +1714,7 @@
             }
           },
           "422": {
-            "description": "cantidad fuera de 1..9999 (errores[].campo = cantidad), o cantidad_no_disponible: declarar cuánto se compró aún no está habilitado (decisión 76)",
+            "description": "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor",
             "content": {
               "application/problem+json": {}
             }
@@ -4091,13 +4091,14 @@
                 "type": "null"
               }
             ],
-            "title": "Cantidad"
+            "title": "Cantidad",
+            "description": "Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "SolicitudResolver",
-        "description": "Cuerpo opcional de «Ya lo resolví». Sin cantidad (u omitido): la alerta pasa a descartada.\n\ncantidad está reservada: declarar cuánto se compró espera la decisión de Jorge (MATU-37 o MATU-51) y\nhoy responde 422 con tipo cantidad_no_disponible."
+        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta\npasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la\nalerta pasa a resuelta."
       },
       "SolicitudSesion": {
         "properties": {
