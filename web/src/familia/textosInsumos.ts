@@ -2,7 +2,7 @@
 //   [APROBADO 02-11] / [APROBADO 03-11]  aprobados por Jorge, pendientes de entrar a lenguaje.md
 //   [alta]       los del paso de la autorización del alta (MATU-07)
 //   [lenguaje X] docs/lenguaje.md, sección X
-//   [PROPUESTO]  de la especificación, pendiente de lenguaje.md (sección 7.1)
+//   [aprobado por Jorge el 03-11]  de la especificación (sección 7.1), con «guardado» y «errNombreLargo» ajustados
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API. Ninguna palabra de lenguaje 3.2.
 import type { Calidad } from '../compartido/api/familia'
 import type { Unidad } from '../compartido/api/consumo'
@@ -27,102 +27,102 @@ export function cantidad(n: number, unidad: Unidad): string {
 
 export const INSUMOS = {
   titulo: 'Insumos',
-  cargando: 'Cargando los insumos…', // [PROPUESTO]
-  documentoNuevo: 'Anotar un insumo', // [PROPUESTO] <title>
-  documentoCambiar: 'Cambiar un insumo', // [PROPUESTO] <title>
+  cargando: 'Cargando los insumos…', // [aprobado por Jorge el 03-11]
+  documentoNuevo: 'Anotar un insumo', // [aprobado por Jorge el 03-11] <title>
+  documentoCambiar: 'Cambiar un insumo', // [aprobado por Jorge el 03-11] <title>
 
   // 3.1 Permiso
-  permisoTitulo: 'Antes de calcular, un permiso', // [PROPUESTO]
-  /** Primera frase [APROBADO 02-11], el resto [PROPUESTO]. */
+  permisoTitulo: 'Antes de calcular, un permiso', // [aprobado por Jorge el 03-11]
+  /** Primera frase [APROBADO 02-11], el resto [aprobado por Jorge el 03-11]. */
   permisoBajada: (pila: string) =>
     `Para avisarte antes de que se acabe algo, MATU guarda qué insumos usa ${pila}, cuánto usa y cuánto queda. Es un permiso aparte del de su ficha.`,
   permisoLeyenda: 'Doy este permiso porque…', // [alta]
   permisoBoton: 'Acepto y continúo', // [alta]
   permisoEnviando: 'Guardando el permiso…', // [alta]
-  permisoGuardado: 'Permiso guardado. Ahora anota el primer insumo.', // [PROPUESTO]
+  permisoGuardado: 'Permiso guardado. Ahora anota el primer insumo.', // [aprobado por Jorge el 03-11]
   errCalidad: 'Elige en qué calidad das el permiso.', // [alta]
-  errPermiso: 'No pudimos guardar el permiso. Revisa lo que elegiste y vuelve a intentarlo.', // [PROPUESTO]
+  errPermiso: 'No pudimos guardar el permiso. Revisa lo que elegiste y vuelve a intentarlo.', // [aprobado por Jorge el 03-11]
 
   // 3.1.3 y 3.1.4
-  faltaPermisoTitulo: (pila: string) => `Falta el permiso para calcular los insumos de ${pila}.`, // [PROPUESTO]
+  faltaPermisoTitulo: (pila: string) => `Falta el permiso para calcular los insumos de ${pila}.`, // [aprobado por Jorge el 03-11]
   faltaPermiso: (pila: string) =>
-    `Sin él no podemos mostrar cuándo se acaban. Pídele a quien administra el grupo o a quien cuida a ${pila} que lo registre.`, // [PROPUESTO]
-  renovarTitulo: (pila: string) => `Hay que renovar la autorización de los insumos de ${pila}.`, // [PROPUESTO, desde lenguaje 6.4b]
+    `Sin él no podemos mostrar cuándo se acaban. Pídele a quien administra el grupo o a quien cuida a ${pila} que lo registre.`, // [aprobado por Jorge el 03-11]
+  renovarTitulo: (pila: string) => `Hay que renovar la autorización de los insumos de ${pila}.`, // [aprobado por Jorge el 03-11, desde lenguaje 6.4b]
   renovar: 'Se renueva una vez al año. Mientras tanto, no podemos calcular ni mostrar sus insumos, pero lo que anotaste sigue guardado.',
   renovarPide: 'Pídele a quien administra el grupo que la renueve.', // [lenguaje 6.4b]
 
   // 3.2 Lista
   notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo.', // [APROBADO 02-11]
-  notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [PROPUESTO] observador y pagador
-  comoTitulo: 'Cómo calculamos', // [PROPUESTO]
+  notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [aprobado por Jorge el 03-11] observador y pagador
+  comoTitulo: 'Cómo calculamos', // [aprobado por Jorge el 03-11]
   comoLector: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa ${pila}.`, // [PROPUESTO] observador y pagador
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11] observador y pagador
   como: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [PROPUESTO]
-  anotar: 'Anotar un insumo', // [PROPUESTO]
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11]
+  anotar: 'Anotar un insumo', // [aprobado por Jorge el 03-11]
   cambiar: 'Cambiar',
   cambiarDe: (nombre: string) => `Cambiar ${nombre}`,
-  verMas: 'Ver más', // [PROPUESTO]
+  verMas: 'Ver más', // [aprobado por Jorge el 03-11]
   cargandoMas: 'Cargando…',
   /** [APROBADO 02-11] */
   alcanzaDias: 'Alcanza para', // + {n} + «días» / «día»
   seAcabaHoy: 'Se acaba hoy',
   puedeQueNo: 'Puede que ya no quede',
-  hastaEl: 'hasta el', // [PROPUESTO]
-  seAcababa: 'Según lo anotado, se acababa el', // [PROPUESTO]
+  hastaEl: 'hasta el', // [aprobado por Jorge el 03-11]
+  seAcababa: 'Según lo anotado, se acababa el', // [aprobado por Jorge el 03-11]
   usa: (n: number, cada: number, unidad: Unidad) =>
-    cada === 1 ? `Usa ${cantidad(n, unidad)} al día.` : `Usa ${cantidad(n, unidad)} cada ${cada} días.`, // [PROPUESTO]
-  quedaban: (n: number, unidad: Unidad) => `Quedaban ${cantidad(n, unidad)} el`, // + fecha [PROPUESTO]
-  quedanHoy: (n: number, unidad: Unidad) => `${n === 1 ? 'Queda' : 'Quedan'} ${cantidad(n, unidad)} hoy.`, // [PROPUESTO]
+    cada === 1 ? `Usa ${cantidad(n, unidad)} al día.` : `Usa ${cantidad(n, unidad)} cada ${cada} días.`, // [aprobado por Jorge el 03-11]
+  quedaban: (n: number, unidad: Unidad) => `Quedaban ${cantidad(n, unidad)} el`, // + fecha [aprobado por Jorge el 03-11]
+  quedanHoy: (n: number, unidad: Unidad) => `${n === 1 ? 'Queda' : 'Quedan'} ${cantidad(n, unidad)} hoy.`, // [aprobado por Jorge el 03-11]
 
   // 3.3 Vacío
   vacioTitulo: (pila: string) => `Aún no sabemos qué usa ${pila}`, // [demo]
   vacio: 'Cuéntanos de un solo producto, el que más te preocupa. Con eso ya te podemos avisar antes de que se acabe.', // [demo]
-  vacioLectorTitulo: 'Todavía no hay insumos anotados', // [PROPUESTO]
-  vacioLector: 'Cuando alguien de tu grupo anote uno, aparece aquí.', // [PROPUESTO]
+  vacioLectorTitulo: 'Todavía no hay insumos anotados', // [aprobado por Jorge el 03-11]
+  vacioLector: 'Cuando alguien de tu grupo anote uno, aparece aquí.', // [aprobado por Jorge el 03-11]
 
   // 3.4 Formulario
-  cambiarBajada: 'Cambiar lo anotado', // [PROPUESTO]
-  volver: 'Volver a los insumos', // [PROPUESTO]
-  nombre: '¿Qué insumo es?', // [PROPUESTO]
+  cambiarBajada: 'Cambiar lo anotado', // [aprobado por Jorge el 03-11]
+  volver: 'Volver a los insumos', // [aprobado por Jorge el 03-11]
+  nombre: '¿Qué insumo es?', // [aprobado por Jorge el 03-11]
   nombreAyuda: 'Por ejemplo: «Toallitas húmedas». Sin remedios ni para qué se usa.', // [APROBADO 02-11]
   contador: (n: number) => `${n} de 60`,
-  unidadLeyenda: '¿Cómo se cuenta?', // [PROPUESTO]
+  unidadLeyenda: '¿Cómo se cuenta?', // [aprobado por Jorge el 03-11]
   unidades: [
     { valor: 'unidad' as const, texto: 'Por unidad' },
     { valor: 'sobre' as const, texto: 'Por sobre' },
   ],
   unidadFija: (u: Unidad) =>
-    ({ unidad: 'Se cuenta por unidad.', sobre: 'Se cuenta por sobre.', ml: 'Se cuenta en ml.', g: 'Se cuenta en gramos.' })[u], // [PROPUESTO]
-  frecuenciaLeyenda: '¿Cada cuánto se usa?', // [PROPUESTO]
+    ({ unidad: 'Se cuenta por unidad.', sobre: 'Se cuenta por sobre.', ml: 'Se cuenta en ml.', g: 'Se cuenta en gramos.' })[u], // [aprobado por Jorge el 03-11]
+  frecuenciaLeyenda: '¿Cada cuánto se usa?', // [aprobado por Jorge el 03-11]
   frecuencias: [
     { valor: 'diario' as const, texto: 'Todos los días' },
     { valor: 'cada' as const, texto: 'Cada algunos días' },
   ],
-  cadaCuantos: '¿Cada cuántos días?', // [PROPUESTO]
+  cadaCuantos: '¿Cada cuántos días?', // [aprobado por Jorge el 03-11]
   sufijoDias: 'días',
-  uso: (pila: string, cada: number | null) => (cada ? `¿Cuántos usa ${pila} cada ${cada} días?` : `¿Cuántos usa ${pila} al día?`), // [PROPUESTO]
+  uso: (pila: string, cada: number | null) => (cada ? `¿Cuántos usa ${pila} cada ${cada} días?` : `¿Cuántos usa ${pila} al día?`), // [aprobado por Jorge el 03-11]
   sufijoUso: (unidad: Unidad, cada: number | null) => {
     const u = unidad === 'sobre' ? 'sobres ' : unidad === 'ml' ? 'ml ' : unidad === 'g' ? 'g ' : ''
     return cada ? `${u}cada ${cada} días` : `${u}al día`
   },
-  stock: '¿Cuántos quedan hoy, más o menos?', // [PROPUESTO]
-  stockAyuda: (fecha: string, n: string) => `El ${fecha} anotaste ${n}. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes.`, // [PROPUESTO]
+  stock: '¿Cuántos quedan hoy, más o menos?', // [aprobado por Jorge el 03-11]
+  stockAyuda: (fecha: string, n: string) => `El ${fecha} anotaste ${n}. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes.`, // [aprobado por Jorge el 03-11]
   sufijoStock: (unidad: Unidad) => ({ unidad: 'unidades', sobre: 'sobres', ml: 'ml', g: 'g' })[unidad],
-  aviso: '¿Con cuántos días de anticipación te avisamos?', // [PROPUESTO]
-  avisoAyuda: 'Si pones 0, te avisamos el mismo día.', // [PROPUESTO]
+  aviso: '¿Con cuántos días de anticipación te avisamos?', // [aprobado por Jorge el 03-11]
+  avisoAyuda: 'Si pones 0, te avisamos el mismo día.', // [aprobado por Jorge el 03-11]
   sufijoAviso: 'días antes',
   menos: (campo: string) => `Uno menos: ${campo}`,
   mas: (campo: string) => `Uno más: ${campo}`,
-  previa: (n: number) => (n <= 0 ? 'Así, se acaba hoy.' : n === 1 ? 'Así, alcanza para 1 día, hasta el' : `Así, alcanza para ${n} días, hasta el`), // [PROPUESTO]
+  previa: (n: number) => (n <= 0 ? 'Así, se acaba hoy.' : n === 1 ? 'Así, alcanza para 1 día, hasta el' : `Así, alcanza para ${n} días, hasta el`), // [aprobado por Jorge el 03-11]
   guardar: 'Guardar',
   guardando: 'Guardando…', // [lenguaje 5.4]
   cancelar: 'Cancelar',
-  sinCambios: 'No había cambios.', // [PROPUESTO]
-  /** [PROPUESTO] «{nombre}» guardado. Alcanza para… */
-  guardado: (nombre: string) => `«${nombre}» guardado.`,
+  sinCambios: 'No había cambios.', // [aprobado por Jorge el 03-11]
+  /** [aprobado por Jorge el 03-11] Guardamos «{nombre}». Alcanza para… */
+  guardado: (nombre: string) => `Guardamos «${nombre}».`,
 
-  // 3.4.3 Validación [PROPUESTO]
+  // 3.4.3 Validación [aprobado por Jorge el 03-11]
   errNombre: 'Escribe el nombre del insumo.',
   errUso: 'Escribe cuántos usa, al menos 1.',
   errUsoMax: 'Escribe un número hasta 10.000.',
@@ -131,8 +131,8 @@ export const INSUMOS = {
   errStockMax: 'Escribe un número hasta 100.000.',
   errAviso: 'Escribe un número de 0 a 60.',
 
-  // 3.4.5 Errores de la API [PROPUESTO]
-  errNombreLargo: 'El nombre admite hasta 60 letras. Acórtalo un poco.',
+  // 3.4.5 Errores de la API [aprobado por Jorge el 03-11]
+  errNombreLargo: 'El nombre admite hasta 60 caracteres. Acórtalo un poco.',
   errNombreLinea: 'Escribe el nombre en una sola línea.',
   errCobertura: 'Con esos números alcanzaría para más de 10 años. Revisa cuánto queda y cuánto se usa.',
   errNoAdmitido: 'Ese producto no se puede seguir en MATU.',
@@ -143,7 +143,7 @@ export const INSUMOS = {
   faltaVersionTitulo: 'No pudimos guardar este insumo.', // [lenguaje 6.3, adaptado]
   faltaVersion: 'Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.',
 
-  // 3.5 Conflicto [PROPUESTO, desde lenguaje 6.2]
+  // 3.5 Conflicto [aprobado por Jorge el 03-11, desde lenguaje 6.2]
   conflictoTitulo: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo cambiabas`,
   otraPersona: 'Otra persona', // [lenguaje 6.2]
   conflicto: 'No guardamos lo tuyo encima de lo suyo. Elige qué dejar.',
@@ -152,11 +152,11 @@ export const INSUMOS = {
   cambio: '(cambió)',
   guardarLoMio: 'Guardar lo mío',
   dejarLoSuyo: 'Dejar lo que guardó',
-  dejasteLoSuyo: (autor: string | null) => `Dejaste lo que guardó ${autor ?? 'la otra persona'}.`, // [PROPUESTO]
+  dejasteLoSuyo: (autor: string | null) => `Dejaste lo que guardó ${autor ?? 'la otra persona'}.`, // [aprobado por Jorge el 03-11]
   avisaAntes: (n: number) => `Te avisamos ${n === 1 ? '1 día' : `${n} días`} antes.`,
   nombreEs: (n: string) => `Se llama «${n}».`,
 
-  // 3.6 Seguir y eliminar [PROPUESTO]
+  // 3.6 Seguir y eliminar [aprobado por Jorge el 03-11]
   seguir: 'Seguir',
   sinSeguir: 'Sin seguir',
   sinSeguirLinea: 'No calculamos ni avisamos mientras no lo sigues.',
