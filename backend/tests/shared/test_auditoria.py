@@ -62,6 +62,8 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "consumo.desactivar",
         "consumo.activar",
         "consumo.eliminar",
+        "alerta.materializar",
+        "alerta.descartar",
     }
 
 
@@ -79,6 +81,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "usuario",
         "dispositivo",
         "perfil_consumo",
+        "alerta_quiebre",
     }
 
 
