@@ -136,7 +136,7 @@ export function CrearCuenta() {
     if (Object.keys(err).length) return enfocarPrimerError(form.current)
     setOcupado(true)
     try {
-      await crearCuenta({ nombre: nombre.trim(), email: email.trim(), celular: celular.trim(), contrasena: clave })
+      await crearCuenta({ nombre: nombre.trim(), email: email.trim(), telefono: celular.trim(), contrasena: clave })
       // La API no entra sola: se entra con lo mismo.
       await entrar(email.trim(), clave)
       await alEntrar()
@@ -150,7 +150,7 @@ export function CrearCuenta() {
         for (const c of f.campos) {
           if (c === 'nombre') e422.nombre = CUENTA.err422Nombre
           else if (c === 'email') e422.email = CUENTA.errCorreo
-          else if (c === 'celular') e422.celular = CUENTA.errCelular
+          else if (c === 'telefono') e422.celular = CUENTA.errCelular
           else if (c === 'contrasena') e422.contrasena = CUENTA.err422Contrasena
         }
         setErrores(e422)

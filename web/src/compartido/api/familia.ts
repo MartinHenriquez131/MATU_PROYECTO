@@ -9,10 +9,10 @@ type S = components['schemas']
 
 /**
  * `POST /v1/usuarios`. **El celular falta en el contrato** (decisión de Jorge del 03-11): lo agrega
- * el backend dentro de MATU-39. Hasta verlo en `openapi.json`, el nombre `celular` es provisional y
- * es lo único que hay que cambiar aquí cuando llegue.
+ * el backend dentro de MATU-39 como `telefono` (decisión 65, `backend/app/modules/iam/api/esquemas.py`
+ * en la rama). Cuando llegue a `openapi.json` y se regeneren los tipos, este agregado sobra.
  */
-export type SolicitudRegistro = S['SolicitudRegistro'] & { celular: string }
+export type SolicitudRegistro = S['SolicitudRegistro'] & { telefono: string }
 export type CuentaCreada = S['CuentaCreadaRespuesta']
 /**
  * `GET /v1/grupos`. `puede_ver_plan` lo agrega el backend dentro de MATU-39 (D3). Mientras no
