@@ -294,7 +294,55 @@ def revocar_acceso(
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": NO_STORE})
 
 
-@router.get(RUTA_APERTURAS, response_model=ListaAperturasVista, responses=_ERRORES_LISTA)
+_EJEMPLO_APERTURAS: dict[str, Any] = {
+    "items": [
+        {
+            "ocurrido_en": f"2026-10-31T13:0{minuto}Z",
+            "tipo": tipo,
+            "acceso": {"id": "2e8a6b40-0000-4000-8000-0000000000b1", "nombre_relevo": "Rosa"},
+        }
+        for minuto, tipo in (("2:00", "apertura"), ("1:30", "pin_incorrecto"), ("1:00", "presentacion"))
+    ],
+    "siguiente_cursor": None,
+}
+_X_REQUEST_ID: dict[str, Any] = {
+    "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+    "schema": {"type": "string", "format": "uuid"},
+}
+_RESPUESTAS_APERTURAS: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "Página de aperturas.",
+        "headers": {
+            "X-Request-ID": _X_REQUEST_ID,
+            "Cache-Control": {
+                "description": "Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché",
+                "schema": {"type": "string", "const": NO_STORE},
+            },
+        },
+        "content": {"application/json": {"example": _EJEMPLO_APERTURAS}},
+    },
+    **_ERRORES_LISTA,
+}
+_DESCRIPCION_APERTURAS = (
+    "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación "
+    "(página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee "
+    "de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió "
+    "el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\n"
+    "Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una "
+    "persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\n"
+    "Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí."
+)
+
+
+@router.get(
+    RUTA_APERTURAS,
+    response_model=ListaAperturasVista,
+    responses=_RESPUESTAS_APERTURAS,
+    summary="Ver quién abrió la ficha con un acceso de relevo",
+    description=_DESCRIPCION_APERTURAS,
+    operation_id="listarAperturasRelevo",
+    openapi_extra={"x-matu-historia": "MATU-45 (RF-08)"},
+)
 def listar_aperturas_relevo(
     request: Request,
     response: Response,
@@ -304,8 +352,6 @@ def listar_aperturas_relevo(
     cursor: Annotated[str | None, Query(max_length=200)] = None,
     limite: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ListaAperturasVista:
-    """Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo (MATU-45, RF-08).
-    Sin IP, teléfono ni request_id. Mismos roles y mismo 404 que listar accesos."""
     despues_de = None if cursor is None else decodificar_cursor_apertura(cursor)
     pagina = listar_aperturas(_peticion(request, autorizado), fichas, aperturas, despues_de, limite)
     response.headers["Cache-Control"] = NO_STORE
