@@ -36,6 +36,9 @@ class CalidadOtorgante(StrEnum):
 
 
 FINALIDAD_PLAN_CUIDADO = "plan_cuidado"
+# MATU-36 (decisión 37): autorización propia para calcular cuándo se acaban los insumos
+FINALIDAD_CONSUMO = "consumo"
+FINALIDADES = frozenset({FINALIDAD_PLAN_CUIDADO, FINALIDAD_CONSUMO})
 
 # Recordatorio anual del cuidador de hecho (arquitectura 11.5, política v0.9 sección 5)
 MESES_REVISION_CUIDADOR_DE_HECHO = 12
@@ -111,15 +114,19 @@ def validar_otorgamiento(
         raise OtorgamientoInvalido("aviso", "el aviso no es el vigente: vuelve a mostrarlo")
 
 
-def evidencia(calidad: CalidadOtorgante, version_politica: str) -> dict[str, Any]:
+def evidencia(
+    calidad: CalidadOtorgante, version_politica: str, finalidad: str = FINALIDAD_PLAN_CUIDADO
+) -> dict[str, Any]:
     """La evidencia mínima del consentimiento (consentimiento.evidencia).
 
-    Lo demás ya vive en columnas: usuario_id, calidad_otorgante, finalidad, version_politica,
+    La declaración es ``declaracion_<calidad>`` para plan_cuidado (MATU-07) y
+    ``declaracion_consumo_<calidad>`` para consumo (MATU-36, decisión 37). Lo demás ya vive en
+    columnas: usuario_id, calidad_otorgante, finalidad, version_politica,
     otorgado_en, revision_vence_en y referencia_documento.
     """
     datos: dict[str, Any] = {
         "esquema": ESQUEMA_EVIDENCIA,
-        "declaracion": {"id": f"declaracion_{calidad.value}", "version": version_politica},
+        "declaracion": {"id": _declaracion(calidad, finalidad), "version": version_politica},
     }
     aviso = aviso_de(calidad)
     if aviso is not None:
@@ -127,6 +134,14 @@ def evidencia(calidad: CalidadOtorgante, version_politica: str) -> dict[str, Any
     if calidad is CalidadOtorgante.TITULAR:
         datos["modalidad"] = MODALIDAD_TITULAR
     return datos
+
+
+def _declaracion(calidad: CalidadOtorgante, finalidad: str) -> str:
+    if finalidad == FINALIDAD_PLAN_CUIDADO:
+        return f"declaracion_{calidad.value}"
+    if finalidad == FINALIDAD_CONSUMO:
+        return f"declaracion_consumo_{calidad.value}"
+    raise ValueError("finalidad sin declaración")
 
 
 def sumar_meses(instante: datetime, meses: int) -> datetime:

@@ -10,14 +10,13 @@ c) Trigger usuario_celular_cambia: si cambia telefono, celular_verificado_en vue
 Sin tabla nueva: los códigos viven en Redis con TTL (decisión 83), por la huella del usuario. Las
 políticas de usuario (usuario_propio) ya cubren las columnas nuevas.
 
-Encadenamiento: esta rama (matu-57) sale de matu-39, que llega hasta 0008. Al fusionar a main, donde
-existen 0009 a 0011, down_revision se cambia a "0011" en el mismo pull request; la migración no
-depende de nada de 0009 a 0011.
+Encadenamiento: va después de 0011 (MATU-37). La rama salió de matu-39 (hasta 0008) y se encadenó a
+0011 al unir main; la migración no depende de nada de 0009 a 0011.
 
-downgrade() deja el esquema como en 0008: borra el trigger, su función y las dos columnas.
+downgrade() deja el esquema como en 0011: borra el trigger, su función y las dos columnas.
 
 Revision ID: 0012
-Revises: 0008
+Revises: 0011
 Create Date: 2026-11-03
 """
 
@@ -26,7 +25,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0012"
-down_revision: str | None = "0008"
+down_revision: str | None = "0011"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

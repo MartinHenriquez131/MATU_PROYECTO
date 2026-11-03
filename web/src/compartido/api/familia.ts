@@ -124,3 +124,14 @@ export async function confirmarCelular(codigo: string, canal: CanalCelular): Pro
   const cuerpo: S['SolicitudVerificarCelular'] = { codigo, canal }
   await apiFamilia.post('/v1/cuenta/celular/verificar', cuerpo)
 }
+
+/** `GET …/plan/aperturas` (MATU-45): lo que hicieron los relevos, del más reciente al más antiguo. */
+export type Apertura = S['AperturaVista']
+export type TipoApertura = S['TipoApertura']
+export type ListaAperturas = S['ListaAperturasVista']
+
+export async function listarAperturas(personaId: string, cursor: string | null = null, limite = 20): Promise<ListaAperturas> {
+  const params: { limite: number; cursor?: string } = { limite }
+  if (cursor) params.cursor = cursor
+  return (await apiFamilia.get<ListaAperturas>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/aperturas`, { params })).data
+}

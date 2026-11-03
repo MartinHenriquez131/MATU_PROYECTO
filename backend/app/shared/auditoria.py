@@ -58,6 +58,18 @@ class AccionAuditoria(StrEnum):
     CUENTA_CELULAR_SOLICITAR = "cuenta.celular_solicitar"
     CUENTA_CELULAR_VERIFICAR = "cuenta.celular_verificar"
     CUENTA_CELULAR_VERIFICAR_FALLIDO = "cuenta.celular_verificar_fallido"
+    # MATU-36: las escrituras del consumo (decisión 52 y decisiones 68 y 69). Las lecturas no se auditan
+    CONSUMO_CREAR = "consumo.crear"
+    CONSUMO_EDITAR = "consumo.editar"
+    CONSUMO_DESACTIVAR = "consumo.desactivar"
+    CONSUMO_ACTIVAR = "consumo.activar"
+    CONSUMO_ELIMINAR = "consumo.eliminar"
+    # MATU-37: las alertas de quiebre. materializar y el descarte del trabajo diario van con actor sistema
+    ALERTA_MATERIALIZAR = "alerta.materializar"
+    ALERTA_DESCARTAR = "alerta.descartar"
+    # MATU-37, decisión 79: «Ya lo resolví» con cantidad. Sin la cantidad
+    ALERTA_RESOLVER = "alerta.resolver"
+    REPOSICION_DECLARAR = "reposicion.declarar"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -114,6 +126,11 @@ class EntidadAuditoria(StrEnum):
     # MATU-38
     USUARIO = "usuario"
     DISPOSITIVO = "dispositivo"
+    # MATU-36
+    PERFIL_CONSUMO = "perfil_consumo"
+    # MATU-37
+    ALERTA_QUIEBRE = "alerta_quiebre"
+    REPOSICION = "reposicion"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:

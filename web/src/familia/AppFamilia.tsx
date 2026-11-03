@@ -7,6 +7,7 @@ import { campoDeRuta } from './datos'
 import { Abriendo, CompartirPronto, ErrorAlAbrir, InsumosPronto, SinPersona, TextoPerdido } from './Estados'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
+import { QuienLaVio } from './QuienLaVio'
 import { CambiarConCodigo, PedirCodigo } from './Recuperar'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
 import { MarcoSimple, ShellFamilia } from './Shell'
@@ -115,6 +116,7 @@ function Rutas() {
   if (ruta === '/cuenta') pantalla = <TuCuenta />
   else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
   else if (!s.persona) pantalla = <SinPersona />
+  else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo) {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
     else pantalla = campo ? <Editor campo={campo} /> : <TuFicha />

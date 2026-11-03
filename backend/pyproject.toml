@@ -16,6 +16,7 @@ dependencies = [
     "pyjwt>=2.8",
     "cryptography>=43",  # AES-256-GCM de las secciones de la ficha (MATU-11)
     "redis>=5.0",  # sesiones de relevo (MATU-19)
+    "tzdata>=2024.1",  # America/Santiago para "hoy" del consumo (MATU-36), también en Windows
 ]
 
 [project.optional-dependencies]
