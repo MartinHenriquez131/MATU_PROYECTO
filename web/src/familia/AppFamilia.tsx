@@ -6,6 +6,7 @@ import { campoDeRuta } from './datos'
 import { Abriendo, CompartirPronto, ErrorAlAbrir, InsumosPronto, SinPersona, TextoPerdido } from './Estados'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
+import { QuienLaVio } from './QuienLaVio'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
 import { MarcoSimple, ShellFamilia } from './Shell'
 import { FICHA, TITULOS } from './textos'
@@ -105,6 +106,7 @@ function Rutas() {
   const campo = campoDeRuta(ruta)
   let pantalla
   if (!s.persona) pantalla = <SinPersona />
+  else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo) {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
     else pantalla = campo ? <Editor campo={campo} /> : <TuFicha />
