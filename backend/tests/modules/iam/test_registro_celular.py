@@ -54,11 +54,28 @@ def test_registro_guarda_el_celular_normalizado(
     assert "0000 0042" not in log
 
 
+class _RepositorioQueNoSeUsa:
+    """Un 422 no llega al repositorio: así la prueba no necesita base."""
+
+    def crear(self, usuario: object) -> None:
+        raise AssertionError("un cuerpo inválido no debía llegar al repositorio")
+
+
+@pytest.fixture
+def sin_repositorio(entorno_iam: EntornoIam) -> EntornoIam:
+    app = entorno_iam.cliente.app
+    app.dependency_overrides[obtener_repositorio_usuarios] = _RepositorioQueNoSeUsa  # type: ignore[attr-defined]
+    return entorno_iam
+
+
 @pytest.mark.parametrize(
     "invalido",
     ["221234567", "+56 2 2123 4567", "9123456", "+5691234567890", "+54 9 1234 5678", "nueve", "", "   "],
 )
-def test_celular_invalido_422_sin_el_valor(entorno_iam: EntornoIam, contrasena_sintetica: str, invalido: str) -> None:
+def test_celular_invalido_422_sin_el_valor(
+    sin_repositorio: EntornoIam, contrasena_sintetica: str, invalido: str
+) -> None:
+    entorno_iam = sin_repositorio
     respuesta = entorno_iam.registrar(
         nombre="Familiar", email="familiar@ejemplo.cl", contrasena=contrasena_sintetica, telefono=invalido
     )
@@ -72,8 +89,8 @@ def test_celular_invalido_422_sin_el_valor(entorno_iam: EntornoIam, contrasena_s
     assert entorno_iam.creados == []
 
 
-def test_sin_celular_422(entorno_iam: EntornoIam, contrasena_sintetica: str) -> None:
-    respuesta = entorno_iam.registrar(
+def test_sin_celular_422(sin_repositorio: EntornoIam, contrasena_sintetica: str) -> None:
+    respuesta = sin_repositorio.registrar(
         nombre="Familiar", email="familiar@ejemplo.cl", contrasena=contrasena_sintetica, telefono=None
     )
 
