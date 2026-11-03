@@ -425,7 +425,7 @@ En pantalla ancha, igual que MATU-23 3.11: la hoja crece hacia abajo, la columna
 
 Nota de puntuación: la ayuda y la de alergias se aprobaron sin punto final; en pantalla van con punto, como el resto de las ayudas. Lo confirma quien edita `lenguaje.md`.
 
-### 10.2 [PROPUESTO]
+### 10.2 Aprobados por Jorge el 03-11 (antes [PROPUESTO])
 
 | Dónde | Texto |
 |---|---|
@@ -437,7 +437,7 @@ Nota de puntuación: la ayuda y la de alergias se aprobaron sin punto final; en 
 | Ficha, vista previa | «Cada relevo ve solo las secciones que eliges al compartir.» |
 | Editor, sobre el título | «Más sobre `{nombre_pila}`» |
 | Guardado, primera vez | «Agregaste «`{título}`».» |
-| Guardado, cambio | ««`{título}`» guardado.» |
+| Guardado, cambio | «Guardamos «`{título}`».» |
 | Guardado, con accesos vigentes | «Quien ya tiene un enlace no la verá. Para que la vea, crea un enlace nuevo.» |
 | Quitar, botón | «Quitar «`{título}`»» |
 | Quitar, pregunta | «¿Quitar «`{título}`»?» |
