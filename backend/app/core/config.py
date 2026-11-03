@@ -24,6 +24,10 @@ Cada historia agrega aquí lo suyo:
 - MATU-38: PEPPER_LIMITES, la llave del HMAC de las huellas de la IP y del email de la demora
   progresiva de la entrada (decisión 49). Distinta de los demás secretos. Sin ella, la entrada
   responde 503 y falla cerrada
+- MATU-57: PEPPER_RECUPERACION, la llave del HMAC de los códigos de recuperación y de verificación
+  del celular (decisión 81). Distinta de los demás secretos. Sin ella, esas rutas responden 503.
+  ENVIADOR_CODIGOS=simulado enciende el envío simulado (decisión 82): no envía nada y deja el mensaje
+  en un registro de desarrollo. Solo con ENTORNO local o pruebas: con produccion la API no arranca
 """
 
 import base64
@@ -107,6 +111,22 @@ class Configuracion(BaseSettings):
     # responde 503 y falla cerrada.
     pepper_limites: SecretStr | None = Field(default=None, min_length=32)
 
+    # Llave del HMAC-SHA256 de los códigos de 6 dígitos de MATU-57 (decisión 81): Redis guarda solo la
+    # huella del código, nunca el código. Distinta de los otros secretos. Opcional para cargar la
+    # configuración; sin ella, las rutas de recuperación y del celular responden 503 y fallan cerradas.
+    # Genérala con: python -c "import secrets; print(secrets.token_urlsafe(48))"
+    pepper_recuperacion: SecretStr | None = Field(default=None, min_length=32)
+
+    # Cómo se envían los códigos (decisión 82). En el semestre solo existe "simulado": no envía nada y
+    # deja el mensaje en un registro de desarrollo (en memoria y, si se define, en REGISTRO_ENVIOS).
+    # Sin valor, las rutas que envían responden 503. Con ENTORNO=produccion, "simulado" impide cargar
+    # la configuración y la API no arranca.
+    enviador_codigos: Literal["simulado"] | None = None
+
+    # Archivo JSON Lines donde el envío simulado deja cada mensaje, para probar a mano. Debe estar en
+    # una carpeta ignorada por git (por ejemplo .dev/envios.jsonl). Nunca es un log de la aplicación
+    registro_envios: Path | None = None
+
     # Origen https de la aplicación web, sin barra final: el enlace del relevo es <origen>/r#<token>
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
 
@@ -118,7 +138,8 @@ class Configuracion(BaseSettings):
     web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
 
     @field_validator(
-        "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites", mode="before"
+        "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
+        "pepper_recuperacion", "enviador_codigos", "registro_envios", mode="before"
     )
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
@@ -203,6 +224,30 @@ class Configuracion(BaseSettings):
         ):
             if secreto is not None and secreto.get_secret_value() == limites:
                 raise ValueError(f"PEPPER_LIMITES y {nombre} deben ser claves distintas")
+        return self
+
+    @model_validator(mode="after")
+    def _pepper_recuperacion_distinto_de_otros_secretos(self) -> "Configuracion":
+        # El mensaje nombra las variables, nunca sus valores
+        if self.pepper_recuperacion is None:
+            return self
+        recuperacion = self.pepper_recuperacion.get_secret_value()
+        for nombre, secreto in (
+            ("PEPPER_EMAIL", self.pepper_email),
+            ("JWT_CLAVE", self.jwt_clave),
+            ("KEK_ENTORNO", self.kek_entorno),
+            ("PEPPER_PIN", self.pepper_pin),
+            ("PEPPER_LIMITES", self.pepper_limites),
+        ):
+            if secreto is not None and secreto.get_secret_value() == recuperacion:
+                raise ValueError(f"PEPPER_RECUPERACION y {nombre} deben ser claves distintas")
+        return self
+
+    @model_validator(mode="after")
+    def _envio_simulado_solo_fuera_de_produccion(self) -> "Configuracion":
+        # Decisión 82: el envío simulado no llega a nadie. En produccion la API no arranca con él
+        if self.enviador_codigos == "simulado" and self.entorno not in ENTORNOS_KEK_SINTETICA:
+            raise ValueError("ENVIADOR_CODIGOS=simulado solo se admite con ENTORNO local o pruebas")
         return self
 
     @model_validator(mode="after")
