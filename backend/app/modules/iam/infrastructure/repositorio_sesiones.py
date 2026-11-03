@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import sesion_tenant
 from app.modules.iam.application.ports import (
+    DatosCuenta,
     DispositivoGuardado,
     NuevoRefresh,
     RefreshIndexado,
@@ -139,6 +140,16 @@ class RepositorioSesionesSql:
     def revocar_familia(self, familia_id: uuid.UUID, motivo: str, ahora: datetime) -> int:
         return len(self._revocar("familia_id", familia_id, motivo, ahora))
 
+    def revocar_todas(self, motivo: str, ahora: datetime) -> int:
+        # RLS (sesion_propia) acota el UPDATE al usuario en contexto; la condición lo repite
+        return len(set(self._revocar("usuario_id", self._usuario_id(), motivo, ahora)))
+
+    def _usuario_id(self) -> uuid.UUID:
+        valor = self._sesion.execute(text("SELECT app_usuario()")).scalar_one()
+        if valor is None:
+            raise RuntimeError("revocar_todas exige app.usuario_id")
+        return uuid.UUID(str(valor))
+
     def revocar_sesiones_de_dispositivo(self, dispositivo_id: uuid.UUID, motivo: str, ahora: datetime) -> int:
         return len(set(self._revocar("dispositivo_id", dispositivo_id, motivo, ahora)))
 
@@ -190,10 +201,53 @@ class RepositorioSesionesSql:
         return resultado is not None
 
 
+_DATOS_CUENTA = text(
+    "SELECT id, nombre, email, telefono, estado, celular_verificado_en, celular_canal FROM usuario"
+    " WHERE id = app_usuario()"
+)
+
+
+class RepositorioCuentaSql:
+    """La fila de usuario del contexto (MATU-57). RLS usuario_propio la acota al usuario."""
+
+    def __init__(self, sesion: Session) -> None:
+        self._sesion = sesion
+
+    def datos(self) -> DatosCuenta | None:
+        fila = self._sesion.execute(_DATOS_CUENTA).one_or_none()
+        if fila is None:
+            return None
+        return DatosCuenta(
+            id=fila.id,
+            nombre=fila.nombre,
+            email=fila.email,
+            telefono=fila.telefono,
+            estado=fila.estado,
+            celular_verificado_en=fila.celular_verificado_en,
+            celular_canal=fila.celular_canal,
+        )
+
+    def cambiar_contrasena(self, password_hash: str, ahora: datetime) -> None:
+        self._sesion.execute(
+            text("UPDATE usuario SET password_hash = :hash, actualizado_en = :ahora WHERE id = app_usuario()"),
+            {"hash": password_hash, "ahora": ahora},
+        )
+
+    def marcar_celular_verificado(self, ahora: datetime, canal: str) -> None:
+        self._sesion.execute(
+            text(
+                "UPDATE usuario SET celular_verificado_en = :ahora, celular_canal = :canal, actualizado_en = :ahora"
+                " WHERE id = app_usuario()"
+            ),
+            {"ahora": ahora, "canal": canal},
+        )
+
+
 @dataclass(frozen=True)
 class _TransaccionSql:
     sesiones: RepositorioSesionesSql
     auditoria: RegistroAuditoria
+    cuenta: RepositorioCuentaSql
 
 
 class UnidadIamSql:
@@ -212,7 +266,9 @@ class UnidadIamSql:
     def transaccion(self, usuario_id: uuid.UUID | None) -> Iterator[TransaccionIam]:
         with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
             yield _TransaccionSql(
-                sesiones=RepositorioSesionesSql(sesion), auditoria=RegistroAuditoriaSql(sesion, self._reloj)
+                sesiones=RepositorioSesionesSql(sesion),
+                auditoria=RegistroAuditoriaSql(sesion, self._reloj),
+                cuenta=RepositorioCuentaSql(sesion),
             )
 
     def conservar(self, limites: LimitesConservacion) -> tuple[int, int]:
