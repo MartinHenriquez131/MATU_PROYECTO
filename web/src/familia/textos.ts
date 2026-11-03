@@ -232,7 +232,7 @@ export const QUIEN = {
   anteriores: 'Ver aperturas anteriores', // [PROPUESTO]
   seAgregaron: (n: number) => `Se agregaron ${n} ${n === 1 ? 'línea' : 'líneas'}.`, // [PROPUESTO]
   noHayMas: 'No hay más.', // [PROPUESTO]
-  nadieDeMatu: 'Nadie de MATU puede abrir la ficha. Si alguna vez pasara, aparecería aquí.', // [demo]
+  nadieDeMatu: 'Nadie de MATU puede abrir la ficha.', // [demo]
   ultimas: 'Últimas aperturas', // [demo]
   verTodo: 'Ver todo en Quién la vio', // [demo]
 }
