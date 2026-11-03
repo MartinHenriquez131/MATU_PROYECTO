@@ -221,5 +221,7 @@ export const TITULOS: Record<string, string> = {
   '/empezar/autorizacion': AUTORIZACION.titulo,
   '/ficha': FICHA.titulo,
   '/insumos': ESTADOS.insumosTitulo,
+  '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
   '/compartir': ESTADOS.compartirTitulo,
 }

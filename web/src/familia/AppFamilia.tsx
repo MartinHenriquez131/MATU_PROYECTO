@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
 import { campoDeRuta } from './datos'
-import { Abriendo, CompartirPronto, ErrorAlAbrir, InsumosPronto, SinPersona, TextoPerdido } from './Estados'
+import { Abriendo, CompartirPronto, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
+import { Insumos } from './Insumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
@@ -109,11 +110,11 @@ function Rutas() {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
     else pantalla = campo ? <Editor campo={campo} /> : <TuFicha />
   } else if (ruta === '/compartir') pantalla = <CompartirPronto />
-  else pantalla = <InsumosPronto />
+  else pantalla = <Insumos />
 
   return (
     <ShellFamilia>
-      <div key={`${ruta}-${s.personaId}`} className="animate-aparecer">
+      <div key={`${ruta.startsWith('/insumos') ? '/insumos' : ruta}-${s.personaId}`} className="animate-aparecer">
         {pantalla}
       </div>
     </ShellFamilia>
