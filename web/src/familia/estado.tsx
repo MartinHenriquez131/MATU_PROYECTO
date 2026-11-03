@@ -185,8 +185,7 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
 /** Qué secciones ve cada rol (2.2 y 5.8). */
 export function puedeVerFicha(rol: Rol, grupo: Grupo | null): boolean {
   if (rol === 'admin' || rol === 'cuidador') return true
-  // Plan B mientras `puede_ver_plan` no esté en el contrato: el pagador ve «Ficha» y un 404 lleva a 5.6.
-  if (rol === 'pagador') return grupo?.puede_ver_plan !== false
+  if (rol === 'pagador') return grupo?.puede_ver_plan === true
   return false
 }
 export const puedeEditar = (rol: Rol) => rol === 'admin' || rol === 'cuidador'

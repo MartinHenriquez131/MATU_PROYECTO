@@ -7,18 +7,11 @@ import type { components } from './familia.openapi'
 
 type S = components['schemas']
 
-/**
- * `POST /v1/usuarios`. **El celular falta en el contrato** (decisión de Jorge del 03-11): lo agrega
- * el backend dentro de MATU-39 como `telefono` (decisión 65, `backend/app/modules/iam/api/esquemas.py`
- * en la rama). Cuando llegue a `openapi.json` y se regeneren los tipos, este agregado sobra.
- */
-export type SolicitudRegistro = S['SolicitudRegistro'] & { telefono: string }
+/** `POST /v1/usuarios`, con el celular (`telefono`, decisión 65). */
+export type SolicitudRegistro = S['SolicitudRegistro']
 export type CuentaCreada = S['CuentaCreadaRespuesta']
-/**
- * `GET /v1/grupos`. `puede_ver_plan` lo agrega el backend dentro de MATU-39 (D3). Mientras no
- * venga, la app sigue el plan B: el pagador ve «Ficha» y un 404 lleva a «Sin acceso».
- */
-export type Grupo = S['GrupoRespuesta'] & { puede_ver_plan?: boolean }
+/** `GET /v1/grupos`, con `puede_ver_plan` para el pagador (D3). */
+export type Grupo = S['GrupoRespuesta']
 export type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 export type PersonaCompleta = S['PersonaVistaCompleta']
 export type PersonaListada = S['PersonaVistaCompleta'] | S['PersonaVistaPagador'] | S['PersonaVistaObservador']

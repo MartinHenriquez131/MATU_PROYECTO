@@ -30,7 +30,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Crear Cuenta */
+        /**
+         * Crear Cuenta
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422 y 409.
+         */
         post: operations["crear_cuenta_v1_usuarios_post"];
         delete?: never;
         options?: never;
@@ -476,6 +479,11 @@ export interface components {
             nombre: string;
             /** Rol */
             rol: string;
+            /**
+             * Puede Ver Plan
+             * @description Si quien consulta ve el plan de cuidado (la ficha y los accesos de relevo) en este grupo: admin y cuidador siempre, pagador solo con el permiso explícito, observador nunca (decisión 66)
+             */
+            puede_ver_plan: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -632,6 +640,12 @@ export interface components {
             email: string;
             /** Contrasena */
             contrasena: string;
+            /**
+             * Telefono
+             * @description Celular chileno, obligatorio (decisión 65): 9 y ocho dígitos, con o sin +56 y con o sin espacios. Se guarda en E.164 (+569XXXXXXXX). Sirve para recuperar el acceso (MATU-57). Nunca aparece en logs ni en la auditoría
+             * @example +56 9 1234 5678
+             */
+            telefono: string;
         };
         /**
          * SolicitudSesion
@@ -712,13 +726,53 @@ export interface operations {
                     "application/json": components["schemas"]["CuentaCreadaRespuesta"];
                 };
             };
-            /** @description Validation Error */
+            /** @description email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/email-registrado",
+                     *       "title": "Conflicto",
+                     *       "status": 409,
+                     *       "detail": "Ese email ya tiene una cuenta. Inicia sesión",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/email-registrado";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 409;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Cuerpo inválido, incluido celular_invalido. Nunca repite el valor */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
                 };
             };
         };
