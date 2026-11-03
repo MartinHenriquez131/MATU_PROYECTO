@@ -84,7 +84,7 @@ def test_crear_grupo_deja_admin(entorno_grupo: EntornoGrupo) -> None:
     # Entonces responde 201 con el grupo y su rol de admin
     assert respuesta.status_code == 201
     cuerpo = respuesta.json()
-    assert set(cuerpo) == {"id", "nombre", "rol"}
+    assert set(cuerpo) == {"id", "nombre", "rol", "puede_ver_plan"}
     assert cuerpo["nombre"] == "Familia Sintética"
     assert cuerpo["rol"] == "admin"
     grupo_id = uuid.UUID(cuerpo["id"])
@@ -96,7 +96,9 @@ def test_crear_grupo_deja_admin(entorno_grupo: EntornoGrupo) -> None:
     # Y lo ve en su lista
     lista = _listar(entorno_grupo, a.token)
     assert lista.status_code == 200
-    assert lista.json() == [{"id": str(grupo_id), "nombre": "Familia Sintética", "rol": "admin"}]
+    assert lista.json() == [
+        {"id": str(grupo_id), "nombre": "Familia Sintética", "rol": "admin", "puede_ver_plan": True}
+    ]
 
 
 @requiere_base
@@ -138,7 +140,7 @@ def test_no_ve_grupos_ajenos(entorno_grupo: EntornoGrupo) -> None:
 
     # Entonces cada uno ve solo el suyo, y C una lista vacía
     assert lista_b.status_code == 200
-    assert lista_b.json() == [{"id": grupo_b, "nombre": "Familia Sintética B", "rol": "admin"}]
+    assert lista_b.json() == [{"id": grupo_b, "nombre": "Familia Sintética B", "rol": "admin", "puede_ver_plan": True}]
     assert [g["id"] for g in lista_a.json()] == [grupo_a]
     assert lista_c.status_code == 200
     assert lista_c.json() == []
