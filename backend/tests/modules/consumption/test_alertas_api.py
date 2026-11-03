@@ -20,6 +20,7 @@ from tests.modules.consumption.conftest import EntornoConsumo
 pytestmark = [requiere_base, pytest.mark.rf("RF-12")]
 
 NOMBRE = "Pañal adulto M"
+V1 = '"v1"'
 
 
 def _filas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
@@ -121,14 +122,14 @@ def test_resolver_sin_alerta_previa_apaga_el_aviso(entorno_consumo: EntornoConsu
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     cuidadora = familia.miembros["cuidador"].usuario
-    respuesta = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver")
+    respuesta = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", If_Match=V1)
     assert respuesta.status_code == 200, respuesta.text
     cuerpo = respuesta.json()
     assert cuerpo["avisando"] is False and cuerpo["alerta_id"] is not None
     assert _filas("SELECT estado FROM alerta_quiebre WHERE perfil_id = %s", perfil) == [("descartada",)]
     [item] = e.pedir("GET", cuidadora, familia, "/por-acabarse").json()["items"]
     assert item["avisando"] is False
-    repetido = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", json={"cantidad": None})
+    repetido = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": None})
     assert repetido.status_code == 409 and repetido.json()["type"] == "/errores/alerta-cerrada"
 
 
@@ -138,7 +139,7 @@ def test_resolver_con_cantidad_suma_anota_la_reposicion_y_resuelve(entorno_consu
     # Anotado hoy (20-10): 24 a 4 por día. + 30 = 54, alcanza 13 días: 02-11, fuera de la ventana de 7
     perfil = e.fabrica.perfil_consumo(familia.persona)
     cuidadora = familia.miembros["cuidador"].usuario
-    respuesta = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", json={"cantidad": 30})
+    respuesta = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": 30})
     assert respuesta.status_code == 200, respuesta.text
     cuerpo = respuesta.json()
     assert (cuerpo["stock_unidades"], cuerpo["stock_medido_en"], cuerpo["fecha_quiebre_estimada"]) == (
@@ -167,7 +168,7 @@ def test_resolver_con_cantidad_y_stock_estimado_negativo_parte_de_cero(entorno_c
     familia = e.familia()
     # Anotado el 10-10: 24 - 40 es negativo, queda 0; + 30 = 30, alcanza 7 días: 27-10
     perfil = e.fabrica.perfil_consumo(familia.persona, stock_medido_en=date(2026, 10, 10))
-    respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 30})
+    respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": 30})
     assert respuesta.status_code == 200, respuesta.text
     assert (respuesta.json()["stock_unidades"], respuesta.json()["fecha_quiebre_estimada"]) == (30, "2026-10-27")
 
@@ -177,7 +178,9 @@ def test_resolver_cantidad_fuera_de_rango_es_422_sin_tocar_nada(entorno_consumo:
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     for cantidad in (0, 10_000, -3):
-        respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": cantidad})
+        respuesta = e.pedir(
+            "POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": cantidad}
+        )
         assert respuesta.status_code == 422
         [error] = respuesta.json()["errores"]
         assert error["campo"] == "cantidad"
@@ -191,7 +194,9 @@ def test_pagador_y_observador_no_declaran_compras(entorno_consumo: EntornoConsum
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     usuario = familia.miembros[rol].usuario
-    assert e.pedir("POST", usuario, familia, f"/{perfil}/resolver", json={"cantidad": 30}).status_code == 404
+    assert (
+        e.pedir("POST", usuario, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": 30}).status_code == 404
+    )
     assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
     assert _filas("SELECT stock_unidades FROM perfil_consumo WHERE id = %s", perfil) == [(24,)]
 
@@ -201,9 +206,9 @@ def test_resolver_observador_404_y_perfil_inactivo_409(entorno_consumo: EntornoC
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     observador = familia.miembros["observador"].usuario
-    assert e.pedir("POST", observador, familia, f"/{perfil}/resolver").status_code == 404
+    assert e.pedir("POST", observador, familia, f"/{perfil}/resolver", If_Match=V1).status_code == 404
     inactivo = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Crema", activo=False)
-    respuesta = e.pedir("POST", familia.admin, familia, f"/{inactivo}/resolver")
+    respuesta = e.pedir("POST", familia.admin, familia, f"/{inactivo}/resolver", If_Match=V1)
     assert respuesta.status_code == 409 and respuesta.json()["type"] == "/errores/perfil-inactivo"
 
 
@@ -215,8 +220,8 @@ def test_los_logs_y_la_auditoria_no_llevan_el_nombre(
     perfil = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Toallitas secretas")
     otro = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Crema secreta")
     with caplog.at_level(logging.DEBUG):
-        assert e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver").status_code == 200
-        con = e.pedir("POST", familia.admin, familia, f"/{otro}/resolver", json={"cantidad": 4321})
+        assert e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1).status_code == 200
+        con = e.pedir("POST", familia.admin, familia, f"/{otro}/resolver", If_Match=V1, json={"cantidad": 4321})
         assert con.status_code == 200
     textos = caplog.text + e.iam.salida_logs.getvalue()
     assert "secret" not in textos and "4321" not in textos and "cantidad" not in textos
@@ -271,7 +276,7 @@ def test_el_trabajo_diario_respeta_el_resolvi_de_la_familia(entorno_consumo: Ent
     e = entorno_consumo
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
-    assert e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver").status_code == 200
+    assert e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1).status_code == 200
     assert recalcular_grupo(fabrica_sesiones(), familia.grupo.id, e.iam.reloj).materializadas == 0
     assert _filas("SELECT 1 FROM evento_outbox WHERE grupo_id = %s", familia.grupo.id) == []
 
@@ -298,3 +303,54 @@ def test_la_conservacion_de_alertas_corre_como_operacion(entorno_consumo: Entorn
     )
     assert resultado.alertas_borradas >= 1
     assert _filas("SELECT fecha_prevista::text FROM alerta_quiebre WHERE perfil_id = %s", perfil) == [("2026-10-26",)]
+
+
+# --- Decisión 80: «Ya lo resolví» es condicional (hallazgo P2 de la QA) ----------------------------------
+
+
+def test_dos_resolver_con_cantidad_y_el_mismo_etag_suman_una_sola_vez(entorno_consumo: EntornoConsumo) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    primero = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 5}, If_Match=V1)
+    assert primero.status_code == 200, primero.text
+    assert primero.json()["etag"] == '"v2"'
+    segundo = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 5}, If_Match=V1)
+    assert segundo.status_code == 412
+    cuerpo = segundo.json()
+    assert cuerpo["type"] == "/errores/version-desactualizada"
+    assert cuerpo["actual"]["etag"] == '"v2"' and cuerpo["actual"]["stock_unidades"] == 29
+    assert cuerpo["actual"]["actualizado_por"]["id"] == str(familia.admin.id)
+    assert segundo.headers["ETag"] == '"v2"' and segundo.headers["Cache-Control"] == "no-store"
+    assert _filas("SELECT count(*) FROM reposicion WHERE perfil_id = %s", perfil) == [(1,)]
+    assert _filas("SELECT stock_unidades, version FROM perfil_consumo WHERE id = %s", perfil) == [(29, 2)]
+    assert _filas("SELECT estado FROM alerta_quiebre WHERE perfil_id = %s", perfil) == [("resuelta",)]
+
+
+@pytest.mark.parametrize("valor", [None, "", "*"])
+def test_resolver_sin_if_match_es_428_y_no_toca_nada(entorno_consumo: EntornoConsumo, valor: str | None) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    extra: dict[str, Any] = {} if valor is None else {"If_Match": valor}
+    respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 5}, **extra)
+    assert respuesta.status_code == 428 and respuesta.json()["type"] == "/errores/falta-version"
+    assert _filas("SELECT 1 FROM alerta_quiebre WHERE perfil_id = %s", perfil) == []
+    assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
+
+
+def test_descartar_con_etag_viejo_es_412_y_no_cierra(entorno_consumo: EntornoConsumo) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona, version=3)
+    respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1)
+    assert respuesta.status_code == 412
+    assert _filas("SELECT 1 FROM alerta_quiebre WHERE perfil_id = %s", perfil) == []
+
+
+def test_por_acabarse_trae_el_etag_de_cada_insumo(entorno_consumo: EntornoConsumo) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    e.fabrica.perfil_consumo(familia.persona, version=4)
+    [item] = e.pedir("GET", familia.admin, familia, "/por-acabarse").json()["items"]
+    assert item["etag"] == '"v4"'

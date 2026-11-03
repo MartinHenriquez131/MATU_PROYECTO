@@ -15,7 +15,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado, PeticionConsumo
+from app.modules.consumption.application.perfiles import (
+    PerfilInactivo,
+    PerfilNoEncontrado,
+    PeticionConsumo,
+    VersionDesactualizada,
+)
 from app.modules.consumption.application.ports import (
     AlertaLeida,
     InsumoEnVentana,
@@ -25,7 +30,7 @@ from app.modules.consumption.application.ports import (
     RepositorioPerfiles,
 )
 from app.modules.consumption.domain.alerta import EstadoAlerta, avisando, en_ventana, exigir_abierta, reponer
-from app.modules.consumption.domain.perfil import dias_restantes, hoy_en_chile
+from app.modules.consumption.domain.perfil import coincide, dias_restantes, exigir_if_match, hoy_en_chile
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria, Reloj
 
@@ -122,15 +127,20 @@ def resolver(
     peticion: PeticionConsumo,
     perfil_id: uuid.UUID,
     cantidad: int | None,
+    if_match: str | None,
     reloj: Reloj,
     perfiles: RepositorioPerfiles,
     alertas: RepositorioAlertas,
     auditoria: RegistroAuditoria,
-) -> InsumoAvisado:
+) -> InsumoAvisado | VersionDesactualizada:
     """«Ya lo resolví» por insumo (decisiones 76 y 79), aunque el trabajo diario no haya creado la alerta.
 
-    Orden: 404 (perfil), 409 perfil-inactivo, 409 alerta-cerrada (la de la fecha estimada actual) y 422
-    cobertura_maxima. La alerta de la fecha actual (o una nueva, ya cerrada, si no existía) queda:
+    Condicional, como el PATCH (decisión 80): exige If-Match con el ETag del perfil. Orden: 404 (perfil),
+    428 (FaltaVersion), 409 perfil-inactivo, 412 (VersionDesactualizada, sin sumar ni cerrar nada), 409
+    alerta-cerrada (la de la fecha estimada actual) y 422 cobertura_maxima. Así un reintento o una segunda
+    pestaña con el mismo ETag nunca suman dos veces: la primera suma sube la versión.
+
+    La alerta de la fecha actual (o una nueva, ya cerrada, si no existía) queda:
 
     - sin cantidad: descartada. El perfil no cambia. Registra alerta.descartar.
     - con cantidad: resuelta. El stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la
@@ -143,8 +153,11 @@ def resolver(
     if leido is None:
         raise PerfilNoEncontrado()
     perfil = leido.perfil
+    valor = exigir_if_match(if_match)
     if not perfil.activo:
         raise PerfilInactivo()
+    if not coincide(valor, perfil.version):
+        return VersionDesactualizada(actual=leido)
     ahora = reloj.ahora()
     hoy = hoy_en_chile(ahora)
     alerta = alertas.de_la_fecha(perfil.id, perfil.fecha_quiebre_estimada)
