@@ -56,6 +56,12 @@ class AccionAuditoria(StrEnum):
     CONSUMO_DESACTIVAR = "consumo.desactivar"
     CONSUMO_ACTIVAR = "consumo.activar"
     CONSUMO_ELIMINAR = "consumo.eliminar"
+    # MATU-37: las alertas de quiebre. materializar y el descarte del trabajo diario van con actor sistema
+    ALERTA_MATERIALIZAR = "alerta.materializar"
+    ALERTA_DESCARTAR = "alerta.descartar"
+    # MATU-37, decisión 79: «Ya lo resolví» con cantidad. Sin la cantidad
+    ALERTA_RESOLVER = "alerta.resolver"
+    REPOSICION_DECLARAR = "reposicion.declarar"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -103,6 +109,9 @@ class EntidadAuditoria(StrEnum):
     DISPOSITIVO = "dispositivo"
     # MATU-36
     PERFIL_CONSUMO = "perfil_consumo"
+    # MATU-37
+    ALERTA_QUIEBRE = "alerta_quiebre"
+    REPOSICION = "reposicion"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:

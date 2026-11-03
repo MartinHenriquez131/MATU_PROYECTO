@@ -2,6 +2,7 @@
 
     POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo   admin y cuidador. 201 con el enlace y el PIN
     GET  /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo   admin, cuidador y pagador con puede_ver_plan
+    GET  /v1/personas-cuidadas/{persona_id}/plan/aperturas        los mismos. Quién abrió la ficha (MATU-45)
     DELETE /v1/accesos-relevo/{acceso_id}                          admin y cuidador. 204 sin cuerpo (MATU-20)
 
 Orden del POST: token (401), membresía y rol (404), persona (404), consentimiento y revisión anual
@@ -30,22 +31,29 @@ from app.modules.care_plan.api.dependencias import (
     huellas_para_compartir,
     obtener_generador_credenciales,
     obtener_repositorio_accesos,
+    obtener_repositorio_aperturas,
     obtener_repositorio_ficha,
     persona_para_listar,
 )
 from app.modules.care_plan.api.esquemas_relevo import (
     AccesoCreadoVista,
+    AccesoDeAperturaVista,
     AccesoResumenVista,
+    AperturaVista,
     AutorAccesoVista,
     ListaAccesosVista,
+    ListaAperturasVista,
     SolicitudAccesoVista,
 )
+from app.modules.care_plan.application.aperturas import listar_aperturas
 from app.modules.care_plan.application.ficha import PeticionFicha, PlanNoDisponible
 from app.modules.care_plan.application.ports import (
     GeneradorCredencialesRelevo,
     HuellasRelevo,
     Posicion,
+    PosicionApertura,
     RepositorioAccesos,
+    RepositorioAperturas,
     RepositorioFicha,
 )
 from app.modules.care_plan.application.relevo import (
@@ -74,6 +82,7 @@ router = APIRouter(tags=["accesos de relevo"])
 
 RUTA_ACCESOS = "/personas-cuidadas/{persona_id}/plan/accesos-relevo"
 RUTA_ACCESO = "/accesos-relevo/{acceso_id}"
+RUTA_APERTURAS = "/personas-cuidadas/{persona_id}/plan/aperturas"
 NO_STORE = "no-store"
 
 _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
@@ -125,6 +134,27 @@ def decodificar_cursor(cursor: str) -> Posicion:
         if creado_en.tzinfo is None:
             raise ValueError
         return Posicion(creado_en=creado_en, id=uuid.UUID(identificador))
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        raise _error_422("cursor", "El cursor no es válido", "cursor_invalido") from None
+
+
+# Cursor de las aperturas: base64url de "<ocurrido_en ISO>|<id de auditoria>". Mismo 422 que el otro
+
+
+def codificar_cursor_apertura(posicion: PosicionApertura) -> str:
+    crudo = f"{posicion.ocurrido_en.isoformat()}|{posicion.id}".encode("ascii")
+    return base64.urlsafe_b64encode(crudo).rstrip(b"=").decode("ascii")
+
+
+def decodificar_cursor_apertura(cursor: str) -> PosicionApertura:
+    try:
+        crudo = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode("ascii")
+        instante, identificador = crudo.split("|")
+        ocurrido_en = datetime.fromisoformat(instante)
+        numero = int(identificador)
+        if ocurrido_en.tzinfo is None or numero < 1 or not identificador.isdigit():
+            raise ValueError
+        return PosicionApertura(ocurrido_en=ocurrido_en, id=numero)
     except (binascii.Error, UnicodeDecodeError, ValueError):
         raise _error_422("cursor", "El cursor no es válido", "cursor_invalido") from None
 
@@ -262,3 +292,77 @@ def revocar_acceso(
     except AccesoNoEncontrado:
         raise ErrorMATU(404) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": NO_STORE})
+
+
+_EJEMPLO_APERTURAS: dict[str, Any] = {
+    "items": [
+        {
+            "ocurrido_en": f"2026-10-31T13:0{minuto}Z",
+            "tipo": tipo,
+            "acceso": {"id": "2e8a6b40-0000-4000-8000-0000000000b1", "nombre_relevo": "Rosa"},
+        }
+        for minuto, tipo in (("2:00", "apertura"), ("1:30", "pin_incorrecto"), ("1:00", "presentacion"))
+    ],
+    "siguiente_cursor": None,
+}
+_X_REQUEST_ID: dict[str, Any] = {
+    "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+    "schema": {"type": "string", "format": "uuid"},
+}
+_RESPUESTAS_APERTURAS: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "Página de aperturas.",
+        "headers": {
+            "X-Request-ID": _X_REQUEST_ID,
+            "Cache-Control": {
+                "description": "Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché",
+                "schema": {"type": "string", "const": NO_STORE},
+            },
+        },
+        "content": {"application/json": {"example": _EJEMPLO_APERTURAS}},
+    },
+    **_ERRORES_LISTA,
+}
+_DESCRIPCION_APERTURAS = (
+    "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación "
+    "(página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee "
+    "de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió "
+    "el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\n"
+    "Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una "
+    "persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\n"
+    "Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí."
+)
+
+
+@router.get(
+    RUTA_APERTURAS,
+    response_model=ListaAperturasVista,
+    responses=_RESPUESTAS_APERTURAS,
+    summary="Ver quién abrió la ficha con un acceso de relevo",
+    description=_DESCRIPCION_APERTURAS,
+    operation_id="listarAperturasRelevo",
+    openapi_extra={"x-matu-historia": "MATU-45 (RF-08)"},
+)
+def listar_aperturas_relevo(
+    request: Request,
+    response: Response,
+    autorizado: Annotated[FichaAutorizada, Depends(persona_para_listar)],
+    fichas: Annotated[RepositorioFicha, Depends(obtener_repositorio_ficha)],
+    aperturas: Annotated[RepositorioAperturas, Depends(obtener_repositorio_aperturas)],
+    cursor: Annotated[str | None, Query(max_length=200)] = None,
+    limite: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> ListaAperturasVista:
+    despues_de = None if cursor is None else decodificar_cursor_apertura(cursor)
+    pagina = listar_aperturas(_peticion(request, autorizado), fichas, aperturas, despues_de, limite)
+    response.headers["Cache-Control"] = NO_STORE
+    return ListaAperturasVista(
+        items=[
+            AperturaVista(
+                ocurrido_en=a.ocurrido_en,
+                tipo=a.tipo,
+                acceso=AccesoDeAperturaVista(id=a.acceso_id, nombre_relevo=a.nombre_relevo),
+            )
+            for a in pagina.aperturas
+        ],
+        siguiente_cursor=None if pagina.siguiente is None else codificar_cursor_apertura(pagina.siguiente),
+    )

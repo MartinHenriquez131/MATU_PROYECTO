@@ -13,6 +13,7 @@ export type Ruta =
   | '/ficha/su-dia'
   | '/ficha/si-se-altera'
   | '/ficha/a-quien-llamar'
+  | '/ficha/quien-la-vio'
   | '/insumos'
   | '/compartir'
 
@@ -27,6 +28,7 @@ export const RUTAS: readonly Ruta[] = [
   '/ficha/su-dia',
   '/ficha/si-se-altera',
   '/ficha/a-quien-llamar',
+  '/ficha/quien-la-vio',
   '/insumos',
   '/compartir',
 ]

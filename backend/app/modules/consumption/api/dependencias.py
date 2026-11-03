@@ -22,8 +22,9 @@ from app.core.errores import ErrorMATU
 from app.modules.care_circle.api.dependencias import ContextoGrupo, SesionDeGrupo
 from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, EstadoAutorizacion, estado_autorizacion
 from app.modules.care_circle.infrastructure.autorizacion import persona_con_autorizacion
-from app.modules.consumption.application.ports import RepositorioPerfiles
+from app.modules.consumption.application.ports import RepositorioAlertas, RepositorioPerfiles
 from app.modules.consumption.domain.perfil import puede_escribir, puede_leer
+from app.modules.consumption.infrastructure.repositorio_alertas import RepositorioAlertasSQL
 from app.modules.consumption.infrastructure.repositorio_perfiles import RepositorioPerfilesSQL
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.shared.auditoria_sql import RegistroAuditoriaSql
@@ -32,6 +33,7 @@ from app.shared.puertos import RegistroAuditoria, Reloj
 # Los path params se declaran str: un valor que no es UUID responde 404, no 422
 PersonaIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 PerfilIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
+AlertaIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 
 _EXTENSION = {"finalidad": FINALIDAD_CONSUMO}
 
@@ -92,6 +94,10 @@ def obtener_repositorio_perfiles(contexto: SesionDeGrupo) -> RepositorioPerfiles
     return RepositorioPerfilesSQL(contexto.sesion, contexto.grupo_id)
 
 
+def obtener_repositorio_alertas(contexto: SesionDeGrupo) -> RepositorioAlertas:
+    return RepositorioAlertasSQL(contexto.sesion, contexto.grupo_id)
+
+
 def obtener_registro_auditoria_consumo(
     contexto: SesionDeGrupo, reloj: Annotated[Reloj, Depends(obtener_reloj)]
 ) -> RegistroAuditoria:
@@ -104,3 +110,4 @@ ParaEscribir = Annotated[ConsumoAutorizado, Depends(consumo_para_escribir)]
 Repositorio = Annotated[RepositorioPerfiles, Depends(obtener_repositorio_perfiles)]
 Auditoria = Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria_consumo)]
 RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
+RepositorioDeAlertas = Annotated[RepositorioAlertas, Depends(obtener_repositorio_alertas)]
