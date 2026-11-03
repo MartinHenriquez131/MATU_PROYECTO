@@ -281,7 +281,8 @@ paths:
         **Orden de evaluación**, el mismo del canje hasta el estado:
 
         1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
-           del canje (decisión 29). Si se supera, **429**.
+           del canje (decisión 29), en una ventana fija (decisión 65). Si se supera, **429**. Sin
+           Redis o sin `PEPPER_LIMITES`, **503**.
         2. Cuerpo válido. Si no, **422**.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`.
@@ -344,6 +345,8 @@ paths:
           $ref: '#/components/responses/RelevoBloqueado'
         '429':
           $ref: '#/components/responses/DemasiadasPresentaciones'
+        '503':
+          $ref: '#/components/responses/RelevoSinServicio'
 
   /v1/relevo/canje:
     post:
@@ -358,7 +361,8 @@ paths:
         **Orden de evaluación:**
 
         1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
-           (MATU-25, decisión 29). Si se supera, **429**, sin tocar el acceso.
+           (MATU-25, decisión 29), en una ventana fija (decisión 65). Si se supera, **429**, sin
+           tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
         2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
@@ -1496,6 +1500,8 @@ components:
         la sesión: el canje ya quedó registrado como `relevo.canje`, pero no hay cookie y la página
         vuelve a pedir el PIN. En la ficha: Redis no respondió, la custodia de la clave no está
         configurada o no pudo descifrar. Nunca devuelve texto de la ficha ni dice qué falló.
+        En la presentación y el canje, antes que todo lo demás: el límite por IP falla cerrado si
+        Redis no responde o falta `PEPPER_LIMITES` (MATU-25, decisión 65).
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'

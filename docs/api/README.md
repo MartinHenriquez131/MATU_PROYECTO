@@ -34,8 +34,8 @@ docs/api/
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
-| `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
-| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
+| `POST /v1/relevo/presentacion` | MATU-19, MATU-23, MATU-25 | Implementado, con el 429 (30 por hora por IP) y el 503 del límite de MATU-25 (decisión 65). Contrato en `relevo.openapi.yaml` |
+| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, con el 429 (10 por hora por IP) y el 503 del límite de MATU-25 (decisión 65). Contrato en `relevo.openapi.yaml` |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
@@ -86,8 +86,8 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | Existe (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | Existe (MATU-19) |
 | `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
-| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49) | Existe (MATU-12, por defecto del 503) |
-| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones o más de 10 canjes por hora desde una IP, en contadores separados. **Nuevo uso:** demora progresiva de `POST /v1/sesiones`, con `Retry-After` de hasta 900 segundos (decisión 49) | Existe (por defecto del 429), lo usan MATU-25 y MATU-38 |
+| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49), y el límite por IP de `POST /v1/usuarios`, `/v1/relevo/presentacion` y `/v1/relevo/canje` sin Redis o sin `PEPPER_LIMITES` (decisión 65) | Existe (MATU-12, por defecto del 503) |
+| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones, más de 10 canjes o más de 5 cuentas nuevas por hora desde una IP, en contadores separados, con `Retry-After` de hasta 3600 segundos (decisión 65). **Nuevo uso:** demora progresiva de `POST /v1/sesiones`, con `Retry-After` de hasta 900 segundos (decisión 49) | Existe (por defecto del 429), lo usan MATU-25 y MATU-38 |
 
 ## Lo que usa la app de familia (MATU-32)
 
@@ -95,7 +95,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 
 | Método y ruta | Historia | Estado | Contrato |
 |---|---|---|---|
-| `POST /v1/usuarios` | MATU-04 | Implementado | `openapi.json` |
+| `POST /v1/usuarios` | MATU-04; cambio de MATU-25 | Implementado, con el 429 (5 por hora por IP) y el 503 del límite de MATU-25 (decisión 65) | `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con el cambio de MATU-38 | `openapi.json` |
 | `GET /v1/grupos` | MATU-06 | Implementado. Devuelve `id`, `nombre` y `rol`: la app elige el grupo para `X-Grupo-Id` y sabe su rol | `openapi.json` |
 | `POST /v1/grupos` | MATU-06 | Implementado | `openapi.json` |
@@ -314,7 +314,7 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 - **Migración 0007** (era 0006 hasta el merge del PR #25, que tomó ese número): `indice_token.revocado_en` (decisión 23), la política `acceso_relevo_propio` (FOR ALL) reemplazada por `acceso_relevo_leer` (SELECT) y `acceso_relevo_contar` (UPDATE) más un trigger que limita al relevo a `pin_intentos_fallidos`, `usos` y `ultimo_uso_en`, y la función de la decisión 33.
 - **Canje sin `PEPPER_PIN`:** 503 `/errores/servicio-no-disponible` después de los 410/423 y antes de comparar el PIN. Tampoco con Redis caído (503). El contrato lo declara como `RelevoSinServicio` en el canje y en la ficha. La sesión en Redis se crea después del commit del canje: si Redis falla, queda `relevo.canje` sin sesión y se responde 503.
 - **Sin entrada en `indice_token`** con una cookie válida (purgado tras vencer), la ficha responde 410 `relevo-vencido`.
-- **429 por IP** (MATU-25) y **`/plan/aperturas`** (sprint 3) no están implementados.
+- **429 por IP:** implementado en MATU-25 (decisión 65). **`/plan/aperturas`** (sprint 3) no está implementado.
 - **Un 500** lleva `Cache-Control: no-store` siempre y, bajo `/v1/relevo/`, también `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. Lo pone el manejador de `app/core/errores.py`, porque el 500 lo arma `ServerErrorMiddleware` por fuera del middleware de cabeceras.
 - **Privilegios del dueño para `relevo_autorizacion_vigente`.** La función corre como su dueño (`matu_owner`). Con un dueño sin superusuario ni `BYPASSRLS`, como en CI y como manda `00_roles.sql`, las políticas que alcanzan sus lecturas (por ejemplo `plan_familia`, que llama a `app_puede_ver_plan()`) leen `membresia`: el dueño necesita `SELECT` sobre `membresia`. El QA lo comprobó con un rol no superusuario. En la base local de desarrollo `matu_owner` es superusuario y no lo nota: revisar cómo se crearon los roles allí.
 
@@ -362,11 +362,26 @@ Implementado el 02-11 en la rama `matu-38-refresh-rotativo` (RF-37). Las siete r
 
 ### Pendientes de MATU-38
 
-- **P2-1 · Proxy.** Detrás de un proxy hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` (la IP del proxy), o todas las peticiones comparten la IP del proxy y la demora por IP bloquea a todos. Va con el despliegue del piloto (MATU-25).
+- **P2-1 · Proxy.** Detrás de un proxy hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` (la IP del proxy), o todas las peticiones comparten la IP del proxy y la demora por IP bloquea a todos. **Resuelto en MATU-25** (decisión 65): `python -m app.servidor` con `FORWARDED_ALLOW_IPS`. Falta fijar su valor en Railway (ver `infra/railway/README.md`).
 - **P2-2 · Nadie lee la auditoría de la cuenta.** Las filas con `grupo_id` nulo quedan fuera de las políticas de lectura de 0005. Para Jorge: una política `SELECT` con `grupo_id IS NULL AND actor_ref = app_usuario()`, o un procedimiento de solicitud del titular.
 - **P3-1 · Lectura de la decisión 49.** Hoy hasta 5 fallos por email no hay espera: el 6.º fallo fija la primera espera, y el primer intento que la recibe es el 7.º. Confirmar con Jorge si "sin demora hasta 5 fallos" significa eso. No se cambió.
 - **P3-3 · Volumen de la auditoría.** Un atacante repartido en muchas IP puede inflar `auditoria` con `sesion.inicio_fallido` (una fila por fallo, sin tope por IP).
 - **Despliegue.** La API no se despliega a usuarios reales hasta que la política de privacidad 0.10 esté aprobada (decisión 62).
+
+## Notas de implementación de MATU-25
+
+Implementado el 03-11 en la rama `matu-25-staging-https` (ADR-019; RF-37 en el registro, RF-06 en el relevo). `POST /v1/usuarios` se volvió a exportar a `openapi.json`; las dos rutas del relevo siguen en `propuestos/relevo.openapi.yaml`, que ya declaraba sus 429 y ahora también el 503 de la presentación.
+
+**Decisión 65 (MATU-25, 03-11, con las condiciones del analista normativo y la decisión de Jorge en el PR #27, P2-1).** El límite por IP vive en la API, con Redis:
+
+1. **Tres contadores separados:** `POST /v1/usuarios` 5 por hora, `POST /v1/relevo/canje` 10 y `POST /v1/relevo/presentacion` 30 (decisión 29). Se cuenta toda petición, también la que después responde 422 o 410: el límite se evalúa primero, antes de validar el cuerpo (orden de evaluación del contrato del relevo).
+2. **Clave:** `matu:limite:<prefijo>:<huella>`, con la huella HMAC-SHA-256(`PEPPER_LIMITES`, `"<prefijo>:<ip>"`) y un prefijo por contador (`usuarios-ip`, `canje-ip`, `presentacion-ip`), distinto también de los de la demora de la entrada (`entrada-ip`, `entrada-email`). La IP nunca llega a Redis, a un log, a la auditoría ni al 429 (decisión 27). Comparte `PEPPER_LIMITES` con la demora de MATU-38 (decisión 49).
+3. **Ventana fija:** un script Lua, atómico, hace `INCR` y fija el vencimiento de 1 hora solo con el primer incremento; los siguientes no lo renuevan. Si la clave quedara sin vencimiento, el script se lo pone: ninguna clave vive para siempre.
+4. **429** `/errores/demasiadas-peticiones` en RFC 7807, con `Retry-After` (lo que le queda a la ventana, de 1 a 3600 segundos) y sin datos de la IP. En el relevo lleva además las cabeceras de `/v1/relevo/`. En el canje no suma intento, no audita y no crea sesión.
+5. **Falla cerrada:** sin Redis o sin `PEPPER_LIMITES`, 503 `/errores/servicio-no-disponible`, como la entrada de MATU-38.
+6. **IP del cliente detrás del proxy:** la del socket, `request.client.host`. En staging la API arranca con `python -m app.servidor` (`app/servidor.py`): Uvicorn con `proxy_headers` y `forwarded_allow_ips` desde `FORWARDED_ALLOW_IPS`, una lista de IP o redes CIDR. Por omisión `127.0.0.1`; `*`, `0.0.0.0/0` o `::/0` impiden arrancar. Solo de esas direcciones se acepta `X-Forwarded-For`; el de cualquier otro origen se ignora. Así dos personas tras el proxy no comparten el límite ni la demora de MATU-38. Sin log de acceso de Uvicorn (`access_log=False`, sin `log_config`).
+
+Código: reglas puras en `backend/app/shared/limite_ip.py` (también la función `huella`, que `iam/domain/demora.py` reutiliza), puerto, adaptador Redis y dependencia de FastAPI en `backend/app/core/limite_ip.py`, arranque en `backend/app/servidor.py`. Despliegue en `infra/railway/`.
 
 ## Decisiones de Jorge del 31-10 (MATU-32)
 

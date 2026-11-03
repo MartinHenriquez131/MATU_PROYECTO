@@ -5,8 +5,10 @@ de Redis tiene su propia prueba (tests/core/test_limite_ip_redis.py). Las petici
 cuentan igual: el límite se evalúa antes de validar, así estas pruebas no necesitan la base.
 """
 
+import json
 import uuid
 from datetime import timedelta
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -19,6 +21,7 @@ from tests.modules.iam.conftest import EntornoIam, requiere_base
 
 pytestmark = pytest.mark.rf("RF-37")
 
+DOCS = Path(__file__).resolve().parents[4] / "docs" / "api"
 IP_TESTCLIENT = "testclient"  # la IP del socket del TestClient
 PROBLEMA = "application/problem+json"
 
@@ -137,3 +140,9 @@ def test_el_contrato_declara_429_y_503_en_las_tres_rutas(entorno_iam: EntornoIam
         assert "Retry-After" in respuestas["429"]["headers"]
         # Ninguna de las tres lleva token, PIN ni IP en path o query
         assert all(p["in"] not in ("path", "query") for p in rutas[ruta]["post"].get("parameters", []))
+
+
+def test_openapi_json_coincide_con_la_api_en_el_registro(entorno_iam: EntornoIam) -> None:
+    exportado = json.loads((DOCS / "openapi.json").read_text(encoding="utf-8"))
+    esquema = entorno_iam.cliente.get("/openapi.json").json()
+    assert exportado["paths"]["/v1/usuarios"] == esquema["paths"]["/v1/usuarios"], "vuelve a exportar /v1/usuarios"

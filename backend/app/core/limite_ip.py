@@ -45,7 +45,7 @@ RESPUESTAS_LIMITE: dict[int | str, dict[str, object]] = {
         "headers": {
             "Retry-After": {
                 "description": "Segundos que faltan para que se abra la ventana, de 1 a 3600",
-                "schema": {"type": "integer", "minimum": 1, "maximum": 3600},
+                "schema": {"type": "integer"},
             }
         },
         "content": {"application/problem+json": {}},

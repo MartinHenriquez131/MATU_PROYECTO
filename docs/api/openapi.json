@@ -58,14 +58,36 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "409": {
+            "description": "email-registrado",
             "content": {
-              "application/json": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana, de 1 a 3600",
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "type": "integer"
                 }
               }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
+            "content": {
+              "application/problem+json": {}
             }
           }
         }
