@@ -27,6 +27,7 @@ class RepositorioUsuariosSQL:
                         email=usuario.email,
                         nombre=usuario.nombre,
                         password_hash=usuario.password_hash,
+                        telefono=usuario.telefono,
                     )
                 )
                 sesion.flush()

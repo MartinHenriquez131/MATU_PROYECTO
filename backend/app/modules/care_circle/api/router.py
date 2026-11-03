@@ -13,6 +13,7 @@ from app.core.db import obtener_fabrica_sesiones
 from app.modules.care_circle.api.esquemas import GrupoRespuesta, SolicitudGrupo
 from app.modules.care_circle.application.grupos import crear_grupo, listar_grupos
 from app.modules.care_circle.application.ports import RepositorioGrupos
+from app.modules.care_circle.domain.grupos import ve_el_plan
 from app.modules.care_circle.infrastructure.repositorio_grupos import RepositorioGruposSQL
 from app.modules.iam.api.dependencias import UsuarioActual, usuario_actual
 
@@ -32,7 +33,7 @@ def crear(
     repositorio: Annotated[RepositorioGrupos, Depends(obtener_repositorio_grupos)],
 ) -> GrupoRespuesta:
     grupo = crear_grupo(usuario.id, solicitud.nombre, repositorio)
-    return GrupoRespuesta(id=grupo.id, nombre=grupo.nombre, rol=grupo.rol)
+    return GrupoRespuesta(id=grupo.id, nombre=grupo.nombre, rol=grupo.rol, puede_ver_plan=ve_el_plan(grupo.rol, False))
 
 
 @router.get("/grupos", response_model=list[GrupoRespuesta])
@@ -40,4 +41,7 @@ def listar(
     usuario: Annotated[UsuarioActual, Depends(usuario_actual)],
     repositorio: Annotated[RepositorioGrupos, Depends(obtener_repositorio_grupos)],
 ) -> list[GrupoRespuesta]:
-    return [GrupoRespuesta(id=g.id, nombre=g.nombre, rol=g.rol) for g in listar_grupos(usuario.id, repositorio)]
+    return [
+        GrupoRespuesta(id=g.id, nombre=g.nombre, rol=g.rol, puede_ver_plan=ve_el_plan(g.rol, g.permiso_plan))
+        for g in listar_grupos(usuario.id, repositorio)
+    ]

@@ -1,6 +1,6 @@
 # MATU · cliente web
 
-Aplicación web mobile first de MATU (ADR-026): React 19, TypeScript, Vite, Tailwind CSS v4, iconos de `lucide-react` y Axios. La primera ruta es la página del relevo, `/r#<token>` (MATU-23, especificación en `docs/diseno/matu-23-pagina-relevo.md`).
+Aplicación web mobile first de MATU (ADR-026): React 19, TypeScript, Vite, Tailwind CSS v4, iconos de `lucide-react` y Axios. Tiene dos partes: la app de la familia (MATU-39, `docs/diseno/matu-39-app-familia.md`), en `/`, y la página del relevo, `/r#<token>` (MATU-23, `docs/diseno/matu-23-pagina-relevo.md`).
 
 ## Cómo correrlo
 
@@ -27,7 +27,7 @@ npm run preview:api
 
 Mientras no existe el backend de MATU-19, `doble/servidor.ts` es un middleware de Vite que responde `POST /v1/relevo/presentacion`, `POST /v1/relevo/canje` y `GET /v1/relevo/ficha` por HTTP, con la cookie HttpOnly, los códigos, el cuerpo RFC 7807 y las cabeceras del contrato. Se activa en `npm run dev` y en `npm run preview`, y se apaga con `--mode api`. Vive fuera de `src/` y **no entra al build**: `web/dist` solo trae la aplicación.
 
-En `http://localhost:5173/` (solo en desarrollo) hay una lista con un enlace de ejemplo por estado. El PIN correcto es **4821**. Los tokens están en `doble/escenarios.ts`:
+En `http://localhost:5173/ejemplos` (solo en desarrollo) están las cuentas de ejemplo de la familia y un enlace de ejemplo del relevo por estado. El PIN correcto es **4821**. Los tokens están en `doble/escenarios.ts`:
 
 | Token (`/r#…`) | Qué muestra |
 |---|---|
@@ -46,9 +46,17 @@ En `http://localhost:5173/` (solo en desarrollo) hay una lista con un enlace de 
 
 Los intentos y las sesiones del doble viven en memoria: se reinicia `npm run dev` para volver a cero.
 
+## El doble de la app de la familia (MATU-39)
+
+`doble/familia.ts` responde `POST /v1/usuarios`, `POST /v1/sesiones`, `…/renovar` (con la cookie HttpOnly `matu-refresh-doble`, que rota), `…/cerrar`, `GET` y `POST /v1/grupos`, las personas del grupo y la ficha con `ETag`, 412, 428 y 422. La contraseña de todas las cuentas de ejemplo es `contrasena-ejemplo`; la lista con qué muestra cada una está en `/ejemplos`. Las cuentas nuevas se crean con cualquier correo y empiezan sin grupo (primera visita). Todo vive en memoria: reinicia `npm run dev` para volver a cero.
+
+La entrada en el cliente (`src/compartido/api/sesion.ts`): el access token solo en memoria, renovación con la cookie al abrir y ante un 401, serializada entre pestañas con `navigator.locks` y avisada con `BroadcastChannel('matu-entrada')` sin el token.
+
+`npm run contrato:familia` regenera `src/compartido/api/familia.openapi.ts` desde `docs/api/openapi.json`.
+
 ## Para servirlo desde la API
 
-Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r`. La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
+Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
 
 ## Estructura
 
@@ -61,6 +69,7 @@ web/
     │   ├── api/           cliente Axios, tipos generados del contrato, rutas del relevo
     │   ├── ui/            Boton, Logo, DistintivoPiloto
     │   └── fechas.ts      DD/MM/AAAA y HH:MM en la hora de Chile
+    ├── familia/           la app de la familia: ruteo, estado, marco, alta, ficha, dictado
     ├── relevo/            la página /r: textos, estados, pantallas
     └── desarrollo/        lista de ejemplos (solo en desarrollo)
 ```

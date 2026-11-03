@@ -58,7 +58,7 @@ def test_la_declaracion_del_consumo_es_propia(calidad: CalidadOtorgante) -> None
 def test_cuidador_de_hecho_con_aviso_queda_con_revision_anual() -> None:
     repo = Repo()
     resultado = otorgar_autorizacion_consumo(
-        _solicitud(CalidadOtorgante.CUIDADOR_DE_HECHO, aviso=AvisoMostrado("aviso_cuidador_de_hecho", "1.0")),
+        _solicitud(CalidadOtorgante.CUIDADOR_DE_HECHO, aviso=AvisoMostrado("aviso_cuidador_de_hecho", "1.1")),
         "0.10", RelojFijo(AHORA), repo,
     )
     [guardada] = repo.guardadas

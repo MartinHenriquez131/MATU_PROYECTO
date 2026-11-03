@@ -76,7 +76,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe. **Nuevo uso:** `PATCH` de un perfil de consumo con `If-Match` desactualizado, con el perfil en `actual` | Existe (por defecto del 412) |
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
 | `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match`. **Nuevo uso:** `PATCH` de un perfil de consumo sin `If-Match` o con `If-Match: *` | Existe (por defecto del 428) |
-| `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Faltaba en este catálogo |
+| `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Declarado en `openapi.json` con esquema y ejemplo desde MATU-39 (decisión 67) |
 | `/errores/autorizacion-vigente` | 409 | `POST …/consentimientos`: la persona ya tiene una autorización no revocada para esa finalidad (`consentimiento_vigente_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-duplicado` | 409 | `POST …/consumo`: ya hay un perfil activo de la persona con ese `producto_id` (`perfil_consumo_producto_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-inactivo` | 409 | `PATCH …/consumo/{perfil_id}` sobre un perfil desactivado | **Nuevo** (MATU-36) |
@@ -98,9 +98,9 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 
 | Método y ruta | Historia | Estado | Contrato |
 |---|---|---|---|
-| `POST /v1/usuarios` | MATU-04 | Implementado | `openapi.json` |
+| `POST /v1/usuarios` | MATU-04, MATU-39 | Implementado. Pide `telefono`, celular chileno obligatorio (decisión 65) | `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con el cambio de MATU-38 | `openapi.json` |
-| `GET /v1/grupos` | MATU-06 | Implementado. Devuelve `id`, `nombre` y `rol`: la app elige el grupo para `X-Grupo-Id` y sabe su rol | `openapi.json` |
+| `GET /v1/grupos` | MATU-06, MATU-39 | Implementado. Devuelve `id`, `nombre`, `rol` y `puede_ver_plan` (decisión 66): la app elige el grupo para `X-Grupo-Id`, sabe su rol y si ve la ficha | `openapi.json` |
 | `POST /v1/grupos` | MATU-06 | Implementado | `openapi.json` |
 | `GET /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado, con la vista de cada rol | `openapi.json` |
 | `POST /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado | `openapi.json` |
@@ -371,6 +371,14 @@ Implementado el 02-11 en la rama `matu-38-refresh-rotativo` (RF-37). Las siete r
 - **P3-1 · Lectura de la decisión 49.** Hoy hasta 5 fallos por email no hay espera: el 6.º fallo fija la primera espera, y el primer intento que la recibe es el 7.º. Confirmar con Jorge si "sin demora hasta 5 fallos" significa eso. No se cambió.
 - **P3-3 · Volumen de la auditoría.** Un atacante repartido en muchas IP puede inflar `auditoria` con `sesion.inicio_fallido` (una fila por fallo, sin tope por IP).
 - **Despliegue.** La API no se despliega a usuarios reales hasta que la política de privacidad 0.10 esté aprobada (decisión 62).
+
+## Decisiones de Jorge del 03-11 (MATU-39)
+
+Las pidió el diseño de la app de familia (`docs/diseno/matu-39-app-familia.md`). Siguen la numeración de `main` (la última era la 64).
+
+65. **`POST /v1/usuarios` pide el celular, obligatorio** (`telefono`). Celular chileno: 9 y ocho dígitos, con o sin `+56`/`56` y con o sin espacios; se guarda en E.164 (`+569XXXXXXXX`) en la columna `usuario.telefono`, que ya existía. Un valor que no es celular (también un fijo) responde 422 con `errores[].tipo = celular_invalido` y sin repetir el valor; si falta, 422 `missing`. La respuesta 201 no lo devuelve (sigue `{id, nombre, email}`). Nunca va a logs ni a la auditoría. Sirve para recuperar el acceso (MATU-57). La regla vive en `backend/app/shared/celular.py`, la misma que usa el teléfono del relevo. **Sin migración:** la columna sigue admitiendo nulos porque hay cuentas creadas antes de este cambio; el formato lo valida la API. Un `CHECK` de formato (`telefono IS NULL OR telefono ~ '^\+569[0-9]{8}$'`) queda pendiente para no chocar con la migración 0009 de MATU-36, que se trabaja en paralelo.
+66. **`GET /v1/grupos` (y la respuesta 201 de `POST /v1/grupos`) agrega `puede_ver_plan`**, booleano por grupo para el rol de quien consulta: `true` para `admin` y `cuidador`, para `pagador` solo con `membresia.puede_ver_plan`, y `false` para `observador`. Es la misma regla que `app_puede_ver_plan()` de la RLS y que `care_plan/domain/ficha.puede_leer`. La app no ofrece la ficha cuando es `false`, en vez de esperar el 404. No cambia ninguna autorización: la ficha sigue respondiendo 404 a quien no la ve.
+67. **El 409 `email-registrado` de `POST /v1/usuarios` se declara en `openapi.json`** con esquema (en línea, `type` constante `/errores/email-registrado`) y ejemplo, igual que el 412 y el 428 de la ficha. Ya existía en la implementación desde MATU-04 y en el catálogo de arriba. El 422 de la misma ruta se declara como `application/problem+json` sin esquema, como los demás.
 
 ## Decisiones de Jorge del 31-10 (MATU-32)
 

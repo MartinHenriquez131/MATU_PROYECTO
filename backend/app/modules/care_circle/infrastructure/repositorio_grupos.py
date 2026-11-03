@@ -19,7 +19,7 @@ _INSERTAR_MEMBRESIA = text("INSERT INTO membresia (grupo_id, usuario_id, rol) VA
 # Filtra por membresía activa de forma explícita: la política grupo_creador_ver deja ver al creador
 # su grupo aunque se haya retirado de él, y ese grupo no debe aparecer en su lista
 _LISTAR = text(
-    "SELECT g.id, g.nombre, m.rol FROM grupo_familiar g"
+    "SELECT g.id, g.nombre, m.rol, m.puede_ver_plan FROM grupo_familiar g"
     " JOIN membresia m ON m.grupo_id = g.id"
     " WHERE m.usuario_id = :usuario_id AND m.estado = 'activa'"
     " ORDER BY g.creado_en, g.id"
@@ -41,7 +41,9 @@ class RepositorioGruposSQL:
     def listar(self, usuario_id: uuid.UUID) -> list[GrupoDelUsuario]:
         with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
             filas = sesion.execute(_LISTAR, {"usuario_id": usuario_id}).all()
-        return [GrupoDelUsuario(id=f.id, nombre=f.nombre, rol=f.rol) for f in filas]
+        return [
+            GrupoDelUsuario(id=f.id, nombre=f.nombre, rol=f.rol, permiso_plan=bool(f.puede_ver_plan)) for f in filas
+        ]
 
     def _insertar_grupo(self, sesion: Session, grupo: NuevoGrupo) -> None:
         sesion.execute(_INSERTAR_GRUPO, {"id": grupo.id, "nombre": grupo.nombre, "creado_por": grupo.creado_por})

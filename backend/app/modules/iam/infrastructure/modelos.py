@@ -18,6 +18,7 @@ class UsuarioORM(Base):
     email: Mapped[str] = mapped_column(Text)
     nombre: Mapped[str] = mapped_column(Text)
     password_hash: Mapped[str] = mapped_column(Text)
+    telefono: Mapped[str | None] = mapped_column(Text)
 
 
 class IndiceCredencialORM(Base):
