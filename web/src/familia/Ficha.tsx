@@ -100,7 +100,7 @@ function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revi
                   href={FICHA.chileAtiendeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-12 flex-wrap items-center gap-x-1.5 font-bold text-turquesa underline underline-offset-4"
+                  className="inline-flex min-h-12 min-w-0 max-w-full flex-wrap items-center gap-x-1.5 font-bold text-turquesa underline underline-offset-4 wrap-anywhere"
                 >
                   {FICHA.chileAtiende}
                   <ExternalLink aria-hidden className="size-4 shrink-0" />
@@ -209,7 +209,7 @@ export function TuFicha() {
         <section aria-label="Campos de la ficha" className="flex min-w-0 flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold leading-snug">
-              <span className="cifras">{FICHA.avance(hechos)}</span>
+              <span className="cifras">{hechos}</span> {FICHA.avanceResto}
             </h2>
             <BarraCampos hechos={hechos} className="w-40" />
           </div>
@@ -431,6 +431,7 @@ function EditorCampo({
               }}
               aria-invalid={falla === 'muy-largo' ? true : undefined}
               aria-describedby="campo-cuenta campo-ejemplo"
+              // Alto mínimo: 8 renglones de la utilidad `renglones` (1,75rem cada uno) más el py-3 (1,5rem).
               className={`renglones min-h-[calc(8*1.75rem+1.5rem)] w-full resize-y rounded-xl bg-hoja px-4 py-3 leading-7 ring-2 ring-inset focus-visible:ring-turquesa ${
                 falla === 'muy-largo' ? 'ring-pronto' : 'ring-borde'
               }`}

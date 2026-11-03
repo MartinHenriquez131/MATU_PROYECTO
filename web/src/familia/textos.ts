@@ -132,6 +132,8 @@ export const FICHA = {
   titulo: 'Ficha de relevo', // [lenguaje 5.4]
   bajada: 'Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado y puedes compartir solo algunos.',
   avance: (n: number) => `${n} de 3 campos listos`,
+  /** Lo que va después del número, que lleva `cifras` aparte. */
+  avanceResto: 'de 3 campos listos',
   listo: 'Listo',
   falta: 'Falta',
   completar: (c: string) => `Completar «${c}»`,
