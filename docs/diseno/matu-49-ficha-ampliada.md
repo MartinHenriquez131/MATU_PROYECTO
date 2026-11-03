@@ -202,7 +202,7 @@ Igual que MATU-39 3.7: editor a la izquierda, «Así la ve quien te reemplaza» 
 - Mientras: «Guardando…», `aria-busy`, `textarea` `readOnly`.
 - **200/201:** vuelve a `/ficha` con el foco en el `h1` y una `Nota tono="ok"` con `CheckCircle2` arriba:
   - Primera vez: «Agregaste «`{título}`».» [PROPUESTO]
-  - Cambio: ««`{título}`» guardado.» (mismo patrón de MATU-39 3.7)
+  - Cambio: «Guardamos «`{título}`».» (aprobado por Jorge el 03-11; concuerda con cualquier título)
   - Si el grupo tiene accesos de relevo vigentes y la sección es nueva, se suma en la misma nota: «Quien ya tiene un enlace no la verá. Para que la vea, crea un enlace nuevo.» [PROPUESTO] (decisión 3 del 03/11). Si el cliente no sabe si hay accesos vigentes, la frase va siempre que la sección sea nueva.
 
 ### 4.5 Quitar (borra)
