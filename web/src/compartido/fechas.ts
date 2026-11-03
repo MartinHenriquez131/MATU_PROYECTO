@@ -15,3 +15,24 @@ export function fechaYHoraDeChile(instante: Date): { fecha: string; hora: string
   const p = Object.fromEntries(FORMATO.formatToParts(instante).map((x) => [x.type, x.value]))
   return { fecha: `${p.day}/${p.month}/${p.year}`, hora: `${p.hour}:${p.minute}` }
 }
+
+const DIA_SEMANA = new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', weekday: 'long' })
+
+/** Días de calendario de Chile entre `instante` y `ahora` (0 = hoy, 1 = ayer). */
+export function diasAtrasEnChile(instante: Date, ahora: Date): number {
+  const dia = (d: Date) => {
+    const [dd, mm, aaaa] = fechaYHoraDeChile(d).fecha.split('/').map(Number)
+    return Date.UTC(aaaa, mm - 1, dd)
+  }
+  return Math.round((dia(ahora) - dia(instante)) / 86_400_000)
+}
+
+/**
+ * El día de una fecha, relativo hasta 6 días atrás y absoluto desde el 7.º (decisión D3 de MATU-45):
+ * «Hoy», «Ayer», «El sábado», «El 24/10/2026». Con `minuscula`, para ir dentro de una frase.
+ */
+export function diaRelativoDeChile(instante: Date, ahora: Date, minuscula = false): string {
+  const n = diasAtrasEnChile(instante, ahora)
+  const texto = n <= 0 ? 'Hoy' : n === 1 ? 'Ayer' : n <= 6 ? `El ${DIA_SEMANA.format(instante)}` : `El ${fechaYHoraDeChile(instante).fecha}`
+  return minuscula ? texto.charAt(0).toLowerCase() + texto.slice(1) : texto
+}

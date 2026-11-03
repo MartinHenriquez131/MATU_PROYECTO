@@ -15,6 +15,7 @@ import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 import { CONFLICTO, ESTADOS, FICHA, GENERAL } from './textos'
 import { useDemora } from './Estados'
+import { UltimasAperturas } from './QuienLaVio'
 
 type Bloqueo = 'sin-consentimiento' | 'revision-vencida' | 'sin-acceso'
 type Carga = { tipo: 'cargando' } | { tipo: 'lista' } | { tipo: 'bloqueo'; bloqueo: Bloqueo } | { tipo: 'red' }
@@ -249,6 +250,7 @@ export function TuFicha() {
             <Lock aria-hidden className="mt-0.5 size-4.5 shrink-0" />
             {FICHA.cifrado}
           </p>
+          <UltimasAperturas />
         </section>
         <VistaPrevia titulo={FICHA.vistaPrevia} textos={textosDe(ficha)} />
       </div>

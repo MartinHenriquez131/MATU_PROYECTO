@@ -254,10 +254,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver quién abrió la ficha con un acceso de relevo
+         * @description Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.
+         *
+         *     Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).
+         *
+         *     Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.
+         */
+        get: operations["listarAperturasRelevo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccesoDeAperturaVista
+         * @description El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono.
+         */
+        AccesoDeAperturaVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+        };
+        /** AperturaVista */
+        AperturaVista: {
+            /**
+             * Ocurrido En
+             * Format: date-time
+             */
+            ocurrido_en: string;
+            tipo: components["schemas"]["TipoApertura"];
+            acceso: components["schemas"]["AccesoDeAperturaVista"];
+        };
         /** AutorVista */
         AutorVista: {
             /**
@@ -490,6 +537,13 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ListaAperturasVista */
+        ListaAperturasVista: {
+            /** Items */
+            items: components["schemas"]["AperturaVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
         /** ListaDispositivos */
         ListaDispositivos: {
             /** Items */
@@ -660,6 +714,11 @@ export interface components {
             /** Contrasena */
             contrasena: string;
         };
+        /**
+         * TipoApertura
+         * @enum {string}
+         */
+        TipoApertura: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1497,6 +1556,94 @@ export interface operations {
             };
             /** @description La custodia de la clave maestra no está configurada */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listarAperturasRelevo: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Página de aperturas. */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:02:00Z",
+                     *           "tipo": "apertura",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           }
+                     *         },
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:01:30Z",
+                     *           "tipo": "pin_incorrecto",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           }
+                     *         },
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:01:00Z",
+                     *           "tipo": "presentacion",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           }
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ListaAperturasVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

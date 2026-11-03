@@ -1276,6 +1276,153 @@
         }
       }
     },
+    "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
+      "get": {
+        "tags": [
+          "accesos de relevo"
+        ],
+        "summary": "Ver quién abrió la ficha con un acceso de relevo",
+        "description": "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\nListan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\nLas lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.",
+        "operationId": "listarAperturasRelevo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de aperturas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaAperturasVista"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "ocurrido_en": "2026-10-31T13:02:00Z",
+                      "tipo": "apertura",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    },
+                    {
+                      "ocurrido_en": "2026-10-31T13:01:30Z",
+                      "tipo": "pin_incorrecto",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    },
+                    {
+                      "ocurrido_en": "2026-10-31T13:01:00Z",
+                      "tipo": "presentacion",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "cursor inválido o limite fuera de 1 a 100",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "x-matu-historia": "MATU-45 (RF-08)"
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/consentimientos": {
       "post": {
         "tags": [
@@ -2672,6 +2819,27 @@
   },
   "components": {
     "schemas": {
+      "AccesoDeAperturaVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre_relevo"
+        ],
+        "title": "AccesoDeAperturaVista",
+        "description": "El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono."
+      },
       "AlertaVista": {
         "properties": {
           "id": {
@@ -2736,6 +2904,29 @@
         ],
         "title": "AlertaVista",
         "description": "Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil."
+      },
+      "AperturaVista": {
+        "properties": {
+          "ocurrido_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ocurrido En"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoApertura"
+          },
+          "acceso": {
+            "$ref": "#/components/schemas/AccesoDeAperturaVista"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ocurrido_en",
+          "tipo",
+          "acceso"
+        ],
+        "title": "AperturaVista"
       },
       "AutorPerfilVista": {
         "properties": {
@@ -3518,6 +3709,35 @@
           "siguiente_cursor"
         ],
         "title": "ListaAlertas"
+      },
+      "ListaAperturasVista": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AperturaVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaAperturasVista"
       },
       "ListaDispositivos": {
         "properties": {
@@ -4305,6 +4525,16 @@
         ],
         "title": "SolicitudSesion",
         "description": "Cuerpo de POST /v1/sesiones.\n\nSin largo mínimo ni forma de email: un 422 por esas razones distinguiría casos que el login\nresponde siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes."
+      },
+      "TipoApertura": {
+        "type": "string",
+        "enum": [
+          "presentacion",
+          "apertura",
+          "pin_incorrecto",
+          "bloqueo"
+        ],
+        "title": "TipoApertura"
       },
       "UnidadConsumo": {
         "type": "string",
