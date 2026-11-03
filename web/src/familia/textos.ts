@@ -149,7 +149,7 @@ export const FICHA = {
   guardar: 'Guardar',
   guardando: 'Guardando…',
   seguirDespues: 'Seguir después',
-  volverALaFicha: 'Volver a la ficha', // [PROPUESTO]
+  volverALaFicha: 'Volver a la ficha', // aprobado por Jorge el 03-11
   // Dictado (3.7.1)
   dictar: 'Dictar en vez de escribir', // [lenguaje 5.4]
   escuchando: 'Escuchando…', // [lenguaje 5.4]
@@ -232,7 +232,7 @@ export const QUIEN = {
   anteriores: 'Ver aperturas anteriores', // aprobado por Jorge el 03-11
   seAgregaron: (n: number) => `Se agregaron ${n} ${n === 1 ? 'línea' : 'líneas'}.`, // aprobado por Jorge el 03-11
   noHayMas: 'No hay más.', // aprobado por Jorge el 03-11
-  nadieDeMatu: 'Nadie de MATU puede abrir la ficha.', // [demo], aprobado por Jorge el 03-11
+  nadieDeMatu: 'La ficha se guarda cifrada.', // aprobado por Jorge el 03-11 (reemplaza «Nadie de MATU puede abrir la ficha.», no verificable en el semestre)
   ultimas: 'Últimas aperturas', // [demo]
   verTodo: 'Ver todo en Quién la vio', // [demo]
 }
