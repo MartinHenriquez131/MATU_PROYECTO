@@ -409,3 +409,35 @@ def test_0008_acota_operacion_y_baja_al_esquema_de_0007(base_desechable):
     for parte, filas in esquema_0007.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0012 (MATU-57): celular verificado, su canal y el trigger que lo limpia al cambiar el número
+
+
+@pytest.mark.rf("RF-37")
+def test_0012_celular_verificado_y_baja_al_esquema_de_0008(base_desechable):
+    alembic("upgrade", "0008")
+    esquema_0008 = catalogo()
+
+    alembic("upgrade", "0012")
+    columnas = dict(consultar(
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'usuario'"
+        " AND column_name IN ('celular_verificado_en', 'celular_canal')"))
+    assert columnas == {"celular_verificado_en": "timestamp with time zone", "celular_canal": "text"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(
+            "INSERT INTO usuario (id, email, nombre, password_hash, telefono, celular_verificado_en)"
+            " VALUES (%s, 'a@correo.ejemplo', 'Persona A', 'h', '+56900000001', now())", (U,))
+        c.execute("UPDATE usuario SET nombre = 'Persona B' WHERE id = %s", (U,))
+        assert c.execute("SELECT celular_verificado_en IS NOT NULL FROM usuario").fetchone() == (True,)
+        c.execute("UPDATE usuario SET telefono = '+56900000002' WHERE id = %s", (U,))
+        assert c.execute("SELECT celular_verificado_en IS NULL, celular_canal FROM usuario").fetchone() == (True, "sms")
+        with pytest.raises(psycopg.errors.CheckViolation):
+            c.execute("UPDATE usuario SET celular_canal = 'paloma'")
+        c.execute("DELETE FROM usuario")
+
+    alembic("downgrade", "0008")
+    despues = catalogo()
+    for parte, filas in esquema_0008.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
