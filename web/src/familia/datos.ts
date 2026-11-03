@@ -45,7 +45,7 @@ export const campoDeRuta = (r: string) => CAMPOS.find((c) => c.ruta === r) ?? nu
 export type Apoyo = 'autovalente_con_supervision' | 'apoyo_parcial' | 'apoyo_total'
 
 export const APOYOS: { valor: Apoyo; texto: string }[] = [
-  { valor: 'autovalente_con_supervision', texto: 'Se maneja sola, con supervisión' },
+  { valor: 'autovalente_con_supervision', texto: 'Se maneja con autonomía, con supervisión' },
   { valor: 'apoyo_parcial', texto: 'Necesita apoyo en varias cosas' },
   { valor: 'apoyo_total', texto: 'Necesita apoyo en todo' },
 ]
@@ -59,21 +59,21 @@ export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detal
   {
     valor: 'titular',
     texto: (pila) => `${pila} lo autoriza y yo lo registro`,
-    detalle: (pila) => `${pila} decide por sí misma y tú anotas su decisión.`,
+    detalle: (pila) => `${pila} decide por su cuenta y tú anotas su decisión.`,
     declaracion:
       'Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Yo solo registro su decisión.',
   },
   {
     valor: 'representante_legal',
     texto: () => 'Soy su representante legal',
-    detalle: () => 'Tienes un nombramiento legal para representarla.',
+    detalle: () => 'Tienes un nombramiento legal para representar a esta persona.',
     declaracion:
       'Declaro que soy representante legal de la persona que cuido y que la referencia que indico corresponde al documento que lo acredita. Como su representante, autorizo a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente.',
   },
   {
     valor: 'cuidador_de_hecho',
-    texto: () => 'La cuido, pero no soy su representante legal', // decisión de Jorge
-    detalle: () => 'La cuidas en el día a día, sin un nombramiento legal.',
+    texto: () => 'Cuido a esta persona, pero no soy su representante legal', // decisión de Jorge
+    detalle: () => 'Cuidas a esta persona en el día a día, sin un nombramiento legal.',
     declaracion:
       'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
   },
