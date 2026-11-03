@@ -37,7 +37,7 @@ docs/api/
 | `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
 | `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado. En `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
 | `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
@@ -106,7 +106,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado | `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado | `relevo.openapi.yaml` |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar | `relevo.openapi.yaml` (su `x-matu-historia` todavía dice MATU-19) |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado | `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
 | `POST /v1/sesiones/cerrar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
 | `GET /v1/dispositivos` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
@@ -314,7 +314,7 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 - **Migración 0007** (era 0006 hasta el merge del PR #25, que tomó ese número): `indice_token.revocado_en` (decisión 23), la política `acceso_relevo_propio` (FOR ALL) reemplazada por `acceso_relevo_leer` (SELECT) y `acceso_relevo_contar` (UPDATE) más un trigger que limita al relevo a `pin_intentos_fallidos`, `usos` y `ultimo_uso_en`, y la función de la decisión 33.
 - **Canje sin `PEPPER_PIN`:** 503 `/errores/servicio-no-disponible` después de los 410/423 y antes de comparar el PIN. Tampoco con Redis caído (503). El contrato lo declara como `RelevoSinServicio` en el canje y en la ficha. La sesión en Redis se crea después del commit del canje: si Redis falla, queda `relevo.canje` sin sesión y se responde 503.
 - **Sin entrada en `indice_token`** con una cookie válida (purgado tras vencer), la ficha responde 410 `relevo-vencido`.
-- **429 por IP** (MATU-25) y **`/plan/aperturas`** (sprint 3) no están implementados.
+- **429 por IP** (MATU-25) no está implementado. **`/plan/aperturas`** lo implementa MATU-45 (ver la sección de MATU-45).
 - **Un 500** lleva `Cache-Control: no-store` siempre y, bajo `/v1/relevo/`, también `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. Lo pone el manejador de `app/core/errores.py`, porque el 500 lo arma `ServerErrorMiddleware` por fuera del middleware de cabeceras.
 - **Privilegios del dueño para `relevo_autorizacion_vigente`.** La función corre como su dueño (`matu_owner`). Con un dueño sin superusuario ni `BYPASSRLS`, como en CI y como manda `00_roles.sql`, las políticas que alcanzan sus lecturas (por ejemplo `plan_familia`, que llama a `app_puede_ver_plan()`) leen `membresia`: el dueño necesita `SELECT` sobre `membresia`. El QA lo comprobó con un rol no superusuario. En la base local de desarrollo `matu_owner` es superusuario y no lo nota: revisar cómo se crearon los roles allí.
 
@@ -451,3 +451,12 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 - **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
 - **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
 - **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
+
+## MATU-45 · Ver quién abrió la ficha (RF-08)
+
+- **`GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` pasa a `openapi.json`** y sale de `propuestos/relevo.openapi.yaml` (regla de arriba). Se exportó solo esta ruta y sus cuatro esquemas (`ListaAperturasVista`, `AperturaVista`, `AccesoDeAperturaVista`, `TipoApertura`) desde `app.openapi()`. `backend/tests/modules/care_plan/test_aperturas_contrato.py` falla si cambian sin volver a exportar. Las demás rutas del relevo siguen en el propuesto.
+- **Qué devuelve.** Las filas de `auditoria` con `actor_tipo = 'relevo'` y acción `relevo.presentar`, `relevo.abrir`, `relevo.pin_incorrecto` o `relevo.bloqueo` de los accesos del plan de la persona, del más reciente al más antiguo (`ocurrido_en`, y el `id` de auditoría como desempate). `relevo.canje` no se lista: el contrato no lo enumera. Cada ítem trae `ocurrido_en`, `tipo` y `acceso` con `id` y `nombre_relevo` (el nombre que puso la familia al compartir, como en la lista de accesos). Nunca el teléfono, la IP, el `request_id`, el token ni el PIN, para ningún rol.
+- **Quién lista.** `admin`, `cuidador` y `pagador` con `puede_ver_plan`, con la misma dependencia que la lista de accesos (`persona_para_listar`): otro rol, otro grupo, persona inexistente o id no UUID responden el mismo **404**. No exige consentimiento vigente (decisión 18). Sin plan, la lista viene vacía y no se crea el plan.
+- **Paginación.** `cursor` opaco (base64url de `<ocurrido_en>|<id de auditoría>`, distinto del de accesos porque el `id` de `auditoria` es un `bigint`) y `limite` de 1 a 100, 20 por omisión. Cursor inválido o `limite` fuera de rango: **422** RFC 7807.
+- **Migración 0010** (`down_revision` 0008; 0009 es de MATU-36 en otra rama, y al fusionar las dos se encadena 0010 después de 0009 sin cambiar el SQL). Desde 0005 solo el `admin` leía las filas del relevo de su grupo. 0010 agrega la política `auditoria_aperturas_relevo` (FOR SELECT): filas del grupo del contexto, `actor_tipo = 'relevo'`, una de las cuatro acciones y `app_puede_ver_plan()`. No abre `plan.leer` ni las demás filas de los miembros al cuidador.
+- **Diferencias con el propuesto que se aceptan**, las mismas de la ficha: los 401, 404 y 422 se declaran como `application/problem+json` sin esquema y sin cabeceras, `cursor` sale como `string | null` y `X-Grupo-Id` como `string | null` sin `format: uuid`. El ejemplo del 200 no trae `siguiente_cursor: null` (FastAPI quita los `null` del ejemplo). `x-matu-historia` dice MATU-45 (RF-08).
