@@ -150,3 +150,69 @@ class SolicitudPush(BaseModel):
         if not push_admitido(valor):
             raise PydanticCustomError("push_no_admitido", "el servicio de avisos de este navegador no está admitido")
         return valor
+
+
+# --- MATU-57: recuperar el acceso y verificar el celular ---------------------------------------------
+
+_CODIGO = Annotated[
+    str,
+    Field(
+        pattern=r"^[0-9]{6}$",
+        json_schema_extra={"examples": ["123456"]},
+        description="El código de 6 dígitos del mensaje. Nunca se registra ni se repite en un error",
+    ),
+]
+
+
+class SolicitudCodigoRecuperacion(BaseModel):
+    """Cuerpo de POST /v1/recuperacion/codigo. Solo el email: nunca se pide el celular para recuperar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[str, Field(max_length=LARGO_MAXIMO_EMAIL)]
+    canal: Annotated[
+        Literal["correo"] | None,
+        Field(
+            description=(
+                "Con \"correo\", el código va al correo aunque el celular esté verificado (reenviar al correo)."
+                " Sin él, va al celular verificado o, si no hay, al correo. La respuesta nunca dice a cuál"
+            )
+        ),
+    ] = None
+
+
+class SolicitudCambioContrasena(BaseModel):
+    """Cuerpo de POST /v1/recuperacion/contrasena. La contraseña nueva cumple lo mismo que en el alta."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[str, Field(max_length=LARGO_MAXIMO_EMAIL)]
+    codigo: _CODIGO
+    contrasena_nueva: Annotated[
+        str, Field(min_length=LARGO_MINIMO_CONTRASENA, max_length=LARGO_MAXIMO_CONTRASENA)
+    ]
+
+
+class SolicitudVerificarCelular(BaseModel):
+    """Cuerpo de POST /v1/cuenta/celular/verificar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    codigo: _CODIGO
+    canal: Annotated[
+        Literal["sms", "whatsapp"],
+        Field(description="Canal preferido del celular. Previsto, pendiente de decisión: por omisión sms"),
+    ] = "sms"
+
+
+class CuentaVista(BaseModel):
+    """GET /v1/cuenta: la cuenta propia. El celular va enmascarado, nunca completo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    nombre: str
+    email: str
+    celular_enmascarado: Annotated[str | None, Field(examples=["+56 9 •••• ••37"])]
+    celular_verificado: bool
+    celular_canal: Literal["sms", "whatsapp"]
