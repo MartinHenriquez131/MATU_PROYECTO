@@ -515,3 +515,41 @@ def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -
     assert "set-cookie" not in respuesta.headers
     assert orden == ["auditado"]
     assert _acciones(acceso_id) == ["relevo.canje"]
+
+
+# --- MATU-25 · Límite por IP del relevo (decisión 29) ----------------------------------------------------
+
+
+def test_canje_429_por_ip_sin_tocar_el_acceso_y_vuelve_a_la_hora(entorno: EntornoAbrir) -> None:
+    """El 11.º canje de la hora desde la misma IP responde 429 aunque el token y el PIN sean correctos: no
+    suma intento, no audita y no crea sesión. A la hora del primero, el mismo canje entra."""
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(10):
+        assert entorno.relevo.post("/v1/relevo/canje", json={"token": token}).status_code == 422
+    entorno.reloj.avanzar(timedelta(minutes=30))
+
+    respuesta = entorno.canjear(token, pin)
+    cuerpo = _problema(respuesta, 429, "demasiadas-peticiones")
+    assert respuesta.headers["retry-after"] == str(30 * 60)
+    assert "set-cookie" not in respuesta.headers
+    assert token not in respuesta.text and pin not in str(cuerpo)
+    assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
+    assert _acciones(acceso_id) == []
+
+    entorno.reloj.avanzar(timedelta(minutes=30))
+    assert entorno.canjear(token, pin).status_code == 204
+    assert _acciones(acceso_id) == ["relevo.canje"]
+    log = entorno.ficha.iam.texto_log()
+    assert token not in log and f'"{pin}"' not in log and "testclient" not in log
+
+
+def test_presentacion_429_tras_treinta_y_no_agota_el_canje(entorno: EntornoAbrir) -> None:
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(30):
+        assert entorno.presentar(token).status_code == 200
+    _problema(entorno.presentar(token), 429, "demasiadas-peticiones")
+    assert _acciones(acceso_id).count("relevo.presentar") == 30
+    # Contador separado (decisión 29): el canje sigue disponible
+    assert entorno.canjear(token, pin).status_code == 204

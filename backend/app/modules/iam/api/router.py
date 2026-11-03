@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from app.core.config import obtener_configuracion
 from app.core.db import fabrica_sesiones
 from app.core.errores import ErrorMATU
+from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
 from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_reloj
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
@@ -39,6 +40,7 @@ from app.modules.iam.domain.credenciales import EmailYaRegistrado
 from app.modules.iam.domain.sesion import CredencialesInvalidas
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL
+from app.shared.limite_ip import LIMITE_REGISTRO
 from app.shared.puertos import Reloj
 
 log = logging.getLogger("matu.iam")
@@ -63,7 +65,18 @@ def obtener_repositorio_usuarios() -> RepositorioUsuarios:
     return RepositorioUsuariosSQL(fabrica_sesiones())
 
 
-@router.post("/usuarios", status_code=status.HTTP_201_CREATED, response_model=CuentaCreadaRespuesta)
+@router.post(
+    "/usuarios",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CuentaCreadaRespuesta,
+    # MATU-25: 5 cuentas por hora por IP, antes de validar el cuerpo. Mitiga que el 409 revela el email
+    dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
+    responses={
+        409: {"description": "email-registrado", **PROBLEMA},
+        422: {"description": "Cuerpo inválido", **PROBLEMA},
+        **RESPUESTAS_LIMITE,
+    },
+)
 def crear_cuenta(
     solicitud: SolicitudRegistro,
     pepper: Annotated[bytes, Depends(obtener_pepper_email)],
