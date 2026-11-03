@@ -40,8 +40,8 @@ export const CUENTA = {
   celular: 'Tu celular', // [PROPUESTO]
   celularAyuda: 'Para ayudarte a recuperar tu cuenta si olvidas la contraseña.', // [PROPUESTO]
   celularEjemplo: '+56 9',
-  contrasena: 'Una contraseña', // [demo]
-  contrasenaAyuda: 'Al menos 10 caracteres.', // [demo]
+  contrasena: 'Una contraseña', // [demo] // pragma: allowlist secret
+  contrasenaAyuda: 'Al menos 10 caracteres.', // [demo] // pragma: allowlist secret
   mostrar: 'Mostrar', // [PROPUESTO]
   ocultar: 'Ocultar', // [PROPUESTO]
   boton: 'Crear cuenta',
@@ -52,10 +52,10 @@ export const CUENTA = {
   errNombre: 'Escribe tu nombre.', // [PROPUESTO]
   errCorreo: 'Revisa tu correo.', // [PROPUESTO]
   errCelular: 'Escribe un celular de Chile, por ejemplo +56 9 5555 0137.', // [lenguaje 8]
-  errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [demo]
+  errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [demo] // pragma: allowlist secret
   // 422 de la API, por `errores[].campo`
   err422Nombre: 'Escribe tu nombre, de hasta 100 letras.', // [PROPUESTO]
-  err422Contrasena: 'La contraseña necesita entre 10 y 128 caracteres.', // [PROPUESTO]
+  err422Contrasena: 'La contraseña necesita entre 10 y 128 caracteres.', // [PROPUESTO] // pragma: allowlist secret
   registradoTitulo: 'Ese correo ya tiene una cuenta', // [demo]
   registradoTexto: 'Entra con tu contraseña, o usa otro correo.', // [demo]
   registradoBoton: 'Entrar con ese correo', // [demo]
@@ -64,7 +64,7 @@ export const CUENTA = {
 export const ENTRAR = {
   titulo: 'Entrar',
   correo: 'Tu correo',
-  contrasena: 'Tu contraseña',
+  contrasena: 'Tu contraseña', // pragma: allowlist secret
   boton: 'Entrar',
   enviando: 'Entrando…',
   faltan: 'Escribe tu correo y tu contraseña.', // [PROPUESTO]

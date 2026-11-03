@@ -1,7 +1,7 @@
 // Cuentas de ejemplo del doble de la familia: solo datos, sin dependencias de Node, porque las
 // importa también la lista de /ejemplos en el navegador. Datos sintéticos.
 
-export const CONTRASENA_DE_EJEMPLO = 'contrasena-ejemplo'
+export const CONTRASENA_DE_EJEMPLO = 'contrasena-ejemplo' // pragma: allowlist secret
 
 export interface CuentaDeEjemplo {
   email: string
