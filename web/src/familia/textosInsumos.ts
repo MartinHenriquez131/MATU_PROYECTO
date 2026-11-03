@@ -208,7 +208,7 @@ export const ALERTAS = {
   okCantidadSinDias: (c: string, nombre: string) => `Anotamos tu compra de ${nombre}: ${c}. Si te quedan menos, cámbialo en la lista.`, // aprobado por Jorge el 03-11
   okSinCantidad: (nombre: string) => `Listo. No te avisaremos de nuevo por ${nombre} hasta que cambie la fecha estimada.`, // aprobado por Jorge el 03-11
   errCerrada: 'Alguien de tu familia ya resolvió este aviso.', // aprobado por Jorge el 03-11
-  errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo resolvías. Revisa cómo quedó y vuelve a intentarlo.`, // [PROPUESTO] desde Insumos 3.5 y lenguaje 6.2
+  errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo resolvías. Revisa cómo quedó y vuelve a intentarlo.`, // aprobado por Jorge el 03-11
   errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // aprobado por Jorge el 03-11
   errRol: 'Solo quien administra o cuida puede resolver un aviso.', // aprobado por Jorge el 03-11
   errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // aprobado por Jorge el 03-11
