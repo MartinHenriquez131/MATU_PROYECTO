@@ -849,3 +849,107 @@ def test_revocar_registra_fecha_una_vez(cx):
     assert cur.rowcount == 1
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("UPDATE consentimiento SET revocado_en = now() + interval '1 day' WHERE id = %s", (cid,))
+
+
+# ---- sesión y dispositivos (0008, MATU-38): operación no lee push_token ni token_hash
+
+DISP_A = uuid.UUID("00000000-0000-0000-0000-0000000009a1")
+DISP_B = uuid.UUID("00000000-0000-0000-0000-0000000009b1")
+
+
+def _sembrar_sesiones(cx):
+    """Un dispositivo con push_token y una sesión por usuario (A y B), como superusuario en la transacción."""
+    for usuario, dispositivo, semilla in ((U_ADMIN_A, DISP_A, "a"), (U_ADMIN_B, DISP_B, "b")):
+        cx.execute(
+            "INSERT INTO dispositivo (id, usuario_id, plataforma, nombre, push_token, ultimo_uso_en)"
+            " VALUES (%s, %s, 'web', 'Chrome en Android', %s, now())",
+            (dispositivo, usuario, f"https://fcm.googleapis.com/fcm/send/{semilla}"),
+        )
+        cx.execute(
+            "INSERT INTO sesion_refresh (usuario_id, dispositivo_id, familia_id, token_hash, expira_en)"
+            " VALUES (%s, %s, gen_random_uuid(), sha256(%s::bytea), now() + interval '30 days')",
+            (usuario, dispositivo, f"refresh-{semilla}".encode()),
+        )
+
+
+@pytest.mark.rf("RF-37")
+def test_operacion_no_lee_push_token_ni_token_hash(cx):
+    _sembrar_sesiones(cx)
+    como(cx, rol="operacion")
+    assert cx.execute("SELECT push_token FROM dispositivo").fetchall() == []
+    assert cx.execute("SELECT token_hash FROM sesion_refresh").fetchall() == []
+    # Tampoco los cambia ni los borra por fuera de la conservación
+    assert cx.execute("UPDATE dispositivo SET push_token = NULL RETURNING id").fetchall() == []
+    assert cx.execute("DELETE FROM sesion_refresh RETURNING id").fetchall() == []
+
+
+@pytest.mark.rf("RF-37")
+def test_conservacion_de_operacion_solo_devuelve_contadores(cx):
+    _sembrar_sesiones(cx)
+    como(cx, rol="operacion")
+    fila = cx.execute(
+        "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())").fetchone()
+    assert fila == (0, 0)
+    columnas = [c.name for c in cx.execute(
+        "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())").description]
+    assert columnas == ["sesiones_borradas", "dispositivos_borrados"]
+
+
+@pytest.mark.rf("RF-37")
+def test_conservacion_sin_rol_de_operacion_falla(cx):
+    como(cx, usuario_id=U_ADMIN_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM iam_conservar(now(), now(), now())")
+
+
+@pytest.mark.rf("RF-37")
+def test_usuario_no_ve_ni_toca_el_dispositivo_ni_la_sesion_de_otro(cx):
+    _sembrar_sesiones(cx)
+    como(cx, usuario_id=U_ADMIN_A)
+    assert [r[0] for r in cx.execute("SELECT id FROM dispositivo").fetchall()] == [DISP_A]
+    assert contar(cx, "sesion_refresh") == 1
+    assert cx.execute(
+        "UPDATE dispositivo SET revocado_en = now() WHERE id = %s RETURNING id", (DISP_B,)).fetchall() == []
+    assert cx.execute("DELETE FROM dispositivo WHERE id = %s RETURNING id", (DISP_B,)).fetchall() == []
+    assert cx.execute(
+        "UPDATE sesion_refresh SET revocado_en = now() WHERE usuario_id = %s RETURNING id", (U_ADMIN_B,)
+    ).fetchall() == []
+
+
+@pytest.mark.rf("RF-37")
+def test_usuario_no_cuelga_una_sesion_de_un_dispositivo_ajeno(cx):
+    _sembrar_sesiones(cx)
+    como(cx, usuario_id=U_ADMIN_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(
+            "INSERT INTO sesion_refresh (usuario_id, dispositivo_id, familia_id, token_hash, expira_en)"
+            " VALUES (%s, %s, gen_random_uuid(), sha256('x'::bytea), now() + interval '1 day')",
+            (U_ADMIN_A, DISP_B),
+        )
+
+
+@pytest.mark.rf("RF-37")
+def test_usuario_no_crea_un_dispositivo_a_nombre_de_otro(cx):
+    como(cx, usuario_id=U_ADMIN_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO dispositivo (usuario_id, plataforma) VALUES (%s, 'web')", (U_ADMIN_B,))
+
+
+@pytest.mark.rf("RF-37")
+def test_conservacion_con_ahora_futuro_falla(cx):
+    _sembrar_sesiones(cx)
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT * FROM iam_conservar(now() + interval '400 days', now() + interval '400 days',"
+                   " now() + interval '430 days')")
+
+
+@pytest.mark.rf("RF-37")
+def test_auditoria_no_admite_la_huella_del_email(cx):
+    """Decisión 64: auditoria.detalle solo admite sesiones_revocadas."""
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(
+            "INSERT INTO auditoria (actor_tipo, accion, entidad, detalle) VALUES ('sistema',"
+            " 'sesion.inicio_fallido', 'usuario', %s::jsonb)",
+            ('{"huella_email": "' + "ab" * 32 + '"}',),
+        )

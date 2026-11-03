@@ -38,13 +38,13 @@ docs/api/
 | `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar |
-| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado en `openapi.json`. **Nuevo:** cambio propuesto en `app-familia.openapi.yaml` (cookie del refresh, dispositivo y 429) |
-| `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `GET /v1/dispositivos` | MATU-38 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
+| `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
+| `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
+| `GET /v1/dispositivos` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
+| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
+| `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
+| `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml`. Solo `finalidad: consumo` |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
@@ -66,7 +66,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/no-autenticado` | 401 | Falta el access token | Existe (por defecto del 401) |
 | `/errores/token-invalido` | 401 | Token inválido, alterado o vencido. En la app de familia significa "renueva" (`POST /v1/sesiones/renovar`) | Existe (MATU-05a) |
 | `/errores/credenciales-invalidas` | 401 | `POST /v1/sesiones`: email o contraseña incorrectos, o cuenta que no puede entrar. El mismo cuerpo en todos los casos | Existe (MATU-05a). Faltaba en este catálogo |
-| `/errores/sesion-expirada` | 401 | `POST /v1/sesiones/renovar`: sin cookie, cookie desconocida, sesión vencida o revocada, o refresh reutilizado (que revoca la familia). El mismo 401, borra la cookie. Significa "vuelve a entrar" (decisión 44) | **Nuevo** (MATU-38) |
+| `/errores/sesion-expirada` | 401 | `POST /v1/sesiones/renovar`: sin cookie, cookie desconocida, sesión vencida o revocada, o refresh reutilizado (que revoca la familia). El mismo 401, borra la cookie. Significa "vuelve a entrar" (decisión 44) | Existe (MATU-38) |
 | `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado`. **Nuevo uso:** en el consumo, sin consentimiento vigente para `consumo`, con el miembro de extensión `finalidad: consumo` (decisión 44) | Existe (MATU-12). MATU-07 no definió uno. El uso en el consumo lo agrega MATU-36 |
 | `/errores/revision-vencida` | 403 | El consentimiento lo dio un cuidador de hecho y venció su revisión anual (decisión 33). **Nuevo uso:** en el consumo, con `finalidad: consumo` | Existe (MATU-12). El uso en el consumo lo agrega MATU-36 |
 | `/errores/no-encontrado` | 404 | No miembro, rol que no alcanza, recurso de otro grupo o inexistente | Existe |
@@ -96,7 +96,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | Método y ruta | Historia | Estado | Contrato |
 |---|---|---|---|
 | `POST /v1/usuarios` | MATU-04 | Implementado | `openapi.json` |
-| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado. Cambio propuesto: cookie del refresh, dispositivo y 429 | `openapi.json`; el cambio en `app-familia.openapi.yaml` |
+| `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con el cambio de MATU-38 | `openapi.json` |
 | `GET /v1/grupos` | MATU-06 | Implementado. Devuelve `id`, `nombre` y `rol`: la app elige el grupo para `X-Grupo-Id` y sabe su rol | `openapi.json` |
 | `POST /v1/grupos` | MATU-06 | Implementado | `openapi.json` |
 | `GET /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado, con la vista de cada rol | `openapi.json` |
@@ -107,12 +107,12 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado | `relevo.openapi.yaml` |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar | `relevo.openapi.yaml` (su `x-matu-historia` todavía dice MATU-19) |
-| `POST /v1/sesiones/renovar` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `POST /v1/sesiones/cerrar` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `GET /v1/dispositivos` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `PUT /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `DELETE /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `POST /v1/sesiones/renovar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
+| `POST /v1/sesiones/cerrar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
+| `GET /v1/dispositivos` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
+| `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
+| `PUT /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | Implementado (MATU-38) | `openapi.json` |
+| `DELETE /v1/dispositivos/actual/push` | MATU-38, para MATU-41 | Implementado (MATU-38) | `openapi.json` |
 | `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | **Nuevo**, propuesto. Aprobado por Jorge (decisiones 37 y 55). Pendiente de la política 0.10 | `app-familia.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
@@ -327,6 +327,46 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 - **Alertas y cambios del perfil (MATU-37):** cuando un `PATCH` cambia `fecha_quiebre_estimada`, una alerta abierta con otra `fecha_prevista` queda desalineada. Este contrato no decide qué pasa con ella (cerrarla o dejar que el trabajo diario cree la nueva): lo decide MATU-37 y, si cambia lo que ve la app, actualiza este contrato.
 - **MATU-41** lee el `push_token` solo para enviar, y el push lleva un texto genérico, sin el nombre de la persona ni del insumo (decisión 60). El correo puede llevar el detalle.
 - **Logs:** la línea de la petición lleva la plantilla de la ruta, el usuario y el grupo, nunca el cuerpo. La reutilización de un refresh se registra como evento de seguridad con el id de la familia, sin el token.
+
+## Notas de implementación de MATU-38
+
+Implementado el 02-11 en la rama `matu-38-refresh-rotativo` (RF-37). Las siete rutas de sesión y dispositivos pasaron a `openapi.json`, exportado desde `app.openapi()` igual que en MATU-13 (todas las rutas salvo las del relevo, y solo los componentes que usan), y se quitaron de `propuestos/app-familia.openapi.yaml` con los componentes que solo ellas usaban. `backend/tests/modules/iam/test_sesion_contrato.py` falla si cambian sin volver a exportar.
+
+- **Módulo `iam`.** Reglas puras en `domain/refresh.py` (forma, huella, ventana deslizante y veredicto de la renovación), `domain/demora.py` (huellas HMAC, umbrales y esperas de la decisión 49) y `domain/dispositivo.py` (nombre grueso, lista cerrada de push y límites de conservación). Casos de uso en `application/sesiones.py`. Adaptadores en `infrastructure/repositorio_sesiones.py` (SQL), `infrastructure/contadores_redis.py` y `infrastructure/tokens_jwt.py` (claim `did`). Rutas en `api/router.py` (`POST /v1/sesiones`) y `api/router_sesiones.py`.
+- **Migración 0008** (reversible):
+  - agrega `dispositivo` al `CHECK` de `motivo_revocacion`;
+  - **decisión 61:** borra `sesion_operacion` (`FOR ALL`) y `dispositivo_operacion` (`FOR SELECT`). Una política RLS decide filas, no columnas, y los permisos por columna son del rol de base (`matu_app`), que comparten la API y operación: ninguna de las dos herramientas impide a operación leer `push_token` o `token_hash` si ve la fila. Por eso operación ya no ve ninguna fila de las dos tablas, y la conservación es la función `iam_conservar(limite_sesion, limite_dispositivo, ahora)`, `SECURITY DEFINER`, dueño `matu_owner`, `search_path` fijo, `EXECUTE` solo para `matu_app`, que exige `app.rol = 'operacion'`, solo borra y devuelve dos contadores. Las políticas `sesion_conservacion*` y `dispositivo_conservacion*` (`SELECT` y `DELETE`) son solo de `matu_owner` y solo con `app.rol = 'operacion'`, como `consentimiento_autorizacion_relevo` en 0007;
+  - `sesion_propia` exige además, al escribir, que el dispositivo sea del mismo usuario;
+  - **`auditoria.detalle` (jsonb)**, con un `CHECK` que admite solo `sesiones_revocadas` (entero). Nunca la huella del email (decisión 64);
+  - `iam_conservar` exige `ahora <= now() + 5 minutos`: un `ahora` futuro haría pasar por vencidas sesiones vigentes y las borraría. Se conserva el `ahora` del `Reloj` (en vez de `now()` a secas) para que los límites los siga calculando el dominio y se puedan probar; los 5 minutos absorben el desfase entre la aplicación y la base.
+- **Conservación (decisión 59).** No hay programador de tareas todavía: el caso de uso `conservar` se invoca con `python -m app.modules.iam.infrastructure.tarea_conservacion` desde `backend/` (a mano o desde cron). Borra las sesiones 30 días después de vencer o de revocarse (y sus entradas de `indice_token`), y los dispositivos 90 días después de `ultimo_uso_en` (o de `creado_en`, si nunca se usó) sin sesiones vigentes; las sesiones no vigentes que queden de ese dispositivo se borran con él, por la llave foránea. Cuando exista el trabajo diario (MATU-37), conviene llamarlo desde ahí.
+- **Demora progresiva.** Contadores en Redis bajo `matu:entrada:<huella>`, con `fallos` y el instante del último fallo según el `Reloj`, y `EXPIRE … NX` de una hora desde el primer fallo. Secreto nuevo `PEPPER_LIMITES` (distinto de los demás; sin él, 503). La IP es la del socket (`request.client.host`): **no se lee `X-Forwarded-For`**, que el cliente puede falsificar. Si la API queda detrás de un proxy, hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` del proxy, o todas las peticiones compartirán una IP.
+- **Cerrar sesión** sigue la decisión 47: revoca la familia (`logout`), el dispositivo y su `push_token`.
+- **Auditoría** (`AccionAuditoria`, sin grupo: `ACCIONES_DE_CUENTA`): `sesion.iniciar`, `sesion.inicio_fallido` (actor `sistema`, sin `actor_ref` y sin la huella del email, decisión 64), `sesion.reutilizacion_detectada`, `sesion.cerrar`, `dispositivo.sacar` (con `sesiones_revocadas`, que cuenta familias), `dispositivo.push_registrar` y `dispositivo.push_borrar`. La renovación no se audita. La reutilización deja además una línea WARNING en el log con `evento = seguridad.reutilizacion_refresh` y `familia_id` (campos nuevos de `CAMPOS_PERMITIDOS`).
+- **`Cache-Control: no-store`** en toda respuesta bajo `/v1/sesiones` y `/v1/dispositivos`, también en los 401, 422 y 429, con el middleware de prefijo de MATU-19.
+
+**Diferencias con lo que decía el propuesto, que se aceptan** (las verá openapi-diff cuando exista):
+
+- La cookie no se declara como `securitySchemes.refreshCookie`: las rutas la leen de `request.cookies`, sin parámetro, y la explican en su `description`.
+- `X-MATU-Cliente` sale como `string` con `const: web` y `title`; los errores (401, 404, 422, 429, 503) se declaran como `application/problem+json` sin esquema, como en MATU-13; `SolicitudPush` no lleva la lista de hosts en el esquema (la valida la ruta con 422 `push_no_admitido`).
+- `DELETE /v1/dispositivos/{dispositivo_id}` declara el `dispositivo_id` como `string` sin `format: uuid` (un id que no es UUID responde 404, no 422), y FastAPI le agrega un 422 genérico que nunca ocurre.
+- `GET /v1/dispositivos` con un access token sin `did` responde la lista con todos en `actual: false`, como dice el contrato.
+
+**Lo que decidió el backend y conviene que Martín o Jorge confirmen:**
+
+1. **`auditoria.detalle`.** `auditoria` no tenía columna para la cantidad de sesiones de `dispositivo.sacar` (el `motivo` es un catálogo cerrado). 0008 agrega `detalle jsonb` con un `CHECK` que solo admite `sesiones_revocadas`. La huella del email ya no se guarda (decisión 64).
+2. **Filas de auditoría sin grupo.** Las siete acciones de la cuenta van con `grupo_id` nulo (`auditoria_insertar` ya lo admitía). Ver P2-2 en los pendientes.
+3. **Conteo de `sesiones_revocadas`:** cuenta familias (una sesión por familia), no filas de `sesion_refresh` (una por renovación).
+
+**Decisión 64 (Martín, 02-11, por recomendación del analista normativo en la revisión de cierre de MATU-38).** La huella del email **no se guarda** en la auditoría: es un dato seudonimizado que puede ser de alguien que no es usuaria, y el contador de Redis ya cubre la seguridad. `sesion.inicio_fallido` se audita sin ella, y el `CHECK auditoria_detalle_acotado` admite solo `sesiones_revocadas`. La huella HMAC de los contadores de Redis no cambia.
+
+### Pendientes de MATU-38
+
+- **P2-1 · Proxy.** Detrás de un proxy hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` (la IP del proxy), o todas las peticiones comparten la IP del proxy y la demora por IP bloquea a todos. Va con el despliegue del piloto (MATU-25).
+- **P2-2 · Nadie lee la auditoría de la cuenta.** Las filas con `grupo_id` nulo quedan fuera de las políticas de lectura de 0005. Para Jorge: una política `SELECT` con `grupo_id IS NULL AND actor_ref = app_usuario()`, o un procedimiento de solicitud del titular.
+- **P3-1 · Lectura de la decisión 49.** Hoy hasta 5 fallos por email no hay espera: el 6.º fallo fija la primera espera, y el primer intento que la recibe es el 7.º. Confirmar con Jorge si "sin demora hasta 5 fallos" significa eso. No se cambió.
+- **P3-3 · Volumen de la auditoría.** Un atacante repartido en muchas IP puede inflar `auditoria` con `sesion.inicio_fallido` (una fila por fallo, sin tope por IP).
+- **Despliegue.** La API no se despliega a usuarios reales hasta que la política de privacidad 0.10 esté aprobada (decisión 62).
 
 ## Decisiones de Jorge del 31-10 (MATU-32)
 

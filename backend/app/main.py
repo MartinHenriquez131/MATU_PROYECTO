@@ -24,6 +24,7 @@ from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
 from app.modules.iam.api.router import router as router_iam
+from app.modules.iam.api.router_sesiones import router as router_sesiones
 
 router_salud = APIRouter(tags=["salud"])
 
@@ -51,11 +52,15 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     registrar_manejadores(app)
     # MATU-19 (C11): no-store, no-referrer y noindex en toda respuesta bajo /v1/relevo/, también errores
     app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
+    # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
+    for prefijo in ("/v1/sesiones", "/v1/dispositivos"):
+        app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
 
     # Routers por historia (una línea cada uno)
     app.include_router(router_salud, prefix="/v1")
     app.include_router(router_iam, prefix="/v1")
+    app.include_router(router_sesiones, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")

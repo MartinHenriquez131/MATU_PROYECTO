@@ -373,3 +373,39 @@ def test_0007_agrega_lo_del_relevo_y_baja_al_esquema_de_0006(base_desechable):
     for parte, filas in esquema_0006.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0008 (MATU-38): motivo 'dispositivo', operación acotada, conservación y auditoria.detalle
+
+
+@pytest.mark.rf("RF-37")
+def test_0008_acota_operacion_y_baja_al_esquema_de_0007(base_desechable):
+    alembic("upgrade", "0007")
+    esquema_0007 = catalogo()
+
+    alembic("upgrade", "0008")
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename IN ('sesion_refresh', 'dispositivo')"))
+    assert "sesion_operacion" not in politicas and "dispositivo_operacion" not in politicas
+    assert politicas["sesion_conservacion_borrar"] == "DELETE"
+    assert politicas["dispositivo_conservacion_borrar"] == "DELETE"
+    # Las políticas de conservación son solo de matu_owner, el dueño de la función
+    roles = dict(consultar(
+        "SELECT policyname, roles::text FROM pg_policies WHERE policyname LIKE '%conservacion%'"))
+    assert set(roles.values()) == {"{matu_owner}"}
+    [(definer, config, acl)] = consultar(
+        "SELECT prosecdef, proconfig, proacl::text FROM pg_proc WHERE proname = 'iam_conservar'")
+    assert definer and config == ["search_path=pg_catalog, public, pg_temp"]
+    assert "matu_app=X" in acl and "=X/" not in acl.replace("matu_app=X/", "").replace("matu_owner=X/", "")
+    [(definicion,)] = consultar(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'sesion_refresh_motivo_revocacion_check'")
+    assert "'dispositivo'" in definicion
+    assert consultar(
+        "SELECT data_type FROM information_schema.columns WHERE table_name = 'auditoria' AND column_name = 'detalle'"
+    ) == [("jsonb",)]
+
+    alembic("downgrade", "0007")
+    despues = catalogo()
+    for parte, filas in esquema_0007.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")

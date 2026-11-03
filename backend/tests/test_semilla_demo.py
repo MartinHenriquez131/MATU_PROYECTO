@@ -30,6 +30,7 @@ from app.modules.iam.api.router import obtener_pepper_email
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id
 from app.shared.reloj_sistema import RelojSistema
 from tests.base_datos import DSN, requiere_base
+from tests.dobles.contadores_en_memoria import demora_en_memoria
 from tests.fabricas import Fabrica
 
 RUTA_SEMILLA = Path(__file__).resolve().parents[2] / "infra" / "semillas" / "demo.py"
@@ -130,6 +131,7 @@ def test_crea_dos_familias_y_un_pagador_con_plan(fabrica: Fabrica, sembradora: A
     # Las cuentas sirven para iniciar sesión en la API con el mismo pepper
     app = crear_app(stream_logs=io.StringIO())
     app.dependency_overrides[obtener_pepper_email] = lambda: pepper
+    demora_en_memoria(app)
     app.dependency_overrides[obtener_clave_jwt] = lambda: secrets.token_hex(32).encode()
     with TestClient(app, raise_server_exceptions=False) as cliente:
         rodrigo = next(c for c in cuentas if c.nombre == "Rodrigo Soto")

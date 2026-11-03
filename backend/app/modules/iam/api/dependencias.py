@@ -21,7 +21,7 @@ from app.core.config import obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
 from app.modules.iam.application.ports import EmisorTokens
-from app.modules.iam.application.sesion import validar_acceso
+from app.modules.iam.application.sesion import leer_acceso
 from app.modules.iam.domain.sesion import TokenInvalido
 from app.modules.iam.infrastructure.tokens_jwt import EmisorJWT
 from app.shared.puertos import Reloj
@@ -37,6 +37,8 @@ _CABECERA_BEARER = {"WWW-Authenticate": "Bearer"}
 @dataclass(frozen=True)
 class UsuarioActual:
     id: uuid.UUID
+    # Claim did del access token (MATU-38). None en un token anterior a MATU-38
+    dispositivo_id: uuid.UUID | None = None
 
 
 def obtener_clave_jwt() -> bytes:
@@ -63,7 +65,8 @@ def usuario_actual(
     if credenciales is None:
         raise ErrorMATU(401, detalle="Inicia sesión para continuar", headers=_CABECERA_BEARER)
     try:
-        usuario = UsuarioActual(id=validar_acceso(credenciales.credentials, emisor, reloj))
+        claims = leer_acceso(credenciales.credentials, emisor, reloj)
+        usuario = UsuarioActual(id=claims.sub, dispositivo_id=claims.did)
     except TokenInvalido:
         raise ErrorMATU(
             401, tipo="token-invalido", detalle="Inicia sesión de nuevo", headers=_CABECERA_BEARER

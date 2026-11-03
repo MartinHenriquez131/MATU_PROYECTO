@@ -1,9 +1,15 @@
 """Puertos del módulo iam (ADR-021)."""
 
 import uuid
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
+
+from app.modules.iam.domain.demora import ContadorFallos
+from app.modules.iam.domain.dispositivo import LimitesConservacion
+from app.modules.iam.domain.refresh import EstadoRefresh
+from app.shared.puertos import RegistroAuditoria
 
 
 class HasherContrasenas(Protocol):
@@ -69,6 +75,8 @@ class ClaimsAcceso:
     sub: uuid.UUID
     iat: datetime
     exp: datetime
+    # Id del dispositivo (MATU-38, decisión 48). None en un token anterior a MATU-38
+    did: uuid.UUID | None = None
 
 
 class EmisorTokens(Protocol):
@@ -77,8 +85,10 @@ class EmisorTokens(Protocol):
     Implementación: EmisorJWT (infrastructure/tokens_jwt.py).
     """
 
-    def emitir(self, usuario_id: uuid.UUID, emitido_en: datetime, expira_en: datetime) -> str:
-        """Devuelve el token firmado con sub, iat y exp."""
+    def emitir(
+        self, usuario_id: uuid.UUID, emitido_en: datetime, expira_en: datetime, dispositivo_id: uuid.UUID | None = None
+    ) -> str:
+        """Devuelve el token firmado con sub, iat y exp, y did si llega el dispositivo (MATU-38)."""
         ...
 
     def leer(self, token: str) -> ClaimsAcceso:
@@ -87,4 +97,153 @@ class EmisorTokens(Protocol):
         No decide el vencimiento: eso lo hace validar_acceso con el Reloj. Lanza TokenInvalido
         si la firma, el algoritmo o el formato fallan.
         """
+        ...
+
+
+# --- MATU-38: demora progresiva de la entrada (decisión 49) ------------------------------------
+
+
+class ContadoresNoDisponibles(Exception):
+    """El almacén de contadores (Redis) no respondió. La entrada responde 503 y falla cerrada."""
+
+
+class ContadoresEntrada(Protocol):
+    """Contadores de fallos de la entrada, por huella (nunca la IP ni el email en claro).
+
+    Solo guardan: cuántos fallos y cuándo fue el último. La espera la decide el dominio (demora.py).
+    Implementaciones: ContadoresEntradaRedis (infrastructure/contadores_redis.py) y
+    ContadoresEnMemoria (tests/dobles). Cada método lanza ContadoresNoDisponibles si no puede.
+    """
+
+    def leer(self, huella: str) -> ContadorFallos:
+        """Los fallos de la huella en la ventana vigente, o SIN_FALLOS."""
+        ...
+
+    def sumar_fallo(self, huella: str, ahora: datetime) -> None:
+        """Suma un fallo y fija el último en ahora. La ventana vence a la hora del primer fallo."""
+        ...
+
+    def borrar(self, huella: str) -> None:
+        """Borra el contador de la huella (un inicio correcto borra el del email)."""
+        ...
+
+
+# --- MATU-38: sesiones y dispositivos ---------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RefreshIndexado:
+    """Lo que indice_token dice de un refresh, antes de tener contexto: de quién es y qué sesión."""
+
+    usuario_id: uuid.UUID
+    sesion_id: uuid.UUID
+
+
+@dataclass(frozen=True)
+class SesionGuardada:
+    id: uuid.UUID
+    familia_id: uuid.UUID
+    dispositivo_id: uuid.UUID
+    estado: EstadoRefresh
+
+
+@dataclass(frozen=True)
+class NuevoRefresh:
+    id: uuid.UUID
+    usuario_id: uuid.UUID
+    dispositivo_id: uuid.UUID
+    familia_id: uuid.UUID
+    token_hash: bytes
+    emitido_en: datetime
+    expira_en: datetime
+
+
+@dataclass(frozen=True)
+class DispositivoGuardado:
+    """Un dispositivo propio, sin push_token: nunca se lee para mostrarlo."""
+
+    id: uuid.UUID
+    plataforma: str
+    nombre: str
+    creado_en: datetime
+    ultimo_uso_en: datetime | None
+    revocado: bool
+
+
+class RepositorioSesiones(Protocol):
+    """sesion_refresh, indice_token (tipo refresh) y dispositivo, dentro de una transacción con
+    app.usuario_id fijado: RLS (sesion_propia, dispositivo_propio) acota todo al usuario.
+
+    Implementación: RepositorioSesionesSql (infrastructure/repositorio_sesiones.py).
+    """
+
+    def sesion_para_actualizar(self, sesion_id: uuid.UUID) -> SesionGuardada | None:
+        """La sesión con su dispositivo y el estado de la cuenta, bloqueada (FOR UPDATE)."""
+        ...
+
+    def crear_refresh(self, nuevo: NuevoRefresh) -> None:
+        """Inserta el token en sesion_refresh y su entrada en indice_token (tipo refresh)."""
+        ...
+
+    def marcar_usado(self, sesion_id: uuid.UUID, ahora: datetime) -> None: ...
+
+    def revocar_familia(self, familia_id: uuid.UUID, motivo: str, ahora: datetime) -> int:
+        """Revoca los tokens no revocados de la familia. Devuelve cuántos revocó."""
+        ...
+
+    def crear_dispositivo(self, usuario_id: uuid.UUID, nombre: str, ahora: datetime) -> uuid.UUID:
+        """Crea un dispositivo web con creado_en y ultimo_uso_en = ahora."""
+        ...
+
+    def tocar_dispositivo(self, dispositivo_id: uuid.UUID, ahora: datetime) -> None:
+        """Fija ultimo_uso_en = ahora."""
+        ...
+
+    def dispositivo_para_actualizar(self, dispositivo_id: uuid.UUID) -> DispositivoGuardado | None:
+        """El dispositivo propio, bloqueado. None si no existe o es de otro usuario (RLS)."""
+        ...
+
+    def revocar_dispositivo(self, dispositivo_id: uuid.UUID, ahora: datetime) -> None:
+        """Fija revocado_en (si no lo tenía) y pone push_token = NULL."""
+        ...
+
+    def revocar_sesiones_de_dispositivo(self, dispositivo_id: uuid.UUID, motivo: str, ahora: datetime) -> int:
+        """Revoca los tokens no revocados del dispositivo. Devuelve cuántas familias (sesiones) cerró."""
+        ...
+
+    def listar_dispositivos(self) -> list[DispositivoGuardado]:
+        """Los dispositivos propios no revocados."""
+        ...
+
+    def guardar_push(self, dispositivo_id: uuid.UUID, push_token: str | None) -> bool:
+        """Escribe push_token en el dispositivo propio no revocado. False si no hay tal dispositivo."""
+        ...
+
+
+class TransaccionIam(Protocol):
+    """Una transacción: el repositorio de sesiones y la auditoría comparten la misma sesión."""
+
+    @property
+    def sesiones(self) -> RepositorioSesiones: ...
+
+    @property
+    def auditoria(self) -> RegistroAuditoria: ...
+
+
+class UnidadIam(Protocol):
+    """Abre las transacciones de la sesión y de los dispositivos.
+
+    Implementación: UnidadIamSql (infrastructure/repositorio_sesiones.py).
+    """
+
+    def resolver_refresh(self, token_hash: bytes) -> RefreshIndexado | None:
+        """Busca el hash en indice_token (tipo refresh, sin RLS), sin contexto de usuario."""
+        ...
+
+    def transaccion(self, usuario_id: uuid.UUID | None) -> AbstractContextManager[TransaccionIam]:
+        """Una transacción con app.usuario_id fijado (o sin usuario). Commit al salir sin error."""
+        ...
+
+    def conservar(self, limites: LimitesConservacion) -> tuple[int, int]:
+        """Con app.rol = 'operacion', llama a iam_conservar. Devuelve (sesiones, dispositivos) borrados."""
         ...

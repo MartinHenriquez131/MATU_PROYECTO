@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.modules.iam.application.ports import EmisorTokens, HasherContrasenas, RepositorioUsuarios
+from app.modules.iam.application.ports import ClaimsAcceso, EmisorTokens, HasherContrasenas, RepositorioUsuarios
 from app.modules.iam.domain.credenciales import indice_email, normalizar_email
 from app.modules.iam.domain.sesion import (
     DURACION_ACCESO,
@@ -58,6 +58,19 @@ def iniciar_sesion(
     corresponde o si la cuenta no está activa. En los tres casos se verifica un hash de Argon2id,
     para que el tiempo de respuesta tampoco distinga los casos.
     """
+    usuario_id = verificar_credenciales(
+        email=email, contrasena=contrasena, pepper=pepper, hasher=hasher, repositorio=repositorio
+    )
+    return emitir_acceso(usuario_id, emisor, reloj)
+
+
+def verificar_credenciales(
+    *, email: str, contrasena: str, pepper: bytes, hasher: HasherContrasenas, repositorio: RepositorioUsuarios
+) -> uuid.UUID:
+    """Devuelve el id de la cuenta si el email y la contraseña corresponden y la cuenta está activa.
+
+    Lanza CredencialesInvalidas, siempre igual, en los demás casos, después de verificar un hash.
+    """
     credencial = repositorio.buscar_credencial(indice_email(pepper, normalizar_email(email)))
     if credencial is None:
         hasher.verificar(_hash_relleno(hasher), contrasena)
@@ -66,20 +79,31 @@ def iniciar_sesion(
     contrasena_correcta = hasher.verificar(credencial.password_hash, contrasena)
     if not contrasena_correcta or not puede_iniciar_sesion(credencial.estado):
         raise CredencialesInvalidas()
+    return credencial.usuario_id
 
+
+def emitir_acceso(
+    usuario_id: uuid.UUID, emisor: EmisorTokens, reloj: Reloj, dispositivo_id: uuid.UUID | None = None
+) -> SesionIniciada:
+    """Emite un access token de 15 minutos, con el claim did si llega el dispositivo (MATU-38)."""
     emitido_en = reloj.ahora()
     expira_en = vencimiento(emitido_en)
     return SesionIniciada(
-        usuario_id=credencial.usuario_id,
-        access_token=emisor.emitir(credencial.usuario_id, emitido_en, expira_en),
+        usuario_id=usuario_id,
+        access_token=emisor.emitir(usuario_id, emitido_en, expira_en, dispositivo_id),
         expira_en=expira_en,
         duracion_segundos=int(DURACION_ACCESO.total_seconds()),
     )
 
 
-def validar_acceso(token: str, emisor: EmisorTokens, reloj: Reloj) -> uuid.UUID:
-    """Devuelve el id del usuario del token. Lanza TokenInvalido si no sirve o ya venció."""
+def leer_acceso(token: str, emisor: EmisorTokens, reloj: Reloj) -> ClaimsAcceso:
+    """Los claims de un token vigente. Lanza TokenInvalido si no sirve o ya venció."""
     claims = emisor.leer(token)
     if not esta_vigente(claims.exp, reloj.ahora()):
         raise TokenInvalido()
-    return claims.sub
+    return claims
+
+
+def validar_acceso(token: str, emisor: EmisorTokens, reloj: Reloj) -> uuid.UUID:
+    """Devuelve el id del usuario del token. Lanza TokenInvalido si no sirve o ya venció."""
+    return leer_acceso(token, emisor, reloj).sub

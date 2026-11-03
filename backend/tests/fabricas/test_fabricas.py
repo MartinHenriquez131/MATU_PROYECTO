@@ -21,6 +21,7 @@ from app.modules.iam.api.dependencias import obtener_clave_jwt
 from app.modules.iam.api.router import obtener_pepper_email
 from app.modules.iam.domain.credenciales import indice_email
 from tests.base_datos import DSN, requiere_base
+from tests.dobles.contadores_en_memoria import demora_en_memoria
 from tests.dobles.custodia_en_memoria import CustodiaEnMemoria
 from tests.fabricas import Fabrica
 from tests.fabricas.datos import DOMINIO_CORREO
@@ -59,6 +60,7 @@ def cliente_api() -> Iterator[tuple[TestClient, bytes]]:
     clave_jwt = secrets.token_hex(32).encode()
     app = crear_app(stream_logs=io.StringIO())
     app.dependency_overrides[obtener_pepper_email] = lambda: pepper
+    demora_en_memoria(app)
     app.dependency_overrides[obtener_clave_jwt] = lambda: clave_jwt
     with TestClient(app, raise_server_exceptions=False) as cliente:
         yield cliente, pepper
