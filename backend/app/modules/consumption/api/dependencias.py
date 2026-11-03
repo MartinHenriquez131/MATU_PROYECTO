@@ -4,7 +4,7 @@ Corren antes de validar el cuerpo, en el orden del contrato:
 
 1. Access token válido (usuario_actual). Si no, 401.
 2. X-Grupo-Id y membresía activa (sesion_de_grupo). Si no, 404.
-3. El rol alcanza: leen admin, cuidador, pagador y observador; escriben admin y cuidador (decisión 68).
+3. El rol alcanza: leen admin, cuidador, pagador y observador; escriben admin y cuidador (decisión 71).
    Si no, 404, nunca 403.
 4. persona_id es una persona del grupo. Si no, 404.
 5. Autorización vigente para ``consumo``, con el puerto Reloj: 403 sin-consentimiento o

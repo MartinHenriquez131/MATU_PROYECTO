@@ -50,7 +50,7 @@ class AccionAuditoria(StrEnum):
     DISPOSITIVO_SACAR = "dispositivo.sacar"
     DISPOSITIVO_PUSH_REGISTRAR = "dispositivo.push_registrar"
     DISPOSITIVO_PUSH_BORRAR = "dispositivo.push_borrar"
-    # MATU-36: las escrituras del consumo (decisión 52 y decisiones 65 y 66). Las lecturas no se auditan
+    # MATU-36: las escrituras del consumo (decisión 52 y decisiones 68 y 69). Las lecturas no se auditan
     CONSUMO_CREAR = "consumo.crear"
     CONSUMO_EDITAR = "consumo.editar"
     CONSUMO_DESACTIVAR = "consumo.desactivar"

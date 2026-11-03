@@ -4,9 +4,9 @@
     POST   /v1/personas-cuidadas/{persona_id}/consumo                         admin y cuidador. 201
     GET    /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}             los cuatro roles. 200
     PATCH  /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}             admin y cuidador. 200, If-Match
-    DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}             admin y cuidador. 204 (decisión 66)
+    DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}             admin y cuidador. 204 (decisión 69)
     POST   /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar  admin y cuidador. 200
-    POST   /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar     admin y cuidador. 200 (decisión 65)
+    POST   /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar     admin y cuidador. 200 (decisión 68)
 
 El rol, la persona y la autorización para ``consumo`` se verifican en las dependencias, antes del
 cuerpo. Un perfil_id que no es UUID o no es de la persona: 404, después del 403. nombre_libre nunca
@@ -209,7 +209,7 @@ def listar(
         Query(
             description=(
                 "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola"
-                " lista (decisión 69)"
+                " lista (decisión 72)"
             ),
             json_schema_extra={"enum": ["true", "false", "todos"]},
         ),
@@ -389,7 +389,7 @@ def editar(
     responses=_ERRORES_LECTURA,
     summary="Eliminar un insumo",
     description=(
-        "Borra el perfil en el acto, activo o desactivado (decisión 66). Sus reposiciones y alertas se borran"
+        "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran"
         " con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar"
     ),
 )
@@ -444,7 +444,7 @@ def desactivar(
     },
     summary="Volver a seguir un insumo",
     description=(
-        "activo = true (decisión 65). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el"
+        "activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el"
         " stock y la fecha estimada que tenía. Registra consumo.activar"
     ),
 )

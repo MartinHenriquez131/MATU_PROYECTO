@@ -71,7 +71,7 @@ class RepositorioPerfiles(Protocol):
         ...
 
     def eliminar(self, perfil_id: uuid.UUID) -> None:
-        """Borra la fila. Sus reposiciones y alertas caen por ON DELETE CASCADE (decisión 66)."""
+        """Borra la fila. Sus reposiciones y alertas caen por ON DELETE CASCADE (decisión 69)."""
         ...
 
 

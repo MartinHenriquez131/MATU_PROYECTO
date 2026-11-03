@@ -221,7 +221,7 @@ def test_nombre_de_pila() -> None:
     assert nombre_de_pila("  ") is None
 
 
-# --- Conservación (decisión 67) ---------------------------------------------------------------------------
+# --- Conservación (decisión 70) ---------------------------------------------------------------------------
 
 
 @pytest.mark.rf("RF-10")

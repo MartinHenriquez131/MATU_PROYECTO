@@ -212,7 +212,7 @@ def activar(
     repositorio: RepositorioPerfiles,
     auditoria: RegistroAuditoria,
 ) -> PerfilLeido:
-    """Vuelve a seguir un perfil desactivado (decisión 65). Idempotente. Conserva el stock y la fecha
+    """Vuelve a seguir un perfil desactivado (decisión 68). Idempotente. Conserva el stock y la fecha
     estimada que tenía: la pantalla invita a anotar cuánto queda. Si la persona ya sigue el mismo
     producto en otro perfil activo, PerfilDuplicado (409)."""
     leido = repositorio.obtener(peticion.persona_id, perfil_id, para_escribir=True)
@@ -237,7 +237,7 @@ def eliminar(
     repositorio: RepositorioPerfiles,
     auditoria: RegistroAuditoria,
 ) -> None:
-    """Borra el perfil en el acto (decisión 66), activo o no. Sus reposiciones y alertas caen con él."""
+    """Borra el perfil en el acto (decisión 69), activo o no. Sus reposiciones y alertas caen con él."""
     leido = repositorio.obtener(peticion.persona_id, perfil_id, para_escribir=True)
     if leido is None:
         raise PerfilNoEncontrado()

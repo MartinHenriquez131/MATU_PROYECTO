@@ -1,4 +1,4 @@
-"""Caso de uso de conservación del consumo (MATU-36, decisión 67).
+"""Caso de uso de conservación del consumo (MATU-36, decisión 70).
 
 El consumo de una persona (activo o no) se borra 90 días después de que termina su autorización para
 ``consumo``: cuando ya no hay una no revocada y la última se revocó hace 90 días o más. El límite lo

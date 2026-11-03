@@ -46,13 +46,13 @@ docs/api/
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | Implementado. Solo `finalidad: consumo`. En `openapi.json` desde MATU-36 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado, con `activo=todos` (decisión 69). En `openapi.json` desde MATU-36 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado. En `openapi.json` desde MATU-36 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
-| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 70) y 428. En `openapi.json` desde MATU-36 |
-| `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 66) | Implementado. 204. En `openapi.json` desde MATU-36 |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36 |
+| `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 69) | Implementado. 204. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 65) | Implementado. En `openapi.json` desde MATU-36 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 68) | Implementado. En `openapi.json` desde MATU-36 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
@@ -220,7 +220,7 @@ Contrato `propuestos/app-familia.openapi.yaml`. Siguen la numeración de las dec
     - `/errores/autorizacion-vigente`, `/errores/perfil-duplicado`, `/errores/perfil-inactivo` y `/errores/alerta-cerrada` (409), uno por conflicto, para que la pantalla elija el texto por `type`.
     - El 403 del consumo reutiliza `sin-consentimiento` y `revision-vencida` con el miembro de extensión `finalidad: consumo`. El 403 de la ficha no lo trae hoy; agregarlo (`plan_cuidado`) sería un cambio a una ruta implementada y no se propone aquí.
 45. **Sin `X-MATU-Cliente: web`, 422, no 401.** Se evalúa antes de mirar la cookie, así que no revela nada de ella, y no rota, no revoca ni borra la cookie. Es un error de programación del cliente, no un estado de la sesión: con 401 la app mandaría a la persona a la entrada y escondería el error. Además, así lo hace FastAPI con una cabecera obligatoria (`Header` con `Literal["web"]`), y el contrato coincide con lo que exportará `openapi.json`. Vale para renovar y cerrar.
-46. **Desactivar es `POST …/consumo/{perfil_id}/desactivar`** (lo de reactivar y borrar lo cambian las decisiones 65 y 66 del 03-11: desactivar sigue sin borrar, y reactivar y eliminar son acciones aparte), idempotente y sin `If-Match` (archivar no pisa lo que escribió otro). Nunca borra. En la misma transacción pasa a `descartada` las alertas abiertas del perfil. No hay reactivar: se crea otro perfil.
+46. **Desactivar es `POST …/consumo/{perfil_id}/desactivar`** (lo de reactivar y borrar lo cambian las decisiones 68 y 69 del 03-11: desactivar sigue sin borrar, y reactivar y eliminar son acciones aparte), idempotente y sin `If-Match` (archivar no pisa lo que escribió otro). Nunca borra. En la misma transacción pasa a `descartada` las alertas abiertas del perfil. No hay reactivar: se crea otro perfil.
 47. **Un dispositivo es un navegador con sesión.** Iniciar sesión crea un dispositivo `web` con un `nombre` grueso ("Chrome en Android") que arma el servidor sin guardar el agente de usuario, o reutiliza el de la cookie si es del mismo usuario y no está revocado (revocando la familia anterior: una sesión viva por dispositivo). **Cerrar sesión revoca también el dispositivo y borra su `push_token`**: un navegador sin sesión no recibe avisos, y "Tus dispositivos" muestra solo los que tienen una sesión abierta. Sin una cookie propia de dispositivo, que sería un identificador más del navegador.
 48. **El access token lleva el claim `did`** (id del dispositivo): así `GET /v1/dispositivos` marca el `actual` y `PUT /v1/dispositivos/actual/push` sabe dónde escribir, sin que la cookie del refresh (que solo viaja a `/v1/sesiones`) salga de su ruta. El access token vence siempre a los 15 minutos: con la ventana deslizante (decisión 57) la familia no tiene un `expira_en` propio que lo acorte (ajuste por la decisión de Jorge del 31-10). Cambia `tokens_jwt.py` en MATU-38.
 49. **Demora progresiva de la entrada.** Dos contadores de fallos en Redis, por huella de la IP y por huella del email normalizado (HMAC-SHA-256 con un secreto nuevo de `.env`, por ejemplo `PEPPER_LIMITES`, que MATU-25 puede compartir con otro prefijo), que vencen a la hora del primer fallo. Sin demora hasta 5 fallos por email y 20 por IP (CGNAT); después 30 s, 1, 2, 4 y 8 minutos, con tope de 15. El mismo 429 exista o no el email, sin leer la base. Nunca bloquea la cuenta. Un 200 borra el contador del email, nunca el de la IP. **Sin Redis, 503**: falla cerrada, como el canje del relevo; quien ya entró sigue con su refresh, que no usa Redis. **Riesgo aceptado, por confirmar:** alguien que conoce un email puede hacer esperar a esa persona hasta 15 minutos por vez, sin bloquearla.
@@ -391,12 +391,12 @@ Decisión de Jorge del 31-10. Cierran los puntos 1 a 5, 7 y parte del 11 de los 
 
 ## Decisiones de Jorge del 03-11 (MATU-36)
 
-65. **Reactivar un insumo desactivado:** `POST …/consumo/{perfil_id}/activar`, sin cuerpo ni `If-Match`, idempotente como desactivar. Suma 1 a `version` y conserva el stock y la fecha estimada. Si la persona ya sigue el mismo `producto_id` en otro perfil activo, 409 `perfil-duplicado`. Registra `consumo.activar`.
-66. **Eliminar un insumo de verdad:** `DELETE …/consumo/{perfil_id}`, 204. Borra la fila en el acto, activa o no; sus reposiciones y alertas caen por `ON DELETE CASCADE`. Registra `consumo.eliminar`. Desactivar sigue sin borrar (decisión 46).
-67. **Conservación:** el consumo de una persona (activo o no) se borra 90 días después de que termina su autorización para `consumo`: cuando no queda una no revocada y la última se revocó hace 90 días o más. Una revisión anual vencida no cuenta como término, porque se puede renovar.
-68. **Leen todos los roles del grupo**, incluido el observador. **Escriben** (crear, editar, desactivar, activar, eliminar y dar la autorización) solo `admin` y `cuidador`; los demás reciben 404. RLS lo repite como segunda barrera (migración 0009).
-69. **`GET …/consumo?activo=todos`** devuelve en una sola lista los que se siguen y los que no (pedido del diseñador). Por omisión, solo los activos. Valores: `true`, `false` y `todos`.
-70. **El perfil trae `actualizado_por` (`id` y nombre de pila)**, también en `actual` del 412, para que la pantalla diga "Carmen cambió este insumo" (pedido del diseñador, igual que la ficha de MATU-13). Columna nueva `perfil_consumo.actualizado_por` (0009). El nombre de pila es la primera palabra de `usuario.nombre`.
+68. **Reactivar un insumo desactivado:** `POST …/consumo/{perfil_id}/activar`, sin cuerpo ni `If-Match`, idempotente como desactivar. Suma 1 a `version` y conserva el stock y la fecha estimada. Si la persona ya sigue el mismo `producto_id` en otro perfil activo, 409 `perfil-duplicado`. Registra `consumo.activar`.
+69. **Eliminar un insumo de verdad:** `DELETE …/consumo/{perfil_id}`, 204. Borra la fila en el acto, activa o no; sus reposiciones y alertas caen por `ON DELETE CASCADE`. Registra `consumo.eliminar`. Desactivar sigue sin borrar (decisión 46).
+70. **Conservación:** el consumo de una persona (activo o no) se borra 90 días después de que termina su autorización para `consumo`: cuando no queda una no revocada y la última se revocó hace 90 días o más. Una revisión anual vencida no cuenta como término, porque se puede renovar.
+71. **Leen todos los roles del grupo**, incluido el observador. **Escriben** (crear, editar, desactivar, activar, eliminar y dar la autorización) solo `admin` y `cuidador`; los demás reciben 404. RLS lo repite como segunda barrera (migración 0009).
+72. **`GET …/consumo?activo=todos`** devuelve en una sola lista los que se siguen y los que no (pedido del diseñador). Por omisión, solo los activos. Valores: `true`, `false` y `todos`.
+73. **El perfil trae `actualizado_por` (`id` y nombre de pila)**, también en `actual` del 412, para que la pantalla diga "Carmen cambió este insumo" (pedido del diseñador, igual que la ficha de MATU-13). Columna nueva `perfil_consumo.actualizado_por` (0009). El nombre de pila es la primera palabra de `usuario.nombre`.
 
 ## Notas de implementación de MATU-36
 
@@ -417,7 +417,7 @@ Implementado el 03-11 en la rama `matu-36-perfil-consumo` (RF-10, RF-11). Las si
 
 - **`alerta_quiebre` y `reposicion`** siguen con `alerta_hereda` y `reposicion_hereda` (`FOR ALL`, heredado de `perfil_consumo`). Con 0009, un pagador o un observador con un contexto válido podría escribirlas con SQL directo (la API no lo permite). Conviene separar lectura y escritura con MATU-37, que decide qué escribe el trabajo diario.
 - **`plan_reposicion_linea.perfil_consumo_id`** no tiene `ON DELETE`: si algún día hay filas (capa 3), eliminar o conservar un perfil fallaría. Queda fuera del semestre.
-- **Política 0.10:** sigue siendo condición de despliegue (decisión 62). Debe decir que el consumo se borra a los 90 días de terminar la autorización (decisión 67) y que eliminar un insumo lo borra en el acto (decisión 66).
+- **Política 0.10:** sigue siendo condición de despliegue (decisión 62). Debe decir que el consumo se borra a los 90 días de terminar la autorización (decisión 70) y que eliminar un insumo lo borra en el acto (decisión 69).
 
 ## Pendientes para Jorge (MATU-32)
 

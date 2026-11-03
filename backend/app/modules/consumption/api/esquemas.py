@@ -104,7 +104,7 @@ class PerfilConsumoVista(BaseModel):
     dias_restantes: int = Field(description="fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó")
     activo: bool
     actualizado_por: AutorPerfilVista | None = Field(
-        description="Quién guardó la última vez, con su nombre de pila (decisión 70). null si la cuenta ya no está"
+        description="Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
     )
     etag: str = Field(pattern=r'^"v[1-9][0-9]*"$')
 

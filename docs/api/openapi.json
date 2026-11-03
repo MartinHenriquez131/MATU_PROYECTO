@@ -1320,7 +1320,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 69)",
+              "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)",
               "enum": [
                 "true",
                 "false",
@@ -1329,7 +1329,7 @@
               "default": "true",
               "title": "Activo"
             },
-            "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 69)"
+            "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)"
           },
           {
             "name": "cursor",
@@ -1799,7 +1799,7 @@
           "consumo"
         ],
         "summary": "Eliminar un insumo",
-        "description": "Borra el perfil en el acto, activo o desactivado (decisión 66). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar",
+        "description": "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar",
         "operationId": "eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete",
         "security": [
           {
@@ -1978,7 +1978,7 @@
           "consumo"
         ],
         "summary": "Volver a seguir un insumo",
-        "description": "activo = true (decisión 65). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar",
+        "description": "activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar",
         "operationId": "activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post",
         "security": [
           {
@@ -2808,7 +2808,7 @@
                 "type": "null"
               }
             ],
-            "description": "Quién guardó la última vez, con su nombre de pila (decisión 70). null si la cuenta ya no está"
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
           },
           "etag": {
             "type": "string",

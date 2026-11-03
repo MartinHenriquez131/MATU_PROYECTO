@@ -25,7 +25,7 @@ info:
     `POST …/consentimientos`, `GET`/`POST …/consumo`, `GET`/`PATCH`/`DELETE …/consumo/{perfil_id}` y
     `POST …/consumo/{perfil_id}/desactivar` y `…/activar` pasaron a `docs/api/openapi.json` y se quitaron
     de este archivo con los componentes que solo ellos usaban. Las decisiones nuevas de Jorge del 03-11
-    (65 a 70: reactivar, eliminar, conservación, lectura y escritura por rol, filtro `activo=todos` y
+    (68 a 73: reactivar, eliminar, conservación, lectura y escritura por rol, filtro `activo=todos` y
     quién guardó en el 412) están en el README.
 
     **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
@@ -447,9 +447,9 @@ components:
             acaba hoy; negativo = la fecha estimada ya pasó y conviene anotar cuánto queda.
         activo:
           type: boolean
-          description: '`false` = desactivado. Desactivar no borra; eliminar sí (decisión 66).'
+          description: '`false` = desactivado. Desactivar no borra; eliminar sí (decisión 69).'
         actualizado_por:
-          description: Quién guardó la última vez, con su nombre de pila (decisión 70). `null` si la cuenta ya no está.
+          description: Quién guardó la última vez, con su nombre de pila (decisión 73). `null` si la cuenta ya no está.
           oneOf:
             - type: object
               additionalProperties: false

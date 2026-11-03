@@ -1,4 +1,4 @@
-"""MATU-36 · Conservación del consumo contra PostgreSQL (decisión 67).
+"""MATU-36 · Conservación del consumo contra PostgreSQL (decisión 70).
 
 El consumo de una persona (activo o no) se borra 90 días después de que termina su autorización para
 consumo. La tarea corre como matu_app con app.rol = 'operacion' y llama a consumo_conservar (0009).
