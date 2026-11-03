@@ -109,9 +109,12 @@ def test_sin_forwarded_allow_ips_el_proxy_no_es_de_confianza_y_cuenta_su_ip(
     assert _conteos(entorno_iam) == {_clave(entorno_iam, PROXY): 2}
 
 
+CONTRASENA_INCORRECTA = "incorrecta-1"  # pragma: allowlist secret
+
+
 def _entrar(cliente: TestClient, xff: str, email: str) -> Any:
     return cliente.post(
-        "/v1/sesiones", json={"email": email, "contrasena": "incorrecta-1"}, headers={"X-Forwarded-For": xff}
+        "/v1/sesiones", json={"email": email, "contrasena": CONTRASENA_INCORRECTA}, headers={"X-Forwarded-For": xff}
     )
 
 
