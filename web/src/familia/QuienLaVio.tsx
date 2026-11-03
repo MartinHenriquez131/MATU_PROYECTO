@@ -66,10 +66,6 @@ function LineaApertura({ a, sinAbrir, completa, foco }: { a: Apertura; sinAbrir:
 }
 
 /**
- * ¿La presentación `i` no tiene, más arriba en la lista, una apertura del mismo acceso? La lista va
- * de la más nueva a la más vieja, así que lo de arriba ya está cargado.
- */
-/**
  * 4.3: la nota «Todavía no abre la ficha…» va bajo una presentación solo si, más arriba
  * en la lista ya cargada (más reciente), no hay ningún otro paso del mismo enlace
  * (apertura, pin_incorrecto o bloqueo). Si ya escribió el PIN, la nota no explica nada.
