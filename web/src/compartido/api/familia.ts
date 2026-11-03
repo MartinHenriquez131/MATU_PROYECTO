@@ -91,3 +91,14 @@ export function leerConflicto(error: unknown): Conflicto | null {
   const cabecera = error.response.headers?.etag
   return { actual, etag: typeof cabecera === 'string' && cabecera ? cabecera : actual.etag }
 }
+
+/** `GET …/plan/aperturas` (MATU-45): lo que hicieron los relevos, del más reciente al más antiguo. */
+export type Apertura = S['AperturaVista']
+export type TipoApertura = S['TipoApertura']
+export type ListaAperturas = S['ListaAperturasVista']
+
+export async function listarAperturas(personaId: string, cursor: string | null = null, limite = 20): Promise<ListaAperturas> {
+  const params: { limite: number; cursor?: string } = { limite }
+  if (cursor) params.cursor = cursor
+  return (await apiFamilia.get<ListaAperturas>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/aperturas`, { params })).data
+}

@@ -32,8 +32,7 @@ _OBTENER = text(_COLUMNAS + " AND p.id = :perfil_id")
 _OBTENER_PARA_ESCRIBIR = text(_COLUMNAS + " AND p.id = :perfil_id FOR UPDATE OF p")
 
 _LISTAR = (
-    _COLUMNAS
-    + " AND (CAST(:activo AS boolean) IS NULL OR p.activo = CAST(:activo AS boolean))"
+    _COLUMNAS + " AND (CAST(:activo AS boolean) IS NULL OR p.activo = CAST(:activo AS boolean))"
     " AND (CAST(:desde_fecha AS date) IS NULL"
     " OR (p.fecha_quiebre_estimada, p.id) > (CAST(:desde_fecha AS date), CAST(:desde_id AS uuid)))"
     " ORDER BY p.fecha_quiebre_estimada, p.id LIMIT :limite"
@@ -197,3 +196,8 @@ class RepositorioPerfilesSQL:
         resultado = self._sesion.execute(_ELIMINAR, {"id": perfil_id, "grupo_id": self._grupo_id})
         if getattr(resultado, "rowcount", 0) != 1:
             raise EscrituraRechazada("el perfil no se borró")
+
+
+# Las reutiliza repositorio_alertas (MATU-37): «Se acaban pronto» devuelve el mismo perfil
+COLUMNAS_PERFIL = _COLUMNAS
+perfil_leido = _perfil

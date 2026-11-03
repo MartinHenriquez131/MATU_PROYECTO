@@ -1,4 +1,4 @@
-"""Tarea de conservación del consumo (MATU-36, decisión 67).
+"""Tarea de conservación del consumo (MATU-36, decisión 70).
 
 Igual que la de iam (MATU-38): sin programador de tareas todavía, se invoca a mano o desde cron, desde
 backend/ y con DATABASE_URL de matu_app:
