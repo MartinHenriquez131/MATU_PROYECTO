@@ -22,8 +22,16 @@ from app.modules.consumption.domain.alerta import (
     exigir_abierta,
     limites_conservacion,
     planificar,
+    reponer,
+    stock_estimado_hoy,
 )
-from app.modules.consumption.domain.perfil import CoberturaMaxima, dias_restantes, fecha_quiebre
+from app.modules.consumption.domain.perfil import (
+    CoberturaMaxima,
+    UnidadConsumo,
+    dias_restantes,
+    fecha_quiebre,
+    nuevo_perfil,
+)
 
 pytestmark = pytest.mark.rf("RF-12")
 
@@ -173,3 +181,59 @@ def test_limites_de_conservacion() -> None:
     assert limites_conservacion(ahora) == (ahora - timedelta(days=90), ahora - timedelta(days=30))
     with pytest.raises(ValueError):
         limites_conservacion(datetime(2026, 11, 3))  # noqa: DTZ001 - sin zona, a propósito
+
+
+# --- «Ya lo resolví» con cantidad (decisión 79) -------------------------------------------------------
+
+AUTOR = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
+
+
+def _perfil(stock: int, tasa_unidades: int = 2, tasa_dias: int = 1, anotado_hace: int = 0):  # type: ignore[no-untyped-def]
+    return nuevo_perfil(
+        perfil_id=uuid.uuid4(),
+        persona_cuidada_id=uuid.uuid4(),
+        producto_id=None,
+        nombre_libre="Pañal adulto M",
+        unidad=UnidadConsumo.UNIDAD,
+        tasa_unidades=tasa_unidades,
+        tasa_dias=tasa_dias,
+        stock_unidades=stock,
+        dias_aviso=7,
+        hoy=ANCLA - timedelta(days=anotado_hace),
+        autor=AUTOR,
+    )
+
+
+@pytest.mark.parametrize(
+    ("stock", "tasa_u", "tasa_d", "hace", "esperado"),
+    [
+        (30, 2, 1, 0, 30),  # anotado hoy
+        (30, 2, 1, 5, 20),  # 30 - 10
+        (10, 2, 3, 4, 7),  # piso(10 - 8/3) = piso(7,33)
+        (10, 2, 1, 20, 0),  # negativo: 0
+        (0, 1, 1, 0, 0),
+    ],
+)
+def test_stock_estimado_hoy_es_entero_y_nunca_negativo(
+    stock: int, tasa_u: int, tasa_d: int, hace: int, esperado: int
+) -> None:
+    assert stock_estimado_hoy(_perfil(stock, tasa_u, tasa_d, hace), ANCLA) == esperado
+
+
+def test_reponer_suma_al_estimado_mide_hoy_recalcula_y_sube_la_version() -> None:
+    perfil = _perfil(10, 2, 1, anotado_hace=20)  # ya no queda nada
+    nuevo = reponer(perfil, 30, ANCLA, AUTOR)
+    assert (nuevo.stock_unidades, nuevo.stock_medido_en, nuevo.version) == (30, ANCLA, 2)
+    assert nuevo.fecha_quiebre_estimada == ANCLA + timedelta(days=15)
+    assert nuevo.tasa_unidades == perfil.tasa_unidades and nuevo.dias_aviso == perfil.dias_aviso
+
+
+@pytest.mark.parametrize("cantidad", [0, -1, 10_000])
+def test_reponer_exige_cantidad_de_1_a_9999(cantidad: int) -> None:
+    with pytest.raises(ValueError):
+        reponer(_perfil(10), cantidad, ANCLA, AUTOR)
+
+
+def test_reponer_no_pasa_de_la_cobertura_maxima() -> None:
+    with pytest.raises(CoberturaMaxima):
+        reponer(_perfil(10, 1, 90), 9999, ANCLA, AUTOR)

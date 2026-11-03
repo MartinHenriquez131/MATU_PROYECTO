@@ -13,7 +13,7 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-from app.modules.consumption.domain.alerta import EstadoAlerta
+from app.modules.consumption.domain.alerta import CANTIDAD_MAXIMA, EstadoAlerta
 from app.modules.consumption.domain.perfil import (
     DIAS_AVISO_MAXIMO,
     DIAS_AVISO_POR_OMISION,
@@ -24,8 +24,6 @@ from app.modules.consumption.domain.perfil import (
     UnidadConsumo,
     nombre_libre_valido,
 )
-
-CANTIDAD_MAXIMA = 9999
 
 NombreLibre = Annotated[
     str,
@@ -178,12 +176,15 @@ class ListaAlertas(BaseModel):
 
 
 class SolicitudResolver(BaseModel):
-    """Cuerpo opcional de «Ya lo resolví». Sin cantidad (u omitido): la alerta pasa a descartada.
-
-    cantidad está reservada: declarar cuánto se compró espera la decisión de Jorge (MATU-37 o MATU-51) y
-    hoy responde 422 con tipo cantidad_no_disponible.
-    """
+    """Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta
+    pasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la
+    alerta pasa a resuelta."""
 
     model_config = ConfigDict(extra="forbid")
 
-    cantidad: int | None = Field(default=None, ge=1, le=CANTIDAD_MAXIMA)
+    cantidad: int | None = Field(
+        default=None,
+        ge=1,
+        le=CANTIDAD_MAXIMA,
+        description="Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999",
+    )

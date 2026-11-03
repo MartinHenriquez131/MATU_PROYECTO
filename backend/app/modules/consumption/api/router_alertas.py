@@ -46,10 +46,11 @@ from app.modules.consumption.api.router import (
     _vista,
 )
 from app.modules.consumption.application import alertas
-from app.modules.consumption.application.alertas import AlertaNoEncontrada, CantidadAunNoDisponible, InsumoAvisado
+from app.modules.consumption.application.alertas import AlertaNoEncontrada, InsumoAvisado
 from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado
 from app.modules.consumption.application.ports import AlertaLeida
 from app.modules.consumption.domain.alerta import ABIERTAS, AlertaCerrada, EstadoAlerta
+from app.modules.consumption.domain.perfil import CoberturaMaxima
 from app.shared.puertos import Reloj
 
 router = APIRouter(tags=["alertas"])
@@ -189,8 +190,8 @@ def descartar(
 
 _422_RESOLVER: dict[str, Any] = {
     "description": (
-        "cantidad fuera de 1..9999 (errores[].campo = cantidad), o cantidad_no_disponible: declarar cuánto se compró"
-        " aún no está habilitado (decisión 76)"
+        "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días."
+        " errores[].campo = cantidad, sin repetir el valor"
     ),
     **_PROBLEMA,
 }
@@ -215,9 +216,11 @@ _422_RESOLVER: dict[str, Any] = {
     summary="Ya lo resolví",
     description=(
         "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la"
-        " alerta (decisión 76): si existe abierta pasa a descartada; si no existe, se crea ya descartada. Devuelve"
-        " el insumo con avisando = false. Cuerpo opcional; cantidad está reservada y hoy responde 422. Solo admin y"
-        " cuidador. Registra alerta.descartar. Nunca crea un pedido"
+        " alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el"
+        " perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy"
+        " (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una"
+        " reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la"
+        " cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido"
     ),
 )
 def resolver(
@@ -238,15 +241,15 @@ def resolver(
         )
     except PerfilNoEncontrado:
         raise ErrorMATU(404) from None
-    except CantidadAunNoDisponible:
+    except CoberturaMaxima:
         raise ErrorMATU(
             422,
             detalle="Revisa los campos indicados",
             errores=[
                 {
                     "campo": "cantidad",
-                    "mensaje": "anotar cuánto se compró todavía no está disponible",
-                    "tipo": "cantidad_no_disponible",
+                    "mensaje": "con esa cantidad, lo que queda alcanza para más de 3650 días",
+                    "tipo": "cobertura_maxima",
                 }
             ],
         ) from None
@@ -254,5 +257,7 @@ def resolver(
         raise ErrorMATU(409, tipo="perfil-inactivo", detalle="Este insumo no se está siguiendo") from None
     except AlertaCerrada as error:
         raise _alerta_cerrada(error) from None
+    vista = _insumo(resultado, reloj)
+    response.headers["ETag"] = vista.etag
     response.headers["Cache-Control"] = NO_STORE
-    return _insumo(resultado, reloj)
+    return vista

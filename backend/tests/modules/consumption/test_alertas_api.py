@@ -132,16 +132,68 @@ def test_resolver_sin_alerta_previa_apaga_el_aviso(entorno_consumo: EntornoConsu
     assert repetido.status_code == 409 and repetido.json()["type"] == "/errores/alerta-cerrada"
 
 
-def test_resolver_con_cantidad_aun_no_y_cantidad_fuera_de_rango(entorno_consumo: EntornoConsumo) -> None:
+def test_resolver_con_cantidad_suma_anota_la_reposicion_y_resuelve(entorno_consumo: EntornoConsumo) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    # Anotado hoy (20-10): 24 a 4 por día. + 30 = 54, alcanza 13 días: 02-11, fuera de la ventana de 7
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    cuidadora = familia.miembros["cuidador"].usuario
+    respuesta = e.pedir("POST", cuidadora, familia, f"/{perfil}/resolver", json={"cantidad": 30})
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert (cuerpo["stock_unidades"], cuerpo["stock_medido_en"], cuerpo["fecha_quiebre_estimada"]) == (
+        54,
+        "2026-10-20",
+        "2026-11-02",
+    )
+    assert cuerpo["dias_restantes"] == 13 and cuerpo["avisando"] is False and cuerpo["alerta_id"] is None
+    assert cuerpo["etag"] == '"v2"' and respuesta.headers["ETag"] == '"v2"'
+    assert cuerpo["actualizado_por"]["id"] == str(cuidadora.id)
+    assert _filas("SELECT estado FROM alerta_quiebre WHERE perfil_id = %s", perfil) == [("resuelta",)]
+    assert _filas(
+        "SELECT cantidad_unidades, origen, registrada_por, ocurrida_en::text FROM reposicion WHERE perfil_id = %s",
+        perfil,
+    ) == [(30, "declarada", cuidadora.id, "2026-10-20")]
+    acciones = _acciones(familia.grupo.id)
+    assert ("reposicion.declarar", "usuario") in acciones and ("alerta.resolver", "usuario") in acciones
+    # Ya no está en «Se acaban pronto»
+    assert e.pedir("GET", cuidadora, familia, "/por-acabarse").json()["items"] == []
+
+
+def test_resolver_con_cantidad_y_stock_estimado_negativo_parte_de_cero(entorno_consumo: EntornoConsumo) -> None:
+    from datetime import date
+
+    e = entorno_consumo
+    familia = e.familia()
+    # Anotado el 10-10: 24 - 40 es negativo, queda 0; + 30 = 30, alcanza 7 días: 27-10
+    perfil = e.fabrica.perfil_consumo(familia.persona, stock_medido_en=date(2026, 10, 10))
+    respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 30})
+    assert respuesta.status_code == 200, respuesta.text
+    assert (respuesta.json()["stock_unidades"], respuesta.json()["fecha_quiebre_estimada"]) == (30, "2026-10-27")
+
+
+def test_resolver_cantidad_fuera_de_rango_es_422_sin_tocar_nada(entorno_consumo: EntornoConsumo) -> None:
     e = entorno_consumo
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
-    for cantidad, tipo in ((30, "cantidad_no_disponible"), (0, None), (10_000, None)):
+    for cantidad in (0, 10_000, -3):
         respuesta = e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": cantidad})
         assert respuesta.status_code == 422
         [error] = respuesta.json()["errores"]
-        assert error["campo"] == "cantidad" and (tipo is None or error["tipo"] == tipo)
+        assert error["campo"] == "cantidad"
     assert _filas("SELECT 1 FROM alerta_quiebre WHERE perfil_id = %s", perfil) == []
+    assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
+
+
+@pytest.mark.parametrize("rol", ["pagador", "observador"])
+def test_pagador_y_observador_no_declaran_compras(entorno_consumo: EntornoConsumo, rol: str) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    usuario = familia.miembros[rol].usuario
+    assert e.pedir("POST", usuario, familia, f"/{perfil}/resolver", json={"cantidad": 30}).status_code == 404
+    assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
+    assert _filas("SELECT stock_unidades FROM perfil_consumo WHERE id = %s", perfil) == [(24,)]
 
 
 def test_resolver_observador_404_y_perfil_inactivo_409(entorno_consumo: EntornoConsumo) -> None:
@@ -161,13 +213,19 @@ def test_los_logs_y_la_auditoria_no_llevan_el_nombre(
     e = entorno_consumo
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Toallitas secretas")
+    otro = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Crema secreta")
     with caplog.at_level(logging.DEBUG):
-        e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver")
-        e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver", json={"cantidad": 31})
+        assert e.pedir("POST", familia.admin, familia, f"/{perfil}/resolver").status_code == 200
+        con = e.pedir("POST", familia.admin, familia, f"/{otro}/resolver", json={"cantidad": 4321})
+        assert con.status_code == 200
     textos = caplog.text + e.iam.salida_logs.getvalue()
-    assert "Toallitas secretas" not in textos and '"cantidad": 31' not in textos
-    filas = _filas("SELECT row_to_json(a)::text FROM auditoria a WHERE grupo_id = %s", familia.grupo.id)
-    assert filas and all("Toallitas" not in f[0] for f in filas)
+    assert "secret" not in textos and "4321" not in textos and "cantidad" not in textos
+    filas = _filas(
+        "SELECT accion, row_to_json(a)::text, detalle FROM auditoria a WHERE grupo_id = %s", familia.grupo.id
+    )
+    acciones = {f[0] for f in filas}
+    assert {"alerta.descartar", "alerta.resolver", "reposicion.declarar"} <= acciones
+    assert all("secret" not in f[1] and "4321" not in f[1] and f[2] is None for f in filas)
 
 
 # --- Trabajo diario ------------------------------------------------------------------------------------

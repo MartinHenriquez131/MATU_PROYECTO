@@ -5,6 +5,7 @@ una corrida doble no duplica; «Ya lo resolví» sin alerta previa la crea ya de
 todavía no; y la auditoría lleva solo identificadores.
 """
 
+import dataclasses
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -12,7 +13,7 @@ import pytest
 
 from app.modules.care_circle.domain.personas import AutorizacionGuardada
 from app.modules.consumption.application import alertas
-from app.modules.consumption.application.alertas import AlertaNoEncontrada, CantidadAunNoDisponible
+from app.modules.consumption.application.alertas import AlertaNoEncontrada
 from app.modules.consumption.application.conservacion import conservar_quiebres
 from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado, PeticionConsumo
 from app.modules.consumption.application.ports import (
@@ -195,10 +196,15 @@ class PerfilesEnMemoria:
     ) -> PerfilLeido | None:
         return self.leido if self.leido is not None and self.leido.perfil.id == perfil_id else None
 
+    def actualizar(self, perfil: Perfil) -> None:
+        assert self.leido is not None and perfil.version == self.leido.perfil.version + 1
+        self.leido = dataclasses.replace(self.leido, perfil=perfil)
+
 
 class AlertasEnMemoria:
     def __init__(self) -> None:
         self.filas: dict[uuid.UUID, AlertaLeida] = {}
+        self.reposiciones: list[tuple[uuid.UUID, uuid.UUID, int, date, uuid.UUID]] = []
 
     def agregar(self, perfil_id: uuid.UUID, fecha: date, estado: EstadoAlerta) -> AlertaLeida:
         a = AlertaLeida(uuid.uuid4(), perfil_id, fecha, estado, AHORA, None, None)
@@ -215,6 +221,11 @@ class AlertasEnMemoria:
 
     def obtener(self, persona_id: uuid.UUID, alerta_id: uuid.UUID) -> AlertaLeida | None:
         return self.filas.get(alerta_id)
+
+    def declarar_reposicion(
+        self, reposicion_id: uuid.UUID, perfil_id: uuid.UUID, cantidad: int, ocurrida_en: date, usuario_id: uuid.UUID
+    ) -> None:
+        self.reposiciones.append((reposicion_id, perfil_id, cantidad, ocurrida_en, usuario_id))
 
     def de_la_fecha(self, perfil_id: uuid.UUID, fecha: date) -> AlertaLeida | None:
         return next((a for a in self.filas.values() if (a.perfil_id, a.fecha_prevista) == (perfil_id, fecha)), None)
@@ -282,11 +293,69 @@ def test_resolver_dos_veces_es_409() -> None:
         _resolver(leido, repo)
 
 
-def test_resolver_con_cantidad_aun_no_y_sin_tocar_nada() -> None:
+def _resolver_con(leido: PerfilLeido, repo: AlertasEnMemoria, cantidad: int):  # type: ignore[no-untyped-def]
+    perfiles = PerfilesEnMemoria(leido)
+    auditoria = RegistroAuditoriaEnMemoria()
+    resultado = alertas.resolver(
+        PETICION,
+        leido.perfil.id,
+        cantidad,
+        RelojFijo(AHORA),
+        perfiles,  # type: ignore[arg-type]
+        repo,
+        auditoria,
+    )
+    return resultado, perfiles, auditoria
+
+
+def _anotado_hace(dias: int) -> PerfilLeido:
+    leido = _perfil()
+    return dataclasses.replace(
+        leido, perfil=dataclasses.replace(leido.perfil, stock_medido_en=HOY - timedelta(days=dias))
+    )
+
+
+def test_resolver_con_cantidad_suma_al_stock_estimado_de_hoy_y_resuelve() -> None:
+    # Anotado hace 1 día: 12 - 4 = 8 quedan hoy; + 30 = 38, alcanza 9 días (piso de 38/4)
+    leido = _anotado_hace(1)
     repo = AlertasEnMemoria()
-    with pytest.raises(CantidadAunNoDisponible):
-        _resolver(_perfil(), repo, cantidad=30)
-    assert repo.filas == {}
+    abierta = repo.agregar(leido.perfil.id, leido.perfil.fecha_quiebre_estimada, EstadoAlerta.PENDIENTE)
+    resultado, perfiles, auditoria = _resolver_con(leido, repo, 30)
+    nuevo = perfiles.leido.perfil
+    assert (nuevo.stock_unidades, nuevo.stock_medido_en, nuevo.version) == (38, HOY, 2)
+    assert nuevo.fecha_quiebre_estimada == HOY + timedelta(days=9)
+    assert repo.filas[abierta.id].estado is EstadoAlerta.RESUELTA and repo.filas[abierta.id].cerrada_en == AHORA
+    [(rep_id, perfil_id, cantidad, ocurrida, usuario)] = repo.reposiciones
+    assert (perfil_id, cantidad, ocurrida, usuario) == (leido.perfil.id, 30, HOY, CARMEN)
+    assert resultado.leido.perfil == nuevo and resultado.avisando is False and resultado.alerta_id is None
+    assert [(e.accion, e.entidad_id) for e in auditoria.entradas] == [
+        (AccionAuditoria.REPOSICION_DECLARAR, rep_id),
+        (AccionAuditoria.ALERTA_RESOLVER, abierta.id),
+    ]
+    assert all(e.detalle() is None for e in auditoria.entradas)
+
+
+def test_resolver_con_cantidad_sin_alerta_previa_la_crea_resuelta() -> None:
+    leido = _perfil()
+    repo = AlertasEnMemoria()
+    _resolver_con(leido, repo, 5)
+    [alerta] = repo.filas.values()
+    assert alerta.estado is EstadoAlerta.RESUELTA and alerta.fecha_prevista == leido.perfil.fecha_quiebre_estimada
+
+
+def test_resolver_con_cantidad_y_stock_estimado_negativo_parte_de_cero() -> None:
+    # Anotado hace 10 días: 12 - 40 es negativo, queda 0; + 30 = 30
+    _, perfiles, _ = _resolver_con(_anotado_hace(10), AlertasEnMemoria(), 30)
+    assert perfiles.leido is not None and perfiles.leido.perfil.stock_unidades == 30
+
+
+def test_resolver_con_cantidad_sobre_alerta_cerrada_es_409_y_no_suma() -> None:
+    leido = _perfil()
+    repo = AlertasEnMemoria()
+    repo.agregar(leido.perfil.id, leido.perfil.fecha_quiebre_estimada, EstadoAlerta.DESCARTADA)
+    with pytest.raises(AlertaCerrada):
+        _resolver_con(leido, repo, 30)
+    assert repo.reposiciones == []
 
 
 def test_resolver_perfil_ajeno_o_inactivo() -> None:
