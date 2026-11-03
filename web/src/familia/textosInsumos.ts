@@ -192,26 +192,26 @@ export const diasEnTexto = (n: number) => {
  * por lo ya hecho.
  */
 export const ALERTAS = {
-  titulo: 'Se acaban pronto', // [PROPUESTO]
-  tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // [PROPUESTO] más de 3
+  titulo: 'Se acaban pronto', // aprobado por Jorge el 03-11
+  tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // más de 3, aprobado por Jorge el 03-11
   fechaEstimada: 'Fecha estimada:', // [APROBADO] (decisión de Jorge) + {fecha}
-  nota: 'Es una estimación con lo que anotaste.', // [PROPUESTO]
-  marca: 'Te estamos avisando', // [PROPUESTO]
+  nota: 'Es una estimación con lo que anotaste.', // aprobado por Jorge el 03-11
+  marca: 'Te estamos avisando', // aprobado por Jorge el 03-11
   boton: 'Ya lo resolví', // [APROBADO]
-  botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // [PROPUESTO]
+  botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // aprobado por Jorge el 03-11
   pregunta: (unidad: Unidad) =>
-    unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // [PROPUESTO]
-  ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // [PROPUESTO]
-  guardando: 'Guardando…', // [PROPUESTO]
-  volver: 'Volver', // [PROPUESTO]
-  okCantidad: (c: string, nombre: string, n: number) => `Anotamos que compraste ${c} de ${nombre}. Ahora alcanza para ${n} ${n === 1 ? 'día' : 'días'}.`, // [PROPUESTO]
-  okCantidadSinDias: (c: string, nombre: string) => `Anotamos que compraste ${c} de ${nombre}. Si te quedan menos, cámbialo en la lista.`, // [PROPUESTO]
-  okSinCantidad: (nombre: string) => `Listo. No te avisaremos de nuevo por ${nombre} hasta que cambie la fecha estimada.`, // [PROPUESTO]
-  errCerrada: 'Alguien de tu familia ya resolvió este aviso.', // [PROPUESTO]
-  errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // [PROPUESTO]
-  errRol: 'Solo quien administra o cuida puede resolver un aviso.', // [PROPUESTO]
-  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // [PROPUESTO]
-  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // [PROPUESTO]
-  verComoQuedo: 'Ver cómo quedó', // [PROPUESTO]
-  errCarga: 'No pudimos ver qué se acaba pronto.', // [PROPUESTO]
+    unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // aprobado por Jorge el 03-11
+  ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // aprobado por Jorge el 03-11
+  guardando: 'Guardando…', // aprobado por Jorge el 03-11
+  volver: 'Volver', // aprobado por Jorge el 03-11
+  okCantidad: (c: string, nombre: string, n: number) => `Anotamos tu compra de ${nombre}: ${c}. Ahora alcanza para ${n} ${n === 1 ? 'día' : 'días'}.`, // aprobado por Jorge el 03-11
+  okCantidadSinDias: (c: string, nombre: string) => `Anotamos tu compra de ${nombre}: ${c}. Si te quedan menos, cámbialo en la lista.`, // aprobado por Jorge el 03-11
+  okSinCantidad: (nombre: string) => `Listo. No te avisaremos de nuevo por ${nombre} hasta que cambie la fecha estimada.`, // aprobado por Jorge el 03-11
+  errCerrada: 'Alguien de tu familia ya resolvió este aviso.', // aprobado por Jorge el 03-11
+  errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // aprobado por Jorge el 03-11
+  errRol: 'Solo quien administra o cuida puede resolver un aviso.', // aprobado por Jorge el 03-11
+  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // aprobado por Jorge el 03-11
+  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // aprobado por Jorge el 03-11
+  verComoQuedo: 'Ver cómo quedó', // aprobado por Jorge el 03-11
+  errCarga: 'No pudimos ver qué se acaba pronto.', // aprobado por Jorge el 03-11
 }
