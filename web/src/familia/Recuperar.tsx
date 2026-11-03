@@ -107,6 +107,13 @@ export function CambiarConCodigo() {
   const [minutos, setMinutos] = useState<number | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [reenviando, setReenviando] = useState(false)
+  // 60 s entre envíos (decisión 84): el reenvío espera, sin cuenta regresiva.
+  const [pausa, setPausa] = useState(true)
+  useEffect(() => {
+    if (!pausa) return
+    const t = window.setTimeout(() => setPausa(false), 60_000)
+    return () => window.clearTimeout(t)
+  }, [pausa])
   const { esperando, esperar } = useEspera()
   const form = useRef<HTMLFormElement>(null)
   const campoCodigo = useRef<HTMLInputElement>(null)
@@ -153,12 +160,13 @@ export function CambiarConCodigo() {
   }
 
   const reenviar = async () => {
-    if (reenviando || esperando) return
+    if (reenviando || esperando || pausa) return
     setReenviando(true)
     setFalla(null)
     try {
       await pedirCodigoRecuperacion(correo, true)
       setAviso('reenviado')
+      setPausa(true)
       setCodigo('')
       setErrores((x) => ({ contrasena: x.contrasena }))
       setMinutos(null)
@@ -217,9 +225,10 @@ export function CambiarConCodigo() {
       </form>
       <div className="flex flex-col items-start">
         <p className="text-tenue">{RECUPERAR.noLlego}</p>
-        <Boton variante="texto" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando} onClick={() => void reenviar()}>
+        <Boton variante="texto" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
           {RECUPERAR.reenviar}
         </Boton>
+        {pausa && !esperando && <p className="text-sm text-tenue">{RECUPERAR.enUnMinuto}</p>}
       </div>
     </MarcoAlta>
   )

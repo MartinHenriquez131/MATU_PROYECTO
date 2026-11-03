@@ -241,7 +241,9 @@ export const RECUPERAR = {
   cambiando: 'Cambiando…', // [PROPUESTO]
   noLlego: '¿No te llegó?', // [INSTRUCCIÓN]
   reenviar: 'Pide que te lo enviemos a tu correo', // [INSTRUCCIÓN]
-  reenviado: 'Si hay una cuenta con ese correo, te enviamos un código nuevo al correo. Puede tardar un minuto. El código anterior ya no sirve.', // [PROPUESTO]
+  // Sin «El código anterior ya no sirve»: dentro de 60 s la API no envía otro (decisión 84) y el anterior sigue sirviendo.
+  reenviado: 'Si hay una cuenta con ese correo, te enviamos un código nuevo al correo. Puede tardar un minuto.', // [PROPUESTO]
+  enUnMinuto: 'Puedes pedir otro en un minuto.', // [PROPUESTO] especificación 6.6
   errCodigoCorto: 'El código tiene 6 números.', // [PROPUESTO]
   errCodigo: 'El código no es correcto o ya venció. Pide uno nuevo.', // [INSTRUCCIÓN]
   errClaveCorta: 'La contraseña necesita al menos 10 caracteres.', // [MATU-39] // pragma: allowlist secret
