@@ -72,7 +72,7 @@ export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detal
   },
   {
     valor: 'cuidador_de_hecho',
-    texto: () => 'La cuido, sin representación legal',
+    texto: () => 'La cuido, pero no soy su representante legal', // decisión de Jorge
     detalle: () => 'La cuidas en el día a día, sin un nombramiento legal.',
     declaracion:
       'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
