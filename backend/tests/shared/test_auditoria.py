@@ -57,6 +57,11 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "dispositivo.sacar",
         "dispositivo.push_registrar",
         "dispositivo.push_borrar",
+        "consumo.crear",
+        "consumo.editar",
+        "consumo.desactivar",
+        "consumo.activar",
+        "consumo.eliminar",
     }
 
 
@@ -73,6 +78,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "acceso_relevo",
         "usuario",
         "dispositivo",
+        "perfil_consumo",
     }
 
 
