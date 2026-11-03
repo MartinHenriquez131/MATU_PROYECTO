@@ -29,7 +29,7 @@ from app.modules.care_circle.domain.personas import (
 TITULAR = CalidadOtorgante.TITULAR
 REPRESENTANTE = CalidadOtorgante.REPRESENTANTE_LEGAL
 CUIDADOR = CalidadOtorgante.CUIDADOR_DE_HECHO
-AVISO_VIGENTE = AvisoMostrado(id="aviso_cuidador_de_hecho", version="1.0")
+AVISO_VIGENTE = AvisoMostrado(id="aviso_cuidador_de_hecho", version="1.1")
 REFERENCIA = "Resolución sintética 123-2026"
 
 
@@ -108,7 +108,7 @@ def test_evidencia_del_cuidador_de_hecho_cita_el_aviso_mostrado() -> None:
     assert evidencia(CUIDADOR, "0.9") == {
         "esquema": 1,
         "declaracion": {"id": "declaracion_cuidador_de_hecho", "version": "0.9"},
-        "aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.0", "sha256": AVISO_CUIDADOR_DE_HECHO.sha256},
+        "aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.1", "sha256": AVISO_CUIDADOR_DE_HECHO.sha256},
     }
 
 
@@ -176,7 +176,7 @@ def test_sumar_meses_conserva_la_zona() -> None:
 def test_aviso_canonico_del_cuidador_de_hecho() -> None:
     aviso = AVISO_CUIDADOR_DE_HECHO
 
-    assert (aviso.id, aviso.version) == ("aviso_cuidador_de_hecho", "1.0")
+    assert (aviso.id, aviso.version) == ("aviso_cuidador_de_hecho", "1.1")
     assert aviso.titulo == "Aviso: tu autorización tiene un límite"
     assert len(aviso.parrafos) == 3
     assert aviso.parrafos[-1] == "En 12 meses te pediremos confirmar que sigues a cargo de su cuidado."
@@ -219,9 +219,10 @@ def test_sha256_cambia_si_cambia_una_letra() -> None:
     assert alterado.sha256 != aviso.sha256
 
 
-# Huella publicada en la política de privacidad v0.9 (docs/legal/politica-privacidad.md del repositorio MATU)
+# Huella del aviso 1.1 aprobado por el PO (MATU-39). Debe coincidir con la publicada en
+# docs/legal/politica-privacidad.md del repositorio MATU
 HUELLA_PUBLICADA_AVISO_CUIDADOR = (
-    "9b33205fd93e18b3eaac569071b794d21071a414ccc0d8bb5b89f9c96af3dfc9"  # pragma: allowlist secret
+    "8dfbca33f5c58a2c1f5c43a672b3e0fcd2ed4adcc971dcccd0f8879814b10489"  # pragma: allowlist secret
 )
 
 
@@ -231,7 +232,7 @@ def test_aviso_vigente_coincide_con_la_huella_publicada_en_la_politica() -> None
 
     assert (aviso.id, aviso.version, aviso.sha256) == (
         "aviso_cuidador_de_hecho",
-        "1.0",
+        "1.1",
         HUELLA_PUBLICADA_AVISO_CUIDADOR,
     ), (
         "El aviso del cuidador de hecho ya no coincide con la huella publicada en la política de privacidad. "

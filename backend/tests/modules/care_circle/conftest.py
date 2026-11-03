@@ -131,7 +131,7 @@ def cuerpo_alta(calidad: str = "titular", **cambios: Any) -> dict[str, Any]:
     if calidad == "representante_legal":
         cuerpo["referencia_documento"] = "Resolución sintética 123-2026"
     if calidad == "cuidador_de_hecho":
-        cuerpo["aviso"] = {"id": "aviso_cuidador_de_hecho", "version": "1.0"}
+        cuerpo["aviso"] = {"id": "aviso_cuidador_de_hecho", "version": "1.1"}
     cuerpo.update(cambios)
     return cuerpo
 

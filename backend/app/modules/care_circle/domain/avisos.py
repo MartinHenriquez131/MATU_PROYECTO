@@ -39,7 +39,7 @@ class Aviso:
 
 AVISO_CUIDADOR_DE_HECHO = Aviso(
     id="aviso_cuidador_de_hecho",
-    version="1.0",
+    version="1.1",
     titulo="Aviso: tu autorización tiene un límite",
     parrafos=(
         "Declaraste que cuidas a esta persona y que no eres su representante legal. Con esa declaración "
@@ -48,8 +48,8 @@ AVISO_CUIDADOR_DE_HECHO = Aviso(
         "que la autorización la diste tú, como cuidadora o cuidador de hecho, con la fecha y la versión de "
         "la política.",
         "Te pedimos tres cosas: anota solo lo necesario para su cuidado, cuéntale qué guardas en MATU si "
-        "puede comprenderlo, y respeta lo que ella decida. Ella o su representante legal pueden pedir en "
-        "cualquier momento que se borren sus datos.",
+        "puede comprenderlo, y respeta lo que esa persona decida. La persona o su representante legal pueden "
+        "pedir en cualquier momento que se borren sus datos.",
         "En 12 meses te pediremos confirmar que sigues a cargo de su cuidado.",
     ),
 )

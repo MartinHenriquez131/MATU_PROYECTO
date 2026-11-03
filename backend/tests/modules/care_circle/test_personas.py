@@ -175,7 +175,7 @@ def test_cuidador_de_hecho_fija_revision(entorno_personas: EntornoPersonas) -> N
         {
             "esquema": 1,
             "declaracion": {"id": "declaracion_cuidador_de_hecho", "version": POLITICA_PRUEBAS},
-            "aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.0", "sha256": AVISO_CUIDADOR_DE_HECHO.sha256},
+            "aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.1", "sha256": AVISO_CUIDADOR_DE_HECHO.sha256},
         },
         None,
     )
