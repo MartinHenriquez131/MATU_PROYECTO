@@ -361,7 +361,7 @@ export function Insumos() {
             (form ?? (
               items.length > 0 && (
                 <Nota titulo={INSUMOS.comoTitulo}>
-                  <p>{INSUMOS.como(pila)}</p>
+                  <p>{editor ? INSUMOS.como(pila) : INSUMOS.comoLector(pila)}</p>
                 </Nota>
               )
             ))}

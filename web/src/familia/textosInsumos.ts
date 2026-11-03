@@ -55,6 +55,8 @@ export const INSUMOS = {
   notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo.', // [APROBADO 02-11]
   notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [PROPUESTO] observador y pagador
   comoTitulo: 'Cómo calculamos', // [PROPUESTO]
+  comoLector: (pila: string) =>
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa ${pila}.`, // [PROPUESTO] observador y pagador
   como: (pila: string) =>
     `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [PROPUESTO]
   anotar: 'Anotar un insumo', // [PROPUESTO]
