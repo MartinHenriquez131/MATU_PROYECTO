@@ -1,0 +1,95 @@
+// Datos fijos de la app de la familia, copiados de la demo aprobada (Demo/src/demo/datos.ts), que
+// los tomó del prototipo v1.1 y de la política de privacidad, sección 5. Las claves del contrato
+// (`rutina`, `manejo_situaciones`, `red_apoyo`) se nombran en la URL con la etiqueta visible.
+import type { Calidad, CampoApi } from '../compartido/api/familia'
+import type { Ruta } from './ruteo'
+
+export const MAX_CARACTERES = 500
+export const AVISO_CONTADOR = 450
+
+export interface Campo {
+  api: CampoApi
+  ruta: Ruta
+  titulo: string
+  pregunta: (pila: string) => string
+  ejemplo: string
+}
+
+/** Lenguaje 5.1 a 5.3. */
+export const CAMPOS: readonly Campo[] = [
+  {
+    api: 'rutina',
+    ruta: '/ficha/su-dia',
+    titulo: 'Su día',
+    pregunta: (pila) => `¿Cómo es un día normal para ${pila}? Puedes contar un día bueno o uno difícil.`,
+    ejemplo: 'Por ejemplo: «08:00 Despierta. Le gusta que abran la cortina primero». Si empiezas con la hora, lo mostramos como línea de tiempo.',
+  },
+  {
+    api: 'manejo_situaciones',
+    ruta: '/ficha/si-se-altera',
+    titulo: 'Si se altera',
+    pregunta: (pila) => `¿Qué calma a ${pila} cuando se angustia?`,
+    ejemplo: 'Por ejemplo: «Le hace bien que le tomen la mano y le hablen de su pueblo».',
+  },
+  {
+    api: 'red_apoyo',
+    ruta: '/ficha/a-quien-llamar',
+    titulo: 'A quién llamar',
+    pregunta: () => '¿A quién llamar si algo pasa y no te ubican?',
+    ejemplo: 'Por ejemplo: «Rodrigo, su hijo: +56 9 5555 0102».',
+  },
+]
+
+export const campoDeRuta = (r: string) => CAMPOS.find((c) => c.ruta === r) ?? null
+
+export type Apoyo = 'autovalente_con_supervision' | 'apoyo_parcial' | 'apoyo_total'
+
+export const APOYOS: { valor: Apoyo; texto: string }[] = [
+  { valor: 'autovalente_con_supervision', texto: 'Se maneja sola, con supervisión' },
+  { valor: 'apoyo_parcial', texto: 'Necesita apoyo en varias cosas' },
+  { valor: 'apoyo_total', texto: 'Necesita apoyo en todo' },
+]
+
+/**
+ * Las tres calidades y sus declaraciones (política v0.9, sección 5). Donde la demo dice «Ella» o
+ * «María», va el nombre de pila. Pendiente del analista normativo: «decide por sí misma» y
+ * «representarla» llevan género (lenguaje 5).
+ */
+export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detalle: (pila: string) => string; declaracion: string }[] = [
+  {
+    valor: 'titular',
+    texto: (pila) => `${pila} lo autoriza y yo lo registro`,
+    detalle: (pila) => `${pila} decide por sí misma y tú anotas su decisión.`,
+    declaracion:
+      'Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Yo solo registro su decisión.',
+  },
+  {
+    valor: 'representante_legal',
+    texto: () => 'Soy su representante legal',
+    detalle: () => 'Tienes un nombramiento legal para representarla.',
+    declaracion:
+      'Declaro que soy representante legal de la persona que cuido y que la referencia que indico corresponde al documento que lo acredita. Como su representante, autorizo a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente.',
+  },
+  {
+    valor: 'cuidador_de_hecho',
+    texto: () => 'La cuido, sin representación legal',
+    detalle: () => 'La cuidas en el día a día, sin un nombramiento legal.',
+    declaracion:
+      'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar su ficha de relevo y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
+  },
+]
+
+/** Texto exacto del aviso `aviso_cuidador_de_hecho`, versión 1.0 (política, sección 5). */
+export const AVISO_CUIDADOR = {
+  id: 'aviso_cuidador_de_hecho',
+  version: '1.0',
+  titulo: 'Aviso: tu autorización tiene un límite',
+  parrafos: [
+    'Declaraste que cuidas a esta persona y que no eres su representante legal. Con esa declaración puedes organizar su cuidado en MATU, pero tu autorización no equivale a la de la propia persona ni a la de su representante legal. MATU no puede comprobar lo que declaras. Por eso deja registrado que la autorización la diste tú, como cuidadora o cuidador de hecho, con la fecha y la versión de la política.',
+    'Te pedimos tres cosas: anota solo lo necesario para su cuidado, cuéntale qué guardas en MATU si puede comprenderlo, y respeta lo que ella decida. Ella o su representante legal pueden pedir en cualquier momento que se borren sus datos.',
+    'En 12 meses te pediremos confirmar que sigues a cargo de su cuidado.',
+  ],
+} as const
+
+/** El mismo patrón del backend (`backend/app/shared/celular.py`): 9 y ocho dígitos, con o sin +56. */
+export const PATRON_CELULAR = /^(\+?56 ?)?9( ?[0-9]){8}$/

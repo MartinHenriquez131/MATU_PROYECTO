@@ -1,0 +1,293 @@
+// Piezas de interfaz de la app de la familia, copiadas de la demo aprobada (Demo/src/components/
+// Ui.tsx, HojaFicha.tsx y TextoFicha.tsx; Demo/src/familia/Shell.tsx). Cambios: `pino` es
+// `turquesa`, el borde de los controles es `borde`, el error lleva ícono y `Volver` mide 48 px.
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
+import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
+import { fechaYHoraDeChile } from '../compartido/fechas'
+import { CAMPOS } from './datos'
+import { FICHA } from './textos'
+import type { CampoApi } from '../compartido/api/familia'
+
+export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`flex flex-wrap items-center gap-3 ${className}`}>{children}</div>
+}
+
+/** Título de cada pantalla: recibe el foco al cambiar de ruta (2.6). */
+export function Titulo({ children, className = 'text-3xl @2xl/main:text-4xl' }: { children: ReactNode; className?: string }) {
+  return (
+    <h1 id="titulo-pagina" tabIndex={-1} className={`titular angosto:text-2xl outline-none ${className}`}>
+      {children}
+    </h1>
+  )
+}
+
+export function Pagina({ titulo, bajada, antes, children }: { titulo: ReactNode; bajada?: ReactNode; antes?: ReactNode; children?: ReactNode }) {
+  return (
+    <>
+      <div className="mb-7 flex flex-col gap-3">
+        {antes}
+        <div>
+          <Titulo>{titulo}</Titulo>
+          {bajada && <p className="mt-1.5 max-w-prose text-base text-tenue">{bajada}</p>}
+        </div>
+      </div>
+      {children}
+    </>
+  )
+}
+
+/** Enlace de vuelta, de texto, 48 px en todos los tamaños. */
+export function Volver({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="inline-flex min-h-12 items-center gap-1 self-start rounded-lg pr-2 font-bold text-turquesa hover:underline">
+      <ChevronLeft aria-hidden className="size-5 shrink-0" />
+      {children}
+    </button>
+  )
+}
+
+export function MensajeError({ children, id }: { children: ReactNode; id?: string }) {
+  return (
+    <p id={id} className="flex gap-1.5 font-bold text-pronto">
+      <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
+      <span className="min-w-0">{children}</span>
+    </p>
+  )
+}
+
+export function CampoTexto({
+  etiqueta,
+  ayuda,
+  error,
+  className = '',
+  junto,
+  ...resto
+}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: ReactNode; error?: string | null; junto?: ReactNode }) {
+  const id = useId()
+  const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
+  return (
+    <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+      <label htmlFor={id} className="font-bold">
+        {etiqueta}
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          id={id}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describe}
+          className={`min-h-12 w-full min-w-0 flex-1 basis-40 rounded-xl bg-hoja px-4 py-2.5 ring-2 ring-inset placeholder:text-tenue disabled:opacity-60 focus-visible:ring-turquesa ${
+            error ? 'ring-pronto' : 'ring-borde'
+          }`}
+          {...resto}
+        />
+        {junto}
+      </div>
+      {ayuda && (
+        <span id={`${id}-a`} className="text-sm text-tenue">
+          {ayuda}
+        </span>
+      )}
+      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+    </div>
+  )
+}
+
+export function GrupoOpciones<T extends string>({
+  leyenda,
+  opciones,
+  valor,
+  onCambio,
+  nombre,
+  columnas = false,
+  error,
+  children,
+}: {
+  leyenda: string
+  opciones: { valor: T; texto: string; detalle?: string }[]
+  valor: T | null
+  onCambio: (v: T) => void
+  nombre: string
+  columnas?: boolean
+  error?: string | null
+  children?: ReactNode
+}) {
+  const id = useId()
+  return (
+    <fieldset className="flex flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
+      <legend className="mb-2 font-bold">{leyenda}</legend>
+      <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl/main:grid-cols-3' : ''}`}>
+        {opciones.map((o) => {
+          const on = o.valor === valor
+          return (
+            <label
+              key={o.valor}
+              className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-xl px-4 py-3 ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                on ? 'bg-rocio ring-turquesa' : error ? 'bg-hoja ring-pronto' : 'bg-hoja ring-borde hover:ring-turquesa/40'
+              }`}
+            >
+              <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+              <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
+                {on && <span className="size-3 rounded-full bg-turquesa" />}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="font-bold leading-snug">{o.texto}</span>
+                {o.detalle && <span className="text-sm text-tenue">{o.detalle}</span>}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+      {children}
+    </fieldset>
+  )
+}
+
+type TonoNota = 'rocio' | 'atenta' | 'pronto' | 'ok'
+const FONDO_NOTA: Record<TonoNota, string> = { rocio: 'bg-rocio', atenta: 'bg-atenta-fondo', pronto: 'bg-pronto-fondo', ok: 'bg-ok-fondo' }
+const ICONO_NOTA: Record<TonoNota, ReactNode> = {
+  rocio: <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />,
+  atenta: <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />,
+  pronto: <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" />,
+  ok: <CircleCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-ok" />,
+}
+
+/** Nota con ícono propio por tono: nunca solo el color. `borde` agrega la línea izquierda de los avisos grandes. */
+export function Nota({
+  titulo,
+  children,
+  tono = 'rocio',
+  icono,
+  rol,
+  borde = false,
+  className = '',
+}: {
+  titulo?: ReactNode
+  children?: ReactNode
+  tono?: TonoNota
+  icono?: ReactNode
+  rol?: 'status' | 'alert'
+  borde?: boolean
+  className?: string
+}) {
+  const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
+  return (
+    <div role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+      {icono ?? ICONO_NOTA[tono]}
+      <div className="min-w-0">
+        {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
+        {children && <div className="text-base leading-relaxed">{children}</div>}
+      </div>
+    </div>
+  )
+}
+
+export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: 'neutro' | 'ok' }) {
+  const t = tono === 'ok' ? 'bg-ok-fondo text-ok' : 'bg-tinta/7 text-tenue'
+  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
+}
+
+/** Avance de la ficha, por campos: tres tramos, siempre con el texto al lado. */
+export function BarraCampos({ hechos, className = '' }: { hechos: number; className?: string }) {
+  return (
+    <div aria-hidden className={`flex gap-1.5 ${className}`}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} className={`h-2.5 flex-1 rounded-full ${i < hechos ? 'bg-turquesa' : 'bg-tinta/10'}`} />
+      ))}
+    </div>
+  )
+}
+
+/** «hoy, HH:MM» o «DD/MM/AAAA, HH:MM», en la hora de Chile. Cada parte en su `cifras`. */
+export function Cuando({ iso, className = '' }: { iso: string; className?: string }) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const { fecha, hora } = fechaYHoraDeChile(d)
+  const hoy = fechaYHoraDeChile(new Date()).fecha === fecha
+  return (
+    <span className={`tabular-nums ${className}`}>
+      <span className="cifras">{hoy ? 'hoy,' : `${fecha},`}</span> <span className="cifras">{hora}</span>
+    </span>
+  )
+}
+
+export const horaDe = (iso: string | null | undefined) => (iso && !Number.isNaN(new Date(iso).getTime()) ? fechaYHoraDeChile(new Date(iso)).hora : '')
+
+/** La completitud del contrato (0, 33, 67, 100) en campos listos. */
+export const camposListos = (completitud: number) => Math.max(0, Math.min(3, Math.round((completitud * 3) / 100)))
+
+// ---------- La hoja de la ficha (HojaFicha y TextoFicha de la demo) ----------
+
+export function Hoja({ children, etiqueta }: { children: ReactNode; etiqueta?: string }) {
+  return (
+    <div className="relative pt-3" role={etiqueta ? 'group' : undefined} aria-label={etiqueta}>
+      <span aria-hidden className="absolute top-0 left-1/2 z-10 size-7 -translate-x-1/2 rounded-full bg-miel shadow-md" />
+      <div className="rounded-sm bg-hoja px-4 angosto:px-2 @3xl/main:px-9 pt-7 pb-6 shadow-xl ring-1 ring-linea">{children}</div>
+    </div>
+  )
+}
+
+const HORA = /^\s*(\d{1,2})[:.](\d{2})\s*[-–·]?\s*(.*)$/
+
+function separarHoras(texto: string): { hora: string; texto: string }[] | null {
+  const lineas = texto.split('\n').map((l) => l.trim()).filter(Boolean)
+  const conHora = lineas.map((l) => HORA.exec(l))
+  if (!conHora.some(Boolean)) return null
+  return lineas.map((l, i) => {
+    const m = conHora[i]
+    return m ? { hora: `${m[1].padStart(2, '0')}:${m[2]}`, texto: m[3] } : { hora: '', texto: l }
+  })
+}
+
+/** Texto de un campo: siempre como texto, nunca HTML. "Su día" con horas, en línea de tiempo. */
+export function TextoCampo({ texto }: { texto: string | null }) {
+  if (!texto || !texto.trim()) return <p className="text-tenue italic">{FICHA.sinCompletar}</p>
+  const horas = separarHoras(texto)
+  if (horas)
+    return (
+      <div className="relative">
+        <span aria-hidden className="absolute top-2 bottom-2 left-18 w-0.5 angosto:hidden rounded-full bg-miel/45" />
+        <ol className="flex flex-col gap-3 pl-1">
+          {horas.map((it, i) => (
+            <li key={i} className="relative flex items-start gap-3 angosto:flex-col angosto:gap-1">
+              <span className="cifras w-13 shrink-0 pt-px text-right angosto:w-auto angosto:text-left font-bold text-turquesa">{it.hora}</span>
+              <span aria-hidden className="relative z-10 mt-1.5 angosto:hidden size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
+              <span className="min-w-0 break-words">{it.texto}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    )
+  return (
+    <div className="renglones leading-7">
+      {texto.split('\n').map((l, i) => (
+        <p key={i} className="break-words">
+          {l || ' '}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+export function HojaFicha({ pila, textos, escribiendo }: { pila: string; textos: Record<CampoApi, string | null>; escribiendo?: CampoApi | null }) {
+  return (
+    <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
+      <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
+      {CAMPOS.map((c) => (
+        <section key={c.api} className={`mt-5 ${escribiendo === c.api ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
+          <h3 className="mb-1 text-lg font-bold text-turquesa">{c.titulo}</h3>
+          <TextoCampo texto={textos[c.api]} />
+        </section>
+      ))}
+    </Hoja>
+  )
+}
+
+export function Listo({ listo }: { listo: boolean }) {
+  return (
+    <Etiqueta tono={listo ? 'ok' : 'neutro'}>
+      {listo ? <Check aria-hidden className="size-4" strokeWidth={3} /> : <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />}
+      {listo ? FICHA.listo : FICHA.falta}
+    </Etiqueta>
+  )
+}
