@@ -15,7 +15,12 @@ from app.modules.care_circle.domain.personas import AutorizacionGuardada
 from app.modules.consumption.application import alertas
 from app.modules.consumption.application.alertas import AlertaNoEncontrada
 from app.modules.consumption.application.conservacion import conservar_quiebres
-from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado, PeticionConsumo
+from app.modules.consumption.application.perfiles import (
+    PerfilInactivo,
+    PerfilNoEncontrado,
+    PeticionConsumo,
+    VersionDesactualizada,
+)
 from app.modules.consumption.application.ports import (
     AlertaLeida,
     InsumoDelTrabajo,
@@ -25,7 +30,7 @@ from app.modules.consumption.application.ports import (
 )
 from app.modules.consumption.application.trabajo_diario import recalcular_quiebres
 from app.modules.consumption.domain.alerta import AlertaCerrada, EstadoAlerta
-from app.modules.consumption.domain.perfil import Perfil, UnidadConsumo
+from app.modules.consumption.domain.perfil import FaltaVersion, Perfil, UnidadConsumo
 from app.modules.consumption.events import QuiebreProximo
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria
 from tests.dobles.registro_auditoria_en_memoria import RegistroAuditoriaEnMemoria
@@ -254,6 +259,7 @@ def _resolver(leido: PerfilLeido | None, repo: AlertasEnMemoria, cantidad: int |
         PETICION,
         objetivo,
         cantidad,
+        '"v1"',
         RelojFijo(AHORA),
         PerfilesEnMemoria(leido),  # type: ignore[arg-type]
         repo,
@@ -293,13 +299,14 @@ def test_resolver_dos_veces_es_409() -> None:
         _resolver(leido, repo)
 
 
-def _resolver_con(leido: PerfilLeido, repo: AlertasEnMemoria, cantidad: int):  # type: ignore[no-untyped-def]
+def _resolver_con(leido: PerfilLeido, repo: AlertasEnMemoria, cantidad: int | None, if_match: str | None = '"v1"'):  # type: ignore[no-untyped-def]
     perfiles = PerfilesEnMemoria(leido)
     auditoria = RegistroAuditoriaEnMemoria()
     resultado = alertas.resolver(
         PETICION,
         leido.perfil.id,
         cantidad,
+        if_match,
         RelojFijo(AHORA),
         perfiles,  # type: ignore[arg-type]
         repo,
@@ -377,3 +384,42 @@ def test_descartar_alerta_ajena_o_cerrada() -> None:
     resultado = alertas.descartar(PETICION, abierta.id, RelojFijo(AHORA), repo, auditoria)
     assert resultado.estado is EstadoAlerta.DESCARTADA and resultado.cerrada_en == AHORA
     assert [e.accion for e in auditoria.entradas] == [AccionAuditoria.ALERTA_DESCARTAR]
+
+
+# --- Decisión 80: «Ya lo resolví» es condicional ------------------------------------------------------
+
+
+@pytest.mark.parametrize("if_match", [None, "", "*"])
+def test_resolver_sin_if_match_es_428_y_no_toca_nada(if_match: str | None) -> None:
+    repo = AlertasEnMemoria()
+    with pytest.raises(FaltaVersion):
+        _resolver_con(_perfil(), repo, 30, if_match)
+    assert repo.filas == {} and repo.reposiciones == []
+
+
+@pytest.mark.parametrize("cantidad", [30, None])
+def test_resolver_con_version_vieja_es_412_y_no_suma_ni_cierra(cantidad: int | None) -> None:
+    leido = _perfil()
+    repo = AlertasEnMemoria()
+    resultado, perfiles, auditoria = _resolver_con(leido, repo, cantidad, '"v7"')
+    assert isinstance(resultado, VersionDesactualizada) and resultado.actual == leido
+    assert repo.filas == {} and repo.reposiciones == [] and auditoria.entradas == ()
+    assert perfiles.leido == leido
+
+
+def test_dos_resolver_seguidos_con_el_mismo_etag_suman_una_sola_vez() -> None:
+    leido = _perfil()
+    repo = AlertasEnMemoria()
+    primero, perfiles, _ = _resolver_con(leido, repo, 5)
+    assert not isinstance(primero, VersionDesactualizada)
+    segundo = alertas.resolver(
+        PETICION,
+        leido.perfil.id,
+        5,
+        '"v1"',
+        RelojFijo(AHORA),
+        perfiles,  # type: ignore[arg-type]
+        repo,
+        RegistroAuditoriaEnMemoria(),
+    )
+    assert isinstance(segundo, VersionDesactualizada) and len(repo.reposiciones) == 1

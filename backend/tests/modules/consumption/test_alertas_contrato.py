@@ -67,3 +67,12 @@ def test_el_item_trae_avisando_y_alerta_id_y_cantidad_es_opcional(app: Any) -> N
     assert resolver.get("required", []) == [] and resolver["additionalProperties"] is False
     [entero] = [t for t in resolver["properties"]["cantidad"]["anyOf"] if t.get("type") == "integer"]
     assert (entero["minimum"], entero["maximum"]) == (1, 9999)
+
+
+def test_resolver_exige_if_match_y_declara_412_y_428(app: Any) -> None:
+    operacion = app.openapi()["paths"][BASE + "/{perfil_id}/resolver"]["post"]
+    assert {"412", "428"} <= set(operacion["responses"])
+    [cabecera] = [p for p in operacion["parameters"] if p["in"] == "header" and p["name"] == "If-Match"]
+    assert "etag" in cabecera["description"]
+    propiedades = operacion["responses"]["412"]["content"]["application/problem+json"]["schema"]["properties"]
+    assert propiedades["actual"]["$ref"] == "#/components/schemas/PerfilConsumoVista"

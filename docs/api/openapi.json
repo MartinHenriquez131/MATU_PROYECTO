@@ -1645,6 +1645,24 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80)",
+              "title": "If-Match"
+            },
+            "description": "ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80)"
+          },
+          {
             "name": "X-Grupo-Id",
             "in": "header",
             "required": false,
@@ -1713,8 +1731,84 @@
               "application/problem+json": {}
             }
           },
+          "412": {
+            "description": "El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó): no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: el perfil actual en ``actual``, con quién lo guardó.",
+                  "properties": {
+                    "type": {
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/PerfilConsumoVista"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionPerfilVista",
+                  "type": "object"
+                }
+              }
+            }
+          },
           "422": {
             "description": "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "Falta If-Match, está vacío o es *",
             "content": {
               "application/problem+json": {}
             }

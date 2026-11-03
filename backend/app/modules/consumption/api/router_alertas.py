@@ -13,9 +13,10 @@ auditoría.
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Query, Request, Response
+from fastapi import APIRouter, Body, Header, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 
-from app.core.errores import ErrorMATU
+from app.core.errores import ErrorMATU, respuesta_problema
 from app.modules.consumption.api.dependencias import (
     AlertaIdRuta,
     Auditoria,
@@ -42,15 +43,16 @@ from app.modules.consumption.api.router import (
     _403,
     _cursor,
     _desde_cursor,
+    _esquema_412,
     _peticion,
     _vista,
 )
 from app.modules.consumption.application import alertas
 from app.modules.consumption.application.alertas import AlertaNoEncontrada, InsumoAvisado
-from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado
+from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado, VersionDesactualizada
 from app.modules.consumption.application.ports import AlertaLeida
 from app.modules.consumption.domain.alerta import ABIERTAS, AlertaCerrada, EstadoAlerta
-from app.modules.consumption.domain.perfil import CoberturaMaxima
+from app.modules.consumption.domain.perfil import CoberturaMaxima, FaltaVersion
 from app.shared.puertos import Reloj
 
 router = APIRouter(tags=["alertas"])
@@ -211,7 +213,15 @@ _422_RESOLVER: dict[str, Any] = {
             ),
             **_PROBLEMA,
         },
+        412: {
+            "description": (
+                "El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó):"
+                " no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó"
+            ),
+            "content": {"application/problem+json": {"schema": _esquema_412()}},
+        },
         422: _422_RESOLVER,
+        428: {"description": "Falta If-Match, está vacío o es *", **_PROBLEMA},
     },
     summary="Ya lo resolví",
     description=(
@@ -233,14 +243,33 @@ def resolver(
     auditoria: Auditoria,
     reloj: RelojDep,
     solicitud: Annotated[SolicitudResolver | None, Body()] = None,
-) -> InsumoPorAcabarseVista:
+    if_match: Annotated[
+        str | None,
+        Header(
+            alias="If-Match",
+            description=(
+                'ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo "v3". Obligatorio: vacío o *'
+                " responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80)"
+            ),
+        ),
+    ] = None,
+) -> InsumoPorAcabarseVista | JSONResponse:
     cantidad = None if solicitud is None else solicitud.cantidad
     try:
         resultado = alertas.resolver(
-            _peticion(request, autorizado), uuid_o_404(perfil_id), cantidad, reloj, perfiles, repositorio, auditoria
+            _peticion(request, autorizado),
+            uuid_o_404(perfil_id),
+            cantidad,
+            if_match,
+            reloj,
+            perfiles,
+            repositorio,
+            auditoria,
         )
     except PerfilNoEncontrado:
         raise ErrorMATU(404) from None
+    except FaltaVersion:
+        raise ErrorMATU(428, detalle="Vuelve a abrir el insumo e inténtalo de nuevo") from None
     except CoberturaMaxima:
         raise ErrorMATU(
             422,
@@ -257,6 +286,16 @@ def resolver(
         raise ErrorMATU(409, tipo="perfil-inactivo", detalle="Este insumo no se está siguiendo") from None
     except AlertaCerrada as error:
         raise _alerta_cerrada(error) from None
+    if isinstance(resultado, VersionDesactualizada):
+        actual = _vista(resultado.actual, reloj)
+        quien = actual.actualizado_por.nombre if actual.actualizado_por is not None else "Otra persona"
+        return respuesta_problema(
+            request,
+            status.HTTP_412_PRECONDITION_FAILED,
+            detalle=f"{quien} cambió este insumo hace un momento. Revisa cuánto queda antes de anotar de nuevo",
+            headers={"ETag": actual.etag, "Cache-Control": NO_STORE},
+            extension={"actual": actual.model_dump(mode="json")},
+        )
     vista = _insumo(resultado, reloj)
     response.headers["ETag"] = vista.etag
     response.headers["Cache-Control"] = NO_STORE
