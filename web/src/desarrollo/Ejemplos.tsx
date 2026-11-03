@@ -2,7 +2,7 @@
 // del diseñador (especificación MATU-23, sección 8). main.tsx lo carga bajo import.meta.env.DEV,
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
-import { CONTRASENA_DE_EJEMPLO, CUENTAS } from '../../doble/familia'
+import { CONTRASENA_DE_EJEMPLO, CUENTAS } from '../../doble/cuentas'
 
 export function Ejemplos() {
   // Se abre en una pestaña nueva: el fragmento cambia y la página arranca de cero.
