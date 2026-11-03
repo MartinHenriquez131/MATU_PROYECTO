@@ -342,7 +342,7 @@ export interface paths {
         put?: never;
         /**
          * Ya lo resolví
-         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisión 76): si existe abierta pasa a descartada; si no existe, se crea ya descartada. Devuelve el insumo con avisando = false. Cuerpo opcional; cantidad está reservada y hoy responde 422. Solo admin y cuidador. Registra alerta.descartar. Nunca crea un pedido
+         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido
          */
         post: operations["resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post"];
         delete?: never;
@@ -1068,13 +1068,15 @@ export interface components {
         };
         /**
          * SolicitudResolver
-         * @description Cuerpo opcional de «Ya lo resolví». Sin cantidad (u omitido): la alerta pasa a descartada.
-         *
-         *     cantidad está reservada: declarar cuánto se compró espera la decisión de Jorge (MATU-37 o MATU-51) y
-         *     hoy responde 422 con tipo cantidad_no_disponible.
+         * @description Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta
+         *     pasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la
+         *     alerta pasa a resuelta.
          */
         SolicitudResolver: {
-            /** Cantidad */
+            /**
+             * Cantidad
+             * @description Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999
+             */
             cantidad?: number | null;
         };
         /**
@@ -2204,6 +2206,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80) */
+                "If-Match"?: string | null;
                 "X-Grupo-Id"?: string | null;
             };
             path: {
@@ -2263,8 +2267,42 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description cantidad fuera de 1..9999 (errores[].campo = cantidad), o cantidad_no_disponible: declarar cuánto se compró aún no está habilitado (decisión 76) */
+            /** @description El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó): no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

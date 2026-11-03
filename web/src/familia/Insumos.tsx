@@ -1499,7 +1499,7 @@ function SeAcabanPronto({
     setFalla(null)
     try {
       // Sin interfaz optimista (4.4): el aviso sigue igual hasta la respuesta.
-      const r = await resolverAviso(personaId, a.id, cant)
+      const r = await resolverAviso(personaId, a.id, a.etag, cant)
       const texto =
         cant === null
           ? ALERTAS.okSinCantidad(nombre)
@@ -1513,7 +1513,10 @@ function SeAcabanPronto({
       const permiso = permisoDe(x)
       if (permiso) return onPermiso(permiso)
       const f = leerFallo(x)
-      if (f.status === 409 && esTipo(f.tipo, 'alerta-cerrada')) setFalla({ texto: ALERTAS.errCerrada, tipo: 'cerrado' })
+      const actual = leerConflictoPerfil(x)
+      // 412: otra persona cambió el insumo; no se sumó nada. 428 no debería pasar: cae en el genérico.
+      if (f.status === 412) setFalla({ texto: ALERTAS.errConflicto(actual?.actualizado_por?.nombre?.trim() || INSUMOS.otraPersona, actual ? nombreDe(actual) : nombre), tipo: 'cerrado' })
+      else if (f.status === 409 && esTipo(f.tipo, 'alerta-cerrada')) setFalla({ texto: ALERTAS.errCerrada, tipo: 'cerrado' })
       else if (f.status === 404 || f.status === 409) setFalla({ texto: ALERTAS.errNoEsta, tipo: 'cerrado' })
       else if (f.status === 422 && CANTIDAD_EN_RESOLVER) {
         setFalla({ texto: ALERTAS.errCantidad, tipo: 'campo' })

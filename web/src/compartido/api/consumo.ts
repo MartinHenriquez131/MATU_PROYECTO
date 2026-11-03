@@ -76,9 +76,10 @@ export async function listarAlertas(personaId: string): Promise<S['ListaAlertas'
  * alerta aún no exista. Sin `cantidad` solo descarta; con `cantidad` hoy el backend responde 422
  * `cantidad_no_disponible`, por eso la pantalla no la manda mientras su bandera esté apagada.
  */
-export async function resolverAviso(personaId: string, perfilId: string, cantidad: number | null): Promise<PorAcabarse> {
+export async function resolverAviso(personaId: string, perfilId: string, etag: string, cantidad: number | null): Promise<PorAcabarse> {
   const cuerpo = cantidad === null ? undefined : { cantidad }
-  return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/resolver`, cuerpo)).data
+  // Siempre condicional (decisión 80): el `etag` del ítem de `por-acabarse`, tal cual. Un 412 no suma nada.
+  return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/resolver`, cuerpo, { headers: { 'If-Match': etag } })).data
 }
 
 /** Descartar una alerta por su id. La pantalla usa `resolverAviso`, que no depende del trabajo diario. */

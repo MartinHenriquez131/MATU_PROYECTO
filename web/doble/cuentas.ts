@@ -41,6 +41,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'alertas-cero@ejemplo.cl', que: 'Se acaban pronto: admin con un insumo que ya no queda y se usa 4 al día; «Ya lo resolví» con 1 a 3 deja el recálculo en 0 («Si te quedan menos, cámbialo en la lista.»)' },
   { email: 'alertas-observador@ejemplo.cl', que: 'Se acaban pronto: observador, ve el bloque y «Te estamos avisando» sin «Ya lo resolví»' },
   { email: 'alertas-cerrada@ejemplo.cl', que: 'Se acaban pronto: cuidador; el primer «Ya lo resolví» de cada insumo responde 409 alerta-cerrada («Alguien de tu familia ya resolvió este aviso» y «Ver cómo quedó»)' },
+  { email: 'alertas-conflicto@ejemplo.cl', que: 'Se acaban pronto: cuidador; el primer «Ya lo resolví» de cada insumo responde 412 (Rodrigo lo cambió: «… mientras lo resolvías» y «Ver cómo quedó»). Resolver exige If-Match (sin él, 428)' },
   { email: 'alertas-error@ejemplo.cl', que: 'Se acaban pronto: «Ya lo resolví» responde 500 («No pudimos guardar…»)' },
   { email: 'alertas-error-carga@ejemplo.cl', que: 'Se acaban pronto: por-acabarse responde 500; la lista se ve y el bloque dice «No pudimos ver qué se acaba pronto»' },
   { email: 'insumos-defectos@ejemplo.cl', que: 'Insumos: cambiar «Pañal» responde 412 una vez, «Apósitos» 409 perfil-inactivo, «Guantes» 500; anotar «Error» responde 500; stock 100000 con uso 1 da 422 cobertura_maxima' },

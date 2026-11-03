@@ -173,6 +173,7 @@ function atenderAlertas(
   cuerpo: Record<string, unknown> | null,
   ctx: { rol: Rol; consumo: ConsumoDoble; usuario: { id: string; nombre: string; modo?: string } },
   r: Responder,
+  ifMatch?: string,
 ): boolean {
   const { json, problema } = r
   const { rol, consumo: c, usuario } = ctx
@@ -204,6 +205,17 @@ function atenderAlertas(
     const p = c.perfiles.find((x) => x.id === decodeURIComponent(mr[1]))
     if (!p) return problema(res, 404, '/errores/no-encontrado'), true
     if (!p.activo) return problema(res, 409, '/errores/perfil-inactivo'), true
+    // Decisión 80: siempre condicional.
+    if (!ifMatch || ifMatch === '*') return problema(res, 428, '/errores/falta-version'), true
+    // Cuenta «alertas-conflicto»: el primer intento de cada insumo encuentra que Rodrigo lo cambió.
+    if (usuario.modo === 'alertas-conflicto' && !conflictosHechos.has(p.id)) {
+      conflictosHechos.add(p.id)
+      Object.assign(p, { version: p.version + 1, autor: RODRIGO_CONSUMO })
+    }
+    if (ifMatch !== `"v${p.version}"`) {
+      res.setHeader('ETag', `"v${p.version}"`)
+      return problema(res, 412, '/errores/version-desactualizada', { actual: vista(p) }), true
+    }
     const b = cuerpo ?? {}
     for (const k of Object.keys(b))
       if (k !== 'cantidad') return problema(res, 422, '/errores/validacion', { errores: [{ campo: k, mensaje: 'MENSAJE DEL DOBLE', tipo: 'extra_forbidden' }] }), true
@@ -298,7 +310,7 @@ export function atenderConsumo(
   if (consumo.autorizacion === 'no') return problema(res, 403, '/errores/sin-consentimiento', { finalidad: 'consumo' })
   if (consumo.autorizacion === 'vencida') return problema(res, 403, '/errores/revision-vencida', { finalidad: 'consumo' })
   if (deAlertas) {
-    if (!atenderAlertas(metodo, ruta, res, cuerpo, ctx, r)) problema(res, 404, '/errores/no-encontrado')
+    if (!atenderAlertas(metodo, ruta, res, cuerpo, ctx, r, req.headers['if-match'])) problema(res, 404, '/errores/no-encontrado')
     return
   }
 
