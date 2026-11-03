@@ -53,6 +53,7 @@ export const INSUMOS = {
 
   // 3.2 Lista
   notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo.', // [APROBADO 02-11]
+  notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [PROPUESTO] observador y pagador
   comoTitulo: 'Cómo calculamos', // [PROPUESTO]
   como: (pila: string) =>
     `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [PROPUESTO]
@@ -149,7 +150,7 @@ export const INSUMOS = {
   cambio: '(cambió)',
   guardarLoMio: 'Guardar lo mío',
   dejarLoSuyo: 'Dejar lo que guardó',
-  dejasteLoSuyo: 'Dejaste lo que guardó la otra persona.',
+  dejasteLoSuyo: (autor: string | null) => `Dejaste lo que guardó ${autor ?? 'la otra persona'}.`, // [PROPUESTO]
   avisaAntes: (n: number) => `Te avisamos ${n === 1 ? '1 día' : `${n} días`} antes.`,
   nombreEs: (n: string) => `Se llama «${n}».`,
 

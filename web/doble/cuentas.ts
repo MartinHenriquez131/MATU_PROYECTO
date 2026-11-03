@@ -9,7 +9,7 @@ export interface CuentaDeEjemplo {
 }
 
 export const CUENTAS: CuentaDeEjemplo[] = [
-  { email: 'carmen@ejemplo.cl', que: 'Admin con María y «Su día» escrito (1 de 3). Insumos: la lista completa (6, 1, 0 y −2 días, 60 caracteres, por sobre, cada 2 días, dos sin seguir y «Ver más»). El correo ya tiene cuenta: úsalo en Crear cuenta para ver el 409' },
+  { email: 'carmen@ejemplo.cl', que: 'Admin con María y «Su día» escrito (1 de 3). Insumos: la lista completa (6, 1, 0 y −2 días, 60 caracteres, por sobre, cada 2 días, dos sin seguir en la primera página y «Ver más» con el tercero). El correo ya tiene cuenta: úsalo en Crear cuenta para ver el 409' },
   { email: 'vacia@ejemplo.cl', que: 'Admin con la ficha en 0 de 3' },
   { email: 'completa@ejemplo.cl', que: 'Ficha en 3 de 3 (un campo lo escribió Rodrigo)' },
   { email: 'dos-grupos@ejemplo.cl', que: 'Dos grupos y dos personas: selector de persona' },

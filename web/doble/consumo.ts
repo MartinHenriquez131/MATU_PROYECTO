@@ -33,7 +33,7 @@ type Responder = {
 }
 
 /** Página corta a propósito: la primera página trae `siguiente_cursor` (especificación 8). */
-const PAGINA = 6
+const PAGINA = 9
 const MAX_COBERTURA = 3650
 
 const DIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -52,7 +52,7 @@ export function perfil(nombre: string, unidad: Unidad, tasa: number, cada: numbe
   return { id: randomUUID(), nombre_libre: nombre, unidad, tasa_unidades: tasa, tasa_dias: cada, stock_unidades: stock, stock_medido_en: sumar(hoy(), -hace), dias_aviso: aviso, activo, version: 1, autor }
 }
 
-/** La lista de la especificación 8: 6, 1 y 0 días, −2, 60 caracteres sin espacios, por sobre, cada 2 días y dos sin seguir. */
+/** La lista de la especificación 8: 6, 1 y 0 días, −2, 60 caracteres sin espacios, por sobre, cada 2 días y tres sin seguir: la primera página (9) muestra dos sin seguir y «Ver más» trae el tercero. */
 export function listaCompleta(autor: { id: string; nombre: string }): PerfilDoble[] {
   return [
     perfil('Pañal adulto talla M', 'unidad', 4, 1, 24, 0, autor),
@@ -64,6 +64,7 @@ export function listaCompleta(autor: { id: string; nombre: string }): PerfilDobl
     perfil('Sabanilla desechable', 'unidad', 1, 2, 10, 2, autor),
     perfil('Toallas de papel', 'unidad', 2, 1, 10, 6, autor, false),
     perfil('Alcohol gel', 'unidad', 1, 3, 4, 10, RODRIGO_CONSUMO, false),
+    perfil('Bolsas de basura', 'unidad', 1, 1, 15, 12, autor, false),
   ]
 }
 

@@ -71,7 +71,8 @@ export function Insumos() {
   const { persona, rol, personaId } = useFamilia()
   const ruta = useRuta()
   const editor = puedeEditar(rol)
-  const pila = persona ? nombrePilaDe(persona) : ''
+  // Observador y pagador reciben solo `nombre`: se muestra la primera palabra como nombre de pila.
+  const pila = persona ? (nombrePilaDe(persona).trim().split(/\s+/)[0] ?? '') : ''
   const { ref, ancho } = useAncho()
 
   const [carga, setCarga] = useState<Carga>('cargando')
@@ -260,7 +261,7 @@ export function Insumos() {
         }}
         onDejarSuyo={(actual) => {
           reemplazar(actual)
-          volverALista(INSUMOS.dejasteLoSuyo)
+          volverALista(INSUMOS.dejasteLoSuyo(actual.actualizado_por?.nombre?.trim() || null))
         }}
         onInactivo={(actual) => actual && reemplazar(actual)}
         onPermiso={(c) => setCarga(c)}
@@ -322,7 +323,7 @@ export function Insumos() {
         </div>
         {/* 3.2.3: el lugar de «Qué se acaba pronto» (MATU-37). No se pinta nada. */}
         <section aria-label="Qué se acaba pronto" hidden />
-        {items.length > 0 && <p className="max-w-prose text-base text-tenue">{INSUMOS.notaCorta}</p>}
+        {items.length > 0 && <p className="max-w-prose text-base text-tenue">{editor ? INSUMOS.notaCorta : INSUMOS.notaCortaLector}</p>}
         {!ancho && botonAnotar}
         {aviso && <AvisoOk texto={aviso} />}
 
@@ -1172,12 +1173,12 @@ function Conflicto({
   )
   const l = lineaDias(actual.dias_restantes)
   return (
-    <div role="alert" className="flex flex-col gap-4 rounded-xl border-l-4 border-atenta bg-atenta-fondo px-4 angosto:px-2 py-4">
+    <div role="alert" className="@container flex flex-col gap-4 rounded-xl border-l-4 border-atenta bg-atenta-fondo px-4 angosto:px-2 py-4">
       <h2 id={id} tabIndex={-1} className="text-xl font-bold break-words [overflow-wrap:anywhere] outline-none">
         {INSUMOS.conflictoTitulo(autor, nombre)}
       </h2>
       <p className="max-w-prose">{INSUMOS.conflicto}</p>
-      <div className="grid grid-cols-1 gap-3 @2xl/main:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @md:grid-cols-2">
         <section className="rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea">
           <h3 className="mb-1 font-bold">{INSUMOS.loQueGuardo}</h3>
           <ul className="flex flex-col gap-1">
