@@ -32,12 +32,15 @@ class PersonaDelGrupo:
     autorizacion: AutorizacionGuardada | None
 
 
-def persona_con_autorizacion(sesion: Session, grupo_id: uuid.UUID, persona_id: uuid.UUID) -> PersonaDelGrupo | None:
-    """La persona del grupo con su consentimiento para plan_cuidado, o None si no existe en el grupo
-    (inexistente, eliminada o de otro grupo: el mismo None)."""
+def persona_con_autorizacion(
+    sesion: Session, grupo_id: uuid.UUID, persona_id: uuid.UUID, finalidad: str = FINALIDAD_PLAN_CUIDADO
+) -> PersonaDelGrupo | None:
+    """La persona del grupo con su consentimiento no revocado para ``finalidad`` (plan_cuidado por
+    omisión; consumo en MATU-36), o None si no existe en el grupo (inexistente, eliminada o de otro
+    grupo: el mismo None)."""
     fila = sesion.execute(
         _PERSONA_Y_CONSENTIMIENTO,
-        {"persona_id": persona_id, "grupo_id": grupo_id, "finalidad": FINALIDAD_PLAN_CUIDADO},
+        {"persona_id": persona_id, "grupo_id": grupo_id, "finalidad": finalidad},
     ).first()
     if fila is None:
         return None

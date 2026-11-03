@@ -31,13 +31,14 @@ import secrets
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import psycopg
 
 from app.core.config import POLITICA_VERSION_FABRICA
 from app.modules.care_circle.domain.personas import (
+    FINALIDAD_CONSUMO,
     FINALIDAD_PLAN_CUIDADO,
     CalidadOtorgante,
     evidencia,
@@ -56,8 +57,10 @@ from tests.fabricas.sql import (
     CLAVE_DE_PERSONA,
     CREAR_CLAVE,
     INSERTAR_CONSENTIMIENTO,
+    INSERTAR_CONSENTIMIENTO_REVOCABLE,
     INSERTAR_DIRECCION,
     INSERTAR_INDICE,
+    INSERTAR_PERFIL_CONSUMO,
     INSERTAR_PERSONA,
     INSERTAR_PLAN,
     INSERTAR_SECCION,
@@ -87,6 +90,7 @@ TABLAS_ANOTABLES = frozenset(
         "consentimiento",
         "plan_cuidado",
         "clave_datos",
+        "perfil_consumo",
     }
 )
 
@@ -388,6 +392,91 @@ class Fabrica:
             consentimiento_id=consentimiento_id,
             calidad_otorgante=calidad_valor,
         )
+
+    # --- Consumo (MATU-36) ------------------------------------------------------------------------------
+
+    def autorizacion_consumo(
+        self,
+        persona: PersonaCreada,
+        *,
+        otorgante: UsuarioCreado | uuid.UUID,
+        calidad: CalidadOtorgante | str = CalidadOtorgante.TITULAR,
+        otorgado_en: datetime | None = None,
+        revocado_en: datetime | None = None,
+        version_politica: str = POLITICA_VERSION_FABRICA,
+    ) -> uuid.UUID:
+        """El consentimiento para ``consumo`` de la persona, como lo deja POST …/consentimientos, sin
+        su fila de auditoría. Con ``revocado_en``, ya revocado (para la conservación)."""
+        calidad_enum = CalidadOtorgante(calidad)
+        instante = otorgado_en or datetime.now(UTC)
+        referencia = REFERENCIA_SINTETICA if calidad_enum is CalidadOtorgante.REPRESENTANTE_LEGAL else None
+        consentimiento_id = uuid.uuid4()
+        with self._conectar() as cx, cx.transaction():
+            cx.execute(
+                INSERTAR_CONSENTIMIENTO_REVOCABLE,
+                (
+                    consentimiento_id,
+                    persona.grupo_id,
+                    persona.id,
+                    _id(otorgante),
+                    calidad_enum.value,
+                    FINALIDAD_CONSUMO,
+                    version_politica,
+                    json.dumps(
+                        evidencia(calidad_enum, version_politica, FINALIDAD_CONSUMO), ensure_ascii=False, sort_keys=True
+                    ),
+                    referencia,
+                    instante,
+                    revision_vence_en(calidad_enum, instante),
+                    revocado_en,
+                ),
+            )
+        self.anotar("consentimiento", consentimiento_id)
+        return consentimiento_id
+
+    def perfil_consumo(
+        self,
+        persona: PersonaCreada,
+        *,
+        nombre_libre: str | None = "Pañal adulto M",
+        producto_id: uuid.UUID | None = None,
+        unidad: str = "unidad",
+        tasa_unidades: int = 4,
+        tasa_dias: int = 1,
+        stock_unidades: int = 24,
+        stock_medido_en: date | None = None,
+        dias_aviso: int = 7,
+        activo: bool = True,
+        version: int = 1,
+    ) -> uuid.UUID:
+        """Un perfil de consumo con la fecha estimada de la fórmula de MATU-36."""
+        medido = stock_medido_en or date(2026, 10, 20)
+        if producto_id is not None:
+            nombre_libre = None
+        fecha = medido + timedelta(days=(stock_unidades * tasa_dias) // tasa_unidades)
+        perfil_id = uuid.uuid4()
+        with self._conectar() as cx, cx.transaction():
+            cx.execute(
+                INSERTAR_PERFIL_CONSUMO,
+                (
+                    perfil_id,
+                    persona.grupo_id,
+                    persona.id,
+                    producto_id,
+                    nombre_libre,
+                    unidad,
+                    tasa_unidades,
+                    tasa_dias,
+                    stock_unidades,
+                    medido,
+                    fecha,
+                    dias_aviso,
+                    activo,
+                    version,
+                ),
+            )
+        self.anotar("perfil_consumo", perfil_id)
+        return perfil_id
 
     # --- Ficha de relevo ----------------------------------------------------------------------------
 
