@@ -143,7 +143,7 @@ def test_alta_cuidador_de_hecho_devuelve_el_aviso_canonico(sin_base: EntornoSinB
     cuerpo = respuesta.json()
     assert cuerpo["aviso"] == {
         "id": "aviso_cuidador_de_hecho",
-        "version": "1.0",
+        "version": "1.1",
         "titulo": "Aviso: tu autorización tiene un límite",
         "parrafos": list(AVISO_CUIDADOR_DE_HECHO.parrafos),
         "sha256": AVISO_CUIDADOR_DE_HECHO.sha256,
@@ -232,7 +232,7 @@ def test_lo_que_fija_el_servidor_no_se_acepta_del_cliente(sin_base: EntornoSinBa
 
 @pytest.mark.rf("RF-01")
 def test_aviso_con_campos_extra_422(sin_base: EntornoSinBase) -> None:
-    aviso = {"id": "aviso_cuidador_de_hecho", "version": "1.0", "titulo": "otro texto"}
+    aviso = {"id": "aviso_cuidador_de_hecho", "version": "1.1", "titulo": "otro texto"}
 
     respuesta = sin_base.crear(cuerpo_alta("cuidador_de_hecho", aviso=aviso))
 
@@ -282,9 +282,9 @@ def test_representante_con_documento_guarda_la_referencia_sin_devolverla(sin_bas
 @pytest.mark.parametrize(
     ("calidad", "cambios", "campo"),
     [
-        ("titular", {"aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.0"}}, "aviso"),
+        ("titular", {"aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.1"}}, "aviso"),
         ("titular", {"referencia_documento": "Documento sintético"}, "referencia_documento"),
-        ("representante_legal", {"aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.0"}}, "aviso"),
+        ("representante_legal", {"aviso": {"id": "aviso_cuidador_de_hecho", "version": "1.1"}}, "aviso"),
         ("cuidador_de_hecho", {"aviso": None}, "aviso"),
         ("cuidador_de_hecho", {"aviso": {"id": "aviso_cuidador_de_hecho", "version": "0.1"}}, "aviso"),
         ("cuidador_de_hecho", {"aviso": {"id": "aviso_titular", "version": "1.0"}}, "aviso"),
