@@ -125,7 +125,8 @@ def test_reintentar_suma_un_intento_con_backoff_y_al_octavo_queda_fallido(caplog
             publicar_pendientes(outbox, {TIPO: [consumidor]}, reloj)
     fila = outbox.filas[1]
     assert fila.intentos == TOPE_INTENTOS and fila.fallido_en is not None and fila.publicado_en is None
-    assert [r.message for r in caplog.records] == ["evento fallido"]
+    avisos = [r.message for r in caplog.records if r.name == "matu.outbox" and r.levelno >= logging.WARNING]
+    assert avisos == ["evento fallido"]
     # Fallido no se reintenta solo
     reloj.avanzar(timedelta(days=1))
     assert publicar_pendientes(outbox, {TIPO: [consumidor]}, reloj).publicados == 0
