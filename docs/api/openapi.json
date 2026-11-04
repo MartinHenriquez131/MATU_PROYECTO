@@ -1276,13 +1276,992 @@
         }
       }
     },
+    "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}": {
+      "put": {
+        "tags": [
+          "ficha"
+        ],
+        "summary": "Agregar o editar una sección complementaria",
+        "description": "Agrega o edita **una** sección complementaria (ADR-028). Mismo patrón que un campo de la\nficha (MATU-13), con exactamente una cabecera:\n\n| Situación | Cabecera | Si otra persona se adelantó |\n|---|---|---|\n| La sección no está agregada | `If-None-Match: *` | 412 con lo que esa persona guardó |\n| La sección ya está | `If-Match: \"<etag leído>\"` | 412 con el contenido actual |\n\n- Sin ninguna, o con `If-Match` vacío o `*`, **428**. Con las dos, **422**.\n- `If-Match` sobre una sección que no está (nunca agregada, o quitada): **412** con `actual: null`.\n- `texto` vacío o solo espacios: **422** `vacio`. Una sección no se vacía: se quita con `DELETE`.\n- Más de 500 caracteres (800 en `remedios`): **422** `largo_maximo`.\n- `seccion` fuera de las seis (incluidos `rutina`, `horarios`, `actividades` y `red_apoyo`): **404**.\n\nLa primera escritura crea el plan y la clave de datos de la persona si no existían. **201** si se agregó,\n**200** si se editó. Escriben `admin` y `cuidador`. Registra `plan.editar` con el tipo de la sección, sin el\ntexto; el 412, `plan.leer`. Las secciones no cuentan para la completitud.",
+        "operationId": "guardarSeccionFicha",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "seccion",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Una de las seis secciones complementarias. Otro valor responde 404",
+              "enum": [
+                "quien_es",
+                "preferencias",
+                "alimentacion",
+                "movilidad",
+                "comunicacion",
+                "remedios"
+              ],
+              "title": "Seccion"
+            },
+            "description": "Una de las seis secciones complementarias. Otro valor responde 404"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag de la sección tal como se leyó, por ejemplo \"v2\". Obligatorio si la sección ya está. Vacío o * responde 428",
+              "title": "If-Match"
+            },
+            "description": "ETag de la sección tal como se leyó, por ejemplo \"v2\". Obligatorio si la sección ya está. Vacío o * responde 428"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo *, para agregar una sección que no está. Otro valor, o junto con If-Match, responde 422",
+              "title": "If-None-Match"
+            },
+            "description": "Solo *, para agregar una sección que no está. Otro valor, o junto con If-Match, responde 422"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudSeccion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sección editada, con If-Match",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeccionGuardadaVista"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión de la sección recién guardada, por ejemplo \"v2\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión actual de la sección. Ausente si la sección no está",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412 de una sección (MATU-50): otra persona se adelantó, o la sección no está (``actual`` null).",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/version-desactualizada",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 412,
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "actual": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/EstadoSeccionVista"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionSeccionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/version-desactualizada",
+                  "title": "Otra persona cambió esta sección",
+                  "status": 412,
+                  "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "428: sin If-Match ni If-None-Match, o con If-Match vacío o ``*``.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/falta-version",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 428,
+                      "title": "Status",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status"
+                  ],
+                  "title": "ProblemaFaltaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/falta-version",
+                  "title": "Falta la versión del contenido",
+                  "status": 428,
+                  "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error inesperado o sección ilegible, sin el texto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "La custodia de la clave maestra no está configurada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "201": {
+            "description": "Sección agregada, con If-None-Match: *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión de la sección recién guardada, por ejemplo \"v2\". Se envía tal cual en el próximo If-Match",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeccionGuardadaVista"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido: `texto` falta, no es texto, trae caracteres de control (tipo value_error), está vacío o solo con espacios (tipo vacio) o supera 500 caracteres, 800 en remedios (tipo largo_maximo); o hay un campo extra. También If-Match e If-None-Match a la vez (precondicion_doble) o If-None-Match distinto de * (precondicion_invalida). errores[] nombra el campo o la cabecera, nunca el valor",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "x-matu-historia": "MATU-50",
+        "x-matu-auditoria": "plan.editar"
+      },
+      "delete": {
+        "tags": [
+          "ficha"
+        ],
+        "summary": "Quitar una sección complementaria",
+        "description": "Quita una sección complementaria **borrando su fila**: el texto cifrado deja de\nexistir. Exige `If-Match: \"<etag leído>\"`, para no borrar lo que otra persona acaba de escribir:\n\n- Sin `If-Match`, o con `If-Match` vacío o `*`: **428**. `If-None-Match`: **422**.\n- ETag distinto del actual: **412** con el contenido actual.\n- La sección no está (nunca agregada, o ya quitada): **412** con `actual: null`. No es 404, para que la\n  pantalla distinga \"ya la quitó otra persona\" de \"no tienes acceso\".\n- **204** sin cuerpo.\n\nRegistra `plan.quitar_seccion` con el tipo de la sección, sin el texto. Un acceso de relevo que la compartía\ndeja de mostrarla; si se vuelve a agregar, ese acceso no la ve.",
+        "operationId": "quitarSeccionFicha",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "seccion",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Una de las seis secciones complementarias. Otro valor responde 404",
+              "enum": [
+                "quien_es",
+                "preferencias",
+                "alimentacion",
+                "movilidad",
+                "comunicacion",
+                "remedios"
+              ],
+              "title": "Seccion"
+            },
+            "description": "Una de las seis secciones complementarias. Otro valor responde 404"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag de la sección tal como se leyó, por ejemplo \"v2\". Obligatorio. Vacío o * responde 428. If-None-Match no se admite al quitar: responde 422",
+              "title": "If-Match"
+            },
+            "description": "ETag de la sección tal como se leyó, por ejemplo \"v2\". Obligatorio. Vacío o * responde 428. If-None-Match no se admite al quitar: responde 422"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sección quitada: su fila se borró",
+            "headers": {
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Versión actual de la sección. Ausente si la sección no está",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412 de una sección (MATU-50): otra persona se adelantó, o la sección no está (``actual`` null).",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/version-desactualizada",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 412,
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "actual": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/EstadoSeccionVista"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionSeccionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/version-desactualizada",
+                  "title": "Otra persona cambió esta sección",
+                  "status": 412,
+                  "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o *",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "428: sin If-Match ni If-None-Match, o con If-Match vacío o ``*``.",
+                  "properties": {
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "type": {
+                      "const": "/errores/falta-version",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "const": 428,
+                      "title": "Status",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "type",
+                    "title",
+                    "status"
+                  ],
+                  "title": "ProblemaFaltaVersionVista",
+                  "type": "object"
+                },
+                "example": {
+                  "type": "/errores/falta-version",
+                  "title": "Falta la versión del contenido",
+                  "status": 428,
+                  "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error inesperado o sección ilegible, sin el texto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "La custodia de la clave maestra no está configurada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Vino If-None-Match: quitar solo admite If-Match (tipo precondicion_invalida)",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "x-matu-historia": "MATU-50",
+        "x-matu-auditoria": "plan.quitar_seccion"
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo": {
+      "post": {
+        "tags": [
+          "accesos de relevo"
+        ],
+        "summary": "Crear Acceso",
+        "operationId": "crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudAccesoVista"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccesoCreadoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido. errores[] nombra el campo, nunca el valor. MATU-50: `campos` con menos de los tres campos base, vacío o null (tipo campos_base_obligatorios); `secciones_adicionales` con una sección repetida (tipo duplicado) o que no está agregada (tipo seccion_no_agregada)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "500": {
+            "description": "Error inesperado",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Falta PEPPER_PIN: compartir falla cerrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "accesos de relevo"
+        ],
+        "summary": "Listar Accesos",
+        "operationId": "listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoAcceso"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaAccesosVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "cursor inválido o limite fuera de 1 a 100",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
       "get": {
         "tags": [
           "accesos de relevo"
         ],
         "summary": "Ver quién abrió la ficha con un acceso de relevo",
-        "description": "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\nListan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\nLas lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.",
+        "description": "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\nListan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\nLas lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.\n\nMATU-50: cada ítem de `tipo: apertura` trae `secciones`, los tipos de las secciones complementarias que se mostraron (leídos del `detalle` de `relevo.abrir`; `[]` en las aperturas anteriores). Los demás tipos no la traen. Nunca trae texto.",
         "operationId": "listarAperturasRelevo",
         "security": [
           {
@@ -1362,7 +2341,11 @@
                       "acceso": {
                         "id": "2e8a6b40-0000-4000-8000-0000000000b1",
                         "nombre_relevo": "Rosa"
-                      }
+                      },
+                      "secciones": [
+                        "comunicacion",
+                        "remedios"
+                      ]
                     },
                     {
                       "ocurrido_en": "2026-10-31T13:01:30Z",
@@ -1420,7 +2403,52 @@
             }
           }
         },
-        "x-matu-historia": "MATU-45 (RF-08)"
+        "x-matu-historia": "MATU-45 (RF-08), MATU-50 (cambio aditivo: secciones)"
+      }
+    },
+    "/v1/relevo/ficha": {
+      "get": {
+        "tags": [
+          "relevo"
+        ],
+        "summary": "Leer Ficha Como Relevo",
+        "operationId": "leer_ficha_como_relevo_v1_relevo_ficha_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FichaRelevoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin cookie, o cookie sin sesión en Redis",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "410": {
+            "description": "relevo-vencido, relevo-revocado o relevo-pausado. Borra la cookie",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "423": {
+            "description": "Bloqueado después del canje. Borra la cookie",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis o la custodia de la clave no responden",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
       }
     },
     "/v1/personas-cuidadas/{persona_id}/consentimientos": {
@@ -2819,6 +3847,63 @@
   },
   "components": {
     "schemas": {
+      "AccesoCreadoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "pin": {
+            "type": "string",
+            "title": "Pin"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoFicha"
+            },
+            "type": "array",
+            "title": "Campos"
+          },
+          "secciones_adicionales": {
+            "items": {
+              "$ref": "#/components/schemas/SeccionComplementaria"
+            },
+            "type": "array",
+            "title": "Secciones Adicionales"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          },
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          },
+          "nombre_pila_persona": {
+            "type": "string",
+            "title": "Nombre Pila Persona"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "pin",
+          "campos",
+          "secciones_adicionales",
+          "expira_en",
+          "nombre_relevo",
+          "nombre_pila_persona"
+        ],
+        "title": "AccesoCreadoVista"
+      },
       "AccesoDeAperturaVista": {
         "properties": {
           "id": {
@@ -2839,6 +3924,116 @@
         ],
         "title": "AccesoDeAperturaVista",
         "description": "El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono."
+      },
+      "AccesoResumenVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          },
+          "telefono_relevo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono Relevo"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoFicha"
+            },
+            "type": "array",
+            "title": "Campos"
+          },
+          "secciones_adicionales": {
+            "items": {
+              "$ref": "#/components/schemas/SeccionComplementaria"
+            },
+            "type": "array",
+            "title": "Secciones Adicionales"
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/MotivoAcceso"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoAcceso"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creado En"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          },
+          "revocado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocado En"
+          },
+          "usos": {
+            "type": "integer",
+            "title": "Usos"
+          },
+          "ultimo_uso_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso En"
+          },
+          "otorgado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorAccesoVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre_relevo",
+          "campos",
+          "secciones_adicionales",
+          "motivo",
+          "estado",
+          "creado_en",
+          "expira_en",
+          "revocado_en",
+          "usos",
+          "ultimo_uso_en",
+          "otorgado_por"
+        ],
+        "title": "AccesoResumenVista",
+        "description": "telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31).\notorgado_por.nombre es el nombre de pila de quien compartió, nunca el completo (decisión 35)."
       },
       "AlertaVista": {
         "properties": {
@@ -2917,6 +4112,14 @@
           },
           "acceso": {
             "$ref": "#/components/schemas/AccesoDeAperturaVista"
+          },
+          "secciones": {
+            "items": {
+              "$ref": "#/components/schemas/SeccionComplementaria"
+            },
+            "type": "array",
+            "title": "Secciones",
+            "description": "Solo en `tipo: apertura`. Tipos mostrados, sin texto"
           }
         },
         "additionalProperties": false,
@@ -2927,6 +4130,26 @@
           "acceso"
         ],
         "title": "AperturaVista"
+      },
+      "AutorAccesoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre"
+        ],
+        "title": "AutorAccesoVista"
       },
       "AutorPerfilVista": {
         "properties": {
@@ -3064,6 +4287,15 @@
         ],
         "title": "CalidadOtorgante"
       },
+      "CampoFicha": {
+        "type": "string",
+        "enum": [
+          "rutina",
+          "manejo_situaciones",
+          "red_apoyo"
+        ],
+        "title": "CampoFicha"
+      },
       "CampoGuardadoVista": {
         "properties": {
           "campo": {
@@ -3121,6 +4353,27 @@
         ],
         "title": "CampoGuardadoVista",
         "description": "Respuesta 200 o 201 de PUT …/plan/ficha/{campo}."
+      },
+      "CampoRelevoVista": {
+        "properties": {
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "texto"
+        ],
+        "title": "CampoRelevoVista"
       },
       "CamposVista": {
         "properties": {
@@ -3401,6 +4654,16 @@
         "title": "DispositivoVista",
         "description": "Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario."
       },
+      "EstadoAcceso": {
+        "type": "string",
+        "enum": [
+          "vigente",
+          "vencido",
+          "revocado",
+          "bloqueado"
+        ],
+        "title": "EstadoAcceso"
+      },
       "EstadoAlerta": {
         "type": "string",
         "enum": [
@@ -3469,6 +4732,87 @@
         "title": "EstadoCampoVista",
         "description": "Un campo: nunca escrito (todo null), vaciado (texto null con etag) o escrito."
       },
+      "EstadoSeccionVista": {
+        "properties": {
+          "texto": {
+            "type": "string",
+            "title": "Texto"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actualizado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Actualizado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "texto",
+          "etag",
+          "actualizado_por",
+          "actualizado_en"
+        ],
+        "title": "EstadoSeccionVista",
+        "description": "Una sección complementaria agregada (MATU-50). No hay estado \"vacío\": una sección que no está no viene."
+      },
+      "FichaRelevoVista": {
+        "properties": {
+          "nombre_pila": {
+            "type": "string",
+            "title": "Nombre Pila"
+          },
+          "nombre_pila_comparte": {
+            "type": "string",
+            "title": "Nombre Pila Comparte"
+          },
+          "vence_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Vence En"
+          },
+          "campos": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CampoRelevoVista"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/CampoFicha"
+            },
+            "type": "object",
+            "title": "Campos"
+          },
+          "secciones": {
+            "items": {
+              "$ref": "#/components/schemas/SeccionRelevoVista"
+            },
+            "type": "array",
+            "title": "Secciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_pila",
+          "nombre_pila_comparte",
+          "vence_en",
+          "campos",
+          "secciones"
+        ],
+        "title": "FichaRelevoVista"
+      },
       "FichaVista": {
         "properties": {
           "persona_id": {
@@ -3500,6 +4844,17 @@
           },
           "campos": {
             "$ref": "#/components/schemas/CamposVista"
+          },
+          "secciones": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EstadoSeccionVista"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/SeccionComplementaria"
+            },
+            "type": "object",
+            "title": "Secciones",
+            "description": "Solo las secciones complementarias agregadas (MATU-50). Las que no están no vienen"
           }
         },
         "additionalProperties": false,
@@ -3508,10 +4863,11 @@
           "persona_id",
           "completitud",
           "actualizado_en",
-          "campos"
+          "campos",
+          "secciones"
         ],
         "title": "FichaVista",
-        "description": "Respuesta 200 de GET …/plan/ficha: siempre los tres campos."
+        "description": "Respuesta 200 de GET …/plan/ficha: siempre los tres campos, y solo las secciones agregadas."
       },
       "GrupoRespuesta": {
         "properties": {
@@ -3681,6 +5037,35 @@
         "title": "InsumoPorAcabarseVista",
         "description": "Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto»."
       },
+      "ListaAccesosVista": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccesoResumenVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaAccesosVista"
+      },
       "ListaAlertas": {
         "properties": {
           "items": {
@@ -3801,6 +5186,17 @@
           "items"
         ],
         "title": "ListaPorAcabarse"
+      },
+      "MotivoAcceso": {
+        "type": "string",
+        "enum": [
+          "salgo_unas_horas",
+          "fin_de_semana_fuera",
+          "turno_de_noche",
+          "otro"
+        ],
+        "title": "MotivoAcceso",
+        "description": "Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría."
       },
       "PerfilConsumoVista": {
         "properties": {
@@ -4105,6 +5501,70 @@
         ],
         "title": "ProductoResumen"
       },
+      "SeccionComplementaria": {
+        "type": "string",
+        "enum": [
+          "quien_es",
+          "preferencias",
+          "alimentacion",
+          "movilidad",
+          "comunicacion",
+          "remedios"
+        ],
+        "title": "SeccionComplementaria"
+      },
+      "SeccionGuardadaVista": {
+        "properties": {
+          "seccion": {
+            "$ref": "#/components/schemas/SeccionComplementaria"
+          },
+          "texto": {
+            "type": "string",
+            "title": "Texto"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag"
+          },
+          "actualizado_por": {
+            "$ref": "#/components/schemas/AutorVista"
+          },
+          "actualizado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Actualizado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seccion",
+          "texto",
+          "etag",
+          "actualizado_por",
+          "actualizado_en"
+        ],
+        "title": "SeccionGuardadaVista",
+        "description": "Respuesta 200 o 201 de PUT …/plan/secciones/{seccion}. Sin completitud: las secciones no cuentan."
+      },
+      "SeccionRelevoVista": {
+        "properties": {
+          "tipo": {
+            "$ref": "#/components/schemas/SeccionComplementaria"
+          },
+          "texto": {
+            "type": "string",
+            "title": "Texto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "texto"
+        ],
+        "title": "SeccionRelevoVista"
+      },
       "SesionRespuesta": {
         "properties": {
           "access_token": {
@@ -4129,6 +5589,76 @@
         ],
         "title": "SesionRespuesta",
         "description": "Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh."
+      },
+      "SolicitudAccesoVista": {
+        "properties": {
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          },
+          "telefono_relevo": {
+            "type": "string",
+            "pattern": "^(\\+?56 ?)?9( ?[0-9]){8}$",
+            "title": "Telefono Relevo"
+          },
+          "campos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CampoFicha"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxItems": 3,
+            "minItems": 3,
+            "uniqueItems": true,
+            "title": "Campos",
+            "description": "Deprecado. Si viene, debe tener los tres campos base; si no, 422 campos_base_obligatorios",
+            "deprecated": true
+          },
+          "secciones_adicionales": {
+            "items": {
+              "$ref": "#/components/schemas/SeccionComplementaria"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "title": "Secciones Adicionales",
+            "description": "Secciones complementarias que también ve el relevo, sin repetir. Cada una debe estar agregada (si no, 422 seccion_no_agregada). El servidor nunca agrega una por su cuenta"
+          },
+          "expira_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expira En"
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/MotivoAcceso"
+          },
+          "relevo_informado": {
+            "type": "boolean",
+            "title": "Relevo Informado"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_relevo",
+          "telefono_relevo",
+          "motivo",
+          "relevo_informado"
+        ],
+        "title": "SolicitudAccesoVista"
       },
       "SolicitudAutorizacionEntrada": {
         "properties": {
@@ -4503,6 +6033,24 @@
         "type": "object",
         "title": "SolicitudResolver",
         "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta\npasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la\nalerta pasa a resuelta."
+      },
+      "SolicitudSeccion": {
+        "properties": {
+          "texto": {
+            "type": "string",
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Texto",
+            "description": "Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios`, contados después de quitar los espacios de los extremos. Vacío o solo espacios responde 422 `vacio`"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "texto"
+        ],
+        "title": "SolicitudSeccion",
+        "description": "Cuerpo de PUT …/plan/secciones/{seccion} (MATU-50). Un campo extra responde 422."
       },
       "SolicitudSesion": {
         "properties": {

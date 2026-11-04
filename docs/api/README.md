@@ -9,6 +9,7 @@ docs/api/
 └── propuestos/
     ├── ficha.openapi.yaml        MATU-09 parte 1: ficha de relevo
     ├── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
+    ├── ficha-ampliada.openapi.yaml  MATU-49: secciones complementarias (implementado en MATU-50; se conserva como explicación)
     └── app-familia.openapi.yaml  MATU-32: sesión, dispositivos, autorización para el consumo, consumo y alertas
 ```
 
@@ -29,15 +30,17 @@ docs/api/
 
 | Método y ruta | Historia | Estado |
 |---|---|---|
-| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado. En `openapi.json` desde MATU-13 |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14; cambio aditivo de MATU-50 | Implementado, con `secciones` desde MATU-50. En `openapi.json` desde MATU-13 |
 | `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-11, MATU-14 | Implementado, con `If-Match` / `If-None-Match`, 412 y 428 (MATU-13). En `openapi.json` desde MATU-13 |
-| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
+| `PUT /v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}` | MATU-50 (ADR-028, RF-03) | Implementado. En `openapi.json` desde MATU-50 |
+| `DELETE /v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}` | MATU-50 (ADR-028, RF-03) | Implementado. 204. En `openapi.json` desde MATU-50 |
+| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18; cambio de MATU-50 | Implementado, con `secciones_adicionales` y `campos` deprecado. En `openapi.json` desde MATU-50 |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20; cambio aditivo de MATU-50 | Implementado, con `secciones_adicionales`. En `openapi.json` desde MATU-50 |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
 | `POST /v1/relevo/presentacion` | MATU-19, MATU-23 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
 | `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, sin el 429 de MATU-25. Contrato en `relevo.openapi.yaml` |
-| `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado. En `openapi.json` |
+| `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23; cambio aditivo de MATU-50 | Implementado, con `secciones`. En `openapi.json` desde MATU-50 |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08); cambio aditivo de MATU-50 | Implementado, con `secciones` en cada apertura. En `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
 | `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
@@ -58,7 +61,7 @@ docs/api/
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
 
-Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`.
+Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`. MATU-50 exportó `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha`, y los quitó de `relevo.openapi.yaml` (decisión 99); `DELETE /v1/accesos-relevo/{acceso_id}`, la presentación y el canje siguen ahí.
 
 ## Catálogo de `type` (RFC 7807)
 
@@ -73,9 +76,9 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/sin-consentimiento` | 403 | Sin consentimiento vigente para `plan_cuidado`. **Nuevo uso:** en el consumo, sin consentimiento vigente para `consumo`, con el miembro de extensión `finalidad: consumo` (decisión 44) | Existe (MATU-12). MATU-07 no definió uno. El uso en el consumo lo agrega MATU-36 |
 | `/errores/revision-vencida` | 403 | El consentimiento lo dio un cuidador de hecho y venció su revisión anual (decisión 33). **Nuevo uso:** en el consumo, con `finalidad: consumo` | Existe (MATU-12). El uso en el consumo lo agrega MATU-36 |
 | `/errores/no-encontrado` | 404 | No miembro, rol que no alcanza, recurso de otro grupo o inexistente | Existe |
-| `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe. **Nuevo uso:** `PATCH` de un perfil de consumo con `If-Match` desactualizado, con el perfil en `actual` | Existe (por defecto del 412) |
+| `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe. **Nuevo uso:** `PATCH` de un perfil de consumo con `If-Match` desactualizado, con el perfil en `actual`. **Nuevo uso (MATU-50):** agregar, editar o quitar una sección complementaria, con la sección en `actual` o `actual: null` si no está | Existe (por defecto del 412) |
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
-| `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match`. **Nuevo uso:** `PATCH` de un perfil de consumo sin `If-Match` o con `If-Match: *` | Existe (por defecto del 428) |
+| `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match`. **Nuevo uso:** `PATCH` de un perfil de consumo sin `If-Match` o con `If-Match: *`. **Nuevo uso (MATU-50):** escribir o quitar una sección sin precondición (quitar exige `If-Match`) | Existe (por defecto del 428) |
 | `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Declarado en `openapi.json` con esquema y ejemplo desde MATU-39 (decisión 67) |
 | `/errores/autorizacion-vigente` | 409 | `POST …/consentimientos`: la persona ya tiene una autorización no revocada para esa finalidad (`consentimiento_vigente_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-duplicado` | 409 | `POST …/consumo`: ya hay un perfil activo de la persona con ese `producto_id` (`perfil_consumo_producto_uq`) | **Nuevo** (MATU-36) |
@@ -523,6 +526,8 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 
 ## MATU-49 (propuesto)
 
+> **Implementado en MATU-50** (03-11). Manda `openapi.json`; ver "MATU-50 · Ficha ampliada" al final. Esta sección se conserva como el registro de lo que se acordó.
+
 Contrato de la ficha ampliada (ADR-028), sin implementación: `docs/api/propuestos/ficha-ampliada.openapi.yaml`. Lo implementa MATU-50 (sprint 4). Decisiones de Jorge del 03-11.
 
 **Rutas**
@@ -570,3 +575,37 @@ Secciones: `quien_es`, `preferencias`, `alimentacion`, `movilidad`, `comunicacio
 - **Paginación.** `cursor` opaco (base64url de `<ocurrido_en>|<id de auditoría>`, distinto del de accesos porque el `id` de `auditoria` es un `bigint`) y `limite` de 1 a 100, 20 por omisión. Cursor inválido o `limite` fuera de rango: **422** RFC 7807.
 - **Migración 0010** (`down_revision` 0009: se escribió sobre 0008 y, al fusionar con MATU-36, se encadenó después de 0009 sin cambiar el SQL). Desde 0005 solo el `admin` leía las filas del relevo de su grupo. 0010 agrega la política `auditoria_aperturas_relevo` (FOR SELECT): filas del grupo del contexto, `actor_tipo = 'relevo'`, una de las cuatro acciones y `app_puede_ver_plan()`. No abre `plan.leer` ni las demás filas de los miembros al cuidador.
 - **Diferencias con el propuesto que se aceptan**, las mismas de la ficha: los 401, 404 y 422 se declaran como `application/problem+json` sin esquema y sin cabeceras, `cursor` sale como `string | null` y `X-Grupo-Id` como `string | null` sin `format: uuid`. El ejemplo del 200 no trae `siguiente_cursor: null` (FastAPI quita los `null` del ejemplo). `x-matu-historia` dice MATU-45 (RF-08).
+
+## MATU-50 · Ficha ampliada con secciones complementarias (ADR-028, RF-03)
+
+Implementado el 03-11 en la rama `matu-50-ficha-ampliada`, sobre el contrato de MATU-49 (`propuestos/ficha-ampliada.openapi.yaml`). Las rutas que toca pasaron a `openapi.json` (exportado desde `app.openapi()`): `GET …/plan/ficha`, `PUT` y `DELETE …/plan/secciones/{seccion}`, `POST` y `GET …/plan/accesos-relevo`, `GET /v1/relevo/ficha` y `GET …/plan/aperturas`. `backend/tests/modules/care_plan/test_secciones_contrato.py` falla si cambian sin volver a exportar.
+
+### Decisiones de MATU-50 (03-11), pendientes de revisión
+
+Lo que el contrato de MATU-49 dejaba abierto o no decía, decidido al implementar. Siguen la numeración del contrato desde la 91 (81 a 90 son de MATU-57).
+
+91. **`plan_seccion.creado_en`** (migración 0013): cuándo nació la fila, con el instante del puerto `Reloj`, igual que `acceso_relevo.creado_en`. Un trigger (`plan_seccion_creado_fijo`) lo deja fijo en los `UPDATE`: editar una sección no cambia cuándo nació. Las filas que ya existían toman el instante de la migración (`ADD COLUMN … DEFAULT now()`), porque `matu_owner` no ve las filas de `plan_seccion` con RLS forzado y no las puede copiar de `actualizado_en`. No cambia lo que ve ningún relevo: la regla de la decisión 92 no se aplica a los campos base, y antes de MATU-50 no se escribían ni se compartían secciones complementarias.
+92. **"Un acceso no ve secciones agregadas después de crearlo" vive en la base y en el repositorio.** La política `seccion_relevo` suma `plan_seccion.creado_en <= acceso_relevo.creado_en` para las seis secciones (los tres campos base se ven siempre, como antes), y la consulta del relevo repite la condición. Mismo instante: sí la ve. Lo prueban `test_aislamiento.py` (RLS) y `test_secciones_relevo_api.py` (quitar y volver a agregar).
+93. **El `downgrade` de la 0013 no borra datos.** Si quedan secciones `quien_es`, `comunicacion` o `remedios`, o accesos que las comparten, se detiene con un error (lo detecta la validación del `CHECK` anterior, que revisa todas las filas aunque `matu_owner` no las vea). La auditoría no se toca: si tiene detalles de secciones, el `CHECK` de la 0008 vuelve como `NOT VALID`.
+94. **`auditoria.detalle` admite `seccion` y `secciones`** (migración 0013, `CHECK auditoria_detalle_acotado`): `seccion` es el tipo de una de las seis, solo en `plan.editar` y `plan.quitar_seccion` de una sección complementaria; `secciones` es la lista de tipos mostrados, solo en `relevo.abrir`. Nunca texto. Acción nueva `plan.quitar_seccion`. El `plan.editar` de un campo base no cambia (sin detalle; `entidad_id` ya identifica la fila, que nunca se borra).
+95. **`relevo.abrir` registra siempre `secciones`**, también vacía (`[]`). Por eso cada `apertura` de `GET …/plan/aperturas` trae `secciones` (`[]` si no se mostró ninguna, y en las aperturas anteriores a MATU-50); `presentacion`, `pin_incorrecto` y `bloqueo` no la traen.
+96. **Tipos de 422 que el contrato no enumera.** Texto de una sección: `vacio` y `largo_maximo` como dice el contrato; un carácter de control es `value_error`, un `texto` que no es texto `string_type`, sin `texto` `missing` y un campo extra `extra_forbidden`, igual que los campos base. Al compartir: `campos: null` explícito y `campos` con un campo repetido son `campos_base_obligatorios`; un valor que no es un campo base, `enum` en `campos.N`; una sección que no es una de las seis, `enum` en `secciones_adicionales.N`; repetida, `duplicado`.
+97. **Orden de evaluación.** `PUT`: 401, 404 (grupo, rol, persona, sección), 403, 503, 422 del cuerpo y del texto, 422 o 428 de las cabeceras y al final 412. `DELETE`: los mismos, sin cuerpo; `If-None-Match` responde 422 aunque falte `If-Match`. Quitar exige consentimiento vigente y custodia, porque el 412 devuelve la sección descifrada (el contrato lista 403 y 503 en el `DELETE`).
+98. **El 412 de una sección** lleva `title: "Otra persona cambió esta sección"`, `actual` (la sección o `null`) y la cabecera `ETag` si la sección existe. No lleva `campo` ni `seccion` (el contrato no los declara). Leer `actual` queda auditado como `plan.leer`.
+99. **Exportación.** Como MATU-50 cierra los cambios del contrato de MATU-49, sus rutas de compartir (POST y GET de `accesos-relevo`) y `GET /v1/relevo/ficha` pasaron a `openapi.json` y salieron de `propuestos/relevo.openapi.yaml`. `propuestos/ficha-ampliada.openapi.yaml` se conserva como explicación de las decisiones, igual que `propuestos/ficha.openapi.yaml` desde MATU-13; manda `openapi.json`.
+100. **La ficha devuelve las secciones en el orden de ADR-028.** No cuentan en `completitud` ni en `actualizado_en` de la ficha (que siguen siendo de los tres campos base), y escribirlas no cambia `plan_cuidado.completitud_pct`.
+101. **La lista de accesos separa `campos` y `secciones_adicionales`** desde `secciones_permitidas`: los campos base en el orden de la ficha y las secciones en el orden de ADR-028. Un acceso anterior a MATU-50 conserva sus campos (uno, dos o tres) y `secciones_adicionales: []`.
+
+### Notas de implementación de MATU-50
+
+- **Dominio:** `care_plan/domain/secciones.py` (las seis secciones, máximos, `vacio`/`largo_maximo`, precondición de quitar, qué se comparte y qué ve el relevo). `TIPOS_SECCION` (`domain/cifrado.py`) suma `quien_es`, `comunicacion` y `remedios`: cada sección se cifra con `CifradorSecciones`, AES-256-GCM, clave de la persona, AAD `plan_id ‖ tipo`.
+- **Casos de uso:** `application/secciones.py` (`guardar_seccion`, `quitar_seccion`); `application/ficha.py` lee también las secciones con un solo `plan.leer`; `application/relevo.py` valida `seccion_no_agregada` antes de crear el plan; `application/ficha_relevo.py` devuelve las secciones compartidas y registra sus tipos.
+- **API:** `api/router_secciones.py` (rutas nuevas), `esquemas.py` y `esquemas_relevo.py`. `If-None-Match` del `DELETE` se lee de la petición sin declararse, porque el contrato solo declara `If-Match`.
+- **Migración 0013** (`down_revision = "0011"`). El PR #39 (MATU-57) agrega una 0012 sobre la 0011: si se fusiona antes, se cambia `down_revision` a `"0012"` (una línea) y se vuelve a correr `upgrade head`, `downgrade -1` y `upgrade head`. El SQL no depende de la 0012.
+- **Diferencias con el propuesto que se aceptan**, las mismas de la ficha: los 401, 403, 404, 500 y 503 se declaran como `application/problem+json` sin esquema, `If-Match` sale como `string | null` sin el patrón del ETag, `campos` deprecado sale como `array | null` (con `minItems`, `maxItems` y `uniqueItems` fuera del `anyOf`), `secciones` de la ficha es un objeto con `propertyNames` (el enumerado) en vez de seis propiedades opcionales, `X-Grupo-Id` sale como `string | null` sin `format: uuid` y FastAPI agrega 500 a las rutas de escritura.
+
+### Pendientes de MATU-50
+
+- **`seccion_familia` sigue siendo `FOR ALL` con `app_puede_ver_plan()`**: un pagador con `puede_ver_plan` podría escribir o borrar secciones con SQL directo (la API no lo permite). Es el mismo hueco que los campos base desde la 0001; una política de escritura por rol, como la de `perfil_consumo` (0009), sería la segunda barrera.
+- **Registro de tratamientos y política de privacidad** (`docs/legal/`, repositorio MATU, analista normativo): la entrada 3 habla de tres campos de 500 caracteres. Debe nombrar las seis secciones, el máximo de 800 de `remedios`, que quitar una sección borra su texto en el acto y que la auditoría registra el tipo de la sección quitada (`plan.quitar_seccion`) y los tipos mostrados al relevo.
+- **Clientes que todavía manden `campos` con uno o dos campos** reciben ahora 422 `campos_base_obligatorios` (la transición que decidió MATU-49). `campos` se quita en la versión siguiente.
