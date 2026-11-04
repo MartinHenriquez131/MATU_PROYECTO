@@ -1,15 +1,15 @@
 # Semillas
 
-Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos del dominio ficticio `correo.ejemplo`, elegido para coincidir con la demo web. No es un TLD reservado (RFC 2606 y 6761 reservan `.test`, `.example`, `.invalid` y `.localhost`): hoy `.ejemplo` no existe en la raíz del DNS, pero no está garantizado. La semilla no envía correo.
+Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos de `example.com`, un dominio reservado (RFC 2606). Hasta MATU-25 usaba `correo.ejemplo`, que no es reservado; se cambió porque staging solo acepta correos de dominios reservados (decisión 105 de `docs/api/README.md`), y la semilla los exige también al registrar. La semilla no envía correo.
 
 ## `demo.py` · dos familias y un pagador con permiso para ver el plan
 
 | Grupo | Cuenta | Rol | Persona cuidada |
 |---|---|---|---|
-| Familia Soto | Carmen Fuentes, `carmen@correo.ejemplo` | admin (la cuidadora) | María Soto, cuidadora de hecho |
-| Familia Soto | Rodrigo Soto, `rodrigo@correo.ejemplo` | pagador, ve el plan | |
-| Familia Riquelme | Patricia Riquelme, `patricia@correo.ejemplo` | admin | Hernán Riquelme, titular |
-| Familia Riquelme | Tomás Riquelme, `tomas@correo.ejemplo` | observador | |
+| Familia Soto | Carmen Fuentes, `carmen@example.com` | admin (la cuidadora) | María Soto, cuidadora de hecho |
+| Familia Soto | Rodrigo Soto, `rodrigo@example.com` | pagador, ve el plan | |
+| Familia Riquelme | Patricia Riquelme, `patricia@example.com` | admin | Hernán Riquelme, titular |
+| Familia Riquelme | Tomás Riquelme, `tomas@example.com` | observador | |
 
 La familia Soto coincide con la demo web (Carmen cuida a María y Rodrigo es su hijo).
 
