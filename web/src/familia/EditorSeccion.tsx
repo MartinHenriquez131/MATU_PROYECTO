@@ -328,7 +328,14 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
               {MAS.ejemplo(seccion.ejemplo)}
             </p>
           </div>
-          <BotonDictar d={d} deshabilitado={ocupado || quitando} />
+          {/*
+            Decisión de Jorge del 03-11: sin dictado en Sus remedios. El reconocimiento de voz del
+            navegador (Web Speech API) envía el audio a un tercero (Google en Chrome), y el audio de
+            un dato de salud está en consulta legal. Se reactiva quitando esta condición cuando haya
+            respuesta legal. Las otras cinco secciones y los tres campos base siguen con dictado.
+            Sin el botón, el reconocimiento nunca arranca: `useDictado` solo escucha al tocarlo.
+          */}
+          {seccion.api !== 'remedios' && <BotonDictar d={d} deshabilitado={ocupado || quitando} />}
           {falla === 'falta-version' && (
             <Nota tono="pronto" rol="alert" titulo={FICHA.faltaVersionTitulo}>
               {FICHA.faltaVersion}
