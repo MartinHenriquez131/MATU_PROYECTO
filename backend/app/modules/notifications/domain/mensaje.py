@@ -1,10 +1,12 @@
-"""Los textos del aviso de quiebre (MATU-41, decisión 113, docs/lenguaje.md sección 20, aprobados por Jorge
-el 04-11).
+"""Los textos del correo del aviso de quiebre (MATU-41, decisión 113, docs/lenguaje.md sección 20, aprobados
+por Jorge el 04-11).
 
 Se arman al enviar y nunca se guardan: ni en la base, ni en el registro simulado, ni en un log. No dicen
 qué insumo ni de quién, no ofrecen comprar, y el enlace va a la raíz de la aplicación sin identificadores
-ni token. El correo no lleva seguimiento ni imágenes remotas. Ni el ``repr`` de los mensajes muestra el
-texto.
+ni token. El correo no lleva seguimiento ni imágenes remotas. Ni el ``repr`` del mensaje muestra el texto.
+
+El push no tiene mensaje aquí: va sin contenido (decisión 50, RFC 8030 con VAPID) y su texto fijo («MATU ·
+Un insumo se está acabando. Abre la app para ver cuál.») lo pone el service worker de la aplicación web.
 """
 
 import html
@@ -19,7 +21,6 @@ PIE = (
     "Te llega este correo porque eres parte de un grupo de cuidado en MATU. Para dejar de recibir estos avisos"
     " por correo, entra a MATU y desactívalos en Tu cuenta."
 )
-TITULO_PUSH = "MATU"
 
 # El origen https de la aplicación, sin ruta, query ni fragmento (como ORIGEN_WEB)
 _ORIGEN = re.compile(r"^https://[^/#?\s]+$")
@@ -56,13 +57,6 @@ class MensajeCorreo:
         )
 
 
-@dataclass(frozen=True)
-class MensajePush:
-    titulo: str = field(repr=False)
-    cuerpo: str = field(repr=False)
-    enlace: str = field(repr=False)
-
-
 def correo_quiebre(origen_web: str) -> MensajeCorreo:
     return MensajeCorreo(
         remitente=REMITENTE,
@@ -73,6 +67,3 @@ def correo_quiebre(origen_web: str) -> MensajeCorreo:
         pie=PIE,
     )
 
-
-def push_quiebre(origen_web: str) -> MensajePush:
-    return MensajePush(titulo=TITULO_PUSH, cuerpo=CUERPO, enlace=enlace_app(origen_web))

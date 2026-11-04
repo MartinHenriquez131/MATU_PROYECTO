@@ -4,8 +4,9 @@ No envía nada: no hay proveedores reales en esta historia. Cada envío queda en
 una lista en memoria (la leen las pruebas) y una línea JSON en REGISTRO_AVISOS, por omisión
 ``.dev/avisos.jsonl``, carpeta ignorada por git.
 
-El registro guarda solo ``notificacion_id``, ``usuario_id``, canal, plantilla y la hora: **nunca el destino
-(email o push_token) ni el texto**. Nunca escribe en los logs de la aplicación, y ni el ``repr`` de los
+El registro guarda solo ``notificacion_id``, ``usuario_id``, canal, el nombre de la plantilla y la hora:
+**nunca el destino (email o push_token) ni el texto**. El push no tiene texto que guardar: va sin contenido
+(decisión 50). Nunca escribe en los logs de la aplicación, y ni el ``repr`` de los
 adaptadores ni el de lo que guardan muestran un destino. La configuración impide encenderlo fuera de
 ENTORNOS_ENVIO_SIMULADO (app/core/config.py).
 """

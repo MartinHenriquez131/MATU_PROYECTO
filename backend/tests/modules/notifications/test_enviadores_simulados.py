@@ -16,7 +16,7 @@ from app.core.config import Configuracion
 from app.modules.consumption.events import QUIEBRE_PROXIMO
 from app.modules.notifications.application.ports import EnvioCorreo, EnvioPush
 from app.modules.notifications.domain.aviso import PLANTILLA_QUIEBRE, Canal, ResultadoEnvio
-from app.modules.notifications.domain.mensaje import correo_quiebre, push_quiebre
+from app.modules.notifications.domain.mensaje import correo_quiebre
 from app.modules.notifications.infrastructure import tarea_avisos
 from app.modules.notifications.infrastructure.enviadores_simulados import (
     EnviadorCorreoSimulado,
@@ -38,7 +38,7 @@ def _enviar(registro: RegistroAvisosSimulado) -> tuple[uuid.UUID, uuid.UUID]:
         EnvioCorreo(notificacion, usuario, PLANTILLA_QUIEBRE, EMAIL, correo_quiebre(ORIGEN))
     )
     push = EnviadorPushSimulado(registro).enviar(
-        EnvioPush(notificacion, usuario, PLANTILLA_QUIEBRE, TOKEN, push_quiebre(ORIGEN))
+        EnvioPush(notificacion, usuario, PLANTILLA_QUIEBRE, TOKEN)
     )
     assert correo is push is ResultadoEnvio.ENVIADO
     return notificacion, usuario
@@ -77,7 +77,7 @@ def test_sin_archivo_queda_solo_en_memoria(tmp_path: Path) -> None:
 def test_ningun_repr_muestra_el_destino() -> None:
     registro = RegistroAvisosSimulado(RelojFijo(datetime(2026, 10, 20, 12, 0, tzinfo=UTC)))
     envio_correo = EnvioCorreo(uuid.uuid4(), uuid.uuid4(), PLANTILLA_QUIEBRE, EMAIL, correo_quiebre(ORIGEN))
-    envio_push = EnvioPush(uuid.uuid4(), uuid.uuid4(), PLANTILLA_QUIEBRE, TOKEN, push_quiebre(ORIGEN))
+    envio_push = EnvioPush(uuid.uuid4(), uuid.uuid4(), PLANTILLA_QUIEBRE, TOKEN)
     textos = [
         repr(registro), repr(EnviadorCorreoSimulado(registro)), repr(EnviadorPushSimulado(registro)),
         repr(envio_correo), repr(envio_push), str(envio_correo),

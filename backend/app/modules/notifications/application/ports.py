@@ -18,7 +18,7 @@ from typing import Protocol
 
 from app.modules.care_circle.domain.personas import AutorizacionGuardada
 from app.modules.notifications.domain.aviso import Canal, CodigoAviso, EstadoNotificacion, ResultadoEnvio
-from app.modules.notifications.domain.mensaje import MensajeCorreo, MensajePush
+from app.modules.notifications.domain.mensaje import MensajeCorreo
 
 
 @dataclass(frozen=True)
@@ -32,11 +32,13 @@ class EnvioCorreo:
 
 @dataclass(frozen=True)
 class EnvioPush:
+    """Un push sin contenido (decisión 50, RFC 8030 con VAPID): no lleva texto. El service worker muestra el
+    texto fijo. ``plantilla`` es solo el nombre de la plantilla, para el registro."""
+
     notificacion_id: uuid.UUID
     usuario_id: uuid.UUID
     plantilla: str
     push_token: str = field(repr=False)
-    mensaje: MensajePush = field(repr=False)
 
 
 class EnviadorCorreo(Protocol):
@@ -46,7 +48,8 @@ class EnviadorCorreo(Protocol):
 
 
 class EnviadorPush(Protocol):
-    """Envía un push a un dispositivo. EXPIRADO cuando el servicio responde 404 o 410."""
+    """Envía un push sin contenido a un dispositivo (decisión 50). EXPIRADO cuando el servicio responde 404 o
+    410."""
 
     def enviar(self, envio: EnvioPush) -> ResultadoEnvio: ...
 

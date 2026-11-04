@@ -49,7 +49,7 @@ from app.modules.notifications.domain.aviso import (
     por_intentar,
 )
 from app.modules.notifications.domain.horario import disponible_desde
-from app.modules.notifications.domain.mensaje import correo_quiebre, push_quiebre
+from app.modules.notifications.domain.mensaje import correo_quiebre
 from app.shared.outbox import EventoTomado, Hecho, Posponer, Reintentar, ResultadoConsumo
 from app.shared.puertos import Reloj
 
@@ -177,9 +177,9 @@ class ConsumidorQuiebreProximo:
             envio = EnvioCorreo(fila.id, fila.usuario_id, PLANTILLA_QUIEBRE, correo, correo_quiebre(self._origen_web))
             resultados.append(_sin_excepcion(self._correo.enviar, envio, fila))
         else:
-            mensaje = push_quiebre(self._origen_web)
+            # Sin contenido (decisión 50): el texto fijo lo pone el service worker
             for destino in destinos:
-                envio_push = EnvioPush(fila.id, fila.usuario_id, PLANTILLA_QUIEBRE, destino.push_token, mensaje)
+                envio_push = EnvioPush(fila.id, fila.usuario_id, PLANTILLA_QUIEBRE, destino.push_token)
                 resultado = _sin_excepcion(self._push.enviar, envio_push, fila)
                 if resultado is ResultadoEnvio.EXPIRADO:
                     repo.expirar_push(destino.dispositivo_id)

@@ -27,7 +27,6 @@ from app.modules.notifications.domain.mensaje import (
     PIE,
     correo_quiebre,
     enlace_app,
-    push_quiebre,
 )
 
 pytestmark = pytest.mark.rf("RF-39")
@@ -186,15 +185,18 @@ def test_textos_del_correo_aprobados() -> None:
 
 def test_el_enlace_es_la_raiz_de_la_app_sin_identificadores() -> None:
     assert correo_quiebre(ORIGEN).enlace == "https://matu.example/"
-    assert push_quiebre(ORIGEN).enlace == "https://matu.example/"
     for malo in ("http://matu.example", "https://matu.example/r", "https://matu.example?x=1", "https://a#b"):
         with pytest.raises(ValueError):
             enlace_app(malo)
 
 
-def test_textos_del_push_aprobados() -> None:
-    push = push_quiebre(ORIGEN)
-    assert (push.titulo, push.cuerpo) == ("MATU", "Un insumo se está acabando. Abre la app para ver cuál.")
+def test_el_push_no_lleva_contenido() -> None:
+    # Decisión 50: el push va sin contenido y el envío no tiene campo para un texto
+    from dataclasses import fields
+
+    from app.modules.notifications.application.ports import EnvioPush
+
+    assert {f.name for f in fields(EnvioPush)} == {"notificacion_id", "usuario_id", "plantilla", "push_token"}
 
 
 def test_el_correo_no_lleva_imagenes_ni_seguimiento() -> None:
@@ -206,4 +208,3 @@ def test_el_correo_no_lleva_imagenes_ni_seguimiento() -> None:
 
 def test_el_repr_de_los_mensajes_no_muestra_el_texto() -> None:
     assert "insumo" not in repr(correo_quiebre(ORIGEN)) and "matu.example" not in repr(correo_quiebre(ORIGEN))
-    assert "insumo" not in repr(push_quiebre(ORIGEN))
