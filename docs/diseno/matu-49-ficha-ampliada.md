@@ -362,6 +362,7 @@ Si «Incluir Sus remedios» está marcada, «Crear enlace» **no crea todavía**
 - A 320 px con texto al 200 %: los chips pasan a una columna, la caja de remedios no desborda y la fecha de la confirmación no se parte.
 - Cómo se logra en `angosto:` (revisión MATU-50): la confirmación usa `px-2` y oculta el ícono `Info` (el borde `atenta` y el texto llevan el aviso), para que `{DD/MM/AAAA}` en `cifras` quepa entera; los chips pasan a `rounded-xl` y `px-3`, con `hyphens-auto` en el título, para que «Moverse y descansar» no se corte a mitad de palabra sin guion.
 
+- En `angosto:` la casilla de cada chip y la de «Incluir Sus remedios» van arriba del texto (`flex-col`), para que ninguna palabra quede más ancha que su columna y ninguna se corte sin guion; `wrap-anywhere hyphens-auto` queda como red (verificación final de MATU-50, 03-11).
 ---
 
 ## 7. La página del relevo (`/r`, MATU-23 3.11)
