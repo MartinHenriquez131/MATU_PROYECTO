@@ -2,7 +2,7 @@
 // entrada con la cookie del refresh, grupos, personas y la ficha con ETag, 412 y 428. Igual que el
 // doble del relevo, responde por HTTP de verdad y no entra al build. Datos sintéticos: Carmen cuida
 // a María, Rodrigo es su hijo; los teléfonos usan la serie 5555, que no se asigna.
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { CONTRASENA_DE_EJEMPLO } from './cuentas'
@@ -30,6 +30,24 @@ interface Persona {
   secciones: Partial<Record<SeccionApi, Campo>>
   /** Lo que hicieron los relevos (MATU-45), del más reciente al más antiguo. */
   aperturas: Apertura[]
+  /** Los enlaces de relevo (MATU-48), del más nuevo al más antiguo. */
+  accesos: Acceso[]
+}
+type Motivo = 'salgo_unas_horas' | 'fin_de_semana_fuera' | 'turno_de_noche' | 'otro'
+interface Acceso {
+  id: string
+  nombre_relevo: string
+  /** `null` cuando ya se borró, a los 30 días del vencimiento o del corte (decisión 25). */
+  telefono_relevo: string | null
+  campos: CampoApi[]
+  secciones_adicionales: SeccionApi[]
+  motivo: Motivo
+  creado_en: string
+  expira_en: string
+  revocado_en: string | null
+  bloqueado: boolean
+  usos: number
+  otorgado_por: { id: string; nombre: string } | null
 }
 type TipoApertura = 'presentacion' | 'apertura' | 'pin_incorrecto' | 'bloqueo'
 interface Apertura {
@@ -77,6 +95,7 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
     secciones: {},
     aperturas: [],
+    accesos: [],
   }
 }
 
@@ -88,11 +107,48 @@ const linea = (acceso: { id: string; nombre_relevo: string }, tipo: TipoApertura
  * Las aperturas de María (MATU-45): los cuatro tipos, una presentación sin apertura (Carla), un
  * bloqueo (Pedro), varios días (hoy, ayer, hace 3 días y desde hace 10) y 27 líneas, para la paginación.
  */
-function aperturasDeEjemplo(): Apertura[] {
+const TRES: CampoApi[] = ['rutina', 'manejo_situaciones', 'red_apoyo']
+const en = (min: number) => new Date(Date.now() + min * 60_000).toISOString()
+/** Un enlace de ejemplo: creado `creado` minutos atrás y que vence `vence` minutos desde ahora (negativo = ya venció). */
+function acceso(
+  id: { id: string; nombre_relevo: string },
+  telefono: string | null,
+  creado: number,
+  vence: number,
+  extra: Partial<Acceso> = {},
+): Acceso {
+  return {
+    id: id.id,
+    nombre_relevo: id.nombre_relevo,
+    telefono_relevo: telefono,
+    campos: TRES,
+    secciones_adicionales: [],
+    motivo: 'salgo_unas_horas',
+    creado_en: hace(creado),
+    expira_en: en(vence),
+    revocado_en: null,
+    bloqueado: false,
+    usos: 0,
+    otorgado_por: { id: randomUUID(), nombre: 'Carmen' },
+    ...extra,
+  }
+}
+
+function aperturasDeEjemplo(): { aperturas: Apertura[]; accesos: Acceso[] } {
   const rosa = { id: randomUUID(), nombre_relevo: 'Rosa' }
   const carla = { id: randomUUID(), nombre_relevo: 'Carla' }
   const pedro = { id: randomUUID(), nombre_relevo: 'Pedro' }
   const rosaAntes = { id: randomUUID(), nombre_relevo: 'Rosa' }
+  const tomas = { id: randomUUID(), nombre_relevo: 'Tomás' }
+  // MATU-48: los enlaces de esas aperturas. Rosa y Carla abren ahora; Pedro se bloqueó; Tomás lo
+  // cortaron; el enlace anterior de Rosa venció hace más de 30 días y su teléfono ya se borró.
+  const accesos: Acceso[] = [
+    acceso(rosa, '+56955550137', 30, 23 * 60 - 30),
+    acceso(carla, '+56955550152', DIA + 125, 3 * DIA, { motivo: 'fin_de_semana_fuera', otorgado_por: { id: RODRIGO.id, nombre: 'Rodrigo' } }),
+    acceso(tomas, '+56955550160', 5 * DIA, -4 * DIA, { motivo: 'turno_de_noche', revocado_en: hace(4 * DIA + 200) }),
+    acceso(pedro, '+56955550175', 3 * DIA + 10, 2 * DIA, { bloqueado: true, motivo: 'otro' }),
+    acceso(rosaAntes, null, 50 * DIA, -35 * DIA, { campos: ['rutina', 'red_apoyo'] }),
+  ]
   const lista: Apertura[] = [
     linea(rosa, 'apertura', 25),
     linea(rosa, 'pin_incorrecto', 27),
@@ -104,9 +160,26 @@ function aperturasDeEjemplo(): Apertura[] {
   ]
   // Desde hace diez días: Rosa, la vez anterior, abre la ficha una vez por día.
   for (let d = 10; d < 18; d++) lista.push(linea(rosaAntes, 'apertura', d * DIA), linea(rosaAntes, 'presentacion', d * DIA + 1))
-  return lista
+  return { aperturas: lista, accesos }
 }
-const conAperturas = (p: Persona) => ((p.aperturas = aperturasDeEjemplo()), p)
+const conAperturas = (p: Persona) => {
+  const { aperturas, accesos } = aperturasDeEjemplo()
+  p.aperturas = aperturas
+  p.accesos = accesos
+  return p
+}
+
+/** Un activo y 25 que ya no abren, para «Ver enlaces anteriores» (dos páginas de 20). */
+function conMuchosEnlaces(p: Persona) {
+  const nombres = ['Rosa', 'Carla', 'Tomás', 'Pedro', 'Javiera', 'Luis']
+  p.accesos = [acceso({ id: randomUUID(), nombre_relevo: 'Rosa' }, '+56955550137', 60, 20 * 60)]
+  for (let i = 0; i < 25; i++) {
+    const id = { id: randomUUID(), nombre_relevo: nombres[i % nombres.length] }
+    const creado = (i + 2) * DIA
+    p.accesos.push(acceso(id, i < 20 ? '+56955550190' : null, creado, -creado + DIA, i % 3 === 0 ? { revocado_en: hace(creado - 120) } : {}))
+  }
+  return p
+}
 
 // Secciones de ejemplo (MATU-50), con los textos de lenguaje 14.1 adaptados a María.
 const TEXTOS_SECCION: Record<SeccionApi, string> = {
@@ -182,6 +255,20 @@ function sembrar() {
       }),
     ]),
   ])
+  // MATU-48: compartir y cortar, una cuenta por estado.
+  const conTodas = () => conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion', 'remedios'])
+  cuenta('enlaces-pausa@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', {}, 'cuidador_de_hecho'))])], 'revision-vencida')
+  cuenta('enlaces-muchos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conMuchosEnlaces(conTodas())])])
+  cuenta('enlaces-cortar-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
+  cuenta('enlaces-lista-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
+  cuenta('compartir-nombre@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
+  cuenta('compartir-telefono@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-telefono_relevo')
+  cuenta('compartir-avise@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-relevo_informado')
+  cuenta('compartir-vence-pasada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_pasada')
+  cuenta('compartir-vence-maxima@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_maxima')
+  cuenta('compartir-seccion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-seccion_no_agregada')
+  cuenta('compartir-caido@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-503')
+  cuenta('compartir-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-500')
   cuenta(
     'largos@ejemplo.cl',
     'Bernardita',
@@ -307,7 +394,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return res.end(), true
   }
 
-  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas')) return false
+  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/accesos-relevo')) return false
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
@@ -358,6 +445,12 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     const siguiente = hasta < pa.aperturas.length ? Buffer.from(String(hasta)).toString('base64url') : null
     return json(res, 200, { items: pa.aperturas.slice(desde, hasta), siguiente_cursor: siguiente }), true
   }
+
+  // MATU-48: POST y GET …/plan/accesos-relevo, y DELETE /v1/accesos-relevo/{id}.
+  const mAccesos = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/accesos-relevo$/.exec(ruta)
+  if (mAccesos) return atenderAccesos(req, res, cuerpo, r, u, g, decodeURIComponent(mAccesos[1])), true
+  const mCortar = /^\/v1\/accesos-relevo\/([^/]+)$/.exec(ruta)
+  if (mCortar) return cortar(req, res, r, u, g, decodeURIComponent(mCortar[1])), true
 
   // MATU-50: PUT y DELETE …/plan/secciones/{seccion} (ficha-ampliada.openapi.yaml).
   const mSeccion = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/secciones\/([a-z_]+)$/.exec(ruta)
@@ -520,4 +613,135 @@ function atenderSeccion(
   res.setHeader('ETag', `"v${nuevo.version}"`)
   res.setHeader('Cache-Control', 'no-store')
   return json(res, actual ? 200 : 201, { seccion, texto: nuevo.texto, etag: `"v${nuevo.version}"`, actualizado_por: nuevo.autor, actualizado_en: nuevo.en })
+}
+
+// ---------------------------------------------------------------- accesos de relevo (MATU-48)
+
+const MOTIVOS: Motivo[] = ['salgo_unas_horas', 'fin_de_semana_fuera', 'turno_de_noche', 'otro']
+const CELULAR = /^(\+?56 ?)?9( ?[0-9]){8}$/
+const seccionesQuitadas = new Set<string>()
+
+function estadoDe(a: Acceso): 'vigente' | 'vencido' | 'revocado' | 'bloqueado' {
+  if (a.revocado_en) return 'revocado'
+  if (a.bloqueado) return 'bloqueado'
+  return new Date(a.expira_en).getTime() <= Date.now() ? 'vencido' : 'vigente'
+}
+
+/** Decisión 31: el teléfono solo para admin y cuidador; para el pagador la propiedad no viene. */
+function vistaAcceso(a: Acceso, rol: Rol) {
+  const { bloqueado: _b, telefono_relevo, ...resto } = a
+  void _b
+  const vista = { ...resto, estado: estadoDe(a), ultimo_uso_en: null as string | null }
+  return rol === 'admin' || rol === 'cuidador' ? { ...vista, telefono_relevo } : vista
+}
+
+/**
+ * `POST` y `GET …/plan/accesos-relevo`, con el orden del contrato: alcance (404), consentimiento
+ * (403), validación (422). Las cuentas «compartir-…» responden el error de su nombre.
+ */
+function atenderAccesos(
+  req: IncomingMessage,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  { json, problema }: Responder,
+  u: Usuario,
+  g: Grupo | undefined,
+  personaId: string,
+) {
+  const metodo = req.method ?? 'GET'
+  const p = g?.personas.find((x) => x.id === personaId)
+  if (!g || !p) return problema(res, 404, '/errores/no-encontrado')
+
+  if (metodo === 'GET') {
+    const puede = g.rol === 'admin' || g.rol === 'cuidador' || (g.rol === 'pagador' && g.puede_ver_plan)
+    if (!puede) return problema(res, 404, '/errores/no-encontrado')
+    if (u.modo === 'lista-falla') return problema(res, 500, '/errores/error-interno')
+    const q = new URL(req.url ?? '', 'http://doble').searchParams
+    const limite = Number(q.get('limite') ?? '20')
+    if (!Number.isInteger(limite) || limite < 1 || limite > 100)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'limite', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' }] })
+    const estado = q.get('estado')
+    const lista = p.accesos.filter((a) => !estado || estadoDe(a) === estado)
+    const cursor = q.get('cursor')
+    const desde = cursor ? Number(Buffer.from(cursor, 'base64url').toString('utf8')) : 0
+    if (!Number.isInteger(desde) || desde < 0 || desde > lista.length)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'cursor', mensaje: 'MENSAJE DEL DOBLE', tipo: 'cursor_invalido' }] })
+    const hasta = desde + limite
+    res.setHeader('Cache-Control', 'no-store')
+    const siguiente = hasta < lista.length ? Buffer.from(String(hasta)).toString('base64url') : null
+    return json(res, 200, { items: lista.slice(desde, hasta).map((a) => vistaAcceso(a, g.rol)), siguiente_cursor: siguiente })
+  }
+
+  if (metodo !== 'POST') return problema(res, 404, '/errores/no-encontrado')
+  if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'revision-vencida') return problema(res, 403, '/errores/revision-vencida')
+  const b = cuerpo ?? {}
+  const error = (campo: string, tipo: string) => problema(res, 422, '/errores/validacion', { errores: [{ campo, mensaje: 'MENSAJE DEL DOBLE', tipo }] })
+  const forzado = /^422-(.+)$/.exec(u.modo ?? '')?.[1]
+  if (forzado === 'nombre_relevo') return error('nombre_relevo', 'string_too_short')
+  if (forzado === 'telefono_relevo') return error('telefono_relevo', 'celular_invalido')
+  if (forzado === 'relevo_informado') return error('relevo_informado', 'relevo_no_informado')
+  if (forzado === 'vigencia_pasada' || forzado === 'vigencia_maxima') return error('expira_en', forzado)
+  if (u.modo === 'compartir-503') return problema(res, 503, '/errores/servicio-no-disponible')
+  if (u.modo === 'compartir-500') return problema(res, 500, '/errores/error-interno')
+
+  const nombre = typeof b.nombre_relevo === 'string' ? b.nombre_relevo.trim() : ''
+  if (!nombre || nombre.length > 60) return error('nombre_relevo', 'string_too_long')
+  if (typeof b.telefono_relevo !== 'string' || !CELULAR.test(b.telefono_relevo)) return error('telefono_relevo', 'celular_invalido')
+  if (b.relevo_informado !== true) return error('relevo_informado', 'relevo_no_informado')
+  if (!MOTIVOS.includes(b.motivo as Motivo)) return error('motivo', 'enum')
+  if (b.campos !== undefined && b.campos !== null) return error('campos', 'campos_base_obligatorios')
+  const secciones = Array.isArray(b.secciones_adicionales) ? (b.secciones_adicionales as string[]) : []
+  if (new Set(secciones).size !== secciones.length) return error('secciones_adicionales', 'duplicado')
+  // Cuenta «compartir-seccion»: Rodrigo quita una de las elegidas justo antes del primer envío.
+  if (forzado === 'seccion_no_agregada' && secciones.length && !seccionesQuitadas.has(p.id)) {
+    seccionesQuitadas.add(p.id)
+    delete p.secciones[secciones[0] as SeccionApi]
+  }
+  if (secciones.some((x) => !(SECCIONES as string[]).includes(x) || !p.secciones[x as SeccionApi])) return error('secciones_adicionales', 'seccion_no_agregada')
+  const expira = typeof b.expira_en === 'string' ? new Date(b.expira_en).getTime() : Date.now() + DIA * 60_000
+  if (Number.isNaN(expira)) return error('expira_en', 'datetime_parsing')
+  if (expira <= Date.now()) return error('expira_en', 'vigencia_pasada')
+  if (expira > Date.now() + 30 * DIA * 60_000) return error('expira_en', 'vigencia_maxima')
+
+  const token = randomBytes(32).toString('base64url')
+  const a: Acceso = {
+    id: randomUUID(),
+    nombre_relevo: nombre,
+    telefono_relevo: String(b.telefono_relevo).replace(/\s+/g, '').replace(/^(?:\+?56)?9/, '+569'),
+    campos: TRES,
+    secciones_adicionales: SECCIONES.filter((x) => secciones.includes(x)),
+    motivo: b.motivo as Motivo,
+    creado_en: new Date().toISOString(),
+    expira_en: new Date(expira).toISOString(),
+    revocado_en: null,
+    bloqueado: false,
+    usos: 0,
+    otorgado_por: { id: u.id, nombre: u.nombre.split(' ')[0] },
+  }
+  p.accesos.unshift(a)
+  res.setHeader('Cache-Control', 'no-store')
+  return json(res, 201, {
+    id: a.id,
+    url: `http://${req.headers.host ?? 'localhost'}/r#${token}`,
+    pin: String(randomInt(0, 10_000)).padStart(4, '0'),
+    campos: a.campos,
+    secciones_adicionales: a.secciones_adicionales,
+    expira_en: a.expira_en,
+    nombre_relevo: a.nombre_relevo,
+    nombre_pila_persona: p.nombre_pila,
+  })
+}
+
+/** `DELETE /v1/accesos-relevo/{id}`: 204 idempotente; no exige autorización vigente (decisión 18). */
+function cortar(req: IncomingMessage, res: ServerResponse, { problema }: Responder, u: Usuario, g: Grupo | undefined, id: string) {
+  if (req.method !== 'DELETE') return problema(res, 404, '/errores/no-encontrado')
+  if (!g || (g.rol !== 'admin' && g.rol !== 'cuidador')) return problema(res, 404, '/errores/no-encontrado')
+  const a = g.personas.flatMap((p) => p.accesos).find((x) => x.id === id)
+  if (!a) return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'cortar-falla') return problema(res, 500, '/errores/error-interno')
+  if (estadoDe(a) === 'vigente') a.revocado_en = new Date().toISOString()
+  res.statusCode = 204
+  return res.end()
 }
