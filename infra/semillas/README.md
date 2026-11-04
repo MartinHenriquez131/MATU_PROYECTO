@@ -11,7 +11,7 @@ Datos sintéticos para la base **local** de demostración (estrategia de pruebas
 | Familia Riquelme | Patricia Riquelme, `patricia@example.com` | admin | Hernán Riquelme, titular |
 | Familia Riquelme | Tomás Riquelme, `tomas@example.com` | observador | |
 
-La familia Soto coincide con la demo web (Carmen cuida a María y Rodrigo es su hijo).
+La familia Soto usa los mismos nombres que la demo web de `Demo/` (Carmen cuida a María y Rodrigo es su hijo), pero no los mismos correos: la demo sigue con `@correo.ejemplo` y no apunta a staging.
 
 Usa los casos de uso de la API conectada como `matu_app`: registro con Argon2id y `PEPPER_EMAIL`, grupo con su admin y alta de la persona con su consentimiento y su auditoría. Por eso las cuentas sirven para iniciar sesión en la API y en el modo real de la demo. La única escritura sin caso de uso es la membresía del segundo miembro de cada familia, porque las invitaciones aún no existen: va como `matu_app` en el contexto del admin y de su grupo, nunca como superusuario. La ficha de relevo no se siembra: llega con MATU-11 y MATU-12.
 
