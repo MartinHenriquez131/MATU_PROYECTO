@@ -11,7 +11,7 @@ import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 
 export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`flex flex-wrap items-center gap-3 ${className}`}>{children}</div>
+  return <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 ${className}`}>{children}</div>
 }
 
 /** Título de cada pantalla: recibe el foco al cambiar de ruta (2.6). */
