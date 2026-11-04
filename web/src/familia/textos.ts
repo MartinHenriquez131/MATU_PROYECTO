@@ -394,7 +394,7 @@ export const COMPARTIR = {
   estados: { vencido: 'Vencido', revocado: 'Cortado', bloqueado: 'Bloqueado' }, // [lenguaje 9]
   // Decisión 33, aprobado por Jorge el 04-11: sin autorización vigente, los enlaces quedan en pausa.
   enPausa: 'En pausa',
-  pausa: 'Mientras no renueves la autorización, ningún enlace abre. Cuando la renueves, vuelven a abrir los que no hayan vencido.',
+  pausa: 'Mientras no haya una autorización vigente, ningún enlace abre. Cuando la renueves, vuelven a abrir los que no hayan vencido.',
   loCreo: (nombre: string) => `Lo creó ${nombre}.`,
   /** «Venció el {fecha} a las {hora}.» y «Lo cortaron el {fecha} a las {hora}.», partidos para `cifras`. */
   vencio: ['Venció el ', ' a las ', '.'] as const,
