@@ -24,6 +24,8 @@ Cada historia agrega aquí lo suyo:
 - MATU-38: PEPPER_LIMITES, la llave del HMAC de las huellas de la IP y del email de la demora
   progresiva de la entrada (decisión 49). Distinta de los demás secretos. Sin ella, la entrada
   responde 503 y falla cerrada
+- MATU-40: CAPA3_HABILITADA, si la API monta los routers de la capa 3, el despacho (ADR-002). Apagada
+  por omisión: las capas 1 y 2 no dependen de ella y la API arranca igual. Ver app/main.py
 """
 
 import base64
@@ -116,6 +118,11 @@ class Configuracion(BaseSettings):
     # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y los archivos de
     # /assets en el mismo origen. Sin la carpeta, /r responde 404 y el resto de la API no cambia
     web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
+
+    # Capa 3, el despacho (MATU-40, ADR-002): con true, la API monta los routers de ROUTERS_CAPA_3 de
+    # app/main.py. Apagada por omisión: sin convenio no hay despacho, y la ficha, el relevo y el consumo
+    # funcionan igual. No es un secreto
+    capa3_habilitada: bool = False
 
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites", mode="before"
