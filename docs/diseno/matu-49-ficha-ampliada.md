@@ -193,7 +193,7 @@ Igual que MATU-39 3.7: editor a la izquierda, «Así la ve quien te reemplaza» 
 
 - `label` = la pregunta guía; `aria-describedby` = contador, ayuda (y alergias) y ejemplo, en ese orden. En Sus remedios, también el aviso (va primero).
 - **Tope:** `maxLength` 500, o 800 en Sus remedios. Contador «`{n}` de `{tope}` caracteres». Pasa a `text-atenta` con `TriangleAlert` al 90 % (450 o 720) y se anuncia con `aria-live="polite"` solo al cruzar ese umbral y el tope (misma regla de MATU-39 3.7).
-- **Dictado:** igual que MATU-39 3.7.1; se detiene al llegar al tope de esa sección.
+- **Dictado:** igual que MATU-39 3.7.1; se detiene al llegar al tope de esa sección. **Excepción (decisión de Jorge del 03-11):** en «Sus remedios» no hay botón de dictar mientras esté en consulta legal el envío del audio de un dato de salud al servicio de voz del navegador. Se reactiva con la respuesta legal.
 - **El aviso de remedios** es texto en la página, no `title` ni tooltip ni texto que aparece al pasar el puntero. Usa `Nota tono="atenta"` (fondo `atenta-fondo`, `border-l-4 border-atenta`, texto `tinta`) con el ícono `Info` de lucide: comunica «léelo», no «peligro», y no es un ícono clínico. **Nunca** `Pill`, `Cross`, `Stethoscope`, `Syringe` ni `HeartPulse`.
 
 ### 4.4 Guardar (agregar o cambiar)
@@ -237,9 +237,9 @@ Esta es la versión que guardó Rodrigo:
 
 «Quitarla igual» reintenta el `DELETE` con el `ETag` del 412. Nada se borra sin que Carmen vea la versión nueva. Foco al título, `role="alert"` una vez.
 
-«Dejarla como está» vuelve a `/ficha` con `Nota tono="ok"` y el mismo verbo del botón [PROPUESTO, revisión MATU-50]: «Dejaste «`{título}`» como la guardó `{autor}`.» (reemplaza «Dejaste la versión de `{autor}`.», que es la confirmación de guardar, no de quitar).
+«Dejarla como está» vuelve a `/ficha` con `Nota tono="ok"` y el mismo verbo del botón [aprobado por Jorge el 03-11]: «Dejaste «`{título}`» como la guardó `{autor}`.» (reemplaza «Dejaste la versión de `{autor}`.», que es la confirmación de guardar, no de quitar).
 
-**Guardar cuando otra persona la quitó** (412 con `actual: null` a un `PUT` con `If-Match`) [PROPUESTO, revisión MATU-50]. La pantalla de 6.2 no sirve: el 412 no trae autor y no hay «versión de otra persona» que elegir (hoy muestra «La de Otra persona · Vacía»). En su lugar, la misma construcción de este bloque (alerta `pronto` con `TriangleAlert`, título `titular text-2xl`), con **solo** la caja «La tuya»:
+**Guardar cuando otra persona la quitó** (412 con `actual: null` a un `PUT` con `If-Match`) [aprobado por Jorge el 03-11]. La pantalla de 6.2 no sirve: el 412 no trae autor y no hay «versión de otra persona» que elegir (hoy muestra «La de Otra persona · Vacía»). En su lugar, la misma construcción de este bloque (alerta `pronto` con `TriangleAlert`, título `titular text-2xl`), con **solo** la caja «La tuya»:
 
 ```
 Otra persona quitó «Moverse y descansar» mientras escribías    titular text-2xl
@@ -257,7 +257,7 @@ Lo que escribiste no se guardó. Puedes agregarla de nuevo con tu texto.
 
 ### 4.7 Otros errores
 
-Los de MATU-39 3.9, sin cambios (428, 403 de consentimiento y de revisión, 404, 401, red). El 422 de largo usa el tope de la sección, con un texto propio [PROPUESTO, revisión MATU-50], porque lenguaje 6.5 dice «Cada campo» y fija 500: «Esta sección admite hasta `{tope}` caracteres. Acorta un poco el texto para guardarlo.» (`{tope}` = 500, u 800 en Sus remedios, en `cifras`).
+Los de MATU-39 3.9, sin cambios (428, 403 de consentimiento y de revisión, 404, 401, red). El 422 de largo usa el tope de la sección, con un texto propio [aprobado por Jorge el 03-11], porque lenguaje 6.5 dice «Cada campo» y fija 500: «Esta sección admite hasta `{tope}` caracteres. Acorta un poco el texto para guardarlo.» (`{tope}` = 500, u 800 en Sus remedios, en `cifras`).
 
 ### 4.8 Texto al 200 % en las pantallas de conflicto (revisión MATU-50)
 
@@ -481,7 +481,7 @@ Nota de puntuación: la ayuda y la de alergias se aprobaron sin punto final; en 
 | Compartir, confirmación | «Sí, crear el enlace» · «No incluir sus remedios» |
 | PIN y Enlaces | «Ve su día, si se altera, a quién llamar, `{secciones en minúscula}`.» · «Si agregas una sección después, `{nombre}` no la verá. Para que la vea, crea un enlace nuevo.» |
 
-### 10.3 Propuestos en la revisión de MATU-50 (03-11), por aprobar
+### 10.3 Aprobados por Jorge el 03-11 (revisión de MATU-50; en lenguaje.md 14.4 y 5.4)
 
 | Dónde | Texto |
 |---|---|
