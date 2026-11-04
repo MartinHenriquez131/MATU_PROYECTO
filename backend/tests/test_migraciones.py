@@ -546,6 +546,13 @@ def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechabl
     for nombre, columna in (("seccion_crear", "with_check"), ("seccion_editar", "qual"), ("seccion_borrar", "qual")):
         [(expresion,)] = consultar(f"SELECT {columna} FROM pg_policies WHERE policyname = '{nombre}'")
         assert "app_escribe_plan()" in expresion, nombre
+    # Decisión 103: plan_cuidado sin DELETE para matu_app, ni política ni permiso
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'plan_cuidado' AND policyname <> 'plan_relevo'"))
+    assert politicas == {"plan_leer": "SELECT", "plan_crear": "INSERT", "plan_editar": "UPDATE"}
+    assert consultar(
+        "SELECT privilege_type FROM information_schema.role_table_grants"
+        " WHERE table_name = 'plan_cuidado' AND grantee = 'matu_app' AND privilege_type = 'DELETE'") == []
 
     alembic("downgrade", "0011")
     despues = catalogo()

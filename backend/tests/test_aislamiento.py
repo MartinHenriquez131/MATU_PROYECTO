@@ -416,6 +416,44 @@ def test_pagador_con_plan_lee_secciones_pero_no_las_escribe_ni_borra(sesiones_ap
         raise _Deshacer
 
 
+def _secciones_del_plan_a() -> int:
+    with psycopg.connect(DSN) as c:
+        fila = c.execute("SELECT count(*) FROM plan_seccion WHERE plan_id = %s", (PLAN_A,)).fetchone()
+    assert fila is not None
+    return int(fila[0])
+
+
+@pytest.mark.rf("RF-03")
+def test_el_plan_lo_lee_quien_lo_ve_lo_editan_admin_y_cuidador_y_nadie_lo_borra(sesiones_app):
+    """Decisión 103 (migración 0013): el pagador con puede_ver_plan lee plan_cuidado, pero su UPDATE no toca
+    filas y su DELETE no borra el plan ni, en cascada, sus secciones. El admin lo edita, y tampoco lo borra:
+    matu_app no tiene DELETE sobre plan_cuidado."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    filtro = {"plan": PLAN_A}
+    secciones = _secciones_del_plan_a()
+    assert secciones > 0
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        assert s.execute(text("SELECT id FROM plan_cuidado WHERE id = :plan"), filtro).scalar_one() == PLAN_A
+        editado = s.execute(text("UPDATE plan_cuidado SET modo = 'completo' WHERE id = :plan"), filtro)
+        assert editado.rowcount == 0  # type: ignore[attr-defined]
+        raise _Deshacer
+    for usuario in (U_PAG2_A, U_ADMIN_A):
+        with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=usuario, grupo_id=G_A) as s:
+            s.execute(text("DELETE FROM plan_cuidado WHERE id = :plan"), filtro)
+        assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+    assert _secciones_del_plan_a() == secciones
+
+    # El admin sí edita (se deshace al final)
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        editado = s.execute(text("UPDATE plan_cuidado SET completitud_pct = 67 WHERE id = :plan"), filtro)
+        assert editado.rowcount == 1  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
 @pytest.mark.rf("RF-03")
 @pytest.mark.parametrize(
     ("detalle", "acepta"),

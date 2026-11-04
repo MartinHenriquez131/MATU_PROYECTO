@@ -26,6 +26,11 @@ f) seccion_familia (FOR ALL con app_puede_ver_plan()) se separa por operación, 
    plan, también el pagador con puede_ver_plan; seccion_crear, seccion_editar y seccion_borrar solo con
    app_escribe_plan(), una membresía activa de admin o cuidador en el grupo del contexto. Así un pagador
    con puede_ver_plan no escribe ni borra secciones ni con SQL directo, igual que en la API.
+g) plan_familia (FOR ALL con app_puede_ver_plan()) se separa igual (decisión 103, aprobada por Jorge el
+   03-11): plan_leer (FOR SELECT) para quien puede ver el plan; plan_crear (INSERT) y plan_editar (UPDATE)
+   con app_escribe_plan(). Ninguna política de DELETE, y REVOKE DELETE ON plan_cuidado FROM matu_app:
+   ninguna ruta borra un plan, y borrarlo arrastraría por ON DELETE CASCADE sus secciones y sus accesos
+   de relevo sin pasar por las políticas de esas tablas. Borrar un plan es de la historia de borrado.
 
 downgrade() vuelve al esquema de la 0011:
 - Si quedan filas de plan_seccion con los tipos nuevos, o accesos que los comparten, se detiene con un
@@ -153,9 +158,28 @@ CREATE POLICY seccion_leer ON plan_seccion FOR SELECT USING (EXISTS (
 CREATE POLICY seccion_crear ON plan_seccion FOR INSERT WITH CHECK ({_SECCION_ESCRIBE});
 CREATE POLICY seccion_editar ON plan_seccion FOR UPDATE USING ({_SECCION_ESCRIBE}) WITH CHECK ({_SECCION_ESCRIBE});
 CREATE POLICY seccion_borrar ON plan_seccion FOR DELETE USING ({_SECCION_ESCRIBE});
+
+-- (g) El plan: leer quien lo ve, crear y editar admin y cuidador, borrar nadie (decisión 103)
+DROP POLICY plan_familia ON plan_cuidado;
+CREATE POLICY plan_leer ON plan_cuidado FOR SELECT
+    USING (grupo_id = app_grupo() AND (SELECT app_puede_ver_plan()));
+CREATE POLICY plan_crear ON plan_cuidado FOR INSERT
+    WITH CHECK (grupo_id = app_grupo() AND (SELECT app_escribe_plan()));
+CREATE POLICY plan_editar ON plan_cuidado FOR UPDATE
+    USING (grupo_id = app_grupo() AND (SELECT app_escribe_plan()))
+    WITH CHECK (grupo_id = app_grupo() AND (SELECT app_escribe_plan()));
+REVOKE DELETE ON plan_cuidado FROM matu_app;
 """
 
 DOWNGRADE = f"""
+-- (g) La política y el permiso de la 0001
+GRANT DELETE ON plan_cuidado TO matu_app;
+DROP POLICY plan_editar ON plan_cuidado;
+DROP POLICY plan_crear ON plan_cuidado;
+DROP POLICY plan_leer ON plan_cuidado;
+CREATE POLICY plan_familia ON plan_cuidado FOR ALL
+    USING (grupo_id = app_grupo() AND (SELECT app_puede_ver_plan()));
+
 -- (f) La política de la 0001: FOR ALL para quien puede ver el plan
 DROP POLICY seccion_borrar ON plan_seccion;
 DROP POLICY seccion_editar ON plan_seccion;
