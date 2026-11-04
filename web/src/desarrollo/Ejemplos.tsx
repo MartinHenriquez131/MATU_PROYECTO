@@ -8,8 +8,9 @@ import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 export function Ejemplos() {
   // Se abre en una pestaña nueva: el fragmento cambia y la página arranca de cero.
   const enlace = (token: string) => `/r#${token}`
+  // wrap-anywhere: los correos y el token de 129 caracteres no ensanchan la página a 320 px con 200 %.
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+    <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 wrap-anywhere">
       <h1 className="titular text-3xl">Doble del contrato (solo desarrollo)</h1>
       <h2 className="text-xl font-bold">App de la familia (MATU-39)</h2>
       <p className="text-tenue">
