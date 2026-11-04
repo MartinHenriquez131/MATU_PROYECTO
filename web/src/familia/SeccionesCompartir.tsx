@@ -87,7 +87,7 @@ export function ElegirSecciones({
               return (
                 <label
                   key={s}
-                  className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 rounded-full angosto:rounded-xl px-4 angosto:px-3 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                  className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 angosto:flex-col angosto:items-start angosto:gap-2 rounded-full angosto:rounded-xl px-4 angosto:px-3 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
                     on ? 'bg-rocio text-turquesa ring-turquesa' : 'bg-hoja text-tenue ring-borde hover:ring-turquesa/40'
                   }`}
                 >
@@ -104,7 +104,7 @@ export function ElegirSecciones({
       )}
 
       {hayRemedios && (
-        <label htmlFor={idCasillaRemedios} className="flex min-h-12 cursor-pointer items-start gap-3 rounded border border-borde bg-hoja p-4 angosto:p-2">
+        <label htmlFor={idCasillaRemedios} className="flex min-h-12 cursor-pointer items-start gap-3 angosto:flex-col angosto:gap-2 rounded border border-borde bg-hoja p-4 angosto:p-2">
           <input
             id={idCasillaRemedios}
             type="checkbox"
