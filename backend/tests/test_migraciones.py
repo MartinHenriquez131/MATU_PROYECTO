@@ -538,6 +538,14 @@ def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechabl
     assert "creado_en" in qual
     assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'plan_seccion_creado_fijo'") == [
         ("plan_seccion_creado_fijo",)]
+    # Decisión 102: lectura y escritura separadas; escribir exige app_escribe_plan()
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'plan_seccion' AND policyname <> 'seccion_relevo'"))
+    assert politicas == {"seccion_leer": "SELECT", "seccion_crear": "INSERT", "seccion_editar": "UPDATE",
+                         "seccion_borrar": "DELETE"}
+    for nombre, columna in (("seccion_crear", "with_check"), ("seccion_editar", "qual"), ("seccion_borrar", "qual")):
+        [(expresion,)] = consultar(f"SELECT {columna} FROM pg_policies WHERE policyname = '{nombre}'")
+        assert "app_escribe_plan()" in expresion, nombre
 
     alembic("downgrade", "0011")
     despues = catalogo()

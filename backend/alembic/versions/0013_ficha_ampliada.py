@@ -21,6 +21,11 @@ d) seccion_relevo: el relevo ve una sección complementaria solo si está en sec
 e) auditoria.detalle admite además 'seccion' (el tipo de una sección complementaria, en plan.editar y
    plan.quitar_seccion) y 'secciones' (la lista de tipos mostrados al relevo, en relevo.abrir). Solo los
    seis tipos, nunca texto.
+f) seccion_familia (FOR ALL con app_puede_ver_plan()) se separa por operación, como perfil_consumo en la
+   0009 (decisión 102, aprobada por Jorge el 03-11): seccion_leer (FOR SELECT) para quien puede ver el
+   plan, también el pagador con puede_ver_plan; seccion_crear, seccion_editar y seccion_borrar solo con
+   app_escribe_plan(), una membresía activa de admin o cuidador en el grupo del contexto. Así un pagador
+   con puede_ver_plan no escribe ni borra secciones ni con SQL directo, igual que en la API.
 
 downgrade() vuelve al esquema de la 0011:
 - Si quedan filas de plan_seccion con los tipos nuevos, o accesos que los comparten, se detiene con un
@@ -76,6 +81,12 @@ _DETALLE_0008 = """
              OR (jsonb_typeof(detalle -> 'sesiones_revocadas') = 'number'
                  AND (detalle ->> 'sesiones_revocadas') ~ '^[0-9]{1,6}$')))"""
 
+# Escribe en una sección: el plan es del grupo del contexto y quien escribe es admin o cuidador activo
+_SECCION_ESCRIBE = (
+    "EXISTS (SELECT 1 FROM plan_cuidado p WHERE p.id = plan_seccion.plan_id AND p.grupo_id = app_grupo())"
+    " AND (SELECT app_escribe_plan())"
+)
+
 UPGRADE = f"""
 -- (a) y (b) Los tres tipos nuevos de ADR-028
 ALTER TABLE plan_seccion DROP CONSTRAINT plan_seccion_tipo_check;
@@ -128,9 +139,33 @@ ALTER TABLE auditoria ADD CONSTRAINT auditoria_detalle_acotado CHECK (
 COMMENT ON COLUMN auditoria.detalle IS
     'MATU-38: sesiones_revocadas (entero). MATU-50: seccion (un tipo) y secciones (lista de tipos) de las'
     ' secciones complementarias. Nunca texto libre, el email ni su huella (decisión 64)';
+
+-- (f) Leer y escribir las secciones por separado (decisión 102): escriben solo admin y cuidador
+CREATE FUNCTION app_escribe_plan() RETURNS boolean LANGUAGE sql STABLE AS
+$$ SELECT EXISTS (SELECT 1 FROM membresia m
+                  WHERE m.grupo_id = app_grupo() AND m.usuario_id = app_usuario()
+                    AND m.estado = 'activa' AND m.rol IN ('admin', 'cuidador')) $$;
+
+DROP POLICY seccion_familia ON plan_seccion;
+CREATE POLICY seccion_leer ON plan_seccion FOR SELECT USING (EXISTS (
+    SELECT 1 FROM plan_cuidado p WHERE p.id = plan_seccion.plan_id
+      AND p.grupo_id = app_grupo() AND (SELECT app_puede_ver_plan())));
+CREATE POLICY seccion_crear ON plan_seccion FOR INSERT WITH CHECK ({_SECCION_ESCRIBE});
+CREATE POLICY seccion_editar ON plan_seccion FOR UPDATE USING ({_SECCION_ESCRIBE}) WITH CHECK ({_SECCION_ESCRIBE});
+CREATE POLICY seccion_borrar ON plan_seccion FOR DELETE USING ({_SECCION_ESCRIBE});
 """
 
 DOWNGRADE = f"""
+-- (f) La política de la 0001: FOR ALL para quien puede ver el plan
+DROP POLICY seccion_borrar ON plan_seccion;
+DROP POLICY seccion_editar ON plan_seccion;
+DROP POLICY seccion_crear ON plan_seccion;
+DROP POLICY seccion_leer ON plan_seccion;
+DROP FUNCTION app_escribe_plan();
+CREATE POLICY seccion_familia ON plan_seccion FOR ALL USING (EXISTS (
+    SELECT 1 FROM plan_cuidado p WHERE p.id = plan_seccion.plan_id
+      AND p.grupo_id = app_grupo() AND (SELECT app_puede_ver_plan())));
+
 -- Primero los CHECK de los tipos: si quedan filas con los tipos nuevos, se detiene sin borrar nada.
 -- La validación revisa todas las filas aunque matu_owner no las vea por RLS
 DO $$

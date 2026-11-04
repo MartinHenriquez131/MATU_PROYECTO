@@ -361,6 +361,61 @@ def test_familia_no_ve_ni_crea_secciones_complementarias_de_otro_grupo(cx):
             (PLAN_A, b"\xcc", bytes.fromhex("0000000000000000000050c2"), _TAG))
 
 
+class _Deshacer(Exception):
+    """Sale de sesion_tenant con rollback: la prueba no deja cambios en la semilla."""
+
+
+@pytest.fixture
+def sesiones_app():
+    """Sesiones como matu_app (DATABASE_URL), la misma conexión que usa la API."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.config import obtener_configuracion
+
+    url = obtener_configuracion().database_url
+    if not url:
+        pytest.skip("DATABASE_URL no está definida")
+    engine = create_engine(url, pool_size=1, max_overflow=0)
+    try:
+        yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.rf("RF-03")
+def test_pagador_con_plan_lee_secciones_pero_no_las_escribe_ni_borra(sesiones_app):
+    """Decisión 102 (migración 0013): el pagador con puede_ver_plan lee plan_seccion, pero con SQL directo,
+    como matu_app y con su contexto fijado por sesion_tenant, no inserta, no edita ni borra. El admin sí."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    filtro = {"plan": PLAN_A}
+    with sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        assert {r[0] for r in s.execute(text("SELECT tipo FROM plan_seccion WHERE plan_id = :plan"), filtro)} == {
+            "rutina", "manejo_situaciones", "red_apoyo"}
+        editadas = s.execute(text("UPDATE plan_seccion SET version = version + 1 WHERE plan_id = :plan"), filtro)
+        borradas = s.execute(text("DELETE FROM plan_seccion WHERE plan_id = :plan"), filtro)
+        assert (editadas.rowcount, borradas.rowcount) == (0, 0)  # type: ignore[attr-defined]
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        s.execute(
+            text("INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version)"
+                 " VALUES (:plan, 'quien_es', :c, :n, :t, 1)"),
+            {**filtro, "c": b"\xcc", "n": bytes.fromhex("0000000000000000000050d1"), "t": _TAG},
+        )
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+    # Nada cambió, y el admin del mismo grupo sí edita (se deshace al final)
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        versiones = s.execute(text("SELECT version FROM plan_seccion WHERE plan_id = :plan"), filtro).scalars().all()
+        assert versiones == [1, 1, 1]
+        editadas = s.execute(text("UPDATE plan_seccion SET version = version + 1 WHERE plan_id = :plan"), filtro)
+        assert editadas.rowcount == 3  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
 @pytest.mark.rf("RF-03")
 @pytest.mark.parametrize(
     ("detalle", "acepta"),
