@@ -55,15 +55,6 @@ export function SinPersona() {
   )
 }
 
-/** 5.5: Compartir, mientras MATU-48 no existe. */
-export function CompartirPronto() {
-  return (
-    <Pagina titulo={ESTADOS.compartirTitulo}>
-      <p className="max-w-prose text-tenue">{ESTADOS.compartirPronto}</p>
-    </Pagina>
-  )
-}
-
 /** Insumos: el lugar donde se monta MATU-36. */
 export function InsumosPronto() {
   return <Pagina titulo={ESTADOS.insumosTitulo} />

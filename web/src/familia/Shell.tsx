@@ -19,7 +19,8 @@ const SECCIONES: { id: Seccion; texto: string; corto: string; Icono: typeof Pack
   { id: 'compartir', texto: 'Compartir', corto: 'Compartir', Icono: Share2, ruta: '/compartir' },
 ]
 
-const seccionDe = (ruta: string): Seccion | null => (ruta.startsWith('/ficha') ? 'ficha' : ruta === '/insumos' ? 'insumos' : ruta === '/compartir' ? 'compartir' : null)
+const seccionDe = (ruta: string): Seccion | null =>
+  ruta.startsWith('/ficha') ? 'ficha' : ruta === '/insumos' ? 'insumos' : ruta.startsWith('/compartir') ? 'compartir' : null
 
 /** Pista de la sección, siempre con palabra. En el teléfono queda para el lector de pantalla. */
 function Pista({ seccion }: { seccion: Seccion }) {
