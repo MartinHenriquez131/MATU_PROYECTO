@@ -2,9 +2,15 @@
 // El token viaja solo en el cuerpo de un POST, nunca en la URL ni en una cabecera.
 import { api } from './cliente'
 import type { components } from './relevo.openapi'
+import type { components as Ampliada } from './ficha-ampliada.openapi'
 
 export type Presentacion = components['schemas']['Presentacion']
-export type FichaRelevo = components['schemas']['FichaRelevo']
+/**
+ * `secciones` es el cambio aditivo de MATU-50 (ficha-ampliada.openapi.yaml): las secciones
+ * compartidas, en el orden de ADR-028. Opcional aquí porque una API anterior a MATU-50 no la trae.
+ */
+export type FichaRelevo = components['schemas']['FichaRelevo'] & { secciones?: SeccionRelevo[] }
+export type SeccionRelevo = Ampliada['schemas']['SeccionRelevo']
 export type CampoFicha = components['schemas']['CampoFicha']
 type SolicitudPresentacion = components['schemas']['SolicitudPresentacion']
 type SolicitudCanje = components['schemas']['SolicitudCanje']

@@ -4,6 +4,8 @@
 import { isAxiosError } from 'axios'
 import { apiFamilia } from './sesion'
 import type { components } from './familia.openapi'
+import type { components as Ampliada } from './ficha-ampliada.openapi'
+import type { SeccionApi } from '../secciones'
 
 type S = components['schemas']
 
@@ -20,7 +22,12 @@ type DireccionNueva = Omit<S['DireccionNueva'], 'etiqueta' | 'region'> & Partial
 export type SolicitudPersona = Omit<S['SolicitudPersona'], 'direccion'> & { direccion?: DireccionNueva | null }
 export type PersonaCreada = S['PersonaCreada']
 export type Calidad = S['CalidadOtorgante']
-export type Ficha = S['FichaVista']
+/**
+ * `GET …/plan/ficha`. `secciones` es el cambio aditivo de MATU-50 (ficha-ampliada.openapi.yaml):
+ * solo las secciones agregadas. Opcional aquí porque una API anterior a MATU-50 no la trae; la
+ * pantalla la lee con `seccionesDe`, que devuelve `{}` si falta.
+ */
+export type Ficha = S['FichaVista'] & { secciones?: Ampliada['schemas']['FichaAmpliadaParcial']['secciones'] }
 export type EstadoCampo = S['EstadoCampoVista']
 export type CampoGuardado = S['CampoGuardadoVista']
 export type CampoApi = keyof S['CamposVista']
@@ -101,4 +108,44 @@ export async function listarAperturas(personaId: string, cursor: string | null =
   const params: { limite: number; cursor?: string } = { limite }
   if (cursor) params.cursor = cursor
   return (await apiFamilia.get<ListaAperturas>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/aperturas`, { params })).data
+}
+
+// ---------------------------------------------------------------- secciones complementarias (MATU-50)
+
+export type EstadoSeccion = Ampliada['schemas']['EstadoSeccion']
+export type SeccionGuardada = Ampliada['schemas']['SeccionGuardada']
+export type SeccionesFicha = Partial<Record<SeccionApi, EstadoSeccion>>
+
+export const seccionesDe = (f: Ficha | null | undefined): SeccionesFicha => (f?.secciones ?? {}) as SeccionesFicha
+
+const rutaSeccion = (personaId: string, seccion: SeccionApi) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/secciones/${seccion}`
+
+/**
+ * `PUT …/plan/secciones/{seccion}`: siempre condicional, como un campo base. Con `etag`, `If-Match`;
+ * sin él (la sección no está), `If-None-Match: *`. 201 si se agregó, 200 si se editó.
+ */
+export async function guardarSeccion(personaId: string, seccion: SeccionApi, texto: string, etag: string | null): Promise<SeccionGuardada> {
+  const cuerpo: Ampliada['schemas']['SolicitudSeccion'] = { texto }
+  const r = await apiFamilia.put<SeccionGuardada>(rutaSeccion(personaId, seccion), cuerpo, {
+    headers: etag ? { 'If-Match': etag } : { 'If-None-Match': '*' },
+  })
+  const cabecera = r.headers?.etag
+  return { ...r.data, etag: typeof cabecera === 'string' && cabecera ? cabecera : r.data.etag }
+}
+
+/**
+ * `DELETE …/plan/secciones/{seccion}` con `If-Match`: borra el texto. 204 sin cuerpo. Si otra
+ * persona la cambió, 412 con lo actual; si ya no está, 412 con `actual: null` (contrato).
+ */
+export async function quitarSeccion(personaId: string, seccion: SeccionApi, etag: string): Promise<void> {
+  await apiFamilia.delete(rutaSeccion(personaId, seccion), { headers: { 'If-Match': etag } })
+}
+
+/** El 412 de una sección distingue «la cambió otra persona» (`actual`) de «ya no está» (`null`). */
+export function leerConflictoSeccion(error: unknown): { actual: EstadoSeccion | null; etag: string | null } | null {
+  if (!isAxiosError(error) || error.response?.status !== 412) return null
+  const cuerpo = error.response.data as { actual?: EstadoSeccion | null } | undefined
+  const actual = cuerpo?.actual && typeof cuerpo.actual.texto === 'string' ? cuerpo.actual : null
+  const cabecera = error.response.headers?.etag
+  return { actual, etag: typeof cabecera === 'string' && cabecera ? cabecera : (actual?.etag ?? null) }
 }
