@@ -11,7 +11,7 @@ info:
     **Implementado en MATU-50 (03-11).** Las rutas de este archivo están en `docs/api/openapi.json`,
     que es el que manda. Este archivo se conserva como explicación de las reglas y de las decisiones
     de MATU-49, igual que `ficha.openapi.yaml` desde MATU-13. Lo que MATU-50 decidió al implementar
-    está en `docs/api/README.md`, decisiones 91 a 102.
+    está en `docs/api/README.md`, decisiones 91 a 103.
 
     **Qué cambia y qué no.** Los tres campos base (`rutina`, `manejo_situaciones`, `red_apoyo`) y
     sus rutas (`GET …/plan/ficha`, `PUT …/plan/ficha/{campo}`) siguen como están en
