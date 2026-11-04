@@ -3,17 +3,17 @@
 // `If-Match` / `If-None-Match: *`, sin interfaz optimista: la ficha cambia solo con la respuesta, y
 // un 412 se muestra como conflicto, nunca se esconde.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ExternalLink, Lock, PencilLine, ShieldAlert, ShieldQuestion, TriangleAlert, WifiOff } from 'lucide-react'
+import { ExternalLink, Lock, PencilLine, Share2, ShieldAlert, ShieldQuestion, TriangleAlert, WifiOff } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import { guardarCampo, leerConflicto, leerFicha, nombrePilaDe, type CampoApi, type Conflicto as DatosConflicto, type EstadoCampo, type Ficha } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { Boton } from '../compartido/ui/Boton'
 import { AVISO_CONTADOR, CAMPOS, MAX_CARACTERES, type Campo } from './datos'
 import { BotonDictar, useDictado } from './Dictado'
-import { puedeEditar, puedeVerFicha, useFamilia } from './estado'
+import { puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
-import { CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
+import { COMPARTIR, CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
 import { useDemora } from './Estados'
 import { UltimasAperturas } from './QuienLaVio'
 import { MasSobre, seccionesEnHoja } from './Secciones'
@@ -47,11 +47,12 @@ export function useFicha() {
     setCarga({ tipo: 'cargando' })
     try {
       const f = await leerFicha(personaId)
-      fijar({ ficha: f })
+      fijar({ ficha: f, autorizacion: null })
       setCarga({ tipo: 'lista' })
     } catch (e) {
       if (esVencida(e)) return
       const b = bloqueoDe(e)
+      if (b === 'sin-consentimiento' || b === 'revision-vencida') fijar({ autorizacion: b })
       setCarga(b === 'red' ? { tipo: 'red' } : { tipo: 'bloqueo', bloqueo: b })
     }
   }, [personaId, fijar])
@@ -81,12 +82,22 @@ export function SinAcceso() {
 
 /** 6.4 y 6.4b: avisos, no errores en rojo. Si había texto escrito, se muestra para copiarlo. */
 export function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revision-vencida'; escrito?: string }) {
+  return (
+    <Pagina titulo={FICHA.titulo}>
+      <div className="flex max-w-prose flex-col gap-5">
+        <AvisoBloqueo bloqueo={bloqueo} />
+        {escrito && <TextoParaCopiar texto={escrito} aviso={FICHA.loEscrito} />}
+      </div>
+    </Pagina>
+  )
+}
+
+/** El aviso de 6.4 o 6.4b, sin la página: también va en Compartir (MATU-48 3.6). */
+export function AvisoBloqueo({ bloqueo }: { bloqueo: 'sin-consentimiento' | 'revision-vencida' }) {
   const { persona } = useFamilia()
   const pila = persona ? nombrePilaDe(persona) : ''
   const revision = bloqueo === 'revision-vencida'
   return (
-    <Pagina titulo={FICHA.titulo}>
-      <div className="flex max-w-prose flex-col gap-5">
         <Nota
           tono="atenta"
           borde
@@ -115,9 +126,6 @@ export function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' 
             <p>{FICHA.sinConsentimiento}</p>
           )}
         </Nota>
-        {escrito && <TextoParaCopiar texto={escrito} aviso={FICHA.loEscrito} />}
-      </div>
-    </Pagina>
   )
 }
 
@@ -204,9 +212,17 @@ export function AvisoDeLlegada() {
     if (aviso) fijar({ aviso: null })
   }, [aviso, fijar])
   if (!visto) return null
+  const accion = visto.accion
   return (
     <Nota tono={visto.tono ?? 'ok'} titulo={visto.titulo} rol="status" className="mb-6">
       {visto.texto}
+      {accion && (
+        <Acciones className={visto.texto ? 'mt-2' : ''}>
+          <Boton variante={accion.variante} className={accion.variante === 'texto' ? 'px-0' : ''} onClick={() => navegar(accion.ruta)}>
+            {accion.texto}
+          </Boton>
+        </Acciones>
+      )}
     </Nota>
   )
 }
@@ -214,8 +230,10 @@ export function AvisoDeLlegada() {
 // ---------------------------------------------------------------- 3.6 La ficha
 
 export function TuFicha() {
-  const { ficha, persona, rol } = useFamilia()
+  const { ficha, persona, rol, aviso } = useFamilia()
   const { carga, pedir } = useFicha()
+  // MATU-48 2.3: si la nota de llegada ya trae «Compartir con un relevo», no se repite bajo los campos.
+  const [conAccion] = useState(() => aviso?.accion?.ruta === '/compartir')
   if (carga.tipo !== 'lista' || !ficha) return <Estado carga={carga} pedir={() => void pedir()} />
   const pila = persona ? nombrePilaDe(persona) : ''
   const hechos = camposListos(ficha.completitud)
@@ -264,6 +282,11 @@ export function TuFicha() {
                 )
               })}
             </ul>
+            {hechos === 3 && puedeCompartir(rol) && !conAccion && (
+              <Boton variante="texto" className="self-start px-0" icono={<Share2 aria-hidden className="size-5" />} onClick={() => navegar('/compartir')}>
+                {COMPARTIR.conRelevo}
+              </Boton>
+            )}
             <p className="flex gap-2 text-base text-tenue">
               <Lock aria-hidden className="mt-0.5 size-4.5 shrink-0" />
               {FICHA.cifrado}
@@ -297,6 +320,7 @@ function EditorCampo({
   ficha,
   pila,
   personaId,
+  rol,
   fijar,
   sinGuardar,
   anunciar,
@@ -343,7 +367,9 @@ function EditorCampo({
   const despuesDeGuardar = (f: Ficha, titulo: string, texto?: string) => {
     const hechos = camposListos(f.completitud)
     const siguiente = CAMPOS.find((c) => c.api !== campo.api && !listo(f.campos[c.api]))
-    fijar({ ficha: f, aviso: { titulo, texto: texto ?? (hechos === 3 ? FICHA.completa : FICHA.vasEn(hechos)) } })
+    // MATU-48 2.3: «Compartir con un relevo», principal con la ficha completa y secundario si faltan campos.
+    const accion = puedeCompartir(rol) ? { texto: COMPARTIR.conRelevo, ruta: '/compartir' as const, variante: hechos === 3 ? ('principal' as const) : ('secundario' as const) } : undefined
+    fijar({ ficha: f, aviso: { titulo, texto: texto ?? (hechos === 3 ? FICHA.completa : FICHA.vasEn(hechos)), accion } })
     navegar(siguiente ? siguiente.ruta : '/ficha')
   }
 
@@ -372,6 +398,7 @@ function EditorCampo({
       else if (f.status === 403 || f.status === 404) {
         const b = bloqueoDe(e)
         if (b !== 'red') setBloqueo(b)
+        if (b === 'sin-consentimiento' || b === 'revision-vencida') fijar({ autorizacion: b })
       } else setFalla('red')
       return null
     } finally {

@@ -22,10 +22,10 @@ import { AVISO_REMEDIOS, avisoDe, topeDe } from '../compartido/secciones'
 import { Boton } from '../compartido/ui/Boton'
 import type { Seccion } from './datos'
 import { BotonDictar, useDictado } from './Dictado'
-import { useFamilia } from './estado'
+import { puedeCompartir, useFamilia } from './estado'
 import { AvisoDeLlegada, Bloqueada, bloqueoDe, Estado, PantallaConflicto, SinAcceso, useFicha, type Bloqueo } from './Ficha'
 import { navegar } from './ruteo'
-import { CONFLICTO, FICHA, GENERAL, MAS } from './textos'
+import { COMPARTIR, CONFLICTO, FICHA, GENERAL, MAS } from './textos'
 import { Acciones, HojaSeccion, horaDe, MensajeError, Nota, Titulo, Volver } from './ui'
 
 export function EditorDeSeccion({ seccion }: { seccion: Seccion }) {
@@ -47,7 +47,7 @@ function conSeccion(f: Ficha, api: Seccion['api'], estado: EstadoSeccion | null)
 }
 
 function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: Ficha; pila: string; personaId: string }) {
-  const { fijar, sinGuardar, anunciar } = useFamilia()
+  const { fijar, sinGuardar, anunciar, rol } = useFamilia()
   const original = seccionesDe(ficha)[seccion.api] ?? null
   const existe = !!original?.texto?.trim()
   const tope = topeDe(seccion.api)
@@ -102,6 +102,7 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
     else if (f.status === 403 || f.status === 404) {
       const b = bloqueoDe(e)
       if (b !== 'red') setBloqueo(b)
+      if (b === 'sin-consentimiento' || b === 'revision-vencida') fijar({ autorizacion: b })
       else setFalla('red')
     } else setFalla('red')
   }
@@ -135,7 +136,14 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
 
   /** 4.4: la nota de llegada a la ficha. Una sección nueva suma la frase de los enlaces. */
   const avisoGuardado = (nueva: boolean) =>
-    nueva ? { titulo: MAS.agregaste(seccion.titulo), texto: MAS.conEnlaces } : { titulo: MAS.guardamos(seccion.titulo) }
+    nueva
+      ? {
+          titulo: MAS.agregaste(seccion.titulo),
+          texto: MAS.conEnlaces,
+          // MATU-48 2.3: al lado del texto, «Crear un enlace nuevo».
+          accion: puedeCompartir(rol) ? { texto: COMPARTIR.crearNuevo, ruta: '/compartir' as const, variante: 'texto' as const } : undefined,
+        }
+      : { titulo: MAS.guardamos(seccion.titulo) }
 
   const guardar = async () => {
     if (ocupado) return

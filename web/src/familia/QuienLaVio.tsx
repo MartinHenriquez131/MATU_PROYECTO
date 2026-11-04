@@ -1,20 +1,21 @@
 // Quién la vio (MATU-45, especificación docs/diseno/matu-45-aperturas.md), copiada de `QuienVio` y
 // `Eventos` de la demo (Demo/src/familia/Ficha.tsx). Lee `GET …/plan/aperturas` de a 20 líneas; no
-// guarda nada entre visitas ni en el navegador. Sin la columna «Quién puede verla ahora» ni los
-// botones hacia Enlaces y Compartir mientras MATU-48 no exista en web/ (decisión D4).
+// guarda nada entre visitas ni en el navegador. Con MATU-48 (docs/diseno/matu-48-compartir.md 2.3 y
+// 2.4) suma la columna «Quién puede verla ahora» y las puertas hacia Compartir y Enlaces, estas solo
+// para admin y cuidador.
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { CircleAlert, CloudOff, Link2, Lock, ShieldCheck, UserRound } from 'lucide-react'
+import { CircleAlert, CloudOff, Link2, Lock, Share2, ShieldCheck, UserRound } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
-import { listarAperturas, type Apertura } from '../compartido/api/familia'
+import { listarAccesos, listarAperturas, type AccesoResumen, type Apertura } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
-import { diaRelativoDeChile, fechaYHoraDeChile } from '../compartido/fechas'
+import { diaRelativoDeChile, fechaYHoraDeChile, restante } from '../compartido/fechas'
 import { Boton } from '../compartido/ui/Boton'
 import { useDemora } from './Estados'
-import { puedeVerFicha, useFamilia } from './estado'
+import { puedeCompartir, puedeVerFicha, useFamilia } from './estado'
 import { SinAcceso } from './Ficha'
 import { navegar } from './ruteo'
 import { Nota, Pagina, Volver } from './ui'
-import { FICHA, QUIEN } from './textos'
+import { COMPARTIR, FICHA, GENERAL, QUIEN } from './textos'
 
 const LIMITE = 20
 
@@ -50,16 +51,60 @@ function Hora({ a, completa = false }: { a: Apertura; completa?: boolean }) {
   )
 }
 
-/** Una línea (4.3), con la explicación tranquila bajo una presentación sin apertura y bajo un bloqueo. */
-function LineaApertura({ a, sinAbrir, completa, foco }: { a: Apertura; sinAbrir: boolean; completa?: boolean; foco?: React.Ref<HTMLLIElement> }) {
+/**
+ * Una línea (4.3), con la explicación tranquila bajo una presentación sin apertura y bajo un bloqueo.
+ * `notas={false}` las quita (Últimas aperturas de Enlaces). `acciones` suma las puertas de MATU-48 2.3.
+ */
+export function LineaApertura({
+  a,
+  sinAbrir,
+  completa,
+  foco,
+  notas = true,
+  acciones = false,
+}: {
+  a: Apertura
+  sinAbrir: boolean
+  completa?: boolean
+  foco?: React.Ref<HTMLLIElement>
+  notas?: boolean
+  acciones?: boolean
+}) {
+  const [antes, enlaces, despues] = COMPARTIR.siTePreocupa
   return (
     <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex items-start gap-3 border-b border-linea py-3 outline-none last:border-0 angosto:flex-col angosto:gap-2">
       <IconoApertura tipo={a.tipo} />
       <span className="flex min-w-0 flex-col">
         <span className="text-lg font-bold leading-snug break-words">{FRASE[a.tipo](a.acceso.nombre_relevo)}</span>
         <Hora a={a} completa={completa} />
-        {sinAbrir && <span className="mt-1 text-base text-tenue">{QUIEN.sinAbrir}</span>}
-        {a.tipo === 'bloqueo' && <span className="mt-1 text-base text-tenue">{QUIEN.bloqueado}</span>}
+        {notas && sinAbrir && (
+          <span className="mt-1 text-base text-tenue">
+            {QUIEN.sinAbrir}
+            {acciones && (
+              <>
+                {' '}
+                {antes}
+                <a
+                  href="/compartir/enlaces"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navegar('/compartir/enlaces')
+                  }}
+                  className="font-bold text-turquesa underline underline-offset-4"
+                >
+                  {enlaces}
+                </a>
+                {despues}
+              </>
+            )}
+          </span>
+        )}
+        {notas && a.tipo === 'bloqueo' && <span className="mt-1 text-base text-tenue">{QUIEN.bloqueado}</span>}
+        {notas && acciones && a.tipo === 'bloqueo' && (
+          <Boton variante="texto" className="self-start px-0" onClick={() => navegar('/compartir')}>
+            {COMPARTIR.crearNuevo}
+          </Boton>
+        )}
       </span>
     </li>
   )
@@ -94,7 +139,7 @@ function Esqueleto() {
   )
 }
 
-function ErrorAperturas({ reintentar }: { reintentar: () => void }) {
+export function ErrorAperturas({ reintentar }: { reintentar: () => void }) {
   return (
     <div className="flex max-w-prose flex-col items-start gap-4">
       <Nota tono="atenta" rol="alert" icono={<CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
@@ -119,7 +164,8 @@ export function QuienLaVio() {
 }
 
 function Aperturas() {
-  const { personaId, anunciar } = useFamilia()
+  const { personaId, anunciar, rol } = useFamilia()
+  const gestiona = puedeCompartir(rol)
   const [carga, setCarga] = useState<Carga>('cargando')
   const [items, setItems] = useState<Apertura[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
@@ -183,11 +229,22 @@ function Aperturas() {
   let cuerpo
   if (carga === 'cargando') cuerpo = <Esqueleto />
   else if (carga === 'red') cuerpo = <ErrorAperturas reintentar={() => void primera()} />
-  else if (!items.length) cuerpo = <Nota tono="rocio">{QUIEN.vacio}</Nota>
-  else cuerpo = <ListaPorDia items={items} nodoNuevo={nodoNuevo} indiceNuevo={primeraNueva.current} />
+  else if (!items.length)
+    cuerpo = (
+      <div className="flex flex-col items-start gap-4">
+        <Nota tono="rocio">{QUIEN.vacio}</Nota>
+        {gestiona && (
+          <Boton variante="secundario" icono={<Share2 aria-hidden className="size-5" />} onClick={() => navegar('/compartir')}>
+            {COMPARTIR.laFicha}
+          </Boton>
+        )}
+      </div>
+    )
+  else cuerpo = <ListaPorDia items={items} nodoNuevo={nodoNuevo} indiceNuevo={primeraNueva.current} acciones={gestiona} />
 
   return (
     <Pagina titulo={QUIEN.titulo} bajada={QUIEN.bajada} antes={<Volver onClick={() => navegar('/ficha')}>{FICHA.volverALaFicha}</Volver>}>
+      <div className="grid grid-cols-1 items-start gap-10 @4xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <section aria-label={QUIEN.titulo} className="flex max-w-prose min-w-0 flex-col gap-5">
         {cuerpo}
         {carga === 'lista' &&
@@ -201,17 +258,31 @@ function Aperturas() {
           ) : paginas > 1 ? (
             <p className="text-tenue">{QUIEN.noHayMas}</p>
           ) : null)}
+      </section>
+      <aside aria-labelledby="pueden-t" className="flex min-w-0 flex-col gap-4">
+        <QuienPuedeVerla gestiona={gestiona} />
         <p className="flex gap-2 text-base text-tenue">
           <ShieldCheck aria-hidden className="mt-0.5 size-4.5 shrink-0" />
           {QUIEN.nadieDeMatu}
         </p>
-      </section>
+      </aside>
+      </div>
     </Pagina>
   )
 }
 
 /** Las líneas agrupadas por día de Chile, con un h2 por día; el orden es el del servidor. */
-function ListaPorDia({ items, nodoNuevo, indiceNuevo }: { items: Apertura[]; nodoNuevo: React.RefObject<HTMLLIElement | null>; indiceNuevo: number | null }) {
+function ListaPorDia({
+  items,
+  nodoNuevo,
+  indiceNuevo,
+  acciones,
+}: {
+  items: Apertura[]
+  nodoNuevo: React.RefObject<HTMLLIElement | null>
+  indiceNuevo: number | null
+  acciones: boolean
+}) {
   const ahora = new Date()
   const grupos: { dia: string; desde: number; lineas: Apertura[] }[] = []
   items.forEach((a, i) => {
@@ -234,6 +305,7 @@ function ListaPorDia({ items, nodoNuevo, indiceNuevo }: { items: Apertura[]; nod
                   a={a}
                   sinAbrir={presentacionSinAbrir(items, i)}
                   foco={i === indiceNuevo ? nodoNuevo : undefined}
+                  acciones={acciones}
                 />
               )
             })}
@@ -280,6 +352,73 @@ export function UltimasAperturas() {
             {QUIEN.verTodo}
           </Boton>
         </>
+      )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- Quién puede verla ahora (MATU-48 2.4)
+
+/**
+ * Los enlaces activos, pedidos al abrir la pantalla (no se guardan entre visitas). Si falla, se dice:
+ * no saber quién la puede ver no es lo mismo que nadie. El pagador la ve sin «Ver y cortar enlaces».
+ */
+function QuienPuedeVerla({ gestiona }: { gestiona: boolean }) {
+  const { personaId } = useFamilia()
+  const [activos, setActivos] = useState<AccesoResumen[] | null>(null)
+  const [fallo, setFallo] = useState(false)
+  const pedir = useCallback(() => {
+    if (!personaId) return () => {}
+    let vivo = true
+    setFallo(false)
+    setActivos(null)
+    listarAccesos(personaId, { estado: 'vigente', limite: 100 })
+      .then((r) => vivo && setActivos(r.items))
+      .catch((e) => {
+        if (vivo && !esVencida(e)) setFallo(true)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [personaId])
+  useEffect(() => pedir(), [pedir])
+  const ahora = new Date()
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 id="pueden-t" className="text-xl font-bold leading-snug">
+        {COMPARTIR.puedenVerla}
+      </h2>
+      {fallo ? (
+        <div className="flex flex-col items-start gap-4">
+          <Nota tono="atenta" rol="alert" icono={<CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
+            {COMPARTIR.errListar}
+          </Nota>
+          <Boton variante="secundario" onClick={() => void pedir()}>
+            {COMPARTIR.intentar}
+          </Boton>
+        </div>
+      ) : activos === null ? (
+        <p role="status" className="sr-only">
+          {GENERAL.cargando}
+        </p>
+      ) : activos.length === 0 ? (
+        <p className="text-base text-tenue">{COMPARTIR.nadieActivo}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {activos.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-l-4 border-turquesa bg-hoja px-4 angosto:px-2 py-3">
+              <span className="min-w-0 font-bold break-words">{a.nombre_relevo}</span>
+              <span className="text-base text-tenue tabular-nums">
+                {COMPARTIR.venceEn} <span className="cifras">{restante(new Date(a.expira_en), ahora)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {gestiona && (
+        <Boton variante="secundario" className="self-start" onClick={() => navegar('/compartir/enlaces')}>
+          {COMPARTIR.verYCortar}
+        </Boton>
       )}
     </section>
   )

@@ -15,6 +15,12 @@ import type { Apoyo } from './datos'
 import { navegar, type Ruta } from './ruteo'
 
 export type Fase = 'cargando' | 'fuera' | 'dentro' | 'error'
+/** Un botón en la nota de llegada (MATU-48 2.3: «Compartir con un relevo», «Crear un enlace nuevo»). */
+export interface AccionAviso {
+  texto: string
+  ruta: Ruta
+  variante: 'principal' | 'secundario' | 'texto'
+}
 export type AvisoEntrar = 'vencida' | 'salio' | null
 
 /** Lo escrito en «¿A quién cuidas?», que vive en memoria hasta el POST de la autorización. */
@@ -43,10 +49,17 @@ interface Estado {
   /** Ruta pedida antes de entrar, para volver a ella (1). */
   destino: Ruta | null
   /** Nota de una sola vez al llegar a una pantalla (guardado, conflicto resuelto). */
-  aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio' } | null
+  aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio'; accion?: AccionAviso } | null
   /** 5.7: la entrada venció con texto sin guardar. */
   textoPerdido: string | null
+  /**
+   * MATU-48 (decisión 33): lo último que la API dijo de la autorización de la persona elegida, por
+   * un 403 de la ficha o de compartir. `null` = vigente o no se sabe. Con ella vencida o sin
+   * registrar, los enlaces que la API lista como `vigente` están en pausa.
+   */
+  autorizacion: Autorizacion
 }
+export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
 interface Contexto extends Estado {
   grupo: Grupo | null
@@ -83,6 +96,7 @@ const INICIAL: Estado = {
   destino: null,
   aviso: null,
   textoPerdido: null,
+  autorizacion: null,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
@@ -103,7 +117,7 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
     const g = grupos[0] ?? null
     fijarGrupo(g?.id ?? null)
     const personas = g ? await listarPersonas(g.id) : []
-    setS((x) => ({ ...x, fase: 'dentro', grupos, grupoId: g?.id ?? null, personas, personaId: personas[0]?.id ?? null, ficha: null, avisoEntrar: null }))
+    setS((x) => ({ ...x, fase: 'dentro', grupos, grupoId: g?.id ?? null, personas, personaId: personas[0]?.id ?? null, ficha: null, avisoEntrar: null, autorizacion: null }))
   }, [])
 
   /** 3.1: al abrir o recargar, renovar con la cookie. */
@@ -132,7 +146,7 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
   const elegir = useCallback(async (grupoId: string, personaId: string | null) => {
     fijarGrupo(grupoId)
     const lista = await listarPersonas(grupoId)
-    setS((x) => ({ ...x, grupoId, personas: lista, personaId: personaId ?? lista[0]?.id ?? null, ficha: null }))
+    setS((x) => ({ ...x, grupoId, personas: lista, personaId: personaId ?? lista[0]?.id ?? null, ficha: null, autorizacion: null }))
   }, [])
 
   useEffect(() => {
