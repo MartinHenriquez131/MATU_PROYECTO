@@ -532,3 +532,36 @@ def test_0012_celular_verificado_y_baja_al_esquema_de_0011(base_desechable):
     for parte, filas in esquema_0011.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0014 (MATU-41): avisos, dispositivo para el sistema, publicador del outbox y conservación de los fallidos
+
+
+@pytest.mark.rf("RF-39")
+def test_0014_avisos_y_outbox_y_baja_al_esquema_de_0012(base_desechable):
+    alembic("upgrade", "0012")
+    esquema_0012 = catalogo()
+
+    alembic("upgrade", "0014")
+    politicas = dict(consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'dispositivo'"))
+    assert politicas["dispositivo_sistema_leer"] == "SELECT"
+    assert politicas["dispositivo_sistema_expirar"] == "UPDATE"
+    funciones = dict(consultar(
+        "SELECT proname, prosecdef FROM pg_proc WHERE proname IN"
+        " ('outbox_tomar', 'outbox_publicado', 'outbox_reintentar', 'outbox_posponer')"))
+    assert funciones == dict.fromkeys(("outbox_tomar", "outbox_publicado", "outbox_reintentar", "outbox_posponer"),
+                                      True)
+    for (acl,) in consultar("SELECT proacl::text FROM pg_proc WHERE proname LIKE 'outbox_%'"):
+        entradas = acl.strip("{}").split(",")
+        # EXECUTE para matu_app y nunca para PUBLIC (la entrada sin rol: "=X/matu_owner")
+        assert "matu_app=X/matu_owner" in entradas and not any(e.startswith("=") for e in entradas)
+    [(cuerpo,)] = consultar("SELECT prosrc FROM pg_proc WHERE proname = 'quiebre_conservar'")
+    assert "fallido_en" in cuerpo and "evento_consumido" in cuerpo
+    assert consultar("SELECT conname FROM pg_constraint WHERE conname = 'notificacion_error'") == [
+        ("notificacion_error",)]
+
+    alembic("downgrade", "0012")
+    despues = catalogo()
+    for parte, filas in esquema_0012.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
