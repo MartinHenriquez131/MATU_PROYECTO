@@ -13,7 +13,11 @@ sección, y el caso de uso decide con el resultado (la que no escribió responde
 La actualización compara y escribe en una sola sentencia (``UPDATE … WHERE version = :esperada
 RETURNING version``). Bajo READ COMMITTED, si otra transacción tiene la fila bloqueada, PostgreSQL
 espera su commit y vuelve a evaluar el WHERE sobre la fila nueva: de dos escrituras con el mismo
-If-Match gana exactamente una, y la otra no escribe nada.
+If-Match gana exactamente una, y la otra no escribe nada. Quitar una sección complementaria (MATU-50)
+sigue el mismo patrón: ``DELETE … WHERE version = :esperada RETURNING id``.
+
+Cada INSERT fija ``creado_en`` con el instante del Reloj: la política seccion_relevo (migración 0013)
+lo compara con el ``creado_en`` del acceso, que también sale del Reloj.
 """
 
 import uuid
@@ -26,9 +30,12 @@ from sqlalchemy.orm import Session
 from app.modules.care_plan.application.ports import PlanGuardado, SeccionGuardada
 from app.modules.care_plan.domain.cifrado import SeccionCifrada
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, MODO_FICHA_RELEVO, Autor
+from app.modules.care_plan.domain.secciones import SECCIONES_COMPLEMENTARIAS
 
 # Los tres tipos de la ficha, desde las constantes del dominio (nunca desde la petición)
 _TIPOS_FICHA = ", ".join(f"'{campo.value}'" for campo in CAMPOS_FICHA)
+# Las seis secciones complementarias (MATU-50), también desde el dominio
+_TIPOS_COMPLEMENTARIOS = ", ".join(f"'{s.value}'" for s in SECCIONES_COMPLEMENTARIAS)
 
 _OBTENER_PLAN = text("SELECT id FROM plan_cuidado WHERE persona_cuidada_id = :persona_id AND grupo_id = :grupo_id")
 
@@ -48,12 +55,25 @@ _SELECT_SECCION = (
 
 _SECCIONES = text(_SELECT_SECCION + f" WHERE s.plan_id = :plan_id AND s.tipo IN ({_TIPOS_FICHA})")
 
+_SECCIONES_COMPLEMENTARIAS = text(
+    _SELECT_SECCION + f" WHERE s.plan_id = :plan_id AND s.tipo IN ({_TIPOS_COMPLEMENTARIOS})"
+)
+
 _SECCION = text(_SELECT_SECCION + " WHERE s.plan_id = :plan_id AND s.tipo = :tipo")
+
+# Sin descifrar: solo qué tipos están agregados, para validar lo que se comparte (MATU-50)
+_TIPOS_AGREGADOS = text(
+    f"SELECT tipo FROM plan_seccion WHERE plan_id = :plan_id AND tipo IN ({_TIPOS_COMPLEMENTARIOS})"
+)
+
+_BORRAR_SECCION_SI_VERSION = text(
+    "DELETE FROM plan_seccion WHERE plan_id = :plan_id AND tipo = :tipo AND version = :esperada RETURNING id"
+)
 
 _INSERTAR_SECCION = text(
     "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, version,"
-    " actualizado_por, actualizado_en)"
-    " VALUES (:plan_id, :tipo, :contenido, :nonce, :tag, :kek_version, 1, :usuario_id, :ahora)"
+    " actualizado_por, actualizado_en, creado_en)"
+    " VALUES (:plan_id, :tipo, :contenido, :nonce, :tag, :kek_version, 1, :usuario_id, :ahora, :ahora)"
     " ON CONFLICT (plan_id, tipo) DO NOTHING"
 )
 
@@ -133,6 +153,19 @@ class RepositorioFichaSQL:
     def secciones(self, plan_id: uuid.UUID) -> list[SeccionGuardada]:
         filas = self._sesion.execute(_SECCIONES, {"plan_id": plan_id}).all()
         return [self._seccion_guardada(f) for f in filas]
+
+    def secciones_complementarias(self, plan_id: uuid.UUID) -> list[SeccionGuardada]:
+        filas = self._sesion.execute(_SECCIONES_COMPLEMENTARIAS, {"plan_id": plan_id}).all()
+        return [self._seccion_guardada(f) for f in filas]
+
+    def tipos_agregados(self, plan_id: uuid.UUID) -> set[str]:
+        return {str(t) for t in self._sesion.execute(_TIPOS_AGREGADOS, {"plan_id": plan_id}).scalars()}
+
+    def borrar_seccion_si_version(self, plan_id: uuid.UUID, tipo: str, version_esperada: int) -> uuid.UUID | None:
+        borrada = self._sesion.execute(
+            _BORRAR_SECCION_SI_VERSION, {"plan_id": plan_id, "tipo": tipo, "esperada": version_esperada}
+        ).scalar_one_or_none()
+        return None if borrada is None else uuid.UUID(str(borrada))
 
     def seccion(self, plan_id: uuid.UUID, tipo: str) -> SeccionGuardada | None:
         fila = self._sesion.execute(_SECCION, {"plan_id": plan_id, "tipo": tipo}).one_or_none()

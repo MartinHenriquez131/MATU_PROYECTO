@@ -51,12 +51,21 @@ class AuditoriaEspia:
 
     lecturas: list[EventoFicha] = field(default_factory=list)
     ediciones: list[EventoFicha] = field(default_factory=list)
+    # MATU-50: las secciones complementarias editadas y las quitadas (con el id de la fila borrada)
+    ediciones_seccion: list[EventoFicha] = field(default_factory=list)
+    quitadas: list[tuple[EventoFicha, uuid.UUID]] = field(default_factory=list)
 
     def registrar_lectura(self, evento: EventoFicha) -> None:
         self.lecturas.append(evento)
 
     def registrar_edicion(self, evento: EventoFicha) -> None:
         self.ediciones.append(evento)
+
+    def registrar_edicion_seccion(self, evento: EventoFicha) -> None:
+        self.ediciones_seccion.append(evento)
+
+    def registrar_quitar_seccion(self, evento: EventoFicha, seccion_id: uuid.UUID) -> None:
+        self.quitadas.append((evento, seccion_id))
 
 
 @dataclass

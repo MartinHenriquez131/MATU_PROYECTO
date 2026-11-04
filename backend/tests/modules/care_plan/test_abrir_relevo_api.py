@@ -66,10 +66,18 @@ class EntornoAbrir:
         )
         return familia
 
-    def compartir(self, familia: FamiliaCreada, **cambios: Any) -> tuple[uuid.UUID, str, str]:
+    def compartir(
+        self,
+        familia: FamiliaCreada,
+        campos_anteriores: tuple[str, ...] | None = ("rutina", "manejo_situaciones"),
+        **cambios: Any,
+    ) -> tuple[uuid.UUID, str, str]:
+        """Comparte por la API. Desde MATU-50 un acceso nuevo lleva siempre los tres campos base; con
+        ``campos_anteriores`` (por omisión rutina y manejo_situaciones) el acceso queda como uno creado
+        antes de MATU-50, con solo esos campos, fijados como superusuario. None deja el acceso nuevo."""
         cuerpo: dict[str, Any] = {
             "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137",
-            "campos": ["rutina", "manejo_situaciones"], "motivo": "turno_de_noche", "relevo_informado": True,
+            "motivo": "turno_de_noche", "relevo_informado": True,
         }
         cuerpo.update(cambios)
         respuesta = self.ficha.iam.cliente.post(
@@ -80,6 +88,11 @@ class EntornoAbrir:
         creado = respuesta.json()
         coincide = URL.match(creado["url"])
         assert coincide
+        if campos_anteriores is not None:
+            _ejecutar(
+                "UPDATE acceso_relevo SET secciones_permitidas = %s WHERE id = %s",
+                list(campos_anteriores), creado["id"],
+            )
         return uuid.UUID(creado["id"]), coincide.group(1), creado["pin"]
 
     def presentar(self, token: str) -> Any:
@@ -161,9 +174,11 @@ def test_relevo_ve_solo_campos_habilitados(entorno: EntornoAbrir) -> None:
     assert respuesta.status_code == 200, respuesta.text
     _cabeceras_relevo(respuesta)
     cuerpo = respuesta.json()
-    assert set(cuerpo) == {"nombre_pila", "nombre_pila_comparte", "vence_en", "campos"}
-    # Habilitados: rutina con texto y manejo_situaciones vacío (null). red_apoyo no se compartió
+    assert set(cuerpo) == {"nombre_pila", "nombre_pila_comparte", "vence_en", "campos", "secciones"}
+    # Un acceso anterior a MATU-50 con dos campos: rutina con texto y manejo_situaciones vacío (null).
+    # red_apoyo no se compartió, y no ve ninguna sección complementaria
     assert cuerpo["campos"] == {"rutina": {"texto": RUTINA}, "manejo_situaciones": {"texto": None}}
+    assert cuerpo["secciones"] == []
     assert "Hija" not in respuesta.text and "0101" not in respuesta.text
     assert cuerpo["nombre_pila"] == familia.persona.nombre_pila
     assert familia.persona.nombre not in respuesta.text  # el nombre completo nunca

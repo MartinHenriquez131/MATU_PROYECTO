@@ -18,10 +18,12 @@ uso corre y no se crea ni el plan ni la clave de datos (analista normativo, cond
 - If-Match sobre un campo (o un plan) que nunca se escribió: CampoEnConflicto con el campo nunca
   escrito (etag null), sin crear el plan ni la clave.
 - La auditoría (MATU-14) se llama por el puerto AuditoriaFicha, dentro de la misma transacción.
+- Leer la ficha trae también las secciones complementarias agregadas (MATU-50, ADR-028), con un solo
+  plan.leer. Guardarlas y quitarlas está en application/secciones.py.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.modules.care_plan.application.ports import (
@@ -42,6 +44,7 @@ from app.modules.care_plan.domain.ficha import (
     normalizar_texto,
     texto_visible,
 )
+from app.modules.care_plan.domain.secciones import SECCIONES_COMPLEMENTARIAS, SeccionComplementaria
 from app.shared.puertos import Reloj
 
 
@@ -70,6 +73,8 @@ class Ficha:
     # La última escritura de cualquier campo, o None si nadie ha escrito
     actualizado_en: datetime | None
     campos: dict[CampoFicha, EstadoCampo]
+    # Solo las secciones complementarias agregadas (MATU-50). No cuentan en la completitud
+    secciones: dict[SeccionComplementaria, EstadoCampo] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -121,7 +126,20 @@ def leer_ficha(
     """
     plan = repositorio.obtener_plan(peticion.persona_cuidada_id)
     campos: dict[CampoFicha, EstadoCampo] = dict.fromkeys(CAMPOS_FICHA, CAMPO_NUNCA_ESCRITO)
+    secciones: dict[SeccionComplementaria, EstadoCampo] = {}
     if plan is not None:
+        for guardada in repositorio.secciones_complementarias(plan.id):
+            tipo = SeccionComplementaria(guardada.tipo)
+            texto = cifrador.descifrar(
+                persona_cuidada_id=peticion.persona_cuidada_id, plan_id=plan.id, tipo=tipo.value,
+                seccion=guardada.cifrada,
+            )
+            secciones[tipo] = EstadoCampo(
+                texto=texto,
+                version=guardada.version,
+                actualizado_por=guardada.actualizado_por,
+                actualizado_en=guardada.actualizado_en,
+            )
         for seccion in repositorio.secciones(plan.id):
             campo = CampoFicha(seccion.tipo)
             texto = cifrador.descifrar(
@@ -140,6 +158,8 @@ def leer_ficha(
         completitud=completitud(sum(1 for c in campos.values() if c.con_texto)),
         actualizado_en=max(escritos) if escritos else None,
         campos=campos,
+        # En el orden de ADR-028, no en el de la base
+        secciones={s: secciones[s] for s in SECCIONES_COMPLEMENTARIAS if s in secciones},
     )
     auditoria.registrar_lectura(_evento(peticion, None if plan is None else plan.id, None, reloj.ahora()))
     return ficha

@@ -36,6 +36,7 @@ from app.modules.care_plan.api.esquemas_relevo import (
     CampoRelevoVista,
     FichaRelevoVista,
     PresentacionVista,
+    SeccionRelevoVista,
     SolicitudCanjeVista,
     SolicitudPresentacionVista,
 )
@@ -327,4 +328,5 @@ def leer_ficha_como_relevo(
         nombre_pila_comparte=ficha.nombre_pila_comparte,
         vence_en=ficha.vence_en,
         campos={CampoFicha(c): CampoRelevoVista(texto=t) for c, t in ficha.campos.items()},
+        secciones=[SeccionRelevoVista(tipo=s.tipo, texto=s.texto) for s in ficha.secciones],
     )

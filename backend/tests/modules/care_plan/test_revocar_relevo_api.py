@@ -87,14 +87,19 @@ def test_recorrido_relevo(entorno: EntornoAbrir) -> None:
     for campo, texto in (("rutina", "Almuerza a las 13:00 en el comedor"), ("red_apoyo", "Sobrino: Tomás")):
         escrita = entorno.ficha.escribir(familia.admin, familia.grupo.id, familia.persona.id, campo, {"texto": texto})
         assert escrita.status_code in (200, 201), escrita.text
-    acceso_id, token, pin = entorno.compartir(familia, campos=["rutina"])
+    # MATU-50: un acceso nuevo comparte siempre los tres campos base
+    acceso_id, token, pin = entorno.compartir(familia, campos_anteriores=None)
     assert str(entorno.relevo.base_url) == "https://testserver"
 
     assert entorno.presentar(token).status_code == 200
     assert entorno.canjear(token, pin).status_code == 204
     ficha = entorno.leer()
     assert ficha.status_code == 200
-    assert ficha.json()["campos"] == {"rutina": {"texto": "Almuerza a las 13:00 en el comedor"}}
+    assert ficha.json()["campos"] == {
+        "rutina": {"texto": "Almuerza a las 13:00 en el comedor"},
+        "manejo_situaciones": {"texto": None},
+        "red_apoyo": {"texto": "Sobrino: Tomás"},
+    }
 
     cuidador = familia.miembros["cuidador"].usuario
     _sin_cuerpo_204(_revocar(entorno, cuidador, familia.grupo.id, acceso_id))
