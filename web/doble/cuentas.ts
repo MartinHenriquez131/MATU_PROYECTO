@@ -33,7 +33,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'secciones-algunas@ejemplo.cl', que: 'Ficha en 3 de 3 con Quién es y Cómo hablarle: «Agregaste 2 secciones.»' },
   { email: 'secciones-remedios@ejemplo.cl', que: 'Ficha en 1 de 3 con Lo que le hace bien y Sus remedios (aviso en la tarjeta, en la hoja y en el editor; tope 800)' },
   { email: 'secciones-todas@ejemplo.cl', que: 'Las seis secciones: sin «Puedes agregar»' },
-  { email: 'secciones-conflicto@ejemplo.cl', que: 'Primer guardado o quitar de cada sección: 412 (Rodrigo la cambió o la agregó). Moverse y descansar: Rodrigo la quitó (412 sin versión: «ya no estaba»)' },
+  { email: 'secciones-conflicto@ejemplo.cl', que: 'Primer guardado o quitar de cada sección: 412 (Rodrigo la cambió o la agregó). Moverse y descansar: Rodrigo la quitó (412 sin versión): al guardar, «Otra persona quitó…» con «Agregarla de nuevo»; al quitar, «ya no estaba»' },
   { email: 'secciones-defectos@ejemplo.cl', que: 'Guardar o quitar «Quién es» 428, «Lo que le hace bien» 422 largo_maximo, cualquier otra 500' },
   { email: 'secciones-pagador@ejemplo.cl', que: 'Pagador con puede_ver_plan y dos secciones: ve los botones y al guardar, 404 y «No tienes acceso»' },
   { email: 'secciones-largas@ejemplo.cl', que: 'Nombres largos y las seis secciones en su tope (500 y 800), para el texto al 200%' },

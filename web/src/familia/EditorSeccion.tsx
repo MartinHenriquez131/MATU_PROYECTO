@@ -58,6 +58,8 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
   const [bloqueo, setBloqueo] = useState<Bloqueo | null>(null)
   const [conflicto, setConflicto] = useState<DatosConflicto | null>(null)
   const [conflictoQuitar, setConflictoQuitar] = useState<{ actual: EstadoSeccion; etag: string } | null>(null)
+  /** 4.6: el PUT con `If-Match` respondió 412 sin versión: otra persona la quitó. */
+  const [quitadaPorOtra, setQuitadaPorOtra] = useState(false)
   const [quitar, setQuitar] = useState<Quitar>('cerrado')
   const [quitando, setQuitando] = useState(false)
   const [confirmarSalida, setConfirmarSalida] = useState(false)
@@ -113,6 +115,12 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
       return conSeccion(ficha, seccion.api, { texto: g.texto, etag: g.etag, actualizado_por: g.actualizado_por, actualizado_en: g.actualizado_en })
     } catch (e) {
       if (esVencida(e)) return null
+      const s = leerConflictoSeccion(e)
+      if (s && !s.actual) {
+        setConflicto(null)
+        setQuitadaPorOtra(true)
+        return null
+      }
       const c = leerConflicto(e)
       if (c) {
         setConflicto(c)
@@ -192,8 +200,34 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
         quitarIgual={() => void borrar(conflictoQuitar.etag)}
         dejarla={() => {
           const autor = conflictoQuitar.actual.actualizado_por?.nombre || CONFLICTO.otraPersona
-          fijar({ ficha: conSeccion(ficha, seccion.api, conflictoQuitar.actual), aviso: { titulo: CONFLICTO.dejasteSuya(autor) } })
-          anunciar(CONFLICTO.dejasteSuya(autor))
+          const aviso = MAS.dejasteComoLaGuardo(seccion.titulo, autor)
+          fijar({ ficha: conSeccion(ficha, seccion.api, conflictoQuitar.actual), aviso: { titulo: aviso } })
+          anunciar(aviso)
+          navegar('/ficha')
+        }}
+      />
+    )
+
+  if (quitadaPorOtra)
+    return (
+      <QuitadaPorOtra
+        titulo={seccion.titulo}
+        mio={texto}
+        ocupado={ocupado}
+        error={falla === 'red'}
+        agregar={async () => {
+          // Es una sección nueva para los accesos ya creados: lleva la frase de los enlaces.
+          const nueva = await enviar(texto, null)
+          if (nueva) {
+            setQuitadaPorOtra(false)
+            fijar({ ficha: nueva, aviso: avisoGuardado(true) })
+            navegar('/ficha')
+          }
+        }}
+        dejarla={() => {
+          const aviso = MAS.dejasteQuitada(seccion.titulo)
+          fijar({ ficha: conSeccion(ficha, seccion.api, null), aviso: { titulo: aviso, tono: 'rocio' } })
+          anunciar(aviso)
           navegar('/ficha')
         }}
       />
@@ -279,7 +313,13 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
             <span aria-live="polite" className="sr-only">
               {anuncioTope}
             </span>
-            {falla === 'muy-largo' && <MensajeError>{MAS.muyLargo(tope)}</MensajeError>}
+            {falla === 'muy-largo' && (
+              <MensajeError>
+                {MAS.muyLargo[0]}
+                <span className="cifras">{tope}</span>
+                {MAS.muyLargo[1]}
+              </MensajeError>
+            )}
             <div id="seccion-ayuda" className="text-base text-tenue">
               <p>{MAS.ayuda}</p>
               {seccion.alergias && <p>{MAS.alergias}</p>}
@@ -373,6 +413,63 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
         </section>
       </div>
     </>
+  )
+}
+
+/**
+ * 4.6: guardar cuando otra persona la quitó (412 con `actual: null`). No hay versión de otra
+ * persona que elegir: solo «La tuya». Construcción de 4.8 para 320 px con texto al 200 %.
+ */
+function QuitadaPorOtra({
+  titulo,
+  mio,
+  ocupado,
+  error,
+  agregar,
+  dejarla,
+}: {
+  titulo: string
+  mio: string
+  ocupado: boolean
+  /** Red o 5xx al agregarla de nuevo: lo escrito sigue a la vista. */
+  error: boolean
+  agregar: () => Promise<void>
+  dejarla: () => void
+}) {
+  useEffect(() => {
+    document.getElementById('titulo-pagina')?.focus()
+  }, [])
+  return (
+    <div className="flex max-w-prose flex-col gap-6">
+      <div role="alert" className="flex gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 angosto:px-2 py-3.5">
+        <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto angosto:hidden" />
+        <div className="min-w-0">
+          <Titulo className="text-2xl angosto:text-xl wrap-anywhere hyphens-auto">{MAS.quitadaTitulo(titulo)}</Titulo>
+          <p className="mt-1">{MAS.quitadaTexto}</p>
+        </div>
+      </div>
+      <section aria-labelledby="v-mia-q" className="flex flex-col gap-3 rounded-sm bg-hoja px-5 angosto:px-2 py-4 ring-2 ring-turquesa">
+        <h2 id="v-mia-q" className="font-bold">
+          {CONFLICTO.laTuya}
+          <span className="block text-sm font-normal text-tenue">{CONFLICTO.laTuyaDetalle}</span>
+        </h2>
+        <p className="leading-relaxed whitespace-pre-line select-text">{mio}</p>
+      </section>
+      {error && (
+        <Nota tono="pronto" rol="alert">
+          {GENERAL.error}
+        </Nota>
+      )}
+      <Acciones>
+        <Boton ocupado={ocupado} textoOcupado={FICHA.guardando} onClick={() => void agregar()}>
+          {MAS.agregarlaDeNuevo}
+        </Boton>
+        <Boton variante="texto" disabled={ocupado} onClick={dejarla}>
+          {MAS.dejarlaQuitada}
+        </Boton>
+      </Acciones>
+      <p className="text-base text-tenue">{MAS.quitadaPie}</p>
+    </div>
   )
 }
 

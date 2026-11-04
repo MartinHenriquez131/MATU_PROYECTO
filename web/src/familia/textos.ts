@@ -130,7 +130,8 @@ export const AUTORIZACION = {
 
 export const FICHA = {
   titulo: 'Ficha de relevo', // [lenguaje 5.4]
-  bajada: 'Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado y puedes compartir solo algunos.',
+  // Aprobado por Jorge el 03-11 (MATU-49 10.3): con ADR-028 los tres campos se comparten siempre.
+  bajada: 'Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado.',
   avance: (n: number) => `${n} de 3 campos listos`,
   /** Lo que va después del número, que lleva `cifras` aparte. */
   avanceResto: 'de 3 campos listos',
@@ -214,11 +215,17 @@ export const MAS = {
   conflictoQuitar: (autor: string, t: string) => `${autor} cambió «${t}» mientras la ibas a quitar`,
   versionDe: (autor: string) => `Esta es la versión que guardó ${autor}:`,
   quitarlaIgual: 'Quitarla igual',
-  /**
-   * [lenguaje 6.5] con el tope de la sección (especificación 4.7: «El 422 de largo usa el tope de
-   * la sección»). La palabra «campo» queda como en 6.5 hasta que lenguaje.md diga otra cosa.
-   */
-  muyLargo: (tope: number) => `Cada campo admite hasta ${tope} caracteres. Acorta un poco el texto para guardarlo.`,
+  // Aprobados por Jorge el 03-11 (MATU-49 10.3)
+  dejasteComoLaGuardo: (t: string, autor: string) => `Dejaste «${t}» como la guardó ${autor}.`,
+  /** 4.7: el 422 de largo. Partido para poner el tope en `cifras`. */
+  muyLargo: ['Esta sección admite hasta ', ' caracteres. Acorta un poco el texto para guardarlo.'] as const,
+  // 4.6: guardar cuando otra persona la quitó (412 con `actual: null`)
+  quitadaTitulo: (t: string) => `Otra persona quitó «${t}» mientras escribías`,
+  quitadaTexto: 'Lo que escribiste no se guardó. Puedes agregarla de nuevo con tu texto.',
+  agregarlaDeNuevo: 'Agregarla de nuevo',
+  dejarlaQuitada: 'Dejarla quitada',
+  quitadaPie: 'Si quieres, copia lo que escribiste antes de elegir.',
+  dejasteQuitada: (t: string) => `Dejaste «${t}» quitada.`,
 }
 
 /** El paso de compartir (MATU-48), para el selector de secciones. [lenguaje 14.2 y 14.3] */
