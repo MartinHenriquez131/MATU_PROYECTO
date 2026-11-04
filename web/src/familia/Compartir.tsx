@@ -34,7 +34,7 @@ import { Boton, claseBoton } from '../compartido/ui/Boton'
 import { CAMPOS, PATRON_CELULAR } from './datos'
 import { useDemora } from './Estados'
 import { puedeCompartir, useFamilia } from './estado'
-import { AvisoBloqueo, ErrorAlCargar, SinAcceso, useFicha } from './Ficha'
+import { AvisoBloqueo, bloqueoDe, ErrorAlCargar, SinAcceso, useFicha } from './Ficha'
 import { ErrorAperturas, LineaApertura } from './QuienLaVio'
 import { navegar, type Ruta } from './ruteo'
 import { seccionesEnHoja } from './Secciones'
@@ -546,7 +546,7 @@ function PinUnaVez({ a }: { a: AccesoCreado }) {
 type Carga = 'cargando' | 'lista' | 'red' | 'sin-acceso'
 
 export function Enlaces() {
-  const { personaId, rol, anunciar, autorizacion } = useFamilia()
+  const { personaId, rol, anunciar, autorizacion, fijar } = useFamilia()
   const gestiona = puedeCompartir(rol)
   // Decisión 33: sin autorización vigente, ningún enlace abre aunque la API lo liste como `vigente`.
   const enPausa = autorizacion !== null
@@ -580,6 +580,23 @@ export function Enlaces() {
   useEffect(() => {
     void primera()
   }, [primera])
+
+  // Decisión 33: una lectura de la ficha al abrir, la misma de Ficha.tsx, para saber si los enlaces
+  // están en pausa también al llegar directo. Si falla por red, la lista se muestra igual.
+  useEffect(() => {
+    if (!personaId) return
+    let vivo = true
+    leerFicha(personaId)
+      .then((f) => vivo && fijar({ ficha: f, autorizacion: null }))
+      .catch((e) => {
+        if (!vivo || esVencida(e)) return
+        const b = bloqueoDe(e)
+        if (b === 'sin-consentimiento' || b === 'revision-vencida') fijar({ autorizacion: b })
+      })
+    return () => {
+      vivo = false
+    }
+  }, [personaId, fijar])
 
   const mas = async () => {
     if (!personaId || !cursor || masCargando) return

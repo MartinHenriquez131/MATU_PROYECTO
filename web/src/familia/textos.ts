@@ -323,7 +323,8 @@ export const COMPARTIR = {
   titulo: 'Compartir', // [demo]
   enlaces: 'Enlaces', // [demo]
   vistas: 'Vistas de Compartir',
-  bajada: 'Quien te reemplaza recibe un enlace por WhatsApp y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.', // [lenguaje 9]
+  // Aprobado por Jorge el 04-11: reemplaza el de lenguaje 9, que decía «por WhatsApp».
+  bajada: 'Quien te reemplaza recibe un enlace en un mensaje y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.',
   /** Cuando todavía no se escribe el nombre. */
   quienTeReemplaza: 'quien te reemplaza',
   nombre: '¿Quién te va a reemplazar?', // [lenguaje 9]

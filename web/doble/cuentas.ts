@@ -38,7 +38,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'secciones-pagador@ejemplo.cl', que: 'Pagador con puede_ver_plan y dos secciones: ve los botones y al guardar, 404 y «No tienes acceso»' },
   { email: 'secciones-largas@ejemplo.cl', que: 'Nombres largos y las seis secciones en su tope (500 y 800), para el texto al 200%' },
   // MATU-48: compartir y cortar
-  { email: 'enlaces-pausa@ejemplo.cl', que: 'La revisión anual venció (403 revision-vencida en la ficha) y hay enlaces que la API lista como vigentes: en Enlaces, el aviso de pausa y «En pausa» en vez de «Activo»; «Cortar» sigue disponible. Abre primero la ficha (es lo que dice a la app que la autorización venció)' },
+  { email: 'enlaces-pausa@ejemplo.cl', que: 'La revisión anual venció (403 revision-vencida en la ficha) y hay enlaces que la API lista como vigentes: en Enlaces, el aviso de pausa y «En pausa» en vez de «Activo»; «Cortar» sigue disponible, también al abrir /compartir/enlaces directo' },
   { email: 'enlaces-muchos@ejemplo.cl', que: 'Un enlace activo y 25 que ya no abren: «Ver enlaces anteriores» y «No hay más.»' },
   { email: 'enlaces-cortar-falla@ejemplo.cl', que: 'Cortar responde 500: «No pudimos cortar el enlace… El enlace todavía abre.» y la tarjeta sigue «Activo»' },
   { email: 'enlaces-lista-falla@ejemplo.cl', que: 'La lista de enlaces responde 500: error en Enlaces y en «Quién puede verla ahora»' },
