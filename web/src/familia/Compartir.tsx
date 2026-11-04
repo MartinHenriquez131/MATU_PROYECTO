@@ -328,7 +328,7 @@ function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
           </p>
         </GrupoOpciones>
 
-        <GrupoOpciones forma="chips" columnas leyenda={T.paraQue} nombre="motivo" opciones={MOTIVOS} valor={motivo} onCambio={setMotivo} />
+        <GrupoOpciones forma="chips" leyenda={T.paraQue} nombre="motivo" opciones={MOTIVOS} valor={motivo} onCambio={setMotivo} />
 
         {/* Decisión 34: obligatoria; sin marcar no se pide nada a la API. Desmarcada en cada visita. */}
         <div className="flex flex-col gap-2">
@@ -375,7 +375,7 @@ function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
         )}
       </section>
 
-      <section aria-labelledby="vera-t" className="flex min-w-0 flex-col gap-5 self-start @4xl/main:sticky @4xl/main:top-4">
+      <section aria-labelledby="vera-t" className="flex max-w-prose min-w-0 flex-col gap-5 self-start @4xl/main:sticky @4xl/main:top-4 @4xl/main:max-w-none">
         <h2 id="vera-t" className="text-xl font-bold leading-snug break-words">
           {T.loQueVera(quien)}
         </h2>
@@ -713,7 +713,7 @@ export function Enlaces() {
 
   return (
     <Pagina titulo={T.enlaces} bajada={T.enlacesBajada} antes={antes}>
-      <div className="grid grid-cols-1 items-start gap-10 @4xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-7">{lista}</div>
         <UltimasAperturasEnlaces />
       </div>
@@ -871,14 +871,14 @@ function TarjetaEnlace({ a: inicial, gestiona, enPausa, recargar }: { a: AccesoR
         )}
         {conTelefono &&
           (telefono ? (
-            <a href={`tel:${telefono.replace(/\s+/g, '')}`} className={`${claseBoton('texto')} px-0`}>
+            <a href={`tel:${telefono.replace(/\s+/g, '')}`} className={claseBoton('texto')}>
               <Phone aria-hidden className="size-5 shrink-0 angosto:hidden" />
               <span className="min-w-0 break-words">{T.llamar(a.nombre_relevo)}</span>
             </a>
           ) : (
             <p className="text-base text-tenue">{T.sinTelefono}</p>
           ))}
-        <Boton variante="texto" className="px-0" onClick={() => navegar('/ficha/quien-la-vio')}>
+        <Boton variante="texto" onClick={() => navegar('/ficha/quien-la-vio')}>
           {T.verCuando}
         </Boton>
       </div>
@@ -923,7 +923,7 @@ function UltimasAperturasEnlaces() {
               <LineaApertura key={`${x.acceso.id}-${x.ocurrido_en}-${x.tipo}-${i}`} a={x} sinAbrir={false} completa notas={false} />
             ))}
           </ol>
-          <Boton variante="texto" className="self-start px-0" onClick={() => navegar('/ficha/quien-la-vio')}>
+          <Boton variante="texto" className="self-start" onClick={() => navegar('/ficha/quien-la-vio')}>
             {QUIEN.verTodo}
           </Boton>
         </>

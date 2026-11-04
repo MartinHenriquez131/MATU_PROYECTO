@@ -101,7 +101,7 @@ export function LineaApertura({
         )}
         {notas && a.tipo === 'bloqueo' && <span className="mt-1 text-base text-tenue">{QUIEN.bloqueado}</span>}
         {notas && acciones && a.tipo === 'bloqueo' && (
-          <Boton variante="texto" className="self-start px-0" onClick={() => navegar('/compartir')}>
+          <Boton variante="texto" className="self-start" onClick={() => navegar('/compartir')}>
             {COMPARTIR.crearNuevo}
           </Boton>
         )}
@@ -244,8 +244,16 @@ function Aperturas() {
 
   return (
     <Pagina titulo={QUIEN.titulo} bajada={QUIEN.bajada} antes={<Volver onClick={() => navegar('/ficha')}>{FICHA.volverALaFicha}</Volver>}>
-      <div className="grid grid-cols-1 items-start gap-10 @4xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <section aria-label={QUIEN.titulo} className="flex max-w-prose min-w-0 flex-col gap-5">
+      <div className="grid grid-cols-1 items-start gap-10 @3xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      {/* MATU-48 2.4: primero en el DOM (el foco y el lector siguen lo que se ve); en ancho, a la derecha. */}
+      <aside aria-labelledby="pueden-t" className="flex min-w-0 flex-col gap-4 border-b border-linea pb-6 @3xl/main:col-start-2 @3xl/main:row-start-1 @3xl/main:border-b-0 @3xl/main:pb-0">
+        <QuienPuedeVerla gestiona={gestiona} />
+        <p className="flex gap-2 text-base text-tenue">
+          <ShieldCheck aria-hidden className="mt-0.5 size-4.5 shrink-0" />
+          {QUIEN.nadieDeMatu}
+        </p>
+      </aside>
+      <section aria-label={QUIEN.titulo} className="flex max-w-prose min-w-0 flex-col gap-5 @3xl/main:col-start-1 @3xl/main:row-start-1">
         {cuerpo}
         {carga === 'lista' &&
           items.length > 0 &&
@@ -259,13 +267,6 @@ function Aperturas() {
             <p className="text-tenue">{QUIEN.noHayMas}</p>
           ) : null)}
       </section>
-      <aside aria-labelledby="pueden-t" className="flex min-w-0 flex-col gap-4">
-        <QuienPuedeVerla gestiona={gestiona} />
-        <p className="flex gap-2 text-base text-tenue">
-          <ShieldCheck aria-hidden className="mt-0.5 size-4.5 shrink-0" />
-          {QUIEN.nadieDeMatu}
-        </p>
-      </aside>
       </div>
     </Pagina>
   )
@@ -348,7 +349,7 @@ export function UltimasAperturas() {
               <LineaApertura key={`${a.acceso.id}-${a.ocurrido_en}-${a.tipo}-${i}`} a={a} sinAbrir={presentacionSinAbrir(items, i)} completa />
             ))}
           </ol>
-          <Boton variante="texto" className="self-start px-0" onClick={() => navegar('/ficha/quien-la-vio')}>
+          <Boton variante="texto" className="self-start" onClick={() => navegar('/ficha/quien-la-vio')}>
             {QUIEN.verTodo}
           </Boton>
         </>
