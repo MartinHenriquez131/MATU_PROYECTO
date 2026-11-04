@@ -36,3 +36,48 @@ export function diaRelativoDeChile(instante: Date, ahora: Date, minuscula = fals
   const texto = n <= 0 ? 'Hoy' : n === 1 ? 'Ayer' : n <= 6 ? `El ${DIA_SEMANA.format(instante)}` : `El ${fechaYHoraDeChile(instante).fecha}`
   return minuscula ? texto.charAt(0).toLowerCase() + texto.slice(1) : texto
 }
+
+const PARTES_CHILE = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Santiago',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  weekday: 'short',
+  hourCycle: 'h23',
+})
+const DIAS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function partesDeChile(instante: Date) {
+  const p = Object.fromEntries(PARTES_CHILE.formatToParts(instante).map((x) => [x.type, x.value]))
+  return { anio: Number(p.year), mes: Number(p.month), dia: Number(p.day), hora: Number(p.hour), minuto: Number(p.minute), semana: DIAS_EN.indexOf(p.weekday) }
+}
+
+/** El instante de una fecha y hora de pared de Chile (con su horario de verano o de invierno). */
+function instanteDeChile(anio: number, mes: number, dia: number, hora: number, minuto: number): Date {
+  const pared = Date.UTC(anio, mes - 1, dia, hora, minuto)
+  let t = pared + 4 * 3_600_000
+  for (let i = 0; i < 3; i++) {
+    const p = partesDeChile(new Date(t))
+    t += pared - Date.UTC(p.anio, p.mes - 1, p.dia, p.hora, p.minuto)
+  }
+  return new Date(t)
+}
+
+/** «Fin de semana» (MATU-48 3.5): el domingo siguiente a las 23:59 de Chile; si hoy es domingo, el de la otra semana. */
+export function finDeSemanaDeChile(ahora: Date): Date {
+  const p = partesDeChile(ahora)
+  const hasta = p.semana === 0 ? 7 : 7 - p.semana
+  const d = new Date(Date.UTC(p.anio, p.mes - 1, p.dia + hasta))
+  return instanteDeChile(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), 23, 59)
+}
+
+/** Lo que falta para `expira`, como la demo (`fmtRestante`): «45 min», «23 h», «3 días». Nunca menos de 1 min. */
+export function restante(expira: Date, ahora: Date): string {
+  const min = Math.max(1, Math.floor((expira.getTime() - ahora.getTime()) / 60_000))
+  if (min < 60) return `${min} min`
+  const horas = Math.floor(min / 60)
+  if (horas < 48) return `${horas} h`
+  return `${Math.floor(horas / 24)} días`
+}
