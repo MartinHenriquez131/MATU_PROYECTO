@@ -46,6 +46,38 @@ export function TextoCampo({ texto }: { texto: string | null }) {
   )
 }
 
+const HORAS_EN_TEXTO = /(\d{1,2}[:.]\d{2})/
+
+/**
+ * Una sección complementaria (MATU-49, 7.1 y 5.6): el texto tal cual, renglón por renglón, nunca
+ * como línea de tiempo ni como HTML. Las horas van en `cifras` para que no se partan.
+ */
+export function TextoSeccion({ texto }: { texto: string }) {
+  return (
+    <div className="renglones max-w-prose text-lg leading-7">
+      {texto.split('\n').map((l, i) =>
+        l.trim() ? (
+          <p key={i}>
+            {l.split(HORAS_EN_TEXTO).map((p, j) =>
+              j % 2 ? (
+                <span key={j} className="cifras">
+                  {p}
+                </span>
+              ) : (
+                p
+              ),
+            )}
+          </p>
+        ) : (
+          <p key={i} aria-hidden>
+            {' '}
+          </p>
+        ),
+      )}
+    </div>
+  )
+}
+
 function LineaDeTiempo({ items }: { items: { hora: string; texto: string }[] }) {
   return (
     <div className="relative">
