@@ -273,6 +273,52 @@ def test_envio_simulado_fuera_de_produccion_carga(monkeypatch: pytest.MonkeyPatc
     assert cargar().enviador_codigos == "simulado"
 
 
+# --- MATU-41 · avisos simulados (decisión 112) ------------------------------------------------------
+
+
+@pytest.mark.rf("RF-39")
+def test_avisos_simulados_en_produccion_no_cargan(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_AVISOS", "simulado")
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "ENVIADOR_AVISOS=simulado" in str(error.value)
+
+
+@pytest.mark.rf("RF-39")
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging"])
+def test_avisos_simulados_fuera_de_produccion_cargan(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_AVISOS", "simulado")
+    assert cargar().enviador_avisos == "simulado"
+
+
+@pytest.mark.rf("RF-39")
+def test_avisos_simulados_usan_la_lista_del_envio_simulado(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "ENTORNOS_ENVIO_SIMULADO", frozenset({"local", "pruebas"}))
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_AVISOS", "simulado")
+    with pytest.raises(ValidationError):
+        cargar()
+
+
+@pytest.mark.rf("RF-39")
+@pytest.mark.parametrize("valor", ["smtp", "SIMULADO", "real"])
+def test_enviador_avisos_solo_admite_simulado(monkeypatch: pytest.MonkeyPatch, valor: str) -> None:
+    monkeypatch.setenv("ENVIADOR_AVISOS", valor)
+    with pytest.raises(ValidationError):
+        cargar()
+
+
+@pytest.mark.rf("RF-39")
+def test_sin_enviador_avisos_queda_apagado(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENVIADOR_AVISOS", "")
+    assert cargar().enviador_avisos is None
+
+
 # --- MATU-25 · staging y las dos listas (decisión 105) --------------------------------------------
 
 
