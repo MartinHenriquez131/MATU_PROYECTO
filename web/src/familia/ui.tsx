@@ -2,10 +2,11 @@
 // Ui.tsx, HojaFicha.tsx y TextoFicha.tsx; Demo/src/familia/Shell.tsx). Cambios: `pino` es
 // `turquesa`, el borde de los controles es `borde`, el error lleva ícono y `Volver` mide 48 px.
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
+import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { CAMPOS } from './datos'
 import { FICHA } from './textos'
+import { navegar, type Ruta } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 
@@ -62,8 +63,16 @@ export function CampoTexto({
   error,
   className = '',
   junto,
+  ayudaGrande = false,
   ...resto
-}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: ReactNode; error?: string | null; junto?: ReactNode }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  etiqueta: string
+  ayuda?: ReactNode
+  error?: string | null
+  junto?: ReactNode
+  /** MATU-48: la ayuda en `text-base` (nada relevante bajo 1 rem). */
+  ayudaGrande?: boolean
+}) {
   const id = useId()
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   return (
@@ -84,7 +93,7 @@ export function CampoTexto({
         {junto}
       </div>
       {ayuda && (
-        <span id={`${id}-a`} className="text-sm text-tenue">
+        <span id={`${id}-a`} className={`${ayudaGrande ? 'text-base' : 'text-sm'} text-tenue`}>
           {ayuda}
         </span>
       )}
@@ -101,6 +110,7 @@ export function GrupoOpciones<T extends string>({
   nombre,
   columnas = false,
   error,
+  forma = 'lista',
   children,
 }: {
   leyenda: string
@@ -110,9 +120,41 @@ export function GrupoOpciones<T extends string>({
   nombre: string
   columnas?: boolean
   error?: string | null
+  /**
+   * `chips` (de la demo, Demo/src/components/Ui.tsx): opción única con la piel del chip y un
+   * indicador redondo con punto. Con `columnas`, 2 + 2 desde 20 rem; en angosto, una columna.
+   */
+  forma?: 'lista' | 'chips'
   children?: ReactNode
 }) {
   const id = useId()
+  if (forma === 'chips')
+    return (
+      <fieldset className="flex min-w-0 flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
+        <legend className="mb-2 font-bold">{leyenda}</legend>
+        <div className={columnas ? 'grid grid-cols-1 gap-2 @xs/main:grid-cols-2 angosto:grid-cols-1' : 'flex flex-wrap gap-2 angosto:flex-col'}>
+          {opciones.map((o) => {
+            const on = o.valor === valor
+            return (
+              <label
+                key={o.valor}
+                className={`${columnas ? 'flex w-full' : 'inline-flex max-w-full'} min-h-12 cursor-pointer items-center gap-2 rounded-full angosto:rounded-xl px-4 angosto:px-3 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                  on ? 'bg-rocio text-turquesa ring-turquesa' : error ? 'bg-hoja text-tenue ring-pronto' : 'bg-hoja text-tenue ring-borde hover:ring-turquesa/40'
+                }`}
+              >
+                <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+                <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
+                  {on && <span className="size-2.5 rounded-full bg-turquesa" />}
+                </span>
+                <span className="min-w-0 break-words hyphens-auto">{o.texto}</span>
+              </label>
+            )
+          })}
+        </div>
+        {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+        {children}
+      </fieldset>
+    )
   return (
     <fieldset className="flex flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
       <legend className="mb-2 font-bold">{leyenda}</legend>
@@ -185,8 +227,11 @@ export function Nota({
   )
 }
 
-export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: 'neutro' | 'ok' }) {
-  const t = tono === 'ok' ? 'bg-ok-fondo text-ok' : 'bg-tinta/7 text-tenue'
+const TONO_ETIQUETA = { neutro: 'bg-tinta/7 text-tenue', ok: 'bg-ok-fondo text-ok', activo: 'bg-rocio text-turquesa', atenta: 'bg-atenta-fondo text-atenta' } as const
+
+/** Siempre con ícono y palabra: el tono es un refuerzo, nunca lo único (MATU-48 4.5 y 5.3). */
+export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: keyof typeof TONO_ETIQUETA }) {
+  const t = TONO_ETIQUETA[tono]
   return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
 }
 
@@ -368,5 +413,83 @@ export function Listo({ listo }: { listo: boolean }) {
       {listo ? <Check aria-hidden className="size-4" strokeWidth={3} /> : <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />}
       {listo ? FICHA.listo : FICHA.falta}
     </Etiqueta>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-48
+
+/**
+ * Las vistas de una sección (de `Pestanas` de Demo/src/familia/Shell.tsx), como enlaces. La activa
+ * lleva borde inferior de 3 px y negrita, no solo color, y `aria-current`.
+ */
+export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta; activa: boolean }[] }) {
+  return (
+    <nav aria-label={etiqueta} className="border-b border-linea">
+      <ul className="-mb-px flex flex-wrap gap-x-1">
+        {items.map((t) => (
+          <li key={t.ruta}>
+            <a
+              href={t.ruta}
+              aria-current={t.activa ? 'page' : undefined}
+              onClick={(e) => {
+                e.preventDefault()
+                navegar(t.ruta)
+              }}
+              className={`inline-flex min-h-12 items-center border-b-3 px-3 font-bold ${t.activa ? 'border-turquesa text-turquesa' : 'border-transparent text-tenue hover:text-tinta'}`}
+            >
+              {t.texto}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+/** De la demo (Demo/src/components/Ui.tsx), con `turquesa` y la ayuda en `text-base`. */
+export function Stepper({
+  etiqueta,
+  valor,
+  onCambio,
+  min = 0,
+  max = 999,
+  paso = 1,
+  unidad,
+  ayuda,
+}: {
+  etiqueta: string
+  valor: number
+  onCambio: (v: number) => void
+  min?: number
+  max?: number
+  paso?: number
+  unidad?: string
+  ayuda?: string
+}) {
+  const id = useId()
+  const btn = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio disabled:opacity-40'
+  return (
+    <div className="flex flex-col gap-2">
+      <span id={id} className="font-bold">
+        {etiqueta}
+      </span>
+      <div className="flex flex-wrap items-center gap-3" role="group" aria-labelledby={id} aria-describedby={ayuda ? `${id}-a` : undefined}>
+        <button type="button" className={btn} aria-label={`Menos: ${etiqueta}`} disabled={valor <= min} onClick={() => onCambio(Math.max(min, valor - paso))}>
+          <Minus aria-hidden className="size-5" strokeWidth={2.5} />
+        </button>
+        <output aria-live="polite" className="cifras min-w-8 text-center text-3xl font-bold leading-none">
+          {valor}
+        </output>
+        <button type="button" className={btn} aria-label={`Más: ${etiqueta}`} disabled={valor >= max} onClick={() => onCambio(Math.min(max, valor + paso))}>
+          <Plus aria-hidden className="size-5" strokeWidth={2.5} />
+        </button>
+        {unidad && <span className="text-tenue">{unidad}</span>}
+      </div>
+      {ayuda && (
+        <span id={`${id}-a`} className="text-base text-tenue">
+          {ayuda}
+        </span>
+      )}
+    </div>
   )
 }

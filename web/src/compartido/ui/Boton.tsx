@@ -17,6 +17,11 @@ const VARIANTES: Record<Variante, string> = {
   textoPeligro: 'text-pronto underline underline-offset-4 decoration-pronto/40 hover:decoration-pronto focus-visible:outline-pronto',
 }
 
+const BASE = 'inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight'
+
+/** Las clases de un botón, para un enlace que se ve como botón (por ejemplo, `tel:` en Enlaces). */
+export const claseBoton = (variante: Variante = 'principal') => `${BASE} ${VARIANTES[variante]}`
+
 export function Boton({
   variante = 'principal',
   icono,
@@ -46,7 +51,7 @@ export function Boton({
         }
         onClick?.(e)
       }}
-      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]} ${className}`}
+      className={`${BASE} disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]} ${className}`}
       {...resto}
     >
       {icono && <span className="contents angosto:hidden">{icono}</span>}
