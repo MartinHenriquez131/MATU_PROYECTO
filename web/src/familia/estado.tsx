@@ -43,7 +43,7 @@ interface Estado {
   /** Ruta pedida antes de entrar, para volver a ella (1). */
   destino: Ruta | null
   /** Nota de una sola vez al llegar a una pantalla (guardado, conflicto resuelto). */
-  aviso: { titulo: string; texto?: string } | null
+  aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio' } | null
   /** 5.7: la entrada venció con texto sin guardar. */
   textoPerdido: string | null
 }

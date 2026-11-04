@@ -184,6 +184,63 @@ export const FICHA = {
   vencidaConTexto: 'Tienes que volver a entrar. Copia lo que escribiste antes de seguir: no se guardó.', // [PROPUESTO]
 }
 
+/** Secciones complementarias (MATU-50). [lenguaje 14.2 y 14.3], aprobados por Jorge el 03-11. */
+export const MAS = {
+  titulo: (pila: string) => `Más sobre ${pila}`,
+  bajada: (pila: string) => `Si quieres, cuenta más para que quien te reemplace conozca a ${pila}. Agrega solo lo que te sirva, cuando tengas tiempo.`,
+  agregadas: (n: number) => (n === 1 ? 'Agregaste 1 sección.' : `Agregaste ${n} secciones.`),
+  puedesAgregar: 'Puedes agregar',
+  agregar: (t: string) => `Agregar «${t}»`,
+  editar: (t: string) => `Editar «${t}»`,
+  vistaPrevia: 'Cada relevo ve solo las secciones que eliges al compartir.',
+  // Editor
+  ayuda: 'No hace falta escribir diagnósticos ni enfermedades. Escribe lo que ayuda a cuidar.',
+  alergias: 'Si tiene alergia a algún remedio o alimento, anótalo aquí.',
+  ejemplo: (e: string) => `Por ejemplo: «${e}»`,
+  contador: (n: number, tope: number) => `${n} de ${tope} caracteres`,
+  // Guardado (4.4)
+  agregaste: (t: string) => `Agregaste «${t}».`,
+  guardamos: (t: string) => `Guardamos «${t}».`,
+  conEnlaces: 'Quien ya tiene un enlace no la verá. Para que la vea, crea un enlace nuevo.',
+  // Quitar (4.5 y 4.6)
+  quitar: (t: string) => `Quitar «${t}»`,
+  quitarPregunta: (t: string) => `¿Quitar «${t}»?`,
+  quitarTexto: 'Se borra lo que escribiste en esta sección. Quien tenga un enlace dejará de verla. No se puede deshacer.',
+  quitarYBorrar: 'Quitar y borrar',
+  dejarla: 'Dejarla como está',
+  quitando: 'Quitando…',
+  quitaste: (t: string) => `Quitaste «${t}».`,
+  yaNoEstaba: (t: string) => `«${t}» ya no estaba en la ficha.`,
+  conflictoQuitar: (autor: string, t: string) => `${autor} cambió «${t}» mientras la ibas a quitar`,
+  versionDe: (autor: string) => `Esta es la versión que guardó ${autor}:`,
+  quitarlaIgual: 'Quitarla igual',
+  /**
+   * [lenguaje 6.5] con el tope de la sección (especificación 4.7: «El 422 de largo usa el tope de
+   * la sección»). La palabra «campo» queda como en 6.5 hasta que lenguaje.md diga otra cosa.
+   */
+  muyLargo: (tope: number) => `Cada campo admite hasta ${tope} caracteres. Acorta un poco el texto para guardarlo.`,
+}
+
+/** El paso de compartir (MATU-48), para el selector de secciones. [lenguaje 14.2 y 14.3] */
+export const COMPARTIR_SECCIONES = {
+  siempreVe: 'Siempre ve',
+  base: 'Su día, Si se altera y A quién llamar.',
+  queMas: '¿Qué más puede ver?',
+  elige: 'Elige las secciones que le sirven.',
+  incluirRemedios: 'Incluir Sus remedios',
+  ayudaRemedios: 'Quien te reemplaza verá qué remedios toma y a qué hora. Márcalo solo si va a dárselos o a estar a cargo de ellos.',
+  /** Partido en tres para poner la fecha en `cifras` y en negrita. */
+  confirmacion: (nombre: string) => [`Vas a compartir sus remedios con ${nombre} hasta el `, '. Puedes cortar el acceso cuando quieras.'] as const,
+  si: 'Sí, crear el enlace',
+  no: 'No incluir sus remedios',
+  /** PIN y Enlaces: «Ve su día, si se altera, a quién llamar, quién es y sus remedios.» */
+  loQueVe: (titulos: string[]) => {
+    const todo = ['su día', 'si se altera', 'a quién llamar', ...titulos.map((t) => t.toLowerCase())]
+    return `Ve ${todo.slice(0, -1).join(', ')} y ${todo[todo.length - 1]}.`
+  },
+  despues: (nombre: string) => `Si agregas una sección después, ${nombre} no la verá. Para que la vea, crea un enlace nuevo.`,
+}
+
 export const CONFLICTO = {
   // [lenguaje 6.2]
   titulo: (autor: string, campo: string) => `${autor} guardó «${campo}» mientras escribías`,

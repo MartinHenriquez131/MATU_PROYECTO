@@ -7,6 +7,7 @@ import { fechaYHoraDeChile } from '../compartido/fechas'
 import { CAMPOS } from './datos'
 import { FICHA } from './textos'
 import type { CampoApi } from '../compartido/api/familia'
+import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 
 export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`flex flex-wrap items-center gap-3 ${className}`}>{children}</div>
@@ -161,6 +162,7 @@ export function Nota({
   rol,
   borde = false,
   className = '',
+  id,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -169,10 +171,11 @@ export function Nota({
   rol?: 'status' | 'alert'
   borde?: boolean
   className?: string
+  id?: string
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   return (
-    <div role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+    <div id={id} role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
       {icono ?? ICONO_NOTA[tono]}
       <div className="min-w-0">
         {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
@@ -269,7 +272,23 @@ export function TextoCampo({ texto }: { texto: string | null }) {
   )
 }
 
-export function HojaFicha({ pila, textos, escribiendo }: { pila: string; textos: Record<CampoApi, string | null>; escribiendo?: CampoApi | null }) {
+export interface SeccionEnHoja {
+  api: SeccionApi
+  texto: string
+}
+
+export function HojaFicha({
+  pila,
+  textos,
+  escribiendo,
+  secciones = [],
+}: {
+  pila: string
+  textos: Record<CampoApi, string | null>
+  escribiendo?: CampoApi | null
+  /** Las secciones agregadas, ya en el orden fijo (MATU-49, 3.2). */
+  secciones?: SeccionEnHoja[]
+}) {
   return (
     <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
       <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
@@ -279,7 +298,66 @@ export function HojaFicha({ pila, textos, escribiendo }: { pila: string; textos:
           <TextoCampo texto={textos[c.api]} />
         </section>
       ))}
+      <SeccionesEnHoja secciones={secciones} />
     </Hoja>
+  )
+}
+
+/** 4.2: la hoja del editor de una sección muestra solo esa sección, como la verá el relevo. */
+export function HojaSeccion({ pila, seccion, texto }: { pila: string; seccion: SeccionApi; texto: string }) {
+  return (
+    <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
+      <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
+      <SeccionesEnHoja secciones={[{ api: seccion, texto }]} escribiendo />
+    </Hoja>
+  )
+}
+
+/** MATU-49, 7.1: tras los tres campos, una línea y cada sección con su título. Sin pregunta ni ejemplo. */
+function SeccionesEnHoja({ secciones, escribiendo = false }: { secciones: SeccionEnHoja[]; escribiendo?: boolean }) {
+  if (!secciones.length) return null
+  return (
+    <div className="mt-8 border-t border-linea pt-6">
+      {secciones.map((s, i) => (
+        <section key={s.api} className={`${i ? 'mt-6' : ''} ${escribiendo ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
+          <h3 className="mb-1 text-lg font-bold text-turquesa">{TITULO_SECCION[s.api]}</h3>
+          {s.api === 'remedios' && <AvisoRemedios className="mt-2 mb-2" />}
+          <TextoSeccion texto={s.texto} className="renglones leading-7" />
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/** 5.2: el aviso de Sus remedios en la tarjeta y en la hoja. Texto en la página, nunca tooltip. */
+export function AvisoRemedios({ className = '', id }: { className?: string; id?: string }) {
+  return (
+    <p id={id} className={`border-s-4 border-atenta ps-3 text-base ${className}`}>
+      {AVISO_REMEDIOS}
+    </p>
+  )
+}
+
+const HORAS_EN_TEXTO = /(\d{1,2}[:.]\d{2})/
+
+/**
+ * El texto de una sección, tal cual, renglón por renglón, con las horas en `cifras` (5.6). Nunca
+ * como línea de tiempo ni como HTML.
+ */
+export function TextoSeccion({ texto, recortar = false, className = '' }: { texto: string; recortar?: boolean; className?: string }) {
+  const partes = texto.split(HORAS_EN_TEXTO)
+  return (
+    <p className={`break-words whitespace-pre-line ${recortar ? 'line-clamp-3' : ''} ${className}`}>
+      {partes.map((p, i) =>
+        i % 2 ? (
+          <span key={i} className="cifras">
+            {p}
+          </span>
+        ) : (
+          p
+        ),
+      )}
+    </p>
   )
 }
 

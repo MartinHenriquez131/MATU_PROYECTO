@@ -2,7 +2,8 @@
 // y el rol (especificación 1, 2 y 5). El foco va al título y el <title> nunca lleva nombres.
 import { useEffect, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
-import { campoDeRuta } from './datos'
+import { campoDeRuta, seccionDeRuta } from './datos'
+import { EditorDeSeccion } from './EditorSeccion'
 import { Abriendo, CompartirPronto, ErrorAlAbrir, InsumosPronto, SinPersona, TextoPerdido } from './Estados'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
@@ -45,6 +46,7 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
 
 function tituloDe(ruta: string) {
   if (campoDeRuta(ruta)) return campoDeRuta(ruta)!.titulo
+  if (seccionDeRuta(ruta)) return seccionDeRuta(ruta)!.titulo
   return TITULOS[ruta] ?? FICHA.titulo
 }
 
@@ -104,12 +106,13 @@ function Rutas() {
   }
 
   const campo = campoDeRuta(ruta)
+  const seccion = seccionDeRuta(ruta)
   let pantalla
   if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
-  else if (ruta === '/ficha' || campo) {
+  else if (ruta === '/ficha' || campo || seccion) {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
-    else pantalla = campo ? <Editor campo={campo} /> : <TuFicha />
+    else pantalla = campo ? <Editor campo={campo} /> : seccion ? <EditorDeSeccion seccion={seccion} /> : <TuFicha />
   } else if (ruta === '/compartir') pantalla = <CompartirPronto />
   else pantalla = <InsumosPronto />
 

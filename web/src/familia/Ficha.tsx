@@ -13,14 +13,16 @@ import { BotonDictar, useDictado } from './Dictado'
 import { puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
-import { CONFLICTO, ESTADOS, FICHA, GENERAL } from './textos'
+import { CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
 import { useDemora } from './Estados'
 import { UltimasAperturas } from './QuienLaVio'
+import { MasSobre, seccionesEnHoja } from './Secciones'
+import type { SeccionEnHoja } from './ui'
 
-type Bloqueo = 'sin-consentimiento' | 'revision-vencida' | 'sin-acceso'
+export type Bloqueo = 'sin-consentimiento' | 'revision-vencida' | 'sin-acceso'
 type Carga = { tipo: 'cargando' } | { tipo: 'lista' } | { tipo: 'bloqueo'; bloqueo: Bloqueo } | { tipo: 'red' }
 
-function bloqueoDe(e: unknown): Bloqueo | 'red' {
+export function bloqueoDe(e: unknown): Bloqueo | 'red' {
   const f = leerFallo(e)
   if (f.status === 403 && f.tipo === '/errores/revision-vencida') return 'revision-vencida'
   if (f.status === 403) return 'sin-consentimiento'
@@ -36,7 +38,7 @@ const textosDe = (f: Ficha | null): Record<CampoApi, string | null> => ({
 const listo = (c: EstadoCampo | undefined) => !!c?.texto?.trim()
 
 /** Carga la ficha de la persona elegida si no está en memoria. */
-function useFicha() {
+export function useFicha() {
   const { ficha, personaId, rol, grupo, fijar } = useFamilia()
   const permitido = puedeVerFicha(rol, grupo)
   const [carga, setCarga] = useState<Carga>(() => (!permitido ? { tipo: 'bloqueo', bloqueo: 'sin-acceso' } : ficha ? { tipo: 'lista' } : { tipo: 'cargando' }))
@@ -78,7 +80,7 @@ export function SinAcceso() {
 }
 
 /** 6.4 y 6.4b: avisos, no errores en rojo. Si había texto escrito, se muestra para copiarlo. */
-function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revision-vencida'; escrito?: string }) {
+export function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revision-vencida'; escrito?: string }) {
   const { persona } = useFamilia()
   const pila = persona ? nombrePilaDe(persona) : ''
   const revision = bloqueo === 'revision-vencida'
@@ -128,7 +130,7 @@ function TextoParaCopiar({ texto, aviso }: { texto: string; aviso: string }) {
   )
 }
 
-function ErrorAlCargar({ reintentar }: { reintentar: () => void }) {
+export function ErrorAlCargar({ reintentar }: { reintentar: () => void }) {
   return (
     <div className="flex max-w-prose flex-col items-start gap-4">
       <Nota tono="pronto" rol="alert" icono={<WifiOff aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" />}>
@@ -150,7 +152,7 @@ function Cargando() {
   )
 }
 
-function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
+export function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
   if (carga.tipo === 'cargando')
     return (
       <Pagina titulo={FICHA.titulo}>
@@ -167,20 +169,35 @@ function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
   return null
 }
 
-function VistaPrevia({ titulo, textos, escribiendo }: { titulo: string; textos: Record<CampoApi, string | null>; escribiendo?: CampoApi }) {
+function VistaPrevia({
+  titulo,
+  textos,
+  escribiendo,
+  secciones,
+  nota,
+}: {
+  titulo: string
+  textos: Record<CampoApi, string | null>
+  escribiendo?: CampoApi
+  secciones?: SeccionEnHoja[]
+  nota?: string
+}) {
   const { persona } = useFamilia()
   return (
     <section aria-labelledby="vista-t" className="flex min-w-0 flex-col gap-5">
-      <h2 id="vista-t" className="text-xl font-bold leading-snug">
-        {titulo}
-      </h2>
-      <HojaFicha pila={persona ? nombrePilaDe(persona) : ''} textos={textos} escribiendo={escribiendo} />
+      <div className="flex flex-col gap-1">
+        <h2 id="vista-t" className="text-xl font-bold leading-snug">
+          {titulo}
+        </h2>
+        {nota && <p className="text-sm text-tenue">{nota}</p>}
+      </div>
+      <HojaFicha pila={persona ? nombrePilaDe(persona) : ''} textos={textos} escribiendo={escribiendo} secciones={secciones} />
     </section>
   )
 }
 
 /** Aviso de una sola vez al llegar (guardado o conflicto resuelto). */
-function AvisoDeLlegada() {
+export function AvisoDeLlegada() {
   const { aviso, fijar } = useFamilia()
   const [visto] = useState(aviso)
   useEffect(() => {
@@ -188,7 +205,7 @@ function AvisoDeLlegada() {
   }, [aviso, fijar])
   if (!visto) return null
   return (
-    <Nota tono="ok" titulo={visto.titulo} rol="status" className="mb-6">
+    <Nota tono={visto.tono ?? 'ok'} titulo={visto.titulo} rol="status" className="mb-6">
       {visto.texto}
     </Nota>
   )
@@ -207,6 +224,7 @@ export function TuFicha() {
     <Pagina titulo={FICHA.titulo} bajada={FICHA.bajada}>
       <AvisoDeLlegada />
       <div className="grid grid-cols-1 items-start gap-x-16 gap-y-10 @4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div className="flex min-w-0 flex-col">
         <section aria-label="Campos de la ficha" className="flex min-w-0 flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold leading-snug">
@@ -250,9 +268,14 @@ export function TuFicha() {
             <Lock aria-hidden className="mt-0.5 size-4.5 shrink-0" />
             {FICHA.cifrado}
           </p>
-          <UltimasAperturas />
         </section>
-        <VistaPrevia titulo={FICHA.vistaPrevia} textos={textosDe(ficha)} />
+        {/* MATU-49, 3: después de los tres campos, «Más sobre…». */}
+        <MasSobre ficha={ficha} pila={pila} rol={rol} />
+        <div className="mt-10">
+          <UltimasAperturas />
+        </div>
+        </div>
+        <VistaPrevia titulo={FICHA.vistaPrevia} nota={MAS.vistaPrevia} textos={textosDe(ficha)} secciones={seccionesEnHoja(ficha)} />
       </div>
     </Pagina>
   )
@@ -376,7 +399,7 @@ function EditorCampo({
   if (conflicto)
     return (
       <PantallaConflicto
-        campo={campo}
+        titulo={campo.titulo}
         mio={texto}
         conflicto={conflicto}
         ocupado={ocupado}
@@ -488,7 +511,7 @@ function EditorCampo({
             </Boton>
           </Acciones>
         </section>
-        <VistaPrevia titulo={FICHA.mientrasEscribes} textos={textos} escribiendo={campo.api} />
+        <VistaPrevia titulo={FICHA.mientrasEscribes} textos={textos} escribiendo={campo.api} secciones={seccionesEnHoja(ficha)} />
       </div>
     </>
   )
@@ -496,15 +519,16 @@ function EditorCampo({
 
 // ---------------------------------------------------------------- 3.8 Conflicto
 
-function PantallaConflicto({
-  campo,
+export function PantallaConflicto({
+  titulo,
   mio,
   conflicto,
   ocupado,
   dejarSuya,
   dejarMia,
 }: {
-  campo: Campo
+  /** El título del campo o de la sección. */
+  titulo: string
   mio: string
   conflicto: DatosConflicto
   ocupado: boolean
@@ -521,7 +545,7 @@ function PantallaConflicto({
       <div role="alert" className="flex max-w-prose gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 py-3.5">
         <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto" />
         <div>
-          <Titulo className="text-2xl">{CONFLICTO.titulo(autor, campo.titulo)}</Titulo>
+          <Titulo className="text-2xl">{CONFLICTO.titulo(autor, titulo)}</Titulo>
           <p className="mt-1">{CONFLICTO.explicacion}</p>
         </div>
       </div>
