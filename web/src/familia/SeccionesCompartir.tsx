@@ -87,7 +87,7 @@ export function ElegirSecciones({
               return (
                 <label
                   key={s}
-                  className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 rounded-full px-4 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                  className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-2 rounded-full angosto:rounded-xl px-4 angosto:px-3 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
                     on ? 'bg-rocio text-turquesa ring-turquesa' : 'bg-hoja text-tenue ring-borde hover:ring-turquesa/40'
                   }`}
                 >
@@ -95,7 +95,7 @@ export function ElegirSecciones({
                   <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-sm ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
                     {on && <Check className="size-4 text-turquesa" strokeWidth={3} />}
                   </span>
-                  <span className="min-w-0 break-words">{TITULO_SECCION[s]}</span>
+                  <span className="min-w-0 break-words hyphens-auto">{TITULO_SECCION[s]}</span>
                 </label>
               )
             })}
@@ -152,9 +152,10 @@ export function ConfirmacionRemedios({
       ref={bloque}
       tabIndex={-1}
       aria-busy={ocupado || undefined}
-      className="flex max-w-prose gap-3 rounded-xl border-l-4 border-atenta bg-atenta-fondo px-4 py-3 focus-visible:outline-atenta"
+      // 6.5: en angosto, sin ícono y con px-2, para que la fecha en `cifras` quepa entera.
+      className="flex max-w-prose gap-3 rounded-xl border-l-4 border-atenta bg-atenta-fondo px-4 angosto:px-2 py-3 focus-visible:outline-atenta"
     >
-      <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
+      <Info aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta angosto:hidden" />
       <div className="flex min-w-0 flex-col gap-3">
         <p className="text-base leading-relaxed">
           {antes}
