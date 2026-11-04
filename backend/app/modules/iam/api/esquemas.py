@@ -18,6 +18,7 @@ from app.modules.iam.domain.credenciales import (
     LARGO_MINIMO_CONTRASENA,
 )
 from app.modules.iam.domain.dispositivo import LARGO_MAXIMO_NOMBRE, LARGO_MAXIMO_PUSH, push_admitido
+from app.shared.celular import normalizar_celular
 
 # Forma básica: algo, una @, un dominio con al menos un punto, sin espacios. La verificación
 # real del email llega con el adaptador de correo (sprint 3).
@@ -30,6 +31,18 @@ class SolicitudRegistro(BaseModel):
     nombre: Annotated[str, Field(min_length=1, max_length=100)]
     email: Annotated[str, Field(max_length=LARGO_MAXIMO_EMAIL)]
     contrasena: Annotated[str, Field(min_length=LARGO_MINIMO_CONTRASENA, max_length=LARGO_MAXIMO_CONTRASENA)]
+    telefono: Annotated[
+        str,
+        Field(
+            max_length=20,
+            json_schema_extra={"pattern": r"^(\+?56 ?)?9( ?[0-9]){8}$", "examples": ["+56 9 1234 5678"]},
+            description=(
+                "Celular chileno, obligatorio (decisión 65): 9 y ocho dígitos, con o sin +56 y con o sin"
+                " espacios. Se guarda en E.164 (+569XXXXXXXX). Sirve para recuperar el acceso (MATU-57)."
+                " Nunca aparece en logs ni en la auditoría"
+            ),
+        ),
+    ]
 
     @field_validator("nombre")
     @classmethod
@@ -44,6 +57,25 @@ class SolicitudRegistro(BaseModel):
         if not _FORMA_EMAIL.match(valor.strip()):
             raise ValueError("no tiene la forma de un email")
         return valor
+
+    @field_validator("telefono")
+    @classmethod
+    def _celular_chileno(cls, valor: str) -> str:
+        normalizado = normalizar_celular(valor.strip())
+        if normalizado is None:
+            raise PydanticCustomError("celular_invalido", "no es un celular chileno (+56 9 y ocho dígitos)")
+        return normalizado
+
+
+class ProblemaEmailRegistradoVista(BaseModel):
+    """409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."""
+
+    type: Literal["/errores/email-registrado"]
+    title: str
+    status: Literal[409]
+    detail: str | None
+    errores: list[dict[str, str]]
+    request_id: str | None
 
 
 class CuentaCreadaRespuesta(BaseModel):

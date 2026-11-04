@@ -44,7 +44,7 @@ export const AVISO = {
   titulo: 'Tus datos en MATU', // [PROPUESTO]
   parrafos: [
     'MATU guarda tu nombre y tu teléfono, que anotó quien te compartió la ficha, para enviarte el enlace y poder contactarte. Tu teléfono se borra 30 días después de que el enlace vence o se corta.',
-    'También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, y guarda ese registro 3 años, para saber a quién se compartió.',
+    'También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, con la fecha y la hora. La familia que te compartió la ficha puede ver ese registro con tu nombre. Lo guardamos 3 años.',
     'Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos.',
   ],
   politica: 'Política de privacidad (se abre en otra pestaña)', // [PROPUESTO]

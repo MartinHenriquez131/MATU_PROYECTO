@@ -34,10 +34,10 @@ docs/api/
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
-| `POST /v1/relevo/presentacion` | MATU-19, MATU-23, MATU-25 | Implementado, con el 429 (30 por hora por IP) y el 503 del límite de MATU-25 (decisión 65). Contrato en `relevo.openapi.yaml` |
-| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, con el 429 (10 por hora por IP) y el 503 del límite de MATU-25 (decisión 65). Contrato en `relevo.openapi.yaml` |
+| `POST /v1/relevo/presentacion` | MATU-19, MATU-23, MATU-25 | Implementado, con el 429 (30 por hora por IP) y el 503 del límite de MATU-25 (decisión 81). Contrato en `relevo.openapi.yaml` |
+| `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, con el 429 (10 por hora por IP) y el 503 del límite de MATU-25 (decisión 81). Contrato en `relevo.openapi.yaml` |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23 | Implementado. Contrato en `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado. En `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
 | `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
@@ -45,15 +45,18 @@ docs/api/
 | `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
-| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml`. Solo `finalidad: consumo` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml`, con `If-Match`, 412 y 428 |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | **Nuevo.** Propuesto en `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | Implementado. Solo `finalidad: consumo`. En `openapi.json` desde MATU-36 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado. En `openapi.json` desde MATU-36 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36 |
+| `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 69) | Implementado. 204. En `openapi.json` desde MATU-36 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 68) | Implementado. En `openapi.json` desde MATU-36 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | Implementado, con `avisando` y `alerta_id` (decisión 74). En `openapi.json` desde MATU-37 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
 
 Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`.
 
@@ -73,7 +76,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/version-desactualizada` | 412 | `If-Match` desactualizado o `If-None-Match: *` sobre un campo que ya existe. **Nuevo uso:** `PATCH` de un perfil de consumo con `If-Match` desactualizado, con el perfil en `actual` | Existe (por defecto del 412) |
 | `/errores/validacion` | 422 | Cuerpo, cabeceras o consulta inválidos | Existe |
 | `/errores/falta-version` | 428 | Escritura sin `If-Match` ni `If-None-Match`. **Nuevo uso:** `PATCH` de un perfil de consumo sin `If-Match` o con `If-Match: *` | Existe (por defecto del 428) |
-| `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Faltaba en este catálogo |
+| `/errores/email-registrado` | 409 | `POST /v1/usuarios`: ese email ya tiene una cuenta | Existe (MATU-04). Declarado en `openapi.json` con esquema y ejemplo desde MATU-39 (decisión 67) |
 | `/errores/autorizacion-vigente` | 409 | `POST …/consentimientos`: la persona ya tiene una autorización no revocada para esa finalidad (`consentimiento_vigente_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-duplicado` | 409 | `POST …/consumo`: ya hay un perfil activo de la persona con ese `producto_id` (`perfil_consumo_producto_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-inactivo` | 409 | `PATCH …/consumo/{perfil_id}` sobre un perfil desactivado | **Nuevo** (MATU-36) |
@@ -86,8 +89,8 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | Existe (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | Existe (MATU-19) |
 | `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
-| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49), y el límite por IP de `POST /v1/usuarios`, `/v1/relevo/presentacion` y `/v1/relevo/canje` sin Redis o sin `PEPPER_LIMITES` (decisión 65) | Existe (MATU-12, por defecto del 503) |
-| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones, más de 10 canjes o más de 5 cuentas nuevas por hora desde una IP, en contadores separados, con `Retry-After` de hasta 3600 segundos (decisión 65). **Nuevo uso:** demora progresiva de `POST /v1/sesiones`, con `Retry-After` de hasta 900 segundos (decisión 49) | Existe (por defecto del 429), lo usan MATU-25 y MATU-38 |
+| `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49), y el límite por IP de `POST /v1/usuarios`, `/v1/relevo/presentacion` y `/v1/relevo/canje` sin Redis o sin `PEPPER_LIMITES` (decisión 81) | Existe (MATU-12, por defecto del 503) |
+| `/errores/demasiadas-peticiones` | 429 | Más de 30 presentaciones, más de 10 canjes o más de 5 cuentas nuevas por hora desde una IP, en contadores separados, con `Retry-After` de hasta 3600 segundos (decisión 81). **Nuevo uso:** demora progresiva de `POST /v1/sesiones`, con `Retry-After` de hasta 900 segundos (decisión 49) | Existe (por defecto del 429), lo usan MATU-25 y MATU-38 |
 
 ## Lo que usa la app de familia (MATU-32)
 
@@ -95,9 +98,9 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 
 | Método y ruta | Historia | Estado | Contrato |
 |---|---|---|---|
-| `POST /v1/usuarios` | MATU-04; cambio de MATU-25 | Implementado, con el 429 (5 por hora por IP) y el 503 del límite de MATU-25 (decisión 65) | `openapi.json` |
+| `POST /v1/usuarios` | MATU-04, MATU-39; cambio de MATU-25 | Implementado. Pide `telefono`, celular chileno obligatorio (decisión 65), con el 429 (5 por hora por IP) y el 503 del límite de MATU-25 (decisión 81) | `openapi.json` |
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con el cambio de MATU-38 | `openapi.json` |
-| `GET /v1/grupos` | MATU-06 | Implementado. Devuelve `id`, `nombre` y `rol`: la app elige el grupo para `X-Grupo-Id` y sabe su rol | `openapi.json` |
+| `GET /v1/grupos` | MATU-06, MATU-39 | Implementado. Devuelve `id`, `nombre`, `rol` y `puede_ver_plan` (decisión 66): la app elige el grupo para `X-Grupo-Id`, sabe su rol y si ve la ficha | `openapi.json` |
 | `POST /v1/grupos` | MATU-06 | Implementado | `openapi.json` |
 | `GET /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado, con la vista de cada rol | `openapi.json` |
 | `POST /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado | `openapi.json` |
@@ -106,7 +109,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado | `relevo.openapi.yaml` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado | `relevo.openapi.yaml` |
 | `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | RF-08. La usa la pantalla de MATU-45; sin historia de backend asignada (MATU-19 se fusionó sin ella) | Propuesto, sin implementar | `relevo.openapi.yaml` (su `x-matu-historia` todavía dice MATU-19) |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado | `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
 | `POST /v1/sesiones/cerrar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
 | `GET /v1/dispositivos` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
@@ -119,9 +122,10 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
 | `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | **Nuevo**, propuesto | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 | Implementado | `openapi.json` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | Implementado | `openapi.json` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | Implementado | `openapi.json` |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 | Implementado | `openapi.json` |
 
 La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni `GET /v1/salud`.
 
@@ -218,7 +222,7 @@ Contrato `propuestos/app-familia.openapi.yaml`. Siguen la numeración de las dec
     - `/errores/autorizacion-vigente`, `/errores/perfil-duplicado`, `/errores/perfil-inactivo` y `/errores/alerta-cerrada` (409), uno por conflicto, para que la pantalla elija el texto por `type`.
     - El 403 del consumo reutiliza `sin-consentimiento` y `revision-vencida` con el miembro de extensión `finalidad: consumo`. El 403 de la ficha no lo trae hoy; agregarlo (`plan_cuidado`) sería un cambio a una ruta implementada y no se propone aquí.
 45. **Sin `X-MATU-Cliente: web`, 422, no 401.** Se evalúa antes de mirar la cookie, así que no revela nada de ella, y no rota, no revoca ni borra la cookie. Es un error de programación del cliente, no un estado de la sesión: con 401 la app mandaría a la persona a la entrada y escondería el error. Además, así lo hace FastAPI con una cabecera obligatoria (`Header` con `Literal["web"]`), y el contrato coincide con lo que exportará `openapi.json`. Vale para renovar y cerrar.
-46. **Desactivar es `POST …/consumo/{perfil_id}/desactivar`**, idempotente y sin `If-Match` (archivar no pisa lo que escribió otro). Nunca borra. En la misma transacción pasa a `descartada` las alertas abiertas del perfil. No hay reactivar: se crea otro perfil.
+46. **Desactivar es `POST …/consumo/{perfil_id}/desactivar`** (lo de reactivar y borrar lo cambian las decisiones 68 y 69 del 03-11: desactivar sigue sin borrar, y reactivar y eliminar son acciones aparte), idempotente y sin `If-Match` (archivar no pisa lo que escribió otro). Nunca borra. En la misma transacción pasa a `descartada` las alertas abiertas del perfil. No hay reactivar: se crea otro perfil.
 47. **Un dispositivo es un navegador con sesión.** Iniciar sesión crea un dispositivo `web` con un `nombre` grueso ("Chrome en Android") que arma el servidor sin guardar el agente de usuario, o reutiliza el de la cookie si es del mismo usuario y no está revocado (revocando la familia anterior: una sesión viva por dispositivo). **Cerrar sesión revoca también el dispositivo y borra su `push_token`**: un navegador sin sesión no recibe avisos, y "Tus dispositivos" muestra solo los que tienen una sesión abierta. Sin una cookie propia de dispositivo, que sería un identificador más del navegador.
 48. **El access token lleva el claim `did`** (id del dispositivo): así `GET /v1/dispositivos` marca el `actual` y `PUT /v1/dispositivos/actual/push` sabe dónde escribir, sin que la cookie del refresh (que solo viaja a `/v1/sesiones`) salga de su ruta. El access token vence siempre a los 15 minutos: con la ventana deslizante (decisión 57) la familia no tiene un `expira_en` propio que lo acorte (ajuste por la decisión de Jorge del 31-10). Cambia `tokens_jwt.py` en MATU-38.
 49. **Demora progresiva de la entrada.** Dos contadores de fallos en Redis, por huella de la IP y por huella del email normalizado (HMAC-SHA-256 con un secreto nuevo de `.env`, por ejemplo `PEPPER_LIMITES`, que MATU-25 puede compartir con otro prefijo), que vencen a la hora del primer fallo. Sin demora hasta 5 fallos por email y 20 por IP (CGNAT); después 30 s, 1, 2, 4 y 8 minutos, con tope de 15. El mismo 429 exista o no el email, sin leer la base. Nunca bloquea la cuenta. Un 200 borra el contador del email, nunca el de la IP. **Sin Redis, 503**: falla cerrada, como el canje del relevo; quien ya entró sigue con su refresh, que no usa Redis. **Riesgo aceptado, por confirmar:** alguien que conoce un email puede hacer esperar a esa persona hasta 15 minutos por vez, sin bloquearla.
@@ -314,7 +318,7 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 - **Migración 0007** (era 0006 hasta el merge del PR #25, que tomó ese número): `indice_token.revocado_en` (decisión 23), la política `acceso_relevo_propio` (FOR ALL) reemplazada por `acceso_relevo_leer` (SELECT) y `acceso_relevo_contar` (UPDATE) más un trigger que limita al relevo a `pin_intentos_fallidos`, `usos` y `ultimo_uso_en`, y la función de la decisión 33.
 - **Canje sin `PEPPER_PIN`:** 503 `/errores/servicio-no-disponible` después de los 410/423 y antes de comparar el PIN. Tampoco con Redis caído (503). El contrato lo declara como `RelevoSinServicio` en el canje y en la ficha. La sesión en Redis se crea después del commit del canje: si Redis falla, queda `relevo.canje` sin sesión y se responde 503.
 - **Sin entrada en `indice_token`** con una cookie válida (purgado tras vencer), la ficha responde 410 `relevo-vencido`.
-- **429 por IP:** implementado en MATU-25 (decisión 65). **`/plan/aperturas`** (sprint 3) no está implementado.
+- **429 por IP:** implementado en MATU-25 (decisión 81). **`/plan/aperturas`** lo implementa MATU-45 (ver la sección de MATU-45).
 - **Un 500** lleva `Cache-Control: no-store` siempre y, bajo `/v1/relevo/`, también `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. Lo pone el manejador de `app/core/errores.py`, porque el 500 lo arma `ServerErrorMiddleware` por fuera del middleware de cabeceras.
 - **Privilegios del dueño para `relevo_autorizacion_vigente`.** La función corre como su dueño (`matu_owner`). Con un dueño sin superusuario ni `BYPASSRLS`, como en CI y como manda `00_roles.sql`, las políticas que alcanzan sus lecturas (por ejemplo `plan_familia`, que llama a `app_puede_ver_plan()`) leen `membresia`: el dueño necesita `SELECT` sobre `membresia`. El QA lo comprobó con un rol no superusuario. En la base local de desarrollo `matu_owner` es superusuario y no lo nota: revisar cómo se crearon los roles allí.
 
@@ -362,17 +366,25 @@ Implementado el 02-11 en la rama `matu-38-refresh-rotativo` (RF-37). Las siete r
 
 ### Pendientes de MATU-38
 
-- **P2-1 · Proxy.** Detrás de un proxy hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` (la IP del proxy), o todas las peticiones comparten la IP del proxy y la demora por IP bloquea a todos. **Resuelto en MATU-25** (decisión 65): `python -m app.servidor` con `FORWARDED_ALLOW_IPS`. Falta fijar su valor en Railway (ver `infra/railway/README.md`).
+- **P2-1 · Proxy.** Detrás de un proxy hay que configurar Uvicorn con `--proxy-headers` y `--forwarded-allow-ips` (la IP del proxy), o todas las peticiones comparten la IP del proxy y la demora por IP bloquea a todos. **Resuelto en MATU-25** (decisión 81): `python -m app.servidor` con `FORWARDED_ALLOW_IPS`. Falta fijar su valor en Railway (ver `infra/railway/README.md`).
 - **P2-2 · Nadie lee la auditoría de la cuenta.** Las filas con `grupo_id` nulo quedan fuera de las políticas de lectura de 0005. Para Jorge: una política `SELECT` con `grupo_id IS NULL AND actor_ref = app_usuario()`, o un procedimiento de solicitud del titular.
 - **P3-1 · Lectura de la decisión 49.** Hoy hasta 5 fallos por email no hay espera: el 6.º fallo fija la primera espera, y el primer intento que la recibe es el 7.º. Confirmar con Jorge si "sin demora hasta 5 fallos" significa eso. No se cambió.
 - **P3-3 · Volumen de la auditoría.** Un atacante repartido en muchas IP puede inflar `auditoria` con `sesion.inicio_fallido` (una fila por fallo, sin tope por IP).
 - **Despliegue.** La API no se despliega a usuarios reales hasta que la política de privacidad 0.10 esté aprobada (decisión 62).
 
+## Decisiones de Jorge del 03-11 (MATU-39)
+
+Las pidió el diseño de la app de familia (`docs/diseno/matu-39-app-familia.md`). Siguen la numeración de `main` (la última era la 64).
+
+65. **`POST /v1/usuarios` pide el celular, obligatorio** (`telefono`). Celular chileno: 9 y ocho dígitos, con o sin `+56`/`56` y con o sin espacios; se guarda en E.164 (`+569XXXXXXXX`) en la columna `usuario.telefono`, que ya existía. Un valor que no es celular (también un fijo) responde 422 con `errores[].tipo = celular_invalido` y sin repetir el valor; si falta, 422 `missing`. La respuesta 201 no lo devuelve (sigue `{id, nombre, email}`). Nunca va a logs ni a la auditoría. Sirve para recuperar el acceso (MATU-57). La regla vive en `backend/app/shared/celular.py`, la misma que usa el teléfono del relevo. **Sin migración:** la columna sigue admitiendo nulos porque hay cuentas creadas antes de este cambio; el formato lo valida la API. Un `CHECK` de formato (`telefono IS NULL OR telefono ~ '^\+569[0-9]{8}$'`) queda pendiente para no chocar con la migración 0009 de MATU-36, que se trabaja en paralelo.
+66. **`GET /v1/grupos` (y la respuesta 201 de `POST /v1/grupos`) agrega `puede_ver_plan`**, booleano por grupo para el rol de quien consulta: `true` para `admin` y `cuidador`, para `pagador` solo con `membresia.puede_ver_plan`, y `false` para `observador`. Es la misma regla que `app_puede_ver_plan()` de la RLS y que `care_plan/domain/ficha.puede_leer`. La app no ofrece la ficha cuando es `false`, en vez de esperar el 404. No cambia ninguna autorización: la ficha sigue respondiendo 404 a quien no la ve.
+67. **El 409 `email-registrado` de `POST /v1/usuarios` se declara en `openapi.json`** con esquema (en línea, `type` constante `/errores/email-registrado`) y ejemplo, igual que el 412 y el 428 de la ficha. Ya existía en la implementación desde MATU-04 y en el catálogo de arriba. El 422 de la misma ruta se declara como `application/problem+json` sin esquema, como los demás.
+
 ## Notas de implementación de MATU-25
 
 Implementado el 03-11 en la rama `matu-25-staging-https` (ADR-019; RF-37 en el registro, RF-06 en el relevo). `POST /v1/usuarios` se volvió a exportar a `openapi.json`; las dos rutas del relevo siguen en `propuestos/relevo.openapi.yaml`, que ya declaraba sus 429 y ahora también el 503 de la presentación.
 
-**Decisión 65 (MATU-25, 03-11, con las condiciones del analista normativo y la decisión de Jorge en el PR #27, P2-1).** El límite por IP vive en la API, con Redis:
+**Decisión 81 (MATU-25, 03-11, con las condiciones del analista normativo y la decisión de Jorge en el PR #27, P2-1).** El límite por IP vive en la API, con Redis:
 
 1. **Tres contadores separados:** `POST /v1/usuarios` 5 por hora, `POST /v1/relevo/canje` 10 y `POST /v1/relevo/presentacion` 30 (decisión 29). Se cuenta toda petición con un cuerpo JSON válido, también la que después responde 422 por sus campos o 410: el límite se evalúa antes de validar los campos (orden de evaluación del contrato del relevo). **Un cuerpo que no es JSON válido responde 422 sin contar en el límite**: FastAPI lo parsea antes de resolver las dependencias. Se acepta (hallazgo P3 de la QA, decisión del orquestador del 03-11, sin mover el límite a un middleware) porque ese 422 no crea cuenta, no prueba un PIN y no revela si un email existe.
 2. **Clave:** `matu:limite:<prefijo>:<huella>`, con la huella HMAC-SHA-256(`PEPPER_LIMITES`, `"<prefijo>:<ip>"`) y un prefijo por contador (`usuarios-ip`, `canje-ip`, `presentacion-ip`), distinto también de los de la demora de la entrada (`entrada-ip`, `entrada-email`). La IP nunca llega a Redis, a un log, a la auditoría ni al 429 (decisión 27). Comparte `PEPPER_LIMITES` con la demora de MATU-38 (decisión 49).
@@ -401,6 +413,63 @@ Decisión de Jorge del 31-10. Cierran los puntos 1 a 5, 7 y parte del 11 de los 
 61. **RLS de operación sobre `dispositivo`/`push_token` y `sesion_refresh`:** se corrige con una migración reversible dentro de MATU-38, que acota a operación a lo que necesita, con su prueba en `test_aislamiento.py`.
 62. **Política 0.10 y entradas 5 y 6 del registro de tratamientos:** las redacta el analista normativo en un PR al repositorio MATU, junto con MATU-36 y MATU-38. Tienen que corregir la duración de la sesión (ventana deslizante de 30 días, decisión 57) y decir que el consumo se borra (decisión 38). Cubren además la autorización para el consumo, los dispositivos y el endpoint de push, la huella de la IP y del email de la demora progresiva y la sección 8. Jorge aprueba y Martín fusiona. `POLITICA_VERSION` pasa a 0.10 antes de que la ruta de autorización llegue a un ambiente con usuarios.
 63. **Consulta legal sobre el consumo como dato de salud** (Ley 21.719, y si basta RLS sin cifrado): no bloquea el semestre. Va a la tarjeta de consulta legal del Product Backlog, "antes de datos reales".
+
+## Decisiones de Jorge del 03-11 (MATU-36)
+
+68. **Reactivar un insumo desactivado:** `POST …/consumo/{perfil_id}/activar`, sin cuerpo ni `If-Match`, idempotente como desactivar. Suma 1 a `version` y conserva el stock y la fecha estimada. Si la persona ya sigue el mismo `producto_id` en otro perfil activo, 409 `perfil-duplicado`. Registra `consumo.activar`.
+69. **Eliminar un insumo de verdad:** `DELETE …/consumo/{perfil_id}`, 204. Borra la fila en el acto, activa o no; sus reposiciones y alertas caen por `ON DELETE CASCADE`. Registra `consumo.eliminar`. Desactivar sigue sin borrar (decisión 46).
+70. **Conservación:** el consumo de una persona (activo o no) se borra 90 días después de que termina su autorización para `consumo`: cuando no queda una no revocada y la última se revocó hace 90 días o más. Una revisión anual vencida no cuenta como término, porque se puede renovar.
+71. **Leen todos los roles del grupo**, incluido el observador. **Escriben** (crear, editar, desactivar, activar, eliminar y dar la autorización) solo `admin` y `cuidador`; los demás reciben 404. RLS lo repite como segunda barrera (migración 0009).
+72. **`GET …/consumo?activo=todos`** devuelve en una sola lista los que se siguen y los que no (pedido del diseñador). Por omisión, solo los activos. Valores: `true`, `false` y `todos`.
+73. **El perfil trae `actualizado_por` (`id` y nombre de pila)**, también en `actual` del 412, para que la pantalla diga "Carmen cambió este insumo" (pedido del diseñador, igual que la ficha de MATU-13). Columna nueva `perfil_consumo.actualizado_por` (0009). El nombre de pila es la primera palabra de `usuario.nombre`.
+
+## Notas de implementación de MATU-36
+
+Implementado el 03-11 en la rama `matu-36-perfil-consumo` (RF-10, RF-11). Las siete rutas pasaron a `openapi.json` (exportado desde `app.openapi()`, como en MATU-38) y se quitaron de `propuestos/app-familia.openapi.yaml` junto con los componentes que solo ellas usaban. `backend/tests/modules/consumption/test_consumo_contrato.py` falla si cambian sin volver a exportar.
+
+- **Módulo `consumption`** (nuevo): las reglas puras están en `domain/perfil.py` (fórmula entera, "hoy" en America/Santiago con el `Reloj`, topes, `If-Match`, roles y conservación). Los casos de uso están en `application/perfiles.py` y `application/conservacion.py`, el SQL en `infrastructure/repositorio_perfiles.py`, y la tarea se corre con `python -m app.modules.consumption.infrastructure.tarea_conservacion`. La autorización (`POST …/consentimientos`) vive en `care_circle` (`application/autorizaciones.py` y `api/router_autorizaciones.py`), que es dueño de `consentimiento`, y reutiliza `validar_otorgamiento`.
+- **Migración 0009** (reversible):
+  - agrega `version` y `actualizado_por`;
+  - agrega un `CHECK` de exactamente uno de `producto_id` y `nombre_libre`, y otro de 1 a 60 caracteres;
+  - separa `perfil_familia` (`FOR ALL`) en `perfil_leer` (grupo del contexto, salvo operación) y en `perfil_crear`, `perfil_editar` y `perfil_borrar`, que exigen `app_escribe_consumo()` (admin o cuidador activo);
+  - crea `consumo_conservar(limite, ahora)`, `SECURITY DEFINER`, que solo corre con `app.rol = 'operacion'`. Exige `limite <= ahora - 90 días` y `ahora <= now() + 5 minutos`.
+- **Orden del `PATCH`:** 404 (perfil), 422 (cuerpo y `nombre_libre_con_producto`), 428, 409 `perfil-inactivo`, 412, y al final 422 `cobertura_maxima`, que depende de los valores ya combinados con la versión vigente.
+- **Tipos de 422 nuevos:** `null_no_admitido` y `cuerpo_vacio` en el `PATCH`, y `cursor_invalido` en la lista.
+- **`Cache-Control: no-store`** va en toda respuesta bajo `/v1/personas-cuidadas/` (middleware de prefijo), también en los 403 y 404. Alcanza también a la ficha, que ya lo ponía en sus respuestas con texto.
+- **Dependencia nueva `tzdata`**, para que `zoneinfo` encuentre America/Santiago en Windows y en imágenes mínimas.
+
+### Pendientes de MATU-36
+
+- **`alerta_quiebre` y `reposicion`** siguen con `alerta_hereda` y `reposicion_hereda` (`FOR ALL`, heredado de `perfil_consumo`). Con 0009, un pagador o un observador con un contexto válido podría escribirlas con SQL directo (la API no lo permite). Conviene separar lectura y escritura con MATU-37, que decide qué escribe el trabajo diario.
+- **`plan_reposicion_linea.perfil_consumo_id`** no tiene `ON DELETE`: si algún día hay filas (capa 3), eliminar o conservar un perfil fallaría. Queda fuera del semestre.
+- **Política 0.10:** sigue siendo condición de despliegue (decisión 62). Debe decir que el consumo se borra a los 90 días de terminar la autorización (decisión 70) y que eliminar un insumo lo borra en el acto (decisión 69).
+
+## Decisiones de MATU-37 (03-11), aprobadas por Jorge el 03-11
+
+74. **«Se acaban pronto» trae `avisando` y `alerta_id`** (pedido del diseñador, `docs/diseno/matu-37-alertas.md`, sección 5). `avisando` = el insumo está en su ventana (`dias_restantes <= dias_aviso`) y no hay una alerta `resuelta` ni `descartada` para su `fecha_quiebre_estimada` actual. `alerta_id` es la alerta de esa fecha en cualquier estado, o `null` si el trabajo diario aún no la creó. La regla vive en el backend (`domain/alerta.py`).
+75. **El trabajo diario y las alertas desalineadas** (resuelve la nota de MATU-32 «Alertas y cambios del perfil»): por perfil activo, si la persona no tiene autorización vigente para `consumo` no hace nada; si la tiene, descarta (actor `sistema`, `alerta.descartar`) las alertas abiertas de otra fecha o fuera de la ventana, y materializa la de la fecha actual si no existe ninguna para ella. Una alerta cerrada por la familia para una fecha impide otra para esa misma fecha (`alerta_quiebre_uq`); si la familia anota de nuevo cuánto queda y la fecha cambia, vuelve a avisar. No recalcula `fecha_quiebre_estimada`: se materializa al escribir el perfil y no cambia con el paso de los días.
+76. **«Ya lo resolví» es `POST …/consumo/{perfil_id}/resolver`, por insumo** (pedido del diseñador): funciona aunque el trabajo diario no haya creado la alerta. Si hay una abierta para la fecha actual pasa a `descartada`; si no hay ninguna, se crea ya `descartada` en la misma transacción (política `alerta_cerrar_sin_aviso`: la familia nunca crea una alerta abierta). Devuelve el insumo. Solo `admin` y `cuidador`; los demás 404. Cuerpo opcional `{"cantidad": 1..9999 | null}`: sin cantidad, lo de esta decisión y registra `alerta.descartar`; con cantidad, la decisión 79.
+77. **Conservación (decisión de Jorge):** alertas cerradas 90 días desde `cerrada_en`, eventos del outbox ya publicados 30 días desde `publicado_en` (todos los tipos, no solo `QuiebreProximo`), notificaciones 90 días desde `creada_en`, reposiciones mientras exista el perfil. `quiebre_conservar(limite_alertas, limite_eventos, ahora)` (migración 0011), `SECURITY DEFINER`, solo con `app.rol = 'operacion'`. Jorge aprobó también que borre los eventos publicados de todos los tipos y que el trabajo diario enumere los grupos con `app.rol = 'operacion'`. Corre al final de `python -m app.modules.consumption.infrastructure.tarea_quiebres`.
+78. **A quién se avisa (decisión de Jorge):** por defecto a `admin` y `cuidador`; `pagador` y `observador` solo si lo activan en `preferencia_notificacion`. MATU-37 no crea filas de preferencia ni envía nada: la regla queda en `domain/alerta.py` (`avisa_por_defecto`) para MATU-41.
+
+79. **«Ya lo resolví» con cantidad va en MATU-37 y suma** (Jorge, 03-11): el stock nuevo es lo que MATU estima que queda hoy, `piso(stock − días transcurridos × tasa_unidades / tasa_dias)` y 0 si da negativo, más `cantidad`, en la unidad del insumo; `stock_medido_en` pasa a hoy (puerto `Reloj`), se recalcula `fecha_quiebre_estimada`, sube `version` (ETag nuevo, también en la cabecera) y `actualizado_por` es quien resolvió. En la misma transacción se crea una `reposicion` con `origen = 'declarada'`, `registrada_por` = el usuario, `ocurrida_en` = hoy y la cantidad, y la alerta de la fecha anterior (o una nueva ya cerrada) queda `resuelta` con `cerrada_en`. Registra `reposicion.declarar` y `alerta.resolver`, sin la cantidad ni el nombre. Devuelve el insumo recalculado; `avisando` y `alerta_id` se calculan para la fecha nueva (`alerta_id = null`; `avisando` es `false` salvo que lo comprado no saque el insumo de su ventana de aviso, y entonces el trabajo diario vuelve a avisar por la fecha nueva). Orden: 401, 404, 403, 422 (`cantidad` fuera de 1..9999, al validar el cuerpo), 404 (perfil), 428, 409 `perfil-inactivo`, 412, 409 `alerta-cerrada` y 422 `cobertura_maxima` en `cantidad` si pasa de 3650 días. El doble toque lo impide el `If-Match` (decisión 80). No pide marca ni lugar, y nunca crea un pedido.
+
+80. **«Ya lo resolví» es condicional** (hallazgo P2 de la QA, 03-11): un segundo `POST …/resolver` con cantidad después de uno exitoso sumaba otra vez, porque la primera suma cambia la fecha estimada y el 409 `alerta-cerrada` solo mira la alerta de la fecha actual. Ahora `resolver`, con o sin cantidad, exige `If-Match` con el ETag del perfil, igual que el `PATCH` (decisión 41): sin la cabecera, vacía o `*`, **428** `falta-version`; con una versión que no es la vigente, **412** `version-desactualizada` con `actual` (el perfil vigente, su `etag` y `actualizado_por`) y la cabecera `ETag`, **sin sumar, sin anotar la reposición y sin cerrar la alerta**. Con cantidad, la respuesta trae la versión nueva en `etag` y en la cabecera `ETag`. El ETag que manda la pantalla es el campo **`etag`** de cada ítem de `GET …/consumo/por-acabarse` (y de `GET …/consumo` y `GET …/consumo/{perfil_id}`), con las comillas: `"v3"`. Sin cantidad, el perfil no cambia de versión: un segundo descarte con el mismo ETag responde 409 `alerta-cerrada`.
+
+## Notas de implementación de MATU-37
+
+Implementado el 03-11 en la rama `matu-37-prediccion-quiebre` (RF-12). Las cuatro rutas pasaron a `openapi.json` y se quitaron de `propuestos/app-familia.openapi.yaml` con los componentes que solo ellas usaban; ese archivo ya no tiene rutas y conserva solo las copias de los componentes de `relevo.openapi.yaml`. Lo que dice la sección «Propuestos e implementados» sobre `NoAutenticadoApp`, `NoEncontradoApp` y `ValidacionConsultaApp` es historia de MATU-32. `backend/tests/modules/consumption/test_alertas_contrato.py` falla si las rutas cambian sin volver a exportar.
+
+- **Migración 0011** (`down_revision = "0009"`; al fusionar con MATU-45 se encadena sobre la 0010): reemplaza `alerta_hereda` por `alerta_leer`, `alerta_materializar` (solo `sistema`), `alerta_cerrar_sin_aviso`, `alerta_notificar` (solo `sistema`) y `alerta_cerrar` (admin y cuidador). El trigger `alerta_transicion` impide cambiar perfil o fecha, reabrir o cerrar dos veces, y que alguien que no es `sistema` marque `notificada`; el `CHECK alerta_quiebre_cierre` exige `cerrada_en` solo en las cerradas. Reemplaza `reposicion_hereda` por `reposicion_leer`, `reposicion_declarar` (admin y cuidador, `origen = 'declarada'`, `registrada_por = app.usuario_id`) y `reposicion_pedido` (solo `sistema`, `origen = 'pedido_matu'`). Sin `DELETE` para `matu_app` en ninguna de las dos: solo la cascada del perfil y la conservación. Operación no ve ninguna fila.
+- **Trabajo diario:** `python -m app.modules.consumption.infrastructure.tarea_quiebres`, sin programador todavía. Enumera los grupos activos con `app.rol = 'operacion'` (política `grupo_operacion`; no hay una conexión `matu_scheduler` configurada) y corre cada grupo en su propia transacción con `app.rol = 'sistema'`. `QuiebreProximo` va al outbox con `alerta_id`, `perfil_id` y `persona_cuidada_id`; la auditoría registra `alerta.materializar` y `alerta.descartar` con actor `sistema`. El log lleva solo contadores.
+- **Acciones de auditoría nuevas:** `alerta.materializar`, `alerta.descartar`, `alerta.resolver` y `reposicion.declarar`; entidades nuevas `alerta_quiebre` y `reposicion`.
+- **Ninguna alerta genera un pedido**, ni la API ni el trabajo diario.
+
+### Pendientes de MATU-37
+
+- **Crear un usuario de base de datos para las tareas programadas** antes de tener datos reales (Jorge, 03-11): hoy el trabajo diario enumera los grupos con `app.rol = 'operacion'`.
+- **Al fusionar con MATU-45:** cambiar `down_revision` de la 0011 a `"0010"` y volver a correr `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Programar el trabajo diario a las 04:00** (arquitectura 8.5) y, si se quiere el rol `matu_scheduler`, darle su conexión.
 
 ## Pendientes para Jorge (MATU-32)
 
@@ -466,3 +535,53 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 - **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
 - **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
 - **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
+
+## MATU-49 (propuesto)
+
+Contrato de la ficha ampliada (ADR-028), sin implementación: `docs/api/propuestos/ficha-ampliada.openapi.yaml`. Lo implementa MATU-50 (sprint 4). Decisiones de Jorge del 03-11.
+
+**Rutas**
+
+| Ruta | Qué hace |
+|---|---|
+| `GET …/plan/ficha` | Suma `secciones` (solo las agregadas, con `etag`). `completitud` sigue contando solo los tres campos base |
+| `PUT …/plan/secciones/{seccion}` | Agrega (`If-None-Match: *`, 201) o edita (`If-Match`, 200). 428 sin cabecera, 412 con `actual`. Vacío: 422 |
+| `DELETE …/plan/secciones/{seccion}` | Quita la sección **borrando la fila**. `If-Match` obligatorio, 204. Audita `plan.quitar_seccion` sin texto |
+| `POST …/plan/accesos-relevo` | `secciones_adicionales` (0 a 6, sin duplicados, default `[]`) reemplaza a `campos` |
+| `GET /v1/relevo/ficha` | Suma `secciones: [{tipo, texto}]`, solo las compartidas |
+| `GET …/plan/aperturas` | Cada `apertura` suma `secciones`: los tipos mostrados, sin texto |
+
+Secciones: `quien_es`, `preferencias`, `alimentacion`, `movilidad`, `comunicacion` (500 caracteres) y `remedios` (800). Cifradas como los campos base (AES-256-GCM, AAD `plan_id ‖ tipo`). Roles iguales a la ficha. Un `seccion` fuera de las seis responde 404.
+
+**Rutas propias en vez de `/ficha/{campo}`.** Las secciones se borran, tienen otro máximo y no cuentan en la completitud. Meterlas en `/ficha/{campo}` cambiaría el enum `CampoFicha` y la `completitud` del contrato vigente.
+
+**Cambio al contrato de compartir, sin romper**
+
+- Los tres campos base van siempre. El servidor nunca agrega una sección por su cuenta: `remedios` solo va si viene en la lista.
+- `campos` queda deprecado durante MATU-50: si viene con los tres base se acepta y se ignora (la pantalla de MATU-18 y la de MATU-48 siguen funcionando sin cambios); con uno o dos, o vacío (`campos: []`), responde 422 `campos_base_obligatorios`. Se quita en la versión siguiente.
+- La respuesta (`AccesoCreado`, `AccesoResumen`) conserva `campos` y suma `secciones_adicionales`. MATU-48 puede leer las dos.
+- `acceso_relevo.secciones_permitidas` guarda los tres campos base más las secciones elegidas. **Accesos existentes:** no se migran sus filas. Siguen viendo los campos que se eligieron (uno, dos o tres) y `secciones_adicionales: []`; la política RLS del relevo (`tipo = ANY(secciones_permitidas)`) ya los limita.
+- **Un acceso no ve secciones agregadas después de crearlo.** Al compartir solo se eligen secciones ya agregadas (422 `seccion_no_agregada`), y la vista del relevo excluye filas de `plan_seccion` con `creado_en` posterior al `creado_en` del acceso (una sección quitada y vuelta a agregar es otra fila). Editar una sección compartida sí se ve. Es la lectura estricta de la decisión, aprobada por Jorge el 03-11.
+
+**Auditoría.** `relevo.abrir` guarda en `detalle` `{"secciones": [...]}` con los tipos mostrados. `plan.editar` y `plan.quitar_seccion` guardan el tipo. Nunca texto, ni en logs, errores, URLs ni auditoría. Un 422 nombra el campo sin repetir el valor.
+
+**Nota de esquema para MATU-50** (migración Alembic reversible, con `op.execute`):
+
+- `plan_seccion.tipo`: el `CHECK` suma `quien_es`, `comunicacion` y `remedios`. No se quita ningún valor que usen filas existentes: `red_apoyo` es campo base, y `horarios` y `actividades` se dejan en el `CHECK` aunque la API ya no los escriba. El `downgrade` vuelve al `CHECK` anterior y falla si existen filas con los tipos nuevos (o las borra explícitamente, a decidir en la revisión; no se pierden datos sin aviso).
+- `acceso_relevo.secciones_permitidas`: su `CHECK` (`<@ ARRAY[...]`) también debe sumar los tres tipos nuevos, o compartir `comunicacion`, `quien_es` o `remedios` fallaría en la base.
+- `TIPOS_SECCION` en `care_plan/domain/cifrado.py` suma los tres tipos (es la lista que valida el AAD).
+- La política RLS del relevo sobre `plan_seccion` suma la condición `plan_seccion.creado_en <= a.creado_en` para las secciones complementarias (o se filtra en el repositorio; se decide en MATU-50 con su prueba en `test_aislamiento.py`).
+- `esquemas_relevo.py`: `campos` pasa de `min 1 max 3` a deprecado opcional (exactamente los tres), y se agrega `secciones_adicionales`.
+
+**Revisión previa del analista normativo** sobre `remedios` (ADR-028): hecha el 03-11, sin cambios a los textos aprobados.
+
+**Autorizaciones anteriores a la política 0.10.** No hay un 403 propio ni ruta para renovarlas (decisión de Jorge del 03-11): las versiones anteriores a la 0.10 solo se usaron con datos sintéticos y ninguna persona real las aceptó. Basta con que la política 0.10 cubra las secciones complementarias; el 403 sigue siendo solo `sin-consentimiento` o `revision-vencida`.
+
+## MATU-45 · Ver quién abrió la ficha (RF-08)
+
+- **`GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` pasa a `openapi.json`** y sale de `propuestos/relevo.openapi.yaml` (regla de arriba). Se exportó solo esta ruta y sus cuatro esquemas (`ListaAperturasVista`, `AperturaVista`, `AccesoDeAperturaVista`, `TipoApertura`) desde `app.openapi()`. `backend/tests/modules/care_plan/test_aperturas_contrato.py` falla si cambian sin volver a exportar. Las demás rutas del relevo siguen en el propuesto.
+- **Qué devuelve.** Las filas de `auditoria` con `actor_tipo = 'relevo'` y acción `relevo.presentar`, `relevo.abrir`, `relevo.pin_incorrecto` o `relevo.bloqueo` de los accesos del plan de la persona, del más reciente al más antiguo (`ocurrido_en`, y el `id` de auditoría como desempate). `relevo.canje` no se lista: el contrato no lo enumera. Cada ítem trae `ocurrido_en`, `tipo` y `acceso` con `id` y `nombre_relevo` (el nombre que puso la familia al compartir, como en la lista de accesos). Nunca el teléfono, la IP, el `request_id`, el token ni el PIN, para ningún rol.
+- **Quién lista.** `admin`, `cuidador` y `pagador` con `puede_ver_plan`, con la misma dependencia que la lista de accesos (`persona_para_listar`): otro rol, otro grupo, persona inexistente o id no UUID responden el mismo **404**. No exige consentimiento vigente (decisión 18). Sin plan, la lista viene vacía y no se crea el plan.
+- **Paginación.** `cursor` opaco (base64url de `<ocurrido_en>|<id de auditoría>`, distinto del de accesos porque el `id` de `auditoria` es un `bigint`) y `limite` de 1 a 100, 20 por omisión. Cursor inválido o `limite` fuera de rango: **422** RFC 7807.
+- **Migración 0010** (`down_revision` 0009: se escribió sobre 0008 y, al fusionar con MATU-36, se encadenó después de 0009 sin cambiar el SQL). Desde 0005 solo el `admin` leía las filas del relevo de su grupo. 0010 agrega la política `auditoria_aperturas_relevo` (FOR SELECT): filas del grupo del contexto, `actor_tipo = 'relevo'`, una de las cuatro acciones y `app_puede_ver_plan()`. No abre `plan.leer` ni las demás filas de los miembros al cuidador.
+- **Diferencias con el propuesto que se aceptan**, las mismas de la ficha: los 401, 404 y 422 se declaran como `application/problem+json` sin esquema y sin cabeceras, `cursor` sale como `string | null` y `X-Grupo-Id` como `string | null` sin `format: uuid`. El ejemplo del 200 no trae `siguiente_cursor: null` (FastAPI quita los `null` del ejemplo). `x-matu-historia` dice MATU-45 (RF-08).

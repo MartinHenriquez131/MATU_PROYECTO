@@ -1,12 +1,15 @@
 // Botones de MATU (especificación MATU-23, sección 5). Al ancho de su texto, 48 px o más de alto
-// (`min-h-12` = 51 px con la raíz de 17 px) y nunca deshabilitados: la validación ocurre al enviar.
+// (`min-h-12` = 51 px con la raíz de 17 px). La validación ocurre al enviar; solo se deshabilitan
+// donde la especificación lo pide (429 de Entrar, dictado mientras se guarda).
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-type Variante = 'principal' | 'secundario'
+type Variante = 'principal' | 'secundario' | 'texto'
 
 const VARIANTES: Record<Variante, string> = {
   principal: 'bg-turquesa text-papel hover:brightness-110 active:brightness-95',
   secundario: 'bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio active:bg-rocio',
+  // De la demo (Ui.tsx): texto subrayado, sin fondo. Mide 48 px igual que los otros.
+  texto: 'text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa',
 }
 
 export function Boton({
@@ -36,7 +39,7 @@ export function Boton({
         }
         onClick?.(e)
       }}
-      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight ${VARIANTES[variante]} ${className}`}
+      className={`inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60 ${VARIANTES[variante]} ${className}`}
       {...resto}
     >
       {icono && <span className="contents angosto:hidden">{icono}</span>}

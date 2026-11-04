@@ -36,6 +36,7 @@
           "usuarios"
         ],
         "summary": "Crear Cuenta",
+        "description": "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422, 429 y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 81).",
         "operationId": "crear_cuenta_v1_usuarios_post",
         "requestBody": {
           "content": {
@@ -59,13 +60,83 @@
             }
           },
           "409": {
-            "description": "email-registrado",
+            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
             "content": {
-              "application/problem+json": {}
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/email-registrado",
+                      "title": "Type"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 409,
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "title": "Errores"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ],
+                  "title": "ProblemaEmailRegistradoVista",
+                  "description": "409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."
+                },
+                "example": {
+                  "type": "/errores/email-registrado",
+                  "title": "Conflicto",
+                  "status": 409,
+                  "detail": "Ese email ya tiene una cuenta. Inicia sesión",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
+                }
+              }
             }
           },
           "422": {
-            "description": "Cuerpo inválido",
+            "description": "Cuerpo inválido, incluido celular_invalido. Nunca repite el valor",
             "content": {
               "application/problem+json": {}
             }
@@ -1224,10 +1295,1680 @@
           }
         }
       }
+    },
+    "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
+      "get": {
+        "tags": [
+          "accesos de relevo"
+        ],
+        "summary": "Ver quién abrió la ficha con un acceso de relevo",
+        "description": "Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\nListan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\nLas lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.",
+        "operationId": "listarAperturasRelevo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de aperturas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaAperturasVista"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "ocurrido_en": "2026-10-31T13:02:00Z",
+                      "tipo": "apertura",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    },
+                    {
+                      "ocurrido_en": "2026-10-31T13:01:30Z",
+                      "tipo": "pin_incorrecto",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    },
+                    {
+                      "ocurrido_en": "2026-10-31T13:01:00Z",
+                      "tipo": "presentacion",
+                      "acceso": {
+                        "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                        "nombre_relevo": "Rosa"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "cursor inválido o limite fuera de 1 a 100",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "x-matu-historia": "MATU-45 (RF-08)"
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consentimientos": {
+      "post": {
+        "tags": [
+          "autorizaciones"
+        ],
+        "summary": "Dar la autorización para calcular cuándo se acaban los insumos",
+        "operationId": "otorgar_v1_personas_cuidadas__persona_id__consentimientos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudAutorizacionEntrada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutorizacionCreada"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/autorizacion-vigente: ya hay una autorización no revocada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido o una combinación que no cumple las reglas de la calidad",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
+      "get": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Qué se acaba pronto",
+        "description": "Los perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso (hoy en America/Santiago con el Reloj), incluidos los ya pasados. Por fecha estimada y después por id, sin paginar. Sale de perfil_consumo, no de alerta_quiebre (decisión 53). Cada ítem trae avisando y alerta_id (decisión 74)",
+        "operationId": "por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPorAcabarse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
+      "get": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Ver las alertas de la persona",
+        "description": "Por fecha_prevista y después por id. Sin estado, las abiertas (pendiente y notificada). Las crea el trabajo diario, una por perfil y fecha prevista, solo con la autorización para consumo vigente",
+        "operationId": "listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas",
+              "items": {
+                "enum": [
+                  "pendiente",
+                  "notificada",
+                  "resuelta",
+                  "descartada"
+                ]
+              },
+              "title": "Estado"
+            },
+            "description": "Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaAlertas"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "estado, cursor o limite inválidos",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar": {
+      "post": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "No avisar esta vez",
+        "description": "Pasa la alerta a descartada y fija cerrada_en con el Reloj. Nunca la borra. Sin cuerpo. Solo admin y cuidador (decisión 58). Desde resuelta o descartada, 409 alerta-cerrada. Registra alerta.descartar",
+        "operationId": "descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alerta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Alerta Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/alerta-cerrada: la alerta ya está resuelta o descartada; trae el `estado` actual",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver": {
+      "post": {
+        "tags": [
+          "alertas"
+        ],
+        "summary": "Ya lo resolví",
+        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido",
+        "operationId": "resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80)",
+              "title": "If-Match"
+            },
+            "description": "ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80)"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SolicitudResolver"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Solicitud"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/alerta-cerrada (la alerta de la fecha estimada actual ya está cerrada, con su `estado`) o /errores/perfil-inactivo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó): no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: el perfil actual en ``actual``, con quién lo guardó.",
+                  "properties": {
+                    "type": {
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/PerfilConsumoVista"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionPerfilVista",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "Falta If-Match, está vacío o es *",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo": {
+      "get": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Ver los insumos declarados de la persona",
+        "operationId": "listar_v1_personas_cuidadas__persona_id__consumo_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "activo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)",
+              "enum": [
+                "true",
+                "false",
+                "todos"
+              ],
+              "default": "true",
+              "title": "Activo"
+            },
+            "description": "`true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPerfiles"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "cursor, limite o activo inválidos",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Anotar cuánto se usa de un insumo y cuánto queda",
+        "operationId": "crear_v1_personas_cuidadas__persona_id__consumo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPerfil"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilConsumoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/perfil-duplicado: ya se sigue ese producto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}": {
+      "get": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Ver un insumo declarado",
+        "operationId": "ver_v1_personas_cuidadas__persona_id__consumo__perfil_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilConsumoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Corregir cuánto se usa o anotar cuánto queda",
+        "operationId": "editar_v1_personas_cuidadas__persona_id__consumo__perfil_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del perfil tal como se leyó, por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412",
+              "title": "If-Match"
+            },
+            "description": "ETag del perfil tal como se leyó, por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudEdicionPerfil"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilConsumoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no se edita",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "Otra persona cambió el perfil desde que se leyó. `actual` trae el perfil vigente, con su etag y quién lo guardó (actualizado_por)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: el perfil actual en ``actual``, con quién lo guardó.",
+                  "properties": {
+                    "type": {
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/PerfilConsumoVista"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionPerfilVista",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "Falta If-Match, está vacío o es *",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Eliminar un insumo",
+        "description": "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar",
+        "operationId": "eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar": {
+      "post": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Dejar de seguir un insumo",
+        "description": "activo = false, sin borrar (decisión 46). Las alertas abiertas pasan a descartada. Idempotente, sin If-Match. Registra consumo.desactivar",
+        "operationId": "desactivar_v1_personas_cuidadas__persona_id__consumo__perfil_id__desactivar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilConsumoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar": {
+      "post": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Volver a seguir un insumo",
+        "description": "activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar",
+        "operationId": "activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfilConsumoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/perfil-duplicado: ya se sigue ese producto en otro perfil",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AccesoDeAperturaVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre_relevo"
+        ],
+        "title": "AccesoDeAperturaVista",
+        "description": "El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono."
+      },
+      "AlertaVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "perfil_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Perfil Id"
+          },
+          "fecha_prevista": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Prevista",
+            "description": "La fecha estimada del perfil cuando se creó la alerta"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoAlerta"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "notificada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notificada En"
+          },
+          "cerrada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cerrada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "perfil_id",
+          "fecha_prevista",
+          "estado",
+          "creada_en",
+          "notificada_en",
+          "cerrada_en"
+        ],
+        "title": "AlertaVista",
+        "description": "Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil."
+      },
+      "AperturaVista": {
+        "properties": {
+          "ocurrido_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ocurrido En"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoApertura"
+          },
+          "acceso": {
+            "$ref": "#/components/schemas/AccesoDeAperturaVista"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ocurrido_en",
+          "tipo",
+          "acceso"
+        ],
+        "title": "AperturaVista"
+      },
+      "AutorPerfilVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre"
+        ],
+        "title": "AutorPerfilVista",
+        "description": "Quién guardó el perfil por última vez: su id y su nombre de pila, nunca el email."
+      },
       "AutorVista": {
         "properties": {
           "id": {
@@ -1247,6 +2988,30 @@
           "nombre"
         ],
         "title": "AutorVista"
+      },
+      "AutorizacionCreada": {
+        "properties": {
+          "consentimiento": {
+            "$ref": "#/components/schemas/ConsentimientoVista"
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvisoVista"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "consentimiento",
+          "aviso"
+        ],
+        "title": "AutorizacionCreada"
       },
       "AvisoMostradoEntrada": {
         "properties": {
@@ -1656,6 +3421,16 @@
         "title": "DispositivoVista",
         "description": "Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario."
       },
+      "EstadoAlerta": {
+        "type": "string",
+        "enum": [
+          "pendiente",
+          "notificada",
+          "resuelta",
+          "descartada"
+        ],
+        "title": "EstadoAlerta"
+      },
       "EstadoCampoVista": {
         "properties": {
           "texto": {
@@ -1772,13 +3547,19 @@
           "rol": {
             "type": "string",
             "title": "Rol"
+          },
+          "puede_ver_plan": {
+            "type": "boolean",
+            "title": "Puede Ver Plan",
+            "description": "Si quien consulta ve el plan de cuidado (la ficha y los accesos de relevo) en este grupo: admin y cuidador siempre, pagador solo con el permiso explícito, observador nunca (decisión 66)"
           }
         },
         "type": "object",
         "required": [
           "id",
           "nombre",
-          "rol"
+          "rol",
+          "puede_ver_plan"
         ],
         "title": "GrupoRespuesta"
       },
@@ -1794,6 +3575,189 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "InsumoPorAcabarseVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductoResumen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nombre_libre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre Libre"
+          },
+          "unidad": {
+            "$ref": "#/components/schemas/UnidadConsumo"
+          },
+          "tasa_unidades": {
+            "type": "integer",
+            "title": "Tasa Unidades"
+          },
+          "tasa_dias": {
+            "type": "integer",
+            "title": "Tasa Dias"
+          },
+          "stock_unidades": {
+            "type": "integer",
+            "title": "Stock Unidades"
+          },
+          "stock_medido_en": {
+            "type": "string",
+            "format": "date",
+            "title": "Stock Medido En"
+          },
+          "dias_aviso": {
+            "type": "integer",
+            "title": "Dias Aviso"
+          },
+          "fecha_quiebre_estimada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Quiebre Estimada",
+            "description": "Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura"
+          },
+          "dias_restantes": {
+            "type": "integer",
+            "title": "Dias Restantes",
+            "description": "fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorPerfilVista"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"v[1-9][0-9]*\"$",
+            "title": "Etag"
+          },
+          "avisando": {
+            "type": "boolean",
+            "title": "Avisando",
+            "description": "true si dias_restantes <= dias_aviso y no hay una alerta resuelta ni descartada para la fecha_quiebre_estimada actual (decisión 74). Después de «Ya lo resolví» pasa a false"
+          },
+          "alerta_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alerta Id",
+            "description": "La alerta de la fecha estimada actual, en cualquier estado. null si el trabajo diario aún no la creó"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "nombre_libre",
+          "unidad",
+          "tasa_unidades",
+          "tasa_dias",
+          "stock_unidades",
+          "stock_medido_en",
+          "dias_aviso",
+          "fecha_quiebre_estimada",
+          "dias_restantes",
+          "activo",
+          "actualizado_por",
+          "etag",
+          "avisando",
+          "alerta_id"
+        ],
+        "title": "InsumoPorAcabarseVista",
+        "description": "Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto»."
+      },
+      "ListaAlertas": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertaVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaAlertas"
+      },
+      "ListaAperturasVista": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AperturaVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaAperturasVista"
       },
       "ListaDispositivos": {
         "properties": {
@@ -1811,6 +3775,157 @@
           "items"
         ],
         "title": "ListaDispositivos"
+      },
+      "ListaPerfiles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PerfilConsumoVista"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "siguiente_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Siguiente Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "siguiente_cursor"
+        ],
+        "title": "ListaPerfiles"
+      },
+      "ListaPorAcabarse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ListaPorAcabarse"
+      },
+      "PerfilConsumoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductoResumen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nombre_libre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre Libre"
+          },
+          "unidad": {
+            "$ref": "#/components/schemas/UnidadConsumo"
+          },
+          "tasa_unidades": {
+            "type": "integer",
+            "title": "Tasa Unidades"
+          },
+          "tasa_dias": {
+            "type": "integer",
+            "title": "Tasa Dias"
+          },
+          "stock_unidades": {
+            "type": "integer",
+            "title": "Stock Unidades"
+          },
+          "stock_medido_en": {
+            "type": "string",
+            "format": "date",
+            "title": "Stock Medido En"
+          },
+          "dias_aviso": {
+            "type": "integer",
+            "title": "Dias Aviso"
+          },
+          "fecha_quiebre_estimada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha Quiebre Estimada",
+            "description": "Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura"
+          },
+          "dias_restantes": {
+            "type": "integer",
+            "title": "Dias Restantes",
+            "description": "fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutorPerfilVista"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"v[1-9][0-9]*\"$",
+            "title": "Etag"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "nombre_libre",
+          "unidad",
+          "tasa_unidades",
+          "tasa_dias",
+          "stock_unidades",
+          "stock_medido_en",
+          "dias_aviso",
+          "fecha_quiebre_estimada",
+          "dias_restantes",
+          "activo",
+          "actualizado_por",
+          "etag"
+        ],
+        "title": "PerfilConsumoVista",
+        "description": "Un perfil. Exactamente uno de producto y nombre_libre no es null. Sin grupo_id ni precios."
       },
       "PersonaCreada": {
         "properties": {
@@ -1985,6 +4100,31 @@
         "title": "PersonaVistaPagador",
         "description": "Lo que ve el pagador: nombre y dirección."
       },
+      "ProductoResumen": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "presentacion"
+        ],
+        "title": "ProductoResumen"
+      },
       "SesionRespuesta": {
         "properties": {
           "access_token": {
@@ -2010,6 +4150,48 @@
         "title": "SesionRespuesta",
         "description": "Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh."
       },
+      "SolicitudAutorizacionEntrada": {
+        "properties": {
+          "finalidad": {
+            "type": "string",
+            "const": "consumo",
+            "title": "Finalidad"
+          },
+          "calidad_otorgante": {
+            "$ref": "#/components/schemas/CalidadOtorgante"
+          },
+          "referencia_documento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia Documento"
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AvisoMostradoEntrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finalidad",
+          "calidad_otorgante"
+        ],
+        "title": "SolicitudAutorizacionEntrada",
+        "description": "Cuerpo de la autorización. Solo ``finalidad: consumo``. Un campo extra responde 422."
+      },
       "SolicitudCampo": {
         "properties": {
           "texto": {
@@ -2026,6 +4208,80 @@
         "title": "SolicitudCampo",
         "description": "Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422."
       },
+      "SolicitudEdicionPerfil": {
+        "properties": {
+          "nombre_libre": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1,
+                "description": "Nombre del producto tal como se vende. No es para remedios ni para explicar para qué se usa. De 1 a 60 caracteres, una línea, sin caracteres de control"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre Libre"
+          },
+          "tasa_unidades": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasa Unidades"
+          },
+          "tasa_dias": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 90.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasa Dias"
+          },
+          "stock_unidades": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Unidades"
+          },
+          "dias_aviso": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dias Aviso"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudEdicionPerfil",
+        "description": "Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido)."
+      },
       "SolicitudGrupo": {
         "properties": {
           "nombre": {
@@ -2040,6 +4296,80 @@
         ],
         "title": "SolicitudGrupo",
         "description": "Cuerpo de POST /v1/grupos."
+      },
+      "SolicitudPerfil": {
+        "properties": {
+          "producto_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Producto Id"
+          },
+          "nombre_libre": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1,
+                "description": "Nombre del producto tal como se vende. No es para remedios ni para explicar para qué se usa. De 1 a 60 caracteres, una línea, sin caracteres de control"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre Libre"
+          },
+          "unidad": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnidadConsumo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tasa_unidades": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Tasa Unidades"
+          },
+          "tasa_dias": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Tasa Dias",
+            "default": 1
+          },
+          "stock_unidades": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Stock Unidades"
+          },
+          "dias_aviso": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Dias Aviso",
+            "default": 7
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tasa_unidades",
+          "stock_unidades"
+        ],
+        "title": "SolicitudPerfil",
+        "description": "Cuerpo de la creación. producto_id o nombre_libre, exactamente uno (si no, 422 producto_o_nombre)."
       },
       "SolicitudPersona": {
         "properties": {
@@ -2150,6 +4480,16 @@
             "maxLength": 128,
             "minLength": 10,
             "title": "Contrasena"
+          },
+          "telefono": {
+            "type": "string",
+            "maxLength": 20,
+            "pattern": "^(\\+?56 ?)?9( ?[0-9]){8}$",
+            "title": "Telefono",
+            "description": "Celular chileno, obligatorio (decisión 65): 9 y ocho dígitos, con o sin +56 y con o sin espacios. Se guarda en E.164 (+569XXXXXXXX). Sirve para recuperar el acceso (MATU-57). Nunca aparece en logs ni en la auditoría",
+            "examples": [
+              "+56 9 1234 5678"
+            ]
           }
         },
         "additionalProperties": false,
@@ -2157,9 +4497,32 @@
         "required": [
           "nombre",
           "email",
-          "contrasena"
+          "contrasena",
+          "telefono"
         ],
         "title": "SolicitudRegistro"
+      },
+      "SolicitudResolver": {
+        "properties": {
+          "cantidad": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cantidad",
+            "description": "Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudResolver",
+        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta\npasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la\nalerta pasa a resuelta."
       },
       "SolicitudSesion": {
         "properties": {
@@ -2182,6 +4545,26 @@
         ],
         "title": "SolicitudSesion",
         "description": "Cuerpo de POST /v1/sesiones.\n\nSin largo mínimo ni forma de email: un 422 por esas razones distinguiría casos que el login\nresponde siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes."
+      },
+      "TipoApertura": {
+        "type": "string",
+        "enum": [
+          "presentacion",
+          "apertura",
+          "pin_incorrecto",
+          "bloqueo"
+        ],
+        "title": "TipoApertura"
+      },
+      "UnidadConsumo": {
+        "type": "string",
+        "enum": [
+          "unidad",
+          "sobre",
+          "ml",
+          "g"
+        ],
+        "title": "UnidadConsumo"
       },
       "ValidationError": {
         "properties": {
@@ -2222,6 +4605,12 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }

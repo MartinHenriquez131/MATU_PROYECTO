@@ -37,6 +37,11 @@ class EntornoIam:
     creados: list[uuid.UUID] = field(default_factory=list)
 
     def registrar(self, **cuerpo: Any) -> Any:
+        # El celular es obligatorio desde MATU-39. Si la prueba no lo trae, va uno sintético;
+        # telefono=None lo omite del cuerpo
+        cuerpo.setdefault("telefono", "+56 9 0000 0001")
+        if cuerpo["telefono"] is None:
+            del cuerpo["telefono"]
         respuesta = self.cliente.post("/v1/usuarios", json=cuerpo)
         if respuesta.status_code == 201:
             self.creados.append(uuid.UUID(respuesta.json()["id"]))

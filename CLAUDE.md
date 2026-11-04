@@ -1,6 +1,6 @@
 # MATU · Instrucciones para Claude Code
 
-**Versión 2.2 · 25 de octubre de 2026** · basada en el prompt del profesor y la adaptación de Martín. Agente 6 UI/UX. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
+**Versión 2.3 · 4 de noviembre de 2026** (reparto en prueba, sección 0.1) · basada en el prompt del profesor y la adaptación de Martín. Agente 6 UI/UX. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
 
 ---
 
@@ -19,6 +19,20 @@ La fuente de verdad son los documentos del repositorio **MATU** (carpeta `docs/`
 El vault de Obsidian (`../Brain/MATU`) resume y enlaza esos documentos, y se consulta y se mantiene con la skill `matu-brain`. Si el vault contradice `docs/`, manda `docs/` y se corrige el vault.
 
 **Si una instrucción de este prompt contradice uno de esos documentos, no elijas tú.** Detente, señala la contradicción y pregunta a Jorge o a Martín.
+
+### 0.1 Reparto en prueba y modo de trabajo (desde el 04-11-2026)
+
+Desde el 4 de noviembre hay un **reparto en prueba**, aprobado por Jorge y Martín. Se evalúa el jueves 5 de noviembre (`docs/sprints/reparto-en-prueba.md` del repositorio MATU):
+- **Jorge** es PO y desarrolla todo.
+- **Martín** prueba, despliega y revisa.
+
+**Mientras dure la prueba, esa nota manda sobre las secciones 3 y 4 de este archivo** donde se contradigan.
+
+**Al iniciar la sesión, el orquestador elige su modo** según [`.claude/modos-de-trabajo.md`](.claude/modos-de-trabajo.md):
+- **Modo Jorge:** orquestador completo, con los seis agentes.
+- **Modo Martín:** orquestador revisor, con los agentes `qa-tester-revisor`, `analista-revisor`, `disenador-revisor`, `desplegador` y `revisor-documental`, en Opus con esfuerzo mínimo.
+
+**Si la sesión no dice el modo**, el orquestador lo deduce de `git config user.name` y lo confirma en su primera respuesta. Ante la duda, pregunta antes de actuar.
 
 ---
 
@@ -98,6 +112,14 @@ Las cuatro reglas de dependencia de la sección 6.4 las verifica `tests/test_arq
 3. Llama al analista normativo antes de implementar si la historia toca datos personales, consentimiento o dinero
 4. Valida los informes de QA y del analista normativo. Si hay un FAIL, devuelve la tarea al agente que corresponde con el hallazgo exacto
 5. Entrega el resumen final: qué se hizo, comandos para verificarlo, horas usadas y qué falta
+6. **Busca activamente lo que falta**, sin esperar a que se lo pidan. Al planificar, revisar un PR o cerrar una historia, contrasta la idea de MATU con lo que existe y lo que está en los sprints:
+   - **Backend sin pantalla:** toda ruta de la API que una persona tiene que usar necesita una pantalla en alguna tarjeta. Si no la tiene, lo dice
+   - **Pantalla sin backend o sin contrato:** lo pide antes de que el frontend invente
+   - **Datos que se guardan y nadie puede leer**, en especial los de la titular (derecho de acceso)
+   - **Promesas sin cumplir:** lo que dicen la política de privacidad, `lenguaje.md` o un ADR y todavía no está construido
+   - **Lo que una historia deja abierto y ninguna otra recoge**
+
+   Cuando encuentra un faltante, lo informa a la persona con una propuesta concreta (en qué tarjeta va o qué tarjeta nueva crear), y la persona decide
 
 **Escala a las personas, sin decidir por su cuenta:**
 - Cualquier cambio de alcance, de prioridad o de criterio de aceptación

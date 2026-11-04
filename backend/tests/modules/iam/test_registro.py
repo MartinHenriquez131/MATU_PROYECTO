@@ -116,7 +116,13 @@ def test_duplicado_de_la_base_se_traduce_a_409(entorno_iam: EntornoIam, contrase
     app.dependency_overrides[obtener_repositorio_usuarios] = RepositorioConDuplicado  # type: ignore[attr-defined]
 
     respuesta = entorno_iam.cliente.post(
-        "/v1/usuarios", json={"nombre": "Familiar", "email": "familiar@ejemplo.cl", "contrasena": contrasena_sintetica}
+        "/v1/usuarios",
+        json={
+            "nombre": "Familiar",
+            "email": "familiar@ejemplo.cl",
+            "contrasena": contrasena_sintetica,
+            "telefono": "+56 9 0000 0001",
+        },
     )
 
     assert respuesta.status_code == 409

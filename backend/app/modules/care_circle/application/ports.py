@@ -20,6 +20,8 @@ class GrupoDelUsuario:
     id: uuid.UUID
     nombre: str
     rol: str
+    # membresia.puede_ver_plan tal como está en la base (solo puede ser true para el pagador)
+    permiso_plan: bool = False
 
 
 class RepositorioGrupos(Protocol):

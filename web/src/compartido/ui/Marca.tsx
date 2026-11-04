@@ -20,3 +20,13 @@ export function DistintivoPiloto({ className = '' }: { className?: string }) {
     </span>
   )
 }
+
+/** Marca con nombre (demo, `Marca` de Ui.tsx): el logo y "MATU" en la cara de los titulares. */
+export function Marca({ className = '' }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      <Logo className="size-9" />
+      <span className="titular text-xl">MATU</span>
+    </span>
+  )
+}

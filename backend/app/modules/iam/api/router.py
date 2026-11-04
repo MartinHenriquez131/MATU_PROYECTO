@@ -4,17 +4,18 @@ La renovación, el cierre y los dispositivos están en router_sesiones.py.
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.core.config import obtener_configuracion
 from app.core.db import fabrica_sesiones
-from app.core.errores import ErrorMATU
+from app.core.errores import TITULOS, ErrorMATU
 from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
 from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_reloj
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
+    ProblemaEmailRegistradoVista,
     SesionRespuesta,
     SolicitudRegistro,
     SolicitudSesion,
@@ -65,15 +66,38 @@ def obtener_repositorio_usuarios() -> RepositorioUsuarios:
     return RepositorioUsuariosSQL(fabrica_sesiones())
 
 
+_EJEMPLO_409: dict[str, Any] = {
+    "type": "/errores/email-registrado",
+    "title": TITULOS[409],
+    "status": 409,
+    "detail": "Ese email ya tiene una cuenta. Inicia sesión",
+    "errores": [],
+    "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9",
+}
+
+
 @router.post(
     "/usuarios",
     status_code=status.HTTP_201_CREATED,
     response_model=CuentaCreadaRespuesta,
+    description=(
+        "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en"
+        " E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422, 429 y 409."
+        " Desde MATU-25, 5 cuentas por hora por IP (decisión 81)."
+    ),
     # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
     dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
     responses={
-        409: {"description": "email-registrado", **PROBLEMA},
-        422: {"description": "Cuerpo inválido", **PROBLEMA},
+        409: {
+            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
+            "content": {
+                "application/problem+json": {
+                    "schema": ProblemaEmailRegistradoVista.model_json_schema(mode="serialization"),
+                    "example": _EJEMPLO_409,
+                }
+            },
+        },
+        422: {"description": "Cuerpo inválido, incluido celular_invalido. Nunca repite el valor", **PROBLEMA},
         **RESPUESTAS_LIMITE,
     },
 )
@@ -88,6 +112,7 @@ def crear_cuenta(
             nombre=solicitud.nombre,
             email=solicitud.email,
             contrasena=solicitud.contrasena,
+            telefono=solicitud.telefono,
             pepper=pepper,
             hasher=hasher,
             repositorio=repositorio,

@@ -9,6 +9,17 @@ LARGO_MAXIMO_NOMBRE = 80
 # Quien crea un grupo queda como admin de él, en la misma transacción
 ROL_FUNDADOR = "admin"
 
+# Quienes ven el plan de cuidado por su rol. El pagador solo con el permiso explícito de su
+# membresía (membresia.puede_ver_plan); el observador nunca. Es la misma regla que app_puede_ver_plan()
+# en la RLS y que care_plan/domain/ficha.puede_leer.
+ROLES_QUE_VEN_PLAN = frozenset({"admin", "cuidador"})
+ROL_PAGADOR = "pagador"
+
+
+def ve_el_plan(rol: str, permiso_pagador: bool) -> bool:
+    """Si quien tiene esa membresía ve el plan de cuidado (decisión 66, GET /v1/grupos)."""
+    return rol in ROLES_QUE_VEN_PLAN or (rol == ROL_PAGADOR and permiso_pagador)
+
 
 class NombreGrupoInvalido(ValueError):
     """El nombre del grupo está vacío o es demasiado largo. Nunca lleva el nombre en su mensaje."""

@@ -26,6 +26,17 @@ INSERTAR_CONSENTIMIENTO = (
     " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en)"
     " VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)"
 )
+# MATU-36: el consentimiento para consumo, que puede nacer ya revocado (para probar la conservación)
+INSERTAR_CONSENTIMIENTO_REVOCABLE = (
+    "INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+    " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en, revocado_en)"
+    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)"
+)
+INSERTAR_PERFIL_CONSUMO = (
+    "INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, producto_id, nombre_libre, unidad, tasa_unidades,"
+    " tasa_dias, stock_unidades, stock_medido_en, fecha_quiebre_estimada, dias_aviso, activo, version)"
+    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+)
 INSERTAR_PLAN = (
     "INSERT INTO plan_cuidado (id, grupo_id, persona_cuidada_id, modo, actualizado_por)"
     " VALUES (%s, %s, %s, 'ficha_relevo', %s)"
@@ -77,6 +88,10 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM acceso_relevo WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM plan_cuidado WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM clave_datos WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-37: los eventos QuiebreProximo del trabajo diario (el outbox no tiene clave foránea)
+    "DELETE FROM evento_outbox WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-36: sus reposiciones y alertas caen por ON DELETE CASCADE
+    "DELETE FROM perfil_consumo WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])",

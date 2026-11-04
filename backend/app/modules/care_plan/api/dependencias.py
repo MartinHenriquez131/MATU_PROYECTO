@@ -39,6 +39,7 @@ from app.modules.care_plan.application.ports import (
     GeneradorCredencialesRelevo,
     HuellasRelevo,
     RepositorioAccesos,
+    RepositorioAperturas,
     RepositorioFicha,
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
@@ -48,6 +49,7 @@ from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
 from app.modules.care_plan.infrastructure.custodia_kek_entorno import CustodiaKekEntorno
 from app.modules.care_plan.infrastructure.repositorio_accesos import RepositorioAccesosSQL
+from app.modules.care_plan.infrastructure.repositorio_aperturas import RepositorioAperturasSQL
 from app.modules.care_plan.infrastructure.repositorio_claves import RepositorioClavesSQL
 from app.modules.care_plan.infrastructure.repositorio_ficha import RepositorioFichaSQL
 from app.modules.iam.api.dependencias import obtener_reloj
@@ -260,6 +262,10 @@ def obtener_repositorio_accesos(
     contexto: SesionDeGrupo, registro: Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria)]
 ) -> RepositorioAccesos:
     return RepositorioAccesosSQL(contexto.sesion, contexto.grupo_id, registro)
+
+
+def obtener_repositorio_aperturas(contexto: SesionDeGrupo) -> RepositorioAperturas:
+    return RepositorioAperturasSQL(contexto.sesion, contexto.grupo_id)
 
 
 @dataclass(frozen=True)

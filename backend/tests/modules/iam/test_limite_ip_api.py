@@ -149,7 +149,7 @@ def test_openapi_json_coincide_con_la_api_en_el_registro(entorno_iam: EntornoIam
 
 
 def test_un_cuerpo_que_no_es_json_responde_422_sin_contar(entorno_iam: EntornoIam) -> None:
-    """Decisión 65: FastAPI parsea el cuerpo antes de las dependencias. Ese 422 no crea cuenta ni prueba
+    """Decisión 81: FastAPI parsea el cuerpo antes de las dependencias. Ese 422 no crea cuenta ni prueba
     un PIN, así que no cuenta en el límite; un JSON válido con campos inválidos sí cuenta."""
     malformado = {"content": b"{no-es-json", "headers": {"Content-Type": "application/json"}}
     for ruta in ("/v1/usuarios", "/v1/relevo/canje", "/v1/relevo/presentacion"):

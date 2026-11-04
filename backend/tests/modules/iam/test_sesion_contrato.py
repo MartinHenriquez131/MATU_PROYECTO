@@ -41,7 +41,8 @@ def test_las_rutas_implementadas_salen_del_propuesto() -> None:
     # Sin PyYAML (no es dependencia del backend): las rutas son las claves de 2 espacios bajo paths
     lineas = (DOCS / "propuestos" / "app-familia.openapi.yaml").read_text(encoding="utf-8").splitlines()
     rutas = {linea.strip().rstrip(":") for linea in lineas if linea.startswith("  /v1/")}
-    assert rutas and not set(RUTAS) & rutas
+    # Desde MATU-37 el propuesto ya no tiene rutas: todas pasaron a openapi.json
+    assert not set(RUTAS) & rutas
 
 
 def test_la_api_declara_los_codigos_del_contrato(esquema: dict[str, Any]) -> None:
