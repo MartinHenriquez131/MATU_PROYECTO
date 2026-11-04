@@ -254,6 +254,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Agregar o editar una sección complementaria
+         * @description Agrega o edita **una** sección complementaria (ADR-028). Mismo patrón que un campo de la
+         *     ficha (MATU-13), con exactamente una cabecera:
+         *
+         *     | Situación | Cabecera | Si otra persona se adelantó |
+         *     |---|---|---|
+         *     | La sección no está agregada | `If-None-Match: *` | 412 con lo que esa persona guardó |
+         *     | La sección ya está | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+         *
+         *     - Sin ninguna, o con `If-Match` vacío o `*`, **428**. Con las dos, **422**.
+         *     - `If-Match` sobre una sección que no está (nunca agregada, o quitada): **412** con `actual: null`.
+         *     - `texto` vacío o solo espacios: **422** `vacio`. Una sección no se vacía: se quita con `DELETE`.
+         *     - Más de 500 caracteres (800 en `remedios`): **422** `largo_maximo`.
+         *     - `seccion` fuera de las seis (incluidos `rutina`, `horarios`, `actividades` y `red_apoyo`): **404**.
+         *
+         *     La primera escritura crea el plan y la clave de datos de la persona si no existían. **201** si se agregó,
+         *     **200** si se editó. Escriben `admin` y `cuidador`. Registra `plan.editar` con el tipo de la sección, sin el
+         *     texto; el 412, `plan.leer`. Las secciones no cuentan para la completitud.
+         */
+        put: operations["guardarSeccionFicha"];
+        post?: never;
+        /**
+         * Quitar una sección complementaria
+         * @description Quita una sección complementaria **borrando su fila**: el texto cifrado deja de
+         *     existir. Exige `If-Match: "<etag leído>"`, para no borrar lo que otra persona acaba de escribir:
+         *
+         *     - Sin `If-Match`, o con `If-Match` vacío o `*`: **428**. `If-None-Match`: **422**.
+         *     - ETag distinto del actual: **412** con el contenido actual.
+         *     - La sección no está (nunca agregada, o ya quitada): **412** con `actual: null`. No es 404, para que la
+         *       pantalla distinga "ya la quitó otra persona" de "no tienes acceso".
+         *     - **204** sin cuerpo.
+         *
+         *     Registra `plan.quitar_seccion` con el tipo de la sección, sin el texto. Un acceso de relevo que la compartía
+         *     deja de mostrarla; si se vuelve a agregar, ese acceso no la ve.
+         */
+        delete: operations["quitarSeccionFicha"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar Accesos */
+        get: operations["listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get"];
+        put?: never;
+        /** Crear Acceso */
+        post: operations["crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
         parameters: {
             query?: never;
@@ -268,6 +336,8 @@ export interface paths {
          *     Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).
          *
          *     Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.
+         *
+         *     MATU-50: cada ítem de `tipo: apertura` trae `secciones`, los tipos de las secciones complementarias que se mostraron (leídos del `detalle` de `relevo.abrir`; `[]` en las aperturas anteriores). Los demás tipos no la traen. Nunca trae texto.
          */
         get: operations["listarAperturasRelevo"];
         put?: never;
@@ -278,10 +348,229 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/relevo/ficha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer Ficha Como Relevo */
+        get: operations["leer_ficha_como_relevo_v1_relevo_ficha_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consentimientos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dar la autorización para calcular cuándo se acaban los insumos */
+        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Qué se acaba pronto
+         * @description Los perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso (hoy en America/Santiago con el Reloj), incluidos los ya pasados. Por fecha estimada y después por id, sin paginar. Sale de perfil_consumo, no de alerta_quiebre (decisión 53). Cada ítem trae avisando y alerta_id (decisión 74)
+         */
+        get: operations["por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver las alertas de la persona
+         * @description Por fecha_prevista y después por id. Sin estado, las abiertas (pendiente y notificada). Las crea el trabajo diario, una por perfil y fecha prevista, solo con la autorización para consumo vigente
+         */
+        get: operations["listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * No avisar esta vez
+         * @description Pasa la alerta a descartada y fija cerrada_en con el Reloj. Nunca la borra. Sin cuerpo. Solo admin y cuidador (decisión 58). Desde resuelta o descartada, 409 alerta-cerrada. Registra alerta.descartar
+         */
+        post: operations["descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ya lo resolví
+         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido
+         */
+        post: operations["resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ver los insumos declarados de la persona */
+        get: operations["listar_v1_personas_cuidadas__persona_id__consumo_get"];
+        put?: never;
+        /** Anotar cuánto se usa de un insumo y cuánto queda */
+        post: operations["crear_v1_personas_cuidadas__persona_id__consumo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ver un insumo declarado */
+        get: operations["ver_v1_personas_cuidadas__persona_id__consumo__perfil_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Eliminar un insumo
+         * @description Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar
+         */
+        delete: operations["eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete"];
+        options?: never;
+        head?: never;
+        /** Corregir cuánto se usa o anotar cuánto queda */
+        patch: operations["editar_v1_personas_cuidadas__persona_id__consumo__perfil_id__patch"];
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dejar de seguir un insumo
+         * @description activo = false, sin borrar (decisión 46). Las alertas abiertas pasan a descartada. Idempotente, sin If-Match. Registra consumo.desactivar
+         */
+        post: operations["desactivar_v1_personas_cuidadas__persona_id__consumo__perfil_id__desactivar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volver a seguir un insumo
+         * @description activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar
+         */
+        post: operations["activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccesoCreadoVista */
+        AccesoCreadoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Url */
+            url: string;
+            /** Pin */
+            pin: string;
+            /** Campos */
+            campos: components["schemas"]["CampoFicha"][];
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Nombre Pila Persona */
+            nombre_pila_persona: string;
+        };
         /**
          * AccesoDeAperturaVista
          * @description El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono.
@@ -295,6 +584,77 @@ export interface components {
             /** Nombre Relevo */
             nombre_relevo: string;
         };
+        /**
+         * AccesoResumenVista
+         * @description telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31).
+         *     otorgado_por.nombre es el nombre de pila de quien compartió, nunca el completo (decisión 35).
+         */
+        AccesoResumenVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
+            telefono_relevo?: string | null;
+            /** Campos */
+            campos: components["schemas"]["CampoFicha"][];
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
+            motivo: components["schemas"]["MotivoAcceso"];
+            estado: components["schemas"]["EstadoAcceso"];
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Usos */
+            usos: number;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            otorgado_por: components["schemas"]["AutorAccesoVista"] | null;
+        };
+        /**
+         * AlertaVista
+         * @description Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil.
+         */
+        AlertaVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Perfil Id
+             * Format: uuid
+             */
+            perfil_id: string;
+            /**
+             * Fecha Prevista
+             * Format: date
+             * @description La fecha estimada del perfil cuando se creó la alerta
+             */
+            fecha_prevista: string;
+            estado: components["schemas"]["EstadoAlerta"];
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /** Notificada En */
+            notificada_en: string | null;
+            /** Cerrada En */
+            cerrada_en: string | null;
+        };
         /** AperturaVista */
         AperturaVista: {
             /**
@@ -304,6 +664,34 @@ export interface components {
             ocurrido_en: string;
             tipo: components["schemas"]["TipoApertura"];
             acceso: components["schemas"]["AccesoDeAperturaVista"];
+            /**
+             * Secciones
+             * @description Solo en `tipo: apertura`. Tipos mostrados, sin texto
+             */
+            secciones?: components["schemas"]["SeccionComplementaria"][];
+        };
+        /** AutorAccesoVista */
+        AutorAccesoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+        };
+        /**
+         * AutorPerfilVista
+         * @description Quién guardó el perfil por última vez: su id y su nombre de pila, nunca el email.
+         */
+        AutorPerfilVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
         };
         /** AutorVista */
         AutorVista: {
@@ -314,6 +702,11 @@ export interface components {
             id: string;
             /** Nombre */
             nombre: string;
+        };
+        /** AutorizacionCreada */
+        AutorizacionCreada: {
+            consentimiento: components["schemas"]["ConsentimientoVista"];
+            aviso: components["schemas"]["AvisoVista"] | null;
         };
         /**
          * AvisoMostradoEntrada
@@ -347,6 +740,11 @@ export interface components {
          */
         CalidadOtorgante: "titular" | "representante_legal" | "cuidador_de_hecho";
         /**
+         * CampoFicha
+         * @enum {string}
+         */
+        CampoFicha: "rutina" | "manejo_situaciones" | "red_apoyo";
+        /**
          * CampoGuardadoVista
          * @description Respuesta 200 o 201 de PUT …/plan/ficha/{campo}.
          */
@@ -371,6 +769,11 @@ export interface components {
              * @enum {integer}
              */
             completitud: 0 | 33 | 67 | 100;
+        };
+        /** CampoRelevoVista */
+        CampoRelevoVista: {
+            /** Texto */
+            texto: string | null;
         };
         /** CamposVista */
         CamposVista: {
@@ -484,6 +887,16 @@ export interface components {
             actual: boolean;
         };
         /**
+         * EstadoAcceso
+         * @enum {string}
+         */
+        EstadoAcceso: "vigente" | "vencido" | "revocado" | "bloqueado";
+        /**
+         * EstadoAlerta
+         * @enum {string}
+         */
+        EstadoAlerta: "pendiente" | "notificada" | "resuelta" | "descartada";
+        /**
          * EstadoCampoVista
          * @description Un campo: nunca escrito (todo null), vaciado (texto null con etag) o escrito.
          */
@@ -497,8 +910,42 @@ export interface components {
             actualizado_en: string | null;
         };
         /**
+         * EstadoSeccionVista
+         * @description Una sección complementaria agregada (MATU-50). No hay estado "vacío": una sección que no está no viene.
+         */
+        EstadoSeccionVista: {
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"] | null;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** FichaRelevoVista */
+        FichaRelevoVista: {
+            /** Nombre Pila */
+            nombre_pila: string;
+            /** Nombre Pila Comparte */
+            nombre_pila_comparte: string;
+            /**
+             * Vence En
+             * Format: date-time
+             */
+            vence_en: string;
+            /** Campos */
+            campos: {
+                [key: string]: components["schemas"]["CampoRelevoVista"];
+            };
+            /** Secciones */
+            secciones: components["schemas"]["SeccionRelevoVista"][];
+        };
+        /**
          * FichaVista
-         * @description Respuesta 200 de GET …/plan/ficha: siempre los tres campos.
+         * @description Respuesta 200 de GET …/plan/ficha: siempre los tres campos, y solo las secciones agregadas.
          */
         FichaVista: {
             /**
@@ -514,6 +961,13 @@ export interface components {
             /** Actualizado En */
             actualizado_en: string | null;
             campos: components["schemas"]["CamposVista"];
+            /**
+             * Secciones
+             * @description Solo las secciones complementarias agregadas (MATU-50). Las que no están no vienen
+             */
+            secciones: {
+                [key: string]: components["schemas"]["EstadoSeccionVista"];
+            };
         };
         /** GrupoRespuesta */
         GrupoRespuesta: {
@@ -537,6 +991,75 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * InsumoPorAcabarseVista
+         * @description Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto».
+         */
+        InsumoPorAcabarseVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoResumen"] | null;
+            /** Nombre Libre */
+            nombre_libre: string | null;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /** Tasa Dias */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Stock Medido En
+             * Format: date
+             */
+            stock_medido_en: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /**
+             * Fecha Quiebre Estimada
+             * Format: date
+             * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
+             */
+            fecha_quiebre_estimada: string;
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó
+             */
+            dias_restantes: number;
+            /** Activo */
+            activo: boolean;
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está */
+            actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
+            /** Etag */
+            etag: string;
+            /**
+             * Avisando
+             * @description true si dias_restantes <= dias_aviso y no hay una alerta resuelta ni descartada para la fecha_quiebre_estimada actual (decisión 74). Después de «Ya lo resolví» pasa a false
+             */
+            avisando: boolean;
+            /**
+             * Alerta Id
+             * @description La alerta de la fecha estimada actual, en cualquier estado. null si el trabajo diario aún no la creó
+             */
+            alerta_id: string | null;
+        };
+        /** ListaAccesosVista */
+        ListaAccesosVista: {
+            /** Items */
+            items: components["schemas"]["AccesoResumenVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaAlertas */
+        ListaAlertas: {
+            /** Items */
+            items: components["schemas"]["AlertaVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
         /** ListaAperturasVista */
         ListaAperturasVista: {
             /** Items */
@@ -548,6 +1071,69 @@ export interface components {
         ListaDispositivos: {
             /** Items */
             items: components["schemas"]["DispositivoVista"][];
+        };
+        /** ListaPerfiles */
+        ListaPerfiles: {
+            /** Items */
+            items: components["schemas"]["PerfilConsumoVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaPorAcabarse */
+        ListaPorAcabarse: {
+            /** Items */
+            items: components["schemas"]["InsumoPorAcabarseVista"][];
+        };
+        /**
+         * MotivoAcceso
+         * @description Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría.
+         * @enum {string}
+         */
+        MotivoAcceso: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
+        /**
+         * PerfilConsumoVista
+         * @description Un perfil. Exactamente uno de producto y nombre_libre no es null. Sin grupo_id ni precios.
+         */
+        PerfilConsumoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoResumen"] | null;
+            /** Nombre Libre */
+            nombre_libre: string | null;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /** Tasa Dias */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Stock Medido En
+             * Format: date
+             */
+            stock_medido_en: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /**
+             * Fecha Quiebre Estimada
+             * Format: date
+             * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
+             */
+            fecha_quiebre_estimada: string;
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó
+             */
+            dias_restantes: number;
+            /** Activo */
+            activo: boolean;
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está */
+            actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
+            /** Etag */
+            etag: string;
         };
         /**
          * PersonaCreada
@@ -622,6 +1208,46 @@ export interface components {
             nombre: string;
             direccion: components["schemas"]["DireccionVista"] | null;
         };
+        /** ProductoResumen */
+        ProductoResumen: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+        };
+        /**
+         * SeccionComplementaria
+         * @enum {string}
+         */
+        SeccionComplementaria: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+        /**
+         * SeccionGuardadaVista
+         * @description Respuesta 200 o 201 de PUT …/plan/secciones/{seccion}. Sin completitud: las secciones no cuentan.
+         */
+        SeccionGuardadaVista: {
+            seccion: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"];
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** SeccionRelevoVista */
+        SeccionRelevoVista: {
+            tipo: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+        };
         /**
          * SesionRespuesta
          * @description Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh.
@@ -638,6 +1264,44 @@ export interface components {
             /** Expira En */
             expira_en: number;
         };
+        /** SolicitudAccesoVista */
+        SolicitudAccesoVista: {
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
+            telefono_relevo: string;
+            /**
+             * Campos
+             * @deprecated
+             * @description Deprecado. Si viene, debe tener los tres campos base; si no, 422 campos_base_obligatorios
+             */
+            campos?: components["schemas"]["CampoFicha"][] | null;
+            /**
+             * Secciones Adicionales
+             * @description Secciones complementarias que también ve el relevo, sin repetir. Cada una debe estar agregada (si no, 422 seccion_no_agregada). El servidor nunca agrega una por su cuenta
+             */
+            secciones_adicionales?: components["schemas"]["SeccionComplementaria"][];
+            /** Expira En */
+            expira_en?: string | null;
+            motivo: components["schemas"]["MotivoAcceso"];
+            /** Relevo Informado */
+            relevo_informado: boolean;
+        };
+        /**
+         * SolicitudAutorizacionEntrada
+         * @description Cuerpo de la autorización. Solo ``finalidad: consumo``. Un campo extra responde 422.
+         */
+        SolicitudAutorizacionEntrada: {
+            /**
+             * Finalidad
+             * @constant
+             */
+            finalidad: "consumo";
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"];
+            /** Referencia Documento */
+            referencia_documento?: string | null;
+            aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
+        };
         /**
          * SolicitudCampo
          * @description Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422.
@@ -647,12 +1311,53 @@ export interface components {
             texto: string;
         };
         /**
+         * SolicitudEdicionPerfil
+         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido).
+         */
+        SolicitudEdicionPerfil: {
+            /** Nombre Libre */
+            nombre_libre?: string | null;
+            /** Tasa Unidades */
+            tasa_unidades?: number | null;
+            /** Tasa Dias */
+            tasa_dias?: number | null;
+            /** Stock Unidades */
+            stock_unidades?: number | null;
+            /** Dias Aviso */
+            dias_aviso?: number | null;
+        };
+        /**
          * SolicitudGrupo
          * @description Cuerpo de POST /v1/grupos.
          */
         SolicitudGrupo: {
             /** Nombre */
             nombre: string;
+        };
+        /**
+         * SolicitudPerfil
+         * @description Cuerpo de la creación. producto_id o nombre_libre, exactamente uno (si no, 422 producto_o_nombre).
+         */
+        SolicitudPerfil: {
+            /** Producto Id */
+            producto_id?: string | null;
+            /** Nombre Libre */
+            nombre_libre?: string | null;
+            unidad?: components["schemas"]["UnidadConsumo"] | null;
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /**
+             * Tasa Dias
+             * @default 1
+             */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Dias Aviso
+             * @default 7
+             */
+            dias_aviso: number;
         };
         /**
          * SolicitudPersona
@@ -702,6 +1407,30 @@ export interface components {
             telefono: string;
         };
         /**
+         * SolicitudResolver
+         * @description Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta
+         *     pasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la
+         *     alerta pasa a resuelta.
+         */
+        SolicitudResolver: {
+            /**
+             * Cantidad
+             * @description Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999
+             */
+            cantidad?: number | null;
+        };
+        /**
+         * SolicitudSeccion
+         * @description Cuerpo de PUT …/plan/secciones/{seccion} (MATU-50). Un campo extra responde 422.
+         */
+        SolicitudSeccion: {
+            /**
+             * Texto
+             * @description Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios`, contados después de quitar los espacios de los extremos. Vacío o solo espacios responde 422 `vacio`
+             */
+            texto: string;
+        };
+        /**
          * SolicitudSesion
          * @description Cuerpo de POST /v1/sesiones.
          *
@@ -719,6 +1448,11 @@ export interface components {
          * @enum {string}
          */
         TipoApertura: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
+        /**
+         * UnidadConsumo
+         * @enum {string}
+         */
+        UnidadConsumo: "unidad" | "sobre" | "ml" | "g";
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1565,6 +2299,520 @@ export interface operations {
             };
         };
     };
+    guardarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio si la sección ya está. Vacío o * responde 428 */
+                "If-Match"?: string | null;
+                /** @description Solo *, para agregar una sección que no está. Otro valor, o junto con If-Match, responde 422 */
+                "If-None-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSeccion"];
+            };
+        };
+        responses: {
+            /** @description Sección editada, con If-Match */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Sección agregada, con If-None-Match: * */
+            201: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Cuerpo inválido: `texto` falta, no es texto, trae caracteres de control (tipo value_error), está vacío o solo con espacios (tipo vacio) o supera 500 caracteres, 800 en remedios (tipo largo_maximo); o hay un campo extra. También If-Match e If-None-Match a la vez (precondicion_doble) o If-None-Match distinto de * (precondicion_invalida). errores[] nombra el campo o la cabecera, nunca el valor */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    quitarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio. Vacío o * responde 428. If-None-Match no se admite al quitar: responde 422 */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sección quitada: su fila se borró */
+            204: {
+                headers: {
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Vino If-None-Match: quitar solo admite If-Match (tipo precondicion_invalida) */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get: {
+        parameters: {
+            query?: {
+                estado?: components["schemas"]["EstadoAcceso"] | null;
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaAccesosVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudAccesoVista"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccesoCreadoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo, nunca el valor. MATU-50: `campos` con menos de los tres campos base, vacío o null (tipo campos_base_obligatorios); `secciones_adicionales` con una sección repetida (tipo duplicado) o que no está agregada (tipo seccion_no_agregada) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Error inesperado */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta PEPPER_PIN: compartir falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     listarAperturasRelevo: {
         parameters: {
             query?: {
@@ -1600,7 +2848,11 @@ export interface operations {
                      *           "acceso": {
                      *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
                      *             "nombre_relevo": "Rosa"
-                     *           }
+                     *           },
+                     *           "secciones": [
+                     *             "comunicacion",
+                     *             "remedios"
+                     *           ]
                      *         },
                      *         {
                      *           "ocurrido_en": "2026-10-31T13:01:30Z",
@@ -1649,6 +2901,930 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    leer_ficha_como_relevo_v1_relevo_ficha_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FichaRelevoVista"];
+                };
+            };
+            /** @description Sin cookie, o cookie sin sesión en Redis */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description relevo-vencido, relevo-revocado o relevo-pausado. Borra la cookie */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Bloqueado después del canje. Borra la cookie */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis o la custodia de la clave no responden */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    otorgar_v1_personas_cuidadas__persona_id__consentimientos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudAutorizacionEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutorizacionCreada"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/autorizacion-vigente: ya hay una autorización no revocada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido o una combinación que no cumple las reglas de la calidad */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPorAcabarse"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get: {
+        parameters: {
+            query?: {
+                /** @description Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas */
+                estado?: string[] | null;
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaAlertas"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado, cursor o limite inválidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                alerta_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/alerta-cerrada: la alerta ya está resuelta o descartada; trae el `estado` actual */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80) */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SolicitudResolver"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsumoPorAcabarseVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/alerta-cerrada (la alerta de la fecha estimada actual ya está cerrada, con su `estado`) o /errores/perfil-inactivo */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó): no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_v1_personas_cuidadas__persona_id__consumo_get: {
+        parameters: {
+            query?: {
+                /** @description `true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72) */
+                activo?: "true" | "false" | "todos";
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPerfiles"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor, limite o activo inválidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_v1_personas_cuidadas__persona_id__consumo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPerfil"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-duplicado: ya se sigue ese producto */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_v1_personas_cuidadas__persona_id__consumo__perfil_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    editar_v1_personas_cuidadas__persona_id__consumo__perfil_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó, por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudEdicionPerfil"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no se edita */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona cambió el perfil desde que se leyó. `actual` trae el perfil vigente, con su etag y quién lo guardó (actualizado_por) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    desactivar_v1_personas_cuidadas__persona_id__consumo__perfil_id__desactivar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-duplicado: ya se sigue ese producto en otro perfil */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

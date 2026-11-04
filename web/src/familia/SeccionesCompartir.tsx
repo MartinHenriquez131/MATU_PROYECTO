@@ -14,7 +14,7 @@
 //      casilla, cierra el bloque y devuelve el foco a la casilla (`idCasillaRemedios`).
 //   4. Si cambia el nombre o el plazo con la confirmación abierta, se cierra (6.3).
 //   5. El cuerpo del POST lleva `secciones_adicionales: eleccion.paraEnviar` y no lleva `campos`
-//      (deprecado en ficha-ampliada.openapi.yaml). Un 422 `seccion_no_agregada` significa que otra
+//      (deprecado en docs/api/openapi.json). Un 422 `seccion_no_agregada` significa que otra
 //      persona quitó una sección mientras tanto: hay que volver a leer la ficha.
 //   6. En la pantalla del PIN y en «Enlaces»: `COMPARTIR_SECCIONES.loQueVe(titulos)` y, bajo el
 //      PIN, `COMPARTIR_SECCIONES.despues(nombre)` (6.4).

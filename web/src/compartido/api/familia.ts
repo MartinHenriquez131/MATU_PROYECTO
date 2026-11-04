@@ -4,7 +4,6 @@
 import { isAxiosError } from 'axios'
 import { apiFamilia } from './sesion'
 import type { components } from './familia.openapi'
-import type { components as Ampliada } from './ficha-ampliada.openapi'
 import type { SeccionApi } from '../secciones'
 
 type S = components['schemas']
@@ -22,12 +21,8 @@ type DireccionNueva = Omit<S['DireccionNueva'], 'etiqueta' | 'region'> & Partial
 export type SolicitudPersona = Omit<S['SolicitudPersona'], 'direccion'> & { direccion?: DireccionNueva | null }
 export type PersonaCreada = S['PersonaCreada']
 export type Calidad = S['CalidadOtorgante']
-/**
- * `GET …/plan/ficha`. `secciones` es el cambio aditivo de MATU-50 (ficha-ampliada.openapi.yaml):
- * solo las secciones agregadas. Opcional aquí porque una API anterior a MATU-50 no la trae; la
- * pantalla la lee con `seccionesDe`, que devuelve `{}` si falta.
- */
-export type Ficha = S['FichaVista'] & { secciones?: Ampliada['schemas']['FichaAmpliadaParcial']['secciones'] }
+/** `GET …/plan/ficha`, con `secciones` (MATU-50): solo las secciones agregadas. */
+export type Ficha = S['FichaVista']
 export type EstadoCampo = S['EstadoCampoVista']
 export type CampoGuardado = S['CampoGuardadoVista']
 export type CampoApi = keyof S['CamposVista']
@@ -112,8 +107,8 @@ export async function listarAperturas(personaId: string, cursor: string | null =
 
 // ---------------------------------------------------------------- secciones complementarias (MATU-50)
 
-export type EstadoSeccion = Ampliada['schemas']['EstadoSeccion']
-export type SeccionGuardada = Ampliada['schemas']['SeccionGuardada']
+export type EstadoSeccion = S['EstadoSeccionVista']
+export type SeccionGuardada = S['SeccionGuardadaVista']
 export type SeccionesFicha = Partial<Record<SeccionApi, EstadoSeccion>>
 
 export const seccionesDe = (f: Ficha | null | undefined): SeccionesFicha => (f?.secciones ?? {}) as SeccionesFicha
@@ -125,7 +120,7 @@ const rutaSeccion = (personaId: string, seccion: SeccionApi) => `/v1/personas-cu
  * sin él (la sección no está), `If-None-Match: *`. 201 si se agregó, 200 si se editó.
  */
 export async function guardarSeccion(personaId: string, seccion: SeccionApi, texto: string, etag: string | null): Promise<SeccionGuardada> {
-  const cuerpo: Ampliada['schemas']['SolicitudSeccion'] = { texto }
+  const cuerpo: S['SolicitudSeccion'] = { texto }
   const r = await apiFamilia.put<SeccionGuardada>(rutaSeccion(personaId, seccion), cuerpo, {
     headers: etag ? { 'If-Match': etag } : { 'If-None-Match': '*' },
   })

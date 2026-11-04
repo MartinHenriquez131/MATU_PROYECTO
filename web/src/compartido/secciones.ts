@@ -1,8 +1,8 @@
 // Las seis secciones complementarias de la ficha (ADR-028), lo que comparten la app de la familia y
 // la página del relevo: el orden fijo, el título, el tope y el aviso de Sus remedios. Textos de
 // docs/lenguaje.md, sección 14 (MATU-49, aprobados por Jorge el 03-11). Contrato:
-// docs/api/propuestos/ficha-ampliada.openapi.yaml, tipos en ficha-ampliada.openapi.ts.
-import type { components } from './api/ficha-ampliada.openapi'
+// docs/api/openapi.json (MATU-50), tipos en familia.openapi.ts.
+import type { components } from './api/familia.openapi'
 
 export type SeccionApi = components['schemas']['SeccionComplementaria']
 
