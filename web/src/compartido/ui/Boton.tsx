@@ -1,15 +1,20 @@
 // Botones de MATU (especificación MATU-23, sección 5). Al ancho de su texto, 48 px o más de alto
 // (`min-h-12` = 51 px con la raíz de 17 px). La validación ocurre al enviar; solo se deshabilitan
 // donde la especificación lo pide (429 de Entrar, dictado mientras se guarda).
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
-type Variante = 'principal' | 'secundario' | 'texto'
+type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro'
 
 const VARIANTES: Record<Variante, string> = {
   principal: 'bg-turquesa text-papel hover:brightness-110 active:brightness-95',
   secundario: 'bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio active:bg-rocio',
   // De la demo (Ui.tsx): texto subrayado, sin fondo. Mide 48 px igual que los otros.
   texto: 'text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa',
+  // MATU-49, sección 8: lo que borra. Secundario con texto y anillo `pronto`, foco `pronto`.
+  // Nunca macizo: borrar no es la acción principal de ninguna pantalla.
+  peligro: 'bg-hoja text-pronto ring-2 ring-inset ring-pronto hover:bg-pronto-fondo active:bg-pronto-fondo focus-visible:outline-pronto',
+  // «Quitar «…»» (4.5): de texto, como `texto`, en `pronto`.
+  textoPeligro: 'text-pronto underline underline-offset-4 decoration-pronto/40 hover:decoration-pronto focus-visible:outline-pronto',
 }
 
 export function Boton({
@@ -27,6 +32,8 @@ export function Boton({
   /** Mientras pide algo: conserva su ancho, dice el gerundio y no envía otra vez. */
   ocupado?: boolean
   textoOcupado?: string
+  /** React 19: `ref` es una prop más; va al <button> con el resto (foco de vuelta, MATU-49 4.5). */
+  ref?: Ref<HTMLButtonElement>
 }) {
   return (
     <button
