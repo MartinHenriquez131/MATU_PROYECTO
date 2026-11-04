@@ -1,6 +1,7 @@
 # MATU-48 · App de familia: compartir la ficha con un relevo y cortar el acceso · Especificación de diseño
 
-**Versión 1.0 · 04/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Versión 1.1 · 04/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Cambios de la 1.1 (revisión visual del 04-11, confirmados por el orquestador):** D4, 2.4 (lugar de «Quién puede verla ahora» y cuadrícula desde `@3xl/main:`), 3.2 (vista previa en `max-w-prose` bajo `@4xl/main:`), 3.3 (motivos en chips al ancho de su texto), 4.4 (textos de L 9.1), 5.2 (`@3xl/main:`), 5.3 (fila «Llamar» y alineación de los botones de texto), 6.1 (`Boton`: relleno lateral por variante) y 9.4 (textos que reemplazó L 9.1). Donde esta especificación y `lenguaje.md` 9.1 difieran, manda 9.1.
 **Historia:** Carmen crea un enlace con PIN para Rosa, le dicta el PIN una sola vez y, cuando quiere, corta el enlace en el acto.
 **Dónde se construye:** `web/`, sobre el esqueleto de MATU-39 y con el selector de MATU-50 (`web/src/familia/SeccionesCompartir.tsx`).
 
@@ -17,7 +18,7 @@
 | D1 | **Cómo se envía el enlace.** La demo dice «Enviar el enlace por WhatsApp». Un enlace `https://wa.me/{teléfono}?text={url}` pone el token en la consulta de una URL de un tercero (pasa por los servidores de wa.me antes de abrir la app), y el token solo debe viajar en el fragmento (CLAUDE.md, agente 3, punto 5) | Es una decisión de seguridad, no de diseño | **Compartir del sistema** (`navigator.share`), que abre la hoja de compartir del teléfono (WhatsApp, SMS, lo que tenga) sin pasar por un servidor; y «Copiar el enlace» donde no existe (computador). Ver 4.4. Para el analista y Jorge |
 | D2 | **La casilla de la decisión 34** («Le avisé a `{nombre}` que MATU guarda su nombre y su teléfono para enviarle la ficha») está en el contrato y no en `lenguaje.md`, y no dice lo que agregó el 03-11 al aviso del relevo (7.5): que cada apertura queda registrada y la familia la ve | Sin la casilla el `POST` responde 422. La demo no la tenía | Va con el texto del contrato, marcado **[CONTRATO]**. El analista decide si suma el registro (sección 10) |
 | D3 | `lenguaje.md` 9 tiene «¿Qué puede ver?» y el recordatorio «Comparte solo lo que necesita para cuidar**la**…», y 8 tiene «Elige al menos un campo.» | Con ADR-028 los tres campos ya no se eligen, y «cuidarla» asume el género de la persona cuidada (L 10, fila 8) | «¿Qué puede ver?» pasa a «Siempre ve» y «¿Qué más puede ver?» (L 14.3, ya aprobado). El recordatorio va neutro **[PROPUESTO]** (3.4). La fila de «Elige al menos un campo.» se retira de `lenguaje.md` 8 |
-| D4 | **El teléfono del relevo en «Enlaces».** La API lo devuelve a `admin` y `cuidador` para poder contactarle (decisiones 24 y 31). La demo no lo muestra | Mostrarlo es más dato a la vista. Un botón «Llamar a `{nombre}`» sería una tercera acción por enlace | **No se muestra** en este sprint. Si Jorge lo quiere, va como botón de texto con `Phone` y `tel:`, solo en los activos |
+| D4 | **El teléfono del relevo en «Enlaces».** La API lo devuelve a `admin` y `cuidador` para poder contactarle (decisiones 24 y 31). La demo no lo muestra | Mostrarlo es más dato a la vista. Un botón «Llamar a `{nombre}`» sería una tercera acción por enlace | **Resuelta por Jorge el 04-11 (`lenguaje.md` 9.1):** el número nunca se muestra. Para `admin` y `cuidador`, cada tarjeta lleva el botón de texto «Llamar a `{nombre}`» con `Phone` y `tel:`, en **todos** los estados (también cortados y vencidos, mientras se guarde el teléfono). Si el teléfono ya se borró (30 días, decisión 25), en su lugar va «Ya no guardamos su teléfono.» en `text-base text-tenue`. Ver 5.3 |
 | D5 | **El PIN se puede perder** si el teléfono descarta la pestaña mientras Carmen está en WhatsApp. El PIN vive solo en memoria y no se puede guardar en el navegador | Se pierde el PIN y hay que crear otro enlace | El PIN va **antes** del botón de enviar en el teléfono (4.2), para que Carmen lo vea o lo anote antes de salir. Riesgo aceptado: lo resuelve «El PIN ya no se puede ver» (4.6) |
 | D6 | El esquema de MATU-45 4.1 dice «vence en 1 día 3 h»; la demo usa `fmtRestante` («45 min», «23 h», «3 días») | Dos formatos para lo mismo | Se usa el de la demo en las dos pantallas (5.3) |
 
@@ -93,6 +94,10 @@ Las puertas de Quién la vio hacia Compartir y Enlaces solo se muestran a `admin
 
 ### 2.4 «Quién puede verla ahora» en Quién la vio (cierra la D4 de MATU-45)
 
+- **Lugar en la pantalla (cambia en la revisión visual del 04-11).** Es la respuesta a «¿quién la puede ver ahora?» y no puede quedar debajo de todo el registro:
+  - La cuadrícula de Quién la vio parte en `@3xl/main:` (48 rem = 816 px), no en `@4xl/main:`. Así, a 1280 px con la navegación lateral (un contenedor de unos 906 px), la columna ya va a la derecha. Columnas `@3xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]`, `gap-10`.
+  - Mientras la pantalla tenga una sola columna (bajo `@3xl/main:`, que con la cuadrícula nueva es lo mismo que «bajo `@4xl/main:`» de antes en el teléfono y con texto al 200 %), «Quién puede verla ahora» va **antes** del registro, entre la bajada y el primer día. Se resuelve con el orden del DOM, de modo que el foco y el lector de pantalla sigan el mismo orden que se ve: la `section` va primero en el DOM y, en ancho, pasa a la segunda columna con `@3xl/main:col-start-2 @3xl/main:row-start-1`. Nada de `order-*` que separe el orden visual del de lectura.
+  - En una columna lleva debajo `border-b border-linea pb-6`, para separarla del registro.
 - Pide `GET …/plan/accesos-relevo?estado=vigente&limite=100` al cargar la pantalla (no se guarda entre visitas).
 - Una fila por enlace activo, como el esquema de MATU-45 4.1: `border-l-4 border-turquesa bg-hoja px-4 py-3`, `{nombre_relevo}` en `font-bold` y «vence en `{restante}`» **[DEMO]** en `text-base text-tenue tabular-nums` (5.3). `flex flex-wrap`, para que se apile en angosto.
 - Sin enlaces activos: «Nadie tiene un enlace activo ahora.» **[PROPUESTO]** en `text-base text-tenue`. El botón «Ver y cortar enlaces» se queda (en Enlaces se ven los anteriores).
@@ -198,6 +203,7 @@ Las puertas de Quién la vio hacia Compartir y Enlaces solo se muestran a `admin
 ```
 
 - Dos columnas `@4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]`, `gap-10`, como la ficha (MATU-39 3.6). La derecha es `@4xl/main:sticky @4xl/main:top-4 self-start`.
+- **Bajo `@4xl/main:`** (también a 1280 px con la navegación lateral, donde el contenedor mide unos 906 px y la vista previa cae bajo el formulario), el contenedor de la vista previa («Lo que verá…» y la hoja) lleva `max-w-prose`: se lee como una hoja y no se estira a todo el ancho con el imán perdido al centro. Desde `@4xl/main:` el ancho lo fija la columna de 26 rem (`@4xl/main:max-w-none`). Cambia en la revisión visual del 04-11.
 - Nombre y teléfono en dos columnas desde `@2xl/main:grid-cols-2`; la ayuda del teléfono va debajo de su campo y los dos `input` quedan a la misma altura (ESPEC-ADR-027 6.2).
 - Todo el formulario en `max-w-3xl`. Botón al ancho de su texto, nunca de ancho completo.
 - A 1920 px la página sigue en `max-w-7xl` centrada (MATU-39 2.1).
@@ -216,7 +222,7 @@ Las puertas de Quién la vio hacia Compartir y Enlaces solo se muestran a `admin
 | Vigencia | `GrupoOpciones forma="chips"` (copiar de la demo) | Leyenda «¿Hasta cuándo?» **[L 9]** · opciones «24 horas» · «Fin de semana» · «Otra cantidad de días» **[DEMO]** · elegida de partida «24 horas» |
 | Días | `Stepper` (copiar de la demo) | Solo con «Otra cantidad de días». «¿Cuántos días?» y ayuda «Hasta 30 días.» **[L 9]** · unidad «días» **[DEMO]** · 1 a 30, de partida 3. Ayuda en `text-base` (la demo usa `text-sm`) |
 | Vence | `p flex items-center gap-2` con `Clock3` (`text-turquesa`, `aria-hidden`) | «Vence el `{DD/MM/AAAA}` a las `{HH:MM}`» **[DEMO]**, fecha y hora en `<b class="cifras">` separadas (DISENO.md 2). Se recalcula al cambiar la opción o los días. `aria-live="polite"` |
-| Motivo | `GrupoOpciones forma="chips"` | «¿Para qué lo compartes?» · «Salgo unas horas» · «Fin de semana fuera» · «Turno de noche» · «Otro motivo» **[L 9]** · siempre una elegida, de partida «Salgo unas horas» (ESPEC-ADR-027 6.3) |
+| Motivo | `GrupoOpciones forma="chips"` | «¿Para qué lo compartes?» · «Salgo unas horas» · «Fin de semana fuera» · «Turno de noche» · «Otro motivo» **[L 9]** · siempre una elegida, de partida «Salgo unas horas» (ESPEC-ADR-027 6.3). **Chips al ancho de su texto, igual que las vigencias:** `GrupoOpciones` sin `columnas` (`inline-flex max-w-full`, en fila con `flex-wrap`), nunca una cuadrícula de pastillas de ancho completo. En angosto y con texto al 200 % se apilan solas, una por renglón, porque no caben dos (revisión visual del 04-11: a 1920 los motivos salían en 2 columnas de ancho completo, distintos de las vigencias) |
 | Aviso a Rosa | Casilla en bloque, **la misma piel** que «Incluir Sus remedios» de `ElegirSecciones`: `label` `flex min-h-12 items-start gap-3 rounded border border-borde bg-hoja p-4`, `input type="checkbox"` visible `size-6 accent-turquesa`, texto `font-bold` | «Le avisé a `{nombre}` que MATU guarda su nombre y su teléfono para enviarle la ficha» **[CONTRATO, decisión 34]** (D2). **Desmarcada cada vez** que se abre la pantalla. En angosto, la casilla arriba del texto (`angosto:flex-col`), como la de remedios |
 | Confirmación de remedios | `ConfirmacionRemedios` de `SeccionesCompartir.tsx`, **sin cambios** | MATU-49 6.3. Justo encima del botón |
 | Botón | `Boton` principal con `Link2` | «Crear enlace» **[DEMO]** · ocupado «Creando el enlace…» **[PROPUESTO]** |
@@ -329,11 +335,12 @@ Dos columnas `@3xl/main:grid-cols-2 gap-10`, como la demo: a la izquierda el tí
 
 | Situación | Botones |
 |---|---|
-| El navegador tiene `navigator.share` (teléfonos) | **«Enviar el enlace»** **[PROPUESTO; demo: «Enviar el enlace por WhatsApp»]**, principal, ícono `Send` · «Copiar el enlace» **[PROPUESTO]**, secundario, ícono `Copy` · «Ver los enlaces» **[DEMO]**, `variante="texto"` |
+| El navegador tiene `navigator.share` (teléfonos) | **«Enviar el enlace»** **[L 9.1]**, principal, ícono `Send` · «Copiar el enlace» **[L 9.1]**, secundario, ícono `Copy` · «Ver los enlaces» **[L 9.1]**, `variante="texto"` |
 | Sin `navigator.share` (computador) | **«Copiar el enlace»**, principal, `Copy` · «Ver los enlaces», texto |
 
-- **Enviar:** `navigator.share({ text })` con el texto «Te comparto una ficha de cuidado en MATU. Ábrela con este enlace y el PIN que te dicto por teléfono: `{url}`» **[PROPUESTO]**. **Sin el PIN y sin nombres** (sección 10). Si la persona cierra la hoja de compartir (`AbortError`), no pasa nada y no hay mensaje.
-- **Copiar:** `navigator.clipboard.writeText(url)` (solo la URL). Al copiar, bajo los botones, `role="status"` con `CircleCheck` `text-ok`: «Enlace copiado. Pégalo en un mensaje para `{nombre}`.» **[PROPUESTO]**. Si falla: «No pudimos copiar el enlace. Usa «Enviar el enlace».» **[PROPUESTO]**, o, sin `navigator.share`, se muestra la URL completa en un `input readOnly` seleccionable con la etiqueta «Enlace para `{nombre}`» **[PROPUESTO]** (es el único caso en que se ve completa).
+- **Enviar:** `navigator.share({ text })` con el texto aprobado en L 9.1: «Hola, `{nombre}`. Te comparto la ficha de cuidado en MATU: `{url}`. El PIN te lo digo por teléfono.» **[L 9.1]**. **Nunca el PIN.** El nombre que va es solo el del relevo, que es quien lo recibe. Si la persona cierra la hoja de compartir (`AbortError`), no pasa nada y no hay mensaje.
+- **Copiar:** `navigator.clipboard.writeText(url)` (solo la URL). Al copiar, bajo los botones, `role="status"` con `CircleCheck` `text-ok`: «Enlace copiado. Pégalo en tu mensaje a `{nombre}`.» **[L 9.1]**. Si falla: «No pudimos copiar el enlace. Usa «Enviar el enlace».» **[L 9.1]**, o, sin `navigator.share`, se muestra la URL completa en un `input readOnly` seleccionable con la etiqueta «Enlace para `{nombre}`» **[PROPUESTO]** (es el único caso en que se ve completa).
+- Apilados en el teléfono, los tres quedan alineados a la izquierda: «Ver los enlaces» sin relleno lateral (ver `Boton`, sección 6).
 - Ningún botón de imprimir, descargar ni exportar (ADR-029).
 
 ### 4.5 Textos de la sección del PIN
@@ -422,7 +429,9 @@ Textos: título de la nota «El PIN ya no se puede ver», texto «Por seguridad 
 
 ### 5.2 Pantalla ancha
 
-`grid @4xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-10` (la `Columnas izquierda="ancha"` de la demo): a la izquierda «Abren ahora», «Ya no abren» y los botones; a la derecha «Últimas aperturas». Cada tarjeta en `max-w-prose` de texto. Los botones al ancho de su texto.
+`grid @3xl/main:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-10` (la `Columnas izquierda="ancha"` de la demo): a la izquierda «Abren ahora», «Ya no abren» y los botones; a la derecha «Últimas aperturas». Cada tarjeta en `max-w-prose` de texto. Los botones al ancho de su texto.
+
+**Parte en `@3xl/main:` (48 rem = 816 px), no en `@4xl/main:`** (cambia en la revisión visual del 04-11). Con `@4xl/main:`, a 1280 px con la navegación lateral (un contenedor de unos 906 px) la columna derecha no existía y «Últimas aperturas» caía debajo de todas las tarjetas. A 906 px las columnas quedan en unos 530 y 335 px: en la tarjeta, «Cortar…», «Llamar a…» y «Ver cuándo la abrió» bajan de renglón con `flex-wrap`, y eso está previsto.
 
 ### 5.3 Una tarjeta de enlace
 
@@ -436,10 +445,13 @@ Copia de cada `li` de `Enlaces` de la demo, contra `AccesoResumenVista`:
 | Lo que ve y para qué | `p text-base text-tenue` | «Ve `{campos y secciones}`.» **[L 14.3]** + « `{motivo}`.» **[L 9]**. Ojo: los accesos anteriores a MATU-50 pueden tener uno o dos campos: la frase se arma con `campos` y `secciones_adicionales` **del acceso**, en el orden fijo (hay que generalizar `loQueVe`, que hoy da por hechos los tres) |
 | Detalle | `p text-base text-tenue tabular-nums` (la demo usa `text-sm`) | `vigente`: «Lo creó `{otorgado_por.nombre}`. Vence el `{DD/MM/AAAA}` a las `{HH:MM}`.» **[PROPUESTO; demo: «Creado: … Vence: …»]** · `vencido`: «Venció el `{DD/MM/AAAA}` a las `{HH:MM}`.» **[PROPUESTO; demo: «Venció: …»]** · `revocado`: «Lo cortaron el `{DD/MM/AAAA}` a las `{HH:MM}`.» **[PROPUESTO]**, con `revocado_en` · `bloqueado`: «Se bloqueó porque el PIN se escribió mal cinco veces.» **[L 9]**. Si `otorgado_por` es `null`, sin «Lo creó…» |
 | Cortar | `Boton variante="secundario"` con `Unlink`, `self-start`. **Solo en `vigente`** | «Cortar el enlace de `{nombre}`» **[L 9]** · ocupado «Cortando…» **[PROPUESTO]** |
+| Llamar | Solo `admin` y `cuidador` (decisión 31), en **todos** los estados. Enlace `tel:` con `claseBoton('texto')` y `Phone` (`angosto:hidden`) | «Llamar a `{nombre}`» **[L 9.1]**. Si la API ya no trae el teléfono (borrado a los 30 días, decisión 25): `p text-base text-tenue` «Ya no guardamos su teléfono.» **[L 9.1]**. El número no se ve nunca, ni en el texto ni en un `title` |
 | Ver aperturas | `Boton variante="texto"`, `self-start` | «Ver cuándo la abrió» **[PROPUESTO en MATU-45]** → `/ficha/quien-la-vio` |
 
+Los botones de texto («Llamar a…», «Ver cuándo la abrió») quedan alineados con el texto de la tarjeta, sin relleno lateral: el texto empieza en el mismo x que el nombre y el detalle (ver `Boton`, sección 6).
+
 - **`{restante}`** = `fmtRestante` de la demo con `expira_en` y la hora actual: menos de 60 min «`{n}` min», menos de 48 h «`{n}` h», si no «`{n}` días». En `cifras` (D6). La misma función en Quién la vio (2.4).
-- Nunca se muestran el teléfono (D4), el `id`, `usos` ni `ultimo_uso_en` (Quién la vio ya cuenta las aperturas con palabras).
+- Nunca se muestran el número de teléfono (D4: solo «Llamar a…»), el `id`, `usos` ni `ultimo_uso_en` (Quién la vio ya cuenta las aperturas con palabras).
 - Fechas en hora de Chile, `DD/MM/AAAA` y 24 h, con `fechaYHoraDeChile`.
 
 ### 5.4 Cortar
@@ -498,6 +510,20 @@ Al volver a la pantalla se piden de nuevo las listas (nada se guarda entre visit
 | `HojaFicha`, `HojaSeccion` | `ui.tsx` | Los tres campos (vacío = «Sin completar») y solo las secciones marcadas |
 | `LineaApertura` | `QuienLaVio.tsx` (exportarla) | La forma `completa` |
 
+### 6.1 `Boton`: relleno lateral por variante (revisión visual del 04-11)
+
+**Problema:** `BASE` de `web/src/compartido/ui/Boton.tsx` trae `px-5 angosto:px-3`. Un `className="px-0"` no lo anula: Tailwind v4 escribe `px-0` antes que `px-5` en el CSS, así que gana `px-5`, y en angosto gana siempre `angosto:px-3`. Por eso los botones de texto quedaban 21 px corridos a la derecha (25 px con el texto al 200 %) del texto que acompañan: «Ver cuándo la abrió», «Llamar a…», «Ver todo en Quién la vio», «Crear un enlace nuevo» (bloqueo y sección guardada), «Compartir con un relevo» en la ficha y «Ver los enlaces» apilado.
+
+**Corrección**, en el componente y no en cada pantalla:
+- Se saca `px-5 angosto:px-3` de `BASE`.
+- `principal`, `secundario` y `peligro` llevan `px-5 angosto:px-3`, como hoy.
+- `texto` y `textoPeligro` llevan `px-0`. Siguen midiendo 48 px de alto (`min-h-12` está en `BASE`), y su ancho es el del texto, siempre mayor que 48 px.
+- `claseBoton('texto')` (el enlace `tel:` de «Llamar a…») queda corregido con lo mismo.
+- Se quitan los `className="px-0"` sueltos de `Compartir.tsx`, `QuienLaVio.tsx` y `Ficha.tsx`: ya no hacen falta.
+- El anillo de foco no cambia (3 px `turquesa`, con su `outline-offset`). Sin relleno queda pegado al texto y sigue siendo visible.
+
+**Criterio:** en una tarjeta de Enlaces, el texto de «Ver cuándo la abrió» empieza en el mismo x que el nombre y el detalle (±1 px), a 360 px, a 1280 px y a 320 px con el texto al 200 %.
+
 Nada escrito a mano: ni colores, ni sombras, ni tamaños fuera de la escala. La única sombra de estas pantallas es la de la hoja de la vista previa (DISENO.md, principio 1).
 
 ---
@@ -522,7 +548,7 @@ Nada escrito a mano: ni colores, ni sombras, ni tamaños fuera de la escala. La 
 3. «Incluir Sus remedios» y «Le avisé a…» aparecen desmarcadas **cada vez** que se abre `/compartir`.
 4. Con «Le avisé a…» sin marcar, «Crear enlace» no hace ninguna petición a la API.
 5. El PIN no aparece en la URL, en el `<title>`, en `history.state` ni en el almacenamiento del navegador; recargar `/compartir/listo` muestra «El PIN ya no se puede ver».
-6. En la pantalla del PIN nunca se ve el token completo; el texto que se comparte no lleva el PIN ni nombres.
+6. En la pantalla del PIN nunca se ve el token completo; el texto que se comparte no lleva el PIN, ni otro nombre que el del relevo que lo recibe (L 9.1).
 7. Los cuatro estados de un enlace se distinguen en escala de grises (ícono y palabra).
 8. Tras tocar «Cortar el enlace de Rosa» con la red cortada, la tarjeta sigue diciendo «Activo» y el aviso dice que el enlace todavía abre.
 9. Ninguna pantalla de esta historia tiene un botón, vista, estilo ni atajo para imprimir, descargar o exportar la ficha (ADR-029).
@@ -557,9 +583,9 @@ L 4: «Últimas aperturas». L 6.1: «Compartir con un relevo». L 8: «Escribe 
 7. «Creando el enlace…»
 8. 422 `vigencia_pasada`: «Esa fecha ya pasó. Elige de nuevo hasta cuándo.»
 9. 422 `seccion_no_agregada`: «Otra persona quitó una sección mientras compartías. Revisa qué más puede ver y vuelve a crear el enlace.»
-10. «Enviar el enlace» (demo: «… por WhatsApp», D1) · «Copiar el enlace»
-11. Texto que se comparte: «Te comparto una ficha de cuidado en MATU. Ábrela con este enlace y el PIN que te dicto por teléfono: `{url}`»
-12. «Enlace copiado. Pégalo en un mensaje para `{nombre}`.» · «No pudimos copiar el enlace. Usa «Enviar el enlace».» · «Enlace para `{nombre}`»
+10. «Enviar el enlace» (demo: «… por WhatsApp», D1) · «Copiar el enlace» — **aprobados en L 9.1**
+11. Texto que se comparte — **reemplazado por el de L 9.1:** «Hola, `{nombre}`. Te comparto la ficha de cuidado en MATU: `{url}`. El PIN te lo digo por teléfono.»
+12. «Enlace copiado. Pégalo en tu mensaje a `{nombre}`.» (**versión de L 9.1**) · «No pudimos copiar el enlace. Usa «Enviar el enlace».» (L 9.1) · «Enlace para `{nombre}`» (sigue propuesto)
 13. Enlaces: «Abren ahora» · «Ya no abren» · «Ningún enlace abre ahora.»
 14. Detalles: «Lo creó `{nombre}`. Vence el `{fecha}` a las `{hora}`.» · «Venció el `{fecha}` a las `{hora}`.» · «Lo cortaron el `{fecha}` a las `{hora}`.»
 15. «Cortando…»
