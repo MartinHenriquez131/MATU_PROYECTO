@@ -218,7 +218,7 @@ export function AvisoDeLlegada() {
       {visto.texto}
       {accion && (
         <Acciones className={visto.texto ? 'mt-2' : ''}>
-          <Boton variante={accion.variante} className={accion.variante === 'texto' ? 'px-0' : ''} onClick={() => navegar(accion.ruta)}>
+          <Boton variante={accion.variante} onClick={() => navegar(accion.ruta)}>
             {accion.texto}
           </Boton>
         </Acciones>
@@ -283,7 +283,7 @@ export function TuFicha() {
               })}
             </ul>
             {hechos === 3 && puedeCompartir(rol) && !conAccion && (
-              <Boton variante="texto" className="self-start px-0" icono={<Share2 aria-hidden className="size-5" />} onClick={() => navegar('/compartir')}>
+              <Boton variante="texto" className="self-start" icono={<Share2 aria-hidden className="size-5" />} onClick={() => navegar('/compartir')}>
                 {COMPARTIR.conRelevo}
               </Boton>
             )}
