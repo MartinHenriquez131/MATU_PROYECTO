@@ -308,16 +308,17 @@ export function HojaSeccion({ pila, seccion, texto }: { pila: string; seccion: S
   return (
     <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
       <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
-      <SeccionesEnHoja secciones={[{ api: seccion, texto }]} escribiendo />
+      {/* Sin campos arriba, la sección no lleva la línea separadora. */}
+      <SeccionesEnHoja secciones={[{ api: seccion, texto }]} escribiendo sinSeparador />
     </Hoja>
   )
 }
 
 /** MATU-49, 7.1: tras los tres campos, una línea y cada sección con su título. Sin pregunta ni ejemplo. */
-function SeccionesEnHoja({ secciones, escribiendo = false }: { secciones: SeccionEnHoja[]; escribiendo?: boolean }) {
+function SeccionesEnHoja({ secciones, escribiendo = false, sinSeparador = false }: { secciones: SeccionEnHoja[]; escribiendo?: boolean; sinSeparador?: boolean }) {
   if (!secciones.length) return null
   return (
-    <div className="mt-8 border-t border-linea pt-6">
+    <div className={sinSeparador ? 'mt-5' : 'mt-8 border-t border-linea pt-6'}>
       {secciones.map((s, i) => (
         <section key={s.api} className={`${i ? 'mt-6' : ''} ${escribiendo ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
           <h3 className="mb-1 text-lg font-bold text-turquesa">{TITULO_SECCION[s.api]}</h3>
