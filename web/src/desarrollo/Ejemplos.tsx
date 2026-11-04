@@ -28,7 +28,7 @@ export function Ejemplos() {
       <h2 className="text-xl font-bold">Página del relevo (MATU-23)</h2>
       <p className="text-tenue">
         PIN correcto en todos los ejemplos: <b className="digitos">{PIN_DE_EJEMPLO}</b>. Los intentos y las sesiones viven en la memoria
-        del servidor de desarrollo: reinicia <code>npm run dev</code> para volver a cero.
+        del servidor de desarrollo: reinicia <code className="wrap-anywhere">npm run dev</code> para volver a cero.
       </p>
       <ul className="flex flex-col gap-3">
         {ESCENARIOS.map((e) => (

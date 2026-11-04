@@ -95,7 +95,7 @@ export function ElegirSecciones({
                   <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-sm ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
                     {on && <Check className="size-4 text-turquesa" strokeWidth={3} />}
                   </span>
-                  <span className="min-w-0 break-words hyphens-auto">{TITULO_SECCION[s]}</span>
+                  <span className="min-w-0 wrap-anywhere hyphens-auto">{TITULO_SECCION[s]}</span>
                 </label>
               )
             })}
