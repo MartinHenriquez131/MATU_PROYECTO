@@ -8,6 +8,7 @@ Cada historia registra su router aquí, con el prefijo /v1. Para no chocar entre
 agrega una sola línea por router en el bloque marcado.
 """
 
+import logging
 from typing import TextIO
 
 from fastapi import APIRouter, FastAPI
@@ -30,6 +31,8 @@ from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
 
+log = logging.getLogger("matu.api.arranque")
+
 router_salud = APIRouter(tags=["salud"])
 
 
@@ -41,7 +44,10 @@ def salud() -> dict[str, str]:
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     config = obtener_configuracion()
     configurar_logs(config.log_nivel, stream_logs)
-    # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de local o pruebas,
+    # MATU-25 (decisión 105, (j)): el arranque registra el entorno, y nada más de la configuración. Sin
+    # "entorno=staging" en el log, un despliegue de staging no se da por bueno
+    log.info("entorno=%s", config.entorno)
+    # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de su lista permitida,
     # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
     preparar_custodia()
 

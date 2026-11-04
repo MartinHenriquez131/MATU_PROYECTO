@@ -1,7 +1,8 @@
 """MATU-12 · KEK en variable de entorno (decisión D-A de Jorge del 28-10, desvío explícito del ADR-016).
 
 Condiciones del analista normativo que se prueban aquí:
-(a) solo con ENTORNO local o pruebas: con produccion o un entorno desconocido la API no arranca;
+(a) solo con ENTORNO local, pruebas o staging (staging por la decisión 105, MATU-25): con produccion o
+    un entorno desconocido la API no arranca, y el adaptador usa la misma lista de la configuración;
 (b) se enciende explícitamente, y apagada no hay custodia (las rutas responden 503, ver test_ficha_api);
 (c) 32 bytes en base64, distinta de los demás secretos, nunca en repr, errores ni logs;
 (d) versión fija: otra KEK bajo la misma versión es un error, nunca una DEK nueva;
@@ -24,10 +25,11 @@ from pydantic import SecretStr, ValidationError
 from pydantic_settings import SettingsConfigDict
 
 from app.core import config
-from app.core.config import Configuracion
+from app.core.config import ENTORNOS_KEK_SINTETICA, Configuracion
 from app.main import crear_app
 from app.modules.care_plan.api import dependencias
 from app.modules.care_plan.application.ports import DekCifradaInvalida, KekNoDisponible
+from app.modules.care_plan.infrastructure import custodia_kek_entorno
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.custodia_kek_entorno import (
     AVISO_ARRANQUE,
@@ -146,11 +148,26 @@ def test_otra_version_no_existe_en_esta_custodia() -> None:
         custodia.desenvolver(envuelta.dek_cifrada, 1)
 
 
-@pytest.mark.parametrize("entorno", ["produccion", "staging", "", "Local", "pruebas "])
-def test_no_se_construye_fuera_de_local_o_pruebas(entorno: str) -> None:
-    # (a) Lista permitida: produccion y cualquier valor desconocido quedan fuera
+@pytest.mark.parametrize("entorno", ["produccion", "Staging", "stage", "prod", "staging ", "", "Local", "pruebas "])
+def test_no_se_construye_fuera_de_su_lista(entorno: str) -> None:
+    # (a) Lista permitida: produccion y cualquier valor desconocido quedan fuera, sin normalizar mayúsculas
     with pytest.raises(CustodiaNoPermitida):
         CustodiaKekEntorno(SecretStr(_kek()), kek_version=1, entorno=entorno)
+
+
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging"])
+def test_se_construye_en_local_pruebas_y_staging(entorno: str) -> None:
+    custodia = CustodiaKekEntorno(SecretStr(_kek()), kek_version=1, entorno=entorno)
+    dek = _dek()
+
+    assert custodia.desenvolver(custodia.envolver(dek).dek_cifrada, 1) == dek
+
+
+def test_la_lista_del_adaptador_es_la_de_la_configuracion() -> None:
+    # Decisión 105: el adaptador no tiene una copia propia que pueda quedar distinta de la que valida la
+    # configuración. Si alguien vuelve a escribir la lista a mano en el adaptador, esta prueba falla
+    assert custodia_kek_entorno.ENTORNOS_PERMITIDOS is ENTORNOS_KEK_SINTETICA
+    assert ENTORNOS_KEK_SINTETICA == {"local", "pruebas", "staging"}
 
 
 @pytest.mark.parametrize(
@@ -201,8 +218,8 @@ def test_la_kek_no_sale_en_repr_ni_en_errores_ni_en_logs(caplog: pytest.LogCaptu
 # --- La configuración y el arranque ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("entorno", ["local", "pruebas"])
-def test_custodia_encendida_carga_en_local_y_pruebas(entorno_limpio: pytest.MonkeyPatch, entorno: str) -> None:
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging"])
+def test_custodia_encendida_carga_en_local_pruebas_y_staging(entorno_limpio: pytest.MonkeyPatch, entorno: str) -> None:
     kek = _kek()
     entorno_limpio.setenv("ENTORNO", entorno)
     entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
@@ -231,13 +248,15 @@ def test_en_produccion_no_carga(entorno_limpio: pytest.MonkeyPatch, variables: d
     with pytest.raises(ValidationError) as error:
         ConfiguracionSinArchivo()
 
-    assert "solo se admite con ENTORNO local o pruebas" in str(error.value)
+    assert "solo se admite con ENTORNO local, pruebas o staging" in str(error.value)
     assert kek not in str(error.value)
 
 
-def test_entorno_desconocido_no_carga(entorno_limpio: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("entorno", ["Staging", "stage", "prod", "STAGING", " staging"])
+def test_entorno_desconocido_no_carga(entorno_limpio: pytest.MonkeyPatch, entorno: str) -> None:
+    # Sin normalizar: un valor parecido a staging no es staging
     kek = _kek()
-    entorno_limpio.setenv("ENTORNO", "staging")
+    entorno_limpio.setenv("ENTORNO", entorno)
     entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
     entorno_limpio.setenv("KEK_ENTORNO", kek)
 
@@ -314,7 +333,7 @@ def test_la_api_arranca_con_la_kek_en_local_y_avisa(entorno_limpio: pytest.Monke
     assert kek not in salida.getvalue()
 
 
-@pytest.mark.parametrize("entorno", ["local", "pruebas"])
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging"])
 def test_custodia_encendida_sin_kek_no_carga(entorno_limpio: pytest.MonkeyPatch, entorno: str) -> None:
     # (b) Encenderla sin la clave es un error de configuración, no un 503 silencioso
     entorno_limpio.setenv("ENTORNO", entorno)
@@ -327,11 +346,12 @@ def test_custodia_encendida_sin_kek_no_carga(entorno_limpio: pytest.MonkeyPatch,
     assert "entorno_sintetico" not in str(error.value)
 
 
+@pytest.mark.parametrize("entorno", ["local", "staging"])
 def test_la_api_no_arranca_con_la_custodia_encendida_sin_kek(
-    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, entorno: str
 ) -> None:
     entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
-    entorno_limpio.setenv("ENTORNO", "local")
+    entorno_limpio.setenv("ENTORNO", entorno)
     entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
 
     with pytest.raises(ValidationError) as error:
@@ -340,21 +360,103 @@ def test_la_api_no_arranca_con_la_custodia_encendida_sin_kek(
     assert "falta KEK_ENTORNO" in str(error.value)
 
 
+@pytest.mark.parametrize("entorno", ["local", "staging"])
 @pytest.mark.parametrize(
     "variables",
     [{}, {"KEK_ENTORNO": "kek"}],
     ids=["nada", "kek-sin-encender"],
 )
 def test_sin_kek_encendida_no_hay_custodia_ni_se_genera_una(
-    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, variables: dict[str, str]
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, variables: dict[str, str], entorno: str
 ) -> None:
     # (b) Sin CUSTODIA_KEK, la API arranca sin custodia: las rutas de la ficha responden 503 y fallan
-    # cerradas. Nunca se genera una KEK ni se usa el doble de pruebas.
+    # cerradas (en staging lo prueba test_abrir_relevo_api). Nunca se genera una KEK ni se usa el doble
+    # de pruebas.
     entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
-    entorno_limpio.setenv("ENTORNO", "local")
+    entorno_limpio.setenv("ENTORNO", entorno)
     for nombre, valor in variables.items():
         entorno_limpio.setenv(nombre, _kek() if valor == "kek" else valor)
 
     crear_app()
 
     assert dependencias.obtener_custodia() is None
+
+
+# --- MATU-25 · staging (decisión 105) -------------------------------------------------------------
+
+
+def test_la_api_arranca_con_la_kek_en_staging_registra_el_entorno_y_avisa(
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None
+) -> None:
+    kek = _kek()
+    crudo = base64.b64decode(kek)
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", "staging")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    entorno_limpio.setenv("KEK_ENTORNO", kek)
+
+    salida = io.StringIO()
+    crear_app(stream_logs=salida)
+    custodia = dependencias.obtener_custodia()
+
+    assert isinstance(custodia, CustodiaKekEntorno)
+    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
+    # (j) El entorno, en una línea propia y sin nada más de la configuración
+    assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.api.arranque"] == [
+        ("INFO", "entorno=staging")
+    ]
+    # (e) El WARNING fijo, también en staging
+    assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.care_plan.custodia"] == [
+        ("WARNING", AVISO_ARRANQUE)
+    ]
+    # (c) La KEK no aparece en el log, en el repr de la custodia ni en el de la configuración
+    for texto in (salida.getvalue(), repr(custodia), repr(config.obtener_configuracion())):
+        assert kek not in texto
+        assert crudo.hex() not in texto
+
+
+@pytest.mark.parametrize(
+    "kek",
+    [base64.b64encode(secrets.token_bytes(31)).decode(), "kek-sintetica-que-no-es-base64-" + secrets.token_hex(8)],
+    ids=["31-bytes", "no-base64"],
+)
+def test_en_staging_una_kek_invalida_no_carga_ni_muestra_el_valor(
+    entorno_limpio: pytest.MonkeyPatch, kek: str
+) -> None:
+    entorno_limpio.setenv("ENTORNO", "staging")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    entorno_limpio.setenv("KEK_ENTORNO", kek)
+
+    with pytest.raises(ValidationError) as error:
+        ConfiguracionSinArchivo()
+
+    assert kek not in str(error.value)
+    assert kek not in repr(error.value)
+
+
+def test_en_staging_la_kek_igual_a_otro_secreto_no_carga_ni_se_muestra(entorno_limpio: pytest.MonkeyPatch) -> None:
+    kek = _kek()
+    entorno_limpio.setenv("ENTORNO", "staging")
+    entorno_limpio.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    entorno_limpio.setenv("KEK_ENTORNO", kek)
+    entorno_limpio.setenv("JWT_CLAVE", kek)
+
+    with pytest.raises(ValidationError) as error:
+        ConfiguracionSinArchivo()
+
+    assert "KEK_ENTORNO y JWT_CLAVE deben ser claves distintas" in str(error.value)
+    assert kek not in str(error.value)
+
+
+@pytest.mark.parametrize("entorno", ["Staging", "stage", "prod"])
+def test_la_api_no_arranca_con_un_entorno_parecido_a_staging(
+    entorno_limpio: pytest.MonkeyPatch, cachés_limpias: None, entorno: str
+) -> None:
+    # Sin KEK: el valor de ENTORNO solo ya impide arrancar
+    entorno_limpio.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    entorno_limpio.setenv("ENTORNO", entorno)
+
+    with pytest.raises(ValidationError) as error:
+        crear_app()
+
+    assert [e["loc"] for e in error.value.errors()] == [("entorno",)]

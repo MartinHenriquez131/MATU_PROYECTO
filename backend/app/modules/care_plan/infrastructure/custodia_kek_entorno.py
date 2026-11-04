@@ -7,9 +7,10 @@ FUERA del servidor de aplicación, en una custodia que solo envuelve y desenvuel
 el entorno del mismo proceso que guarda las DEK envueltas: quien obtenga a la vez la base y el
 entorno del servidor puede descifrar todas las fichas. Por eso este adaptador:
 
-(a) Solo se construye con ENTORNO en {local, pruebas}, una lista permitida y no una prohibida: con
-    produccion o cualquier otro valor lanza CustodiaNoPermitida, y la configuración ya impide que la
-    API arranque (app/core/config.py).
+(a) Solo se construye con ENTORNO en {local, pruebas, staging} (staging por la decisión 105), una lista
+    permitida y no una prohibida: con produccion o cualquier otro valor lanza CustodiaNoPermitida, y la
+    configuración ya impide que la API arranque. La lista es ENTORNOS_KEK_SINTETICA de app/core/config.py,
+    la misma que valida la configuración: no hay una segunda copia que pueda divergir.
 (b) Se enciende explícitamente con CUSTODIA_KEK=entorno_sintetico, y encendida sin KEK_ENTORNO la
     configuración no carga. Sin CUSTODIA_KEK, las rutas de la ficha responden 503 y fallan cerradas:
     nunca se genera una KEK al arrancar ni se usa el doble de pruebas (api/dependencias.py).
@@ -39,13 +40,15 @@ import logging
 from cryptography.hazmat.primitives.keywrap import InvalidUnwrap, aes_key_unwrap, aes_key_wrap
 from pydantic import SecretStr
 
+from app.core.config import ENTORNOS_KEK_SINTETICA
 from app.modules.care_plan.application.ports import DekCifradaInvalida, DekEnvuelta, KekNoDisponible
 from app.modules.care_plan.domain.cifrado import LARGO_DEK
 
 log = logging.getLogger("matu.care_plan.custodia")
 
-# Lista permitida, no prohibida: un entorno nuevo queda fuera hasta que se decida lo contrario
-ENTORNOS_PERMITIDOS = frozenset({"local", "pruebas"})
+# Lista permitida, no prohibida: un entorno nuevo queda fuera hasta que se decida lo contrario. Es la
+# misma de la configuración (decisión 105), no una copia
+ENTORNOS_PERMITIDOS = ENTORNOS_KEK_SINTETICA
 
 LARGO_KEK = 32  # AES-256
 
@@ -56,7 +59,7 @@ class CustodiaNoPermitida(RuntimeError):
     """La custodia con KEK en variable de entorno no se construye en este entorno."""
 
     def __init__(self) -> None:
-        super().__init__("la KEK en variable de entorno solo se admite con ENTORNO local o pruebas")
+        super().__init__("la KEK en variable de entorno solo se admite con ENTORNO local, pruebas o staging")
 
 
 class KekInvalida(ValueError):

@@ -28,6 +28,9 @@ Cada historia agrega aquí lo suyo:
   del celular (decisión 81). Distinta de los demás secretos. Sin ella, esas rutas responden 503.
   ENVIADOR_CODIGOS=simulado enciende el envío simulado (decisión 82): no envía nada y deja el mensaje
   en un registro de desarrollo. Solo con ENTORNO local o pruebas: con produccion la API no arranca
+- MATU-25: ENTORNO admite staging (decisión 105, que amplía la D-A). La KEK en variable de entorno y el
+  envío simulado tienen cada uno su lista permitida (ENTORNOS_KEK_SINTETICA y ENTORNOS_ENVIO_SIMULADO),
+  y en staging el registro de cuentas solo acepta correos de dominios reservados
 """
 
 import base64
@@ -46,9 +49,22 @@ RAIZ_REPOSITORIO = Path(__file__).resolve().parents[3]
 # 0.0 no es una versión publicada: un consentimiento guardado con ella es, a la vista, sintético.
 POLITICA_VERSION_FABRICA = "0.0"
 
-# Entornos donde se admite la KEK en variable de entorno (MATU-12, decisión D-A). Lista permitida:
-# produccion, o un valor nuevo, quedan fuera
-ENTORNOS_KEK_SINTETICA = frozenset({"local", "pruebas"})
+# Los valores de ENTORNO. Se comparan tal cual, sin normalizar mayúsculas ni espacios: "Staging", "stage"
+# o "prod" no cargan la configuración
+Entorno = Literal["local", "pruebas", "staging", "produccion"]
+
+# Entornos donde se admite la KEK en variable de entorno (MATU-12, decisión D-A; staging por la decisión
+# 105). Lista permitida: produccion, o un valor nuevo, quedan fuera. El adaptador CustodiaKekEntorno usa
+# esta misma lista
+ENTORNOS_KEK_SINTETICA: frozenset[str] = frozenset({"local", "pruebas", "staging"})
+
+# Entornos donde se admite ENVIADOR_CODIGOS=simulado (decisión 82; staging por la decisión 105). Es otra
+# lista, aunque hoy tenga los mismos valores: ampliar una no amplía la otra
+ENTORNOS_ENVIO_SIMULADO: frozenset[str] = frozenset({"local", "pruebas", "staging"})
+
+# Entornos donde el registro de cuentas solo acepta correos de dominios reservados (decisión 105, (i)):
+# staging tiene solo datos sintéticos
+ENTORNOS_SOLO_DOMINIOS_RESERVADOS: frozenset[str] = frozenset({"staging"})
 LARGO_KEK = 32
 
 
@@ -63,7 +79,7 @@ class Configuracion(BaseSettings):
         hide_input_in_errors=True,
     )
 
-    entorno: Literal["local", "pruebas", "produccion"] = "local"
+    entorno: Entorno = "local"
     log_nivel: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     # Conexión de la API como matu_app. Vacía solo en pruebas que no tocan la base.
@@ -88,7 +104,7 @@ class Configuracion(BaseSettings):
 
     # Custodia de la KEK de la ficha (MATU-12, decisión D-A). Apagada por omisión: sin ella las rutas
     # de la ficha responden 503. "entorno_sintetico" la enciende con la KEK de KEK_ENTORNO, solo en
-    # local o pruebas y solo con datos sintéticos. El proveedor de producción lo decide el ADR-019.
+    # local, pruebas o staging y solo con datos sintéticos. El proveedor de producción lo decide el ADR-019.
     custodia_kek: Literal["entorno_sintetico"] | None = None
 
     # La KEK: 32 bytes aleatorios en base64. Nunca en el repositorio ni en docker-compose. Genérala
@@ -167,7 +183,7 @@ class Configuracion(BaseSettings):
         if (self.custodia_kek is not None or self.kek_entorno is not None) and (
             self.entorno not in ENTORNOS_KEK_SINTETICA
         ):
-            raise ValueError("La KEK en variable de entorno solo se admite con ENTORNO local o pruebas")
+            raise ValueError("La KEK en variable de entorno solo se admite con ENTORNO local, pruebas o staging")
         return self
 
     @model_validator(mode="after")
@@ -245,9 +261,10 @@ class Configuracion(BaseSettings):
 
     @model_validator(mode="after")
     def _envio_simulado_solo_fuera_de_produccion(self) -> "Configuracion":
-        # Decisión 82: el envío simulado no llega a nadie. En produccion la API no arranca con él
-        if self.enviador_codigos == "simulado" and self.entorno not in ENTORNOS_KEK_SINTETICA:
-            raise ValueError("ENVIADOR_CODIGOS=simulado solo se admite con ENTORNO local o pruebas")
+        # Decisión 82: el envío simulado no llega a nadie. En produccion la API no arranca con él.
+        # Su lista es ENTORNOS_ENVIO_SIMULADO, no la de la KEK (decisión 105)
+        if self.enviador_codigos == "simulado" and self.entorno not in ENTORNOS_ENVIO_SIMULADO:
+            raise ValueError("ENVIADOR_CODIGOS=simulado solo se admite con ENTORNO local, pruebas o staging")
         return self
 
     @model_validator(mode="after")
