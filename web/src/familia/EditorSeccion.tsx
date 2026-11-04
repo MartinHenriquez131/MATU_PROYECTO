@@ -397,10 +397,11 @@ function ConflictoAlQuitar({
   }, [actual])
   return (
     <div className="flex max-w-prose flex-col gap-6">
-      <div role="alert" className="flex gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 py-3.5">
-        <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto" />
-        <div>
-          <Titulo className="text-2xl">{MAS.conflictoQuitar(autor, titulo)}</Titulo>
+      {/* 4.8: a 320 px con texto al 200 %, sin desplazamiento horizontal. */}
+      <div role="alert" className="flex gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 angosto:px-2 py-3.5">
+        <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto angosto:hidden" />
+        <div className="min-w-0">
+          <Titulo className="text-2xl angosto:text-xl wrap-anywhere hyphens-auto">{MAS.conflictoQuitar(autor, titulo)}</Titulo>
           <p className="mt-1">{MAS.versionDe(autor)}</p>
         </div>
       </div>
