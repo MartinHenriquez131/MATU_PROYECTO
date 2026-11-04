@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import uuid
@@ -121,13 +122,32 @@ def _entorno_sin_capa3() -> dict[str, str]:
     return entorno
 
 
+# Las llaves que las rutas piden antes de responder 401 o 422: sin ellas responden 500 (falla cerrada).
+# El pipeline no las define y no tiene .env
+LLAVES_DEL_ARRANQUE = ("JWT_CLAVE", "PEPPER_EMAIL", "PEPPER_LIMITES", "PEPPER_PIN")
+
+
+def _entorno_del_arranque() -> dict[str, str]:
+    """El entorno sin la capa 3, con las llaves que falten generadas al vuelo: sintéticas, distintas entre
+    sí y de un solo uso. Nunca un literal en el código. Las que ya vienen (del .env local) se respetan."""
+    entorno = _entorno_sin_capa3()
+    for llave in LLAVES_DEL_ARRANQUE:
+        if not entorno.get(llave):
+            entorno[llave] = secrets.token_hex(32)
+    # El relevo y la sesión arman la fábrica de sesiones antes de validar el cuerpo, y sin DATABASE_URL
+    # responden 500. Ninguna de estas peticiones abre una conexión: basta una URL sin contraseña ni base
+    if not entorno.get("DATABASE_URL"):
+        entorno["DATABASE_URL"] = "postgresql+psycopg://matu_app@127.0.0.1:1/sin_base"
+    return entorno
+
+
 @pytest.fixture(scope="module")
 def arranque(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     destino = tmp_path_factory.mktemp("capa3") / "arranque.json"
     proceso = subprocess.run(
         [sys.executable, "-c", ARRANQUE, str(destino), json.dumps(PETICIONES)],
         cwd=BACKEND,
-        env=_entorno_sin_capa3(),
+        env=_entorno_del_arranque(),
         capture_output=True,
         text=True,
         encoding="utf-8",

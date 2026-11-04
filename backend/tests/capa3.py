@@ -1,10 +1,16 @@
 """La capa 3 bloqueada, para probar que la API vive sin ella (MATU-40, ADR-002).
 
-PAQUETES_CAPA_3 son los paquetes que se pueden quitar del sistema sin que las capas 1 y 2 se enteren:
-ordering, payments, fulfillment y settlement, y los que solo existen por ellos según las flechas de la
-sección 6.3 (replenishment y rx llegan a ordering). catalog queda fuera: la arquitectura permite que
-consumption lo importe, y perfil_consumo.producto_id es una llave foránea a producto. Sus routers sí son
-de la capa 3 y van en ROUTERS_CAPA_3, pero su paquete no se bloquea.
+PAQUETES_CAPA_3 son los paquetes que el intérprete aparte hace fallar al importarse: ordering, payments,
+fulfillment y settlement, y los que solo existen por ellos según las flechas de la sección 6.3
+(replenishment y rx llegan a ordering).
+
+catalog también se trata como capa 3 (modelo de datos, sección 3.1, y arquitectura, sección 7.4), en
+MODULOS_CON_ROUTERS_CAPA_3: sus routers van en ROUTERS_CAPA_3, y si algo que app.main carga lo importa,
+aunque sea consumption, test_app_main_no_llega_a_la_capa_3 falla. No está en PAQUETES_CAPA_3 solo
+porque test_paquetes_bloqueados_siguen_las_flechas lo prohíbe mientras la flecha consumption → catalog
+siga en test_arquitectura.py. Si catalog es capa 3 quitable o una dependencia de la capa 2 lo decide
+el equipo (pendiente, MATU-40). En el esquema, la única llave declarada de las capas 1 y 2 hacia catalog
+es perfil_consumo.producto_id → producto: anulable, con nombre_libre cuando no hay catálogo (ADR-002).
 
 bloquear() instala un buscador de importaciones que hace fallar cualquier import de esos paquetes, como
 si sus carpetas se hubieran borrado. No se llama al importar este archivo: lo usa el plugin
