@@ -449,3 +449,55 @@ def test_el_cifrador_no_guarda_la_dek_en_claro() -> None:
     assert all(not isinstance(v, bytes) for v in vars(cifrador).values())
     guardada = claves.filas[PERSONA].dek_cifrada
     assert guardada is not None and dek not in guardada
+
+
+# --- MATU-50 · Las seis secciones complementarias (ADR-028, RF-03) --------------------------------------
+
+SECCIONES_COMPLEMENTARIAS = ("quien_es", "preferencias", "alimentacion", "movilidad", "comunicacion", "remedios")
+# Los tipos que la API lee y escribe: los tres campos base y las seis secciones
+TIPOS_DE_LA_FICHA = ("rutina", "manejo_situaciones", "red_apoyo", *SECCIONES_COMPLEMENTARIAS)
+
+
+@pytest.mark.rf("RF-03")
+@pytest.mark.parametrize("tipo", SECCIONES_COMPLEMENTARIAS)
+def test_ida_y_vuelta_de_cada_seccion_complementaria(cifrador: CifradorAesGcm, tipo: str) -> None:
+    # Dado un texto sintético con saltos de línea y caracteres no ASCII, y el máximo de remedios
+    texto = f"{_texto()}\nÑandú, café y canción · {tipo}"
+    if tipo == "remedios":
+        texto = (texto + " x" * 400)[:800]
+
+    # Cuando se cifra como esa sección y se descifra con el mismo plan y tipo
+    seccion = _cifrar(cifrador, texto, tipo=tipo)
+
+    # Entonces vuelve el mismo texto, y el cifrado no lo contiene en claro
+    assert _descifrar(cifrador, seccion, tipo=tipo) == texto
+    assert texto.encode() not in seccion.contenido_cifrado
+    assert texto.split("·")[0].strip().encode() not in seccion.contenido_cifrado
+
+
+@pytest.mark.rf("RF-03")
+@pytest.mark.parametrize("origen", SECCIONES_COMPLEMENTARIAS)
+def test_mover_una_seccion_complementaria_a_otra_seccion_falla(cifrador: CifradorAesGcm, origen: str) -> None:
+    # Dada una sección complementaria cifrada con la DEK de la persona
+    seccion = _cifrar(cifrador, _texto(), tipo=origen)
+
+    # Cuando ese texto cifrado se intenta leer como cualquier otra sección de la ficha (misma persona y
+    # misma DEK: solo cambia el AAD), o como la misma sección de otro plan
+    for destino in TIPOS_DE_LA_FICHA:
+        if destino == origen:
+            continue
+        with pytest.raises(SeccionIlegible):
+            _descifrar(cifrador, seccion, tipo=destino)
+    with pytest.raises(SeccionIlegible):
+        _descifrar(cifrador, seccion, plan=OTRO_PLAN, tipo=origen)
+
+    # Entonces todo falla, y en su lugar original se sigue leyendo
+    assert _descifrar(cifrador, seccion, tipo=origen)
+
+
+@pytest.mark.rf("RF-03")
+@pytest.mark.parametrize("destino", SECCIONES_COMPLEMENTARIAS)
+def test_mover_un_campo_base_a_una_seccion_complementaria_falla(cifrador: CifradorAesGcm, destino: str) -> None:
+    seccion = _cifrar(cifrador, _texto(), tipo="rutina")
+    with pytest.raises(SeccionIlegible):
+        _descifrar(cifrador, seccion, tipo=destino)

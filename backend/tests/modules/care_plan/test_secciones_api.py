@@ -146,13 +146,23 @@ def test_agregar_leer_editar_y_quitar_una_seccion(entorno_ficha: EntornoFicha) -
 
 
 def test_las_seis_secciones_y_sus_maximos(entorno_ficha: EntornoFicha) -> None:
+    """Ida y vuelta por la API de cada una de las seis, con su máximo: el texto leído es el guardado."""
     familia = entorno_ficha.familia()
+    textos: dict[str, str] = {}
     for seccion in SECCIONES:
         maximo = 800 if seccion == "remedios" else 500
-        _agregar(entorno_ficha, familia, seccion, "a" * maximo)
+        marca = f"{seccion} {secrets.token_hex(4)}\nÑandú y café "
+        textos[seccion] = (marca + "a" * maximo)[:maximo]
+        agregada = _agregar(entorno_ficha, familia, seccion, textos[seccion])
+        assert agregada.json()["texto"] == textos[seccion]
     leida = entorno_ficha.leer(familia.admin, familia.grupo.id, familia.persona.id).json()
     assert list(leida["secciones"]) == list(SECCIONES)  # en el orden de ADR-028
+    assert {s: e["texto"] for s, e in leida["secciones"].items()} == textos
     assert leida["completitud"] == 0
+    # Cada una quedó cifrada con su propio AAD: ninguna fila tiene su texto en claro
+    for seccion, texto in textos.items():
+        fila = _seccion_en_base(familia.persona.id, seccion)
+        assert fila is not None and texto.split("\n")[0].encode() not in bytes(fila[2])
 
 
 def test_la_seccion_convive_con_los_campos_base(entorno_ficha: EntornoFicha) -> None:
