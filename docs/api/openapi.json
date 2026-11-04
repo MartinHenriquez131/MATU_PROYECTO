@@ -2255,6 +2255,76 @@
         }
       }
     },
+    "/v1/accesos-relevo/{acceso_id}": {
+      "delete": {
+        "tags": [
+          "accesos de relevo"
+        ],
+        "summary": "Revocar Acceso",
+        "description": "Revoca el acceso en la transacción de la petición. Idempotente: ya revocado o vencido, 204.",
+        "operationId": "revocar_acceso_v1_accesos_relevo__acceso_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "acceso_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Acceso Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, acceso de otro grupo, inexistente o id no UUID",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
       "get": {
         "tags": [

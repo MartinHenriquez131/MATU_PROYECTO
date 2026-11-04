@@ -72,7 +72,9 @@ def test_openapi_json_coincide_con_la_api_en_la_ficha(esquema: dict[str, Any]) -
         assert exportado["paths"][ruta] == esquema["paths"][ruta], f"vuelve a exportar {ruta}"
     for nombre in ("EstadoCampoVista", "AutorVista", "CampoGuardadoVista", "FichaVista", "SolicitudCampo"):
         assert exportado["components"]["schemas"][nombre] == esquema["components"]["schemas"][nombre]
-    # MATU-50 exportó la ruta de compartir y la ficha del relevo (test_secciones_contrato.py); las demás rutas
-    # del relevo siguen en propuestos/relevo.openapi.yaml
+    # MATU-50 exportó la ruta de compartir y la ficha del relevo (test_secciones_contrato.py), y MATU-48 la de
+    # revocar, tal como la sirve la API; la presentación y el canje siguen en propuestos/relevo.openapi.yaml
+    revocar = "/v1/accesos-relevo/{acceso_id}"
+    assert exportado["paths"][revocar] == esquema["paths"][revocar], f"vuelve a exportar {revocar}"
     relevo = {ruta for ruta in exportado["paths"] if "relevo" in ruta}
-    assert relevo == {"/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo", "/v1/relevo/ficha"}
+    assert relevo == {"/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo", "/v1/relevo/ficha", revocar}

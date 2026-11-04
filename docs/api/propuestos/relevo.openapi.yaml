@@ -9,8 +9,9 @@ info:
     Ver `docs/api/README.md`.
 
     **Rutas que ya no están aquí.** `…/plan/aperturas` pasó a `openapi.json` en MATU-45, y
-    `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha` en MATU-50: manda `openapi.json`.
-    Siguen aquí la revocación, la presentación y el canje.
+    `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha` en MATU-50, y
+    `DELETE /v1/accesos-relevo/{acceso_id}` en MATU-48: manda `openapi.json`. Siguen aquí la
+    presentación y el canje.
 
     **Dos tipos de actor.**
 
@@ -57,53 +58,9 @@ tags:
 paths:
   # MATU-50 exportó a docs/api/openapi.json POST y GET …/plan/accesos-relevo y GET /v1/relevo/ficha, con
   # los cambios de la ficha ampliada (propuestos/ficha-ampliada.openapi.yaml), y se quitaron de aquí. Los
-  # componentes que solo usaban esas rutas se conservan como referencia.
-  /v1/accesos-relevo/{acceso_id}:
-    parameters:
-      - name: acceso_id
-        in: path
-        required: true
-        description: Acceso de relevo. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-        schema:
-          type: string
-          format: uuid
-        example: 2e8a6b40-0000-4000-8000-0000000000b1
-      - $ref: '#/components/parameters/XGrupoId'
-    delete:
-      tags: [accesos de relevo]
-      operationId: revocarAccesoRelevo
-      summary: Revocar un acceso de relevo
-      description: |
-        Revocación **inmediata**: fija `acceso_relevo.revocado_en` y, en la misma transacción,
-        `indice_token.revocado_en` (decisión 23). Nada más. **No** borra la entrada de
-        `indice_token` ni descarta las sesiones de relevo en Redis: el token y la cookie siguen
-        identificando el acceso, y lo que cambia es su estado, que la API verifica en **cada**
-        petición del relevo. Por eso la siguiente petición responde **410**
-        `/errores/relevo-revocado` aunque tenga una cookie válida (MATU-20), y un canje posterior
-        con el mismo enlace también responde 410 `relevo-revocado`, no `relevo-no-disponible`.
-        La API distingue "revocado" de "vencido" con una sola lectura de `indice_token`, que
-        guarda `revocado_en` y `expira_en` (decisión 23 en `docs/api/README.md`).
-
-        Es idempotente: revocar un acceso ya revocado o vencido también responde 204. El registro
-        no se borra: queda en la lista como `revocado`, para la auditoría.
-
-        Revocan `admin` y `cuidador`. **No exige consentimiento vigente**: cortar un acceso
-        siempre debe ser posible. Registra `relevo.revocar`.
-      x-matu-historia: MATU-20
-      x-matu-auditoria: relevo.revocar
-      security:
-        - bearerAuth: []
-      responses:
-        '204':
-          description: Acceso revocado. Sin cuerpo.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/XRequestId'
-        '401':
-          $ref: '#/components/responses/NoAutenticado'
-        '404':
-          $ref: '#/components/responses/NoEncontrado'
-
+  # componentes que solo usaban esas rutas se conservan como referencia. MATU-48 exportó DELETE
+  # /v1/accesos-relevo/{acceso_id} (MATU-20: 204 idempotente, 401 y 404, sin exigir consentimiento) y lo
+  # quitó de aquí.
   /v1/relevo/presentacion:
     post:
       tags: [relevo]
