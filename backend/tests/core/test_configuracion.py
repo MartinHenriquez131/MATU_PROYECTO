@@ -355,8 +355,10 @@ def test_produccion_no_carga_ni_con_la_kek_ni_con_el_envio_simulado(
 
 
 def test_el_arranque_registra_el_entorno_y_nada_mas(monkeypatch: pytest.MonkeyPatch) -> None:
+    # En WARNING: se ve aunque LOG_NIVEL=WARNING, así el despliegue siempre deja la marca (decisión 105, (j))
     monkeypatch.setattr(config, "Configuracion", ConfiguracionSinArchivo)
     monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("LOG_NIVEL", "WARNING")
     monkeypatch.setenv("POLITICA_VERSION", "0.10")
     secreto = "s" * 64
     monkeypatch.setenv("JWT_CLAVE", secreto)
@@ -368,5 +370,7 @@ def test_el_arranque_registra_el_entorno_y_nada_mas(monkeypatch: pytest.MonkeyPa
         config.obtener_configuracion.cache_clear()
 
     lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
-    assert [x["mensaje"] for x in lineas if x["logger"] == "matu.api.arranque"] == ["entorno=staging"]
+    assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.api.arranque"] == [
+        ("WARNING", "entorno=staging")
+    ]
     assert secreto not in salida.getvalue()

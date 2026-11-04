@@ -403,7 +403,7 @@ def test_la_api_arranca_con_la_kek_en_staging_registra_el_entorno_y_avisa(
     lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
     # (j) El entorno, en una línea propia y sin nada más de la configuración
     assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.api.arranque"] == [
-        ("INFO", "entorno=staging")
+        ("WARNING", "entorno=staging")
     ]
     # (e) El WARNING fijo, también en staging
     assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.care_plan.custodia"] == [
