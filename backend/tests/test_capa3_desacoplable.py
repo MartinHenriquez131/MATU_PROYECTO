@@ -38,13 +38,14 @@ from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
 from tests.base_datos import DSN, requiere_base
-from tests.capa3 import MODULOS_CON_ROUTERS_CAPA_3, PAQUETES_CAPA_3, es_de_la_capa_3
+from tests.capa3 import PAQUETES_CAPA_3, es_de_la_capa_3
 from tests.test_arquitectura import ALCANZABLES, APP, _archivos_python, _importaciones, _leer, _nombre_modulo
 
 BACKEND = APP.parent
 CAPAS_1_Y_2 = ("iam", "care_circle", "care_plan", "consumption")
-# El núcleo del despacho: lo que la decisión 2 de cabecera quita (sección 6.4, regla 3, más ordering)
-NUCLEO_DESPACHO = frozenset({"ordering", "payments", "fulfillment", "settlement"})
+# El núcleo del despacho: lo que la decisión 2 de cabecera quita (sección 6.4, regla 3, más ordering y
+# catalog por la decisión 104 de docs/api/README.md)
+NUCLEO_DESPACHO = frozenset({"catalog", "ordering", "payments", "fulfillment", "settlement"})
 
 PERSONA = str(uuid.UUID(int=1))
 
@@ -267,7 +268,7 @@ def test_routers_capa_3_solo_trae_la_capa_3() -> None:
     # ROUTERS_CAPA_3 no es una puerta trasera para apagar la ficha o el consumo por error
     from app.main import ROUTERS_CAPA_3
 
-    ajenos = [r for r in ROUTERS_CAPA_3 if not es_de_la_capa_3(r.partition(":")[0], MODULOS_CON_ROUTERS_CAPA_3)]
+    ajenos = [r for r in ROUTERS_CAPA_3 if not es_de_la_capa_3(r.partition(":")[0], PAQUETES_CAPA_3)]
     assert ajenos == []
 
 
@@ -321,14 +322,14 @@ def cadena_hacia_la_capa_3(raiz: Path, entrada: str, paquetes: tuple[str, ...]) 
 
 
 def test_app_main_no_llega_a_la_capa_3() -> None:
-    cadena = cadena_hacia_la_capa_3(APP, "app.main", MODULOS_CON_ROUTERS_CAPA_3)
+    cadena = cadena_hacia_la_capa_3(APP, "app.main", PAQUETES_CAPA_3)
 
     assert cadena == [], "app.main llega a la capa 3 por: " + " → ".join(cadena)
 
 
 def test_el_recorrido_alcanza_las_capas_1_y_2() -> None:
     # Si el recorrido se cortara en app.main, la prueba anterior pasaría en vacío
-    alcanzados, _ = recorrer(APP, "app.main", MODULOS_CON_ROUTERS_CAPA_3)
+    alcanzados, _ = recorrer(APP, "app.main", PAQUETES_CAPA_3)
 
     for modulo in CAPAS_1_Y_2:
         assert f"app.modules.{modulo}.api.router" in alcanzados
@@ -371,14 +372,14 @@ CADENAS_PROHIBIDAS = [
 def test_cadena_hacia_la_capa_3_se_detecta(tmp_path: Path, archivos: dict[str, str]) -> None:
     raiz = _arbol(tmp_path, archivos)
 
-    assert cadena_hacia_la_capa_3(raiz, "app.main", MODULOS_CON_ROUTERS_CAPA_3) != []
+    assert cadena_hacia_la_capa_3(raiz, "app.main", PAQUETES_CAPA_3) != []
 
 
 def test_capa_3_por_nombre_en_routers_capa_3_no_es_una_cadena(tmp_path: Path) -> None:
     # El texto de ROUTERS_CAPA_3 no es una importación: es lo que permite arrancar sin la capa 3
     raiz = _arbol(tmp_path, {"main.py": 'ROUTERS_CAPA_3 = ("app.modules.ordering.api.router:router",)\n'})
 
-    assert cadena_hacia_la_capa_3(raiz, "app.main", MODULOS_CON_ROUTERS_CAPA_3) == []
+    assert cadena_hacia_la_capa_3(raiz, "app.main", PAQUETES_CAPA_3) == []
 
 
 def test_paquetes_bloqueados_siguen_las_flechas() -> None:
@@ -387,7 +388,8 @@ def test_paquetes_bloqueados_siguen_las_flechas() -> None:
     dependientes = {m for m, alcanza in ALCANZABLES.items() if alcanza & NUCLEO_DESPACHO} | NUCLEO_DESPACHO
     assert dependientes <= bloqueados
 
-    # Y nada de lo que las capas 1 y 2 necesitan queda bloqueado
+    # Y nada de lo que las capas 1 y 2 alcanzan por las flechas queda bloqueado: si alguien devuelve la
+    # flecha consumption → catalog a FLECHAS, esto falla (decisión 104)
     necesarios = set(CAPAS_1_Y_2).union(*(ALCANZABLES[m] for m in CAPAS_1_Y_2))
     assert necesarios & bloqueados == set()
 
@@ -413,8 +415,8 @@ TABLAS_CAPA_3 = frozenset(
 # pedidos (modelo de datos, sección 3.1, BO --> ORD)
 FUERA_DE_LAS_CAPAS_1_Y_2 = frozenset({"incidencia"})
 
-# La única llave de las capas 1 y 2 hacia la capa 3, declarada: el insumo puede venir del catálogo, y
-# si no, va con nombre_libre (ADR-002). Es anulable, y sin catálogo queda vacía
+# La única llave de las capas 1 y 2 hacia la capa 3, declarada (decisión 104): el insumo puede venir del
+# catálogo, y si no, va con nombre_libre (ADR-002). Es anulable, y sin catálogo queda vacía
 EXCEPCIONES = frozenset({("perfil_consumo", "producto_id", "producto")})
 
 LLAVES_FORANEAS = """
