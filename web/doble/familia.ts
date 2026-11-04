@@ -9,6 +9,9 @@ import { CONTRASENA_DE_EJEMPLO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
+/** Las seis secciones complementarias (MATU-50, docs/api/propuestos/ficha-ampliada.openapi.yaml). */
+type SeccionApi = 'quien_es' | 'preferencias' | 'alimentacion' | 'movilidad' | 'comunicacion' | 'remedios'
+const SECCIONES: SeccionApi[] = ['quien_es', 'preferencias', 'alimentacion', 'movilidad', 'comunicacion', 'remedios']
 interface Campo {
   texto: string | null
   version: number
@@ -23,6 +26,8 @@ interface Persona {
   direccion: Record<string, unknown> | null
   calidad: string
   campos: Record<CampoApi, Campo>
+  /** Solo las secciones agregadas: una sección quitada no queda vacía, deja de existir. */
+  secciones: Partial<Record<SeccionApi, Campo>>
   /** Lo que hicieron los relevos (MATU-45), del más reciente al más antiguo. */
   aperturas: Apertura[]
 }
@@ -70,6 +75,7 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     direccion: null,
     calidad,
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
+    secciones: {},
     aperturas: [],
   }
 }
@@ -101,6 +107,24 @@ function aperturasDeEjemplo(): Apertura[] {
   return lista
 }
 const conAperturas = (p: Persona) => ((p.aperturas = aperturasDeEjemplo()), p)
+
+// Secciones de ejemplo (MATU-50), con los textos de lenguaje 14.1 adaptados a María.
+const TEXTOS_SECCION: Record<SeccionApi, string> = {
+  quien_es: 'Le dicen Mari. Fue costurera en Chillán y le encanta contar cómo era la fábrica.\nSu nieta Sofía le visita los domingos.',
+  preferencias: 'Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche.',
+  alimentacion: 'Toma té con poca azúcar. Prefiere la comida picada en trozos chicos y el pan blando.\nNo le gusta el pescado.',
+  movilidad: 'Camina con bastón dentro de la casa. Para levantarse, ofrécele el brazo derecho.\nDuerme siesta después de almuerzo.',
+  comunicacion: 'Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente.',
+  remedios: '08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n14:00 después de almuerzo: media pastilla de la caja amarilla.\n20:00: 1 pastilla de la caja verde.',
+}
+const topeSeccion = (s: SeccionApi) => (s === 'remedios' ? 800 : 500)
+const repetir = (base: string, n: number) => base.repeat(Math.ceil(n / base.length)).slice(0, n)
+
+/** Agrega a `p` las secciones pedidas, escritas por `autor` (por defecto, el texto de ejemplo). */
+function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: SeccionApi[], textos: Partial<Record<SeccionApi, string>> = {}) {
+  lista.forEach((s, i) => (p.secciones[s] = escrito(textos[s] ?? TEXTOS_SECCION[s], autor, 60 * (i + 1))))
+  return p
+}
 
 const usuarios = new Map<string, Usuario>()
 
@@ -137,6 +161,27 @@ function sembrar() {
   cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
   cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
   cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento')
+  // MATU-50: las secciones complementarias, una cuenta por estado.
+  const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
+  cuenta('secciones-ninguna@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
+  cuenta('secciones-algunas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion'])])])
+  cuenta('secciones-remedios@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }), yo, ['preferencias', 'remedios'])])])
+  cuenta('secciones-todas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, SECCIONES)])])
+  cuenta('secciones-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'alimentacion', 'movilidad'])])], 'conflicto-secciones')
+  cuenta('secciones-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'preferencias'])])], 'defectos-secciones')
+  cuenta('secciones-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'remedios'])], true)])
+  cuenta('secciones-largas@ejemplo.cl', 'Bernardita', [
+    grupo('Familia Valenzuela Etchegaray', 'admin', [
+      conSecciones(persona('Maximiliana de los Ángeles Valenzuela Etchegaray', 'Maximiliana', completos()), yo, SECCIONES, {
+        quien_es: repetir('Extraordinariamente conversadora cuando le preguntan por Constitución y por sus hermanas. ', 500),
+        preferencias: repetir('Radio Cooperativa a todo volumen. ', 500),
+        alimentacion: repetir('Pan amasado tibio con mantequilla. ', 500),
+        movilidad: repetir('Necesita apoyo del brazo derecho al bajar la escalera. ', 500),
+        comunicacion: repetir('Háblale despacio y de frente. ', 500),
+        remedios: repetir('08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n', 800).trim(),
+      }),
+    ]),
+  ])
   cuenta(
     'largos@ejemplo.cl',
     'Bernardita',
@@ -314,6 +359,10 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 200, { items: pa.aperturas.slice(desde, hasta), siguiente_cursor: siguiente }), true
   }
 
+  // MATU-50: PUT y DELETE …/plan/secciones/{seccion} (ficha-ampliada.openapi.yaml).
+  const mSeccion = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/secciones\/([a-z_]+)$/.exec(ruta)
+  if (mSeccion) return atenderSeccion(req, res, cuerpo, r, u, g, decodeURIComponent(mSeccion[1]), mSeccion[2]), true
+
   const mFicha = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/ficha(?:\/([a-z_]+))?$/.exec(ruta)
   if (!mFicha) return problema(res, 404, '/errores/no-encontrado'), true
   const p = g?.personas.find((x) => x.id === decodeURIComponent(mFicha[1]))
@@ -332,6 +381,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
         completitud: completitud(p),
         actualizado_en: ultima,
         campos: { rutina: vistaCampo(p.campos.rutina), manejo_situaciones: vistaCampo(p.campos.manejo_situaciones), red_apoyo: vistaCampo(p.campos.red_apoyo) },
+        secciones: Object.fromEntries(SECCIONES.flatMap((s) => (p.secciones[s] ? [[s, vistaCampo(p.secciones[s]!)]] : []))),
       }),
       true
     )
@@ -387,4 +437,86 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     }),
     true
   )
+}
+
+// ---------------------------------------------------------------- secciones complementarias (MATU-50)
+
+const seccionesHechas = new Set<string>()
+
+/**
+ * `PUT` y `DELETE …/plan/secciones/{seccion}`, con el orden de evaluación del contrato: alcance
+ * (404), consentimiento (403), precondición (428/422), validación (422) y versión (412).
+ * Cuenta «conflicto-secciones»: la primera escritura de cada sección choca con Rodrigo, que la
+ * cambió (o la agregó), salvo «Moverse y descansar», que Rodrigo quitó (412 con `actual: null`).
+ * Cuenta «defectos-secciones»: «Quién es» 428, «Lo que le hace bien» 422 largo_maximo, otra 500.
+ */
+function atenderSeccion(
+  req: IncomingMessage,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  { json, problema }: Responder,
+  u: Usuario,
+  g: Grupo | undefined,
+  personaId: string,
+  nombre: string,
+) {
+  const metodo = req.method ?? 'GET'
+  const p = g?.personas.find((x) => x.id === personaId)
+  if (!g || !p || !(SECCIONES as string[]).includes(nombre) || (metodo !== 'PUT' && metodo !== 'DELETE')) return problema(res, 404, '/errores/no-encontrado')
+  const seccion = nombre as SeccionApi
+  if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'revision-vencida' || u.modo === 'revision-al-guardar') return problema(res, 403, '/errores/revision-vencida')
+  if (u.modo === 'defectos-secciones') {
+    if (seccion === 'quien_es') return problema(res, 428, '/errores/falta-version')
+    if (seccion === 'preferencias')
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'largo_maximo' }] })
+    return problema(res, 500, '/errores/error-interno')
+  }
+
+  const ifMatch = req.headers['if-match']
+  const ifNone = req.headers['if-none-match']
+  const clave = `${p.id}-${seccion}`
+  if (u.modo === 'conflicto-secciones' && !seccionesHechas.has(clave)) {
+    seccionesHechas.add(clave)
+    if (seccion === 'movilidad') delete p.secciones[seccion]
+    else {
+      const antes = p.secciones[seccion]
+      p.secciones[seccion] = {
+        texto: antes ? `${antes.texto}\nLos domingos almuerza con nosotros.` : 'Lo agregué yo recién, revísalo.',
+        version: (antes?.version ?? 0) + 1,
+        autor: RODRIGO,
+        en: hace(1),
+      }
+    }
+  }
+  const actual = p.secciones[seccion]
+  const etag = actual ? `"v${actual.version}"` : null
+  const conflicto = () => {
+    if (etag) res.setHeader('ETag', etag)
+    res.setHeader('Cache-Control', 'no-store')
+    return problema(res, 412, '/errores/version-desactualizada', { actual: actual ? vistaCampo(actual) : null })
+  }
+
+  if (metodo === 'DELETE') {
+    if (ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
+    if (!ifMatch || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
+    if (!actual || ifMatch !== etag) return conflicto()
+    delete p.secciones[seccion]
+    res.statusCode = 204
+    return res.end()
+  }
+
+  if (ifMatch && ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_doble' }] })
+  if ((!ifMatch && !ifNone) || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
+  if (ifNone && ifNone !== '*') return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
+  const texto = typeof cuerpo?.texto === 'string' ? cuerpo.texto.trim() : ''
+  if (!texto) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'vacio' }] })
+  if ([...texto].length > topeSeccion(seccion)) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'largo_maximo' }] })
+  if (ifNone ? !!actual : ifMatch !== etag) return conflicto()
+  const nuevo: Campo = { texto, version: (actual?.version ?? 0) + 1, autor: { id: u.id, nombre: u.nombre }, en: new Date().toISOString() }
+  p.secciones[seccion] = nuevo
+  res.setHeader('ETag', `"v${nuevo.version}"`)
+  res.setHeader('Cache-Control', 'no-store')
+  return json(res, actual ? 200 : 201, { seccion, texto: nuevo.texto, etag: `"v${nuevo.version}"`, actualizado_por: nuevo.autor, actualizado_en: nuevo.en })
 }

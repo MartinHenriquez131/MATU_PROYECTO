@@ -56,6 +56,35 @@ const TEXTOS_LARGOS: Campos = {
   red_apoyo: { texto: largo('Bernardita, su sobrina: +56 9 5555 0177. Rodrigo, su hijo: +56 9 5555 0102. ') },
 }
 
+// MATU-50: las secciones compartidas (ficha-ampliada.openapi.yaml), en el orden de ADR-028.
+type SeccionRelevo = { tipo: 'quien_es' | 'preferencias' | 'alimentacion' | 'movilidad' | 'comunicacion' | 'remedios'; texto: string }
+const DOS_SECCIONES: SeccionRelevo[] = [
+  { tipo: 'quien_es', texto: 'Le dicen Mari. Fue costurera en Chillán y le encanta contar cómo era la fábrica.\nSu nieta Sofía le visita los domingos.' },
+  { tipo: 'comunicacion', texto: 'Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente.' },
+]
+const SEIS_SECCIONES: SeccionRelevo[] = [
+  DOS_SECCIONES[0],
+  { tipo: 'preferencias', texto: 'Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche.' },
+  { tipo: 'alimentacion', texto: 'Toma té con poca azúcar. Prefiere la comida picada en trozos chicos y el pan blando.\nNo le gusta el pescado.' },
+  { tipo: 'movilidad', texto: 'Camina con bastón dentro de la casa. Para levantarse, ofrécele el brazo derecho.\nDuerme siesta después de almuerzo.' },
+  DOS_SECCIONES[1],
+  {
+    tipo: 'remedios',
+    texto: '08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n14:00 después de almuerzo: media pastilla de la caja amarilla.\n20:00: 1 pastilla de la caja verde.',
+  },
+]
+const SECCIONES_LARGAS: SeccionRelevo[] = SEIS_SECCIONES.map((s) => ({
+  tipo: s.tipo,
+  texto: s.tipo === 'remedios' ? '08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n'.repeat(15).slice(0, 800).trim() : largo(`${s.texto.replace(/\n/g, ' ')} `),
+}))
+
+function seccionesDe(token: string): SeccionRelevo[] {
+  if (token === 'ejemplo-con-secciones') return DOS_SECCIONES
+  if (token === 'ejemplo-con-remedios') return SEIS_SECCIONES
+  if (token === 'ejemplo-textos-largos') return SECCIONES_LARGAS
+  return []
+}
+
 function fichaDe(s: Sesion) {
   const enDosDias = Math.ceil((Date.now() + 2 * 86_400_000) / 3_600_000) * 3_600_000
   const vence = s.token === 'ejemplo-vence-pronto' ? s.abiertaEn + 90_000 : enDosDias
@@ -65,6 +94,7 @@ function fichaDe(s: Sesion) {
     nombre_pila_comparte: largos ? 'Bernardita' : 'Carmen',
     vence_en: new Date(vence).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     campos: s.token === 'ejemplo-un-campo' ? UN_CAMPO : largos ? TEXTOS_LARGOS : TRES_CAMPOS,
+    secciones: seccionesDe(s.token),
   }
 }
 
