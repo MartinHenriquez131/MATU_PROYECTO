@@ -148,4 +148,6 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
             )
             cx.execute("DELETE FROM sesion_refresh WHERE usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s)", (entorno.creados,))
+            # MATU-41: la preferencia de avisos que la prueba guardó por la API
+            cx.execute("DELETE FROM preferencia_notificacion WHERE usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM usuario WHERE id = ANY(%s)", (entorno.creados,))
