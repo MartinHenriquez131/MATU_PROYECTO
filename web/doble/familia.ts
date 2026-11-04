@@ -507,12 +507,13 @@ function atenderSeccion(
     return res.end()
   }
 
-  if (ifMatch && ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_doble' }] })
-  if ((!ifMatch && !ifNone) || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
-  if (ifNone && ifNone !== '*') return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
+  // Como el backend real: el 422 del cuerpo va antes del 428 de la versión.
   const texto = typeof cuerpo?.texto === 'string' ? cuerpo.texto.trim() : ''
   if (!texto) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'vacio' }] })
   if ([...texto].length > topeSeccion(seccion)) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'largo_maximo' }] })
+  if (ifMatch && ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_doble' }] })
+  if ((!ifMatch && !ifNone) || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
+  if (ifNone && ifNone !== '*') return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
   if (ifNone ? !!actual : ifMatch !== etag) return conflicto()
   const nuevo: Campo = { texto, version: (actual?.version ?? 0) + 1, autor: { id: u.id, nombre: u.nombre }, en: new Date().toISOString() }
   p.secciones[seccion] = nuevo
