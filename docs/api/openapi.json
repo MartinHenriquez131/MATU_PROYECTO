@@ -3090,6 +3090,102 @@
           }
         ]
       }
+    },
+    "/v1/yo/avisos": {
+      "get": {
+        "tags": [
+          "avisos"
+        ],
+        "summary": "Leer Avisos",
+        "description": "Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). Orden: 401 y 200.",
+        "operationId": "leerPreferenciaAvisos",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenciaAvisosVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "avisos"
+        ],
+        "summary": "Guardar Avisos",
+        "description": "Guarda los dos canales de los avisos de un insumo que se está acabando (MATU-41). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo guardado. Orden: 401, 422 y 200.",
+        "operationId": "guardarPreferenciaAvisos",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferenciaAvisosVista"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferenciaAvisosVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -5007,6 +5103,28 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "PreferenciaAvisosVista": {
+        "properties": {
+          "correo": {
+            "type": "boolean",
+            "title": "Correo",
+            "description": "Avisos por correo"
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push",
+            "description": "Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "correo",
+          "push"
+        ],
+        "title": "PreferenciaAvisosVista",
+        "description": "Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia\nguardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo."
       }
     },
     "securitySchemes": {
