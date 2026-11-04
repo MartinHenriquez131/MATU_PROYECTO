@@ -3,6 +3,7 @@
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
 import { CONTRASENA_DE_EJEMPLO, CUENTAS } from '../../doble/cuentas'
+import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 
 export function Ejemplos() {
   // Se abre en una pestaña nueva: el fragmento cambia y la página arranca de cero.
@@ -50,6 +51,7 @@ export function Ejemplos() {
           <span className="text-base text-tenue">{TOKEN_LARGO}</span>
         </li>
       </ul>
+      <CompartirDeEjemplo />
     </main>
   )
 }
