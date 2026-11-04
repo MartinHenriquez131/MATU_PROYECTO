@@ -147,15 +147,15 @@ def test_un_consumidor_que_lanza_se_reintenta_sin_dejar_su_mensaje_en_el_log(cap
     outbox = OutboxEnMemoria()
     outbox.agregar(Fila(1))
     outbox.agregar(Fila(2))
-    secreto = "carmen.soto@correo.ejemplo"
-    consumidor = ConsumidorProgramado([RuntimeError(secreto), Hecho()])
+    email = "carmen.soto@correo.ejemplo"
+    consumidor = ConsumidorProgramado([RuntimeError(email), Hecho()])
 
     with caplog.at_level(logging.DEBUG):
         resultado = publicar_pendientes(outbox, {TIPO: [consumidor]}, RelojFijo(AHORA))
 
     assert (resultado.reintentos, resultado.publicados) == (1, 1)
     assert outbox.filas[2].publicado_en == AHORA  # el evento siguiente no se detiene
-    assert secreto not in caplog.text
+    assert email not in caplog.text
     assert any(getattr(r, "tipo_error", None) == "RuntimeError" for r in caplog.records)
 
 
