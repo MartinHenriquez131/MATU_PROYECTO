@@ -33,7 +33,8 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 COOKIES="$TMP/cookies"
 
-json() { "$PY" -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+# tr quita el \r que agrega Python en Windows: un id con \r rompe la cabecera X-Grupo-Id (400)
+json() { "$PY" -c "import json,sys; d=json.load(sys.stdin); print($1)" | tr -d '\r'; }
 falla() { echo "FALLA: $*" >&2; exit 1; }
 
 printf 'Contraseña de la semilla (no se ve al escribir): '
@@ -41,7 +42,7 @@ read -rs CONTRASENA
 echo
 
 # 1 · Sesión de Carmen
-CUERPO="$("$PY" -c 'import json,sys; print(json.dumps({"email":sys.argv[1],"contrasena":sys.argv[2]}))' "$EMAIL" "$CONTRASENA")"
+CUERPO="$("$PY" -c 'import json,sys; print(json.dumps({"email":sys.argv[1],"contrasena":sys.argv[2]}))' "$EMAIL" "$CONTRASENA" | tr -d '\r')"
 unset CONTRASENA
 R="$(curl -sS -w '\n%{http_code}' -X POST "$BASE/v1/sesiones" -H 'Content-Type: application/json' -d "$CUERPO")"
 [ "$(tail -n1 <<<"$R")" = 200 ] || falla "entrar como $EMAIL: $(tail -n1 <<<"$R")"
