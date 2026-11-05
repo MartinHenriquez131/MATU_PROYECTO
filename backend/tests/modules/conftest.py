@@ -103,7 +103,7 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     contadores = ContadoresEnMemoria()
     app = crear_app(stream_logs=salida)
     app.dependency_overrides[obtener_pepper_email] = lambda: pepper
-    # MATU-38: la demora de la entrada con contadores en memoria (el pipeline no tiene Redis)
+    # MATU-38: la demora de la entrada con contadores en memoria, sin depender de Redis
     app.dependency_overrides[obtener_pepper_limites] = lambda: pepper_limites
     app.dependency_overrides[obtener_contadores] = lambda: contadores
     # MATU-25: el límite por IP con un contador en memoria, nuevo en cada prueba, con el mismo pepper

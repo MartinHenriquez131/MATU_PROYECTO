@@ -1,6 +1,6 @@
 """MATU-25 · ContadorVentanaRedis contra el Redis local: ventana fija y ninguna clave sin vencimiento.
 
-Se salta si no hay Redis (el pipeline no tiene). El doble en memoria lo reemplaza en las pruebas de la API.
+Se salta si no hay Redis (el pipeline lo tiene). El doble en memoria lo reemplaza en las pruebas de la API.
 """
 
 import secrets
