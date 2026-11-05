@@ -2,12 +2,14 @@
 
 La app enruta en el navegador (web/src/familia/ruteo.ts): toda ruta GET o HEAD que no sea de la API, /r,
 /assets ni la documentación responde el index.html. Las rutas de la API responden como antes. Y /docs y
-/openapi.json solo existen en local y pruebas.
+/openapi.json solo existen en local y pruebas. Un archivo oculto, o una ruta con extensión que no está en el
+build, responde 404, y los .js y .css llevan su tipo aunque el sistema diga otro.
 
 RF-37 es la sesión y la cuenta de la app de familia, que estas rutas sirven.
 """
 
 import io
+import mimetypes
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -18,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from app.core import config
 from app.core.config import ENTORNOS_DOCUMENTACION
-from app.core.web import archivo_del_build, es_ruta_de_la_app
+from app.core.web import archivo_del_build, es_ruta_de_la_app, es_ruta_oculta, parece_archivo
 from app.main import crear_app
 from app.modules.care_plan.api import dependencias
 
@@ -29,6 +31,7 @@ HTML = (
     "</body></html>"
 )
 JS = "console.log('app sintetica')"
+CSS = "body { margin: 0 }"
 MANIFIESTO = '{"name": "MATU sintetico"}'
 AJENO = "fuera del build, sintetico"
 CABECERAS_APP = {
@@ -50,7 +53,12 @@ def dist(tmp_path: Path) -> Path:
     (carpeta / "assets").mkdir(parents=True)
     (carpeta / "index.html").write_text(HTML, encoding="utf-8")
     (carpeta / "assets" / "index-abc123.js").write_text(JS, encoding="utf-8")
+    (carpeta / "assets" / "index-abc123.css").write_text(CSS, encoding="utf-8")
     (carpeta / "manifest.webmanifest").write_text(MANIFIESTO, encoding="utf-8")
+    # Archivos ocultos del build, como el manifiesto de Vite: nunca se sirven
+    (carpeta / ".vite").mkdir()
+    (carpeta / ".vite" / "manifest.json").write_text("{}", encoding="utf-8")
+    (carpeta / "assets" / ".oculto.js").write_text(JS, encoding="utf-8")
     # Junto a la carpeta del build, nunca dentro: no se puede alcanzar desde una ruta
     (tmp_path / "ajeno.txt").write_text(AJENO, encoding="utf-8")
     return carpeta
@@ -161,11 +169,9 @@ def test_index_html_pedido_por_su_nombre_lleva_las_cabeceras_de_la_app(con_dist:
 def test_una_ruta_con_punto_punto_nunca_sale_del_build(con_dist: TestClient, ruta: str) -> None:
     respuesta = con_dist.get(ruta)
     assert AJENO not in respuesta.text
-    # No es un archivo del build: responde la app, como cualquier ruta que no conoce, o el 404 de /assets
-    if respuesta.status_code == 200:
-        assert respuesta.text == HTML
-    else:
-        assert respuesta.status_code == 404
+    # Un segmento .. es oculto, y ajeno.txt tiene extensión: 404, ni el archivo ni el index.html
+    assert respuesta.status_code == 404
+    assert HTML not in respuesta.text
 
 
 @pytest.mark.rf("RF-37")
@@ -175,9 +181,67 @@ def test_archivo_del_build_solo_devuelve_archivos_de_adentro(dist: Path) -> None
     ajeno = dist.parent / "ajeno.txt"
     for ruta in ["../ajeno.txt", "assets/../../ajeno.txt", str(ajeno), str(ajeno).replace("\\", "/")]:
         assert archivo_del_build(dist, ruta) is None, ruta
-    # Carpetas, vacíos, barra invertida y byte nulo
-    for ruta in ["", "assets", "..\\ajeno.txt", "manifest.webmanifest\x00"]:
+    # Carpetas, vacíos, barra invertida, byte nulo y ocultos
+    for ruta in ["", "assets", "..\\ajeno.txt", "manifest.webmanifest\x00", ".vite/manifest.json", "assets/.oculto.js"]:
         assert archivo_del_build(dist, ruta) is None, repr(ruta)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("ruta", ["/favicon.ico", "/sw.js", "/ficha/foto.png", "/favicon.ico/", "/robots.txt"])
+def test_una_ruta_con_extension_que_no_esta_en_el_build_responde_404(con_dist: TestClient, ruta: str) -> None:
+    # H2 de la QA: antes respondía 200 con el index.html
+    for respuesta in (con_dist.get(ruta), con_dist.head(ruta)):
+        _problema_404(respuesta)
+        _cabeceras(respuesta, CABECERAS_APP)
+        assert HTML not in respuesta.text
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize(
+    "ruta", ["/.vite/manifest.json", "/.vite", "/.vite/", "/.env", "/ficha/.algo", "/assets/.oculto.js"]
+)
+def test_un_archivo_oculto_del_build_nunca_se_sirve(con_dist: TestClient, ruta: str) -> None:
+    # H4 de la QA: /.vite/manifest.json se servía tal cual
+    respuesta = con_dist.get(ruta)
+    assert respuesta.status_code == 404
+    assert respuesta.headers["content-type"].startswith(PROBLEMA)
+    assert HTML not in respuesta.text
+    assert JS not in respuesta.text
+
+
+@pytest.mark.rf("RF-37")
+def test_los_assets_js_y_css_llevan_su_tipo_aunque_el_sistema_diga_otro(fabricar: Fabricar, dist: Path) -> None:
+    # H1 de la QA: en Windows mimetypes toma el tipo del registro y .js puede salir text/plain, que el
+    # navegador rechaza para un módulo. Aquí se simula ese registro antes de crear la app
+    for extension in (".js", ".css", ".webmanifest"):
+        mimetypes.add_type("text/plain", extension)
+    try:
+        cliente = fabricar(dist)
+        tipos = {
+            "/assets/index-abc123.js": "text/javascript",
+            "/assets/index-abc123.css": "text/css",
+            "/manifest.webmanifest": "application/manifest+json",
+        }
+        for ruta, tipo in tipos.items():
+            respuesta = cliente.get(ruta)
+            assert respuesta.status_code == 200
+            assert respuesta.headers["content-type"].split(";")[0] == tipo, ruta
+    finally:
+        mimetypes.add_type("text/javascript", ".js")
+        mimetypes.add_type("text/css", ".css")
+        mimetypes.add_type("application/manifest+json", ".webmanifest")
+
+
+@pytest.mark.rf("RF-37")
+def test_ruta_oculta_y_ruta_que_parece_archivo() -> None:
+    for ruta in ["/.vite/manifest.json", "/a/.b", "/..", "/.env", "assets/.x.js"]:
+        assert es_ruta_oculta(ruta), ruta
+    for ruta in ["/", "/entrar", "/ficha/su-dia", "/assets/index-abc123.js", "/a.b/c"]:
+        assert not es_ruta_oculta(ruta), ruta
+    for ruta in ["/favicon.ico", "/ficha/foto.png", "/sw.js/", "/manifest.webmanifest"]:
+        assert parece_archivo(ruta), ruta
+    for ruta in ["/", "/entrar", "/ficha/su-dia", "/a.b/c", "/entrar/recuperar/codigo"]:
+        assert not parece_archivo(ruta), ruta
 
 
 @pytest.mark.rf("RF-37")

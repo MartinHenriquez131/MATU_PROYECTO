@@ -20,16 +20,23 @@ registre antes o después; un método no permitido en /v1 sigue en 405 y la redi
 no cambia. Para lo que no es de la app (una ruta /v1 inexistente, /docs fuera de local y pruebas, un POST),
 el respaldo llama al 404 original del enrutador: 404 /errores/no-encontrado en RFC 7807.
 
+Lo que no es una pantalla responde 404 RFC 7807, no el index.html: una ruta con un segmento oculto
+(que empieza con punto, como .vite/manifest.json, también bajo /assets) y una ruta cuyo último segmento
+tiene extensión (/favicon.ico) sin archivo en el build.
+
 Los archivos de /assets se sirven con StaticFiles y su caché normal (ETag y Last-Modified): sus
-nombres llevan el hash del contenido.
+nombres llevan el hash del contenido. El Content-Type de .js, .mjs, .css, .svg, .json y .webmanifest se
+fija aquí (TIPOS_DEL_BUILD): en Windows mimetypes lo toma del registro, que puede decir text/plain para
+.js, y el navegador rechaza un módulo con ese tipo y deja la página en blanco.
 
 Si la carpeta del build no existe, por ejemplo en el CI, que no hace build, la API arranca igual: /r y
 las rutas de la app responden 404 RFC 7807 con sus cabeceras, y /assets no se monta.
 """
 
-from pathlib import Path
+import mimetypes
+from pathlib import Path, PurePosixPath
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
@@ -39,6 +46,16 @@ from app.core.cabeceras import CABECERAS_APP, CABECERAS_PAGINA_RELEVO
 from app.core.errores import respuesta_problema
 
 RUTA_PAGINA_RELEVO = "/r"
+
+# Los tipos de los archivos del build, sin depender del sistema operativo (en Windows, del registro)
+TIPOS_DEL_BUILD: dict[str, str] = {
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+}
 
 # Lo que nunca es de la app de familia (decisión 115). Un prefijo cubre la ruta exacta y lo que cuelga de
 # ella como segmento: /v1 y /v1/…, pero no /v1x. /r y /openapi.json se excluyen como rutas exactas, con o
@@ -57,13 +74,33 @@ def es_ruta_de_la_app(ruta: str) -> bool:
     return not any(ruta == prefijo or ruta.startswith(prefijo + "/") for prefijo in PREFIJOS_FUERA_DE_LA_APP)
 
 
+def registrar_tipos_del_build() -> None:
+    for extension, tipo in TIPOS_DEL_BUILD.items():
+        mimetypes.add_type(tipo, extension)
+
+
+def _segmentos(ruta: str) -> list[str]:
+    return [segmento for segmento in ruta.split("/") if segmento]
+
+
+def es_ruta_oculta(ruta: str) -> bool:
+    """True si algún segmento empieza con punto: .vite/, .env, .git/ o .. nunca se sirven."""
+    return any(segmento.startswith(".") for segmento in _segmentos(ruta))
+
+
+def parece_archivo(ruta: str) -> bool:
+    """True si el último segmento tiene extensión (favicon.ico). Las pantallas de la app no la tienen."""
+    segmentos = _segmentos(ruta)
+    return bool(segmentos) and PurePosixPath(segmentos[-1]).suffix != ""
+
+
 def archivo_del_build(web_dist: Path, ruta: str) -> Path | None:
     """El archivo de la carpeta del build que corresponde a la ruta, o None.
 
     Nunca sale de la carpeta: la ruta resuelta (con .. y enlaces simbólicos ya aplicados) tiene que
-    quedar dentro de ella. Una ruta con barra invertida o un byte nulo no se resuelve.
+    quedar dentro de ella. Una ruta con barra invertida, un byte nulo o un segmento oculto no se resuelve.
     """
-    if not ruta or "\\" in ruta or "\x00" in ruta:
+    if not ruta or "\\" in ruta or "\x00" in ruta or es_ruta_oculta(ruta):
         return None
     try:
         base = web_dist.resolve()
@@ -75,9 +112,19 @@ def archivo_del_build(web_dist: Path, ruta: str) -> Path | None:
     return candidato
 
 
+class ArchivosDelBuild(StaticFiles):
+    """StaticFiles sin archivos ocultos: /assets/.algo responde 404 como un archivo que no existe."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        if es_ruta_oculta(path.replace("\\", "/")):
+            raise HTTPException(status_code=404)
+        return await super().get_response(path, scope)
+
+
 def montar_pagina_relevo(app: FastAPI, web_dist: Path) -> None:
     indice = web_dist / "index.html"
     assets = web_dist / "assets"
+    registrar_tipos_del_build()
 
     @app.get(RUTA_PAGINA_RELEVO, include_in_schema=False)
     def pagina_relevo(request: Request) -> Response:
@@ -92,7 +139,7 @@ def montar_pagina_relevo(app: FastAPI, web_dist: Path) -> None:
         return FileResponse(indice, media_type="text/html; charset=utf-8", headers=CABECERAS_PAGINA_RELEVO)
 
     if assets.is_dir():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        app.mount("/assets", ArchivosDelBuild(directory=assets), name="assets")
 
 
 def _ruta(scope: Scope) -> str:
@@ -106,6 +153,7 @@ def _ruta(scope: Scope) -> str:
 
 def montar_app_familia(app: FastAPI, web_dist: Path) -> None:
     indice = web_dist / "index.html"
+    registrar_tipos_del_build()
     no_encontrado = app.router.default
 
     def pagina_app(request: Request, ruta: str) -> Response:
@@ -114,9 +162,14 @@ def montar_app_familia(app: FastAPI, web_dist: Path) -> None:
             return respuesta_problema(
                 request, 404, detalle="La aplicación no está disponible en este servidor", headers=CABECERAS_APP
             )
+        if es_ruta_oculta(ruta):
+            return respuesta_problema(request, 404, headers=CABECERAS_APP)
         archivo = archivo_del_build(web_dist, ruta)
         if archivo is not None and archivo != indice.resolve():
             return FileResponse(archivo, headers=CABECERAS_APP)
+        # Un archivo que no está en el build no es una pantalla: 404, no el index.html
+        if archivo is None and parece_archivo(ruta):
+            return respuesta_problema(request, 404, headers=CABECERAS_APP)
         return FileResponse(indice, media_type="text/html; charset=utf-8", headers=CABECERAS_APP)
 
     async def respaldo(scope: Scope, receive: Receive, send: Send) -> None:
