@@ -46,7 +46,7 @@ CUERPO="$("$PY" -c 'import json,sys; print(json.dumps({"email":sys.argv[1],"cont
 unset CONTRASENA
 R="$(curl -sS -w '\n%{http_code}' -X POST "$BASE/v1/sesiones" -H 'Content-Type: application/json' -d "$CUERPO")"
 [ "$(tail -n1 <<<"$R")" = 200 ] || falla "entrar como $EMAIL: $(tail -n1 <<<"$R")"
-TOKEN_SESION="$(head -n -1 <<<"$R" | json 'd["access_token"]')"
+TOKEN_SESION="$(sed '$d' <<<"$R" | json 'd["access_token"]')"
 AUT=(-H "Authorization: Bearer $TOKEN_SESION")
 echo "1. Sesión de Carmen: 200"
 
@@ -77,10 +77,10 @@ compartir() {
 
 # 3 · Primer acceso: se abre aquí mismo, como lo haría la página /r
 R="$(compartir turno_de_noche)"
-[ "$(tail -n1 <<<"$R")" = 201 ] || falla "compartir: $(tail -n1 <<<"$R") $(head -n -1 <<<"$R")"
-ACCESO="$(head -n -1 <<<"$R" | json 'd["id"]')"
-URL="$(head -n -1 <<<"$R" | json 'd["url"]')"
-PIN="$(head -n -1 <<<"$R" | json 'd["pin"]')"
+[ "$(tail -n1 <<<"$R")" = 201 ] || falla "compartir: $(tail -n1 <<<"$R") $(sed '$d' <<<"$R")"
+ACCESO="$(sed '$d' <<<"$R" | json 'd["id"]')"
+URL="$(sed '$d' <<<"$R" | json 'd["url"]')"
+PIN="$(sed '$d' <<<"$R" | json 'd["pin"]')"
 TOKEN_RELEVO="${URL##*#}"
 echo "3. Acceso compartido: 201"
 
@@ -105,8 +105,8 @@ R="$(compartir fin_de_semana_fuera)"
 echo "5. Acceso para el teléfono: 201"
 echo
 echo "== Abre esto en el teléfono (vence en 24 horas) =="
-echo "   Enlace: $(head -n -1 <<<"$R" | json 'd["url"]')"
-echo "   PIN:    $(head -n -1 <<<"$R" | json 'd["pin"]')"
+echo "   Enlace: $(sed '$d' <<<"$R" | json 'd["url"]')"
+echo "   PIN:    $(sed '$d' <<<"$R" | json 'd["pin"]')"
 echo
 echo "== Para el grep de los logs (acceso ya cortado, no abre) =="
 echo "   token: $TOKEN_RELEVO"
