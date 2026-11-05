@@ -78,8 +78,13 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'codigo-invalido@example.com', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
 ]
 
-/** Dominio que el doble rechaza como staging (decisión 105, `dominio_no_permitido`). */
-export const DOMINIO_NO_PERMITIDO = 'dominio-no-permitido.cl'
+/**
+ * Dominio que el doble rechaza como staging (decisión 105, `dominio_no_permitido`). Tiene que ser uno
+ * que staging no acepte (no es example.com, .org ni .net, ni termina en .test, .example, .invalid o
+ * .localhost) y que no sea de nadie: `.internal` lo reservó ICANN en 2024 para redes privadas y nunca
+ * se delegará en internet. Un `.cl` inventado podría registrarlo alguien mañana.
+ */
+export const DOMINIO_NO_PERMITIDO = 'dominio-no-permitido.internal'
 
 /** Correos para «Crear cuenta» que provocan una respuesta: no son cuentas, no entran. */
 export const CORREOS_CREAR_CUENTA: CuentaDeEjemplo[] = [
