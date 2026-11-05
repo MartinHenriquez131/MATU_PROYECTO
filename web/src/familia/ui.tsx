@@ -113,7 +113,7 @@ export function GrupoOpciones<T extends string>({
 }) {
   const id = useId()
   return (
-    <fieldset className="flex flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
+    <fieldset className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`} aria-describedby={error ? `${id}-e` : undefined}>
       <legend className="mb-2 font-bold">{leyenda}</legend>
       <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl/main:grid-cols-3' : ''}`}>
         {opciones.map((o) => {

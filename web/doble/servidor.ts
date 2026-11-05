@@ -218,7 +218,7 @@ const idDeCookie = (req: IncomingMessage) => /(?:^|;\s*)matu-relevo-doble=([^;]+
 async function atender(req: IncomingMessage, res: ServerResponse, siguiente: () => void) {
   const ruta = `${req.method} ${(req.url ?? '').split('?')[0]}`
   if (!ruta.includes(' /v1/')) return siguiente()
-  const cuerpo = req.method === 'POST' || req.method === 'PUT' ? await leerCuerpo(req) : null
+  const cuerpo = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' ? await leerCuerpo(req) : null
   const id = idDeCookie(req)
   // Latencia simulada: 150 ms, o 2 s con `ejemplo-lento` para ver los textos de carga.
   const lento = cuerpo?.token === 'ejemplo-lento' || esLento(req, cuerpo) || (id !== undefined && sesiones.get(id)?.token === 'ejemplo-lento')

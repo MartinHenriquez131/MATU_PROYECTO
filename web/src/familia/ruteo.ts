@@ -19,6 +19,8 @@ export type Ruta =
   | '/ficha/a-quien-llamar'
   | '/ficha/quien-la-vio'
   | '/insumos'
+  | '/insumos/nuevo'
+  | '/insumos/cambiar'
   | '/compartir'
 
 export const RUTAS: readonly Ruta[] = [
@@ -38,6 +40,8 @@ export const RUTAS: readonly Ruta[] = [
   '/ficha/a-quien-llamar',
   '/ficha/quien-la-vio',
   '/insumos',
+  '/insumos/nuevo',
+  '/insumos/cambiar',
   '/compartir',
 ]
 

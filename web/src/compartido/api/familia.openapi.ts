@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Cuenta
-         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422 y 409.
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114).
          */
         post: operations["crear_cuenta_v1_usuarios_post"];
         delete?: never;
@@ -1437,8 +1437,28 @@ export interface operations {
                     };
                 };
             };
-            /** @description Cuerpo inválido, incluido celular_invalido. Nunca repite el valor */
+            /** @description Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

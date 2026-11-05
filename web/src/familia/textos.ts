@@ -328,5 +328,7 @@ export const TITULOS: Record<string, string> = {
   '/ficha': FICHA.titulo,
   '/ficha/quien-la-vio': QUIEN.titulo,
   '/insumos': ESTADOS.insumosTitulo,
+  '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
   '/compartir': ESTADOS.compartirTitulo,
 }
