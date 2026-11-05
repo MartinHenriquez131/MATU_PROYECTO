@@ -1,7 +1,8 @@
 """MATU-41: publicador del outbox, avisos por correo y push, y conservación de los eventos fallidos (RF-39).
 
-Cadena: 0012 (MATU-57) -> 0014. down_revision = "0012". La 0013 es de MATU-50 (ficha ampliada, PR #41),
-que aún no está en esta rama: al fusionar las dos, esta pasa a down_revision = "0013" sin cambiar el SQL.
+Cadena: 0012 (MATU-57) -> 0013 (MATU-50, ficha ampliada, PR #41) -> 0014. down_revision = "0013": se
+escribió sobre la 0012 y, al integrar main con la 0013, solo cambió la cadena, sin cambiar el SQL. La 0013
+no toca ninguno de los objetos de esta migración.
 
 a) notificacion.error con lista cerrada (CHECK notificacion_error): sin_autorizacion, alerta_cerrada,
    miembro_inactivo, sin_destino, push_expirado, proveedor_rechazo y proveedor_no_disponible, o NULL.
@@ -34,10 +35,10 @@ d) Conservación (decisión de Jorge del 04-11, amplía la 77): quiebre_conserva
    fallidos con fallido_en <= limite_eventos (30 días), y las filas de evento_consumido de todo evento
    que borra. Misma firma y mismos tres contadores: "eventos" suma publicados y fallidos.
 
-backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0012.
+backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0013.
 
 Revision ID: 0014
-Revises: 0012
+Revises: 0013
 Create Date: 2026-11-04
 """
 
@@ -46,7 +47,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0014"
-down_revision: str | None = "0012"
+down_revision: str | None = "0013"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

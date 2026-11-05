@@ -725,7 +725,7 @@ Con la revisión previa del analista normativo y las decisiones de Jorge del 04-
 
 Implementado el 04-11 en la rama `matu-41-avisos-outbox`, apilada sobre `matu-25-kek-staging` (PR #46). `GET` y `PUT /v1/yo/avisos` pasaron a `openapi.json` con el esquema `PreferenciaAvisosVista`. `backend/tests/modules/notifications/test_avisos_contrato.py` falla si cambian sin volver a exportar. Las demás rutas de `openapi.json` no cambiaron.
 
-- **Migración 0014** (`down_revision = "0012"`): la 0013 es de MATU-50 (ficha ampliada, PR #41), que no está en esta rama. Al fusionar las dos, la 0014 pasa a `down_revision = "0013"` sin cambiar el SQL, y se vuelve a correr `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Migración 0014** (`down_revision = "0013"`): se escribió sobre la 0012 y, al integrar `main` con la 0013 de MATU-50 (ficha ampliada, PR #41), pasó a `down_revision = "0013"` sin cambiar el SQL. Una sola cabeza, y se volvió a correr `upgrade head`, `downgrade -1` y `upgrade head`.
 - **Módulo `notifications`:** `domain/` (destinatarios, revisión, desenlace, hora y textos), `application/` (puertos, consumidor de `QuiebreProximo` y preferencia propia), `infrastructure/` (repositorios SQL, enviadores simulados y la tarea) y `api/` (las dos rutas). El publicador genérico vive en `backend/app/shared/outbox.py` y `backend/app/shared/outbox_sql.py`, y no conoce a ningún consumidor.
 - **Lo prueban** `backend/tests/modules/notifications/` (dominio, integración contra PostgreSQL, envío simulado, API y contrato), `backend/tests/shared/test_outbox.py`, `backend/tests/test_aislamiento.py` (bloque MATU-41), `backend/tests/test_migraciones.py` (0014) y `backend/tests/core/test_configuracion.py`.
 
