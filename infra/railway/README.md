@@ -7,7 +7,7 @@ gestionados por Railway (ADR-019, plataforma decidida por Martín). **Solo datos
 | Archivo | Para qué |
 |---|---|
 | `Dockerfile` | Imagen de la API: Python 3.12, usuario sin privilegios, la página del relevo (`web/`) ya construida. Arranca con `python -m app.servidor` |
-| `railway.json` | Build con el Dockerfile, `alembic upgrade head` antes de cada despliegue, revisión de salud en `/v1/salud` |
+| `railway.json` | **Referencia** de la configuración del servicio (build con el Dockerfile, `alembic upgrade head` antes de cada despliegue, revisión de salud en `/v1/salud`). Railway **no lo lee**: los valores se cargan a mano en el panel (paso 1). Si cambias uno, cámbialo en los dos lugares |
 | `preparar_base.sh` | Crea en la base gestionada los roles de MATU, la base `matu` y `btree_gist`. Se puede correr más de una vez |
 | `pares_tcp.py` | Muestra desde qué direcciones conecta el proxy de Railway, para fijar `FORWARDED_ALLOW_IPS` |
 
@@ -22,7 +22,9 @@ En un proyecto nuevo de Railway (por ejemplo `matu-staging`), en **una sola regi
      ya no acepta un *Config file path* nuevo (pide migrar a `.railway/railway.ts`), así que se cargan a
      mano en el servicio: *Dockerfile path* `infra/railway/Dockerfile`, *Pre-deploy* `alembic upgrade head`,
      *Start* `python -m app.servidor`, *Healthcheck* `/v1/salud` (60 s) y reinicio `ON_FAILURE` (5).
-     El contexto de build es la raíz del repositorio.
+     El contexto de build es la raíz del repositorio. `railway.json` queda como la referencia escrita de
+     estos valores, pero Railway no lo lee: un cambio en el archivo no llega al servicio, y un cambio en el
+     panel no llega al archivo. Cambia siempre los dos a la vez.
    - **Networking → Generate Domain**: crea el subdominio `https://<algo>.up.railway.app`. Railway termina
      el HTTPS con su certificado; la API escucha en `$PORT` dentro de la red de Railway.
 
