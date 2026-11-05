@@ -14,6 +14,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones
+
+# La llave de las huellas de la demora (None si falta: la entrada responde 503). Es la misma función del
+# límite por IP de MATU-25: un override en las pruebas cubre a los dos
+from app.core.limite_ip import obtener_pepper_limites as obtener_pepper_limites
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.modules.iam.application.ports import ContadoresEntrada, UnidadIam
 from app.modules.iam.domain.refresh import MAX_AGE_REFRESH, NOMBRE_COOKIE, RUTA_COOKIE
@@ -46,12 +50,6 @@ def cookie_refresh(request: Request) -> str | None:
 def request_id(request: Request) -> str | None:
     valor = getattr(request.state, "request_id", None)
     return valor if isinstance(valor, str) else None
-
-
-def obtener_pepper_limites() -> bytes | None:
-    """La llave de las huellas de la demora. None si falta: la entrada responde 503."""
-    pepper = obtener_configuracion().pepper_limites
-    return None if pepper is None else pepper.get_secret_value().encode("utf-8")
 
 
 @lru_cache

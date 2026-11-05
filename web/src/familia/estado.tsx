@@ -15,7 +15,7 @@ import type { Apoyo } from './datos'
 import { navegar, type Ruta } from './ruteo'
 
 export type Fase = 'cargando' | 'fuera' | 'dentro' | 'error'
-export type AvisoEntrar = 'vencida' | 'salio' | null
+export type AvisoEntrar = 'vencida' | 'salio' | 'clave-cambiada' | null
 
 /** Lo escrito en «¿A quién cuidas?», que vive en memoria hasta el POST de la autorización. */
 export interface BorradorPersona {
@@ -46,6 +46,8 @@ interface Estado {
   aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio' } | null
   /** 5.7: la entrada venció con texto sin guardar. */
   textoPerdido: string | null
+  /** MATU-57 5.1: desde dónde se abrió «Confirma tu celular» (la primera entrada ofrece «Ahora no»). */
+  celularDesde: 'primera' | 'cuenta'
 }
 
 interface Contexto extends Estado {
@@ -83,6 +85,7 @@ const INICIAL: Estado = {
   destino: null,
   aviso: null,
   textoPerdido: null,
+  celularDesde: 'cuenta',
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {

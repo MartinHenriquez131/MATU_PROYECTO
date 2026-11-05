@@ -359,7 +359,7 @@ Lo que declaras
 ### 3.6 La ficha (`/ficha`)
 
 **Objetivo:** ver qué falta y empezar por ahí. Meta total: **los tres campos en menos de 3 minutos**.
-**Copia:** `TuFicha` de `Ficha.tsx` con `BarraCampos`, `HojaFicha` y `TextoFicha`. **Cambia:** sin `PestanasFicha` en este sprint (Compartir es otra sección; «Quién la vio», «Enlaces» e «Imprimir» no existen todavía), y sin la nota del cifrado (lenguaje 5.4, **[desde MATU-11]**: MATU-11 ya está hecho, así que **sí se muestra**; si el orquestador no lo confirma, se omite).
+**Copia:** `TuFicha` de `Ficha.tsx` con `BarraCampos`, `HojaFicha` y `TextoFicha`. **Cambia:** sin `PestanasFicha` en este sprint (Compartir es otra sección; «Quién la vio» y «Enlaces» no existen todavía; «Imprimir» queda quitada: la ficha no se imprime ni se exporta, ADR-029), y sin la nota del cifrado (lenguaje 5.4, **[desde MATU-11]**: MATU-11 ya está hecho, así que **sí se muestra**; si el orquestador no lo confirma, se omite).
 
 **Jerarquía:** 1) el título y cuántos campos van, 2) el primer campo que falta con su botón, 3) la hoja como vista previa.
 

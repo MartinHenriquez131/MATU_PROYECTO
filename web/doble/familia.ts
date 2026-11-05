@@ -2,9 +2,10 @@
 // entrada con la cookie del refresh, grupos, personas y la ficha con ETag, 412 y 428. Igual que el
 // doble del relevo, responde por HTTP de verdad y no entra al build. Datos sintéticos: Carmen cuida
 // a María, Rodrigo es su hijo; los teléfonos usan la serie 5555, que no se asigna.
-import { randomUUID } from 'node:crypto'
+import { randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { atenderConsumo, crearAlertas, listaCompleta, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -28,6 +29,8 @@ interface Persona {
   campos: Record<CampoApi, Campo>
   /** Solo las secciones agregadas: una sección quitada no queda vacía, deja de existir. */
   secciones: Partial<Record<SeccionApi, Campo>>
+  /** MATU-36: la autorización con finalidad `consumo` y los insumos. */
+  consumo: ConsumoDoble
   /** Lo que hicieron los relevos (MATU-45), del más reciente al más antiguo. */
   aperturas: Apertura[]
 }
@@ -52,6 +55,10 @@ interface Usuario {
   grupos: Grupo[]
   /** Comportamiento especial de la cuenta de ejemplo. */
   modo?: string
+  /** MATU-57: el celular en E.164 (serie 5555), si está confirmado y el canal preferido. */
+  telefono: string | null
+  celularVerificado: boolean
+  canal: 'sms' | 'whatsapp'
 }
 
 
@@ -76,6 +83,7 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     calidad,
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
     secciones: {},
+    consumo: { autorizacion: 'no', perfiles: [] },
     aperturas: [],
   }
 }
@@ -128,17 +136,26 @@ function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: 
 
 const usuarios = new Map<string, Usuario>()
 
-function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string) {
-  const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo }
+function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
+  const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms' }
   usuarios.set(email, u)
   return u
 }
 const grupo = (nombre: string, rol: Rol, personas: Persona[], puede_ver_plan = false): Grupo => ({ id: randomUUID(), nombre, rol, puede_ver_plan, personas })
 
+/** MATU-36: la primera persona de la cuenta, con su consumo. */
+function insumos(u: Usuario, autorizacion: ConsumoDoble['autorizacion'], lista: boolean) {
+  const p = u.grupos[0].personas[0]
+  p.consumo = { autorizacion, perfiles: lista ? listaCompleta({ id: u.id, nombre: u.nombre }) : [] }
+  crearAlertas(p.consumo)
+  return p.consumo
+}
+
 function sembrar() {
   const carmen = cuenta('carmen@ejemplo.cl', 'Carmen', [])
   const yo = { id: carmen.id, nombre: 'Carmen' }
   carmen.grupos.push(grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))]))
+  insumos(carmen, 'vigente', true)
   cuenta('completa@ejemplo.cl', 'Carmen', [
     grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) }))]),
   ])
@@ -149,7 +166,7 @@ function sembrar() {
   ])
   cuenta('sin-persona@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [])])
   cuenta('sin-persona-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
-  cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])])
+  insumos(cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
   cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))], true)])
   cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
   cuenta('cuidador@ejemplo.cl', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
@@ -160,7 +177,36 @@ function sembrar() {
   cuenta('conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
   cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
   cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
-  cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento')
+  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento'), 'vigente', true)
+  // MATU-36: insumos
+  cuenta('insumos-permiso@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
+  insumos(cuenta('insumos-vacio@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
+  insumos(cuenta('insumos-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('insumos-renovar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])]), 'vencida', true)
+  insumos(cuenta('insumos-renovar-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vencida', true)
+  // MATU-37: «Se acaban pronto»
+  insumos(cuenta('alertas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', true)
+  {
+    const u = cuenta('alertas-sin@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const c = insumos(u, 'vigente', false)
+    const yo = { id: u.id, nombre: u.nombre }
+    c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 120, 0, yo), perfil('Toallitas húmedas', 'unidad', 3, 1, 90, 1, yo), perfil('Champú en sobre', 'sobre', 1, 1, 30, 0, yo)]
+    crearAlertas(c)
+  }
+  {
+    // Recalculo en 0: usa 4 al día y no queda nada; comprar 1 a 3 deja «Alcanza para 0 días».
+    const u = cuenta('alertas-cero@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const c = insumos(u, 'vigente', false)
+    const yo = { id: u.id, nombre: u.nombre }
+    c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 0, 0, yo)]
+    crearAlertas(c)
+  }
+  insumos(cuenta('alertas-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('alertas-cerrada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-cerrada'), 'vigente', true)
+  insumos(cuenta('alertas-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-conflicto'), 'vigente', true)
+  insumos(cuenta('alertas-error@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error'), 'vigente', true)
+  insumos(cuenta('alertas-error-carga@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error-carga'), 'vigente', true)
+  insumos(cuenta('insumos-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
   // MATU-50: las secciones complementarias, una cuenta por estado.
   const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
   cuenta('secciones-ninguna@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
@@ -187,8 +233,55 @@ function sembrar() {
     'Bernardita',
     [grupo('Familia Valenzuela Etchegaray', 'admin', [persona('Maximiliana de los Ángeles Valenzuela Etchegaray', 'Maximiliana', { manejo_situaciones: escrito('Extraordinariamente tranquila cuando le hablan de su pueblo. '.repeat(8).slice(0, 480), yo) })])],
   )
+  // MATU-57
+  const soto = () => [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]
+  cuenta('celular-verificado@ejemplo.cl', 'Carmen', soto()).celularVerificado = true
+  cuenta('celular-sin-verificar@ejemplo.cl', 'Carmen', soto())
+  cuenta('celular-espera@ejemplo.cl', 'Carmen', soto(), 'celular-espera')
+  cuenta('sin-celular@ejemplo.cl', 'Carmen', soto()).telefono = null
+  cuenta('recuperar-espera@ejemplo.cl', 'Carmen', soto(), 'recuperar-espera')
+  cuenta('codigo-invalido@ejemplo.cl', 'Carmen', soto(), 'codigo-invalido')
 }
 sembrar()
+
+// ---------------------------------------------------------------- códigos y envíos (MATU-57)
+// Envío simulado: el código solo se escribe en la consola del servidor de desarrollo, nunca en una
+// respuesta ni en la página. Datos sintéticos. Reglas de las decisiones 81 a 87: 6 dígitos, 10
+// minutos, un solo uso, 5 intentos, pedir otro reemplaza al anterior, 60 s entre envíos del celular.
+
+interface Codigo {
+  codigo: string
+  vence: number
+  intentos: number
+}
+const codigos = new Map<string, Codigo>()
+const ultimoEnvio = new Map<string, number>()
+
+function enviarCodigo(clave: string, a: string, por: string) {
+  const codigo = String(randomInt(0, 1_000_000)).padStart(6, '0')
+  codigos.set(clave, { codigo, vence: Date.now() + 10 * 60_000, intentos: 0 })
+  ultimoEnvio.set(clave, Date.now())
+  console.info(`[doble · envío simulado] ${clave.split(':')[0]} → ${a} por ${por}: ${codigo}`)
+}
+
+/** `true` si el código sirve (y lo gasta). Cinco fallos lo agotan. */
+function probarCodigo(clave: string, codigo: unknown): boolean {
+  const c = codigos.get(clave)
+  if (!c || c.vence < Date.now() || c.intentos >= 5) return false
+  if (c.codigo !== codigo) {
+    c.intentos += 1
+    return false
+  }
+  codigos.delete(clave)
+  return true
+}
+
+const enmascarar = (tel: string | null) => (tel ? `+56 9 •••• ••${tel.slice(-2)}` : null)
+const sinCuerpo = (res: ServerResponse, status: 202 | 204) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.statusCode = status
+  res.end()
+}
 
 
 // ---------------------------------------------------------------- sesiones
@@ -307,10 +400,72 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return res.end(), true
   }
 
-  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas')) return false
+  // ------------------------------------------------ MATU-57: recuperar (sin entrar)
+  if (metodo === 'POST' && ruta === '/v1/recuperacion/codigo') {
+    const email = typeof cuerpo?.email === 'string' ? cuerpo.email.trim().toLowerCase() : ''
+    const extra = Object.keys(cuerpo ?? {}).filter((k) => k !== 'email' && k !== 'canal')
+    if (!email || email.length > 254 || extra.length || (cuerpo?.canal != null && cuerpo.canal !== 'correo'))
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' }] }), true
+    // Siempre 202 (decisión 84). Sin cuenta, o con un envío hace menos de 60 s, simplemente no se envía.
+    const v = usuarios.get(email)
+    const clave = `recuperar:${email}`
+    if (v && Date.now() - (ultimoEnvio.get(clave) ?? 0) >= 60_000) {
+      const alCelular = v.celularVerificado && v.telefono && cuerpo?.canal !== 'correo'
+      enviarCodigo(clave, email, alCelular ? `${v.canal} al ${enmascarar(v.telefono)}` : 'correo')
+    } else if (v) console.info(`[doble · envío simulado] recuperar → ${email}: no se envía (menos de 60 s del anterior)`)
+    return sinCuerpo(res, 202), true
+  }
+
+  if (metodo === 'POST' && ruta === '/v1/recuperacion/contrasena') {
+    const email = typeof cuerpo?.email === 'string' ? cuerpo.email.trim().toLowerCase() : ''
+    const nueva = cuerpo?.contrasena_nueva
+    const errores: { campo: string; mensaje: string; tipo: string }[] = []
+    if (!email) errores.push({ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'missing' })
+    if (typeof cuerpo?.codigo !== 'string' || !/^[0-9]{6}$/.test(cuerpo.codigo)) errores.push({ campo: 'codigo', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_pattern_mismatch' })
+    if (typeof nueva !== 'string' || nueva.length < 10 || nueva.length > 128) errores.push({ campo: 'contrasena_nueva', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_too_short' }) // pragma: allowlist secret
+    if (errores.length) return problema(res, 422, '/errores/validacion', { errores }), true
+    const v = usuarios.get(email)
+    if (v?.modo === 'recuperar-espera') return res.setHeader('Retry-After', '120'), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    if (!v || v.modo === 'codigo-invalido' || !probarCodigo(`recuperar:${email}`, cuerpo?.codigo)) return problema(res, 422, '/errores/codigo-invalido'), true
+    v.contrasena = String(nueva)
+    // Revoca todas las entradas de la cuenta (decisión 86) y avisa por el otro canal.
+    for (const [id, r] of refrescos) if (r.email === email) refrescos.delete(id)
+    console.info(`[doble · envío simulado] aviso → ${email}: cambiaron tu contraseña`)
+    return sinCuerpo(res, 204), true
+  }
+
+  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta')) return false
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+
+  // ------------------------------------------------ MATU-57: la cuenta y el celular
+  if (metodo === 'GET' && ruta === '/v1/cuenta') {
+    res.setHeader('Cache-Control', 'no-store')
+    const vista = { id: u.id, nombre: u.nombre, email: u.email, celular_enmascarado: enmascarar(u.telefono), celular_verificado: u.celularVerificado, celular_canal: u.canal }
+    return json(res, 200, vista), true
+  }
+  if (metodo === 'POST' && ruta === '/v1/cuenta/celular/codigo') {
+    if (u.celularVerificado) return problema(res, 409, '/errores/celular-verificado'), true
+    if (!u.telefono) return problema(res, 409, '/errores/sin-celular'), true
+    if (u.modo === 'celular-espera') return res.setHeader('Retry-After', '120'), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    const clave = `celular:${u.email}`
+    const espera = 60_000 - (Date.now() - (ultimoEnvio.get(clave) ?? 0))
+    if (espera > 0) return res.setHeader('Retry-After', String(Math.ceil(espera / 1000))), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    enviarCodigo(clave, enmascarar(u.telefono) ?? '', 'mensaje')
+    return sinCuerpo(res, 202), true
+  }
+  if (metodo === 'POST' && ruta === '/v1/cuenta/celular/verificar') {
+    const canal = cuerpo?.canal ?? 'sms'
+    if (typeof cuerpo?.codigo !== 'string' || !/^[0-9]{6}$/.test(cuerpo.codigo) || (canal !== 'sms' && canal !== 'whatsapp'))
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'codigo', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_pattern_mismatch' }] }), true
+    const c = codigos.get(`celular:${u.email}`)
+    if (c && c.intentos >= 5) return res.setHeader('Retry-After', '600'), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    if (!probarCodigo(`celular:${u.email}`, cuerpo.codigo)) return problema(res, 422, '/errores/codigo-invalido'), true
+    u.celularVerificado = true
+    u.canal = canal
+    return sinCuerpo(res, 204), true
+  }
 
   if (ruta === '/v1/grupos' && metodo === 'GET') return json(res, 200, u.grupos.map(({ id, nombre, rol, puede_ver_plan }) => ({ id, nombre, rol, puede_ver_plan }))), true
   if (ruta === '/v1/grupos' && metodo === 'POST') {
@@ -335,6 +490,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     p.direccion = b.direccion ? { etiqueta: 'Casa', region: 'Metropolitana', referencia: null, depto: null, ...(b.direccion as object) } : null
     g.personas.push(p)
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
+  }
+
+  // MATU-36: el consumo y su autorización.
+  const mConsumo = /^\/v1\/personas-cuidadas\/([^/]+)\/(?:consumo|consentimientos)(?:\/|$)/.exec(ruta)
+  if (mConsumo) {
+    const pc = g?.personas.find((x) => x.id === decodeURIComponent(mConsumo[1]))
+    if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
+    return atenderConsumo(req, res, cuerpo, { rol: g.rol, consumo: pc.consumo, usuario: u }, r), true
   }
 
   // MATU-45: GET …/plan/aperturas, paginado con un cursor opaco (aquí, la posición en base64url).

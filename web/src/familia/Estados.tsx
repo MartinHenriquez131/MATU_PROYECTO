@@ -64,11 +64,6 @@ export function CompartirPronto() {
   )
 }
 
-/** Insumos: el lugar donde se monta MATU-36. */
-export function InsumosPronto() {
-  return <Pagina titulo={ESTADOS.insumosTitulo} />
-}
-
 /** 5.7: la entrada venció con texto sin guardar. Nunca se guarda en el navegador. */
 export function TextoPerdido() {
   const { textoPerdido, fijar } = useFamilia()
