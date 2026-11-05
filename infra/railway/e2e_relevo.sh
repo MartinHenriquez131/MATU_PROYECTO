@@ -20,7 +20,15 @@ set -euo pipefail
 BASE="${1:?Uso: bash infra/railway/e2e_relevo.sh https://<dominio>}"
 BASE="${BASE%/}"
 EMAIL="carmen@example.com"
-PY="$(command -v python3 || command -v python)"
+# En Windows, "python3" puede ser el acceso directo de la Microsoft Store, que no ejecuta nada: se prueba
+# cada candidato antes de usarlo
+PY=""
+for candidato in python3 python py; do
+  if command -v "$candidato" >/dev/null 2>&1 && "$candidato" -c "import json" >/dev/null 2>&1; then
+    PY="$candidato"; break
+  fi
+done
+[ -n "$PY" ] || { echo "FALLA: no se encontró Python (python3, python o py)" >&2; exit 1; }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 COOKIES="$TMP/cookies"
