@@ -67,11 +67,12 @@ export const CUENTA = {
 /**
  * [lenguaje 13.3] 429 del límite por IP de MATU-25 (`/errores/demasiadas-peticiones`), solo al crear
  * la cuenta: recuperar y el celular conservan los de la sección 19 (corregido el 05-11). Los minutos
- * salen de `Retry-After` (`esperaDe`, compartido/api/cliente.ts).
+ * salen de `Retry-After` (`esperaDe`, compartido/api/cliente.ts). Entre el número y «minuto(s)» va
+ * un espacio duro (`\u00A0`), aquí y en las otras esperas: al cortar la línea no se separan.
  */
 export const ESPERA_CONEXION = {
   titulo: 'Espera un momento',
-  texto: (minutos: number) => `Hubo muchos intentos desde esta conexión. Vuelve a intentarlo en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.`,
+  texto: (minutos: number) => `Hubo muchos intentos desde esta conexión. Vuelve a intentarlo en ${minutos === 1 ? '1\u00A0minuto' : `${minutos}\u00A0minutos`}.`,
 }
 
 export const ENTRAR = {
@@ -87,7 +88,7 @@ export const ENTRAR = {
   salio: 'Saliste de MATU. Para volver, entra con tu correo y tu contraseña.', // [PROPUESTO]
   credenciales: 'El correo o la contraseña no coinciden. Revísalos y vuelve a intentarlo.', // [PROPUESTO]
   /** [aprobado por Jorge el 03-11] MATU-57 (especificación 4): reemplaza el de lenguaje 13.3; sigue el enlace a recuperar. */
-  espera: (minutos: number) => `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1 minuto.' : `Espera ${minutos} minutos.`}`,
+  espera: (minutos: number) => `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1\u00A0minuto.' : `Espera ${minutos}\u00A0minutos.`}`,
   esperaRecuperar: 'Recupera tu cuenta', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
   olvidaste: '¿Olvidaste tu contraseña?', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
   /** [aprobado por Jorge el 03-11, D2] Tras cambiar la contraseña con el código. */
@@ -325,7 +326,7 @@ export const RECUPERAR = {
   errClaveCorta: 'La contraseña necesita al menos 10 caracteres.', // [MATU-39] // pragma: allowlist secret
   errClave422: 'La contraseña necesita entre 10 y 128 caracteres.', // [MATU-39] // pragma: allowlist secret
   /** [aprobado por Jorge el 03-11] 429 al probar el código. */
-  esperaCodigo: (minutos: number) => `Hubo varios intentos con ese código. Pide uno nuevo en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.`,
+  esperaCodigo: (minutos: number) => `Hubo varios intentos con ese código. Pide uno nuevo en ${minutos === 1 ? '1\u00A0minuto' : `${minutos}\u00A0minutos`}.`,
 }
 
 export const CUENTA_PROPIA = {
@@ -362,7 +363,7 @@ export const CELULAR = {
   errCodigo: 'El código no es correcto o ya venció. Pide uno nuevo.', // [aprobado por Jorge el 03-11]
   errCodigoCorto: 'El código tiene 6 números.', // [aprobado por Jorge el 03-11]
   /** [aprobado por Jorge el 03-11] */
-  espera: (minutos: number) => `Ya pediste varios códigos. Espera ${minutos === 1 ? '1 minuto' : `${minutos} minutos`} y vuelve a intentarlo.`,
+  espera: (minutos: number) => `Ya pediste varios códigos. Espera ${minutos === 1 ? '1\u00A0minuto' : `${minutos}\u00A0minutos`} y vuelve a intentarlo.`,
   noEnvio: 'No pudimos enviar el mensaje ahora. Vuelve a intentarlo en unos minutos.', // [aprobado por Jorge el 03-11]
 }
 

@@ -106,11 +106,12 @@ export const CAMPOS: Record<CampoFicha, { etiqueta: string; pregunta: (pila: str
   },
 }
 
+/** Entre el número y «minuto(s)» va un espacio duro (`\u00A0`): al cortar la línea no se separan. */
 export const ESPERA = {
   minutos: (m: number | null) =>
     m === null
       ? 'Vuelve a intentarlo en unos minutos.' // [PROPUESTO]
       : m === 1
-        ? 'Vuelve a intentarlo en 1 minuto.' // [PROPUESTO]
-        : `Vuelve a intentarlo en ${m} minutos.`,
+        ? 'Vuelve a intentarlo en 1\u00A0minuto.' // [PROPUESTO]
+        : `Vuelve a intentarlo en ${m}\u00A0minutos.`,
 }

@@ -29,8 +29,9 @@ describe('Relevo: minutos de espera desde Retry-After', () => {
   })
 
   it('el texto va en singular con 1 y sin número si no hay cabecera', () => {
-    expect(ESPERA.minutos(1)).toBe('Vuelve a intentarlo en 1 minuto.')
-    expect(ESPERA.minutos(2)).toBe('Vuelve a intentarlo en 2 minutos.')
+    // Con espacio duro entre el número y «minuto(s)» (revisión visual del #51, P3).
+    expect(ESPERA.minutos(1)).toBe('Vuelve a intentarlo en 1\u00A0minuto.')
+    expect(ESPERA.minutos(2)).toBe('Vuelve a intentarlo en 2\u00A0minutos.')
     expect(ESPERA.minutos(null)).toBe('Vuelve a intentarlo en unos minutos.')
   })
 })
