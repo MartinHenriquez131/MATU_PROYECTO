@@ -164,4 +164,4 @@ omisión y se escala a Martín y Jorge (ver abajo).
   deciden Martín y Jorge.
 - **La ficha en staging.** Resuelto con la decisión 105 (Jorge, 04-11, PR #46): `CUSTODIA_KEK=entorno_sintetico`
   con una KEK propia de staging. Antes de datos reales se pasa a otra custodia (ADR-019).
-- **Región.** Anotarla al crear el proyecto (paso 1).
+- **Región.** Resuelto: anotada en la tabla de datos del proyecto (línea 33), `sfo` (US West, California), 05-11.

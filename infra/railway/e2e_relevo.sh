@@ -72,7 +72,7 @@ escribir red_apoyo "Carmen, su hija, de 8 a 20. Si no contesta, Rodrigo, su hijo
 compartir() {
   local motivo="$1"
   curl -sS -w '\n%{http_code}' -X POST "${CAB[@]}" "$BASE/v1/personas-cuidadas/$PERSONA/plan/accesos-relevo" \
-    -d "{\"nombre_relevo\": \"Rosa\", \"telefono_relevo\": \"+56 9 5555 0137\", \"campos\": [\"rutina\", \"manejo_situaciones\", \"red_apoyo\"], \"motivo\": \"$motivo\", \"relevo_informado\": true}"
+    -d "{\"nombre_relevo\": \"Rosa\", \"telefono_relevo\": \"+56900000000\", \"campos\": [\"rutina\", \"manejo_situaciones\", \"red_apoyo\"], \"motivo\": \"$motivo\", \"relevo_informado\": true}"
 }
 
 # 3 · Primer acceso: se abre aquí mismo, como lo haría la página /r
