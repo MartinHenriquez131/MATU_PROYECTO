@@ -4,6 +4,7 @@
 import { isAxiosError } from 'axios'
 import { apiFamilia } from './sesion'
 import type { components } from './familia.openapi'
+import type { SeccionApi } from '../secciones'
 
 type S = components['schemas']
 
@@ -20,6 +21,7 @@ type DireccionNueva = Omit<S['DireccionNueva'], 'etiqueta' | 'region'> & Partial
 export type SolicitudPersona = Omit<S['SolicitudPersona'], 'direccion'> & { direccion?: DireccionNueva | null }
 export type PersonaCreada = S['PersonaCreada']
 export type Calidad = S['CalidadOtorgante']
+/** `GET …/plan/ficha`, con `secciones` (MATU-50): solo las secciones agregadas. */
 export type Ficha = S['FichaVista']
 export type EstadoCampo = S['EstadoCampoVista']
 export type CampoGuardado = S['CampoGuardadoVista']
@@ -134,4 +136,77 @@ export async function listarAperturas(personaId: string, cursor: string | null =
   const params: { limite: number; cursor?: string } = { limite }
   if (cursor) params.cursor = cursor
   return (await apiFamilia.get<ListaAperturas>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/aperturas`, { params })).data
+}
+
+// ---------------------------------------------------------------- secciones complementarias (MATU-50)
+
+export type EstadoSeccion = S['EstadoSeccionVista']
+export type SeccionGuardada = S['SeccionGuardadaVista']
+export type SeccionesFicha = Partial<Record<SeccionApi, EstadoSeccion>>
+
+export const seccionesDe = (f: Ficha | null | undefined): SeccionesFicha => (f?.secciones ?? {}) as SeccionesFicha
+
+const rutaSeccion = (personaId: string, seccion: SeccionApi) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/secciones/${seccion}`
+
+/**
+ * `PUT …/plan/secciones/{seccion}`: siempre condicional, como un campo base. Con `etag`, `If-Match`;
+ * sin él (la sección no está), `If-None-Match: *`. 201 si se agregó, 200 si se editó.
+ */
+export async function guardarSeccion(personaId: string, seccion: SeccionApi, texto: string, etag: string | null): Promise<SeccionGuardada> {
+  const cuerpo: S['SolicitudSeccion'] = { texto }
+  const r = await apiFamilia.put<SeccionGuardada>(rutaSeccion(personaId, seccion), cuerpo, {
+    headers: etag ? { 'If-Match': etag } : { 'If-None-Match': '*' },
+  })
+  const cabecera = r.headers?.etag
+  return { ...r.data, etag: typeof cabecera === 'string' && cabecera ? cabecera : r.data.etag }
+}
+
+/**
+ * `DELETE …/plan/secciones/{seccion}` con `If-Match`: borra el texto. 204 sin cuerpo. Si otra
+ * persona la cambió, 412 con lo actual; si ya no está, 412 con `actual: null` (contrato).
+ */
+export async function quitarSeccion(personaId: string, seccion: SeccionApi, etag: string): Promise<void> {
+  await apiFamilia.delete(rutaSeccion(personaId, seccion), { headers: { 'If-Match': etag } })
+}
+
+/** El 412 de una sección distingue «la cambió otra persona» (`actual`) de «ya no está» (`null`). */
+export function leerConflictoSeccion(error: unknown): { actual: EstadoSeccion | null; etag: string | null } | null {
+  if (!isAxiosError(error) || error.response?.status !== 412) return null
+  const cuerpo = error.response.data as { actual?: EstadoSeccion | null } | undefined
+  const actual = cuerpo?.actual && typeof cuerpo.actual.texto === 'string' ? cuerpo.actual : null
+  const cabecera = error.response.headers?.etag
+  return { actual, etag: typeof cabecera === 'string' && cabecera ? cabecera : (actual?.etag ?? null) }
+}
+
+// ---------------------------------------------------------------- accesos de relevo (MATU-48)
+
+/** `POST …/plan/accesos-relevo`. Sin `campos` (deprecado): los tres campos base van siempre. */
+export type SolicitudAcceso = Omit<S['SolicitudAccesoVista'], 'campos'>
+/** El 201: la `url` y el `pin` se muestran una sola vez y viven solo en la memoria de la pantalla. */
+export type AccesoCreado = S['AccesoCreadoVista']
+export type AccesoResumen = S['AccesoResumenVista']
+export type EstadoAcceso = S['EstadoAcceso']
+export type MotivoAcceso = S['MotivoAcceso']
+export type ListaAccesos = S['ListaAccesosVista']
+
+const rutaAccesos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/accesos-relevo`
+
+export async function crearAcceso(personaId: string, cuerpo: SolicitudAcceso): Promise<AccesoCreado> {
+  return (await apiFamilia.post<AccesoCreado>(rutaAccesos(personaId), cuerpo)).data
+}
+
+/** `GET …/plan/accesos-relevo`, del más nuevo al más antiguo. `estado` filtra en el servidor. */
+export async function listarAccesos(
+  personaId: string,
+  { estado = null, cursor = null, limite = 20 }: { estado?: EstadoAcceso | null; cursor?: string | null; limite?: number } = {},
+): Promise<ListaAccesos> {
+  const params: { limite: number; estado?: EstadoAcceso; cursor?: string } = { limite }
+  if (estado) params.estado = estado
+  if (cursor) params.cursor = cursor
+  return (await apiFamilia.get<ListaAccesos>(rutaAccesos(personaId), { params })).data
+}
+
+/** `DELETE /v1/accesos-relevo/{id}`: 204, idempotente (ya cortado o vencido también es 204). */
+export async function cortarAcceso(accesoId: string): Promise<void> {
+  await apiFamilia.delete(`/v1/accesos-relevo/${encodeURIComponent(accesoId)}`)
 }

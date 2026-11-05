@@ -1,6 +1,7 @@
 """Rutas de la ficha de relevo (MATU-12, RF-02). Contrato: docs/api/propuestos/ficha.openapi.yaml.
 
-    GET /v1/personas-cuidadas/{persona_id}/plan/ficha           admin, cuidador y pagador con puede_ver_plan. 200
+    GET /v1/personas-cuidadas/{persona_id}/plan/ficha           admin, cuidador y pagador con puede_ver_plan. 200.
+                                                                Con las secciones complementarias agregadas (MATU-50)
     PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}   admin y cuidador. 201 si se crea, 200 si se actualiza
 
 El rol, la persona, el campo, el consentimiento y la custodia se verifican en las dependencias
@@ -43,6 +44,7 @@ from app.modules.care_plan.api.esquemas import (
     CamposVista,
     Completitud,
     EstadoCampoVista,
+    EstadoSeccionVista,
     FichaVista,
     ProblemaFaltaVersionVista,
     ProblemaVersionVista,
@@ -247,6 +249,17 @@ def _autor(autor: Autor | None) -> AutorVista | None:
     return None if autor is None else AutorVista(id=autor.id, nombre=autor.nombre)
 
 
+def estado_seccion(seccion: EstadoCampo) -> EstadoSeccionVista:
+    """Una sección complementaria agregada: siempre con texto, versión e instante (MATU-50)."""
+    assert seccion.texto is not None and seccion.version is not None and seccion.actualizado_en is not None
+    return EstadoSeccionVista(
+        texto=seccion.texto,
+        etag=etag(seccion.version),
+        actualizado_por=_autor(seccion.actualizado_por),
+        actualizado_en=seccion.actualizado_en,
+    )
+
+
 def _estado(campo: EstadoCampo) -> EstadoCampoVista:
     return EstadoCampoVista(
         texto=campo.texto,
@@ -281,6 +294,7 @@ def leer(
             manejo_situaciones=_estado(campos[CampoFicha.MANEJO_SITUACIONES]),
             red_apoyo=_estado(campos[CampoFicha.RED_APOYO]),
         ),
+        secciones={s: estado_seccion(estado) for s, estado in resultado.secciones.items()},
     )
 
 

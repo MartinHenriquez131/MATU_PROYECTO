@@ -5,8 +5,9 @@ import { Clock3, RefreshCw } from 'lucide-react'
 import type { FichaRelevo } from '../compartido/api/relevo'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { Boton } from '../compartido/ui/Boton'
+import { AVISO_REMEDIOS, ORDEN_SECCIONES, TITULO_SECCION, esSeccion } from '../compartido/secciones'
 import { CAMPOS, ERROR, FICHA, MOSTRAR_EJEMPLO, ORDEN_CAMPOS } from './textos'
-import { TextoCampo } from './TextoCampo'
+import { TextoCampo, TextoSeccion } from './TextoCampo'
 
 /** `ok` = llegó la ficha nueva · `error` = red o 5xx, la hoja sigue · `salio` = otro momento. */
 export type ResultadoActualizar = 'ok' | 'error' | 'salio'
@@ -96,7 +97,34 @@ function Hoja({ ficha }: { ficha: FichaRelevo }) {
             </section>
           )
         })}
+        <Secciones ficha={ficha} />
       </div>
+    </div>
+  )
+}
+
+/**
+ * MATU-49, 7.1: después de los tres campos, solo las secciones que vienen en la respuesta, en el
+ * orden fijo. Una sección no compartida no deja rastro. Sin pregunta guía ni ejemplo (D5). En Sus
+ * remedios, el aviso va antes del texto: el lector de pantalla lo lee primero.
+ */
+function Secciones({ ficha }: { ficha: FichaRelevo }) {
+  const llegadas = (ficha.secciones ?? []).filter((s) => esSeccion(s.tipo) && typeof s.texto === 'string' && s.texto.trim())
+  const lista = ORDEN_SECCIONES.flatMap((t) => llegadas.filter((s) => s.tipo === t).slice(0, 1))
+  if (!lista.length) return null
+  return (
+    <div className="mt-8 border-t border-linea pt-6">
+      {lista.map((s, i) => (
+        <section key={s.tipo} aria-labelledby={`seccion-${s.tipo}`} className={i ? 'mt-6' : ''}>
+          <h2 id={`seccion-${s.tipo}`} className="text-xl font-bold text-turquesa">
+            {TITULO_SECCION[s.tipo]}
+          </h2>
+          {s.tipo === 'remedios' && <p className="mt-2 border-s-4 border-atenta ps-3 text-base">{AVISO_REMEDIOS}</p>}
+          <div className="mt-3">
+            <TextoSeccion texto={s.texto} />
+          </div>
+        </section>
+      ))}
     </div>
   )
 }

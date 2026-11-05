@@ -14,10 +14,10 @@ from typing import TextIO
 from fastapi import APIRouter, FastAPI
 
 from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabecerasPrefijo
-from app.core.config import obtener_configuracion
+from app.core.config import ENTORNOS_DOCUMENTACION, obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
-from app.core.web import montar_pagina_relevo
+from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_personas import router as router_personas
@@ -25,6 +25,7 @@ from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
+from app.modules.care_plan.api.router_secciones import router as router_secciones
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.iam.api.router import router as router_iam
@@ -53,7 +54,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
     preparar_custodia()
 
-    documentacion = config.entorno != "produccion"
+    # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
+    # existen y responden 404 RFC 7807, sin caer en la app de familia
+    documentacion = config.entorno in ENTORNOS_DOCUMENTACION
     app = FastAPI(
         title="MATU API",
         version="0.1.0",
@@ -81,6 +84,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")
+    app.include_router(router_secciones, prefix="/v1")
     app.include_router(router_relevo, prefix="/v1")
     app.include_router(router_relevo_publico, prefix="/v1")
     app.include_router(router_autorizaciones, prefix="/v1")
@@ -91,6 +95,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)
+    # MATU-58: la app de familia en toda ruta GET o HEAD que no sea de la API, /r, /assets ni la
+    # documentación. Es el destino por omisión del enrutador: no tapa ninguna ruta, ni las de después
+    montar_app_familia(app, config.web_dist)
 
     return app
 

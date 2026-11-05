@@ -134,7 +134,8 @@ export const AUTORIZACION = {
 
 export const FICHA = {
   titulo: 'Ficha de relevo', // [lenguaje 5.4]
-  bajada: 'Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado y puedes compartir solo algunos.',
+  // Aprobado por Jorge el 03-11 (MATU-49 10.3): con ADR-028 los tres campos se comparten siempre.
+  bajada: 'Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado.',
   avance: (n: number) => `${n} de 3 campos listos`,
   /** Lo que va después del número, que lleva `cifras` aparte. */
   avanceResto: 'de 3 campos listos',
@@ -188,6 +189,69 @@ export const FICHA = {
   vencidaConTexto: 'Tienes que volver a entrar. Copia lo que escribiste antes de seguir: no se guardó.', // [PROPUESTO]
 }
 
+/** Secciones complementarias (MATU-50). [lenguaje 14.2 y 14.3], aprobados por Jorge el 03-11. */
+export const MAS = {
+  titulo: (pila: string) => `Más sobre ${pila}`,
+  bajada: (pila: string) => `Si quieres, cuenta más para que quien te reemplace conozca a ${pila}. Agrega solo lo que te sirva, cuando tengas tiempo.`,
+  agregadas: (n: number) => (n === 1 ? 'Agregaste 1 sección.' : `Agregaste ${n} secciones.`),
+  puedesAgregar: 'Puedes agregar',
+  agregar: (t: string) => `Agregar «${t}»`,
+  editar: (t: string) => `Editar «${t}»`,
+  vistaPrevia: 'Cada relevo ve solo las secciones que eliges al compartir.',
+  // Editor
+  ayuda: 'No hace falta escribir diagnósticos ni enfermedades. Escribe lo que ayuda a cuidar.',
+  alergias: 'Si tiene alergia a algún remedio o alimento, anótalo aquí.',
+  ejemplo: (e: string) => `Por ejemplo: «${e}»`,
+  contador: (n: number, tope: number) => `${n} de ${tope} caracteres`,
+  // Guardado (4.4)
+  agregaste: (t: string) => `Agregaste «${t}».`,
+  guardamos: (t: string) => `Guardamos «${t}».`,
+  conEnlaces: 'Quien ya tiene un enlace no la verá. Para que la vea, crea un enlace nuevo.',
+  // Quitar (4.5 y 4.6)
+  quitar: (t: string) => `Quitar «${t}»`,
+  quitarPregunta: (t: string) => `¿Quitar «${t}»?`,
+  quitarTexto: 'Se borra lo que escribiste en esta sección. Quien tenga un enlace dejará de verla. No se puede deshacer.',
+  quitarYBorrar: 'Quitar y borrar',
+  dejarla: 'Dejarla como está',
+  quitando: 'Quitando…',
+  quitaste: (t: string) => `Quitaste «${t}».`,
+  yaNoEstaba: (t: string) => `«${t}» ya no estaba en la ficha.`,
+  conflictoQuitar: (autor: string, t: string) => `${autor} cambió «${t}» mientras la ibas a quitar`,
+  versionDe: (autor: string) => `Esta es la versión que guardó ${autor}:`,
+  quitarlaIgual: 'Quitarla igual',
+  // Aprobados por Jorge el 03-11 (MATU-49 10.3)
+  dejasteComoLaGuardo: (t: string, autor: string) => `Dejaste «${t}» como la guardó ${autor}.`,
+  /** 4.7: el 422 de largo. Partido para poner el tope en `cifras`. */
+  muyLargo: ['Esta sección admite hasta ', ' caracteres. Acorta un poco el texto para guardarlo.'] as const,
+  // 4.6: guardar cuando otra persona la quitó (412 con `actual: null`)
+  quitadaTitulo: (t: string) => `Otra persona quitó «${t}» mientras escribías`,
+  quitadaTexto: 'Lo que escribiste no se guardó. Puedes agregarla de nuevo con tu texto.',
+  agregarlaDeNuevo: 'Agregarla de nuevo',
+  dejarlaQuitada: 'Dejarla quitada',
+  quitadaPie: 'Si quieres, copia lo que escribiste antes de elegir.',
+  dejasteQuitada: (t: string) => `Dejaste «${t}» quitada.`,
+}
+
+/** El paso de compartir (MATU-48), para el selector de secciones. [lenguaje 14.2 y 14.3] */
+export const COMPARTIR_SECCIONES = {
+  siempreVe: 'Siempre ve',
+  base: 'Su día, Si se altera y A quién llamar.',
+  queMas: '¿Qué más puede ver?',
+  elige: 'Elige las secciones que le sirven.',
+  incluirRemedios: 'Incluir Sus remedios',
+  ayudaRemedios: 'Quien te reemplaza verá qué remedios toma y a qué hora. Márcalo solo si va a dárselos o a estar a cargo de ellos.',
+  /** Partido en tres para poner la fecha en `cifras` y en negrita. */
+  confirmacion: (nombre: string) => [`Vas a compartir sus remedios con ${nombre} hasta el `, '. Puedes cortar el acceso cuando quieras.'] as const,
+  si: 'Sí, crear el enlace',
+  no: 'No incluir sus remedios',
+  /** PIN y Enlaces: «Ve su día, si se altera, a quién llamar, quién es y sus remedios.» */
+  loQueVe: (titulos: string[]) => {
+    const todo = ['su día', 'si se altera', 'a quién llamar', ...titulos.map((t) => t.toLowerCase())]
+    return `Ve ${todo.slice(0, -1).join(', ')} y ${todo[todo.length - 1]}.`
+  },
+  despues: (nombre: string) => `Si agregas una sección después, ${nombre} no la verá. Para que la vea, crea un enlace nuevo.`,
+}
+
 export const CONFLICTO = {
   // [lenguaje 6.2]
   titulo: (autor: string, campo: string) => `${autor} guardó «${campo}» mientras escribías`,
@@ -209,9 +273,8 @@ export const ESTADOS = {
   // 5.4 [PROPUESTO]
   sinPersona: (grupo: string) =>
     `Todavía no hay nadie registrado en ${grupo}. Quien administra el grupo puede registrar a la persona que cuidan.`,
-  // 5.5 [PROPUESTO]
+  // MATU-48 2.1: la pantalla «Pronto vas a poder compartir…» de MATU-39 5.5 sale.
   compartirTitulo: 'Compartir',
-  compartirPronto: 'Pronto vas a poder compartir la ficha con quien te reemplace desde aquí.',
   // 5.6 [PROPUESTO]
   sinAcceso: (nombre: string) => `No tienes acceso a la ficha de ${nombre}. Si la necesitas, pídeselo a quien administra el grupo.`,
   insumosTitulo: 'Insumos',
@@ -300,7 +363,7 @@ export const QUIEN = {
   pinIncorrecto: (n: string) => `${n} escribió mal el PIN`, // [lenguaje 9]
   bloqueo: (n: string) => `El enlace de ${n} se bloqueó por PIN incorrecto`, // [lenguaje 9]
   aLas: (hora: string) => `a las ${hora}`,
-  // D2, aprobado por Jorge el 03-11. La última oración («…desde Enlaces.») espera a MATU-48 (D4).
+  // D2, aprobado por Jorge el 03-11. Con MATU-48 suma `siTePreocupa` (lenguaje 15), solo para admin y cuidador.
   sinAbrir: 'Todavía no abre la ficha. Puede que no haya escrito el PIN aún, o que el enlace le haya llegado a otra persona.',
   // Aprobado por Jorge el 03-11.
   bloqueado: 'Ya no abre con ese enlace. Si fue un error al escribir, crea uno nuevo y díctale el PIN de nuevo.',
@@ -328,5 +391,130 @@ export const TITULOS: Record<string, string> = {
   '/ficha': FICHA.titulo,
   '/ficha/quien-la-vio': QUIEN.titulo,
   '/insumos': ESTADOS.insumosTitulo,
+  '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
   '/compartir': ESTADOS.compartirTitulo,
+  // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
+  '/compartir/listo': 'Enlace creado', // aprobado por Jorge el 04-11
+  '/compartir/enlaces': 'Enlaces',
+}
+
+/**
+ * Compartir la ficha con un relevo y cortar el acceso (MATU-48, docs/diseno/matu-48-compartir.md).
+ * [lenguaje 9] tal cual, [demo] de la demo aprobada; lo demás, aprobado por Jorge el 04-11.
+ */
+export const COMPARTIR = {
+  titulo: 'Compartir', // [demo]
+  enlaces: 'Enlaces', // [demo]
+  vistas: 'Vistas de Compartir',
+  // Aprobado por Jorge el 04-11: reemplaza el de lenguaje 9, que decía «por WhatsApp».
+  bajada: 'Quien te reemplaza recibe un enlace en un mensaje y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.',
+  /** Cuando todavía no se escribe el nombre. */
+  quienTeReemplaza: 'quien te reemplaza',
+  nombre: '¿Quién te va a reemplazar?', // [lenguaje 9]
+  nombreAyuda: 'Basta con su nombre de pila.',
+  telefono: 'Su teléfono', // [lenguaje 9]
+  telefonoAyuda: 'Para enviarle el enlace y poder contactarle.', // [lenguaje 9]
+  /** [demo] «Si se altera y A quién llamar están vacíos: Rosa verá «Sin completar».» */
+  vacios: (campos: string[], nombre: string) => {
+    const lista = campos.length > 1 ? `${campos.slice(0, -1).join(', ')} y ${campos[campos.length - 1]}` : campos[0]
+    return `${lista} ${campos.length > 1 ? 'están vacíos' : 'está vacío'}: ${nombre} verá «Sin completar».`
+  },
+  recordatorio: (pila: string) =>
+    `Comparte solo lo que necesita para cuidar a ${pila}. Quien recibe el enlace puede anotar o fotografiar lo que lee, y MATU no puede impedirlo.`,
+  hastaCuando: '¿Hasta cuándo?', // [lenguaje 9]
+  vigencias: { '24h': '24 horas', finde: 'Fin de semana', dias: 'Otra cantidad de días' }, // [demo]
+  cuantosDias: '¿Cuántos días?', // [lenguaje 9]
+  hasta30: 'Hasta 30 días.', // [lenguaje 9]
+  dias: 'días', // [demo]
+  /** «Vence el {fecha} a las {hora}.», partido para poner la fecha y la hora en `cifras`. */
+  vence: ['Vence el ', ' a las ', '.'] as const,
+  paraQue: '¿Para qué lo compartes?', // [lenguaje 9]
+  motivos: {
+    salgo_unas_horas: 'Salgo unas horas',
+    fin_de_semana_fuera: 'Fin de semana fuera',
+    turno_de_noche: 'Turno de noche',
+    otro: 'Otro motivo',
+  }, // [lenguaje 9]
+  avise: (nombre: string) => `Le avisé a ${nombre} que MATU guarda su nombre y su teléfono para enviarle la ficha.`, // [contrato, decisión 34]
+  errAvise: (nombre: string) => `Marca que le avisaste a ${nombre} para crear el enlace.`,
+  errNombre: 'Escribe el nombre de quien te reemplaza.', // [lenguaje 8]
+  errTelefono: 'Escribe un celular de Chile, por ejemplo +56 9 5555 0137.', // [lenguaje 8]
+  errMaxima: 'El enlace puede durar como máximo 30 días.', // [lenguaje 8]
+  errPasada: 'Esa fecha ya pasó. Elige de nuevo hasta cuándo.',
+  errSeccion: 'Otra persona quitó una sección mientras compartías. Revisa qué más puede ver y vuelve a crear el enlace.',
+  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO en MATU-39]
+  crear: 'Crear enlace', // [demo]
+  creando: 'Creando el enlace…',
+  loQueVera: (nombre: string) => `Lo que verá ${nombre}`, // [demo]
+
+  // El PIN, una sola vez (4)
+  creadoPara: (nombre: string) => `Enlace creado para ${nombre}`, // [demo]
+  creado: 'Enlace creado',
+  pinTitulo: 'PIN para abrir la ficha', // [demo]
+  /** [lenguaje 9] La primera oración va en negrita. */
+  dictaselo: (nombre: string) => [`Díctaselo a ${nombre} por teléfono.`, ' No lo mandes junto con el enlace. Solo lo verás ahora.'] as const,
+  cuentale: (nombre: string) => `Cuéntale a ${nombre} que anotaste su nombre y su teléfono en MATU, y que cada vez que abra el enlace o la ficha queda registrado.`, // [lenguaje 9]
+  enviar: 'Enviar el enlace',
+  copiar: 'Copiar el enlace',
+  /** Lo que se comparte: nunca el PIN. */
+  mensaje: (nombre: string, url: string) => `Hola, ${nombre}. Te comparto la ficha de cuidado en MATU: ${url}. El PIN te lo digo por teléfono.`,
+  copiado: (nombre: string) => `Enlace copiado. Pégalo en tu mensaje a ${nombre}.`,
+  noCopiado: 'No pudimos copiar el enlace. Usa «Enviar el enlace».',
+  enlacePara: (nombre: string) => `Enlace para ${nombre}`,
+  verEnlaces: 'Ver los enlaces', // [demo]
+  pinPerdidoTitulo: 'El PIN ya no se puede ver', // [lenguaje 9]
+  pinPerdido: 'Por seguridad se muestra una sola vez. Si se perdió, crea un enlace nuevo y corta el anterior.', // [lenguaje 9]
+  crearNuevo: 'Crear un enlace nuevo', // [demo]
+
+  // Enlaces (5)
+  enlacesBajada:
+    'Al cortar un enlace deja de abrir de inmediato. Si quien lo tenía estaba mirando la ficha, se cierra cuando vuelva a mirarla. Quien lo tenía no recibe aviso.', // [lenguaje 9]
+  abrenAhora: 'Abren ahora',
+  yaNoAbren: 'Ya no abren',
+  ninguno: 'Ningún enlace abre ahora.',
+  sinEnlaces: 'No hay enlaces todavía. Crea uno desde Compartir.', // [lenguaje 9]
+  activoVence: 'Activo, vence en', // [lenguaje 9 + demo]
+  estados: { vencido: 'Vencido', revocado: 'Cortado', bloqueado: 'Bloqueado' }, // [lenguaje 9]
+  // Decisión 33, aprobado por Jorge el 04-11: sin autorización vigente, los enlaces quedan en pausa.
+  enPausa: 'En pausa',
+  pausa: 'Mientras no haya una autorización vigente, ningún enlace abre. Cuando la renueves, vuelven a abrir los que no hayan vencido.',
+  loCreo: (nombre: string) => `Lo creó ${nombre}.`,
+  /** «Venció el {fecha} a las {hora}.» y «Lo cortaron el {fecha} a las {hora}.», partidos para `cifras`. */
+  vencio: ['Venció el ', ' a las ', '.'] as const,
+  loCortaron: ['Lo cortaron el ', ' a las ', '.'] as const,
+  detalleBloqueado: 'Se bloqueó porque el PIN se escribió mal cinco veces.', // [lenguaje 9]
+  cortar: (nombre: string) => `Cortar el enlace de ${nombre}`, // [lenguaje 9]
+  cortando: 'Cortando…',
+  cortado: (nombre: string) => `Enlace cortado. Ya no abre para ${nombre}.`, // [lenguaje 9]
+  cortadoAbierta: (nombre: string) => `Si ${nombre} tenía la ficha abierta, se cierra cuando vuelva a mirarla.`, // [lenguaje 9.1]
+  errCortar: 'No pudimos cortar el enlace. Revisa tu conexión y vuelve a intentarlo. El enlace todavía abre.',
+  errListar: 'No pudimos traer los enlaces. Revisa tu conexión e inténtalo de nuevo.',
+  intentar: 'Intentar de nuevo', // [lenguaje 15]
+  anteriores: 'Ver enlaces anteriores',
+  seAgregaron: (n: number) => (n === 1 ? 'Se agregó 1 enlace.' : `Se agregaron ${n} enlaces.`),
+  noHayMas: 'No hay más.', // [lenguaje 15]
+  verCuando: 'Ver cuándo la abrió', // [PROPUESTO en MATU-45]
+  llamar: (nombre: string) => `Llamar a ${nombre}`,
+  sinTelefono: 'Ya no guardamos su teléfono.',
+
+  // Puertas de entrada (2.3 y 2.4)
+  conRelevo: 'Compartir con un relevo', // [lenguaje 6.1]
+  laFicha: 'Compartir la ficha',
+  puedenVerla: 'Quién puede verla ahora',
+  venceEn: 'vence en', // [demo]
+  nadieActivo: 'Nadie tiene un enlace activo ahora.',
+  verYCortar: 'Ver y cortar enlaces',
+  /** [lenguaje 15] «Enlaces» va como enlace en línea. */
+  siTePreocupa: ['Si te preocupa, puedes cortarlo desde ', 'Enlaces', '.'] as const,
+}
+
+/**
+ * «Ve su día, si se altera, a quién llamar y quién es.» con los campos y las secciones del acceso,
+ * en el orden fijo (lenguaje 14.3). Los accesos anteriores a MATU-50 pueden tener uno o dos campos.
+ */
+export const loQueVeAcceso = (campos: readonly string[], secciones: readonly string[]) => {
+  const todo = [...campos, ...secciones].map((t) => t.toLowerCase())
+  if (!todo.length) return ''
+  return todo.length === 1 ? `Ve ${todo[0]}.` : `Ve ${todo.slice(0, -1).join(', ')} y ${todo[todo.length - 1]}.`
 }

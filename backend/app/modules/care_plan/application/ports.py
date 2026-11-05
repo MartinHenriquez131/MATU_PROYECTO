@@ -14,7 +14,9 @@ CifradorSecciones es el segundo nivel (MATU-11): cifra cada sección de la ficha
 la DEK de la persona. RepositorioClaves guarda y lee la fila de clave_datos.
 
 RepositorioFicha y AuditoriaFicha son de la ficha de relevo (MATU-12): la persistencia del plan y de
-sus secciones cifradas, y el punto de enganche de la auditoría plan.leer y plan.editar (MATU-14).
+sus secciones cifradas, y el punto de enganche de la auditoría plan.leer y plan.editar (MATU-14). Desde
+MATU-50 también guardan y quitan las seis secciones complementarias (ADR-028) y auditan
+plan.quitar_seccion.
 """
 
 import uuid
@@ -177,6 +179,14 @@ class RepositorioFicha(Protocol):
         """Las secciones de la ficha del plan (solo los tres tipos de la ficha), con su autor."""
         ...
 
+    def secciones_complementarias(self, plan_id: uuid.UUID) -> list[SeccionGuardada]:
+        """Las secciones complementarias agregadas al plan (los seis tipos de ADR-028), con su autor."""
+        ...
+
+    def tipos_agregados(self, plan_id: uuid.UUID) -> set[str]:
+        """Los tipos de las secciones complementarias agregadas al plan, sin leer su contenido (MATU-50)."""
+        ...
+
     def seccion(self, plan_id: uuid.UUID, tipo: str) -> SeccionGuardada | None:
         """Una sección de la ficha con su autor, o None si nunca se escribió. Sin bloquearla."""
         ...
@@ -184,9 +194,19 @@ class RepositorioFicha(Protocol):
     def insertar_seccion(
         self, plan_id: uuid.UUID, tipo: str, cifrada: SeccionCifrada, usuario_id: uuid.UUID, ahora: datetime
     ) -> bool:
-        """Crea la sección con versión 1, de forma atómica (``ON CONFLICT DO NOTHING``).
+        """Crea la sección con versión 1, de forma atómica (``ON CONFLICT DO NOTHING``). Su ``creado_en``
+        es ``ahora`` (MATU-50: un acceso de relevo no ve una sección nacida después de él).
 
         False si ya existía: otra transacción la creó primero, y no escribe nada (412, MATU-13).
+        """
+        ...
+
+    def borrar_seccion_si_version(self, plan_id: uuid.UUID, tipo: str, version_esperada: int) -> uuid.UUID | None:
+        """Borra la fila de la sección solo si sigue en ``version_esperada`` (MATU-50).
+
+        Una sola sentencia (``DELETE … WHERE version = … RETURNING id``): de dos escrituras o borrados
+        simultáneos con la misma versión gana exactamente uno. Devuelve el id de la fila borrada, o None
+        si la sección no existe o ya cambió, sin borrar nada.
         """
         ...
 
@@ -252,6 +272,14 @@ class AuditoriaFicha(Protocol):
 
     def registrar_edicion(self, evento: EventoFicha) -> None: ...
 
+    def registrar_edicion_seccion(self, evento: EventoFicha) -> None:
+        """plan.editar de una sección complementaria, con su tipo en detalle (MATU-50)."""
+        ...
+
+    def registrar_quitar_seccion(self, evento: EventoFicha, seccion_id: uuid.UUID) -> None:
+        """plan.quitar_seccion, sobre la fila ya borrada, con su tipo en detalle (MATU-50)."""
+        ...
+
 
 # --- Acceso de relevo (MATU-18, RF-05) ------------------------------------------------------------------
 
@@ -294,6 +322,7 @@ class AccesoNuevo:
     telefono_relevo: str = field(repr=False)
     nombre_pila_persona: str
     nombre_pila_comparte: str
+    # acceso_relevo.secciones_permitidas: los tres campos base y las secciones compartidas (MATU-50)
     campos: tuple[str, ...]
     motivo: str
     token_hash: bytes = field(repr=False)
@@ -392,12 +421,15 @@ class AccesoDelRelevo:
     id: uuid.UUID
     grupo_id: uuid.UUID
     plan_id: uuid.UUID
+    # secciones_permitidas: campos base y secciones complementarias compartidas
     campos: tuple[str, ...]
     nombre_pila_persona: str
     nombre_pila_comparte: str
     pin_hash: str = field(repr=False)
     pin_intentos_fallidos: int
     expira_en: datetime
+    # MATU-50: el relevo no ve una sección complementaria nacida después del acceso
+    creado_en: datetime
 
 
 class RepositorioAccesoRelevo(Protocol):
@@ -431,15 +463,25 @@ class RepositorioAccesoRelevo(Protocol):
     def registrar_uso(self, ahora: datetime) -> None: ...
 
 
+@dataclass(frozen=True)
+class SeccionDelRelevo:
+    """Una sección que RLS deja ver al relevo, cifrada, con el instante en que nació su fila."""
+
+    tipo: str
+    cifrada: SeccionCifrada
+    creado_en: datetime
+
+
 class SeccionesRelevo(Protocol):
-    """El plan y las secciones que RLS deja ver al relevo (seccion_relevo: solo las habilitadas).
+    """El plan y las secciones que RLS deja ver al relevo (seccion_relevo: solo las habilitadas y, desde
+    MATU-50, solo las secciones complementarias nacidas antes que el acceso).
 
     Solo lo usa la lectura de la ficha, después del PIN. Nunca la presentación ni el canje.
     """
 
     def persona_del_plan(self, plan_id: uuid.UUID) -> uuid.UUID | None: ...
 
-    def secciones(self, plan_id: uuid.UUID) -> list[tuple[str, SeccionCifrada]]: ...
+    def secciones(self, plan_id: uuid.UUID, acceso_creado_en: datetime) -> list[SeccionDelRelevo]: ...
 
 
 class SesionesNoDisponibles(Exception):
@@ -474,6 +516,8 @@ class FilaApertura:
     accion: str
     acceso_id: uuid.UUID
     nombre_relevo: str
+    # MATU-50: los tipos guardados en detalle.secciones de relevo.abrir. Nunca texto
+    secciones: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -34,9 +34,12 @@ request_id_actual: ContextVar[str | None] = ContextVar("request_id", default=Non
 # evento y familia_id: el evento de seguridad de la reutilización de un refresh (MATU-38), sin el token.
 # notificacion_id, evento_id, canal y codigo: los avisos de MATU-41 (decisión 113), con "estado" el de la
 # notificación. Nunca el email, el push_token, el texto ni la respuesta del proveedor.
+# xff_cabeceras, xff_elementos, xff_clases, proxy_saltos e ip_contada: el diagnóstico temporal del proxy
+# (MATU-25, app/core/proxy.py), solo cantidades y clases fijas, nunca una IP.
 CAMPOS_PERMITIDOS = (
     "metodo", "ruta", "estado", "duracion_ms", "tipo_error", "usuario_id", "grupo_id", "evento", "familia_id",
     "notificacion_id", "evento_id", "canal", "codigo",
+    "xff_cabeceras", "xff_elementos", "xff_clases", "proxy_saltos", "ip_contada",
 )
 
 # Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)

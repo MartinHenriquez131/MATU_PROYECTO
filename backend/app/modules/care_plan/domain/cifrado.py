@@ -23,8 +23,10 @@ LARGO_DEK = 32  # AES-256
 LARGO_NONCE = 12  # 96 bits, el recomendado para GCM
 LARGO_TAG = 16  # 128 bits
 
-# Los tipos que admite plan_seccion (CHECK de 01_esquema.sql). La ficha de relevo usa tres:
-# rutina, manejo_situaciones y red_apoyo (ADR-023).
+# Los tipos que admite plan_seccion (CHECK de 01_esquema.sql y de la migración 0013). La ficha usa los
+# tres campos base, rutina, manejo_situaciones y red_apoyo (ADR-023), y las seis secciones
+# complementarias de ADR-028 (MATU-50): quien_es, preferencias, alimentacion, movilidad, comunicacion
+# y remedios. horarios y actividades siguen en el CHECK, pero la API ya no los escribe.
 TIPOS_SECCION = frozenset(
     {
         "rutina",
@@ -35,6 +37,9 @@ TIPOS_SECCION = frozenset(
         "red_apoyo",
         "alimentacion",
         "movilidad",
+        "quien_es",
+        "comunicacion",
+        "remedios",
     }
 )
 

@@ -11,6 +11,8 @@ export interface Escenario {
 
 export const ESCENARIOS: Escenario[] = [
   { token: 'ejemplo-tres-campos', que: 'PIN 4821: ficha con los tres campos (Su día con horas, Si se altera corrido, A quién llamar sin completar). Cada PIN incorrecto descuenta un intento; el quinto bloquea' },
+  { token: 'ejemplo-con-secciones', que: 'PIN 4821: los tres campos y dos secciones compartidas (Quién es y Cómo hablarle), sin Sus remedios (MATU-50)' },
+  { token: 'ejemplo-con-remedios', que: 'PIN 4821: los tres campos y las seis secciones, con Sus remedios y su aviso antes del texto (MATU-50)' },
   { token: 'ejemplo-un-campo', que: 'PIN 4821: ficha con un solo campo (A quién llamar)' },
   { token: 'ejemplo-quedan-3', que: 'Cualquier PIN distinto de 4821: «Te quedan 3 intentos»' },
   { token: 'ejemplo-quedan-1', que: 'Cualquier PIN distinto de 4821: «Te queda 1 intento». 4821 abre la ficha' },
@@ -34,7 +36,7 @@ export const ESCENARIOS: Escenario[] = [
   { token: 'ejemplo-vence-pronto', que: 'PIN 4821: la ficha vence 90 segundos después de abrirla; la página la vuelve a pedir sola y muestra «Este enlace venció»' },
   { token: 'ejemplo-actualizar-falla', que: 'PIN 4821: la ficha abre y «Actualizar» responde 503: la hoja sigue y aparece el mensaje' },
   { token: 'ejemplo-lento', que: 'Cada respuesta tarda 2 segundos: se ven «Abriendo el enlace…», «Abriendo la ficha…» y «Actualizando…»' },
-  { token: 'ejemplo-textos-largos', que: 'PIN 4821: nombres largos y campos de 500 caracteres, para revisar el texto al 200%' },
+  { token: 'ejemplo-textos-largos', que: 'PIN 4821: nombres largos, campos de 500 caracteres y las seis secciones en su tope (500 y 800), para revisar el texto al 200%' },
 ]
 
 export const SIN_FRAGMENTO = 'Abrir /r sin fragmento y sin haber entrado: GET /ficha 401, «Vuelve a abrir el enlace»'

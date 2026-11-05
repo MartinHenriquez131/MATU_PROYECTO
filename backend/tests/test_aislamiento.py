@@ -298,6 +298,187 @@ def test_relevo_ve_exactamente_sus_secciones(cx):
     assert contar(cx, "clave_datos") == 1            # puede descifrar solo a esa persona
 
 
+# ---- MATU-50 (migración 0013): secciones complementarias y lo que ve el relevo
+
+ACC_SECCIONES = uuid.UUID("00000000-0000-0000-0000-0000000003a4")
+_TAG = bytes(16)
+
+
+def _seccion(cx, plan, tipo, nonce, creado_en):
+    cx.execute(
+        "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version, creado_en)"
+        f" VALUES (%s, %s, %s, %s, %s, 1, {creado_en})", (plan, tipo, b"\xcc", bytes.fromhex(nonce), _TAG))
+
+
+def _acceso_con_secciones(cx, permitidas):
+    cx.execute(
+        """INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,
+               nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,
+               creado_en, expira_en, relevo_informado_en)
+           VALUES (%s, %s, %s, %s, 'Relevo', '+56944444444', 'María', 'Ana', %s, 'otro', sha256('t4'), 'p',
+               now() - interval '1 hour', now() + interval '1 day', now())""",
+        (ACC_SECCIONES, G_A, PLAN_A, U_ADMIN_A, permitidas))
+
+
+@pytest.mark.rf("RF-03")
+def test_relevo_no_ve_secciones_agregadas_despues_de_su_acceso(cx):
+    """seccion_relevo: una sección complementaria compartida solo se ve si nació antes que el acceso (o en el
+    mismo instante). Los tres campos base se ven siempre. Una no compartida no se ve nunca."""
+    _acceso_con_secciones(cx, ["rutina", "red_apoyo", "comunicacion", "remedios", "quien_es"])
+    _seccion(cx, PLAN_A, "comunicacion", "0000000000000000000050a1", "now() - interval '2 hours'")
+    _seccion(cx, PLAN_A, "quien_es", "0000000000000000000050a2", "now() - interval '1 hour'")  # mismo instante
+    _seccion(cx, PLAN_A, "remedios", "0000000000000000000050a3", "now()")                       # después
+    _seccion(cx, PLAN_A, "preferencias", "0000000000000000000050a4", "now() - interval '3 hours'")  # no compartida
+    como(cx, rol="relevo", acceso_relevo_id=ACC_SECCIONES)
+    tipos = {r[0] for r in cx.execute("SELECT tipo FROM plan_seccion").fetchall()}
+    assert tipos == {"rutina", "red_apoyo", "comunicacion", "quien_es"}
+
+
+@pytest.mark.rf("RF-03")
+def test_creado_en_de_una_seccion_no_cambia_al_editarla(cx):
+    """El trigger plan_seccion_creado_fijo impide adelantar creado_en para que un relevo vea una sección
+    agregada después de su acceso, o atrasarlo para ocultársela."""
+    _seccion(cx, PLAN_A, "remedios", "0000000000000000000050b1", "now() - interval '2 hours'")
+    antes = cx.execute("SELECT creado_en FROM plan_seccion WHERE plan_id = %s AND tipo = 'remedios'",
+                       (PLAN_A,)).fetchone()[0]
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("UPDATE plan_seccion SET creado_en = now() - interval '10 days', version = version + 1"
+               " WHERE plan_id = %s AND tipo = 'remedios'", (PLAN_A,))
+    assert cx.execute("SELECT creado_en, version FROM plan_seccion WHERE plan_id = %s AND tipo = 'remedios'",
+                      (PLAN_A,)).fetchone() == (antes, 2)
+
+
+@pytest.mark.rf("RF-03")
+def test_familia_no_ve_ni_crea_secciones_complementarias_de_otro_grupo(cx):
+    _seccion(cx, PLAN_A, "remedios", "0000000000000000000050c1", "now()")
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "plan_seccion", f"plan_id = '{PLAN_A}'") == 0
+    assert cx.execute("DELETE FROM plan_seccion WHERE plan_id = %s RETURNING id", (PLAN_A,)).fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(
+            "INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version)"
+            " VALUES (%s, 'quien_es', %s, %s, %s, 1)",
+            (PLAN_A, b"\xcc", bytes.fromhex("0000000000000000000050c2"), _TAG))
+
+
+class _Deshacer(Exception):
+    """Sale de sesion_tenant con rollback: la prueba no deja cambios en la semilla."""
+
+
+@pytest.fixture
+def sesiones_app():
+    """Sesiones como matu_app (DATABASE_URL), la misma conexión que usa la API."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.config import obtener_configuracion
+
+    url = obtener_configuracion().database_url
+    if not url:
+        pytest.skip("DATABASE_URL no está definida")
+    engine = create_engine(url, pool_size=1, max_overflow=0)
+    try:
+        yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.rf("RF-03")
+def test_pagador_con_plan_lee_secciones_pero_no_las_escribe_ni_borra(sesiones_app):
+    """Decisión 102 (migración 0013): el pagador con puede_ver_plan lee plan_seccion, pero con SQL directo,
+    como matu_app y con su contexto fijado por sesion_tenant, no inserta, no edita ni borra. El admin sí."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    filtro = {"plan": PLAN_A}
+    with sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        assert {r[0] for r in s.execute(text("SELECT tipo FROM plan_seccion WHERE plan_id = :plan"), filtro)} == {
+            "rutina", "manejo_situaciones", "red_apoyo"}
+        editadas = s.execute(text("UPDATE plan_seccion SET version = version + 1 WHERE plan_id = :plan"), filtro)
+        borradas = s.execute(text("DELETE FROM plan_seccion WHERE plan_id = :plan"), filtro)
+        assert (editadas.rowcount, borradas.rowcount) == (0, 0)  # type: ignore[attr-defined]
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        s.execute(
+            text("INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version)"
+                 " VALUES (:plan, 'quien_es', :c, :n, :t, 1)"),
+            {**filtro, "c": b"\xcc", "n": bytes.fromhex("0000000000000000000050d1"), "t": _TAG},
+        )
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+    # Nada cambió, y el admin del mismo grupo sí edita (se deshace al final)
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        versiones = s.execute(text("SELECT version FROM plan_seccion WHERE plan_id = :plan"), filtro).scalars().all()
+        assert versiones == [1, 1, 1]
+        editadas = s.execute(text("UPDATE plan_seccion SET version = version + 1 WHERE plan_id = :plan"), filtro)
+        assert editadas.rowcount == 3  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
+def _secciones_del_plan_a() -> int:
+    with psycopg.connect(DSN) as c:
+        fila = c.execute("SELECT count(*) FROM plan_seccion WHERE plan_id = %s", (PLAN_A,)).fetchone()
+    assert fila is not None
+    return int(fila[0])
+
+
+@pytest.mark.rf("RF-03")
+def test_el_plan_lo_lee_quien_lo_ve_lo_editan_admin_y_cuidador_y_nadie_lo_borra(sesiones_app):
+    """Decisión 103 (migración 0013): el pagador con puede_ver_plan lee plan_cuidado, pero su UPDATE no toca
+    filas y su DELETE no borra el plan ni, en cascada, sus secciones. El admin lo edita, y tampoco lo borra:
+    matu_app no tiene DELETE sobre plan_cuidado."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    filtro = {"plan": PLAN_A}
+    secciones = _secciones_del_plan_a()
+    assert secciones > 0
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        assert s.execute(text("SELECT id FROM plan_cuidado WHERE id = :plan"), filtro).scalar_one() == PLAN_A
+        editado = s.execute(text("UPDATE plan_cuidado SET modo = 'completo' WHERE id = :plan"), filtro)
+        assert editado.rowcount == 0  # type: ignore[attr-defined]
+        raise _Deshacer
+    for usuario in (U_PAG2_A, U_ADMIN_A):
+        with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=usuario, grupo_id=G_A) as s:
+            s.execute(text("DELETE FROM plan_cuidado WHERE id = :plan"), filtro)
+        assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+    assert _secciones_del_plan_a() == secciones
+
+    # El admin sí edita (se deshace al final)
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        editado = s.execute(text("UPDATE plan_cuidado SET completitud_pct = 67 WHERE id = :plan"), filtro)
+        assert editado.rowcount == 1  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
+@pytest.mark.rf("RF-03")
+@pytest.mark.parametrize(
+    ("detalle", "acepta"),
+    [
+        ('{"seccion": "remedios"}', True),
+        ('{"secciones": ["comunicacion", "remedios"]}', True),
+        ('{"secciones": []}', True),
+        ('{"seccion": "Toma una pastilla"}', False),
+        ('{"seccion": "rutina"}', False),
+        ('{"secciones": ["texto libre"]}', False),
+        ('{"secciones": [{"texto": "x"}]}', False),
+        ('{"secciones": "remedios"}', False),
+        ('{"texto": "Toma una pastilla"}', False),
+    ],
+)
+def test_detalle_de_auditoria_solo_admite_tipos_de_seccion(cx, detalle, acepta):
+    insertar = ("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle)"
+                " VALUES (%s, 'usuario', %s, 'plan.editar', 'plan_seccion', CAST(%s AS jsonb))")
+    if acepta:
+        cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+    else:
+        with pytest.raises(errors.CheckViolation):
+            cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+
+
 def test_relevo_no_hereda_nada_de_la_familia(cx):
     """El relevo no fija app.grupo_id: no ve pedidos, pagos, direcciones ni personas."""
     como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)

@@ -4,128 +4,6 @@
  */
 
 export interface paths {
-    "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo": {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 7d1e2f30-0000-4000-8000-000000000001
-                 */
-                persona_id: components["parameters"]["PersonaId"];
-            };
-            cookie?: never;
-        };
-        /**
-         * Listar los accesos de relevo de la persona
-         * @description Todos los accesos de la persona, del más nuevo al más antiguo, con su estado. **Nunca**
-         *     incluye el token ni el PIN. Paginado por cursor.
-         *
-         *     `telefono_relevo` sale solo para `admin` y `cuidador`, para que la familia pueda contactar
-         *     al relevo (decisión 31). Para `pagador` con `puede_ver_plan` la propiedad no aparece. Es
-         *     `null` cuando ya se borró, 30 días después de que el acceso venció o se revocó
-         *     (decisión 25). La respuesta lleva `Cache-Control: no-store`.
-         *
-         *     `estado` se calcula en este orden: `revocado` si tiene `revocado_en`; `vencido` si
-         *     `expira_en` ya pasó; `bloqueado` si acumuló 5 PIN incorrectos; si no, `vigente`.
-         */
-        get: operations["listarAccesosRelevo"];
-        put?: never;
-        /**
-         * Compartir la ficha con un relevo
-         * @description Crea un acceso de relevo y entrega, **una sola vez**, el enlace y el PIN de 4 dígitos. La
-         *     cuidadora le dicta el PIN al relevo por teléfono: viaja por un canal distinto del enlace,
-         *     que es lo que lo hace un segundo factor. El envío por SMS es *Debería* y no está en este
-         *     contrato.
-         *
-         *     - El token es de 256 bits aleatorios, codificado en base64url (43 caracteres). Se guarda
-         *       solo su hash.
-         *     - Vigencia: `expira_en` si se envía; si no, 24 horas desde ahora. Debe ser posterior a ahora
-         *       y, como máximo, ahora + 30 días según el reloj del servidor. Si no, 422.
-         *     - Se puede compartir aunque la ficha esté incompleta, o vacía: si el plan no existe todavía,
-         *       se crea con `modo = 'ficha_relevo'`. Un campo vacío se le muestra al relevo como
-         *       "Sin completar".
-         *     - El acceso guarda `nombre_pila_persona` y el nombre de pila de quien comparte en este
-         *       momento (`acceso_relevo.nombre_pila_comparte`, migración 0004 de MATU-18), para que el
-         *       relevo nunca lea `persona_cuidada` ni `usuario` (decisión 28).
-         *     - Requiere consentimiento vigente para `plan_cuidado`: sin él, 403
-         *       `/errores/sin-consentimiento`. Si lo dio un cuidador de hecho y su revisión anual ya
-         *       venció, 403 `/errores/revision-vencida` (decisión 33). Listar sigue permitido en los dos
-         *       casos (decisión 18). Comparten `admin` y `cuidador` (si no, 404). Registra
-         *       `relevo.compartir` con el motivo enumerado, sin el nombre ni el teléfono del relevo.
-         *     - Orden: 401, 404 (membresía, rol, persona), 403, 503 y recién después el cuerpo (422).
-         *       Sin `PEPPER_PIN` configurado, 503: compartir falla cerrado.
-         */
-        post: operations["crearAccesoRelevo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/accesos-relevo/{acceso_id}": {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Acceso de relevo. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 2e8a6b40-0000-4000-8000-0000000000b1
-                 */
-                acceso_id: string;
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Revocar un acceso de relevo
-         * @description Revocación **inmediata**: fija `acceso_relevo.revocado_en` y, en la misma transacción,
-         *     `indice_token.revocado_en` (decisión 23). Nada más. **No** borra la entrada de
-         *     `indice_token` ni descarta las sesiones de relevo en Redis: el token y la cookie siguen
-         *     identificando el acceso, y lo que cambia es su estado, que la API verifica en **cada**
-         *     petición del relevo. Por eso la siguiente petición responde **410**
-         *     `/errores/relevo-revocado` aunque tenga una cookie válida (MATU-20), y un canje posterior
-         *     con el mismo enlace también responde 410 `relevo-revocado`, no `relevo-no-disponible`.
-         *     La API distingue "revocado" de "vencido" con una sola lectura de `indice_token`, que
-         *     guarda `revocado_en` y `expira_en` (decisión 23 en `docs/api/README.md`).
-         *
-         *     Es idempotente: revocar un acceso ya revocado o vencido también responde 204. El registro
-         *     no se borra: queda en la lista como `revocado`, para la auditoría.
-         *
-         *     Revocan `admin` y `cuidador`. **No exige consentimiento vigente**: cortar un acceso
-         *     siempre debe ser posible. Registra `relevo.revocar`.
-         */
-        delete: operations["revocarAccesoRelevo"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/relevo/presentacion": {
         parameters: {
             query?: never;
@@ -147,20 +25,27 @@ export interface paths {
          *     **Orden de evaluación**, el mismo del canje hasta el estado:
          *
          *     1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
-         *        del canje (decisión 29). Si se supera, **429**.
-         *     2. Cuerpo válido. Si no, **422**.
+         *        del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, **429**. Sin
+         *        Redis o sin `PEPPER_LIMITES`, **503**.
+         *     2. Cuerpo válido. Si no, **422**. Un cuerpo que no es JSON válido responde 422 antes del
+         *        paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el
+         *        paso 1, antes de validar sus campos.
          *     3. El token corresponde a un acceso (`indice_token`). Si no, **410**
          *        `/errores/relevo-no-disponible`.
          *     4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
          *        revocado → **410** `/errores/relevo-revocado`, vencido → **410**
          *        `/errores/relevo-vencido`.
          *     5. Bloqueado (5 PIN incorrectos) → **423**.
+         *     5b. Autorización de la persona no vigente (consentimiento retirado, o revisión anual del
+         *        cuidador de hecho vencida según el reloj del servidor) → **410** `/errores/relevo-pausado`,
+         *        sin decir el motivo (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión
+         *        de Jorge).
          *     6. Si no, **200** con los dos nombres. Se leen de `acceso_relevo` con `app.rol = 'relevo'`
          *        y `app.acceso_relevo_id`, igual que la sesión de relevo.
          *
          *     No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra
          *     `relevo.abrir`: no muestra la ficha. Cada 200 registra `relevo.presentar`, sin IP
-         *     (decisión 30). La familia lo ve en `/plan/aperturas` como `presentacion`: una
+         *     (decisión 30). La familia lo ve en `/plan/aperturas` (implementada en MATU-45, en `openapi.json`) como `presentacion`: una
          *     presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN.
          */
         post: operations["presentarRelevo"];
@@ -188,8 +73,11 @@ export interface paths {
          *     **Orden de evaluación:**
          *
          *     1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
-         *        (MATU-25, decisión 29). Si se supera, **429**, sin tocar el acceso.
-         *     2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
+         *        (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, **429**, sin
+         *        tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
+         *     2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento. Un cuerpo que
+         *        no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114);
+         *        todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
          *     3. El token corresponde a un acceso (`indice_token`). Si no, **410**
          *        `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
          *     4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
@@ -197,6 +85,9 @@ export interface paths {
          *        (decisión 23). Revocar no borra `indice_token`, así que un enlace revocado siempre
          *        llega a este paso. No cuenta como intento.
          *     5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
+         *     5b. Autorización de la persona no vigente → **410** `/errores/relevo-pausado` (decisión 33 en
+         *        el relevo). No cuenta como intento ni crea sesión. Si la familia renueva la autorización,
+         *        el mismo enlace vuelve a servir.
          *     6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
          *        responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
          *        `relevo.bloqueo` y responde **423**. Un acceso bloqueado se reemplaza creando otro.
@@ -207,90 +98,6 @@ export interface paths {
          *     el relevo vuelve a escribir el PIN.
          */
         post: operations["canjearRelevo"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/relevo/ficha": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Leer la ficha como relevo
-         * @description Con la cookie de sesión de relevo. Devuelve **solo** los campos habilitados en el acceso,
-         *     el nombre de pila de la persona, el nombre de pila de quien compartió (decisión 28, para
-         *     "Solo Carmen puede cambiar esta ficha") y el vencimiento. Un campo habilitado y vacío
-         *     viene con `texto: null`, y la página lo muestra como "Sin completar". No devuelve el
-         *     nombre completo de la persona, su dirección, quién escribió cada campo ni nada más del
-         *     grupo.
-         *
-         *     Cada lectura correcta registra `relevo.abrir`, suma 1 a `usos` y fija `ultimo_uso_en`.
-         *
-         *     La sesión de relevo en Redis identifica el acceso, no su estado: en **cada** petición la
-         *     API vuelve a leer el estado del acceso, en este orden:
-         *
-         *     1. Sin cookie, o cookie que no corresponde a una sesión en Redis (alterada, o vencida por
-         *        su propio `Max-Age`/TTL) → **401** `/errores/sin-sesion-relevo`.
-         *     2. Acceso revocado → **410** `/errores/relevo-revocado` (MATU-20), aunque la cookie sea
-         *        válida. Revocar no descarta la sesión: es esta verificación la que corta el acceso.
-         *     3. Acceso vencido → **410** `/errores/relevo-vencido`.
-         *     4. Acceso bloqueado después del canje (alguien probó 5 PIN con el mismo enlace) → **423**.
-         *     5. Si no, **200**.
-         *
-         *     Las respuestas 410 y 423 borran la cookie y descartan la sesión en Redis en ese momento.
-         */
-        get: operations["leerFichaRelevo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 7d1e2f30-0000-4000-8000-000000000001
-                 */
-                persona_id: components["parameters"]["PersonaId"];
-            };
-            cookie?: never;
-        };
-        /**
-         * Ver quién abrió la ficha con un acceso de relevo
-         * @description Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada
-         *     presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN
-         *     incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después
-         *     indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra
-         *     la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.
-         *
-         *     Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se
-         *     listan aquí.
-         */
-        get: operations["listarAperturasRelevo"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -477,24 +284,6 @@ export interface components {
                 manejo_situaciones?: components["schemas"]["CampoRelevo"];
                 red_apoyo?: components["schemas"]["CampoRelevo"];
             };
-        };
-        Apertura: {
-            /** Format: date-time */
-            ocurrido_en: string;
-            /**
-             * @description `presentacion` = `relevo.presentar`, `apertura` = `relevo.abrir`, `pin_incorrecto` = `relevo.pin_incorrecto`, `bloqueo` = `relevo.bloqueo`.
-             * @enum {string}
-             */
-            tipo: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
-            acceso: {
-                /** Format: uuid */
-                id: string;
-                nombre_relevo: string;
-            };
-        };
-        ListaAperturas: {
-            items: components["schemas"]["Apertura"][];
-            siguiente_cursor: string | null;
         };
         /** @description Un error de validación. Nombra el campo, nunca repite el valor recibido. */
         ErrorCampo: {
@@ -848,7 +637,9 @@ export interface components {
          *     `/errores/relevo-vencido`, `/errores/relevo-revocado` (revocar no borra `indice_token`, así
          *     que un enlace revocado siempre responde este), o `/errores/relevo-no-disponible` cuando el
          *     token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
-         *     después de vencer).
+         *     después de vencer). Además `/errores/relevo-pausado`: la autorización de la persona no está
+         *     vigente (decisión 33 en el relevo). Su `title` es «Ya no está disponible» y su `detail` no
+         *     dice el motivo.
          */
         RelevoNoDisponibleCanje: {
             headers: {
@@ -871,7 +662,7 @@ export interface components {
                  */
                 "application/problem+json": components["schemas"]["Problema"] & {
                     /** @enum {unknown} */
-                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible";
+                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
                     /** @constant */
                     status?: 410;
                 };
@@ -905,7 +696,7 @@ export interface components {
                  */
                 "application/problem+json": components["schemas"]["Problema"] & {
                     /** @enum {unknown} */
-                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado";
+                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-pausado";
                     /** @constant */
                     status?: 410;
                 };
@@ -971,6 +762,42 @@ export interface components {
                     type?: "/errores/relevo-bloqueado";
                     /** @constant */
                     status?: 423;
+                };
+            };
+        };
+        /**
+         * @description Falla cerrado (MATU-19). En el canje: falta `PEPPER_PIN` (después de los 410 y el 423, antes de
+         *     comparar el PIN; no cuenta como intento), o el almacén de sesiones (Redis) no respondió al crear
+         *     la sesión: el canje ya quedó registrado como `relevo.canje`, pero no hay cookie y la página
+         *     vuelve a pedir el PIN. En la ficha: Redis no respondió, la custodia de la clave no está
+         *     configurada o no pudo descifrar. Nunca devuelve texto de la ficha ni dice qué falló.
+         *     En la presentación y el canje, antes que todo lo demás: el límite por IP falla cerrado si
+         *     Redis no responde o falta `PEPPER_LIMITES` (MATU-25, decisión 114).
+         */
+        RelevoSinServicio: {
+            headers: {
+                "X-Request-ID": components["headers"]["XRequestId"];
+                "Cache-Control": components["headers"]["CacheControlNoStore"];
+                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
+                "X-Robots-Tag": components["headers"]["XRobotsTag"];
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/errores/servicio-no-disponible",
+                 *       "title": "Servicio no disponible",
+                 *       "status": 503,
+                 *       "detail": "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
+                 *       "errores": [],
+                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problema"] & {
+                    /** @constant */
+                    type?: "/errores/servicio-no-disponible";
+                    /** @constant */
+                    status?: 503;
                 };
             };
         };
@@ -1133,145 +960,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    listarAccesosRelevo: {
-        parameters: {
-            query?: {
-                /** @description Filtra por estado. Sin filtro, todos. */
-                estado?: components["schemas"]["EstadoAcceso"];
-                /** @description Valor opaco de `siguiente_cursor` de la página anterior. Uno inválido responde 422. */
-                cursor?: components["parameters"]["Cursor"];
-                /** @description Elementos por página. */
-                limite?: components["parameters"]["Limite"];
-            };
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 7d1e2f30-0000-4000-8000-000000000001
-                 */
-                persona_id: components["parameters"]["PersonaId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Página de accesos. */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListaAccesos"];
-                };
-            };
-            401: components["responses"]["NoAutenticado"];
-            404: components["responses"]["NoEncontrado"];
-            422: components["responses"]["ValidacionConsulta"];
-        };
-    };
-    crearAccesoRelevo: {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 7d1e2f30-0000-4000-8000-000000000001
-                 */
-                persona_id: components["parameters"]["PersonaId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SolicitudAcceso"];
-            };
-        };
-        responses: {
-            /**
-             * @description Acceso creado. `url` y `pin` **no se vuelven a entregar**: la pantalla los muestra una
-             *     vez y no los guarda en el navegador. Si se pierden, se revoca y se crea otro.
-             */
-            201: {
-                headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccesoCreado"];
-                };
-            };
-            401: components["responses"]["NoAutenticado"];
-            403: components["responses"]["SinAutorizacion"];
-            404: components["responses"]["NoEncontrado"];
-            422: components["responses"]["ValidacionAcceso"];
-            500: components["responses"]["ErrorInterno"];
-            503: components["responses"]["ServicioNoDisponible"];
-        };
-    };
-    revocarAccesoRelevo: {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Acceso de relevo. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 2e8a6b40-0000-4000-8000-0000000000b1
-                 */
-                acceso_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Acceso revocado. Sin cuerpo. */
-            204: {
-                headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["NoAutenticado"];
-            404: components["responses"]["NoEncontrado"];
-        };
-    };
     presentarRelevo: {
         parameters: {
             query?: never;
@@ -1302,6 +990,7 @@ export interface operations {
             422: components["responses"]["ValidacionPresentacion"];
             423: components["responses"]["RelevoBloqueado"];
             429: components["responses"]["DemasiadasPresentaciones"];
+            503: components["responses"]["RelevoSinServicio"];
         };
     };
     canjearRelevo: {
@@ -1334,80 +1023,7 @@ export interface operations {
             422: components["responses"]["ValidacionCanje"];
             423: components["responses"]["RelevoBloqueado"];
             429: components["responses"]["DemasiadasPeticiones"];
-        };
-    };
-    leerFichaRelevo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description La ficha que ve el relevo. */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                    "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FichaRelevo"];
-                };
-            };
-            401: components["responses"]["SinSesionRelevo"];
-            410: components["responses"]["RelevoNoDisponibleSesion"];
-            423: components["responses"]["RelevoBloqueadoSesion"];
-        };
-    };
-    listarAperturasRelevo: {
-        parameters: {
-            query?: {
-                /** @description Valor opaco de `siguiente_cursor` de la página anterior. Uno inválido responde 422. */
-                cursor?: components["parameters"]["Cursor"];
-                /** @description Elementos por página. */
-                limite?: components["parameters"]["Limite"];
-            };
-            header?: {
-                /**
-                 * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-                 *     declara `required: false` porque así la implementa `sesion_de_grupo`
-                 *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-                 *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-                 *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-                 *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-                 * @example 5a7c9e10-0000-4000-8000-0000000000a1
-                 */
-                "X-Grupo-Id"?: components["parameters"]["XGrupoId"];
-            };
-            path: {
-                /**
-                 * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-                 * @example 7d1e2f30-0000-4000-8000-000000000001
-                 */
-                persona_id: components["parameters"]["PersonaId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Página de aperturas. */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListaAperturas"];
-                };
-            };
-            401: components["responses"]["NoAutenticado"];
-            404: components["responses"]["NoEncontrado"];
-            422: components["responses"]["ValidacionConsulta"];
+            503: components["responses"]["RelevoSinServicio"];
         };
     };
 }

@@ -100,6 +100,7 @@ def entrada_relevo(
     *,
     entidad: EntidadAuditoria = EntidadAuditoria.ACCESO_RELEVO,
     entidad_id: uuid.UUID | None = None,
+    secciones: tuple[str, ...] | None = None,
 ) -> EntradaAuditoria:
     """Fila de auditoría del relevo (condición C8): actor relevo, actor_ref = el acceso, grupo del acceso
     leído de la base (no de Redis), sin motivo ni IP, sin nombre, teléfono, token, hash ni PIN."""
@@ -111,6 +112,7 @@ def entrada_relevo(
         entidad=entidad,
         entidad_id=acceso.id if entidad_id is None else entidad_id,
         request_id=request_id,
+        secciones=secciones,
     )
 
 

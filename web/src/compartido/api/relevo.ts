@@ -2,9 +2,15 @@
 // El token viaja solo en el cuerpo de un POST, nunca en la URL ni en una cabecera.
 import { api } from './cliente'
 import type { components } from './relevo.openapi'
+import type { components as Api } from './familia.openapi'
 
 export type Presentacion = components['schemas']['Presentacion']
-export type FichaRelevo = components['schemas']['FichaRelevo']
+/**
+ * `GET /v1/relevo/ficha` salió de propuestos/relevo.openapi.yaml y vive en docs/api/openapi.json
+ * (MATU-50): los campos compartidos y `secciones`, las secciones compartidas en el orden de ADR-028.
+ */
+export type FichaRelevo = Api['schemas']['FichaRelevoVista']
+export type SeccionRelevo = Api['schemas']['SeccionRelevoVista']
 export type CampoFicha = components['schemas']['CampoFicha']
 type SolicitudPresentacion = components['schemas']['SolicitudPresentacion']
 type SolicitudCanje = components['schemas']['SolicitudCanje']

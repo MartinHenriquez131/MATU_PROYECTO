@@ -118,7 +118,8 @@ def _con_enviador(enviador: EnviadorCodigos | None) -> EnviadorCodigos:
 
 
 def _ip(request: Request) -> str:
-    # Solo para su huella HMAC: nunca se guarda ni se registra
+    # La IP que fijó MiddlewareProxy (app/core/proxy.py). Solo para su huella HMAC: nunca se guarda ni se
+    # registra
     return request.client.host if request.client else "desconocida"
 
 

@@ -26,6 +26,7 @@ from app.modules.iam.api.router_recuperacion import (
 from app.modules.iam.api.sesion_web import obtener_contadores, obtener_pepper_limites
 from app.modules.iam.infrastructure.enviador_simulado import EnviadorSimulado
 from tests.base_datos import DSN
+from tests.dobles.contador_ventana_en_memoria import ContadorVentanaEnMemoria, limite_ip_en_memoria
 from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
 from tests.dobles.recuperacion_en_memoria import AlmacenCodigosEnMemoria, ContadoresEnvioEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
@@ -40,6 +41,7 @@ class EntornoIam:
     reloj: RelojFijo
     contadores: ContadoresEnMemoria = field(default_factory=ContadoresEnMemoria)
     pepper_limites: bytes = b""
+    limite_ip: ContadorVentanaEnMemoria | None = None
     creados: list[uuid.UUID] = field(default_factory=list)
     # MATU-57: códigos, envíos y el envío simulado, en memoria
     almacen: AlmacenCodigosEnMemoria | None = None
@@ -104,6 +106,8 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     # MATU-38: la demora de la entrada con contadores en memoria (el pipeline no tiene Redis)
     app.dependency_overrides[obtener_pepper_limites] = lambda: pepper_limites
     app.dependency_overrides[obtener_contadores] = lambda: contadores
+    # MATU-25: el límite por IP con un contador en memoria, nuevo en cada prueba, con el mismo pepper
+    limite_ip = limite_ip_en_memoria(app, reloj_fijo)
     app.dependency_overrides[obtener_clave_jwt] = lambda: clave_jwt
     # El mismo reloj emite y valida: la prueba lo hace avanzar para vencer el token
     app.dependency_overrides[obtener_reloj] = lambda: reloj_fijo
@@ -132,6 +136,7 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
         reloj=reloj_fijo,
         contadores=contadores,
         pepper_limites=pepper_limites,
+        limite_ip=limite_ip,
         almacen=almacen,
         envios=envios,
         enviador=enviador,
