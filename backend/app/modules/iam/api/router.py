@@ -99,7 +99,8 @@ _EJEMPLO_409: dict[str, Any] = {
         " E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta"
         " correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los"
         " terminados en .test, .example, .invalid o .localhost): otro responde 422 con"
-        " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422, 429 y 409."
+        " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105)."
+        " Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409."
         " Desde MATU-25, 5 cuentas por hora por IP (decisión 114)."
     ),
     # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
