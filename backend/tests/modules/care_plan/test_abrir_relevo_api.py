@@ -32,6 +32,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
+from tests.textos import aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-06")]
 
@@ -66,10 +67,18 @@ class EntornoAbrir:
         )
         return familia
 
-    def compartir(self, familia: FamiliaCreada, **cambios: Any) -> tuple[uuid.UUID, str, str]:
+    def compartir(
+        self,
+        familia: FamiliaCreada,
+        campos_anteriores: tuple[str, ...] | None = ("rutina", "manejo_situaciones"),
+        **cambios: Any,
+    ) -> tuple[uuid.UUID, str, str]:
+        """Comparte por la API. Desde MATU-50 un acceso nuevo lleva siempre los tres campos base; con
+        ``campos_anteriores`` (por omisión rutina y manejo_situaciones) el acceso queda como uno creado
+        antes de MATU-50, con solo esos campos, fijados como superusuario. None deja el acceso nuevo."""
         cuerpo: dict[str, Any] = {
             "nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137",
-            "campos": ["rutina", "manejo_situaciones"], "motivo": "turno_de_noche", "relevo_informado": True,
+            "motivo": "turno_de_noche", "relevo_informado": True,
         }
         cuerpo.update(cambios)
         respuesta = self.ficha.iam.cliente.post(
@@ -80,6 +89,11 @@ class EntornoAbrir:
         creado = respuesta.json()
         coincide = URL.match(creado["url"])
         assert coincide
+        if campos_anteriores is not None:
+            _ejecutar(
+                "UPDATE acceso_relevo SET secciones_permitidas = %s WHERE id = %s",
+                list(campos_anteriores), creado["id"],
+            )
         return uuid.UUID(creado["id"]), coincide.group(1), creado["pin"]
 
     def presentar(self, token: str) -> Any:
@@ -161,9 +175,11 @@ def test_relevo_ve_solo_campos_habilitados(entorno: EntornoAbrir) -> None:
     assert respuesta.status_code == 200, respuesta.text
     _cabeceras_relevo(respuesta)
     cuerpo = respuesta.json()
-    assert set(cuerpo) == {"nombre_pila", "nombre_pila_comparte", "vence_en", "campos"}
-    # Habilitados: rutina con texto y manejo_situaciones vacío (null). red_apoyo no se compartió
+    assert set(cuerpo) == {"nombre_pila", "nombre_pila_comparte", "vence_en", "campos", "secciones"}
+    # Un acceso anterior a MATU-50 con dos campos: rutina con texto y manejo_situaciones vacío (null).
+    # red_apoyo no se compartió, y no ve ninguna sección complementaria
     assert cuerpo["campos"] == {"rutina": {"texto": RUTINA}, "manejo_situaciones": {"texto": None}}
+    assert cuerpo["secciones"] == []
     assert "Hija" not in respuesta.text and "0101" not in respuesta.text
     assert cuerpo["nombre_pila"] == familia.persona.nombre_pila
     assert familia.persona.nombre not in respuesta.text  # el nombre completo nunca
@@ -250,7 +266,9 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert entorno.abrir(token, pin).status_code == 200
 
     filas = _todas(
-        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, a::text FROM auditoria a"
+        # Sin la columna id: con la secuencia avanzada podría valer el PIN (como en ac8a315)
+        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, (to_jsonb(a) - 'id')::text"
+        " FROM auditoria a"
         " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
     assert len(filas) == 1
     grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, fila = filas[0]
@@ -259,7 +277,8 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
         familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
     assert motivo is None and ip is None  # C8
-    assert token not in fila and pin not in fila.replace(str(acceso_id), "") and "Rosa" not in fila
+    # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
+    assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
     usos, ultimo = cast(tuple[int, datetime], _una(
         "SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id))
     assert usos == 1 and ultimo == entorno.reloj.ahora()
@@ -515,6 +534,44 @@ def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -
     assert "set-cookie" not in respuesta.headers
     assert orden == ["auditado"]
     assert _acciones(acceso_id) == ["relevo.canje"]
+
+
+# --- MATU-25 · Límite por IP del relevo (decisión 29) ----------------------------------------------------
+
+
+def test_canje_429_por_ip_sin_tocar_el_acceso_y_vuelve_a_la_hora(entorno: EntornoAbrir) -> None:
+    """El 11.º canje de la hora desde la misma IP responde 429 aunque el token y el PIN sean correctos: no
+    suma intento, no audita y no crea sesión. A la hora del primero, el mismo canje entra."""
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(10):
+        assert entorno.relevo.post("/v1/relevo/canje", json={"token": token}).status_code == 422
+    entorno.reloj.avanzar(timedelta(minutes=30))
+
+    respuesta = entorno.canjear(token, pin)
+    cuerpo = _problema(respuesta, 429, "demasiadas-peticiones")
+    assert respuesta.headers["retry-after"] == str(30 * 60)
+    assert "set-cookie" not in respuesta.headers
+    assert token not in respuesta.text and pin not in str(cuerpo)
+    assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
+    assert _acciones(acceso_id) == []
+
+    entorno.reloj.avanzar(timedelta(minutes=30))
+    assert entorno.canjear(token, pin).status_code == 204
+    assert _acciones(acceso_id) == ["relevo.canje"]
+    log = entorno.ficha.iam.texto_log()
+    assert token not in log and f'"{pin}"' not in log and "testclient" not in log
+
+
+def test_presentacion_429_tras_treinta_y_no_agota_el_canje(entorno: EntornoAbrir) -> None:
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(30):
+        assert entorno.presentar(token).status_code == 200
+    _problema(entorno.presentar(token), 429, "demasiadas-peticiones")
+    assert _acciones(acceso_id).count("relevo.presentar") == 30
+    # Contador separado (decisión 29): el canje sigue disponible
+    assert entorno.canjear(token, pin).status_code == 204
 
 
 @pytest.mark.rf("RF-02")

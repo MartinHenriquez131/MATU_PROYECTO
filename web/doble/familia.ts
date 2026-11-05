@@ -2,13 +2,17 @@
 // entrada con la cookie del refresh, grupos, personas y la ficha con ETag, 412 y 428. Igual que el
 // doble del relevo, responde por HTTP de verdad y no entra al build. Datos sintéticos: Carmen cuida
 // a María, Rodrigo es su hijo; los teléfonos usan la serie 5555, que no se asigna.
-import { randomInt, randomUUID } from 'node:crypto'
+import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { atenderConsumo, crearAlertas, listaCompleta, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
+/** Las seis secciones complementarias (MATU-50, docs/api/propuestos/ficha-ampliada.openapi.yaml). */
+type SeccionApi = 'quien_es' | 'preferencias' | 'alimentacion' | 'movilidad' | 'comunicacion' | 'remedios'
+const SECCIONES: SeccionApi[] = ['quien_es', 'preferencias', 'alimentacion', 'movilidad', 'comunicacion', 'remedios']
 interface Campo {
   texto: string | null
   version: number
@@ -23,8 +27,30 @@ interface Persona {
   direccion: Record<string, unknown> | null
   calidad: string
   campos: Record<CampoApi, Campo>
+  /** Solo las secciones agregadas: una sección quitada no queda vacía, deja de existir. */
+  secciones: Partial<Record<SeccionApi, Campo>>
+  /** MATU-36: la autorización con finalidad `consumo` y los insumos. */
+  consumo: ConsumoDoble
   /** Lo que hicieron los relevos (MATU-45), del más reciente al más antiguo. */
   aperturas: Apertura[]
+  /** Los enlaces de relevo (MATU-48), del más nuevo al más antiguo. */
+  accesos: Acceso[]
+}
+type Motivo = 'salgo_unas_horas' | 'fin_de_semana_fuera' | 'turno_de_noche' | 'otro'
+interface Acceso {
+  id: string
+  nombre_relevo: string
+  /** `null` cuando ya se borró, a los 30 días del vencimiento o del corte (decisión 25). */
+  telefono_relevo: string | null
+  campos: CampoApi[]
+  secciones_adicionales: SeccionApi[]
+  motivo: Motivo
+  creado_en: string
+  expira_en: string
+  revocado_en: string | null
+  bloqueado: boolean
+  usos: number
+  otorgado_por: { id: string; nombre: string } | null
 }
 type TipoApertura = 'presentacion' | 'apertura' | 'pin_incorrecto' | 'bloqueo'
 interface Apertura {
@@ -74,7 +100,10 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     direccion: null,
     calidad,
     campos: { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio(), ...campos },
+    secciones: {},
+    consumo: { autorizacion: 'no', perfiles: [] },
     aperturas: [],
+    accesos: [],
   }
 }
 
@@ -86,11 +115,48 @@ const linea = (acceso: { id: string; nombre_relevo: string }, tipo: TipoApertura
  * Las aperturas de María (MATU-45): los cuatro tipos, una presentación sin apertura (Carla), un
  * bloqueo (Pedro), varios días (hoy, ayer, hace 3 días y desde hace 10) y 27 líneas, para la paginación.
  */
-function aperturasDeEjemplo(): Apertura[] {
+const TRES: CampoApi[] = ['rutina', 'manejo_situaciones', 'red_apoyo']
+const en = (min: number) => new Date(Date.now() + min * 60_000).toISOString()
+/** Un enlace de ejemplo: creado `creado` minutos atrás y que vence `vence` minutos desde ahora (negativo = ya venció). */
+function acceso(
+  id: { id: string; nombre_relevo: string },
+  telefono: string | null,
+  creado: number,
+  vence: number,
+  extra: Partial<Acceso> = {},
+): Acceso {
+  return {
+    id: id.id,
+    nombre_relevo: id.nombre_relevo,
+    telefono_relevo: telefono,
+    campos: TRES,
+    secciones_adicionales: [],
+    motivo: 'salgo_unas_horas',
+    creado_en: hace(creado),
+    expira_en: en(vence),
+    revocado_en: null,
+    bloqueado: false,
+    usos: 0,
+    otorgado_por: { id: randomUUID(), nombre: 'Carmen' },
+    ...extra,
+  }
+}
+
+function aperturasDeEjemplo(): { aperturas: Apertura[]; accesos: Acceso[] } {
   const rosa = { id: randomUUID(), nombre_relevo: 'Rosa' }
   const carla = { id: randomUUID(), nombre_relevo: 'Carla' }
   const pedro = { id: randomUUID(), nombre_relevo: 'Pedro' }
   const rosaAntes = { id: randomUUID(), nombre_relevo: 'Rosa' }
+  const tomas = { id: randomUUID(), nombre_relevo: 'Tomás' }
+  // MATU-48: los enlaces de esas aperturas. Rosa y Carla abren ahora; Pedro se bloqueó; Tomás lo
+  // cortaron; el enlace anterior de Rosa venció hace más de 30 días y su teléfono ya se borró.
+  const accesos: Acceso[] = [
+    acceso(rosa, '+56955550137', 30, 23 * 60 - 30),
+    acceso(carla, '+56955550152', DIA + 125, 3 * DIA, { motivo: 'fin_de_semana_fuera', otorgado_por: { id: RODRIGO.id, nombre: 'Rodrigo' } }),
+    acceso(tomas, '+56955550160', 5 * DIA, -4 * DIA, { motivo: 'turno_de_noche', revocado_en: hace(4 * DIA + 200) }),
+    acceso(pedro, '+56955550175', 3 * DIA + 10, 2 * DIA, { bloqueado: true, motivo: 'otro' }),
+    acceso(rosaAntes, null, 50 * DIA, -35 * DIA, { campos: ['rutina', 'red_apoyo'] }),
+  ]
   const lista: Apertura[] = [
     linea(rosa, 'apertura', 25),
     linea(rosa, 'pin_incorrecto', 27),
@@ -102,23 +168,67 @@ function aperturasDeEjemplo(): Apertura[] {
   ]
   // Desde hace diez días: Rosa, la vez anterior, abre la ficha una vez por día.
   for (let d = 10; d < 18; d++) lista.push(linea(rosaAntes, 'apertura', d * DIA), linea(rosaAntes, 'presentacion', d * DIA + 1))
-  return lista
+  return { aperturas: lista, accesos }
 }
-const conAperturas = (p: Persona) => ((p.aperturas = aperturasDeEjemplo()), p)
+const conAperturas = (p: Persona) => {
+  const { aperturas, accesos } = aperturasDeEjemplo()
+  p.aperturas = aperturas
+  p.accesos = accesos
+  return p
+}
+
+/** Un activo y 25 que ya no abren, para «Ver enlaces anteriores» (dos páginas de 20). */
+function conMuchosEnlaces(p: Persona) {
+  const nombres = ['Rosa', 'Carla', 'Tomás', 'Pedro', 'Javiera', 'Luis']
+  p.accesos = [acceso({ id: randomUUID(), nombre_relevo: 'Rosa' }, '+56955550137', 60, 20 * 60)]
+  for (let i = 0; i < 25; i++) {
+    const id = { id: randomUUID(), nombre_relevo: nombres[i % nombres.length] }
+    const creado = (i + 2) * DIA
+    p.accesos.push(acceso(id, i < 20 ? '+56955550190' : null, creado, -creado + DIA, i % 3 === 0 ? { revocado_en: hace(creado - 120) } : {}))
+  }
+  return p
+}
+
+// Secciones de ejemplo (MATU-50), con los textos de lenguaje 14.1 adaptados a María.
+const TEXTOS_SECCION: Record<SeccionApi, string> = {
+  quien_es: 'Le dicen Mari. Fue costurera en Chillán y le encanta contar cómo era la fábrica.\nSu nieta Sofía le visita los domingos.',
+  preferencias: 'Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche.',
+  alimentacion: 'Toma té con poca azúcar. Prefiere la comida picada en trozos chicos y el pan blando.\nNo le gusta el pescado.',
+  movilidad: 'Camina con bastón dentro de la casa. Para levantarse, ofrécele el brazo derecho.\nDuerme siesta después de almuerzo.',
+  comunicacion: 'Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente.',
+  remedios: '08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n14:00 después de almuerzo: media pastilla de la caja amarilla.\n20:00: 1 pastilla de la caja verde.',
+}
+const topeSeccion = (s: SeccionApi) => (s === 'remedios' ? 800 : 500)
+const repetir = (base: string, n: number) => base.repeat(Math.ceil(n / base.length)).slice(0, n)
+
+/** Agrega a `p` las secciones pedidas, escritas por `autor` (por defecto, el texto de ejemplo). */
+function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: SeccionApi[], textos: Partial<Record<SeccionApi, string>> = {}) {
+  lista.forEach((s, i) => (p.secciones[s] = escrito(textos[s] ?? TEXTOS_SECCION[s], autor, 60 * (i + 1))))
+  return p
+}
 
 const usuarios = new Map<string, Usuario>()
 
-function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string) {
+function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
   const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms' }
   usuarios.set(email, u)
   return u
 }
 const grupo = (nombre: string, rol: Rol, personas: Persona[], puede_ver_plan = false): Grupo => ({ id: randomUUID(), nombre, rol, puede_ver_plan, personas })
 
+/** MATU-36: la primera persona de la cuenta, con su consumo. */
+function insumos(u: Usuario, autorizacion: ConsumoDoble['autorizacion'], lista: boolean) {
+  const p = u.grupos[0].personas[0]
+  p.consumo = { autorizacion, perfiles: lista ? listaCompleta({ id: u.id, nombre: u.nombre }) : [] }
+  crearAlertas(p.consumo)
+  return p.consumo
+}
+
 function sembrar() {
   const carmen = cuenta('carmen@ejemplo.cl', 'Carmen', [])
   const yo = { id: carmen.id, nombre: 'Carmen' }
   carmen.grupos.push(grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))]))
+  insumos(carmen, 'vigente', true)
   cuenta('completa@ejemplo.cl', 'Carmen', [
     grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) }))]),
   ])
@@ -129,7 +239,7 @@ function sembrar() {
   ])
   cuenta('sin-persona@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [])])
   cuenta('sin-persona-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
-  cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])])
+  insumos(cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
   cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))], true)])
   cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
   cuenta('cuidador@ejemplo.cl', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
@@ -140,7 +250,71 @@ function sembrar() {
   cuenta('conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
   cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
   cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
-  cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento')
+  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento'), 'vigente', true)
+  // MATU-36: insumos
+  cuenta('insumos-permiso@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
+  insumos(cuenta('insumos-vacio@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
+  insumos(cuenta('insumos-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('insumos-renovar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])]), 'vencida', true)
+  insumos(cuenta('insumos-renovar-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vencida', true)
+  // MATU-37: «Se acaban pronto»
+  insumos(cuenta('alertas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', true)
+  {
+    const u = cuenta('alertas-sin@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const c = insumos(u, 'vigente', false)
+    const yo = { id: u.id, nombre: u.nombre }
+    c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 120, 0, yo), perfil('Toallitas húmedas', 'unidad', 3, 1, 90, 1, yo), perfil('Champú en sobre', 'sobre', 1, 1, 30, 0, yo)]
+    crearAlertas(c)
+  }
+  {
+    // Recalculo en 0: usa 4 al día y no queda nada; comprar 1 a 3 deja «Alcanza para 0 días».
+    const u = cuenta('alertas-cero@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const c = insumos(u, 'vigente', false)
+    const yo = { id: u.id, nombre: u.nombre }
+    c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 0, 0, yo)]
+    crearAlertas(c)
+  }
+  insumos(cuenta('alertas-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('alertas-cerrada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-cerrada'), 'vigente', true)
+  insumos(cuenta('alertas-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-conflicto'), 'vigente', true)
+  insumos(cuenta('alertas-error@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error'), 'vigente', true)
+  insumos(cuenta('alertas-error-carga@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error-carga'), 'vigente', true)
+  insumos(cuenta('insumos-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
+  // MATU-50: las secciones complementarias, una cuenta por estado.
+  const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
+  cuenta('secciones-ninguna@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
+  cuenta('secciones-algunas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion'])])])
+  cuenta('secciones-remedios@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }), yo, ['preferencias', 'remedios'])])])
+  cuenta('secciones-todas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, SECCIONES)])])
+  cuenta('secciones-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'alimentacion', 'movilidad'])])], 'conflicto-secciones')
+  cuenta('secciones-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'preferencias'])])], 'defectos-secciones')
+  cuenta('secciones-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'remedios'])], true)])
+  cuenta('secciones-largas@ejemplo.cl', 'Bernardita', [
+    grupo('Familia Valenzuela Etchegaray', 'admin', [
+      conSecciones(persona('Maximiliana de los Ángeles Valenzuela Etchegaray', 'Maximiliana', completos()), yo, SECCIONES, {
+        quien_es: repetir('Extraordinariamente conversadora cuando le preguntan por Constitución y por sus hermanas. ', 500),
+        preferencias: repetir('Radio Cooperativa a todo volumen. ', 500),
+        alimentacion: repetir('Pan amasado tibio con mantequilla. ', 500),
+        movilidad: repetir('Necesita apoyo del brazo derecho al bajar la escalera. ', 500),
+        comunicacion: repetir('Háblale despacio y de frente. ', 500),
+        remedios: repetir('08:00 con el desayuno: 1 pastilla blanca de la caja azul.\n', 800).trim(),
+      }),
+    ]),
+  ])
+  // MATU-48: compartir y cortar, una cuenta por estado.
+  const conTodas = () => conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion', 'remedios'])
+  cuenta('enlaces-pausa@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', {}, 'cuidador_de_hecho'))])], 'revision-vencida')
+  cuenta('enlaces-muchos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conMuchosEnlaces(conTodas())])])
+  cuenta('enlaces-cortar-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
+  cuenta('enlaces-lista-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
+  cuenta('compartir-nombre@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
+  cuenta('compartir-telefono@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-telefono_relevo')
+  cuenta('compartir-avise@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-relevo_informado')
+  cuenta('compartir-vence-pasada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_pasada')
+  cuenta('compartir-vence-maxima@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_maxima')
+  cuenta('compartir-seccion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-seccion_no_agregada')
+  cuenta('compartir-caido@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-503')
+  cuenta('compartir-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-500')
   cuenta(
     'largos@ejemplo.cl',
     'Bernardita',
@@ -347,7 +521,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return sinCuerpo(res, 204), true
   }
 
-  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta')) return false
+  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo')) return false
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
@@ -405,6 +579,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
   }
 
+  // MATU-36: el consumo y su autorización.
+  const mConsumo = /^\/v1\/personas-cuidadas\/([^/]+)\/(?:consumo|consentimientos)(?:\/|$)/.exec(ruta)
+  if (mConsumo) {
+    const pc = g?.personas.find((x) => x.id === decodeURIComponent(mConsumo[1]))
+    if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
+    return atenderConsumo(req, res, cuerpo, { rol: g.rol, consumo: pc.consumo, usuario: u }, r), true
+  }
+
   // MATU-45: GET …/plan/aperturas, paginado con un cursor opaco (aquí, la posición en base64url).
   const mAperturas = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/aperturas$/.exec(ruta)
   if (mAperturas && metodo === 'GET') {
@@ -427,6 +609,16 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 200, { items: pa.aperturas.slice(desde, hasta), siguiente_cursor: siguiente }), true
   }
 
+  // MATU-48: POST y GET …/plan/accesos-relevo, y DELETE /v1/accesos-relevo/{id}.
+  const mAccesos = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/accesos-relevo$/.exec(ruta)
+  if (mAccesos) return atenderAccesos(req, res, cuerpo, r, u, g, decodeURIComponent(mAccesos[1])), true
+  const mCortar = /^\/v1\/accesos-relevo\/([^/]+)$/.exec(ruta)
+  if (mCortar) return cortar(req, res, r, u, g, decodeURIComponent(mCortar[1])), true
+
+  // MATU-50: PUT y DELETE …/plan/secciones/{seccion} (ficha-ampliada.openapi.yaml).
+  const mSeccion = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/secciones\/([a-z_]+)$/.exec(ruta)
+  if (mSeccion) return atenderSeccion(req, res, cuerpo, r, u, g, decodeURIComponent(mSeccion[1]), mSeccion[2]), true
+
   const mFicha = /^\/v1\/personas-cuidadas\/([^/]+)\/plan\/ficha(?:\/([a-z_]+))?$/.exec(ruta)
   if (!mFicha) return problema(res, 404, '/errores/no-encontrado'), true
   const p = g?.personas.find((x) => x.id === decodeURIComponent(mFicha[1]))
@@ -445,6 +637,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
         completitud: completitud(p),
         actualizado_en: ultima,
         campos: { rutina: vistaCampo(p.campos.rutina), manejo_situaciones: vistaCampo(p.campos.manejo_situaciones), red_apoyo: vistaCampo(p.campos.red_apoyo) },
+        secciones: Object.fromEntries(SECCIONES.flatMap((s) => (p.secciones[s] ? [[s, vistaCampo(p.secciones[s]!)]] : []))),
       }),
       true
     )
@@ -500,4 +693,218 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     }),
     true
   )
+}
+
+// ---------------------------------------------------------------- secciones complementarias (MATU-50)
+
+const seccionesHechas = new Set<string>()
+
+/**
+ * `PUT` y `DELETE …/plan/secciones/{seccion}`, con el orden de evaluación del contrato: alcance
+ * (404), consentimiento (403), precondición (428/422), validación (422) y versión (412).
+ * Cuenta «conflicto-secciones»: la primera escritura de cada sección choca con Rodrigo, que la
+ * cambió (o la agregó), salvo «Moverse y descansar», que Rodrigo quitó (412 con `actual: null`).
+ * Cuenta «defectos-secciones»: «Quién es» 428, «Lo que le hace bien» 422 largo_maximo, otra 500.
+ */
+function atenderSeccion(
+  req: IncomingMessage,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  { json, problema }: Responder,
+  u: Usuario,
+  g: Grupo | undefined,
+  personaId: string,
+  nombre: string,
+) {
+  const metodo = req.method ?? 'GET'
+  const p = g?.personas.find((x) => x.id === personaId)
+  if (!g || !p || !(SECCIONES as string[]).includes(nombre) || (metodo !== 'PUT' && metodo !== 'DELETE')) return problema(res, 404, '/errores/no-encontrado')
+  const seccion = nombre as SeccionApi
+  if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'revision-vencida' || u.modo === 'revision-al-guardar') return problema(res, 403, '/errores/revision-vencida')
+  if (u.modo === 'defectos-secciones') {
+    if (seccion === 'quien_es') return problema(res, 428, '/errores/falta-version')
+    if (seccion === 'preferencias')
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'largo_maximo' }] })
+    return problema(res, 500, '/errores/error-interno')
+  }
+
+  const ifMatch = req.headers['if-match']
+  const ifNone = req.headers['if-none-match']
+  const clave = `${p.id}-${seccion}`
+  if (u.modo === 'conflicto-secciones' && !seccionesHechas.has(clave)) {
+    seccionesHechas.add(clave)
+    if (seccion === 'movilidad') delete p.secciones[seccion]
+    else {
+      const antes = p.secciones[seccion]
+      p.secciones[seccion] = {
+        texto: antes ? `${antes.texto}\nLos domingos almuerza con nosotros.` : 'Lo agregué yo recién, revísalo.',
+        version: (antes?.version ?? 0) + 1,
+        autor: RODRIGO,
+        en: hace(1),
+      }
+    }
+  }
+  const actual = p.secciones[seccion]
+  const etag = actual ? `"v${actual.version}"` : null
+  const conflicto = () => {
+    if (etag) res.setHeader('ETag', etag)
+    res.setHeader('Cache-Control', 'no-store')
+    return problema(res, 412, '/errores/version-desactualizada', { actual: actual ? vistaCampo(actual) : null })
+  }
+
+  if (metodo === 'DELETE') {
+    if (ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
+    if (!ifMatch || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
+    if (!actual || ifMatch !== etag) return conflicto()
+    delete p.secciones[seccion]
+    res.statusCode = 204
+    return res.end()
+  }
+
+  // Como el backend real: el 422 del cuerpo va antes del 428 de la versión.
+  const texto = typeof cuerpo?.texto === 'string' ? cuerpo.texto.trim() : ''
+  if (!texto) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'vacio' }] })
+  if ([...texto].length > topeSeccion(seccion)) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'texto', mensaje: 'MENSAJE DEL DOBLE', tipo: 'largo_maximo' }] })
+  if (ifMatch && ifNone) return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_doble' }] })
+  if ((!ifMatch && !ifNone) || ifMatch === '*') return problema(res, 428, '/errores/falta-version')
+  if (ifNone && ifNone !== '*') return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'If-None-Match', mensaje: 'MENSAJE DEL DOBLE', tipo: 'precondicion_invalida' }] })
+  if (ifNone ? !!actual : ifMatch !== etag) return conflicto()
+  const nuevo: Campo = { texto, version: (actual?.version ?? 0) + 1, autor: { id: u.id, nombre: u.nombre }, en: new Date().toISOString() }
+  p.secciones[seccion] = nuevo
+  res.setHeader('ETag', `"v${nuevo.version}"`)
+  res.setHeader('Cache-Control', 'no-store')
+  return json(res, actual ? 200 : 201, { seccion, texto: nuevo.texto, etag: `"v${nuevo.version}"`, actualizado_por: nuevo.autor, actualizado_en: nuevo.en })
+}
+
+// ---------------------------------------------------------------- accesos de relevo (MATU-48)
+
+const MOTIVOS: Motivo[] = ['salgo_unas_horas', 'fin_de_semana_fuera', 'turno_de_noche', 'otro']
+const CELULAR = /^(\+?56 ?)?9( ?[0-9]){8}$/
+const seccionesQuitadas = new Set<string>()
+
+function estadoDe(a: Acceso): 'vigente' | 'vencido' | 'revocado' | 'bloqueado' {
+  if (a.revocado_en) return 'revocado'
+  if (a.bloqueado) return 'bloqueado'
+  return new Date(a.expira_en).getTime() <= Date.now() ? 'vencido' : 'vigente'
+}
+
+/** Decisión 31: el teléfono solo para admin y cuidador; para el pagador la propiedad no viene. */
+function vistaAcceso(a: Acceso, rol: Rol) {
+  const { bloqueado: _b, telefono_relevo, ...resto } = a
+  void _b
+  const vista = { ...resto, estado: estadoDe(a), ultimo_uso_en: null as string | null }
+  return rol === 'admin' || rol === 'cuidador' ? { ...vista, telefono_relevo } : vista
+}
+
+/**
+ * `POST` y `GET …/plan/accesos-relevo`, con el orden del contrato: alcance (404), consentimiento
+ * (403), validación (422). Las cuentas «compartir-…» responden el error de su nombre.
+ */
+function atenderAccesos(
+  req: IncomingMessage,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  { json, problema }: Responder,
+  u: Usuario,
+  g: Grupo | undefined,
+  personaId: string,
+) {
+  const metodo = req.method ?? 'GET'
+  const p = g?.personas.find((x) => x.id === personaId)
+  if (!g || !p) return problema(res, 404, '/errores/no-encontrado')
+
+  if (metodo === 'GET') {
+    const puede = g.rol === 'admin' || g.rol === 'cuidador' || (g.rol === 'pagador' && g.puede_ver_plan)
+    if (!puede) return problema(res, 404, '/errores/no-encontrado')
+    if (u.modo === 'lista-falla') return problema(res, 500, '/errores/error-interno')
+    const q = new URL(req.url ?? '', 'http://doble').searchParams
+    const limite = Number(q.get('limite') ?? '20')
+    if (!Number.isInteger(limite) || limite < 1 || limite > 100)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'limite', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' }] })
+    const estado = q.get('estado')
+    const lista = p.accesos.filter((a) => !estado || estadoDe(a) === estado)
+    const cursor = q.get('cursor')
+    const desde = cursor ? Number(Buffer.from(cursor, 'base64url').toString('utf8')) : 0
+    if (!Number.isInteger(desde) || desde < 0 || desde > lista.length)
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'cursor', mensaje: 'MENSAJE DEL DOBLE', tipo: 'cursor_invalido' }] })
+    const hasta = desde + limite
+    res.setHeader('Cache-Control', 'no-store')
+    const siguiente = hasta < lista.length ? Buffer.from(String(hasta)).toString('base64url') : null
+    return json(res, 200, { items: lista.slice(desde, hasta).map((a) => vistaAcceso(a, g.rol)), siguiente_cursor: siguiente })
+  }
+
+  if (metodo !== 'POST') return problema(res, 404, '/errores/no-encontrado')
+  if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'revision-vencida') return problema(res, 403, '/errores/revision-vencida')
+  const b = cuerpo ?? {}
+  const error = (campo: string, tipo: string) => problema(res, 422, '/errores/validacion', { errores: [{ campo, mensaje: 'MENSAJE DEL DOBLE', tipo }] })
+  const forzado = /^422-(.+)$/.exec(u.modo ?? '')?.[1]
+  if (forzado === 'nombre_relevo') return error('nombre_relevo', 'string_too_short')
+  if (forzado === 'telefono_relevo') return error('telefono_relevo', 'celular_invalido')
+  if (forzado === 'relevo_informado') return error('relevo_informado', 'relevo_no_informado')
+  if (forzado === 'vigencia_pasada' || forzado === 'vigencia_maxima') return error('expira_en', forzado)
+  if (u.modo === 'compartir-503') return problema(res, 503, '/errores/servicio-no-disponible')
+  if (u.modo === 'compartir-500') return problema(res, 500, '/errores/error-interno')
+
+  const nombre = typeof b.nombre_relevo === 'string' ? b.nombre_relevo.trim() : ''
+  if (!nombre || nombre.length > 60) return error('nombre_relevo', 'string_too_long')
+  if (typeof b.telefono_relevo !== 'string' || !CELULAR.test(b.telefono_relevo)) return error('telefono_relevo', 'celular_invalido')
+  if (b.relevo_informado !== true) return error('relevo_informado', 'relevo_no_informado')
+  if (!MOTIVOS.includes(b.motivo as Motivo)) return error('motivo', 'enum')
+  if (b.campos !== undefined && b.campos !== null) return error('campos', 'campos_base_obligatorios')
+  const secciones = Array.isArray(b.secciones_adicionales) ? (b.secciones_adicionales as string[]) : []
+  if (new Set(secciones).size !== secciones.length) return error('secciones_adicionales', 'duplicado')
+  // Cuenta «compartir-seccion»: Rodrigo quita una de las elegidas justo antes del primer envío.
+  if (forzado === 'seccion_no_agregada' && secciones.length && !seccionesQuitadas.has(p.id)) {
+    seccionesQuitadas.add(p.id)
+    delete p.secciones[secciones[0] as SeccionApi]
+  }
+  if (secciones.some((x) => !(SECCIONES as string[]).includes(x) || !p.secciones[x as SeccionApi])) return error('secciones_adicionales', 'seccion_no_agregada')
+  const expira = typeof b.expira_en === 'string' ? new Date(b.expira_en).getTime() : Date.now() + DIA * 60_000
+  if (Number.isNaN(expira)) return error('expira_en', 'datetime_parsing')
+  if (expira <= Date.now()) return error('expira_en', 'vigencia_pasada')
+  if (expira > Date.now() + 30 * DIA * 60_000) return error('expira_en', 'vigencia_maxima')
+
+  const token = randomBytes(32).toString('base64url')
+  const a: Acceso = {
+    id: randomUUID(),
+    nombre_relevo: nombre,
+    telefono_relevo: String(b.telefono_relevo).replace(/\s+/g, '').replace(/^(?:\+?56)?9/, '+569'),
+    campos: TRES,
+    secciones_adicionales: SECCIONES.filter((x) => secciones.includes(x)),
+    motivo: b.motivo as Motivo,
+    creado_en: new Date().toISOString(),
+    expira_en: new Date(expira).toISOString(),
+    revocado_en: null,
+    bloqueado: false,
+    usos: 0,
+    otorgado_por: { id: u.id, nombre: u.nombre.split(' ')[0] },
+  }
+  p.accesos.unshift(a)
+  res.setHeader('Cache-Control', 'no-store')
+  return json(res, 201, {
+    id: a.id,
+    url: `http://${req.headers.host ?? 'localhost'}/r#${token}`,
+    pin: String(randomInt(0, 10_000)).padStart(4, '0'),
+    campos: a.campos,
+    secciones_adicionales: a.secciones_adicionales,
+    expira_en: a.expira_en,
+    nombre_relevo: a.nombre_relevo,
+    nombre_pila_persona: p.nombre_pila,
+  })
+}
+
+/** `DELETE /v1/accesos-relevo/{id}`: 204 idempotente; no exige autorización vigente (decisión 18). */
+function cortar(req: IncomingMessage, res: ServerResponse, { problema }: Responder, u: Usuario, g: Grupo | undefined, id: string) {
+  if (req.method !== 'DELETE') return problema(res, 404, '/errores/no-encontrado')
+  if (!g || (g.rol !== 'admin' && g.rol !== 'cuidador')) return problema(res, 404, '/errores/no-encontrado')
+  const a = g.personas.flatMap((p) => p.accesos).find((x) => x.id === id)
+  if (!a) return problema(res, 404, '/errores/no-encontrado')
+  if (u.modo === 'cortar-falla') return problema(res, 500, '/errores/error-interno')
+  if (estadoDe(a) === 'vigente') a.revocado_en = new Date().toISOString()
+  res.statusCode = 204
+  return res.end()
 }

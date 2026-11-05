@@ -18,8 +18,18 @@ export type Ruta =
   | '/ficha/si-se-altera'
   | '/ficha/a-quien-llamar'
   | '/ficha/quien-la-vio'
+  | '/ficha/quien-es'
+  | '/ficha/lo-que-le-hace-bien'
+  | '/ficha/comer-y-beber'
+  | '/ficha/moverse-y-descansar'
+  | '/ficha/como-hablarle'
+  | '/ficha/sus-remedios'
   | '/insumos'
+  | '/insumos/nuevo'
+  | '/insumos/cambiar'
   | '/compartir'
+  | '/compartir/listo'
+  | '/compartir/enlaces'
 
 export const RUTAS: readonly Ruta[] = [
   '/',
@@ -37,8 +47,18 @@ export const RUTAS: readonly Ruta[] = [
   '/ficha/si-se-altera',
   '/ficha/a-quien-llamar',
   '/ficha/quien-la-vio',
+  '/ficha/quien-es',
+  '/ficha/lo-que-le-hace-bien',
+  '/ficha/comer-y-beber',
+  '/ficha/moverse-y-descansar',
+  '/ficha/como-hablarle',
+  '/ficha/sus-remedios',
   '/insumos',
+  '/insumos/nuevo',
+  '/insumos/cambiar',
   '/compartir',
+  '/compartir/listo',
+  '/compartir/enlaces',
 ]
 
 /** Las que se ven sin haber entrado. */

@@ -24,7 +24,7 @@ from app.modules.care_plan.application.canje_relevo import (
     verificar_indice,
 )
 from app.modules.care_plan.application.ficha_relevo import leer_ficha_relevo
-from app.modules.care_plan.application.ports import AccesoDelRelevo, EntradaIndice
+from app.modules.care_plan.application.ports import AccesoDelRelevo, EntradaIndice, SeccionDelRelevo
 from app.modules.care_plan.domain.cifrado import SeccionCifrada
 from app.modules.care_plan.domain.relevo import (
     MAX_AGE_SESION,
@@ -79,6 +79,7 @@ def _acceso(intentos: int = 0, expira_en: datetime = AHORA + timedelta(days=1), 
         id=acceso_id, grupo_id=uuid.uuid4(), plan_id=uuid.uuid4(), campos=("rutina", "manejo_situaciones"),
         nombre_pila_persona="María", nombre_pila_comparte="Carmen",
         pin_hash=HUELLAS.huella_pin(acceso_id, "4821"), pin_intentos_fallidos=intentos, expira_en=expira_en,
+        creado_en=AHORA - timedelta(hours=1),
     )
     return replace(base, **cambios)  # type: ignore[arg-type]
 
@@ -244,9 +245,17 @@ class SeccionesEnMemoria:
     def persona_del_plan(self, plan_id: uuid.UUID) -> uuid.UUID | None:
         return self.persona
 
-    def secciones(self, plan_id: uuid.UUID) -> list[tuple[str, SeccionCifrada]]:
-        return [(t, SeccionCifrada(contenido_cifrado=t.encode(), nonce=b"0" * 12, tag_auth=b"0" * 16, kek_version=1))
-                for t in self.tipos]
+    def secciones(self, plan_id: uuid.UUID, acceso_creado_en: datetime) -> list[SeccionDelRelevo]:
+        return [
+            SeccionDelRelevo(
+                tipo=t,
+                cifrada=SeccionCifrada(
+                    contenido_cifrado=t.encode(), nonce=b"0" * 12, tag_auth=b"0" * 16, kek_version=1
+                ),
+                creado_en=acceso_creado_en,
+            )
+            for t in self.tipos
+        ]
 
 
 class CifradorTexto:

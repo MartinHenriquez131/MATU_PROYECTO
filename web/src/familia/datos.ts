@@ -2,6 +2,7 @@
 // los tomó del prototipo v1.1 y de la política de privacidad, sección 5. Las claves del contrato
 // (`rutina`, `manejo_situaciones`, `red_apoyo`) se nombran en la URL con la etiqueta visible.
 import type { Calidad, CampoApi } from '../compartido/api/familia'
+import { TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 import type { Ruta } from './ruteo'
 
 export const MAX_CARACTERES = 500
@@ -41,6 +42,73 @@ export const CAMPOS: readonly Campo[] = [
 ]
 
 export const campoDeRuta = (r: string) => CAMPOS.find((c) => c.ruta === r) ?? null
+
+/** Una sección complementaria en la app de la familia (especificación MATU-49, sección 2). */
+export interface Seccion {
+  api: SeccionApi
+  ruta: Ruta
+  titulo: string
+  /** La `label` del editor. Nunca se muestra al relevo (D5). */
+  pregunta: string
+  /** El texto entre «», sin «Por ejemplo: ». Nunca se muestra al relevo (D5). */
+  ejemplo: string
+  /** Lleva la ayuda de alergias (Comer y beber, Sus remedios). */
+  alergias: boolean
+}
+
+/** Lenguaje 14.1, en el orden fijo de ADR-028. Rutas: especificación 2 [PROPUESTO]. */
+export const SECCIONES: readonly Seccion[] = [
+  {
+    api: 'quien_es',
+    ruta: '/ficha/quien-es',
+    titulo: TITULO_SECCION.quien_es,
+    pregunta: '¿Qué le gustaría que supiera de esta persona alguien que recién la conoce?',
+    ejemplo: 'Le dicen Tito. Fue profesor de música en Talca. Su nieta Sofía le visita los domingos y tiene un gato, el Pelusa.',
+    alergias: false,
+  },
+  {
+    api: 'preferencias',
+    ruta: '/ficha/lo-que-le-hace-bien',
+    titulo: TITULO_SECCION.preferencias,
+    pregunta: '¿Qué le alegra, le entretiene o le calma?',
+    ejemplo: 'Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche.',
+    alergias: false,
+  },
+  {
+    api: 'alimentacion',
+    ruta: '/ficha/comer-y-beber',
+    titulo: TITULO_SECCION.alimentacion,
+    pregunta: '¿Qué le gusta comer y cómo se le sirve?',
+    ejemplo: 'Toma té con poca azúcar. Prefiere la comida picada en trozos chicos y el pan blando.',
+    alergias: true,
+  },
+  {
+    api: 'movilidad',
+    ruta: '/ficha/moverse-y-descansar',
+    titulo: TITULO_SECCION.movilidad,
+    pregunta: '¿Cómo se le ayuda a moverse, levantarse y descansar?',
+    ejemplo: 'Camina con bastón dentro de la casa. Para levantarse, ofrécele el brazo derecho. Duerme siesta después de almuerzo.',
+    alergias: false,
+  },
+  {
+    api: 'comunicacion',
+    ruta: '/ficha/como-hablarle',
+    titulo: TITULO_SECCION.comunicacion,
+    pregunta: '¿Qué ayuda a que se entiendan?',
+    ejemplo: 'Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente.',
+    alergias: false,
+  },
+  {
+    api: 'remedios',
+    ruta: '/ficha/sus-remedios',
+    titulo: TITULO_SECCION.remedios,
+    pregunta: '¿Qué remedios toma y a qué hora, tal como se los da la familia?',
+    ejemplo: '8:00 con el desayuno: 1 pastilla blanca de la caja azul. 20:00: 1 pastilla de la caja verde.',
+    alergias: true,
+  },
+]
+
+export const seccionDeRuta = (r: string) => SECCIONES.find((s) => s.ruta === r) ?? null
 
 export type Apoyo = 'autovalente_con_supervision' | 'apoyo_parcial' | 'apoyo_total'
 

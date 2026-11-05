@@ -52,11 +52,13 @@ Los intentos y las sesiones del doble viven en memoria: se reinicia `npm run dev
 
 La entrada en el cliente (`src/compartido/api/sesion.ts`): el access token solo en memoria, renovación con la cookie al abrir y ante un 401, serializada entre pestañas con `navigator.locks` y avisada con `BroadcastChannel('matu-entrada')` sin el token.
 
+Compartir y cortar (MATU-48): `POST` y `GET …/plan/accesos-relevo` y `DELETE /v1/accesos-relevo/{id}`, con un enlace con token y PIN al azar, el teléfono solo para admin y cuidador, y una cuenta por estado (`enlaces-…` y `compartir-…` en `/ejemplos`).
+
 `npm run contrato:familia` regenera `src/compartido/api/familia.openapi.ts` desde `docs/api/openapi.json`.
 
 ## Para servirlo desde la API
 
-Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
+Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`, `/compartir/listo`, `/compartir/enlaces`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
 
 ## Estructura
 

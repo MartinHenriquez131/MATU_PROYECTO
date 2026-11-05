@@ -77,8 +77,11 @@ def test_la_familia_ve_presentacion_pin_incorrecto_y_apertura(entorno: EntornoAb
     assert [i["tipo"] for i in cuerpo["items"]] == ["apertura", "pin_incorrecto", "presentacion"]
     assert cuerpo["siguiente_cursor"] is None
     for item in cuerpo["items"]:
-        assert set(item) == {"ocurrido_en", "tipo", "acceso"}
+        # MATU-50: solo la apertura trae secciones (este acceso no comparte ninguna)
+        extra = {"secciones"} if item["tipo"] == "apertura" else set()
+        assert set(item) == {"ocurrido_en", "tipo", "acceso"} | extra
         assert item["acceso"] == {"id": str(acceso_id), "nombre_relevo": "Rosa"}
+    assert cuerpo["items"][0]["secciones"] == []
     instantes = [i["ocurrido_en"] for i in cuerpo["items"]]
     assert instantes == sorted(instantes, reverse=True) and len(set(instantes)) == 3
     # Nunca el teléfono, el token, la IP ni el request_id

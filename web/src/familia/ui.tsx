@@ -2,14 +2,16 @@
 // Ui.tsx, HojaFicha.tsx y TextoFicha.tsx; Demo/src/familia/Shell.tsx). Cambios: `pino` es
 // `turquesa`, el borde de los controles es `borde`, el error lleva ícono y `Volver` mide 48 px.
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
+import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { CAMPOS } from './datos'
 import { FICHA } from './textos'
+import { navegar, type Ruta } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
+import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 
 export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`flex flex-wrap items-center gap-3 ${className}`}>{children}</div>
+  return <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 ${className}`}>{children}</div>
 }
 
 /** Título de cada pantalla: recibe el foco al cambiar de ruta (2.6). */
@@ -61,8 +63,16 @@ export function CampoTexto({
   error,
   className = '',
   junto,
+  ayudaGrande = false,
   ...resto
-}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: ReactNode; error?: string | null; junto?: ReactNode }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  etiqueta: string
+  ayuda?: ReactNode
+  error?: string | null
+  junto?: ReactNode
+  /** MATU-48: la ayuda en `text-base` (nada relevante bajo 1 rem). */
+  ayudaGrande?: boolean
+}) {
   const id = useId()
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   return (
@@ -83,7 +93,7 @@ export function CampoTexto({
         {junto}
       </div>
       {ayuda && (
-        <span id={`${id}-a`} className="text-sm text-tenue">
+        <span id={`${id}-a`} className={`${ayudaGrande ? 'text-base' : 'text-sm'} text-tenue`}>
           {ayuda}
         </span>
       )}
@@ -100,6 +110,7 @@ export function GrupoOpciones<T extends string>({
   nombre,
   columnas = false,
   error,
+  forma = 'lista',
   children,
 }: {
   leyenda: string
@@ -109,11 +120,43 @@ export function GrupoOpciones<T extends string>({
   nombre: string
   columnas?: boolean
   error?: string | null
+  /**
+   * `chips` (de la demo, Demo/src/components/Ui.tsx): opción única con la piel del chip y un
+   * indicador redondo con punto. Con `columnas`, 2 + 2 desde 20 rem; en angosto, una columna.
+   */
+  forma?: 'lista' | 'chips'
   children?: ReactNode
 }) {
   const id = useId()
+  if (forma === 'chips')
+    return (
+      <fieldset className="flex min-w-0 flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
+        <legend className="mb-2 font-bold">{leyenda}</legend>
+        <div className={columnas ? 'grid grid-cols-1 gap-2 @xs/main:grid-cols-2 angosto:grid-cols-1' : 'flex flex-wrap gap-2 angosto:flex-col'}>
+          {opciones.map((o) => {
+            const on = o.valor === valor
+            return (
+              <label
+                key={o.valor}
+                className={`${columnas ? 'flex w-full' : 'inline-flex max-w-full'} min-h-12 cursor-pointer items-center gap-2 rounded-full angosto:rounded-xl px-4 angosto:px-3 py-2 font-bold ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                  on ? 'bg-rocio text-turquesa ring-turquesa' : error ? 'bg-hoja text-tenue ring-pronto' : 'bg-hoja text-tenue ring-borde hover:ring-turquesa/40'
+                }`}
+              >
+                <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+                <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
+                  {on && <span className="size-2.5 rounded-full bg-turquesa" />}
+                </span>
+                <span className="min-w-0 break-words hyphens-auto">{o.texto}</span>
+              </label>
+            )
+          })}
+        </div>
+        {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+        {children}
+      </fieldset>
+    )
   return (
-    <fieldset className="flex flex-col gap-2" aria-describedby={error ? `${id}-e` : undefined}>
+    <fieldset className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`} aria-describedby={error ? `${id}-e` : undefined}>
       <legend className="mb-2 font-bold">{leyenda}</legend>
       <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl/main:grid-cols-3' : ''}`}>
         {opciones.map((o) => {
@@ -161,6 +204,7 @@ export function Nota({
   rol,
   borde = false,
   className = '',
+  id,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -169,10 +213,11 @@ export function Nota({
   rol?: 'status' | 'alert'
   borde?: boolean
   className?: string
+  id?: string
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   return (
-    <div role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+    <div id={id} role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
       {icono ?? ICONO_NOTA[tono]}
       <div className="min-w-0">
         {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
@@ -182,8 +227,11 @@ export function Nota({
   )
 }
 
-export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: 'neutro' | 'ok' }) {
-  const t = tono === 'ok' ? 'bg-ok-fondo text-ok' : 'bg-tinta/7 text-tenue'
+const TONO_ETIQUETA = { neutro: 'bg-tinta/7 text-tenue', ok: 'bg-ok-fondo text-ok', activo: 'bg-rocio text-turquesa', atenta: 'bg-atenta-fondo text-atenta' } as const
+
+/** Siempre con ícono y palabra: el tono es un refuerzo, nunca lo único (MATU-48 4.5 y 5.3). */
+export function Etiqueta({ children, tono = 'neutro' }: { children: ReactNode; tono?: keyof typeof TONO_ETIQUETA }) {
+  const t = TONO_ETIQUETA[tono]
   return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t}`}>{children}</span>
 }
 
@@ -269,7 +317,23 @@ export function TextoCampo({ texto }: { texto: string | null }) {
   )
 }
 
-export function HojaFicha({ pila, textos, escribiendo }: { pila: string; textos: Record<CampoApi, string | null>; escribiendo?: CampoApi | null }) {
+export interface SeccionEnHoja {
+  api: SeccionApi
+  texto: string
+}
+
+export function HojaFicha({
+  pila,
+  textos,
+  escribiendo,
+  secciones = [],
+}: {
+  pila: string
+  textos: Record<CampoApi, string | null>
+  escribiendo?: CampoApi | null
+  /** Las secciones agregadas, ya en el orden fijo (MATU-49, 3.2). */
+  secciones?: SeccionEnHoja[]
+}) {
   return (
     <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
       <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
@@ -279,7 +343,67 @@ export function HojaFicha({ pila, textos, escribiendo }: { pila: string; textos:
           <TextoCampo texto={textos[c.api]} />
         </section>
       ))}
+      <SeccionesEnHoja secciones={secciones} />
     </Hoja>
+  )
+}
+
+/** 4.2: la hoja del editor de una sección muestra solo esa sección, como la verá el relevo. */
+export function HojaSeccion({ pila, seccion, texto }: { pila: string; seccion: SeccionApi; texto: string }) {
+  return (
+    <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
+      <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
+      {/* Sin campos arriba, la sección no lleva la línea separadora. */}
+      <SeccionesEnHoja secciones={[{ api: seccion, texto }]} escribiendo sinSeparador />
+    </Hoja>
+  )
+}
+
+/** MATU-49, 7.1: tras los tres campos, una línea y cada sección con su título. Sin pregunta ni ejemplo. */
+function SeccionesEnHoja({ secciones, escribiendo = false, sinSeparador = false }: { secciones: SeccionEnHoja[]; escribiendo?: boolean; sinSeparador?: boolean }) {
+  if (!secciones.length) return null
+  return (
+    <div className={sinSeparador ? 'mt-5' : 'mt-8 border-t border-linea pt-6'}>
+      {secciones.map((s, i) => (
+        <section key={s.api} className={`${i ? 'mt-6' : ''} ${escribiendo ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
+          <h3 className="mb-1 text-lg font-bold text-turquesa">{TITULO_SECCION[s.api]}</h3>
+          {s.api === 'remedios' && <AvisoRemedios className="mt-2 mb-2" />}
+          <TextoSeccion texto={s.texto} className="renglones leading-7" />
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/** 5.2: el aviso de Sus remedios en la tarjeta y en la hoja. Texto en la página, nunca tooltip. */
+export function AvisoRemedios({ className = '', id }: { className?: string; id?: string }) {
+  return (
+    <p id={id} className={`border-s-4 border-atenta ps-3 text-base ${className}`}>
+      {AVISO_REMEDIOS}
+    </p>
+  )
+}
+
+const HORAS_EN_TEXTO = /(\d{1,2}[:.]\d{2})/
+
+/**
+ * El texto de una sección, tal cual, renglón por renglón, con las horas en `cifras` (5.6). Nunca
+ * como línea de tiempo ni como HTML.
+ */
+export function TextoSeccion({ texto, recortar = false, className = '' }: { texto: string; recortar?: boolean; className?: string }) {
+  const partes = texto.split(HORAS_EN_TEXTO)
+  return (
+    <p className={`break-words whitespace-pre-line ${recortar ? 'line-clamp-3' : ''} ${className}`}>
+      {partes.map((p, i) =>
+        i % 2 ? (
+          <span key={i} className="cifras">
+            {p}
+          </span>
+        ) : (
+          p
+        ),
+      )}
+    </p>
   )
 }
 
@@ -289,5 +413,83 @@ export function Listo({ listo }: { listo: boolean }) {
       {listo ? <Check aria-hidden className="size-4" strokeWidth={3} /> : <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />}
       {listo ? FICHA.listo : FICHA.falta}
     </Etiqueta>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-48
+
+/**
+ * Las vistas de una sección (de `Pestanas` de Demo/src/familia/Shell.tsx), como enlaces. La activa
+ * lleva borde inferior de 3 px y negrita, no solo color, y `aria-current`.
+ */
+export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta; activa: boolean }[] }) {
+  return (
+    <nav aria-label={etiqueta} className="border-b border-linea">
+      <ul className="-mb-px flex flex-wrap gap-x-1">
+        {items.map((t) => (
+          <li key={t.ruta}>
+            <a
+              href={t.ruta}
+              aria-current={t.activa ? 'page' : undefined}
+              onClick={(e) => {
+                e.preventDefault()
+                navegar(t.ruta)
+              }}
+              className={`inline-flex min-h-12 items-center border-b-3 px-3 font-bold ${t.activa ? 'border-turquesa text-turquesa' : 'border-transparent text-tenue hover:text-tinta'}`}
+            >
+              {t.texto}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+/** De la demo (Demo/src/components/Ui.tsx), con `turquesa` y la ayuda en `text-base`. */
+export function Stepper({
+  etiqueta,
+  valor,
+  onCambio,
+  min = 0,
+  max = 999,
+  paso = 1,
+  unidad,
+  ayuda,
+}: {
+  etiqueta: string
+  valor: number
+  onCambio: (v: number) => void
+  min?: number
+  max?: number
+  paso?: number
+  unidad?: string
+  ayuda?: string
+}) {
+  const id = useId()
+  const btn = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio disabled:opacity-40'
+  return (
+    <div className="flex flex-col gap-2">
+      <span id={id} className="font-bold">
+        {etiqueta}
+      </span>
+      <div className="flex flex-wrap items-center gap-3" role="group" aria-labelledby={id} aria-describedby={ayuda ? `${id}-a` : undefined}>
+        <button type="button" className={btn} aria-label={`Menos: ${etiqueta}`} disabled={valor <= min} onClick={() => onCambio(Math.max(min, valor - paso))}>
+          <Minus aria-hidden className="size-5" strokeWidth={2.5} />
+        </button>
+        <output aria-live="polite" className="cifras min-w-8 text-center text-3xl font-bold leading-none">
+          {valor}
+        </output>
+        <button type="button" className={btn} aria-label={`Más: ${etiqueta}`} disabled={valor >= max} onClick={() => onCambio(Math.min(max, valor + paso))}>
+          <Plus aria-hidden className="size-5" strokeWidth={2.5} />
+        </button>
+        {unidad && <span className="text-tenue">{unidad}</span>}
+      </div>
+      {ayuda && (
+        <span id={`${id}-a`} className="text-base text-tenue">
+          {ayuda}
+        </span>
+      )}
+    </div>
   )
 }

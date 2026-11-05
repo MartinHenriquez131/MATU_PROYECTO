@@ -41,6 +41,7 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
     assert {a.value for a in AccionAuditoria} == {
         "plan.leer",
         "plan.editar",
+        "plan.quitar_seccion",
         "consentimiento.otorgar",
         "consentimiento.revocar",
         "relevo.compartir",
@@ -136,6 +137,9 @@ def test_entrada_solo_lleva_identificadores_sin_ip_ni_contenido() -> None:
         "motivo",
         "request_id",
         "sesiones_revocadas",
+        # MATU-50: el tipo de una sección complementaria y la lista de los mostrados, nunca texto
+        "seccion",
+        "secciones",
     }
     assert "ip" not in nombres
     # El momento lo pone el adaptador con el Reloj, no quien llama

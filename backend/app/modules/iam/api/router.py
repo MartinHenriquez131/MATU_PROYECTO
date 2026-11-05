@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from app.core.config import ENTORNOS_SOLO_DOMINIOS_RESERVADOS, obtener_configuracion
 from app.core.db import fabrica_sesiones
 from app.core.errores import TITULOS, ErrorMATU
+from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
 from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_reloj
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
@@ -40,6 +41,7 @@ from app.modules.iam.domain.credenciales import DominioNoPermitido, EmailYaRegis
 from app.modules.iam.domain.sesion import CredencialesInvalidas
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL
+from app.shared.limite_ip import LIMITE_REGISTRO
 from app.shared.puertos import Reloj
 
 log = logging.getLogger("matu.iam")
@@ -97,8 +99,12 @@ _EJEMPLO_409: dict[str, Any] = {
         " E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta"
         " correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los"
         " terminados en .test, .example, .invalid o .localhost): otro responde 422 con"
-        " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 y 409."
+        " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105)."
+        " Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409."
+        " Desde MATU-25, 5 cuentas por hora por IP (decisión 114)."
     ),
+    # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
+    dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
     responses={
         409: {
             "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
@@ -116,6 +122,7 @@ _EJEMPLO_409: dict[str, Any] = {
             ),
             **PROBLEMA,
         },
+        **RESPUESTAS_LIMITE,
     },
 )
 def crear_cuenta(
@@ -190,7 +197,8 @@ def crear_sesion(
         sesion = entrar(
             email=solicitud.email,
             contrasena=solicitud.contrasena,
-            # La IP del socket. Solo se usa para su huella HMAC: nunca se guarda ni se registra
+            # La IP que fijó MiddlewareProxy (app/core/proxy.py). Solo se usa para su huella HMAC: nunca se
+            # guarda ni se registra
             ip=request.client.host if request.client else "desconocida",
             agente_usuario=request.headers.get("user-agent"),
             refresh_presentado=cookie_refresh(request),

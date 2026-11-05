@@ -10,6 +10,10 @@ Orden del POST: token (401), membresía y rol (404), persona (404), consentimien
 
 El token y el PIN salen solo en el cuerpo del 201: nunca en una cabecera, un log ni un error. La línea
 de log de la petición lleva la plantilla de la ruta. Las dos respuestas llevan Cache-Control: no-store.
+
+MATU-50 (ficha-ampliada.openapi.yaml): el POST recibe ``secciones_adicionales`` (``campos`` queda
+deprecado) y responde 422 ``seccion_no_agregada`` si se pide una sección que no está. El POST y la lista
+devuelven ``campos`` y ``secciones_adicionales``; cada apertura suma ``secciones``.
 """
 
 import base64
@@ -45,7 +49,7 @@ from app.modules.care_plan.api.esquemas_relevo import (
     ListaAperturasVista,
     SolicitudAccesoVista,
 )
-from app.modules.care_plan.application.aperturas import listar_aperturas
+from app.modules.care_plan.application.aperturas import Apertura, listar_aperturas
 from app.modules.care_plan.application.ficha import PeticionFicha, PlanNoDisponible
 from app.modules.care_plan.application.ports import (
     GeneradorCredencialesRelevo,
@@ -73,6 +77,7 @@ from app.modules.care_plan.domain.relevo import (
     normalizar_celular,
     puede_ver_telefono,
 )
+from app.modules.care_plan.domain.secciones import SeccionNoAgregada, campos_del_acceso, secciones_del_acceso
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.shared.puertos import Reloj
 
@@ -98,7 +103,14 @@ _ERRORES_REVOCAR: dict[int | str, dict[str, Any]] = {
 _ERRORES_CREAR: dict[int | str, dict[str, Any]] = {
     **_ERRORES_LISTA,
     403: {"description": "Sin consentimiento vigente para plan_cuidado, o revisión anual vencida", **_PROBLEMA},
-    422: {"description": "Cuerpo inválido. errores[] nombra el campo, nunca el valor", **_PROBLEMA},
+    422: {
+        "description": (
+            "Cuerpo inválido. errores[] nombra el campo, nunca el valor. MATU-50: `campos` con menos de los tres"
+            " campos base, vacío o null (tipo campos_base_obligatorios); `secciones_adicionales` con una sección"
+            " repetida (tipo duplicado) o que no está agregada (tipo seccion_no_agregada)"
+        ),
+        **_PROBLEMA,
+    },
     500: {"description": "Error inesperado", **_PROBLEMA},
     503: {"description": "Falta PEPPER_PIN: compartir falla cerrado", **_PROBLEMA},
 }
@@ -185,7 +197,7 @@ def crear_acceso(
             SolicitudCompartir(
                 nombre_relevo=solicitud.nombre_relevo,
                 telefono_relevo=telefono,
-                campos=tuple(solicitud.campos),
+                secciones=tuple(solicitud.secciones_adicionales),
                 motivo=solicitud.motivo,
                 expira_en=solicitud.expira_en,
             ),
@@ -197,6 +209,10 @@ def crear_acceso(
         )
     except VigenciaInvalida as error:
         raise _error_422("expira_en", error.mensaje, error.tipo) from None
+    except SeccionNoAgregada:
+        raise _error_422(
+            "secciones_adicionales", "Solo se comparten secciones que ya están en la ficha", "seccion_no_agregada"
+        ) from None
     except PlanNoDisponible:
         log.error("no se pudo crear el acceso de relevo: falta el plan, la persona o quien comparte")
         raise ErrorMATU(500, detalle="No pudimos compartir la ficha. Cita el request_id si lo reportas") from None
@@ -206,6 +222,7 @@ def crear_acceso(
         url=f"{obtener_configuracion().origen_web}/r#{entregado.token}",
         pin=entregado.pin,
         campos=list(entregado.campos),
+        secciones_adicionales=list(entregado.secciones),
         expira_en=entregado.expira_en,
         nombre_relevo=entregado.nombre_relevo,
         nombre_pila_persona=entregado.nombre_pila_persona,
@@ -246,7 +263,8 @@ def listar_accesos(
         datos: dict[str, Any] = {
             "id": a.id,
             "nombre_relevo": a.nombre_relevo,
-            "campos": list(a.campos),
+            "campos": list(campos_del_acceso(a.campos)),
+            "secciones_adicionales": list(secciones_del_acceso(a.campos)),
             "motivo": MotivoAcceso(a.motivo),
             "estado": estado_acceso(VidaAcceso(a.expira_en, a.revocado_en, a.pin_intentos_fallidos), ahora),
             "creado_en": a.creado_en,
@@ -300,6 +318,8 @@ _EJEMPLO_APERTURAS: dict[str, Any] = {
             "ocurrido_en": f"2026-10-31T13:0{minuto}Z",
             "tipo": tipo,
             "acceso": {"id": "2e8a6b40-0000-4000-8000-0000000000b1", "nombre_relevo": "Rosa"},
+            # MATU-50: solo la apertura trae los tipos de las secciones mostradas
+            **({"secciones": ["comunicacion", "remedios"]} if tipo == "apertura" else {}),
         }
         for minuto, tipo in (("2:00", "apertura"), ("1:30", "pin_incorrecto"), ("1:00", "presentacion"))
     ],
@@ -330,18 +350,32 @@ _DESCRIPCION_APERTURAS = (
     "el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.\n\n"
     "Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una "
     "persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).\n\n"
-    "Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí."
+    "Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.\n\n"
+    "MATU-50: cada ítem de `tipo: apertura` trae `secciones`, los tipos de las secciones complementarias que se "
+    "mostraron (leídos del `detalle` de `relevo.abrir`; `[]` en las aperturas anteriores). Los demás tipos no la "
+    "traen. Nunca trae texto."
 )
+
+
+def _apertura(apertura: Apertura) -> AperturaVista:
+    acceso = AccesoDeAperturaVista(id=apertura.acceso_id, nombre_relevo=apertura.nombre_relevo)
+    if apertura.secciones is None:
+        return AperturaVista(ocurrido_en=apertura.ocurrido_en, tipo=apertura.tipo, acceso=acceso)
+    return AperturaVista(
+        ocurrido_en=apertura.ocurrido_en, tipo=apertura.tipo, acceso=acceso, secciones=list(apertura.secciones)
+    )
 
 
 @router.get(
     RUTA_APERTURAS,
     response_model=ListaAperturasVista,
+    # secciones solo en las aperturas: los demás tipos de ítem no la traen (MATU-50)
+    response_model_exclude_unset=True,
     responses=_RESPUESTAS_APERTURAS,
     summary="Ver quién abrió la ficha con un acceso de relevo",
     description=_DESCRIPCION_APERTURAS,
     operation_id="listarAperturasRelevo",
-    openapi_extra={"x-matu-historia": "MATU-45 (RF-08)"},
+    openapi_extra={"x-matu-historia": "MATU-45 (RF-08), MATU-50 (cambio aditivo: secciones)"},
 )
 def listar_aperturas_relevo(
     request: Request,
@@ -357,11 +391,7 @@ def listar_aperturas_relevo(
     response.headers["Cache-Control"] = NO_STORE
     return ListaAperturasVista(
         items=[
-            AperturaVista(
-                ocurrido_en=a.ocurrido_en,
-                tipo=a.tipo,
-                acceso=AccesoDeAperturaVista(id=a.acceso_id, nombre_relevo=a.nombre_relevo),
-            )
+            _apertura(a)
             for a in pagina.aperturas
         ],
         siguiente_cursor=None if pagina.siguiente is None else codificar_cursor_apertura(pagina.siguiente),

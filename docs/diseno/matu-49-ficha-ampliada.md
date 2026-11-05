@@ -28,6 +28,8 @@
 
 **Lo que no cambia:** los tres campos base, su editor (MATU-39 3.7), su conflicto (3.8), la meta de 3 minutos y la pista «`{n}` de 3» de la navegación.
 
+**Lo que sí cambia por el ADR-028 y faltaba aquí** (revisión MATU-50): la bajada de la ficha (lenguaje 5.4, MATU-39 3.6) termina en «… y puedes compartir solo algunos.», que ya no es cierto: los tres campos van siempre (6). Propuesta [PROPUESTO, la decide Jorge en `lenguaje.md` 5.4]: «Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado.» Lo que se elige al compartir ya lo dicen la nota de la vista previa (3.2) y la pantalla de compartir (6).
+
 ---
 
 ## 2. Las seis secciones (aprobado 03/11)
@@ -191,7 +193,7 @@ Igual que MATU-39 3.7: editor a la izquierda, «Así la ve quien te reemplaza» 
 
 - `label` = la pregunta guía; `aria-describedby` = contador, ayuda (y alergias) y ejemplo, en ese orden. En Sus remedios, también el aviso (va primero).
 - **Tope:** `maxLength` 500, o 800 en Sus remedios. Contador «`{n}` de `{tope}` caracteres». Pasa a `text-atenta` con `TriangleAlert` al 90 % (450 o 720) y se anuncia con `aria-live="polite"` solo al cruzar ese umbral y el tope (misma regla de MATU-39 3.7).
-- **Dictado:** igual que MATU-39 3.7.1; se detiene al llegar al tope de esa sección.
+- **Dictado:** igual que MATU-39 3.7.1; se detiene al llegar al tope de esa sección. **Excepción (decisión de Jorge del 03-11):** en «Sus remedios» no hay botón de dictar mientras esté en consulta legal el envío del audio de un dato de salud al servicio de voz del navegador. Se reactiva con la respuesta legal.
 - **El aviso de remedios** es texto en la página, no `title` ni tooltip ni texto que aparece al pasar el puntero. Usa `Nota tono="atenta"` (fondo `atenta-fondo`, `border-l-4 border-atenta`, texto `tinta`) con el ícono `Info` de lucide: comunica «léelo», no «peligro», y no es un ícono clínico. **Nunca** `Pill`, `Cross`, `Stethoscope`, `Syringe` ni `HeartPulse`.
 
 ### 4.4 Guardar (agregar o cambiar)
@@ -215,8 +217,9 @@ Igual que MATU-39 3.7: editor a la izquierda, «Así la ve quien te reemplaza» 
   - El foco va al título del bloque; con «Dejarla como está» vuelve al botón «Quitar».
 - **Acción:** `DELETE` con `If-Match: {etag}`. Mientras: «Quitando…» [PROPUESTO], `aria-busy`.
 - **204:** vuelve a `/ficha`, foco en el `h1`, `Nota tono="ok"`: «Quitaste «`{título}`».» [PROPUESTO] (mismo verbo que el botón). La sección vuelve a «Puedes agregar» y la línea de lo agregado resta.
-- **412:** el conflicto de 4.6, con el texto propio de quitar.
-- **404:** la sección ya no existe (otra persona la quitó): vuelve a `/ficha` con `Nota tono="rocio"`: ««`{título}`» ya no estaba en la ficha.» [PROPUESTO]
+- **412 con `actual`:** el conflicto de 4.6, con el texto propio de quitar.
+- **412 con `actual: null`:** la sección ya no existe (otra persona la quitó). Vuelve a `/ficha` con `Nota tono="rocio"`: ««`{título}`» ya no estaba en la ficha.» (aprobado 03-11). *Corregido el 03-11 en la revisión de MATU-50: esta especificación decía 404, pero el contrato (`ficha-ampliada.openapi.yaml`, `DELETE`) responde 412 con `actual: null` para distinguirlo de «no tienes acceso». Manda el contrato.*
+- **404:** no tiene acceso (rol o grupo): MATU-39 5.6, «No tienes acceso», igual que en los campos.
 
 ### 4.6 Conflicto (412)
 
@@ -234,9 +237,34 @@ Esta es la versión que guardó Rodrigo:
 
 «Quitarla igual» reintenta el `DELETE` con el `ETag` del 412. Nada se borra sin que Carmen vea la versión nueva. Foco al título, `role="alert"` una vez.
 
+«Dejarla como está» vuelve a `/ficha` con `Nota tono="ok"` y el mismo verbo del botón [aprobado por Jorge el 03-11]: «Dejaste «`{título}`» como la guardó `{autor}`.» (reemplaza «Dejaste la versión de `{autor}`.», que es la confirmación de guardar, no de quitar).
+
+**Guardar cuando otra persona la quitó** (412 con `actual: null` a un `PUT` con `If-Match`) [aprobado por Jorge el 03-11]. La pantalla de 6.2 no sirve: el 412 no trae autor y no hay «versión de otra persona» que elegir (hoy muestra «La de Otra persona · Vacía»). En su lugar, la misma construcción de este bloque (alerta `pronto` con `TriangleAlert`, título `titular text-2xl`), con **solo** la caja «La tuya»:
+
+```
+Otra persona quitó «Moverse y descansar» mientras escribías    titular text-2xl
+Lo que escribiste no se guardó. Puedes agregarla de nuevo con tu texto.
+┌ La tuya · Lo que escribiste recién, sin guardar ┐
+│ (texto propio)                                  │
+└─────────────────────────────────────────────────┘
+[Agregarla de nuevo]  primario      [Dejarla quitada]  texto
+```
+
+- «Agregarla de nuevo» hace el `PUT` con `If-None-Match: *`. Al volver: «Agregaste «`{título}`».» más la frase de los enlaces de 4.4 (es una sección nueva para los accesos ya creados).
+- «Dejarla quitada» vuelve a `/ficha` sin petición, con `Nota tono="rocio"`: «Dejaste «`{título}`» quitada.»
+- Al pie, `text-base text-tenue`: «Si quieres, copia lo que escribiste antes de elegir.»
+- Foco al título, `role="alert"` una vez, como en 6.2.
+
 ### 4.7 Otros errores
 
-Los de MATU-39 3.9, sin cambios (428, 422, 403 de consentimiento y de revisión, 404, 401, red). El 422 de largo usa el tope de la sección.
+Los de MATU-39 3.9, sin cambios (428, 403 de consentimiento y de revisión, 404, 401, red). El 422 de largo usa el tope de la sección, con un texto propio [aprobado por Jorge el 03-11], porque lenguaje 6.5 dice «Cada campo» y fija 500: «Esta sección admite hasta `{tope}` caracteres. Acorta un poco el texto para guardarlo.» (`{tope}` = 500, u 800 en Sus remedios, en `cifras`).
+
+### 4.8 Texto al 200 % en las pantallas de conflicto (revisión MATU-50)
+
+A 320 px con el texto al 200 %, el título `text-2xl` de la alerta tiene palabras («mientras», «escribías», «remedios»») más anchas que la columna, y el bloque de texto no puede encogerse junto al ícono. Vale para 4.6 y para el conflicto de los campos (MATU-39 3.8), que comparten la construcción:
+- El `div` del texto junto al ícono lleva `min-w-0`; el título, `wrap-anywhere` (`overflow-wrap: anywhere`, que también reduce el ancho mínimo del bloque) y `hyphens-auto`.
+- En `angosto:` el título baja a `text-xl`, la alerta usa `px-2` y el ícono se oculta (`angosto:hidden`): el borde `pronto` de 4 px y la palabra llevan el estado.
+- Criterio: `scrollWidth − clientWidth = 0` en la pantalla de conflicto a 320 px con el texto al 200 %.
 
 ---
 
@@ -332,7 +360,9 @@ Si «Incluir Sus remedios» está marcada, «Crear enlace» **no crea todavía**
 - Con la casilla marcada, tocar «Crear enlace» no hace ninguna petición a la API hasta tocar «Sí, crear el enlace».
 - Un lector de pantalla anuncia «¿Qué más puede ver?, grupo» y cada sección como «casilla, no marcada».
 - A 320 px con texto al 200 %: los chips pasan a una columna, la caja de remedios no desborda y la fecha de la confirmación no se parte.
+- Cómo se logra en `angosto:` (revisión MATU-50): la confirmación usa `px-2` y oculta el ícono `Info` (el borde `atenta` y el texto llevan el aviso), para que `{DD/MM/AAAA}` en `cifras` quepa entera; los chips pasan a `rounded-xl` y `px-3`, con `hyphens-auto` en el título, para que «Moverse y descansar» no se corte a mitad de palabra sin guion.
 
+- En `angosto:` la casilla de cada chip y la de «Incluir Sus remedios» van arriba del texto (`flex-col`), para que ninguna palabra quede más ancha que su columna y ninguna se corte sin guion; `wrap-anywhere hyphens-auto` queda como red (verificación final de MATU-50, 03-11).
 ---
 
 ## 7. La página del relevo (`/r`, MATU-23 3.11)
@@ -445,12 +475,25 @@ Nota de puntuación: la ayuda y la de alergias se aprobaron sin punto final; en 
 | Quitar, botones | «Quitar y borrar» · «Dejarla como está» |
 | Quitar, en curso | «Quitando…» |
 | Quitar, hecho | «Quitaste «`{título}`».» |
-| Quitar, 404 | ««`{título}`» ya no estaba en la ficha.» |
+| Quitar, 412 sin versión (antes «404», corregido) | ««`{título}`» ya no estaba en la ficha.» |
 | Quitar, 412 | «`{autor}` cambió «`{título}`» mientras la ibas a quitar» · «Esta es la versión que guardó `{autor}`:» · «Quitarla igual» · «Dejarla como está» |
 | Compartir, base | «Siempre ve» · «Su día, Si se altera y A quién llamar.» |
 | Compartir, secciones | «¿Qué más puede ver?» · «Elige las secciones que le sirven.» |
 | Compartir, confirmación | «Sí, crear el enlace» · «No incluir sus remedios» |
 | PIN y Enlaces | «Ve su día, si se altera, a quién llamar, `{secciones en minúscula}`.» · «Si agregas una sección después, `{nombre}` no la verá. Para que la vea, crea un enlace nuevo.» |
+
+### 10.3 Aprobados por Jorge el 03-11 (revisión de MATU-50; en lenguaje.md 14.4 y 5.4)
+
+| Dónde | Texto |
+|---|---|
+| Ficha, bajada (lenguaje 5.4) | «Tres campos cortos para que quien te reemplace sepa qué hacer. Cada campo se guarda por separado.» |
+| Quitar 412, «Dejarla como está» | «Dejaste «`{título}`» como la guardó `{autor}`.» |
+| Guardar 412 sin versión, título | «Otra persona quitó «`{título}`» mientras escribías» |
+| Guardar 412 sin versión, texto | «Lo que escribiste no se guardó. Puedes agregarla de nuevo con tu texto.» |
+| Guardar 412 sin versión, botones | «Agregarla de nuevo» · «Dejarla quitada» |
+| Guardar 412 sin versión, al pie | «Si quieres, copia lo que escribiste antes de elegir.» |
+| Guardar 412 sin versión, confirmaciones | «Agregaste «`{título}`».» + frase de los enlaces · «Dejaste «`{título}`» quitada.» |
+| Sección, 422 de largo | «Esta sección admite hasta `{tope}` caracteres. Acorta un poco el texto para guardarlo.» |
 
 Revisados contra los términos prohibidos (diagnóstico, conducta, incidente, deterioro, incontinencia): «diagnósticos» aparece solo en la ayuda aprobada, como lo que **no** se pide. Ningún texto asume el género de la persona cuidada ni de quien usa la app.
 

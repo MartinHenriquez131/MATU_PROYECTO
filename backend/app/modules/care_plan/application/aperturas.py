@@ -3,7 +3,8 @@
 Llegan aquí solo peticiones que ya pasaron por el token (401) y por la membresía, el rol y la persona
 (404): listan admin, cuidador y pagador con puede_ver_plan (dependencia persona_para_listar). No exige
 consentimiento vigente, igual que listar accesos (decisión 18): ver lo que pasó siempre es posible.
-Sin plan no hay aperturas, y listar nunca crea el plan.
+Sin plan no hay aperturas, y listar nunca crea el plan. Cada apertura trae los tipos de las secciones
+complementarias mostradas (MATU-50), nunca su texto.
 """
 
 import uuid
@@ -12,7 +13,13 @@ from datetime import datetime
 
 from app.modules.care_plan.application.ficha import PeticionFicha
 from app.modules.care_plan.application.ports import PosicionApertura, RepositorioAperturas, RepositorioFicha
-from app.modules.care_plan.domain.aperturas import ACCIONES_DE_APERTURA, TipoApertura, tipo_de_accion
+from app.modules.care_plan.domain.aperturas import (
+    ACCIONES_DE_APERTURA,
+    TipoApertura,
+    secciones_de_apertura,
+    tipo_de_accion,
+)
+from app.modules.care_plan.domain.secciones import SeccionComplementaria
 
 
 @dataclass(frozen=True)
@@ -21,6 +28,8 @@ class Apertura:
     tipo: TipoApertura
     acceso_id: uuid.UUID
     nombre_relevo: str
+    # Solo en las aperturas (None en los demás tipos): las secciones mostradas, sin texto
+    secciones: tuple[SeccionComplementaria, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -49,5 +58,10 @@ def listar_aperturas(
     for fila in pagina:
         tipo = tipo_de_accion(fila.accion)
         if tipo is not None:  # el repositorio filtra por acción; esto es defensa en profundidad
-            items.append(Apertura(fila.ocurrido_en, tipo, fila.acceso_id, fila.nombre_relevo))
+            items.append(
+                Apertura(
+                    fila.ocurrido_en, tipo, fila.acceso_id, fila.nombre_relevo,
+                    secciones_de_apertura(tipo, fila.secciones),
+                )
+            )
     return PaginaAperturas(aperturas=items, siguiente=siguiente)

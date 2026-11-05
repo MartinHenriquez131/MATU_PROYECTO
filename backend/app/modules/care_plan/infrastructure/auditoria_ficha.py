@@ -7,6 +7,9 @@ registrar falla, la excepción sube, sesion_tenant hace rollback y no hay respue
 
 - Lectura: plan.leer sobre plan_cuidado (entidad_id = plan_id, o null si aún no hay plan).
 - Escritura: plan.editar sobre plan_seccion (entidad_id = la sección escrita).
+- Secciones complementarias (MATU-50): plan.editar y plan.quitar_seccion sobre plan_seccion, con el tipo
+  en detalle ({"seccion": "remedios"}). Al quitar, entidad_id es la fila ya borrada: el tipo dice qué
+  se quitó aunque la fila no exista.
 
 Actor: USUARIO con el usuario_id de la sesión de grupo. Solo identificadores: ni texto, ni ETag, ni
 versión, ni IP. El instante lo pone RegistroAuditoriaSql con el puerto Reloj.
@@ -30,7 +33,12 @@ class AuditoriaFichaRegistro:
         self._registro = registro
 
     def _entrada(
-        self, evento: EventoFicha, accion: AccionAuditoria, entidad: EntidadAuditoria, entidad_id: uuid.UUID | None
+        self,
+        evento: EventoFicha,
+        accion: AccionAuditoria,
+        entidad: EntidadAuditoria,
+        entidad_id: uuid.UUID | None,
+        seccion: str | None = None,
     ) -> EntradaAuditoria:
         return EntradaAuditoria(
             grupo_id=evento.grupo_id,
@@ -40,6 +48,7 @@ class AuditoriaFichaRegistro:
             entidad=entidad,
             entidad_id=entidad_id,
             request_id=evento.request_id,
+            seccion=seccion,
         )
 
     def registrar_lectura(self, evento: EventoFicha) -> None:
@@ -53,4 +62,25 @@ class AuditoriaFichaRegistro:
         ).scalar_one()
         self._registro.registrar(
             self._entrada(evento, AccionAuditoria.PLAN_EDITAR, EntidadAuditoria.PLAN_SECCION, seccion_id)
+        )
+
+    def registrar_edicion_seccion(self, evento: EventoFicha) -> None:
+        seccion_id = self._sesion.execute(
+            _ID_SECCION, {"plan_id": evento.plan_id, "tipo": evento.campo}
+        ).scalar_one()
+        self._registro.registrar(
+            self._entrada(
+                evento, AccionAuditoria.PLAN_EDITAR, EntidadAuditoria.PLAN_SECCION, seccion_id, seccion=evento.campo
+            )
+        )
+
+    def registrar_quitar_seccion(self, evento: EventoFicha, seccion_id: uuid.UUID) -> None:
+        self._registro.registrar(
+            self._entrada(
+                evento,
+                AccionAuditoria.PLAN_QUITAR_SECCION,
+                EntidadAuditoria.PLAN_SECCION,
+                seccion_id,
+                seccion=evento.campo,
+            )
         )
