@@ -47,3 +47,19 @@ export function leerFallo(error: unknown): FalloApi {
     reintentarEnSegundos: Number.isFinite(retry) && retry > 0 ? retry : null,
   }
 }
+
+/**
+ * Segundos que se esperan si un 429 llega sin `Retry-After`. El contrato la exige en todo 429
+ * (`docs/api/openapi.json`); sin ella se toma el mínimo de la frase aprobada, «1 minuto».
+ */
+export const ESPERA_SIN_CABECERA = 60
+
+/** Minutos de un 429 para el texto (lenguaje 13.3): `Retry-After` en segundos hacia arriba, mínimo 1. */
+export const minutosDeEspera = (segundos: number) => Math.max(1, Math.ceil(segundos / 60))
+
+/** Un 429: cuánto esperar y los minutos del texto. `null` si el fallo no es un 429. */
+export function esperaDe(f: FalloApi): { segundos: number; minutos: number } | null {
+  if (f.status !== 429) return null
+  const segundos = f.reintentarEnSegundos ?? ESPERA_SIN_CABECERA
+  return { segundos, minutos: minutosDeEspera(segundos) }
+}
