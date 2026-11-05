@@ -8,6 +8,7 @@ from typing import Protocol
 
 from app.modules.iam.domain.demora import ContadorFallos
 from app.modules.iam.domain.dispositivo import LimitesConservacion
+from app.modules.iam.domain.recuperacion import Canal, CodigoGuardado, EnviosRecientes
 from app.modules.iam.domain.refresh import EstadoRefresh
 from app.shared.puertos import RegistroAuditoria
 
@@ -213,6 +214,11 @@ class RepositorioSesiones(Protocol):
         """Revoca los tokens no revocados del dispositivo. Devuelve cuántas familias (sesiones) cerró."""
         ...
 
+    def revocar_todas(self, motivo: str, ahora: datetime) -> int:
+        """MATU-57: revoca todos los tokens no revocados del usuario en contexto. Devuelve cuántas
+        familias (sesiones) cerró."""
+        ...
+
     def listar_dispositivos(self) -> list[DispositivoGuardado]:
         """Los dispositivos propios no revocados."""
         ...
@@ -222,11 +228,83 @@ class RepositorioSesiones(Protocol):
         ...
 
 
+# --- MATU-57: la cuenta, los códigos y su envío ----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DatosCuenta:
+    """Lo que la recuperación y el perfil leen de la cuenta propia. Nunca se registra."""
+
+    id: uuid.UUID
+    nombre: str
+    email: str
+    telefono: str | None
+    estado: str
+    celular_verificado_en: datetime | None
+    celular_canal: str
+
+    def __repr__(self) -> str:
+        return f"DatosCuenta(id={self.id})"
+
+
+class RepositorioCuenta(Protocol):
+    """La fila de usuario del contexto (RLS usuario_propio). Implementación: RepositorioCuentaSql."""
+
+    def datos(self) -> DatosCuenta | None: ...
+
+    def cambiar_contrasena(self, password_hash: str, ahora: datetime) -> None: ...
+
+    def marcar_celular_verificado(self, ahora: datetime, canal: str) -> None: ...
+
+
+class EnviadorCodigos(Protocol):
+    """Envía un mensaje a un celular o a un correo (decisión 82).
+
+    En el semestre la única implementación es EnviadorSimulado (infrastructure/enviador_simulado.py):
+    no envía nada. El destino y el mensaje nunca van a un log de la aplicación.
+    """
+
+    def enviar(self, canal: Canal, destino: str, mensaje: str) -> None: ...
+
+
+class AlmacenCodigos(Protocol):
+    """Los códigos vigentes, por clave (la huella del usuario y el propósito). Solo la huella del código.
+
+    Implementaciones: AlmacenCodigosRedis (infrastructure/recuperacion_redis.py) y AlmacenCodigosEnMemoria
+    (tests/dobles). Cada método lanza ContadoresNoDisponibles si el almacén no responde.
+    """
+
+    def guardar(self, clave: str, codigo: CodigoGuardado) -> None:
+        """Guarda el código y reemplaza al anterior con sus intentos. Vence en codigo.expira_en."""
+        ...
+
+    def leer(self, clave: str) -> CodigoGuardado | None: ...
+
+    def sumar_intento(self, clave: str) -> int:
+        """Suma un intento al código vigente y devuelve cuántos van. 0 si no hay código."""
+        ...
+
+    def consumir(self, clave: str) -> bool:
+        """Borra el código. True solo para quien lo borró: un segundo uso concurrente recibe False."""
+        ...
+
+
+class ContadoresEnvio(Protocol):
+    """Envíos por huella (cuenta, destino o IP), con ventanas fijas de una hora y de un día."""
+
+    def leer(self, huella: str) -> EnviosRecientes: ...
+
+    def sumar(self, huella: str, ahora: datetime) -> None: ...
+
+
 class TransaccionIam(Protocol):
     """Una transacción: el repositorio de sesiones y la auditoría comparten la misma sesión."""
 
     @property
     def sesiones(self) -> RepositorioSesiones: ...
+
+    @property
+    def cuenta(self) -> RepositorioCuenta: ...
 
     @property
     def auditoria(self) -> RegistroAuditoria: ...

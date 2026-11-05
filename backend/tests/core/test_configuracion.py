@@ -209,3 +209,53 @@ def test_pepper_limites_distinto_carga_como_secreto(monkeypatch: pytest.MonkeyPa
     configuracion = cargar()
     assert configuracion.pepper_limites is not None
     assert "l" * 64 not in repr(configuracion)
+
+
+# --- MATU-57: PEPPER_RECUPERACION y el envío simulado (RF-37) ------------------------------------
+
+
+@pytest.mark.rf("RF-37")
+def test_pepper_recuperacion_corto_no_carga_ni_aparece_en_el_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PEPPER_RECUPERACION", "q" * 31)
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "q" * 31 not in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("otra", ["PEPPER_EMAIL", "JWT_CLAVE", "PEPPER_PIN", "PEPPER_LIMITES"])
+def test_pepper_recuperacion_igual_a_otro_secreto_no_carga(monkeypatch: pytest.MonkeyPatch, otra: str) -> None:
+    clave = "y" * 64
+    monkeypatch.setenv("PEPPER_RECUPERACION", clave)
+    monkeypatch.setenv(otra, clave)
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "deben ser claves distintas" in str(error.value)
+    assert clave not in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+def test_pepper_recuperacion_distinto_carga_como_secreto(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PEPPER_RECUPERACION", "q" * 64)
+    configuracion = cargar()
+    assert configuracion.pepper_recuperacion is not None
+    assert "q" * 64 not in repr(configuracion)
+
+
+@pytest.mark.rf("RF-37")
+def test_envio_simulado_en_produccion_no_arranca(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_CODIGOS", "simulado")
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "ENVIADOR_CODIGOS=simulado" in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("entorno", ["local", "pruebas"])
+def test_envio_simulado_fuera_de_produccion_carga(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_CODIGOS", "simulado")
+    assert cargar().enviador_codigos == "simulado"
