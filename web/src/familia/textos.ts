@@ -65,8 +65,9 @@ export const CUENTA = {
 }
 
 /**
- * [lenguaje 13.3] 429 del límite por IP de MATU-25 (`/errores/demasiadas-peticiones`), al crear la
- * cuenta. Los minutos salen de `Retry-After` (`esperaDe`, compartido/api/cliente.ts).
+ * [lenguaje 13.3] 429 del límite por IP de MATU-25 (`/errores/demasiadas-peticiones`), solo al crear
+ * la cuenta: recuperar y el celular conservan los de la sección 19 (corregido el 05-11). Los minutos
+ * salen de `Retry-After` (`esperaDe`, compartido/api/cliente.ts).
  */
 export const ESPERA_CONEXION = {
   titulo: 'Espera un momento',

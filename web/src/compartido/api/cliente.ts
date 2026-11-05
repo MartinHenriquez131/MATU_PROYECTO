@@ -54,7 +54,11 @@ export function leerFallo(error: unknown): FalloApi {
  */
 export const ESPERA_SIN_CABECERA = 60
 
-/** Minutos de un 429 para el texto (lenguaje 13.3): `Retry-After` en segundos hacia arriba, mínimo 1. */
+/**
+ * Minutos de un 429 para el texto: `Retry-After` en segundos hacia arriba, mínimo 1. Solo el número:
+ * cada pantalla conserva su texto (lenguaje 7.3 el relevo, 13.3 entrar y crear cuenta, 19 recuperar
+ * y el celular). El texto del límite por IP es solo de crear cuenta.
+ */
 export const minutosDeEspera = (segundos: number) => Math.max(1, Math.ceil(segundos / 60))
 
 /** Un 429: cuánto esperar y los minutos del texto. `null` si el fallo no es un 429. */
