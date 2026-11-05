@@ -57,9 +57,12 @@ echo "   Grupo y persona encontrados"
 
 # 2 · Ficha: escribe cada campo solo si nunca se escribió (If-None-Match: *; 412 = ya tenía texto)
 escribir() {
-  local codigo
+  local codigo cuerpo
+  # El cuerpo lo arma Python con escapes \uXXXX: en Git Bash las tildes salen en la página de códigos de
+  # Windows y la API rechaza el JSON con 400
+  cuerpo="$("$PY" -c 'import json,sys; print(json.dumps({"texto": sys.argv[1]}))' "$2" | tr -d '\r')"
   codigo="$(curl -sS -o /dev/null -w '%{http_code}' -X PUT "${CAB[@]}" -H 'If-None-Match: *' \
-    "$BASE/v1/personas-cuidadas/$PERSONA/plan/ficha/$1" -d "{\"texto\": \"$2\"}")"
+    "$BASE/v1/personas-cuidadas/$PERSONA/plan/ficha/$1" -d "$cuerpo")"
   case "$codigo" in 200|201|412) echo "2. Campo $1: $codigo" ;; *) falla "escribir $1: $codigo" ;; esac
 }
 escribir rutina "Desayuna a las 8 con pan tostado. Camina 15 minutos después de almuerzo. Siesta de 15 a 16."
