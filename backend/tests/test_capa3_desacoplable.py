@@ -75,11 +75,15 @@ PREFIJOS_CAPA_3 = (
 # Cada petición se detiene antes de la base: sin sesión responde 401, y un cuerpo inválido, 422. Así
 # llega al código de la ruta sin depender de PostgreSQL ni de Redis. /v1/pedidos es el contraste: sin
 # la capa 3, ese 404 es de ruteo
+# Un texto (y no un objeto) viaja tal cual como cuerpo JSON. La presentación cuenta el límite por IP
+# antes de validar los campos y, sin Redis, falla cerrada con 503 (MATU-25, decisión 114). Un cuerpo
+# que no es JSON válido responde 422 antes del límite, sin depender de Redis
+CUERPO_NO_JSON = "{no es json"
 PETICIONES: list[tuple[str, str, Any, int]] = [
     ("GET", "/v1/salud", None, 200),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/plan/ficha", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/plan/accesos-relevo", None, 401),
-    ("POST", "/v1/relevo/presentacion", {}, 422),
+    ("POST", "/v1/relevo/presentacion", CUERPO_NO_JSON, 422),
     ("GET", "/v1/relevo/ficha", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/por-acabarse", None, 401),
@@ -105,7 +109,11 @@ import app.main
 from fastapi.testclient import TestClient
 peticiones = json.loads(sys.argv[2])
 with TestClient(app.main.app, raise_server_exceptions=False) as cliente:
-    respuestas = [cliente.request(m, r, json=c).status_code for m, r, c, _ in peticiones]
+    respuestas = [
+        (cliente.request(m, r, content=c, headers={"Content-Type": "application/json"}) if isinstance(c, str)
+         else cliente.request(m, r, json=c)).status_code
+        for m, r, c, _ in peticiones
+    ]
     rutas = sorted(cliente.get("/openapi.json").json()["paths"])
 with open(sys.argv[1], "w", encoding="utf-8") as salida:
     json.dump({
