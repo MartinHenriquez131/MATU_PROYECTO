@@ -47,4 +47,11 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'alertas-error@ejemplo.cl', que: 'Se acaban pronto: «Ya lo resolví» responde 500 («No pudimos guardar…»)' },
   { email: 'alertas-error-carga@ejemplo.cl', que: 'Se acaban pronto: por-acabarse responde 500; la lista se ve y el bloque dice «No pudimos ver qué se acaba pronto»' },
   { email: 'insumos-defectos@ejemplo.cl', que: 'Insumos: cambiar «Pañal» responde 412 una vez, «Apósitos» 409 perfil-inactivo, «Guantes» 500; anotar «Error» responde 500; stock 100000 con uso 1 da 422 cobertura_maxima' },
+  // MATU-57: recuperar el acceso y confirmar el celular. Los códigos solo se ven en la consola del doble.
+  { email: 'celular-verificado@ejemplo.cl', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
+  { email: 'celular-sin-verificar@ejemplo.cl', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },
+  { email: 'celular-espera@ejemplo.cl', que: 'Pedir el código del celular responde 429 con Retry-After: 120' },
+  { email: 'sin-celular@ejemplo.cl', que: 'Cuenta anterior a MATU-39, sin celular: «Tu cuenta» lo dice' },
+  { email: 'recuperar-espera@ejemplo.cl', que: 'Cambiar la contraseña con el código responde 429 con Retry-After: 120' },
+  { email: 'codigo-invalido@ejemplo.cl', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
 ]

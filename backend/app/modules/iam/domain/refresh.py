@@ -26,6 +26,8 @@ RUTA_COOKIE = "/v1/sesiones"
 MOTIVO_LOGOUT = "logout"
 MOTIVO_REUTILIZACION = "reutilizacion"
 MOTIVO_DISPOSITIVO = "dispositivo"
+# MATU-57: cambiar la contraseña con un código revoca todas las sesiones
+MOTIVO_CAMBIO_CLAVE = "cambio_clave"
 
 _FORMA_REFRESH = re.compile(r"[A-Za-z0-9_-]{43}")
 

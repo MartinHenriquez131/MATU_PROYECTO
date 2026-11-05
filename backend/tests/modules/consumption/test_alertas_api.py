@@ -6,6 +6,7 @@ Santiago. El perfil por omisión de la fábrica (24 unidades a 4 por día, anota
 """
 
 import logging
+import re
 import uuid
 from typing import Any
 
@@ -21,6 +22,34 @@ pytestmark = [requiere_base, pytest.mark.rf("RF-12")]
 
 NOMBRE = "Pañal adulto M"
 V1 = '"v1"'
+
+
+def _aparece_como_dato(valor: str, texto: str) -> bool:
+    """True si valor aparece completo en texto, no como parte de otra palabra, número, UUID o hex.
+
+    Los límites excluyen letras, dígitos, _, - y punto. Un UUID son grupos hexadecimales separados por -, así
+    que un grupo que sea justo «4321» (…-1767-4321-…, lo que hizo fallar el CI) no cuenta: siempre queda
+    entre - o hex. Tampoco una duración como 4321.0 ms. Sí cuenta como valor JSON ("cantidad": 4321), tras
+    = o entre espacios.
+    """
+    return re.search(rf"(?<![\w.-]){re.escape(valor)}(?![\w.-])", texto) is not None
+
+
+@pytest.mark.parametrize(
+    ("texto", "aparece"),
+    [
+        ('{"cantidad": 4321}', True),
+        ("cantidad=4321 ", True),
+        ("[4321]", True),
+        ('"request_id": "6f1c2b9e-1767-4321-9a0b-0c1d2e3f4a5b"', False),
+        ("a3f14321", False),
+        ("43210", False),
+        ('"duracion_ms": 4321.0', False),
+        ("v4321", False),
+    ],
+)
+def test_aparece_como_dato_no_confunde_un_uuid_con_el_valor(texto: str, aparece: bool) -> None:
+    assert _aparece_como_dato("4321", texto) is aparece
 
 
 def _filas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
@@ -224,13 +253,16 @@ def test_los_logs_y_la_auditoria_no_llevan_el_nombre(
         con = e.pedir("POST", familia.admin, familia, f"/{otro}/resolver", If_Match=V1, json={"cantidad": 4321})
         assert con.status_code == 200
     textos = caplog.text + e.iam.salida_logs.getvalue()
-    assert "secret" not in textos and "4321" not in textos and "cantidad" not in textos
+    # «secret» tiene letras fuera de a-f y no puede salir en un UUID ni en hex: basta la subcadena. «4321» sí
+    # puede ser un grupo de un UUID aleatorio, así que se busca como dato completo
+    assert "secret" not in textos and not _aparece_como_dato("4321", textos) and "cantidad" not in textos
+    # Sin la columna id: es el único número de la fila y, con la secuencia avanzada, podría valer 4321
     filas = _filas(
-        "SELECT accion, row_to_json(a)::text, detalle FROM auditoria a WHERE grupo_id = %s", familia.grupo.id
+        "SELECT accion, (to_jsonb(a) - 'id')::text, detalle FROM auditoria a WHERE grupo_id = %s", familia.grupo.id
     )
     acciones = {f[0] for f in filas}
     assert {"alerta.descartar", "alerta.resolver", "reposicion.declarar"} <= acciones
-    assert all("secret" not in f[1] and "4321" not in f[1] and f[2] is None for f in filas)
+    assert all("secret" not in f[1] and not _aparece_como_dato("4321", f[1]) and f[2] is None for f in filas)
 
 
 # --- Trabajo diario ------------------------------------------------------------------------------------

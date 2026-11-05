@@ -8,15 +8,16 @@ Cada historia registra su router aquí, con el prefijo /v1. Para no chocar entre
 agrega una sola línea por router en el bloque marcado.
 """
 
+import logging
 from typing import TextIO
 
 from fastapi import APIRouter, FastAPI
 
 from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabecerasPrefijo
-from app.core.config import obtener_configuracion
+from app.core.config import ENTORNOS_DOCUMENTACION, obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
-from app.core.web import montar_pagina_relevo
+from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_personas import router as router_personas
@@ -27,7 +28,10 @@ from app.modules.care_plan.api.router_relevo_publico import router as router_rel
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.iam.api.router import router as router_iam
+from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
+
+log = logging.getLogger("matu.api.arranque")
 
 router_salud = APIRouter(tags=["salud"])
 
@@ -40,11 +44,17 @@ def salud() -> dict[str, str]:
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     config = obtener_configuracion()
     configurar_logs(config.log_nivel, stream_logs)
-    # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de local o pruebas,
+    # MATU-25 (decisión 105, (j)): el arranque registra el entorno, y nada más de la configuración. Sin
+    # "entorno=staging" en el log, un despliegue de staging no se da por bueno. Va en WARNING para que se
+    # vea aunque LOG_NIVEL=WARNING: el despliegue siempre deja la marca
+    log.warning("entorno=%s", config.entorno)
+    # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de su lista permitida,
     # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
     preparar_custodia()
 
-    documentacion = config.entorno != "produccion"
+    # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
+    # existen y responden 404 RFC 7807, sin caer en la app de familia
+    documentacion = config.entorno in ENTORNOS_DOCUMENTACION
     app = FastAPI(
         title="MATU API",
         version="0.1.0",
@@ -57,7 +67,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
     # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
     # MATU-36: también bajo /v1/personas-cuidadas/ (autorización, consumo y ficha), en los 403 y 404
-    for prefijo in ("/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/"):
+    # MATU-57: también la recuperación del acceso y la cuenta
+    for prefijo in ("/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta"):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
 
@@ -65,6 +76,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_salud, prefix="/v1")
     app.include_router(router_iam, prefix="/v1")
     app.include_router(router_sesiones, prefix="/v1")
+    app.include_router(router_recuperacion, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")
@@ -77,6 +89,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)
+    # MATU-58: la app de familia en toda ruta GET o HEAD que no sea de la API, /r, /assets ni la
+    # documentación. Es el destino por omisión del enrutador: no tapa ninguna ruta, ni las de después
+    montar_app_familia(app, config.web_dist)
 
     return app
 

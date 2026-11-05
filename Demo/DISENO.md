@@ -8,7 +8,7 @@
 
 > **Nota del 28/10/2026: la aplicación definitiva en `web/`.** La página del relevo (MATU-23) es la primera ruta de `web/` (ADR-026). Su especificación está en [`docs/diseno/matu-23-pagina-relevo.md`](../docs/diseno/matu-23-pagina-relevo.md), y su sección 6 trae la capa de tokens que `web/` copia tal cual. Es este mismo sistema con cuatro diferencias: `pino` se llama `turquesa` (el cambio de nombre que esta sección 1 dejó para después de la demo), sin los tokens `pasarela-*`, sin el `overflow-x: hidden` del `body` y con el contenedor `app` declarado en la capa base. Esta demo no cambia.
 
-**De dónde sale la identidad:** del mundo de Carmen. La **hoja pegada en el refrigerador** con el día de María, el **PIN dictado por teléfono** y la **boleta** de la farmacia. La hoja es lo memorable: se dibuja igual en el inicio, al editar, en la página de Rosa y para imprimir.
+**De dónde sale la identidad:** del mundo de Carmen. La **hoja pegada en el refrigerador** con el día de María, el **PIN dictado por teléfono** y la **boleta** de la farmacia. La hoja es lo memorable: se dibuja igual en el inicio, al editar y en la página de Rosa. Es el aspecto de la ficha en pantalla, no una impresión: la ficha no se imprime ni se exporta, se comparte solo con el enlace con PIN (ADR-029).
 
 ## 1. Color
 
@@ -108,7 +108,7 @@ Lo que está fuera de la app (la franja y el distintivo del presentador) no tien
 
 - **Barra lateral** sobre `papel`, sin fondo propio, de **16,5 rem**: logo, cinco secciones y una pista de estado en cada una ("1 de 3", un punto de Pronto, "En curso"), en la misma línea que el nombre y en `text-base`, porque es un estado que el público lee en el proyector. La medida sale del renglón más largo: "Ficha de relevo 1 de 3" en negrita, cuando está activa, mide unos 248 px más la píldora y los márgenes. Con 14 rem sobresalía 22 px. Bajo 56 rem de ancho se vuelve una fila superior. **En el teléfono** (`telefono:`) es una barra fija abajo, con cinco columnas iguales de ícono y rótulo corto ("Inicio", "Ficha", "Insumos", "Pedidos", "Grupo"). Cada sección mide 56 px de alto como mínimo, la elegida va sobre `rocio`, y la pista pasa a un punto sobre el ícono, con su texto para el lector de pantalla (ESPEC-ADR-027, 7.6).
 - **Encabezado** con la persona cuidada a la izquierda y quien está conectada a la derecha, con la fecha y la hora de la demo.
-- **Pestañas** dentro de una sección cuando hay vistas hermanas: Ficha (Campos, Compartir, Enlaces, Quién la vio, Para imprimir) e Insumos (Qué se acaba, Lista de reposición).
+- **Pestañas** dentro de una sección cuando hay vistas hermanas: Ficha (Campos, Compartir, Enlaces, Quién la vio) e Insumos (Qué se acaba, Lista de reposición). La ficha no tiene vista para imprimir (ADR-029).
 - **Dos columnas** desde 48 rem de ancho de contenido. La izquierda es lo que se hace; la derecha, el resultado:
 
 | Sección | Izquierda | Derecha |
@@ -116,7 +116,7 @@ Lo que está fuera de la app (la franja y el distintivo del presentador) no tien
 | Ficha | Los tres campos, o el campo que se edita | La hoja tal como la verá el relevo, al día mientras se escribe |
 | Compartir | Quién, qué campos, hasta cuándo | La hoja solo con los campos elegidos |
 | Insumos | Horizonte de 30 días: una barra por producto que termina el día que se acaba | El detalle del producto elegido, declarar o "ya lo compré" |
-| Lista de reposición | Cantidades por producto | Total, pedir a domicilio y exportar |
+| Lista de reposición | Cantidades por producto | Total, pedir a domicilio, exportar e imprimir. Es lo único que se exporta o imprime (ADR-029); se especifica en su historia |
 | Pedido | Productos, dirección, crédito o débito, seguimiento | La boleta: estimado, reserva o cobro, monto real y lo que vuelve |
 
 ```

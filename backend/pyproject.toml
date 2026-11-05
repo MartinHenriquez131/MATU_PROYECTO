@@ -5,7 +5,7 @@ description = "MATU · Sistema de continuidad del cuidado · backend"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.121.1",  # Depends(scope="function"): el commit ocurre antes de responder
-    "uvicorn>=0.30",
+    "uvicorn>=0.34",  # forwarded_allow_ips con redes CIDR (MATU-25)
     "pydantic>=2.7",
     "pydantic-settings>=2.4",
     "sqlalchemy>=2.0",

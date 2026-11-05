@@ -1,17 +1,17 @@
 # Semillas
 
-Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos del dominio ficticio `correo.ejemplo`, elegido para coincidir con la demo web. No es un TLD reservado (RFC 2606 y 6761 reservan `.test`, `.example`, `.invalid` y `.localhost`): hoy `.ejemplo` no existe en la raíz del DNS, pero no está garantizado. La semilla no envía correo.
+Datos sintéticos para la base **local** de demostración (estrategia de pruebas, sección 9). Ninguna persona real: nombres inventados y correos de `example.com`, un dominio reservado (RFC 2606). Hasta MATU-25 usaba `correo.ejemplo`, que no es reservado; se cambió porque staging solo acepta correos de dominios reservados (decisión 105 de `docs/api/README.md`), y la semilla los exige también al registrar. La semilla no envía correo.
 
 ## `demo.py` · dos familias y un pagador con permiso para ver el plan
 
 | Grupo | Cuenta | Rol | Persona cuidada |
 |---|---|---|---|
-| Familia Soto | Carmen Fuentes, `carmen@correo.ejemplo` | admin (la cuidadora) | María Soto, cuidadora de hecho |
-| Familia Soto | Rodrigo Soto, `rodrigo@correo.ejemplo` | pagador, ve el plan | |
-| Familia Riquelme | Patricia Riquelme, `patricia@correo.ejemplo` | admin | Hernán Riquelme, titular |
-| Familia Riquelme | Tomás Riquelme, `tomas@correo.ejemplo` | observador | |
+| Familia Soto | Carmen Fuentes, `carmen@example.com` | admin (la cuidadora) | María Soto, cuidadora de hecho |
+| Familia Soto | Rodrigo Soto, `rodrigo@example.com` | pagador, ve el plan | |
+| Familia Riquelme | Patricia Riquelme, `patricia@example.com` | admin | Hernán Riquelme, titular |
+| Familia Riquelme | Tomás Riquelme, `tomas@example.com` | observador | |
 
-La familia Soto coincide con la demo web (Carmen cuida a María y Rodrigo es su hijo).
+La familia Soto usa los mismos nombres que la demo web de `Demo/` (Carmen cuida a María y Rodrigo es su hijo), pero no los mismos correos: la demo sigue con `@correo.ejemplo` y no apunta a staging.
 
 Usa los casos de uso de la API conectada como `matu_app`: registro con Argon2id y `PEPPER_EMAIL`, grupo con su admin y alta de la persona con su consentimiento y su auditoría. Por eso las cuentas sirven para iniciar sesión en la API y en el modo real de la demo. La única escritura sin caso de uso es la membresía del segundo miembro de cada familia, porque las invitaciones aún no existen: va como `matu_app` en el contexto del admin y de su grupo, nunca como superusuario. La ficha de relevo no se siembra: llega con MATU-11 y MATU-12.
 
