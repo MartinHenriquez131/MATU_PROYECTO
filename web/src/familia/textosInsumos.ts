@@ -185,3 +185,34 @@ export const diasEnTexto = (n: number) => {
   const l = lineaDias(n)
   return l.cifra === null ? `${l.texto}.` : `${l.texto} ${l.cifra} ${l.resto}.`
 }
+
+/**
+ * MATU-37 «Se acaban pronto» (especificación docs/diseno/matu-37-alertas.md, sección 7). Nunca
+ * «quiebre», «stock» ni «reponer», y nunca se ofrece comprar ni pedir: «compraste» solo pregunta
+ * por lo ya hecho.
+ */
+export const ALERTAS = {
+  titulo: 'Se acaban pronto', // aprobado por Jorge el 03-11
+  tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // más de 3, aprobado por Jorge el 03-11
+  fechaEstimada: 'Fecha estimada:', // [APROBADO] (decisión de Jorge) + {fecha}
+  nota: 'Es una estimación con lo que anotaste.', // aprobado por Jorge el 03-11
+  marca: 'Te estamos avisando', // aprobado por Jorge el 03-11
+  boton: 'Ya lo resolví', // [APROBADO]
+  botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // aprobado por Jorge el 03-11
+  pregunta: (unidad: Unidad) =>
+    unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // aprobado por Jorge el 03-11
+  ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // aprobado por Jorge el 03-11
+  guardando: 'Guardando…', // aprobado por Jorge el 03-11
+  volver: 'Volver', // aprobado por Jorge el 03-11
+  okCantidad: (c: string, nombre: string, n: number) => `Anotamos tu compra de ${nombre}: ${c}. Ahora alcanza para ${n} ${n === 1 ? 'día' : 'días'}.`, // aprobado por Jorge el 03-11
+  okCantidadSinDias: (c: string, nombre: string) => `Anotamos tu compra de ${nombre}: ${c}. Si te quedan menos, cámbialo en la lista.`, // aprobado por Jorge el 03-11
+  okSinCantidad: (nombre: string) => `Listo. No te avisaremos de nuevo por ${nombre} hasta que cambie la fecha estimada.`, // aprobado por Jorge el 03-11
+  errCerrada: 'Alguien de tu familia ya resolvió este aviso.', // aprobado por Jorge el 03-11
+  errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo resolvías. Revisa cómo quedó y vuelve a intentarlo.`, // aprobado por Jorge el 03-11
+  errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // aprobado por Jorge el 03-11
+  errRol: 'Solo quien administra o cuida puede resolver un aviso.', // aprobado por Jorge el 03-11
+  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // aprobado por Jorge el 03-11
+  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // aprobado por Jorge el 03-11
+  verComoQuedo: 'Ver cómo quedó', // aprobado por Jorge el 03-11
+  errCarga: 'No pudimos ver qué se acaba pronto.', // aprobado por Jorge el 03-11
+}

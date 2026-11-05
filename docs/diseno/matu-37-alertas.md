@@ -40,7 +40,7 @@
 3. **«Ya lo resolví» es una acción sobre la alerta, no sobre el insumo.** En la fila ya están «Seguir», «Cambiar» y la papelera; un cuarto control en la misma fila a 360 px se vuelve un tablero de botones. En el bloque, el botón está junto al aviso al que responde.
 4. Es el lenguaje de la demo («Qué se acaba pronto» como sección propia).
 
-**La fila de la lista no cambia** salvo una marca: los insumos que están en el bloque llevan, bajo el nombre, la palabra «Te estamos avisando» [PROPUESTO] con el ícono `Bell` (`size-5`, `aria-hidden`, `text-atenta`), en `text-base text-tinta`. Así el estado no depende de ver el bloque y nunca es solo color. Los de 0 días o negativo mantienen el `CircleAlert` de MATU-36.
+**La fila de la lista no cambia** salvo una marca: los insumos que están en el bloque llevan, bajo el nombre, la palabra «Te estamos avisando» [APROBADO por Jorge el 03-11] con el ícono `Bell` (`size-5`, `aria-hidden`, `text-atenta`), en `text-base text-tinta`. Así el estado no depende de ver el bloque y nunca es solo color. Los de 0 días o negativo mantienen el `CircleAlert` de MATU-36.
 
 **Sin alertas, el bloque no se muestra** (ni vacío, ni «todo bien»): la lista de MATU-36 queda igual que hoy. Ver 4.1.
 
@@ -117,6 +117,8 @@ Se abre **dentro del mismo `li`**, debajo de la fecha, reemplazando el botón (s
 
 El bloque ocupa **el ancho de la columna izquierda** (la de la lista, `3fr`), arriba de la nota y del botón; la columna derecha («Cómo calculamos» o el formulario) no cambia. Cada aviso en un renglón cuando cabe: nombre a la izquierda, «Alcanza para…» y «Fecha estimada…» al centro, «Ya lo resolví» a la derecha (`flex flex-wrap items-center justify-between gap-x-6 gap-y-2`). El panel de 3.3 se abre bajo el renglón, con el campo y los dos botones en una fila (`flex flex-wrap items-end gap-4`). Botones al ancho de su texto.
 
+**Aprobado en la revisión (03/11/2026):** cuando la columna no da para los tres en un renglón (por ejemplo a 1280 px, donde la columna mide unos 500 px), «Ya lo resolví» baja a su propio renglón alineado a la derecha. Es el `flex-wrap` esperado y se acepta.
+
 ```
 ┌───────────────────────────────────────────────┬───────────────────────────┐
 │ Insumos                          [ + Anotar un insumo ]                    │
@@ -164,30 +166,30 @@ La lista y el bloque se piden juntos; mientras tanto, el «Cargando los insumos�
 
 ### 4.3 Una o varias
 - Orden: el que da la API (fecha estimada, luego `id`). Los de 0 o negativo quedan arriba naturalmente.
-- **Sin límite visual ni «ver más»:** la lista está acotada por los perfiles activos. Si hay más de 3, el título dice cuántos: «Se acaban pronto ({n})» [PROPUESTO], para que a 360 px se sepa que hay que bajar.
+- **Sin límite visual ni «ver más»:** la lista está acotada por los perfiles activos. Si hay más de 3, el título dice cuántos: «Se acaban pronto ({n})» [APROBADO por Jorge el 03-11], para que a 360 px se sepa que hay que bajar.
 - Un solo aviso: el mismo bloque con un `li`.
 
 ### 4.4 Cerrando («Ya lo resolví» confirmado)
-- **Sin interfaz optimista.** El botón principal pasa a «Guardando…» [PROPUESTO], `aria-busy="true"`, deshabilitado junto con «Volver» y el campo. El aviso no se mueve ni desaparece hasta la respuesta.
+- **Sin interfaz optimista.** El botón principal pasa a «Guardando…» [APROBADO por Jorge el 03-11], `aria-busy="true"`, deshabilitado junto con «Volver» y el campo. El aviso no se mueve ni desaparece hasta la respuesta.
 - **200:** se vuelve a pedir `por-acabarse` y la lista. El aviso sale del bloque (o se recalcula y sigue, si la compra no alcanzó a salir de la ventana). La confirmación va **arriba del bloque** (o en su lugar si quedó vacío) y recibe el foco:
-  - Con cantidad: «Anotamos que compraste {cantidad} de {nombre}. Ahora alcanza para {n} días.» [PROPUESTO]. Si `{n}` es 1, «1 día»; si el recálculo da 0 o negativo, «Anotamos que compraste {cantidad} de {nombre}. Si te quedan menos, cámbialo en la lista.» [PROPUESTO]
-  - Sin cantidad: «Listo. No te avisaremos de nuevo por {nombre} hasta que cambie la fecha estimada.» [PROPUESTO]
-  - Mismo verbo: el botón dice «resolví», la confirmación confirma lo hecho («Anotamos que compraste» / «Listo»).
+  - Con cantidad: «Anotamos tu compra de {nombre}: {cantidad}. Ahora alcanza para {n} días.» [APROBADO por Jorge el 03-11]. Si `{n}` es 1, «1 día»; si el recálculo da 0 o negativo, «Anotamos tu compra de {nombre}: {cantidad}. Si te quedan menos, cámbialo en la lista.» [APROBADO por Jorge el 03-11]
+  - Sin cantidad: «Listo. No te avisaremos de nuevo por {nombre} hasta que cambie la fecha estimada.» [APROBADO por Jorge el 03-11]
+  - Mismo verbo: el botón dice «resolví», la confirmación confirma lo hecho («Anotamos tu compra» / «Listo»).
 - Si quedan otros avisos, después de leer la confirmación el foco sigue el orden natural hacia el primer aviso.
 
 ### 4.5 Errores del cierre (dentro del panel, `role="alert"`, el panel sigue abierto con lo escrito)
 | Respuesta | Texto | Qué pasa |
 |---|---|---|
-| 409 `alerta-cerrada` | «Alguien de tu familia ya resolvió este aviso.» [PROPUESTO] | Botón «Ver cómo quedó» [PROPUESTO] (secundario) que recarga el bloque y la lista. No se reintenta solo |
-| 404 | «Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.» [PROPUESTO] | Mismo «Ver cómo quedó» |
+| 409 `alerta-cerrada` | «Alguien de tu familia ya resolvió este aviso.» [APROBADO por Jorge el 03-11] | Botón «Ver cómo quedó» [APROBADO por Jorge el 03-11] (secundario) que recarga el bloque y la lista. No se reintenta solo |
+| 404 | «Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.» [APROBADO por Jorge el 03-11] | Mismo «Ver cómo quedó» |
 | 403 `sin-consentimiento` / `revision-vencida` | Los de MATU-36 (3.1.3 y 3.1.4) | Se muestra el estado de permiso de MATU-36 en vez de la lista |
-| 403 por rol (si el contrato lo cambia, A3) | «Solo quien administra o cuida puede resolver un aviso.» [PROPUESTO] | Se cierra el panel |
-| 422 (cantidad fuera de rango) | «Escribe un número entre 1 y 9999, o déjalo en blanco.» [PROPUESTO] | Junto al campo, `aria-invalid`, foco al campo |
+| 403 por rol (si el contrato lo cambia, A3) | «Solo quien administra o cuida puede resolver un aviso.» [APROBADO por Jorge el 03-11] | Se cierra el panel |
+| 422 (cantidad fuera de rango) | «Escribe un número entre 1 y 9999, o déjalo en blanco.» [APROBADO por Jorge el 03-11] | Junto al campo, `aria-invalid`, foco al campo |
 | 401 | Igual que MATU-36 (renovar una vez; si falla, entrada) | — |
-| Red o 5xx | «No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.» [PROPUESTO] | El botón principal vuelve a «Ya lo resolví» |
+| Red o 5xx | «No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.» [APROBADO por Jorge el 03-11] | El botón principal vuelve a «Ya lo resolví» |
 
 ### 4.6 Error al cargar el bloque
-En el lugar del bloque, `Aviso` de error: «No pudimos ver qué se acaba pronto.» [PROPUESTO] con botón secundario «Volver a intentar» (de MATU-36). La lista se muestra igual.
+En el lugar del bloque, `Aviso` de error: «No pudimos ver qué se acaba pronto.» [APROBADO por Jorge el 03-11] con botón secundario «Volver a intentar» (de MATU-36). La lista se muestra igual.
 
 ### 4.7 Roles
 `pagador` y `observador`: el bloque completo, **sin** «Ya lo resolví» (no deshabilitado: ausente). La marca «Te estamos avisando» de la fila también la ven.
@@ -224,32 +226,32 @@ No aplica al cierre (sin `ETag`). Si la cantidad recalcula el perfil y el backen
 | Dónde | Texto | Estado |
 |---|---|---|
 | Aviso push (MATU-41) | MATU: un insumo se está acabando. Abre la app para ver cuál | [APROBADO] |
-| Título del bloque | Se acaban pronto | [PROPUESTO] |
-| Título con más de 3 | Se acaban pronto ({n}) | [PROPUESTO] |
+| Título del bloque | Se acaban pronto | [APROBADO por Jorge el 03-11] |
+| Título con más de 3 | Se acaban pronto ({n}) | [APROBADO por Jorge el 03-11] |
 | Días (2 o más / 1 / 0 / negativo) | Alcanza para {n} días · Alcanza para 1 día · Se acaba hoy · Puede que ya no quede | [APROBADO] |
 | Fecha (n ≥ 0, salvo 0) | Fecha estimada: {fecha} | [APROBADO] (decisión de Jorge) |
 | Fecha (negativo) | Según lo anotado, se acababa el {fecha}. | [PROPUESTO en MATU-36] |
-| Nota al pie del bloque | Es una estimación con lo que anotaste. | [PROPUESTO] |
-| Marca en la fila de la lista | Te estamos avisando | [PROPUESTO] |
+| Nota al pie del bloque | Es una estimación con lo que anotaste. | [APROBADO por Jorge el 03-11] |
+| Marca en la fila de la lista | Te estamos avisando | [APROBADO por Jorge el 03-11] |
 | Botón | Ya lo resolví | [APROBADO] |
-| `aria-label` del botón | Ya lo resolví: {nombre} | [PROPUESTO] |
-| Pregunta (unidad) | ¿Compraste? ¿Cuántos? | [PROPUESTO] |
-| Pregunta (sobre) | ¿Compraste? ¿Cuántos sobres? | [PROPUESTO] |
-| Pregunta (ml / g) | ¿Compraste? ¿Cuántos ml? · ¿Compraste? ¿Cuántos gramos? | [PROPUESTO] |
-| Ayuda del campo | Si no compraste, déjalo en blanco y solo dejamos de avisarte. | [PROPUESTO] |
+| `aria-label` del botón | Ya lo resolví: {nombre} | [APROBADO por Jorge el 03-11] |
+| Pregunta (unidad) | ¿Compraste? ¿Cuántos? | [APROBADO por Jorge el 03-11] |
+| Pregunta (sobre) | ¿Compraste? ¿Cuántos sobres? | [APROBADO por Jorge el 03-11] |
+| Pregunta (ml / g) | ¿Compraste? ¿Cuántos ml? · ¿Compraste? ¿Cuántos gramos? | [APROBADO por Jorge el 03-11] |
+| Ayuda del campo | Si no compraste, déjalo en blanco y solo dejamos de avisarte. | [APROBADO por Jorge el 03-11] |
 | Confirmar | Ya lo resolví | [APROBADO] |
-| Cargando | Guardando… | [PROPUESTO] |
-| Volver | Volver | [PROPUESTO] |
-| Éxito con cantidad | Anotamos que compraste {cantidad} de {nombre}. Ahora alcanza para {n} días. | [PROPUESTO] |
-| Éxito con cantidad, 0 o negativo | Anotamos que compraste {cantidad} de {nombre}. Si te quedan menos, cámbialo en la lista. | [PROPUESTO] |
-| Éxito sin cantidad | Listo. No te avisaremos de nuevo por {nombre} hasta que cambie la fecha estimada. | [PROPUESTO] |
-| 409 | Alguien de tu familia ya resolvió este aviso. | [PROPUESTO] |
-| 404 | Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado. | [PROPUESTO] |
-| 403 por rol | Solo quien administra o cuida puede resolver un aviso. | [PROPUESTO] |
-| 422 | Escribe un número entre 1 y 9999, o déjalo en blanco. | [PROPUESTO] |
-| Red o 5xx | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. | [PROPUESTO] |
-| Botón tras 409/404 | Ver cómo quedó | [PROPUESTO] |
-| Error al cargar el bloque | No pudimos ver qué se acaba pronto. | [PROPUESTO] |
+| Cargando | Guardando… | [APROBADO por Jorge el 03-11] |
+| Volver | Volver | [APROBADO por Jorge el 03-11] |
+| Éxito con cantidad | Anotamos tu compra de {nombre}: {cantidad}. Ahora alcanza para {n} días. | [APROBADO por Jorge el 03-11] |
+| Éxito con cantidad, 0 o negativo | Anotamos tu compra de {nombre}: {cantidad}. Si te quedan menos, cámbialo en la lista. | [APROBADO por Jorge el 03-11] |
+| Éxito sin cantidad | Listo. No te avisaremos de nuevo por {nombre} hasta que cambie la fecha estimada. | [APROBADO por Jorge el 03-11] |
+| 409 | Alguien de tu familia ya resolvió este aviso. | [APROBADO por Jorge el 03-11] |
+| 404 | Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado. | [APROBADO por Jorge el 03-11] |
+| 403 por rol | Solo quien administra o cuida puede resolver un aviso. | [APROBADO por Jorge el 03-11] |
+| 422 | Escribe un número entre 1 y 9999, o déjalo en blanco. | [APROBADO por Jorge el 03-11] |
+| Red o 5xx | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. | [APROBADO por Jorge el 03-11] |
+| Botón tras 409/404 | Ver cómo quedó | [APROBADO por Jorge el 03-11] |
+| Error al cargar el bloque | No pudimos ver qué se acaba pronto. | [APROBADO por Jorge el 03-11] |
 
 Prohibido en todos: «quiebre», «stock», «reponer», precios, y «comprar» o «pedir» como **acción ofrecida** (botón o invitación; «compraste» solo como pregunta sobre lo ya hecho), y cualquier término de lenguaje 3.2. Ningún texto asume el género de la persona cuidada (no se nombra a la persona en el bloque).
 
