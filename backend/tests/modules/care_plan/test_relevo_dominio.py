@@ -20,6 +20,7 @@ from app.modules.care_plan.domain.relevo import (
     vigencia,
 )
 from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
+from tests.textos import aparece_como_dato
 
 AHORA = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
 
@@ -99,4 +100,4 @@ def test_token_y_pin_nunca_en_el_repr() -> None:
         expira_en=AHORA, nombre_relevo="Rosa", nombre_pila_persona="María",
     )
     assert "TokenSinteticoDePrueba" not in repr(entregado)
-    assert "4821" not in repr(entregado)
+    assert not aparece_como_dato("4821", repr(entregado))  # el id es un uuid4: podía traer 4821 por azar
