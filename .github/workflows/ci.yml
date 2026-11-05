@@ -74,3 +74,41 @@ jobs:
 
       - name: Pruebas (pytest)
         run: pytest -q
+
+  # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint ni pruebas
+  # todavía: se revisan los tipos, que compile y que su contrato siga al openapi.json.
+  web:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22 (LTS): Vite 8 pide ^20.19.0 o >=22.12.0, y Node 20 ya no tiene soporte
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (tsc)
+        run: npm run typecheck
+
+      # web/dist no se sube como artefacto: solo se comprueba que compila
+      - name: Compilar (vite build)
+        run: npm run build
+
+      # El #37 corrigió un familia.openapi.ts desfasado del contrato. Esto evita que se repita.
+      - name: Contrato de la familia al día
+        run: |
+          npm run contrato:familia
+          if ! git diff --exit-code -- src/compartido/api/familia.openapi.ts; then
+            echo "::error file=web/src/compartido/api/familia.openapi.ts::El contrato de la app web no coincide con docs/api/openapi.json. Corre 'cd web && npm run contrato:familia' y sube el familia.openapi.ts regenerado."
+            exit 1
+          fi
