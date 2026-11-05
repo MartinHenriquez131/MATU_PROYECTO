@@ -32,7 +32,7 @@ g) plan_familia (FOR ALL con app_puede_ver_plan()) se separa igual (decisión 10
    ninguna ruta borra un plan, y borrarlo arrastraría por ON DELETE CASCADE sus secciones y sus accesos
    de relevo sin pasar por las políticas de esas tablas. Borrar un plan es de la historia de borrado.
 
-downgrade() vuelve al esquema de la 0011:
+downgrade() vuelve al esquema de la 0012 (en estas tablas, el mismo de la 0011):
 - Si quedan filas de plan_seccion con los tipos nuevos, o accesos que los comparten, se detiene con un
   error y no borra nada (no se pierden datos sin aviso). Hay que quitarlas antes a mano.
 - La auditoría no se borra ni se cambia (es de solo inserción y se conserva 3 años). Si hay filas con
@@ -42,12 +42,11 @@ downgrade() vuelve al esquema de la 0011:
   buscan; se intenta agregar el CHECK anterior, cuya validación sí revisa todas las filas, y se captura
   check_violation.
 
-down_revision "0011": el PR #39 (MATU-57) también agrega una 0012 sobre la 0011. Si se fusiona antes,
-se cambia down_revision a "0012" (una línea) y se vuelve a correr upgrade head, downgrade -1 y upgrade
-head. El SQL no depende de la 0012.
+down_revision "0012": se escribió sobre la 0011 y, al fusionar con MATU-57 (PR #39, que agrega la 0012
+sobre la 0011), se encadenó después de la 0012 sin cambiar el SQL, que no depende de ella.
 
 Revision ID: 0013
-Revises: 0011
+Revises: 0012
 Create Date: 2026-11-03
 """
 
@@ -56,7 +55,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0013"
-down_revision: str | None = "0011"
+down_revision: str | None = "0012"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

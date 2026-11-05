@@ -502,6 +502,38 @@ def test_0011_alertas_y_reposiciones_y_baja_al_esquema_de_0010(base_desechable):
     alembic("upgrade", "head")
 
 
+# ---- 0012 (MATU-57): celular verificado, su canal y el trigger que lo limpia al cambiar el número
+
+
+@pytest.mark.rf("RF-37")
+def test_0012_celular_verificado_y_baja_al_esquema_de_0011(base_desechable):
+    alembic("upgrade", "0011")
+    esquema_0011 = catalogo()
+
+    alembic("upgrade", "0012")
+    columnas = dict(consultar(
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'usuario'"
+        " AND column_name IN ('celular_verificado_en', 'celular_canal')"))
+    assert columnas == {"celular_verificado_en": "timestamp with time zone", "celular_canal": "text"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(
+            "INSERT INTO usuario (id, email, nombre, password_hash, telefono, celular_verificado_en)"
+            " VALUES (%s, 'a@correo.ejemplo', 'Persona A', 'h', '+56900000001', now())", (U,))
+        c.execute("UPDATE usuario SET nombre = 'Persona B' WHERE id = %s", (U,))
+        assert c.execute("SELECT celular_verificado_en IS NOT NULL FROM usuario").fetchone() == (True,)
+        c.execute("UPDATE usuario SET telefono = '+56900000002' WHERE id = %s", (U,))
+        assert c.execute("SELECT celular_verificado_en IS NULL, celular_canal FROM usuario").fetchone() == (True, "sms")
+        with pytest.raises(psycopg.errors.CheckViolation):
+            c.execute("UPDATE usuario SET celular_canal = 'paloma'")
+        c.execute("DELETE FROM usuario")
+
+    alembic("downgrade", "0011")
+    despues = catalogo()
+    for parte, filas in esquema_0011.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
+
+
 # ---- 0013 (MATU-50): secciones complementarias, creado_en, lo que ve el relevo y el detalle de la auditoría
 
 _FILAS_0013 = r"""
@@ -516,9 +548,9 @@ INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek
 
 
 @pytest.mark.rf("RF-03")
-def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechable):
-    alembic("upgrade", "0011")
-    esquema_0011 = catalogo()
+def test_0013_secciones_complementarias_y_baja_al_esquema_de_0012(base_desechable):
+    alembic("upgrade", "0012")
+    esquema_0012 = catalogo()
 
     alembic("upgrade", "0013")
     restricciones = dict(consultar(
@@ -554,9 +586,9 @@ def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechabl
         "SELECT privilege_type FROM information_schema.role_table_grants"
         " WHERE table_name = 'plan_cuidado' AND grantee = 'matu_app' AND privilege_type = 'DELETE'") == []
 
-    alembic("downgrade", "0011")
+    alembic("downgrade", "0012")
     despues = catalogo()
-    for parte, filas in esquema_0011.items():
+    for parte, filas in esquema_0012.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
 
@@ -576,12 +608,12 @@ def test_0013_no_baja_si_quedan_secciones_nuevas_y_conserva_la_auditoria(base_de
             (ids["g"], ids["u"]),
         )
     with pytest.raises(AssertionError, match="no borra datos"):
-        alembic("downgrade", "0011")
+        alembic("downgrade", "0012")
     assert consultar("SELECT count(*) FROM plan_seccion WHERE tipo = 'remedios'") == [(1,)]
 
     with psycopg.connect(_dsn(BASE), autocommit=True) as c:
         c.execute("DELETE FROM plan_seccion WHERE tipo = 'remedios'")
-    alembic("downgrade", "0011")
+    alembic("downgrade", "0012")
     [(definicion,)] = consultar(
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'auditoria_detalle_acotado'")
     assert definicion.endswith("NOT VALID") and "secciones" not in definicion

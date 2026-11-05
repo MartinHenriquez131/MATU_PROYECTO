@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Cuenta
-         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422 y 409.
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114).
          */
         post: operations["crear_cuenta_v1_usuarios_post"];
         delete?: never;
@@ -562,6 +562,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/recuperacion/codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pedir Codigo Recuperacion
+         * @description Pide un código para recuperar el acceso (MATU-57). Recibe solo el email. Responde siempre 202 sin cuerpo, exista o no la cuenta y aunque se haya alcanzado el límite (decisión 84): el envío corre después de responder. El código va al celular verificado o, si no hay, al correo; con `canal: "correo"`, al correo. Pedir otro invalida el anterior. Orden: 422, 503 y 202.
+         */
+        post: operations["pedir_codigo_recuperacion_v1_recuperacion_codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recuperacion/contrasena": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cambiar Contrasena
+         * @description Cambia la contraseña con el código (MATU-57). Un código incorrecto, vencido, ya usado, con los 5 intentos agotados o de un email sin cuenta responde el mismo 422 `codigo-invalido`. Al cambiarla revoca todas las sesiones (`cambio_clave`), invalida los códigos pendientes y avisa por el otro canal. No emite tokens: la persona vuelve a entrar. Orden: 422 del cuerpo, 503, 429, 422 codigo-invalido y 204.
+         */
+        post: operations["cambiar_contrasena_v1_recuperacion_contrasena_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Cuenta
+         * @description La cuenta propia, con el celular enmascarado y si está verificado (MATU-57).
+         */
+        get: operations["ver_cuenta_v1_cuenta_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta/celular/codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pedir Codigo Del Celular
+         * @description Envía un código al celular de la cuenta para verificarlo (MATU-57). 60 s entre envíos, 3 por hora y 10 al día por cuenta y por número. Pedir otro invalida el anterior. Orden: 401, 503, 409, 429 y 202.
+         */
+        post: operations["pedir_codigo_del_celular_v1_cuenta_celular_codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta/celular/verificar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmar Celular
+         * @description Confirma el celular con el código (MATU-57). Todo código que no sirve responde el mismo 422 `codigo-invalido`. Desde aquí, la recuperación va al celular. Orden: 401, 422 del cuerpo, 503, 429, 422 codigo-invalido y 204.
+         */
+        post: operations["confirmar_celular_v1_cuenta_celular_verificar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -835,6 +935,33 @@ export interface components {
             nombre: string;
             /** Email */
             email: string;
+        };
+        /**
+         * CuentaVista
+         * @description GET /v1/cuenta: la cuenta propia. El celular va enmascarado, nunca completo.
+         */
+        CuentaVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Email */
+            email: string;
+            /**
+             * Celular Enmascarado
+             * @example +56 9 •••• ••37
+             */
+            celular_enmascarado: string | null;
+            /** Celular Verificado */
+            celular_verificado: boolean;
+            /**
+             * Celular Canal
+             * @enum {string}
+             */
+            celular_canal: "sms" | "whatsapp";
         };
         /**
          * DireccionNueva
@@ -1323,12 +1450,41 @@ export interface components {
             aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
         };
         /**
+         * SolicitudCambioContrasena
+         * @description Cuerpo de POST /v1/recuperacion/contrasena. La contraseña nueva cumple lo mismo que en el alta.
+         */
+        SolicitudCambioContrasena: {
+            /** Email */
+            email: string;
+            /**
+             * Codigo
+             * @description El código de 6 dígitos del mensaje. Nunca se registra ni se repite en un error
+             * @example 123456
+             */
+            codigo: string;
+            /** Contrasena Nueva */
+            contrasena_nueva: string;
+        };
+        /**
          * SolicitudCampo
          * @description Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422.
          */
         SolicitudCampo: {
             /** Texto */
             texto: string;
+        };
+        /**
+         * SolicitudCodigoRecuperacion
+         * @description Cuerpo de POST /v1/recuperacion/codigo. Solo el email: nunca se pide el celular para recuperar.
+         */
+        SolicitudCodigoRecuperacion: {
+            /** Email */
+            email: string;
+            /**
+             * Canal
+             * @description Con "correo", el código va al correo aunque el celular esté verificado (reenviar al correo). Sin él, va al celular verificado o, si no hay, al correo. La respuesta nunca dice a cuál
+             */
+            canal?: "correo" | null;
         };
         /**
          * SolicitudEdicionPerfil
@@ -1464,6 +1620,25 @@ export interface components {
             contrasena: string;
         };
         /**
+         * SolicitudVerificarCelular
+         * @description Cuerpo de POST /v1/cuenta/celular/verificar.
+         */
+        SolicitudVerificarCelular: {
+            /**
+             * Codigo
+             * @description El código de 6 dígitos del mensaje. Nunca se registra ni se repite en un error
+             * @example 123456
+             */
+            codigo: string;
+            /**
+             * Canal
+             * @description Canal preferido del celular, elegido al verificarlo (decisión 90). Por omisión sms
+             * @default sms
+             * @enum {string}
+             */
+            canal: "sms" | "whatsapp";
+        };
+        /**
          * TipoApertura
          * @enum {string}
          */
@@ -1579,8 +1754,28 @@ export interface operations {
                     };
                 };
             };
-            /** @description Cuerpo inválido, incluido celular_invalido. Nunca repite el valor */
+            /** @description Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3894,6 +4089,252 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pedir_codigo_recuperacion_v1_recuperacion_codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCodigoRecuperacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_contrasena_v1_recuperacion_contrasena_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCambioContrasena"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cuerpo inválido (validacion) o codigo-invalido. Nunca repite valores */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_cuenta_v1_cuenta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CuentaVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    pedir_codigo_del_celular_v1_cuenta_celular_codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description celular-verificado (ya lo está) o sin-celular (la cuenta no tiene) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    confirmar_celular_v1_cuenta_celular_verificar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudVerificarCelular"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (validacion) o codigo-invalido. Nunca repite valores */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };

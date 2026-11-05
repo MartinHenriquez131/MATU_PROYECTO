@@ -25,6 +25,7 @@ from app.modules.care_plan.api.dependencias import obtener_pepper_pin
 from tests.base_datos import DSN, requiere_base
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.care_plan.conftest import EntornoFicha
+from tests.textos import aparece_celular
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-05")]
 
@@ -139,7 +140,8 @@ def test_acceso_guarda_solo_hash(entorno: EntornoRelevo) -> None:
     )
     assert len(auditoria) == 1
     assert auditoria[0][:4] == ("usuario", familia.admin.id, "fin_de_semana_fuera", None)
-    assert token not in auditoria[0][4] and "Rosa" not in auditoria[0][4] and "5555" not in auditoria[0][4]
+    assert token not in auditoria[0][4] and "Rosa" not in auditoria[0][4]
+    assert not aparece_celular(_cuerpo()["telefono_relevo"], auditoria[0][4])  # sin falsos positivos por un UUID
 
     # Ni el token ni el PIN en los logs, ni en las cabeceras, ni en la lista
     log = entorno.ficha.iam.texto_log()

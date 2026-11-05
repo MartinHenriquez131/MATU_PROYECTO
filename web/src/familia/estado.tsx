@@ -21,7 +21,7 @@ export interface AccionAviso {
   ruta: Ruta
   variante: 'principal' | 'secundario' | 'texto'
 }
-export type AvisoEntrar = 'vencida' | 'salio' | null
+export type AvisoEntrar = 'vencida' | 'salio' | 'clave-cambiada' | null
 
 /** Lo escrito en «¿A quién cuidas?», que vive en memoria hasta el POST de la autorización. */
 export interface BorradorPersona {
@@ -58,6 +58,8 @@ interface Estado {
    * registrar, los enlaces que la API lista como `vigente` están en pausa.
    */
   autorizacion: Autorizacion
+  /** MATU-57 5.1: desde dónde se abrió «Confirma tu celular» (la primera entrada ofrece «Ahora no»). */
+  celularDesde: 'primera' | 'cuenta'
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -97,6 +99,7 @@ const INICIAL: Estado = {
   aviso: null,
   textoPerdido: null,
   autorizacion: null,
+  celularDesde: 'cuenta',
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {

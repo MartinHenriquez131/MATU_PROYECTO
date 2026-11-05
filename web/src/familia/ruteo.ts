@@ -6,6 +6,10 @@ export type Ruta =
   | '/'
   | '/crear-cuenta'
   | '/entrar'
+  | '/entrar/recuperar'
+  | '/entrar/recuperar/codigo'
+  | '/cuenta'
+  | '/cuenta/celular'
   | '/empezar/grupo'
   | '/empezar/persona'
   | '/empezar/autorizacion'
@@ -21,6 +25,8 @@ export type Ruta =
   | '/ficha/como-hablarle'
   | '/ficha/sus-remedios'
   | '/insumos'
+  | '/insumos/nuevo'
+  | '/insumos/cambiar'
   | '/compartir'
   | '/compartir/listo'
   | '/compartir/enlaces'
@@ -29,6 +35,10 @@ export const RUTAS: readonly Ruta[] = [
   '/',
   '/crear-cuenta',
   '/entrar',
+  '/entrar/recuperar',
+  '/entrar/recuperar/codigo',
+  '/cuenta',
+  '/cuenta/celular',
   '/empezar/grupo',
   '/empezar/persona',
   '/empezar/autorizacion',
@@ -44,13 +54,15 @@ export const RUTAS: readonly Ruta[] = [
   '/ficha/como-hablarle',
   '/ficha/sus-remedios',
   '/insumos',
+  '/insumos/nuevo',
+  '/insumos/cambiar',
   '/compartir',
   '/compartir/listo',
   '/compartir/enlaces',
 ]
 
 /** Las que se ven sin haber entrado. */
-export const PUBLICAS: ReadonlySet<Ruta> = new Set(['/crear-cuenta', '/entrar'])
+export const PUBLICAS: ReadonlySet<Ruta> = new Set(['/crear-cuenta', '/entrar', '/entrar/recuperar', '/entrar/recuperar/codigo'])
 
 const oyentes = new Set<() => void>()
 const avisar = () => oyentes.forEach((fn) => fn())

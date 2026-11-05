@@ -32,6 +32,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
+from tests.textos import aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-06")]
 
@@ -265,7 +266,9 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert entorno.abrir(token, pin).status_code == 200
 
     filas = _todas(
-        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, a::text FROM auditoria a"
+        # Sin la columna id: con la secuencia avanzada podría valer el PIN (como en ac8a315)
+        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, (to_jsonb(a) - 'id')::text"
+        " FROM auditoria a"
         " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
     assert len(filas) == 1
     grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, fila = filas[0]
@@ -274,7 +277,8 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
         familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
     assert motivo is None and ip is None  # C8
-    assert token not in fila and pin not in fila.replace(str(acceso_id), "") and "Rosa" not in fila
+    # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
+    assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
     usos, ultimo = cast(tuple[int, datetime], _una(
         "SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id))
     assert usos == 1 and ultimo == entorno.reloj.ahora()
@@ -530,3 +534,79 @@ def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -
     assert "set-cookie" not in respuesta.headers
     assert orden == ["auditado"]
     assert _acciones(acceso_id) == ["relevo.canje"]
+
+
+# --- MATU-25 · Límite por IP del relevo (decisión 29) ----------------------------------------------------
+
+
+def test_canje_429_por_ip_sin_tocar_el_acceso_y_vuelve_a_la_hora(entorno: EntornoAbrir) -> None:
+    """El 11.º canje de la hora desde la misma IP responde 429 aunque el token y el PIN sean correctos: no
+    suma intento, no audita y no crea sesión. A la hora del primero, el mismo canje entra."""
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(10):
+        assert entorno.relevo.post("/v1/relevo/canje", json={"token": token}).status_code == 422
+    entorno.reloj.avanzar(timedelta(minutes=30))
+
+    respuesta = entorno.canjear(token, pin)
+    cuerpo = _problema(respuesta, 429, "demasiadas-peticiones")
+    assert respuesta.headers["retry-after"] == str(30 * 60)
+    assert "set-cookie" not in respuesta.headers
+    assert token not in respuesta.text and pin not in str(cuerpo)
+    assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
+    assert _acciones(acceso_id) == []
+
+    entorno.reloj.avanzar(timedelta(minutes=30))
+    assert entorno.canjear(token, pin).status_code == 204
+    assert _acciones(acceso_id) == ["relevo.canje"]
+    log = entorno.ficha.iam.texto_log()
+    assert token not in log and f'"{pin}"' not in log and "testclient" not in log
+
+
+def test_presentacion_429_tras_treinta_y_no_agota_el_canje(entorno: EntornoAbrir) -> None:
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(30):
+        assert entorno.presentar(token).status_code == 200
+    _problema(entorno.presentar(token), 429, "demasiadas-peticiones")
+    assert _acciones(acceso_id).count("relevo.presentar") == 30
+    # Contador separado (decisión 29): el canje sigue disponible
+    assert entorno.canjear(token, pin).status_code == 204
+
+
+@pytest.mark.rf("RF-02")
+def test_staging_sin_custodia_ficha_y_relevo_503(entorno: EntornoAbrir, monkeypatch: pytest.MonkeyPatch) -> None:
+    """MATU-25 (decisión 105): con ENTORNO=staging y sin CUSTODIA_KEK, la API no tiene custodia y la
+    ficha, de la familia y del relevo, responde 503 y falla cerrada. Nunca se genera una KEK."""
+    from app.core import config
+    from app.modules.care_plan.api import dependencias
+
+    # Dada una ficha escrita y un relevo con su sesión abierta
+    familia = entorno.familia_con_ficha()
+    _, token, pin = entorno.compartir(familia)
+    assert entorno.canjear(token, pin).status_code == 204
+
+    # Cuando la API corre en staging sin CUSTODIA_KEK, con la custodia real de la configuración
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("CUSTODIA_KEK", "")
+    monkeypatch.setenv("KEK_ENTORNO", "")
+    config.obtener_configuracion.cache_clear()
+    dependencias.custodia_configurada.cache_clear()
+    entorno.ficha.app.dependency_overrides.pop(dependencias.obtener_custodia)
+    try:
+        assert config.obtener_configuracion().entorno == "staging"
+        assert dependencias.obtener_custodia() is None
+        familia_lee = entorno.ficha.leer(familia.admin, familia.grupo.id, familia.persona.id)
+        relevo_lee = entorno.leer()
+    finally:
+        config.obtener_configuracion.cache_clear()
+        dependencias.custodia_configurada.cache_clear()
+
+    # Entonces las dos responden 503, sin texto de la ficha
+    for respuesta in (familia_lee, relevo_lee):
+        assert respuesta.status_code == 503, respuesta.text
+        assert respuesta.headers["content-type"] == PROBLEMA
+        assert respuesta.json()["type"] == "/errores/servicio-no-disponible"
+        assert RUTINA not in respuesta.text
+    _cabeceras_relevo(relevo_lee)
