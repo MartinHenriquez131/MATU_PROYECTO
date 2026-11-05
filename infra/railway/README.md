@@ -16,10 +16,13 @@ gestionados por Railway (ADR-019, plataforma decidida por Martín). **Solo datos
 En un proyecto nuevo de Railway (por ejemplo `matu-staging`), en **una sola región**:
 
 1. **PostgreSQL**: el servicio de base de datos de Railway, en versión **16**. Llámalo `Postgres`.
-2. **Redis**: el servicio Redis de Railway (versión 7). Llámalo `Redis`.
+2. **Redis**: el servicio Redis de Railway (la plantilla trae la 8.2; MATU usa solo `INCR`, `EXPIRE`, Lua y hashes). Llámalo `Redis`.
 3. **API**: un servicio desde el repositorio de GitHub, llamado `matu-api`. En *Settings*:
-   - **Config file path** (*Config-as-code*): `/infra/railway/railway.json`. Así Railway usa el
-     Dockerfile y el `preDeployCommand` de este directorio. El contexto de build es la raíz del repositorio.
+   - **Build y deploy** con los valores de `railway.json` de este directorio. Desde noviembre de 2026 Railway
+     ya no acepta un *Config file path* nuevo (pide migrar a `.railway/railway.ts`), así que se cargan a
+     mano en el servicio: *Dockerfile path* `infra/railway/Dockerfile`, *Pre-deploy* `alembic upgrade head`,
+     *Start* `python -m app.servidor`, *Healthcheck* `/v1/salud` (60 s) y reinicio `ON_FAILURE` (5).
+     El contexto de build es la raíz del repositorio.
    - **Networking → Generate Domain**: crea el subdominio `https://<algo>.up.railway.app`. Railway termina
      el HTTPS con su certificado; la API escucha en `$PORT` dentro de la red de Railway.
 
@@ -27,8 +30,8 @@ En un proyecto nuevo de Railway (por ejemplo `matu-staging`), en **una sola regi
 
 | Dato | Valor |
 |---|---|
-| Región de los tres servicios | *pendiente: anotar al crear el proyecto* |
-| Dominio de staging | *pendiente* |
+| Región de los tres servicios | `sfo` (US West, California), 05-11. Postgres 16 (`postgres-ssl:16`) y Redis 8.2 |
+| Dominio de staging | `https://matu-api-production.up.railway.app` |
 | `FORWARDED_ALLOW_IPS` fijado | *pendiente: ver paso 5* |
 
 ## 2. Variables de `matu-api`
