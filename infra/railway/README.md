@@ -38,12 +38,18 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 
 | Variable | Valor |
 |---|---|
-| `ENTORNO` | `produccion` (la imagen lo trae por omisión; apaga `/docs` y la KEK sintética) |
+| `ENTORNO` | `staging`, siempre explícito (decisión 105). La imagen trae `produccion` por omisión; si el log de arranque no dice `entorno=staging`, el despliegue no se da por bueno |
 | `LOG_NIVEL` | `INFO` |
 | `POLITICA_VERSION` | La versión vigente de `docs/legal/politica-privacidad.md` del repositorio MATU |
 | `PEPPER_EMAIL` | Secreto nuevo de staging, `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_CLAVE` | Secreto nuevo de staging, distinto de los demás |
 | `PEPPER_PIN` | Secreto nuevo de staging, distinto de los demás |
+| `PEPPER_RECUPERACION` | Secreto nuevo de staging, distinto de los demás (MATU-57). Sin él, recuperar el acceso responde 503 |
+| `CUSTODIA_KEK` | `entorno_sintetico` (decisión 105): enciende la ficha y el relevo |
+| `KEK_ENTORNO` | KEK nueva **propia de staging**, 32 bytes en base64: `python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"`. Nunca la de un `.env` local |
+| `KEK_VERSION` | `1` |
+| `ENVIADOR_CODIGOS` | `simulado` (decisión 105): no envía nada |
+| `REGISTRO_ENVIOS` | `/tmp/matu-envios.jsonl`: dentro del contenedor, donde el usuario `matu` puede escribir, y no servido por la API. Se lee con `railway ssh`. Se borra en cada despliegue |
 | `PEPPER_LIMITES` | Secreto nuevo **propio de staging**, distinto de los demás. Sin él, registro, canje, presentación y entrada responden 503 |
 | `ORIGEN_WEB` | `https://<algo>.up.railway.app`, sin barra final |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` (referencia de Railway a la red privada) |
@@ -55,8 +61,9 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
 `ADMIN_DATABASE_URL` (solo se usa en tu computador, en el paso 3), `WEB_DIST` y `PORT` (los fijan la
-imagen y Railway). **`CUSTODIA_KEK` y `KEK_ENTORNO` tampoco**: con `ENTORNO=produccion` la API no
-arranca con ellas (decisión D-A del 28-10), y sin ellas la ficha responde 503. Ver "Escalado" al final.
+imagen y Railway). La KEK por variable de entorno se admite en staging por la decisión 105, que amplía
+la D-A del 28-10 (desvío del ADR-016): staging opera **solo con datos sintéticos**, el registro solo acepta
+correos de dominios reservados y el staging se cierra al terminar el semestre.
 
 La API se conecta siempre como `matu_app` (`DATABASE_URL`), que no es dueño ni superusuario: RLS la
 alcanza siempre. `matu_owner` solo lo usa Alembic, en el `preDeployCommand`.
@@ -93,6 +100,18 @@ Sube el repositorio (sin lo que ignora `.gitignore`, así que nunca el `.env`), 
 `infra/railway/Dockerfile`, corre `alembic upgrade head` como `matu_owner` y, si la migración sale bien,
 arranca la API y espera a que `/v1/salud` responda. Si la migración falla, el despliegue anterior sigue
 arriba.
+
+**Sembrar la demo (una vez, después del primer despliegue).** Con datos sintéticos de `@example.com`
+(decisión 105). La contraseña de las cuentas se pide sin mostrarla y no queda en ningún archivo:
+
+```
+railway ssh --service matu-api
+read -rs SEMILLA_CONTRASENA; export SEMILLA_CONTRASENA
+python /app/infra/semillas/demo.py
+unset SEMILLA_CONTRASENA
+```
+
+La semilla es idempotente, se niega a correr con `ENTORNO=produccion` y solo entra como `matu_app`.
 
 ## 5. Verificar
 
@@ -140,9 +159,6 @@ omisión y se escala a Martín y Jorge (ver abajo).
   las peticiones de staging comparten un contador. Si Railway no conecta desde un rango fijo, decidir
   entre aceptar ese contador compartido en staging o confiar en una red más amplia de Railway. Lo
   deciden Martín y Jorge.
-- **La ficha en staging.** La custodia de la KEK por variable de entorno solo se admite con `ENTORNO`
-  `local` o `pruebas` (decisión D-A del 28-10, desvío del ADR-016). Con `ENTORNO=produccion` la ficha
-  y el relevo responden 503. Para la demostración del sprint 3 con un teléfono real hace falta que Jorge
-  decida: ampliar D-A a staging con datos sintéticos (un cambio de configuración y de sus pruebas) o
-  otra custodia (ADR-019). No se usa `ENTORNO=local` en staging para saltarlo.
+- **La ficha en staging.** Resuelto con la decisión 105 (Jorge, 04-11, PR #46): `CUSTODIA_KEK=entorno_sintetico`
+  con una KEK propia de staging. Antes de datos reales se pasa a otra custodia (ADR-019).
 - **Región.** Anotarla al crear el proyecto (paso 1).

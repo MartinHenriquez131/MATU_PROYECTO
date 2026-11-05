@@ -43,6 +43,8 @@ COPY backend/db ./db
 COPY --from=web /web/dist /app/web/dist
 # Solo para fijar FORWARDED_ALLOW_IPS a mano, por railway ssh (ver infra/railway/README.md)
 COPY infra/railway/pares_tcp.py /app/infra/railway/pares_tcp.py
+# La semilla de demo (decisión 105): se corre a mano por railway ssh, solo con datos sintéticos
+COPY infra/semillas/demo.py /app/infra/semillas/demo.py
 
 # Usuario sin privilegios y sin shell de inicio de sesión. El código queda de root, solo lectura para él
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin matu
