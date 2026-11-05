@@ -11,5 +11,8 @@ export default defineConfig({
     include: ['pruebas/**/*.test.{ts,tsx}'],
     setupFiles: ['pruebas/preparacion.ts'],
     restoreMocks: true,
+    // Llenar un formulario con userEvent tarda 2 a 5 s con los archivos en paralelo (jsdom); 5 s,
+    // el valor por omisión, dejaba la primera prueba de cada archivo al borde.
+    testTimeout: 15_000,
   },
 })
