@@ -35,9 +35,9 @@ En un proyecto nuevo de Railway (por ejemplo `matu-staging`), en **una sola regi
 | Región de los tres servicios | `sfo` (US West, California), 05-11. Postgres 16 (`postgres-ssl:16`) y Redis 8.2 |
 | Dominio de staging | `https://matu-api-production.up.railway.app` |
 | `FORWARDED_ALLOW_IPS` fijado | `100.64.0.0/10`, la red del proxy interno de Railway (Martín, 05-11) |
-| `PROXY_SALTOS` fijado | *pendiente: `1`, tras la verificación del paso 5* |
-| `DIAGNOSTICO_PROXY` encendido | *fecha y hora (Chile) en que se encendió, y quién* |
-| `DIAGNOSTICO_PROXY` apagado | *fecha y hora (Chile) en que se apagó, y quién. No se deja encendido* |
+| `PROXY_SALTOS` fijado | `1`, verificado en el paso 5 (Martín, 05-11): 3 lotes de 6 intentos dieron cinco `422` y un `429`; en los 18, `xff_cabeceras=1`, `xff_elementos=2`, `publica`/`publica` e `ip_contada=xff`. Railway **reemplaza** la cabecera |
+| `DIAGNOSTICO_PROXY` encendido | 05-11, 11:56 (Chile), Martín |
+| `DIAGNOSTICO_PROXY` apagado | 05-11, 12:25 (Chile), Martín |
 
 ## 2. Variables de `matu-api`
 
@@ -221,9 +221,10 @@ BASE=https://matu-api-production.up.railway.app
 
 ## Escalado y pendientes
 
-- **Red del proxy de Railway.** Fijada en `100.64.0.0/10` (Martín, 05-11). El borde agrega su propia IP
-  a `X-Forwarded-For`: falta la verificación de `PROXY_SALTOS=1` del paso 5. Si el diagnóstico no muestra
-  2 o 3 elementos, se escala a Martín y Jorge.
+- **Red del proxy de Railway.** Resuelto: `FORWARDED_ALLOW_IPS=100.64.0.0/10` y `PROXY_SALTOS=1`
+  (Martín, 05-11). El borde reemplaza `X-Forwarded-For` por `cliente, borde`, y lo que manda el cliente
+  se descarta. Si Railway cambia ese formato (otro salto, o la cabecera concatenada), el límite vuelve a
+  fallar: se repite el paso 5 con el diagnóstico y, si no muestra 2 elementos, se escala a Martín y Jorge.
 - **La ficha en staging.** Resuelto con la decisión 105 (Jorge, 04-11, PR #46): `CUSTODIA_KEK=entorno_sintetico`
   con una KEK propia de staging. Antes de datos reales se pasa a otra custodia (ADR-019).
 - **Región.** Resuelto: anotada en la tabla de datos del proyecto (línea 33), `sfo` (US West, California), 05-11.
