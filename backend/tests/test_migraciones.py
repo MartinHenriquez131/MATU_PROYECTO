@@ -548,9 +548,9 @@ INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek
 
 
 @pytest.mark.rf("RF-03")
-def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechable):
-    alembic("upgrade", "0011")
-    esquema_0011 = catalogo()
+def test_0013_secciones_complementarias_y_baja_al_esquema_de_0012(base_desechable):
+    alembic("upgrade", "0012")
+    esquema_0012 = catalogo()
 
     alembic("upgrade", "0013")
     restricciones = dict(consultar(
@@ -586,9 +586,9 @@ def test_0013_secciones_complementarias_y_baja_al_esquema_de_0011(base_desechabl
         "SELECT privilege_type FROM information_schema.role_table_grants"
         " WHERE table_name = 'plan_cuidado' AND grantee = 'matu_app' AND privilege_type = 'DELETE'") == []
 
-    alembic("downgrade", "0011")
+    alembic("downgrade", "0012")
     despues = catalogo()
-    for parte, filas in esquema_0011.items():
+    for parte, filas in esquema_0012.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
 
@@ -608,12 +608,12 @@ def test_0013_no_baja_si_quedan_secciones_nuevas_y_conserva_la_auditoria(base_de
             (ids["g"], ids["u"]),
         )
     with pytest.raises(AssertionError, match="no borra datos"):
-        alembic("downgrade", "0011")
+        alembic("downgrade", "0012")
     assert consultar("SELECT count(*) FROM plan_seccion WHERE tipo = 'remedios'") == [(1,)]
 
     with psycopg.connect(_dsn(BASE), autocommit=True) as c:
         c.execute("DELETE FROM plan_seccion WHERE tipo = 'remedios'")
-    alembic("downgrade", "0011")
+    alembic("downgrade", "0012")
     [(definicion,)] = consultar(
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'auditoria_detalle_acotado'")
     assert definicion.endswith("NOT VALID") and "secciones" not in definicion
