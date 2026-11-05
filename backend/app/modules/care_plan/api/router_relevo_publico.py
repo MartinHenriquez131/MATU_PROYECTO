@@ -1,7 +1,7 @@
 """Rutas públicas del relevo, sin cuenta (MATU-19, RF-06). Contrato: docs/api/propuestos/relevo.openapi.yaml.
 
-    POST /v1/relevo/presentacion   token → los dos nombres de pila (decisión 28)
-    POST /v1/relevo/canje          token y PIN → 204 con la cookie __Secure-matu-relevo
+    POST /v1/relevo/presentacion   token → los dos nombres de pila (decisión 28). 30 por hora por IP
+    POST /v1/relevo/canje          token y PIN → 204 con la cookie __Secure-matu-relevo. 10 por hora por IP
     GET  /v1/relevo/ficha          cookie → solo los campos habilitados
 
 Cada petición usa dos transacciones:
@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
+from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
 from app.modules.care_plan.api.dependencias import obtener_custodia, obtener_pepper_pin
 from app.modules.care_plan.api.esquemas_relevo import (
     CampoRelevoVista,
@@ -72,6 +73,7 @@ from app.modules.care_plan.infrastructure.repositorio_relevo import (
 from app.modules.care_plan.infrastructure.sesiones_relevo_redis import SesionesRelevoRedis
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.shared.auditoria_sql import RegistroAuditoriaSql
+from app.shared.limite_ip import LIMITE_CANJE, LIMITE_PRESENTACION
 from app.shared.puertos import RegistroAuditoria, Reloj
 
 log = logging.getLogger("matu.care_plan.relevo")
@@ -179,7 +181,13 @@ def _acceso_por_token(fabrica: sessionmaker[Session], token: str, reloj: Reloj) 
 # --- Rutas ---------------------------------------------------------------------------------------------
 
 
-@router.post("/presentacion", response_model=PresentacionVista, responses=_ERRORES_ANTES_DEL_PIN)
+@router.post(
+    "/presentacion",
+    response_model=PresentacionVista,
+    # MATU-25, decisión 29: 30 por hora por IP, en su propio contador, antes de validar los campos
+    dependencies=[Depends(limite_por_ip(LIMITE_PRESENTACION))],
+    responses={**_ERRORES_ANTES_DEL_PIN, **RESPUESTAS_LIMITE},
+)
 def presentar_relevo(
     request: Request,
     solicitud: SolicitudPresentacionVista,
@@ -204,10 +212,16 @@ def presentar_relevo(
     "/canje",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
+    # MATU-25, decisión 29: 10 por hora por IP, en su propio contador, antes de validar los campos
+    dependencies=[Depends(limite_por_ip(LIMITE_CANJE))],
     responses={
         **_ERRORES_ANTES_DEL_PIN,
         401: {"description": "PIN incorrecto, del 1.º al 4.º intento", **_PROBLEMA},
-        503: {"description": "Falta PEPPER_PIN o Redis no responde: falla cerrado", **_PROBLEMA},
+        **RESPUESTAS_LIMITE,
+        503: {
+            "description": "Falta PEPPER_PIN o PEPPER_LIMITES, o Redis no responde: falla cerrado",
+            **_PROBLEMA,
+        },
     },
 )
 def canjear_relevo(

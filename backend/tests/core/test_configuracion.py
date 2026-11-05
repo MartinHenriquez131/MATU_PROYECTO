@@ -20,6 +20,7 @@ from pydantic_settings import SettingsConfigDict
 
 from app.core import config
 from app.core.config import (
+    ENTORNOS_DIAGNOSTICO_PROXY,
     ENTORNOS_ENVIO_SIMULADO,
     ENTORNOS_KEK_SINTETICA,
     ENTORNOS_SOLO_DOMINIOS_RESERVADOS,
@@ -374,3 +375,60 @@ def test_el_arranque_registra_el_entorno_y_nada_mas(monkeypatch: pytest.MonkeyPa
         ("WARNING", "entorno=staging")
     ]
     assert secreto not in salida.getvalue()
+
+
+# --- MATU-25 · DIAGNOSTICO_PROXY, temporal y nunca en produccion (decisión 114, punto 7) -----------------
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("valor", [None, ""])
+def test_el_diagnostico_del_proxy_queda_apagado_por_omision(monkeypatch: pytest.MonkeyPatch, valor: str | None) -> None:
+    if valor is not None:
+        monkeypatch.setenv("DIAGNOSTICO_PROXY", valor)
+    assert cargar().diagnostico_proxy is False
+
+
+@pytest.mark.rf("RF-37")
+def test_el_diagnostico_del_proxy_encendido_en_produccion_no_carga(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("DIAGNOSTICO_PROXY", "true")
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "DIAGNOSTICO_PROXY" in str(error.value)
+
+
+@pytest.mark.rf("RF-37")
+def test_el_diagnostico_del_proxy_apagado_en_produccion_carga(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("DIAGNOSTICO_PROXY", "false")
+    assert cargar().diagnostico_proxy is False
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("entorno", sorted(ENTORNOS_DIAGNOSTICO_PROXY))
+def test_el_diagnostico_del_proxy_fuera_de_produccion_carga(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("DIAGNOSTICO_PROXY", "true")
+    assert cargar().diagnostico_proxy is True
+
+
+@pytest.mark.rf("RF-37")
+def test_el_diagnostico_del_proxy_usa_su_propia_lista(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Si el validador usara otra lista, sacar staging de esta no cambiaría nada y la prueba fallaría
+    monkeypatch.setattr(config, "ENTORNOS_DIAGNOSTICO_PROXY", frozenset({"local", "pruebas"}))
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("DIAGNOSTICO_PROXY", "true")
+    with pytest.raises(ValidationError):
+        cargar()
+
+
+@pytest.mark.rf("RF-37")
+def test_un_diagnostico_del_proxy_invalido_no_carga_ni_repite_el_valor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DIAGNOSTICO_PROXY", "quizas-xyz")
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "quizas-xyz" not in str(error.value)

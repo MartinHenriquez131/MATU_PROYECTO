@@ -11,11 +11,12 @@ llega del Reloj.
 - El mismo trato exista o no el email: no se lee la base. Nunca bloquea la cuenta.
 """
 
-import hashlib
-import hmac
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+
+# La misma huella del límite por IP de MATU-25, con otro prefijo
+from app.shared.limite_ip import huella as huella
 
 UMBRAL_EMAIL = 5
 UMBRAL_IP = 20
@@ -25,13 +26,6 @@ TOPE_ESPERA_SEGUNDOS = 15 * 60
 
 PREFIJO_IP = "entrada-ip"
 PREFIJO_EMAIL = "entrada-email"
-
-
-def huella(pepper: bytes, prefijo: str, valor: str) -> str:
-    """HMAC-SHA-256(pepper, "<prefijo>:<valor>") en hex. Sin el pepper no se revierte con un diccionario."""
-    if not pepper:
-        raise ValueError("El pepper no puede estar vacío")
-    return hmac.new(pepper, f"{prefijo}:{valor}".encode(), hashlib.sha256).hexdigest()
 
 
 def espera_tras_fallos(fallos: int, umbral: int) -> int:

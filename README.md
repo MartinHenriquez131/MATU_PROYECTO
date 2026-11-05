@@ -152,6 +152,16 @@ Para volver a empezar con la base vacía: `docker compose --env-file .env -f inf
 
 Si se agrega un valor de ejemplo que detect-secrets marca por error, se registra desde la raíz del repositorio con `detect-secrets scan --baseline .secrets.baseline`.
 
+## Staging en Railway
+
+El ambiente de staging (ADR-019, MATU-25) corre en Railway, solo con datos sintéticos. Se despliega con un solo comando, desde la raíz del repositorio:
+
+```
+railway up --service matu-api --ci
+```
+
+Antes del primer despliegue, hay que crear los servicios, cargar los secretos y preparar la base. Todo eso, junto con la verificación del proxy, está en [infra/railway/README.md](infra/railway/README.md).
+
 ## Forma de trabajo
 
 - Desde el sprint 1, cada historia va en su propia rama (`matu-04-crear-cuenta`, `s0a-esqueleto-api`) y entra a `main` por pull request, con el pipeline en verde y la revisión de la otra persona.
