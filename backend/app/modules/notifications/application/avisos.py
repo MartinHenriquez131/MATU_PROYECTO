@@ -5,10 +5,12 @@ aviso no revierte la alerta (arquitectura 6.4, regla 4).
 
 1. Antes de las 09:00 de Chile pospone el evento hasta las 09:00, sin sumar un intento.
 2. Si el evento ya se consumió (``evento_consumido``), termina.
-3. Crea, para cada destinatario activo, una fila ``notificacion`` pendiente por canal (correo y push), con
-   ``ON CONFLICT DO NOTHING`` sobre ``notificacion_uq``: un reintento no duplica.
+3. Crea, para cada miembro activo, una fila ``notificacion`` pendiente por cada canal que tiene activo
+   (correo y push), con ``ON CONFLICT DO NOTHING`` sobre ``notificacion_uq``: un reintento no duplica. Un canal
+   que la persona apagó no tiene fila.
 4. Por cada fila por intentar, en su propia transacción y con la fila bloqueada, revisa de nuevo la
-   autorización de ``consumo`` con el Reloj, la alerta, el miembro y el canal con su destino. Si algo falla,
+   autorización de ``consumo`` con el Reloj, la alerta, el miembro y el canal, y solo con el canal activo lee
+   el destino. Si algo falla,
    la fila queda ``omitida`` con su código y no se envía nada. Si no, arma el mensaje (nunca se guarda) y
    envía. Una fila ``enviada`` nunca se reenvía.
 5. Con al menos un envío ``enviada``, la alerta pasa a ``notificada``.
@@ -43,8 +45,8 @@ from app.modules.notifications.domain.aviso import (
     ResultadoEnvio,
     Revision,
     canal_activo,
+    canales_activos,
     desenlace,
-    es_destinatario,
     motivo_omision,
     por_intentar,
 )
@@ -126,11 +128,12 @@ class ConsumidorQuiebreProximo:
         with self._unidad.abrir(grupo_id) as repo:
             if repo.ya_consumido(evento.id, self.nombre):
                 return Hecho()
+            # Solo los canales activos: un canal que la persona apagó no tiene fila
             filas = [
                 (m.usuario_id, canal)
                 for m in repo.miembros()
-                if m.activo and es_destinatario(por_defecto=avisa_por_defecto(m.rol), preferencias=m.preferencias)
-                for canal in CANALES
+                if m.activo
+                for canal in canales_activos(por_defecto=avisa_por_defecto(m.rol), preferencias=m.preferencias)
             ]
             repo.crear(evento.id, filas, PLANTILLA_QUIEBRE, self._reloj.ahora())
             pendientes = [n for n in repo.notificaciones(evento.id) if por_intentar(n.estado, n.codigo)]
@@ -156,13 +159,15 @@ class ConsumidorQuiebreProximo:
         ahora = self._reloj.ahora()
         contexto = repo.contexto(ids.alerta_id, ids.perfil_id, ids.persona_id)
         miembro = repo.miembro(fila.usuario_id)
-        correo = repo.correo(fila.usuario_id) if fila.canal is Canal.CORREO else None
-        destinos = repo.destinos_push(fila.usuario_id) if fila.canal is Canal.PUSH else []
+        activo = miembro is not None and _canal_activo(miembro, fila.canal)
+        # El destino (email o push_token) solo se lee si el canal sigue activo
+        correo = repo.correo(fila.usuario_id) if activo and fila.canal is Canal.CORREO else None
+        destinos = repo.destinos_push(fila.usuario_id) if activo and fila.canal is Canal.PUSH else []
         revision = Revision(
             autorizado=estado_autorizacion(contexto.autorizacion, ahora) is EstadoAutorizacion.VIGENTE,
             alerta_abierta=contexto.alerta_abierta,
             miembro_activo=miembro is not None and miembro.activo,
-            canal_activo=miembro is not None and _canal_activo(miembro, fila.canal),
+            canal_activo=activo,
             con_destino=bool(correo) if fila.canal is Canal.CORREO else bool(destinos),
         )
         codigo = motivo_omision(revision)

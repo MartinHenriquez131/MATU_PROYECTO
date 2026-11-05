@@ -193,9 +193,9 @@ def test_pagador_sin_opt_in_no_recibe_y_con_opt_in_si(entorno_avisos: EntornoAvi
 
     avisos = e.avisos(familia)
     assert avisos[(pagador.id, "correo")] == ("enviada", None)
-    assert avisos[(pagador.id, "push")] == ("omitida", "sin_destino")
     assert avisos[(observador.id, "push")] == ("enviada", None)
-    assert avisos[(observador.id, "correo")] == ("omitida", "sin_destino")  # nunca se busca otro canal
+    # Los canales que no activaron no tienen fila: nunca se busca otro canal
+    assert (pagador.id, "push") not in avisos and (observador.id, "correo") not in avisos
 
 
 def test_admin_con_el_correo_desactivado_no_recibe_correo(entorno_avisos: EntornoAvisos) -> None:
@@ -208,9 +208,60 @@ def test_admin_con_el_correo_desactivado_no_recibe_correo(entorno_avisos: Entorn
     assert isinstance(e.consumir(avisado), Hecho)
 
     avisos = e.avisos(familia)
-    assert avisos[(familia.admin.id, "correo")] == ("omitida", "sin_destino")
+    assert (familia.admin.id, "correo") not in avisos  # el canal apagado no tiene fila
     assert avisos[(familia.admin.id, "push")] == ("enviada", None)
     assert familia.admin.id not in {x.usuario_id for x in e.correo.enviados}
+
+
+class _RepositorioQueVigila:
+    """Envuelve el repositorio real y anota a quién se le leyó el destino."""
+
+    def __init__(self, real: object, leidos: list[tuple[str, object]]) -> None:
+        self._real = real
+        self._leidos = leidos
+
+    def __getattr__(self, nombre: str) -> object:
+        return getattr(self._real, nombre)
+
+    def correo(self, usuario_id: object) -> object:
+        self._leidos.append(("correo", usuario_id))
+        return self._real.correo(usuario_id)  # type: ignore[attr-defined]
+
+    def destinos_push(self, usuario_id: object) -> object:
+        self._leidos.append(("push", usuario_id))
+        return self._real.destinos_push(usuario_id)  # type: ignore[attr-defined]
+
+
+def test_apagar_el_correo_despues_de_creada_la_fila_omite_sin_leer_el_email(entorno_avisos: EntornoAvisos) -> None:
+    from contextlib import contextmanager
+
+    from app.modules.notifications.infrastructure.repositorio_avisos import UnidadAvisosSQL
+
+    e = entorno_avisos
+    familia = e.familia()
+    e.correo.respuestas = [ResultadoEnvio.NO_DISPONIBLE, ResultadoEnvio.NO_DISPONIBLE]
+    avisado = e.avisar(familia)
+    assert isinstance(e.consumir(avisado), Reintentar)
+    # Entre un intento y el siguiente, el admin apaga el correo
+    e.preferencia(familia.admin, "correo", False)
+
+    leidos: list[tuple[str, object]] = []
+    real = UnidadAvisosSQL(fabrica_sesiones())
+
+    class UnidadQueVigila:
+        @contextmanager
+        def abrir(self, grupo_id):  # type: ignore[no-untyped-def]
+            with real.abrir(grupo_id) as repo:
+                yield _RepositorioQueVigila(repo, leidos)
+
+    consumidor = e.consumidor()
+    consumidor._unidad = UnidadQueVigila()  # type: ignore[assignment]
+    e.reloj.avanzar(timedelta(seconds=1))
+    assert isinstance(consumidor.consumir(avisado.evento), Hecho)
+
+    assert e.avisos(familia)[(familia.admin.id, "correo")] == ("omitida", "sin_destino")
+    assert ("correo", familia.admin.id) not in leidos
+    assert ("correo", familia.miembros["cuidador"].usuario.id) in leidos
 
 
 def test_push_410_deja_el_push_token_en_null(entorno_avisos: EntornoAvisos) -> None:
