@@ -36,7 +36,7 @@ docs/api/
 | `DELETE /v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}` | MATU-50 (ADR-028, RF-03) | Implementado. 204. En `openapi.json` desde MATU-50 |
 | `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18; cambio de MATU-50 | Implementado, con `secciones_adicionales` y `campos` deprecado. En `openapi.json` desde MATU-50 |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20; cambio aditivo de MATU-50 | Implementado, con `secciones_adicionales`. En `openapi.json` desde MATU-50 |
-| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. Contrato en `relevo.openapi.yaml`, fuera de `openapi.json` |
+| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado. 204 idempotente. En `openapi.json` desde MATU-48 |
 | `POST /v1/relevo/presentacion` | MATU-19, MATU-23, MATU-25 | Implementado, con el 429 (30 por hora por IP) y el 503 del límite de MATU-25 (decisión 114). Contrato en `relevo.openapi.yaml` |
 | `POST /v1/relevo/canje` | MATU-19, MATU-25 | Implementado, con el 429 (10 por hora por IP) y el 503 del límite de MATU-25 (decisión 114). Contrato en `relevo.openapi.yaml` |
 | `GET /v1/relevo/ficha` | MATU-19, MATU-20, MATU-23; cambio aditivo de MATU-50 | Implementado, con `secciones`. En `openapi.json` desde MATU-50 |
@@ -68,7 +68,7 @@ docs/api/
 
 Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
-Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`. MATU-50 exportó `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha`, y los quitó de `relevo.openapi.yaml` (decisión 99); `DELETE /v1/accesos-relevo/{acceso_id}`, la presentación y el canje siguen ahí.
+Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`. MATU-50 exportó `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha`, y los quitó de `relevo.openapi.yaml` (decisión 99). MATU-48 exportó `DELETE /v1/accesos-relevo/{acceso_id}` y lo quitó de ahí; la presentación y el canje siguen en `relevo.openapi.yaml`.
 
 ## Catálogo de `type` (RFC 7807)
 
@@ -96,7 +96,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/relevo-vencido` | 410 | El acceso venció (presentación, canje, o cualquier petición con cookie válida) | Existe (MATU-19) |
 | `/errores/relevo-revocado` | 410 | El acceso se revocó (presentación, canje, o cualquier petición con cookie válida) | Existe (MATU-20) |
 | `/errores/relevo-no-disponible` | 410 | El token no corresponde a ningún acceso (presentación o canje) | Existe (MATU-19) |
-| `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión de Jorge) | Existe (MATU-19) |
+| `/errores/relevo-pausado` | 410 | La autorización de la persona del acceso no está vigente (consentimiento retirado o revisión anual vencida). No dice el motivo. Presentación, canje y ficha (decisión 33 en el relevo, de Martín del 28-10, revisada y aprobada por Jorge el 04-11 en MATU-48: el retiro explícito cortará los accesos para siempre desde MATU-44) | Existe (MATU-19) |
 | `/errores/relevo-bloqueado` | 423 | 5 PIN incorrectos (presentación, canje o sesión) | Existe (MATU-19) |
 | `/errores/error-interno` | 500 | Error inesperado, o una sección de la ficha que no se puede descifrar (alterada o movida). Nunca lleva el texto | Existe (por defecto del 500) |
 | `/errores/servicio-no-disponible` | 503 | La custodia de la clave maestra no está configurada, o no envolvió o no desenvolvió la clave de datos (decisión 32). **Nuevo uso:** `POST /v1/sesiones` sin Redis para la demora progresiva (decisión 49), y el límite por IP de `POST /v1/usuarios`, `/v1/relevo/presentacion` y `/v1/relevo/canje` sin Redis o sin `PEPPER_LIMITES` (decisión 114) | Existe (MATU-12, por defecto del 503) |
@@ -119,9 +119,9 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `POST /v1/grupos/{grupo_id}/personas-cuidadas` | MATU-07 | Implementado | `openapi.json` |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/ficha` | MATU-12, MATU-14 | Implementado | `openapi.json` |
 | `PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}` | MATU-12, MATU-13, MATU-14 | Implementado | `openapi.json` |
-| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18 | Implementado | `relevo.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20 | Implementado | `relevo.openapi.yaml` |
-| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `relevo.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18; cambio de MATU-50 | Implementado | `openapi.json` (MATU-50) |
+| `GET /v1/personas-cuidadas/{persona_id}/plan/accesos-relevo` | MATU-18, MATU-20; cambio aditivo de MATU-50 | Implementado | `openapi.json` (MATU-50) |
+| `DELETE /v1/accesos-relevo/{acceso_id}` | MATU-20 | Implementado | `openapi.json` (MATU-48) |
 | `GET /v1/personas-cuidadas/{persona_id}/plan/aperturas` | MATU-45 (RF-08) | Implementado | `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
 | `POST /v1/sesiones/cerrar` | MATU-38 | Implementado (MATU-38) | `openapi.json` |
@@ -327,7 +327,7 @@ Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vige
 
 ## Notas de implementación de MATU-19
 
-- **Decisión 33 en el relevo: `410 /errores/relevo-pausado`** (decisión de Martín del 28-10, **pendiente de revisión de Jorge**). Si la autorización de la persona del acceso no está vigente (consentimiento para `plan_cuidado` revocado, o cuidador de hecho con `revision_vence_en` igual o anterior al instante del Reloj), presentación, canje y `GET /v1/relevo/ficha` responden 410 `relevo-pausado`, con `title` «Ya no está disponible» y un `detail` neutro. Se evalúa después de los 410 de estado y del 423, y antes del PIN. No cuenta como intento ni crea sesión; en la ficha borra la cookie y descarta la sesión. Si se renueva la autorización, el mismo enlace vuelve a servir. Lo decide la función `relevo_autorizacion_vigente(ahora)` (migración 0007), `SECURITY DEFINER`, que devuelve solo un booleano: el relevo sigue sin leer `consentimiento`. Esto cierra en parte el "Riesgo abierto" de más arriba: retirar la autorización ya corta la lectura del relevo, aunque no revoca los accesos.
+- **Decisión 33 en el relevo: `410 /errores/relevo-pausado`** (decisión de Martín del 28-10, **revisada y aprobada por Jorge el 04-11, MATU-48**, con la precisión que va al final de este punto). Si la autorización de la persona del acceso no está vigente (consentimiento para `plan_cuidado` revocado, o cuidador de hecho con `revision_vence_en` igual o anterior al instante del Reloj), presentación, canje y `GET /v1/relevo/ficha` responden 410 `relevo-pausado`, con `title` «Ya no está disponible» y un `detail` neutro. Se evalúa después de los 410 de estado y del 423, y antes del PIN. No cuenta como intento ni crea sesión; en la ficha borra la cookie y descarta la sesión. Si se renueva la autorización, el mismo enlace vuelve a servir. Lo decide la función `relevo_autorizacion_vigente(ahora)` (migración 0007), `SECURITY DEFINER`, que devuelve solo un booleano: el relevo sigue sin leer `consentimiento`. Esto cierra en parte el "Riesgo abierto" de más arriba: retirar la autorización ya corta la lectura del relevo, aunque no revoca los accesos. **Precisión de Jorge (04-11, MATU-48):** si vence la revisión anual, el acceso se pausa, como hoy: 410 `relevo-pausado`, y al renovar la revisión el mismo enlace vuelve a servir. Si la autorización se retira explícitamente, todos los accesos vigentes se cortan para siempre (`revocado_en`) en la misma transacción del retiro; eso se construye en MATU-44 (sprint 4). Mientras tanto, el retiro también deja el acceso en pausa, y el relevo no lee nada. En la app de la familia (MATU-48), Enlaces muestra «En pausa» cuando la ficha responde 403 `revision-vencida` o `sin-consentimiento`.
 - **Migración 0007** (era 0006 hasta el merge del PR #25, que tomó ese número): `indice_token.revocado_en` (decisión 23), la política `acceso_relevo_propio` (FOR ALL) reemplazada por `acceso_relevo_leer` (SELECT) y `acceso_relevo_contar` (UPDATE) más un trigger que limita al relevo a `pin_intentos_fallidos`, `usos` y `ultimo_uso_en`, y la función de la decisión 33.
 - **Canje sin `PEPPER_PIN`:** 503 `/errores/servicio-no-disponible` después de los 410/423 y antes de comparar el PIN. Tampoco con Redis caído (503). El contrato lo declara como `RelevoSinServicio` en el canje y en la ficha. La sesión en Redis se crea después del commit del canje: si Redis falla, queda `relevo.canje` sin sesión y se responde 503.
 - **Sin entrada en `indice_token`** con una cookie válida (purgado tras vencer), la ficha responde 410 `relevo-vencido`.
@@ -516,7 +516,7 @@ Lo que sigue abierto después de las decisiones del 31-10.
 3. **El nombre de quien entra:** ¿alguna pantalla de MATU-39 lo necesita? Si sí, falta `GET /v1/usuarios/yo` (ver "Lo que no hay").
 4. **Gracia en la renovación** (decisión 51) y **riesgo de la demora por email** (decisión 49): confirmar que se aceptan.
 5. **Para la tarjeta de consulta legal en Trello:** la base de licitud de los contadores por huella de IP y de email de la demora progresiva.
-6. **H5 de la QA, anterior a MATU-32:** en la API viva, `DELETE /v1/accesos-relevo/{acceso_id}` expone un 422 genérico de FastAPI (por el UUID del path) que `relevo.openapi.yaml` no declara. Lo corrige la historia que exporte las rutas del relevo a `openapi.json`.
+6. **H5 de la QA, anterior a MATU-32:** en la API viva, `DELETE /v1/accesos-relevo/{acceso_id}` expone un 422 genérico de FastAPI (por el UUID del path) que `relevo.openapi.yaml` no declara. Resuelto en MATU-48: `openapi.json` declara la ruta tal como la sirve la API, con ese 422.
 7. **H9 de la QA, dos cosas que no están en el esquema:**
     - Que `nombre_libre` vaya "en una sola línea" está solo en la descripción, no en un `pattern`. La validación queda para la implementación de MATU-36, que rechaza los saltos de línea y los caracteres de control con 422.
     - `SesionRespuesta` no tiene `additionalProperties: false`, igual que hoy en `openapi.json`.
@@ -659,6 +659,10 @@ Lo que el contrato de MATU-49 dejaba abierto o no decía, decidido al implementa
 - **`acceso_familia` (sobre `acceso_relevo`) y `clave_datos` siguen siendo `FOR ALL` con `app_puede_ver_plan()`**: un pagador con `puede_ver_plan` podría escribir en ellas por SQL directo (la API no lo permite; `clave_datos` ya no tiene `DELETE` para `matu_app` desde la 0003). Se revisan en una tarjeta aparte del sprint 4, con el mismo criterio de las decisiones 102 y 103.
 - **Registro de tratamientos y política de privacidad** (`docs/legal/`, repositorio MATU, analista normativo): la entrada 3 habla de tres campos de 500 caracteres. Debe nombrar las seis secciones, el máximo de 800 de `remedios`, que quitar una sección borra su texto en el acto y que la auditoría registra el tipo de la sección quitada (`plan.quitar_seccion`) y los tipos mostrados al relevo.
 - **Clientes que todavía manden `campos` con uno o dos campos** reciben ahora 422 `campos_base_obligatorios` (la transición que decidió MATU-49). `campos` se quita en la versión siguiente.
+
+## MATU-48 · Compartir la ficha desde la app
+
+- **`DELETE /v1/accesos-relevo/{acceso_id}` pasa a `openapi.json`** (decisión de Jorge del 04-11) y sale de `propuestos/relevo.openapi.yaml`, con la regla de arriba. Se exportó solo esa ruta desde `app.openapi()`, tal como la sirve la API desde MATU-20: **204** idempotente (ya revocado o vencido también es 204), **401** y **404** RFC 7807 (`application/problem+json` sin esquema), y no exige autorización vigente: cortar un acceso siempre es posible. No usa componentes nuevos. Diferencias con el propuesto que se aceptan, las mismas de las demás rutas: FastAPI agrega su 422 genérico por el UUID del path (H5 de la QA), `X-Grupo-Id` sale como `string | null` sin `format: uuid`, el 204 no declara `X-Request-ID`, y el `operationId` es el que genera FastAPI. POST y GET de `…/plan/accesos-relevo`, con `secciones_adicionales` y `relevo_informado`, ya estaban en `openapi.json` desde MATU-50. Sin cambios de comportamiento ni de esquema.
 
 ## Decisión de Jorge del 04-11 (MATU-25, staging)
 
