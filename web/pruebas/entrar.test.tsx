@@ -1,13 +1,15 @@
 // Entrar (MATU-57, especificación 4): (c) el 429 se anuncia con `role="status"` y el texto de
 // lenguaje.md, sección 13.3, y (d) los minutos salen de `Retry-After` redondeados hacia arriba,
-// en singular con 1. Datos sintéticos.
-import { render, screen } from '@testing-library/react'
+// en singular con 1. Desde la revisión visual del #51 (P2-3), el anuncio va por la región viva
+// amable que existe desde el primer render, y el aviso visible no repite el rol. Datos sintéticos.
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { Entrar } from '../src/familia/Alta'
 import { responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { conRegiones } from './regiones'
 
 vi.mock('../src/familia/estado', async (original) => ({
   ...(await original<typeof import('../src/familia/estado')>()),
@@ -16,31 +18,33 @@ vi.mock('../src/familia/estado', async (original) => ({
 
 async function entrarCon429(cabeceras: Record<string, string>) {
   responderCon(apiFamilia, { status: 429, cuerpo: { type: '/errores/demasiadas-peticiones', status: 429 }, cabeceras })
-  render(<Entrar />)
+  const regiones = conRegiones(<Entrar />)
   const u = userEvent.setup()
   await u.type(screen.getByLabelText('Tu correo'), 'ana.prueba@example.com')
   await u.type(screen.getByLabelText('Tu contraseña'), 'contrasena-ejemplo') // pragma: allowlist secret
   await u.click(screen.getByRole('button', { name: 'Entrar' }))
-  return screen.findByRole('status')
+  await waitFor(() => expect(regiones.amable).not.toBeEmptyDOMElement())
+  return regiones
 }
 
 describe('Entrar con un 429', () => {
   it('Retry-After 61 se anuncia con role status: «Espera 2 minutos.»', async () => {
-    const aviso = await entrarCon429({ 'retry-after': '61' })
-    expect(aviso).toHaveTextContent('Hubo varios intentos de entrar. Espera 2 minutos.')
-    expect(aviso).toHaveTextContent('Recupera tu cuenta')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const { amable, urgente } = await entrarCon429({ 'retry-after': '61' })
+    expect(amable).toHaveTextContent('Hubo varios intentos de entrar. Espera 2 minutos.')
+    // El enlace a recuperar sigue en el aviso visible.
+    expect(screen.getByRole('link', { name: 'Recupera tu cuenta' })).toBeVisible()
+    expect(urgente).toBeEmptyDOMElement()
     // El botón espera, sin cuenta regresiva.
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeDisabled()
   })
 
   it('Retry-After 60 se escribe en singular: «Espera 1 minuto.»', async () => {
-    const aviso = await entrarCon429({ 'retry-after': '60' })
-    expect(aviso).toHaveTextContent('Hubo varios intentos de entrar. Espera 1 minuto.')
+    const { amable } = await entrarCon429({ 'retry-after': '60' })
+    expect(amable).toHaveTextContent('Hubo varios intentos de entrar. Espera 1 minuto.')
   })
 
   it('sin Retry-After, espera 1 minuto', async () => {
-    const aviso = await entrarCon429({})
-    expect(aviso).toHaveTextContent('Hubo varios intentos de entrar. Espera 1 minuto.')
+    const { amable } = await entrarCon429({})
+    expect(amable).toHaveTextContent('Hubo varios intentos de entrar. Espera 1 minuto.')
   })
 })
