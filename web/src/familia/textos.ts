@@ -52,6 +52,8 @@ export const CUENTA = {
   irAEntrar: 'Entrar',
   errNombre: 'Escribe tu nombre.', // [PROPUESTO]
   errCorreo: 'Revisa tu correo.', // [PROPUESTO]
+  /** [lenguaje 13.3] 422 `email` con `tipo: dominio_no_permitido`, solo en staging (decisión 105). */
+  errDominio: 'En este ambiente de prueba usa un correo terminado en @example.com.',
   errCelular: 'Escribe un celular de Chile, por ejemplo +56 9 5555 0137.', // [lenguaje 8]
   errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [demo] // pragma: allowlist secret
   // 422 de la API, por `errores[].campo`
@@ -60,6 +62,15 @@ export const CUENTA = {
   registradoTitulo: 'Ese correo ya tiene una cuenta', // [demo]
   registradoTexto: 'Entra con tu contraseña, o usa otro correo.', // [demo]
   registradoBoton: 'Entrar con ese correo', // [demo]
+}
+
+/**
+ * [lenguaje 13.3] 429 del límite por IP de MATU-25 (`/errores/demasiadas-peticiones`), al crear la
+ * cuenta. Los minutos salen de `Retry-After` (`esperaDe`, compartido/api/cliente.ts).
+ */
+export const ESPERA_CONEXION = {
+  titulo: 'Espera un momento',
+  texto: (minutos: number) => `Hubo muchos intentos desde esta conexión. Vuelve a intentarlo en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.`,
 }
 
 export const ENTRAR = {
