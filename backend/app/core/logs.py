@@ -32,8 +32,11 @@ request_id_actual: ContextVar[str | None] = ContextVar("request_id", default=Non
 # Campos extra que un log puede llevar. Lo que no está aquí no se escribe.
 # usuario_id y grupo_id los fijan las dependencias de iam y care_circle en request.state.
 # evento y familia_id: el evento de seguridad de la reutilización de un refresh (MATU-38), sin el token.
+# xff_cabeceras, xff_elementos, xff_clases, proxy_saltos e ip_contada: el diagnóstico temporal del proxy
+# (MATU-25, app/core/proxy.py), solo cantidades y clases fijas, nunca una IP.
 CAMPOS_PERMITIDOS = (
-    "metodo", "ruta", "estado", "duracion_ms", "tipo_error", "usuario_id", "grupo_id", "evento", "familia_id"
+    "metodo", "ruta", "estado", "duracion_ms", "tipo_error", "usuario_id", "grupo_id", "evento", "familia_id",
+    "xff_cabeceras", "xff_elementos", "xff_clases", "proxy_saltos", "ip_contada",
 )
 
 # Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)
