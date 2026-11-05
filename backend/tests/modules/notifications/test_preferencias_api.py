@@ -67,10 +67,8 @@ def test_pagador_activa_y_admin_apaga(entorno_iam: EntornoIam, fabrica_iam: Fabr
         "SELECT usuario_id, canal, activo FROM preferencia_notificacion WHERE tipo_evento = 'quiebre_proximo'"
         " AND usuario_id = ANY(%s) ORDER BY canal", [pagador.id, familia.admin.id],
     )
-    assert sorted(guardadas) == sorted([
-        (pagador.id, "correo", True), (pagador.id, "push", False),
-        (familia.admin.id, "correo", False), (familia.admin.id, "push", True),
-    ])
+    # Solo se guarda el canal que difiere del valor por omisión del rol (decisión 111)
+    assert sorted(guardadas) == sorted([(pagador.id, "correo", True), (familia.admin.id, "correo", False)])
 
 
 def test_sin_grupos_no_recibe(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:

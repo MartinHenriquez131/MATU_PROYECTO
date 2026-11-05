@@ -57,9 +57,28 @@ def canal_activo(*, por_defecto: bool, preferencia: bool | None) -> bool:
     return por_defecto if preferencia is None else preferencia
 
 
+def canales_activos(*, por_defecto: bool, preferencias: Mapping[Canal, bool | None]) -> tuple[Canal, ...]:
+    """Los canales por los que la persona recibe el aviso en este grupo, el correo primero. Solo para esos se
+    crea una fila: un canal que la persona apagó no tiene fila."""
+    return tuple(c for c in CANALES if canal_activo(por_defecto=por_defecto, preferencia=preferencias.get(c)))
+
+
 def es_destinatario(*, por_defecto: bool, preferencias: Mapping[Canal, bool | None]) -> bool:
     """Si la persona recibe el aviso por al menos un canal. Si no, no se crea ninguna fila para ella."""
-    return any(canal_activo(por_defecto=por_defecto, preferencia=preferencias.get(c)) for c in CANALES)
+    return bool(canales_activos(por_defecto=por_defecto, preferencias=preferencias))
+
+
+def canales_por_guardar(
+    *, pedidos: Mapping[Canal, bool], guardadas: Mapping[Canal, bool], por_defecto: bool
+) -> dict[Canal, bool]:
+    """Lo que el PUT /v1/yo/avisos persiste (decisión 111): un canal se guarda solo si ya tenía fila, o si el
+    valor pedido difiere del que la persona ve (``por_defecto`` sin fila). Un canal sin fila queda «sin
+    elegir» y en cada grupo sigue el valor por omisión del rol."""
+    return {
+        canal: valor
+        for canal, valor in pedidos.items()
+        if canal in guardadas or valor != canal_activo(por_defecto=por_defecto, preferencia=None)
+    }
 
 
 @dataclass(frozen=True)

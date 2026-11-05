@@ -44,5 +44,6 @@ class RepositorioPreferenciasSQL:
             [
                 {"usuario": usuario_id, "tipo": tipo_evento, "canal": canal.value, "activo": valores[canal]}
                 for canal in CANALES
+                if canal in valores
             ],
         )

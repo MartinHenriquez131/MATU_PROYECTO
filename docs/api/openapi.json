@@ -3136,7 +3136,7 @@
           "avisos"
         ],
         "summary": "Guardar Avisos",
-        "description": "Guarda los dos canales de los avisos de un insumo que se está acabando (MATU-41). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo guardado. Orden: 401, 422 y 200.",
+        "description": "Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Orden: 401, 422 y 200.",
         "operationId": "guardarPreferenciaAvisos",
         "requestBody": {
           "content": {

@@ -15,6 +15,8 @@ from app.modules.notifications.domain.aviso import (
     ResultadoEnvio,
     Revision,
     canal_activo,
+    canales_activos,
+    canales_por_guardar,
     desenlace,
     es_destinatario,
     motivo_omision,
@@ -208,3 +210,35 @@ def test_el_correo_no_lleva_imagenes_ni_seguimiento() -> None:
 
 def test_el_repr_de_los_mensajes_no_muestra_el_texto() -> None:
     assert "insumo" not in repr(correo_quiebre(ORIGEN)) and "matu.example" not in repr(correo_quiebre(ORIGEN))
+
+
+# --- Lo que guarda el PUT /v1/yo/avisos (decisión 111) --------------------------------------------------------
+
+C, P = Canal.CORREO, Canal.PUSH
+
+
+@pytest.mark.parametrize(
+    ("pedidos", "guardadas", "por_defecto", "esperado"),
+    [
+        # Admin en A y observador en B, sin filas: apaga solo el push; el correo queda sin elegir
+        ({C: True, P: False}, {}, True, {P: False}),
+        # Observador sin filas que activa el correo
+        ({C: True, P: False}, {}, False, {C: True}),
+        # Sin cambios respecto del GET: no se guarda nada
+        ({C: True, P: True}, {}, True, {}),
+        ({C: False, P: False}, {}, False, {}),
+        # Un canal que ya tenía fila se actualiza aunque coincida con el rol
+        ({C: True, P: True}, {C: False}, True, {C: True}),
+    ],
+)
+def test_el_put_guarda_solo_el_canal_que_cambia(
+    pedidos: dict[Canal, bool], guardadas: dict[Canal, bool], por_defecto: bool, esperado: dict[Canal, bool]
+) -> None:
+    assert canales_por_guardar(pedidos=pedidos, guardadas=guardadas, por_defecto=por_defecto) == esperado
+
+
+def test_canales_activos_correo_primero_y_sin_los_apagados() -> None:
+    assert canales_activos(por_defecto=True, preferencias={}) == (C, P)
+    assert canales_activos(por_defecto=True, preferencias={C: False}) == (P,)
+    assert canales_activos(por_defecto=False, preferencias={P: True}) == (P,)
+    assert canales_activos(por_defecto=False, preferencias={}) == ()
