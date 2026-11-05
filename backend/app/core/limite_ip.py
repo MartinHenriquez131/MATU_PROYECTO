@@ -9,9 +9,11 @@ validar los campos del cuerpo, así el 429 va antes del 422 de validación (orde
 contrato). Un cuerpo que no es JSON válido responde 422 antes, sin contar: FastAPI lo parsea antes de
 resolver las dependencias (decisión 114).
 
-- La IP es la del socket, ``request.client.host``. Detrás del proxy de Railway, Uvicorn la reemplaza
-  por la del X-Forwarded-For solo si la conexión viene de FORWARDED_ALLOW_IPS (app/servidor.py). Un
-  X-Forwarded-For de cualquier otro origen se ignora.
+- La IP es ``request.client.host``. Detrás del proxy de Railway la fija MiddlewareProxy
+  (app/core/proxy.py, armado en app/servidor.py) desde X-Forwarded-For, solo si la conexión viene de
+  FORWARDED_ALLOW_IPS, y con PROXY_SALTOS=N toma ``xff[-(N+1)]``: la que queda justo a la izquierda de
+  los N servidores de borde, nunca la primera de la lista. Con una lista corta o mal formada cuenta la
+  IP del socket. Un X-Forwarded-For de cualquier otro origen se ignora. Esta dependencia no lee cabeceras.
 - La clave es ``matu:limite:<prefijo>:<huella>``: la huella HMAC de la IP con PEPPER_LIMITES y el
   prefijo del contador. La IP nunca llega a Redis, a un log, a la auditoría ni al 429.
 - Ventana fija: un script Lua, atómico, hace INCR y fija el vencimiento solo en el primer incremento.
@@ -133,7 +135,7 @@ def obtener_contador_ventana() -> ContadorVentana:
 
 
 def ip_del_cliente(request: Request) -> str:
-    """La IP del socket, ya resuelta por Uvicorn desde un proxy de confianza. Solo para su huella."""
+    """La IP del cliente, ya resuelta por MiddlewareProxy desde un proxy de confianza. Solo para su huella."""
     return request.client.host if request.client else "desconocida"
 
 

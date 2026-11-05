@@ -197,7 +197,8 @@ def crear_sesion(
         sesion = entrar(
             email=solicitud.email,
             contrasena=solicitud.contrasena,
-            # La IP del socket. Solo se usa para su huella HMAC: nunca se guarda ni se registra
+            # La IP que fijó MiddlewareProxy (app/core/proxy.py). Solo se usa para su huella HMAC: nunca se
+            # guarda ni se registra
             ip=request.client.host if request.client else "desconocida",
             agente_usuario=request.headers.get("user-agent"),
             refresh_presentado=cookie_refresh(request),
