@@ -5,8 +5,9 @@
 #   docker build -f infra/railway/Dockerfile .
 #
 # Copia solo lo que necesita, archivo por archivo: nunca el .env, node_modules ni las pruebas.
-# Arranca con python -m app.servidor: Uvicorn en $PORT, con --proxy-headers y
-# --forwarded-allow-ips desde FORWARDED_ALLOW_IPS (nunca '*') y sin log de acceso.
+# Arranca con python -m app.servidor: Uvicorn en $PORT, sin log de acceso, y la IP del cliente desde
+# X-Forwarded-For solo si la conexión viene de FORWARDED_ALLOW_IPS (nunca '*'), con PROXY_SALTOS
+# (app/core/proxy.py; el proxy de Uvicorn queda apagado).
 # Las migraciones no corren aquí: las corre el preDeployCommand de railway.json, como matu_owner.
 
 # --- 1. La página del relevo (web/, ADR-026) ------------------------------------------------------------

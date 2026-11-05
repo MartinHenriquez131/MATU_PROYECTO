@@ -34,7 +34,10 @@ En un proyecto nuevo de Railway (por ejemplo `matu-staging`), en **una sola regi
 |---|---|
 | Región de los tres servicios | `sfo` (US West, California), 05-11. Postgres 16 (`postgres-ssl:16`) y Redis 8.2 |
 | Dominio de staging | `https://matu-api-production.up.railway.app` |
-| `FORWARDED_ALLOW_IPS` fijado | *pendiente: ver paso 5* |
+| `FORWARDED_ALLOW_IPS` fijado | `100.64.0.0/10`, la red del proxy interno de Railway (Martín, 05-11) |
+| `PROXY_SALTOS` fijado | *pendiente: `1`, tras la verificación del paso 5* |
+| `DIAGNOSTICO_PROXY` encendido | *fecha y hora (Chile) en que se encendió, y quién* |
+| `DIAGNOSTICO_PROXY` apagado | *fecha y hora (Chile) en que se apagó, y quién. No se deja encendido* |
 
 ## 2. Variables de `matu-api`
 
@@ -63,6 +66,8 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `MIGRATIONS_DATABASE_URL` | `postgresql+psycopg://matu_owner:${{MATU_OWNER_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/matu` |
 | `DATABASE_URL` | `postgresql+psycopg://matu_app:${{MATU_APP_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/matu` |
 | `FORWARDED_ALLOW_IPS` | Vacía al principio (127.0.0.1). Se fija en el paso 5 |
+| `PROXY_SALTOS` | Vacía al principio (0). `1` en Railway, en el paso 5 |
+| `DIAGNOSTICO_PROXY` | **No se carga**, salvo durante la verificación del paso 5: `true` y después se borra |
 
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
 `ADMIN_DATABASE_URL` (solo se usa en tu computador, en el paso 3), `WEB_DIST` y `PORT` (los fijan la
@@ -158,12 +163,49 @@ puede dar 429. Para fijarlo:
 **Si Railway no conecta desde una red fija o no la publica**, no se adivina: queda con el valor por
 omisión y se escala a Martín y Jorge (ver abajo).
 
+**Fijar `PROXY_SALTOS` (decisión 114, punto 7).** El borde de Railway entrega
+`X-Forwarded-For: <cliente>, <borde>`: agrega su propia IP a la derecha, y el borde se turna entre varios
+servidores con IP públicas que Railway no publica. Con `PROXY_SALTOS` vacía (0) la API toma la IP de más a
+la derecha que no es de confianza, la del borde: el límite cuenta por servidor de borde y no por persona
+(hallazgo de Martín del 05-11: seis intentos dieron seis 422, sin 429). Con `PROXY_SALTOS=1` la API toma
+la IP que queda justo a la izquierda del borde, nunca la primera de la lista: si alguien antepone una IP
+inventada, no le sirve. Si la lista trae menos IP de las esperadas o una que no es IP, cuenta la del
+proxy, que es lo más estricto. Solo se aplica a conexiones desde `FORWARDED_ALLOW_IPS`.
+
+1. En *Variables* de `matu-api`, carga `PROXY_SALTOS=1` y, **solo para esta verificación**,
+   `DIAGNOSTICO_PROXY=true`. Anota la fecha y hora de encendido en la tabla del paso 1. Despliega: el log
+   de arranque dice `proxy_saltos=1 diagnostico_proxy=encendido` (con `ENTORNO=produccion` la API no
+   arranca con el diagnóstico encendido).
+2. Seis intentos normales, desde la misma red:
+   ```
+   for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
+     -H "Content-Type: application/json" -d '{}' https://<algo>.up.railway.app/v1/usuarios; done
+   ```
+   Deben dar cinco `422` y un `429`.
+3. En `railway logs --service matu-api`, las líneas `"mensaje": "diagnostico_proxy"` de esos intentos
+   deben decir `"xff_elementos": 2`, `"xff_clases": ["publica", "publica"]` e `"ip_contada": "xff"`.
+   La línea no lleva ninguna IP, solo cantidades y clases. **Si trae 3 elementos** sin que tú hayas
+   mandado un `X-Forwarded-For`, Railway agrega otro salto propio: sube `PROXY_SALTOS` a `2`, despliega y
+   repite desde el paso 2. Si trae 1, o `"ip_contada": "socket"`, no se ajusta a ciegas: se escala.
+4. Seis intentos con un `X-Forwarded-For` falsificado que cambia cada vez, desde **otra red** (datos del
+   teléfono) o una hora después, porque el paso 2 ya gastó el cupo de tu IP:
+   ```
+   for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
+     -H "Content-Type: application/json" -H "X-Forwarded-For: 198.51.100.$i" \
+     -d '{}' https://<algo>.up.railway.app/v1/usuarios; done
+   ```
+   También deben dar cinco `422` y un `429`: la IP falsa no cambia el contador. El diagnóstico muestra 2
+   elementos si Railway reemplaza la cabecera, o 3 si concatena la tuya; con `PROXY_SALTOS=1` las dos
+   formas cuentan tu IP.
+5. **Apaga el diagnóstico:** borra `DIAGNOSTICO_PROXY` de las *Variables* y despliega. El log de arranque
+   dice `diagnostico_proxy=apagado`. Anota la fecha y hora de apagado y el valor final de `PROXY_SALTOS`
+   en la tabla del paso 1.
+
 ## Escalado y pendientes
 
-- **Red del proxy de Railway.** Hasta comprobarla (paso 5), `FORWARDED_ALLOW_IPS` queda vacía y todas
-  las peticiones de staging comparten un contador. Si Railway no conecta desde un rango fijo, decidir
-  entre aceptar ese contador compartido en staging o confiar en una red más amplia de Railway. Lo
-  deciden Martín y Jorge.
+- **Red del proxy de Railway.** Fijada en `100.64.0.0/10` (Martín, 05-11). El borde agrega su propia IP
+  a `X-Forwarded-For`: falta la verificación de `PROXY_SALTOS=1` del paso 5. Si el diagnóstico no muestra
+  2 o 3 elementos, se escala a Martín y Jorge.
 - **La ficha en staging.** Resuelto con la decisión 105 (Jorge, 04-11, PR #46): `CUSTODIA_KEK=entorno_sintetico`
   con una KEK propia de staging. Antes de datos reales se pasa a otra custodia (ADR-019).
 - **Región.** Resuelto: anotada en la tabla de datos del proyecto (línea 33), `sfo` (US West, California), 05-11.
