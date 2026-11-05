@@ -6,6 +6,7 @@
       "Read(../MATU/**)",
       "Read(../Brain/**)",
       "Edit(../Brain/MATU/**)",
+      "Edit(../MATU/TESTER/**)",
       "Bash(git -C ../Brain status:*)",
       "Bash(git -C ../Brain diff:*)",
       "Bash(git -C ../Brain log:*)",

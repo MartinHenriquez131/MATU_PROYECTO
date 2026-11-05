@@ -281,8 +281,11 @@ paths:
         **Orden de evaluación**, el mismo del canje hasta el estado:
 
         1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
-           del canje (decisión 29). Si se supera, **429**.
-        2. Cuerpo válido. Si no, **422**.
+           del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, **429**. Sin
+           Redis o sin `PEPPER_LIMITES`, **503**.
+        2. Cuerpo válido. Si no, **422**. Un cuerpo que no es JSON válido responde 422 antes del
+           paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el
+           paso 1, antes de validar sus campos.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`.
         4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
@@ -344,6 +347,8 @@ paths:
           $ref: '#/components/responses/RelevoBloqueado'
         '429':
           $ref: '#/components/responses/DemasiadasPresentaciones'
+        '503':
+          $ref: '#/components/responses/RelevoSinServicio'
 
   /v1/relevo/canje:
     post:
@@ -358,8 +363,11 @@ paths:
         **Orden de evaluación:**
 
         1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
-           (MATU-25, decisión 29). Si se supera, **429**, sin tocar el acceso.
-        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento.
+           (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, **429**, sin
+           tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
+        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento. Un cuerpo que
+           no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114);
+           todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
         3. El token corresponde a un acceso (`indice_token`). Si no, **410**
            `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
         4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
@@ -1398,6 +1406,8 @@ components:
         la sesión: el canje ya quedó registrado como `relevo.canje`, pero no hay cookie y la página
         vuelve a pedir el PIN. En la ficha: Redis no respondió, la custodia de la clave no está
         configurada o no pudo descifrar. Nunca devuelve texto de la ficha ni dice qué falló.
+        En la presentación y el canje, antes que todo lo demás: el límite por IP falla cerrado si
+        Redis no responde o falta `PEPPER_LIMITES` (MATU-25, decisión 114).
       headers:
         X-Request-ID:
           $ref: '#/components/headers/XRequestId'
