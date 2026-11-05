@@ -1,7 +1,7 @@
 // Piezas de interfaz de la app de la familia, copiadas de la demo aprobada (Demo/src/components/
 // Ui.tsx, HojaFicha.tsx y TextoFicha.tsx; Demo/src/familia/Shell.tsx). Cambios: `pino` es
 // `turquesa`, el borde de los controles es `borde`, el error lleva ícono y `Volver` mide 48 px.
-import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useId, useRef, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { CAMPOS } from './datos'
@@ -9,6 +9,7 @@ import { FICHA } from './textos'
 import { navegar, type Ruta } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
+import { useAnunciarAlMostrar } from '../compartido/ui/Anuncios'
 
 export function Acciones({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 ${className}`}>{children}</div>
@@ -201,7 +202,9 @@ const ICONO_NOTA: Record<TonoNota, ReactNode> = {
 
 /**
  * Nota con ícono propio por tono: nunca solo el color. `borde` agrega la línea izquierda de los avisos grandes.
- * En modo angosto los rellenos se achican, para que el título no se parta dentro de una palabra (#51, P2-1).
+ * Con `rol`, la nota es un aviso: se anuncia por las regiones vivas (compartido/ui/Anuncios),
+ * `status` amable y `alert` urgente, y no lleva el rol para no leerse dos veces. En modo angosto
+ * los rellenos se achican, para que el título no se parta dentro de una palabra (#51, P2-1).
  */
 export function Nota({
   titulo,
@@ -223,8 +226,10 @@ export function Nota({
   id?: string
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
+  const ref = useRef<HTMLDivElement>(null)
+  useAnunciarAlMostrar(ref, rol)
   return (
-    <div id={id} role={rol} className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+    <div ref={ref} id={id} data-aviso={rol} className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
       {icono ?? ICONO_NOTA[tono]}
       <div className="min-w-0">
         {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}

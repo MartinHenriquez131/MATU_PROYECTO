@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Clock3, RefreshCw } from 'lucide-react'
 import type { FichaRelevo } from '../compartido/api/relevo'
 import { fechaYHoraDeChile } from '../compartido/fechas'
+import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { AVISO_REMEDIOS, ORDEN_SECCIONES, TITULO_SECCION, esSeccion } from '../compartido/secciones'
 import { CAMPOS, ERROR, FICHA, MOSTRAR_EJEMPLO, ORDEN_CAMPOS } from './textos'
@@ -49,14 +50,14 @@ export function PantallaFicha({ ficha, onActualizar }: { ficha: FichaRelevo; onA
           {FICHA.actualizar}
         </Boton>
         {aviso?.tipo === 'ok' && (
-          <p key={aviso.vez} role="status" className="animate-aparecer text-base text-tenue">
+          <Anunciado key={aviso.vez} urgencia="status" como="p" className="animate-aparecer text-base text-tenue">
             {FICHA.actualizada(aviso.hora)}
-          </p>
+          </Anunciado>
         )}
         {aviso?.tipo === 'error' && (
-          <p key={aviso.vez} role="alert" className="text-base">
+          <Anunciado key={aviso.vez} urgencia="alert" como="p" className="text-base">
             <b className="font-bold">{ERROR.titulo}</b> {ERROR.conexion}
-          </p>
+          </Anunciado>
         )}
         <p className="text-base text-tenue">{FICHA.soloPuede(ficha.nombre_pila_comparte)}</p>
       </aside>

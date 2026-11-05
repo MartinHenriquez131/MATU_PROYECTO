@@ -24,6 +24,7 @@ import {
 import { nombrePilaDe, type Calidad } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { fechaCorta, hoyEnChile, sumarDias } from '../compartido/fechas'
+import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { AVISO_CUIDADOR, CALIDADES } from './datos'
 import { useDemora } from './Estados'
@@ -279,9 +280,9 @@ export function Insumos() {
     if (carga === 'red')
       return (
         <UnaColumna titulo={INSUMOS.titulo} baldosa={<CircleAlert aria-hidden className="size-9" />} tono="neutro">
-          <p role="alert" className="max-w-prose text-lg">
+          <Anunciado urgencia="alert" como="p" className="max-w-prose text-lg">
             <strong>{INSUMOS.errRedSinEscrito.split('. ')[0]}.</strong> {INSUMOS.errRedSinEscrito.split('. ').slice(1).join('. ')}
-          </p>
+          </Anunciado>
           <Boton onClick={() => void cargar()}>{GENERAL.volverAIntentar}</Boton>
         </UnaColumna>
       )
@@ -421,9 +422,9 @@ export function Insumos() {
                       {INSUMOS.verMas}
                     </Boton>
                     {errorMas && (
-                      <div role="alert">
+                      <Anunciado urgencia="alert">
                         <MensajeError>{INSUMOS.errRedSinEscrito}</MensajeError>
-                      </div>
+                      </Anunciado>
                     )}
                   </div>
                 )}
@@ -635,9 +636,9 @@ function Fila({
         </div>
       )}
       {error && (
-        <div role="alert">
+        <Anunciado urgencia="alert">
           <MensajeError>{error}</MensajeError>
-        </div>
+        </Anunciado>
       )}
     </li>
   )
@@ -759,9 +760,9 @@ function Permiso({
         </Nota>
       )}
       {falla && (
-        <div role="alert">
+        <Anunciado urgencia="alert">
           <MensajeError>{falla === '422' ? INSUMOS.errPermiso : INSUMOS.errRedSinEscrito}</MensajeError>
-        </div>
+        </Anunciado>
       )}
       <Acciones>
         <Boton onClick={() => void aceptar()} ocupado={ocupado} textoOcupado={INSUMOS.permisoEnviando}>
@@ -1067,9 +1068,9 @@ function Formulario({
           <span className="grid size-16 place-items-center rounded-2xl bg-tinta/7 text-tenue">
             <PauseCircle aria-hidden className="size-9" />
           </span>
-          <p role="alert" className="max-w-prose text-lg">
+          <Anunciado urgencia="alert" como="p" className="max-w-prose text-lg">
             <strong>{INSUMOS.inactivoTitulo}</strong> {INSUMOS.inactivo}
-          </p>
+          </Anunciado>
           <Boton variante="secundario" onClick={onCancelar}>
             {INSUMOS.volver}
           </Boton>
@@ -1157,13 +1158,13 @@ function Formulario({
         )}
         <VistaPrevia stock={entero(stock)} uso={entero(uso)} cada={tasaDias} />
         {general && (
-          <div role="alert" className="flex max-w-prose gap-1.5 font-bold text-pronto">
+          <Anunciado urgencia="alert" className="flex max-w-prose gap-1.5 font-bold text-pronto">
             <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
             <p className="min-w-0">
               {general.titulo && <>{general.titulo} </>}
               {general.texto}
             </p>
-          </div>
+          </Anunciado>
         )}
         {conflicto ? (
           <Conflicto
@@ -1377,11 +1378,12 @@ function DialogoEliminar({
           <p>{INSUMOS.eliminarTexto}</p>
           {perfil.activo && <p className="text-tenue">{INSUMOS.eliminarAlternativa}</p>}
         </div>
-        {error && (
-          <div role="alert">
-            <MensajeError>{INSUMOS.errRedSinEscrito}</MensajeError>
-          </div>
-        )}
+        {/* Con `showModal` lo de fuera del diálogo queda inerte, también las regiones vivas de
+            main.tsx: el aviso usa su propia región, montada vacía con el diálogo. Vacía, devuelve
+            el `gap-4` que le toca, para que el diálogo se vea igual que antes. */}
+        <div role="alert" className="empty:-mb-4">
+          {error && <MensajeError>{INSUMOS.errRedSinEscrito}</MensajeError>}
+        </div>
         <Acciones>
           <button
             type="button"
@@ -1557,9 +1559,9 @@ function SeAcabanPronto({
           </h2>
           {error ? (
             <div className="flex flex-col items-start gap-3">
-              <div role="alert">
+              <Anunciado urgencia="alert">
                 <MensajeError>{ALERTAS.errCarga}</MensajeError>
-              </div>
+              </Anunciado>
               <Boton variante="secundario" onClick={onReintentar}>
                 {GENERAL.volverAIntentar}
               </Boton>
