@@ -64,3 +64,14 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'recuperar-espera@ejemplo.cl', que: 'Cambiar la contraseña con el código responde 429 con Retry-After: 120' },
   { email: 'codigo-invalido@ejemplo.cl', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
 ]
+
+/** Dominio que el doble rechaza como staging (decisión 105, `dominio_no_permitido`). */
+export const DOMINIO_NO_PERMITIDO = 'dominio-no-permitido.cl'
+
+/** Correos para «Crear cuenta» que provocan una respuesta: no son cuentas, no entran. */
+export const CORREOS_CREAR_CUENTA: CuentaDeEjemplo[] = [
+  { email: 'espera-ip@ejemplo.cl', que: 'Crear cuenta responde 429 del límite por IP con Retry-After: 61 («Vuelve a intentarlo en 2 minutos.»)' },
+  { email: 'espera-ip-60@ejemplo.cl', que: 'Crear cuenta responde 429 con Retry-After: 60 («Vuelve a intentarlo en 1 minuto.»)' },
+  { email: 'espera-ip-sin-cabecera@ejemplo.cl', que: 'Crear cuenta responde 429 sin Retry-After (se espera 1 minuto, el mínimo)' },
+  { email: `persona@${DOMINIO_NO_PERMITIDO}`, que: 'Crear cuenta responde 422 dominio_no_permitido, como staging: «En este ambiente de prueba usa un correo terminado en @example.com.»' },
+]
