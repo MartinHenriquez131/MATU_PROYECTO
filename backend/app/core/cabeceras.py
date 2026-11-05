@@ -3,6 +3,8 @@
 Las rutas públicas del relevo (/v1/relevo/) responden siempre con Cache-Control: no-store,
 Referrer-Policy: no-referrer y X-Robots-Tag: noindex. Un middleware las pone incluso en un 422 de
 validación, un 500 o un 404 de ruta inexistente, que no pasan por el código de la ruta.
+
+Aquí viven también las cabeceras de las páginas que sirve app/core/web.py (MATU-23 y MATU-58).
 """
 
 from starlette.datastructures import MutableHeaders
@@ -10,10 +12,25 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 PREFIJO_RELEVO = "/v1/relevo/"
 
-CABECERAS_RELEVO = {
-    "Cache-Control": "no-store",
+# Las de toda página servida por la API: sin Referer hacia otros sitios y fuera de los buscadores
+CABECERAS_PAGINA = {
     "Referrer-Policy": "no-referrer",
     "X-Robots-Tag": "noindex",
+}
+
+CABECERAS_RELEVO = {
+    "Cache-Control": "no-store",
+    **CABECERAS_PAGINA,
+}
+
+# La app de familia (MATU-58, decisión 115): las de la página del relevo, con no-cache en vez de
+# no-store (el index.html no trae datos y se revalida en cada visita, para no quedar con un build viejo)
+# y frame-ancestors 'none', que solo vale como cabecera: en la etiqueta meta del build se ignora. Se suma
+# a la CSP de la etiqueta meta sin aflojarla, porque el navegador aplica las dos
+CABECERAS_APP = {
+    **CABECERAS_PAGINA,
+    "Cache-Control": "no-cache",
+    "Content-Security-Policy": "frame-ancestors 'none'",
 }
 
 

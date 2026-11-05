@@ -17,7 +17,7 @@ from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabec
 from app.core.config import obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
-from app.core.web import montar_pagina_relevo
+from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_personas import router as router_personas
@@ -87,6 +87,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)
+    # MATU-58: la app de familia en toda ruta GET o HEAD que no sea de la API, /r, /assets ni la
+    # documentación. Es el destino por omisión del enrutador: no tapa ninguna ruta, ni las de después
+    montar_app_familia(app, config.web_dist)
 
     return app
 
