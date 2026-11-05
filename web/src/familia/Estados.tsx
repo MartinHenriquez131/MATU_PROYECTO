@@ -55,15 +55,6 @@ export function SinPersona() {
   )
 }
 
-/** 5.5: Compartir, mientras MATU-48 no existe. */
-export function CompartirPronto() {
-  return (
-    <Pagina titulo={ESTADOS.compartirTitulo}>
-      <p className="max-w-prose text-tenue">{ESTADOS.compartirPronto}</p>
-    </Pagina>
-  )
-}
-
 /** 5.7: la entrada venció con texto sin guardar. Nunca se guarda en el navegador. */
 export function TextoPerdido() {
   const { textoPerdido, fijar } = useFamilia()

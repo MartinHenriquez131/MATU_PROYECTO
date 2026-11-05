@@ -5,7 +5,8 @@ import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
 import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
-import { Abriendo, CompartirPronto, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
+import { Compartir, EnlaceListo, Enlaces } from './Compartir'
+import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { Insumos } from './Insumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
@@ -45,7 +46,10 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   if (ruta === '/empezar/persona' || ruta === '/empezar/autorizacion') return editor ? null : inicio(s)
   // 5.4: sin persona, el admin y el cuidador van a registrarla.
   if (!s.personas.length && editor) return '/empezar/persona'
-  if (ruta === '/compartir' && !puedeCompartir(s.rol)) return inicio(s)
+  // MATU-48 2.1: crear y ver el PIN, solo admin y cuidador. La lista de enlaces también la ve el
+  // pagador con `puede_ver_plan`, sin teléfono ni «Cortar».
+  if ((ruta === '/compartir' || ruta === '/compartir/listo') && !puedeCompartir(s.rol)) return inicio(s)
+  if (ruta === '/compartir/enlaces' && !puedeCompartir(s.rol) && !(s.rol === 'pagador' && s.grupo?.puede_ver_plan)) return inicio(s)
   return null
 }
 
@@ -124,7 +128,9 @@ function Rutas() {
   else if (ruta === '/ficha' || campo || seccion) {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
     else pantalla = campo ? <Editor campo={campo} /> : seccion ? <EditorDeSeccion seccion={seccion} /> : <TuFicha />
-  } else if (ruta === '/compartir') pantalla = <CompartirPronto />
+  } else if (ruta === '/compartir') pantalla = <Compartir />
+  else if (ruta === '/compartir/listo') pantalla = <EnlaceListo />
+  else if (ruta === '/compartir/enlaces') pantalla = <Enlaces />
   else pantalla = <Insumos />
 
   return (

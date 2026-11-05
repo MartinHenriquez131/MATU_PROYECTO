@@ -28,6 +28,8 @@ export type Ruta =
   | '/insumos/nuevo'
   | '/insumos/cambiar'
   | '/compartir'
+  | '/compartir/listo'
+  | '/compartir/enlaces'
 
 export const RUTAS: readonly Ruta[] = [
   '/',
@@ -55,6 +57,8 @@ export const RUTAS: readonly Ruta[] = [
   '/insumos/nuevo',
   '/insumos/cambiar',
   '/compartir',
+  '/compartir/listo',
+  '/compartir/enlaces',
 ]
 
 /** Las que se ven sin haber entrado. */

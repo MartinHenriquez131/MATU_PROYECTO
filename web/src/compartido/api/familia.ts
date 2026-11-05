@@ -177,3 +177,36 @@ export function leerConflictoSeccion(error: unknown): { actual: EstadoSeccion | 
   const cabecera = error.response.headers?.etag
   return { actual, etag: typeof cabecera === 'string' && cabecera ? cabecera : (actual?.etag ?? null) }
 }
+
+// ---------------------------------------------------------------- accesos de relevo (MATU-48)
+
+/** `POST …/plan/accesos-relevo`. Sin `campos` (deprecado): los tres campos base van siempre. */
+export type SolicitudAcceso = Omit<S['SolicitudAccesoVista'], 'campos'>
+/** El 201: la `url` y el `pin` se muestran una sola vez y viven solo en la memoria de la pantalla. */
+export type AccesoCreado = S['AccesoCreadoVista']
+export type AccesoResumen = S['AccesoResumenVista']
+export type EstadoAcceso = S['EstadoAcceso']
+export type MotivoAcceso = S['MotivoAcceso']
+export type ListaAccesos = S['ListaAccesosVista']
+
+const rutaAccesos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/plan/accesos-relevo`
+
+export async function crearAcceso(personaId: string, cuerpo: SolicitudAcceso): Promise<AccesoCreado> {
+  return (await apiFamilia.post<AccesoCreado>(rutaAccesos(personaId), cuerpo)).data
+}
+
+/** `GET …/plan/accesos-relevo`, del más nuevo al más antiguo. `estado` filtra en el servidor. */
+export async function listarAccesos(
+  personaId: string,
+  { estado = null, cursor = null, limite = 20 }: { estado?: EstadoAcceso | null; cursor?: string | null; limite?: number } = {},
+): Promise<ListaAccesos> {
+  const params: { limite: number; estado?: EstadoAcceso; cursor?: string } = { limite }
+  if (estado) params.estado = estado
+  if (cursor) params.cursor = cursor
+  return (await apiFamilia.get<ListaAccesos>(rutaAccesos(personaId), { params })).data
+}
+
+/** `DELETE /v1/accesos-relevo/{id}`: 204, idempotente (ya cortado o vencido también es 204). */
+export async function cortarAcceso(accesoId: string): Promise<void> {
+  await apiFamilia.delete(`/v1/accesos-relevo/${encodeURIComponent(accesoId)}`)
+}
