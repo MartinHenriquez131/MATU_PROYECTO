@@ -1,4 +1,4 @@
-"""Límite por IP en la API, con Redis (MATU-25, decisiones 27, 29 y 65).
+"""Límite por IP en la API, con Redis (MATU-25, decisiones 27, 29 y 114).
 
     POST /v1/usuarios            5 por hora   prefijo usuarios-ip
     POST /v1/relevo/canje        10 por hora  prefijo canje-ip

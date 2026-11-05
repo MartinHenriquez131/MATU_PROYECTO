@@ -1,4 +1,4 @@
-"""Reglas puras del límite por IP (MATU-25, decisiones 27, 29 y 65). Sin I/O ni reloj del sistema.
+"""Reglas puras del límite por IP (MATU-25, decisiones 27, 29 y 114). Sin I/O ni reloj del sistema.
 
 - Un contador por ruta y por huella de la IP, en una ventana FIJA de una hora: la ventana empieza con
   la primera petición y no se alarga con las siguientes. La hora la lleva el vencimiento de la clave

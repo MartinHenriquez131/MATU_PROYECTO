@@ -1,4 +1,4 @@
-"""MATU-25 · Reglas puras del límite por IP (decisiones 27, 29 y 65). Sin I/O."""
+"""MATU-25 · Reglas puras del límite por IP (decisiones 27, 29 y 114). Sin I/O."""
 
 import hashlib
 import hmac
