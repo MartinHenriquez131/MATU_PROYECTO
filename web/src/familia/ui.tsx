@@ -48,10 +48,14 @@ export function Volver({ children, onClick }: { children: ReactNode; onClick: ()
   )
 }
 
+/**
+ * En modo angosto el ícono va en la primera línea del texto, como una letra más: el texto usa todo
+ * el ancho y un correo largo no se parte (revisión visual del #51, P2-2).
+ */
 export function MensajeError({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <p id={id} className="flex gap-1.5 font-bold text-pronto">
-      <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
+    <p id={id} className="flex gap-1.5 angosto:block font-bold text-pronto">
+      <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 angosto:mt-0 angosto:mr-1.5 angosto:inline angosto:align-middle" />
       <span className="min-w-0">{children}</span>
     </p>
   )
@@ -195,7 +199,10 @@ const ICONO_NOTA: Record<TonoNota, ReactNode> = {
   ok: <CircleCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-ok" />,
 }
 
-/** Nota con ícono propio por tono: nunca solo el color. `borde` agrega la línea izquierda de los avisos grandes. */
+/**
+ * Nota con ícono propio por tono: nunca solo el color. `borde` agrega la línea izquierda de los avisos grandes.
+ * En modo angosto los rellenos se achican, para que el título no se parta dentro de una palabra (#51, P2-1).
+ */
 export function Nota({
   titulo,
   children,
@@ -217,7 +224,7 @@ export function Nota({
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   return (
-    <div id={id} role={rol} className={`flex max-w-prose gap-3 rounded-xl px-4 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+    <div id={id} role={rol} className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
       {icono ?? ICONO_NOTA[tono]}
       <div className="min-w-0">
         {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
