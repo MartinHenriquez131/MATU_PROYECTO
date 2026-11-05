@@ -13,14 +13,16 @@ import { BotonDictar, useDictado } from './Dictado'
 import { puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
-import { CONFLICTO, ESTADOS, FICHA, GENERAL } from './textos'
+import { CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
 import { useDemora } from './Estados'
 import { UltimasAperturas } from './QuienLaVio'
+import { MasSobre, seccionesEnHoja } from './Secciones'
+import type { SeccionEnHoja } from './ui'
 
-type Bloqueo = 'sin-consentimiento' | 'revision-vencida' | 'sin-acceso'
+export type Bloqueo = 'sin-consentimiento' | 'revision-vencida' | 'sin-acceso'
 type Carga = { tipo: 'cargando' } | { tipo: 'lista' } | { tipo: 'bloqueo'; bloqueo: Bloqueo } | { tipo: 'red' }
 
-function bloqueoDe(e: unknown): Bloqueo | 'red' {
+export function bloqueoDe(e: unknown): Bloqueo | 'red' {
   const f = leerFallo(e)
   if (f.status === 403 && f.tipo === '/errores/revision-vencida') return 'revision-vencida'
   if (f.status === 403) return 'sin-consentimiento'
@@ -36,7 +38,7 @@ const textosDe = (f: Ficha | null): Record<CampoApi, string | null> => ({
 const listo = (c: EstadoCampo | undefined) => !!c?.texto?.trim()
 
 /** Carga la ficha de la persona elegida si no está en memoria. */
-function useFicha() {
+export function useFicha() {
   const { ficha, personaId, rol, grupo, fijar } = useFamilia()
   const permitido = puedeVerFicha(rol, grupo)
   const [carga, setCarga] = useState<Carga>(() => (!permitido ? { tipo: 'bloqueo', bloqueo: 'sin-acceso' } : ficha ? { tipo: 'lista' } : { tipo: 'cargando' }))
@@ -78,7 +80,7 @@ export function SinAcceso() {
 }
 
 /** 6.4 y 6.4b: avisos, no errores en rojo. Si había texto escrito, se muestra para copiarlo. */
-function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revision-vencida'; escrito?: string }) {
+export function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' | 'revision-vencida'; escrito?: string }) {
   const { persona } = useFamilia()
   const pila = persona ? nombrePilaDe(persona) : ''
   const revision = bloqueo === 'revision-vencida'
@@ -128,7 +130,7 @@ function TextoParaCopiar({ texto, aviso }: { texto: string; aviso: string }) {
   )
 }
 
-function ErrorAlCargar({ reintentar }: { reintentar: () => void }) {
+export function ErrorAlCargar({ reintentar }: { reintentar: () => void }) {
   return (
     <div className="flex max-w-prose flex-col items-start gap-4">
       <Nota tono="pronto" rol="alert" icono={<WifiOff aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" />}>
@@ -150,7 +152,7 @@ function Cargando() {
   )
 }
 
-function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
+export function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
   if (carga.tipo === 'cargando')
     return (
       <Pagina titulo={FICHA.titulo}>
@@ -167,20 +169,35 @@ function Estado({ carga, pedir }: { carga: Carga; pedir: () => void }) {
   return null
 }
 
-function VistaPrevia({ titulo, textos, escribiendo }: { titulo: string; textos: Record<CampoApi, string | null>; escribiendo?: CampoApi }) {
+function VistaPrevia({
+  titulo,
+  textos,
+  escribiendo,
+  secciones,
+  nota,
+}: {
+  titulo: string
+  textos: Record<CampoApi, string | null>
+  escribiendo?: CampoApi
+  secciones?: SeccionEnHoja[]
+  nota?: string
+}) {
   const { persona } = useFamilia()
   return (
     <section aria-labelledby="vista-t" className="flex min-w-0 flex-col gap-5">
-      <h2 id="vista-t" className="text-xl font-bold leading-snug">
-        {titulo}
-      </h2>
-      <HojaFicha pila={persona ? nombrePilaDe(persona) : ''} textos={textos} escribiendo={escribiendo} />
+      <div className="flex flex-col gap-1">
+        <h2 id="vista-t" className="text-xl font-bold leading-snug">
+          {titulo}
+        </h2>
+        {nota && <p className="text-sm text-tenue">{nota}</p>}
+      </div>
+      <HojaFicha pila={persona ? nombrePilaDe(persona) : ''} textos={textos} escribiendo={escribiendo} secciones={secciones} />
     </section>
   )
 }
 
 /** Aviso de una sola vez al llegar (guardado o conflicto resuelto). */
-function AvisoDeLlegada() {
+export function AvisoDeLlegada() {
   const { aviso, fijar } = useFamilia()
   const [visto] = useState(aviso)
   useEffect(() => {
@@ -188,7 +205,7 @@ function AvisoDeLlegada() {
   }, [aviso, fijar])
   if (!visto) return null
   return (
-    <Nota tono="ok" titulo={visto.titulo} rol="status" className="mb-6">
+    <Nota tono={visto.tono ?? 'ok'} titulo={visto.titulo} rol="status" className="mb-6">
       {visto.texto}
     </Nota>
   )
@@ -207,52 +224,58 @@ export function TuFicha() {
     <Pagina titulo={FICHA.titulo} bajada={FICHA.bajada}>
       <AvisoDeLlegada />
       <div className="grid grid-cols-1 items-start gap-x-16 gap-y-10 @4xl/main:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <section aria-label="Campos de la ficha" className="flex min-w-0 flex-col gap-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-bold leading-snug">
-              <span className="cifras">{hechos}</span> {FICHA.avanceResto}
-            </h2>
-            <BarraCampos hechos={hechos} className="w-40" />
+        <div className="flex min-w-0 flex-col">
+          <section aria-label="Campos de la ficha" className="flex min-w-0 flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-bold leading-snug">
+                <span className="cifras">{hechos}</span> {FICHA.avanceResto}
+              </h2>
+              <BarraCampos hechos={hechos} className="w-40" />
+            </div>
+            <ul className="flex flex-col gap-3">
+              {CAMPOS.map((c) => {
+                const f = ficha.campos[c.api]
+                const ok = listo(f)
+                const principal = primeroQueFalta?.api === c.api
+                return (
+                  <li key={c.api} className={`flex flex-col gap-2 border-l-4 bg-hoja px-4 angosto:px-2 py-3.5 ${ok ? 'border-ok' : 'border-tinta/20'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-lg font-bold">{c.titulo}</h3>
+                      <Listo listo={ok} />
+                    </div>
+                    <p className={`line-clamp-2 whitespace-pre-line ${ok ? '' : 'text-tenue'}`}>{ok ? f.texto : c.pregunta(pila)}</p>
+                    {ok && f.actualizado_en && (
+                      <p className="text-sm text-tenue">
+                        {FICHA.loEscribio(f.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={f.actualizado_en} />
+                      </p>
+                    )}
+                    {/* El pagador no sabe de antemano si puede editar (D3): el botón está y un 404 lleva a 5.6. */}
+                    {(puedeEditar(rol) || rol === 'pagador') && (
+                      <Boton
+                        variante={principal ? 'principal' : 'secundario'}
+                        className="self-start"
+                        icono={<PencilLine aria-hidden className="size-5" />}
+                        onClick={() => navegar(c.ruta)}
+                      >
+                        {ok ? FICHA.editar(c.titulo) : FICHA.completar(c.titulo)}
+                      </Boton>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="flex gap-2 text-base text-tenue">
+              <Lock aria-hidden className="mt-0.5 size-4.5 shrink-0" />
+              {FICHA.cifrado}
+            </p>
+          </section>
+          {/* MATU-49, 3: después de los tres campos, «Más sobre…». */}
+          <MasSobre ficha={ficha} pila={pila} rol={rol} />
+          <div className="mt-10">
+            <UltimasAperturas />
           </div>
-          <ul className="flex flex-col gap-3">
-            {CAMPOS.map((c) => {
-              const f = ficha.campos[c.api]
-              const ok = listo(f)
-              const principal = primeroQueFalta?.api === c.api
-              return (
-                <li key={c.api} className={`flex flex-col gap-2 border-l-4 bg-hoja px-4 angosto:px-2 py-3.5 ${ok ? 'border-ok' : 'border-tinta/20'}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-lg font-bold">{c.titulo}</h3>
-                    <Listo listo={ok} />
-                  </div>
-                  <p className={`line-clamp-2 whitespace-pre-line ${ok ? '' : 'text-tenue'}`}>{ok ? f.texto : c.pregunta(pila)}</p>
-                  {ok && f.actualizado_en && (
-                    <p className="text-sm text-tenue">
-                      {FICHA.loEscribio(f.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={f.actualizado_en} />
-                    </p>
-                  )}
-                  {/* El pagador no sabe de antemano si puede editar (D3): el botón está y un 404 lleva a 5.6. */}
-                  {(puedeEditar(rol) || rol === 'pagador') && (
-                    <Boton
-                      variante={principal ? 'principal' : 'secundario'}
-                      className="self-start"
-                      icono={<PencilLine aria-hidden className="size-5" />}
-                      onClick={() => navegar(c.ruta)}
-                    >
-                      {ok ? FICHA.editar(c.titulo) : FICHA.completar(c.titulo)}
-                    </Boton>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-          <p className="flex gap-2 text-base text-tenue">
-            <Lock aria-hidden className="mt-0.5 size-4.5 shrink-0" />
-            {FICHA.cifrado}
-          </p>
-          <UltimasAperturas />
-        </section>
-        <VistaPrevia titulo={FICHA.vistaPrevia} textos={textosDe(ficha)} />
+        </div>
+        <VistaPrevia titulo={FICHA.vistaPrevia} nota={MAS.vistaPrevia} textos={textosDe(ficha)} secciones={seccionesEnHoja(ficha)} />
       </div>
     </Pagina>
   )
@@ -376,7 +399,7 @@ function EditorCampo({
   if (conflicto)
     return (
       <PantallaConflicto
-        campo={campo}
+        titulo={campo.titulo}
         mio={texto}
         conflicto={conflicto}
         ocupado={ocupado}
@@ -440,7 +463,10 @@ function EditorCampo({
             />
             <p id="campo-cuenta" className={`flex items-center gap-1.5 text-sm ${cerca ? 'font-bold text-atenta' : 'text-tenue'}`}>
               {cerca && <TriangleAlert aria-hidden className="size-4 shrink-0" />}
-              <span className="cifras">{FICHA.contador(texto.length)}</span>
+              {/* Solo las cifras en `cifras` (sin partirse): la frase completa desborda a 320 px con 200 %. */}
+              <span className="min-w-0">
+                <span className="cifras">{texto.length}</span> {FICHA.contador(texto.length).replace(/^\d+ /, '')}
+              </span>
             </p>
             <span aria-live="polite" className="sr-only">
               {anuncioTope}
@@ -488,7 +514,7 @@ function EditorCampo({
             </Boton>
           </Acciones>
         </section>
-        <VistaPrevia titulo={FICHA.mientrasEscribes} textos={textos} escribiendo={campo.api} />
+        <VistaPrevia titulo={FICHA.mientrasEscribes} textos={textos} escribiendo={campo.api} secciones={seccionesEnHoja(ficha)} />
       </div>
     </>
   )
@@ -496,15 +522,16 @@ function EditorCampo({
 
 // ---------------------------------------------------------------- 3.8 Conflicto
 
-function PantallaConflicto({
-  campo,
+export function PantallaConflicto({
+  titulo,
   mio,
   conflicto,
   ocupado,
   dejarSuya,
   dejarMia,
 }: {
-  campo: Campo
+  /** El título del campo o de la sección. */
+  titulo: string
   mio: string
   conflicto: DatosConflicto
   ocupado: boolean
@@ -518,10 +545,11 @@ function PantallaConflicto({
   }, [conflicto])
   return (
     <div className="flex flex-col gap-6">
-      <div role="alert" className="flex max-w-prose gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 py-3.5">
-        <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto" />
-        <div>
-          <Titulo className="text-2xl">{CONFLICTO.titulo(autor, campo.titulo)}</Titulo>
+      {/* 4.8 de MATU-49: a 320 px con texto al 200 %, sin desplazamiento horizontal. */}
+      <div role="alert" className="flex max-w-prose gap-3 border-l-4 border-pronto bg-pronto-fondo px-4 angosto:px-2 py-3.5">
+        <TriangleAlert aria-hidden className="mt-1 size-6 shrink-0 text-pronto angosto:hidden" />
+        <div className="min-w-0">
+          <Titulo className="text-2xl angosto:text-xl wrap-anywhere hyphens-auto">{CONFLICTO.titulo(autor, titulo)}</Titulo>
           <p className="mt-1">{CONFLICTO.explicacion}</p>
         </div>
       </div>

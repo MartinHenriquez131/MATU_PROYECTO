@@ -3,12 +3,14 @@
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
 import { CONTRASENA_DE_EJEMPLO, CUENTAS } from '../../doble/cuentas'
+import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 
 export function Ejemplos() {
   // Se abre en una pestaña nueva: el fragmento cambia y la página arranca de cero.
   const enlace = (token: string) => `/r#${token}`
+  // wrap-anywhere: los correos y el token de 129 caracteres no ensanchan la página a 320 px con 200 %.
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+    <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 wrap-anywhere">
       <h1 className="titular text-3xl">Doble del contrato (solo desarrollo)</h1>
       <h2 className="text-xl font-bold">App de la familia (MATU-39)</h2>
       <p className="text-tenue">
@@ -26,7 +28,7 @@ export function Ejemplos() {
       <h2 className="text-xl font-bold">Página del relevo (MATU-23)</h2>
       <p className="text-tenue">
         PIN correcto en todos los ejemplos: <b className="digitos">{PIN_DE_EJEMPLO}</b>. Los intentos y las sesiones viven en la memoria
-        del servidor de desarrollo: reinicia <code>npm run dev</code> para volver a cero.
+        del servidor de desarrollo: reinicia <code className="wrap-anywhere">npm run dev</code> para volver a cero.
       </p>
       <ul className="flex flex-col gap-3">
         {ESCENARIOS.map((e) => (
@@ -50,6 +52,7 @@ export function Ejemplos() {
           <span className="text-base text-tenue">{TOKEN_LARGO}</span>
         </li>
       </ul>
+      <CompartirDeEjemplo />
     </main>
   )
 }
