@@ -11,6 +11,9 @@ dependencias de la API antes de leer el cuerpo.
   llegan sus huellas. Ni el token ni el PIN aparecen en el repr.
 - El acceso copia el nombre de pila de la persona y el de quien comparte, para que el relevo nunca
   lea persona_cuidada ni usuario (decisión 28).
+- Desde MATU-50 (ADR-028) los tres campos base van siempre, y las secciones complementarias solo si se
+  piden y ya están agregadas (SeccionNoAgregada si no). El servidor nunca agrega una por su cuenta.
+  secciones_permitidas guarda los tres campos base más las secciones pedidas.
 """
 
 import base64
@@ -30,6 +33,11 @@ from app.modules.care_plan.application.ports import (
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha
 from app.modules.care_plan.domain.relevo import MotivoAcceso, debe_revocar, nombre_pila, vigencia
+from app.modules.care_plan.domain.secciones import (
+    SeccionComplementaria,
+    secciones_a_compartir,
+    secciones_permitidas,
+)
 from app.shared.puertos import Reloj
 
 
@@ -37,7 +45,8 @@ from app.shared.puertos import Reloj
 class SolicitudCompartir:
     nombre_relevo: str
     telefono_relevo: str = field(repr=False)  # ya normalizado: +569XXXXXXXX
-    campos: tuple[CampoFicha, ...]
+    # Las secciones complementarias pedidas (MATU-50). Los tres campos base van siempre
+    secciones: tuple[SeccionComplementaria, ...]
     motivo: MotivoAcceso
     expira_en: datetime | None
 
@@ -48,6 +57,7 @@ class AccesoEntregado:
     token: str = field(repr=False)  # base64url sin relleno, 43 caracteres
     pin: str = field(repr=False)
     campos: tuple[CampoFicha, ...]
+    secciones: tuple[SeccionComplementaria, ...]
     expira_en: datetime
     nombre_relevo: str
     nombre_pila_persona: str
@@ -76,19 +86,24 @@ def compartir(
     huellas: HuellasRelevo,
     reloj: Reloj,
 ) -> AccesoEntregado:
-    """Crea el acceso. VigenciaInvalida si expira_en no cabe; PlanNoDisponible si no hay plan ni se crea."""
+    """Crea el acceso. VigenciaInvalida si expira_en no cabe; SeccionNoAgregada si se pide compartir una
+    sección que no está agregada; PlanNoDisponible si no hay plan ni se crea."""
     ahora = reloj.ahora()
     expira_en = vigencia(ahora, solicitud.expira_en)
     nombre_persona = accesos.nombre_pila_persona(peticion.persona_cuidada_id)
     nombre_comparte = accesos.nombre_usuario(peticion.usuario_id)
     if nombre_persona is None or nombre_comparte is None:
         raise PlanNoDisponible
+    # Antes de crear el plan: sin plan no hay secciones agregadas, y pedir una es un 422
+    plan = fichas.obtener_plan(peticion.persona_cuidada_id)
+    agregadas = set() if plan is None else fichas.tipos_agregados(plan.id)
+    secciones = secciones_a_compartir(solicitud.secciones, agregadas)
     plan_id = _plan_id(peticion, fichas, ahora)
     acceso_id = uuid.uuid4()
     token = generador.token()
     pin = generador.pin()
-    # En el orden de la ficha, sin importar el orden pedido
-    campos = tuple(c for c in CAMPOS_FICHA if c in solicitud.campos)
+    # Los tres campos base van siempre, en el orden de la ficha (MATU-50)
+    campos = CAMPOS_FICHA
     accesos.crear(
         AccesoNuevo(
             id=acceso_id,
@@ -99,7 +114,7 @@ def compartir(
             telefono_relevo=solicitud.telefono_relevo,
             nombre_pila_persona=nombre_persona,
             nombre_pila_comparte=nombre_pila(nombre_comparte),
-            campos=tuple(c.value for c in campos),
+            campos=secciones_permitidas(secciones),
             motivo=solicitud.motivo.value,
             token_hash=huellas.huella_token(token),
             pin_hash=huellas.huella_pin(acceso_id, pin),
@@ -115,6 +130,7 @@ def compartir(
         token=codificar_token(token),
         pin=pin,
         campos=campos,
+        secciones=secciones,
         expira_en=expira_en,
         nombre_relevo=solicitud.nombre_relevo,
         nombre_pila_persona=nombre_persona,

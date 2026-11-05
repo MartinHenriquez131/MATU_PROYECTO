@@ -16,8 +16,9 @@ Reglas que fijan los tipos, y no la disciplina de quien los usa:
 - grupo_id es obligatorio, salvo en las acciones de la cuenta (ACCIONES_DE_CUENTA, MATU-38): la
   sesión y los dispositivos no pertenecen a una familia. RLS (auditoria_insertar, auditoria_relevo)
   acepta una entrada en el grupo del contexto o sin grupo.
-- detalle solo admite un dato tipado (MATU-38): la cantidad de sesiones revocadas al sacar un
-  dispositivo. Nunca el email ni su huella (decisión 64), la IP, un token ni texto.
+- detalle solo admite datos tipados: la cantidad de sesiones revocadas al sacar un dispositivo
+  (MATU-38), y el tipo de una sección complementaria de la ficha o la lista de los tipos mostrados al
+  relevo (MATU-50). Nunca el email ni su huella (decisión 64), la IP, un token ni texto.
 - El momento no viaja en la entrada: lo pone el adaptador con el puerto Reloj.
 
 Solo biblioteca estándar: se importa desde domain/ y application/ de cualquier módulo.
@@ -33,6 +34,8 @@ class AccionAuditoria(StrEnum):
 
     PLAN_LEER = "plan.leer"
     PLAN_EDITAR = "plan.editar"
+    # MATU-50: quitar una sección complementaria borra su fila. Con el tipo en detalle, sin el texto
+    PLAN_QUITAR_SECCION = "plan.quitar_seccion"
     CONSENTIMIENTO_OTORGAR = "consentimiento.otorgar"
     CONSENTIMIENTO_REVOCAR = "consentimiento.revocar"
     RELEVO_COMPARTIR = "relevo.compartir"
@@ -97,6 +100,16 @@ ACCIONES_CON_SESIONES_REVOCADAS = frozenset(
 )
 
 
+# Los tipos de las secciones complementarias de la ficha (ADR-028), los únicos que admite el detalle
+# (CHECK auditoria_detalle_acotado de la migración 0013). Una prueba verifica que coinciden con los de
+# care_plan: este archivo no importa módulos de negocio.
+SECCIONES_AUDITABLES = frozenset({"quien_es", "preferencias", "alimentacion", "movilidad", "comunicacion", "remedios"})
+
+# Las acciones que llevan el tipo de una sección, y la que lleva la lista de tipos mostrados (MATU-50)
+ACCIONES_CON_SECCION = frozenset({AccionAuditoria.PLAN_EDITAR, AccionAuditoria.PLAN_QUITAR_SECCION})
+ACCION_CON_SECCIONES = AccionAuditoria.RELEVO_ABRIR
+
+
 class MotivoAuditoria(StrEnum):
     """Por qué se comparte la ficha. Enumerado sin texto libre (decisión 16 del contrato de MATU-09)."""
 
@@ -153,6 +166,9 @@ class EntradaAuditoria:
     - ``request_id``: el de la petición, para cruzar con los logs.
     - ``sesiones_revocadas``: solo en dispositivo.sacar y cuenta.contrasena_cambiar (MATU-57), un entero
       de 0 en adelante.
+    - ``seccion``: solo en plan.editar y plan.quitar_seccion, el tipo de una sección complementaria.
+    - ``secciones``: solo en relevo.abrir, los tipos de las secciones complementarias mostradas, sin
+      repetir (puede ser vacía).
 
     grupo_id puede faltar solo en ACCIONES_DE_CUENTA, y actor_ref solo con el actor SISTEMA.
 
@@ -169,6 +185,8 @@ class EntradaAuditoria:
     motivo: MotivoAuditoria | None = None
     request_id: str | None = None
     sesiones_revocadas: int | None = None
+    seccion: str | None = None
+    secciones: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         _exigir("accion", self.accion, AccionAuditoria)
@@ -192,10 +210,25 @@ class EntradaAuditoria:
                     "sesiones_revocadas solo va en dispositivo.sacar o cuenta.contrasena_cambiar, como entero"
                     " no negativo"
                 )
+        if self.seccion is not None:
+            if self.accion not in ACCIONES_CON_SECCION or self.seccion not in SECCIONES_AUDITABLES:
+                raise TypeError("seccion solo va en plan.editar y plan.quitar_seccion, con un tipo complementario")
+        if self.secciones is not None:
+            if (
+                self.accion is not ACCION_CON_SECCIONES
+                or not isinstance(self.secciones, tuple)
+                or any(not isinstance(t, str) or t not in SECCIONES_AUDITABLES for t in self.secciones)
+                or len(set(self.secciones)) != len(self.secciones)
+            ):
+                raise TypeError("secciones solo va en relevo.abrir, como tupla de tipos complementarios sin repetir")
 
     def detalle(self) -> dict[str, object] | None:
         """El contenido de la columna auditoria.detalle, o None si la entrada no lleva detalle."""
         datos: dict[str, object] = {}
         if self.sesiones_revocadas is not None:
             datos["sesiones_revocadas"] = self.sesiones_revocadas
+        if self.seccion is not None:
+            datos["seccion"] = self.seccion
+        if self.secciones is not None:
+            datos["secciones"] = list(self.secciones)
         return datos or None

@@ -5,6 +5,10 @@
 - RepositorioAccesoRelevoSQL y SeccionesRelevoSQL: con la sesión de relevo (app.rol = 'relevo' y
   app.acceso_relevo_id, nunca app.grupo_id). RLS acota cada consulta al acceso de la sesión. No leen
   el teléfono ni el nombre del relevo.
+
+MATU-50: las secciones del relevo son los tres campos base y las seis complementarias. La política
+seccion_relevo (migración 0013) deja ver una complementaria solo si nació antes que el acceso; la consulta
+repite la condición de forma explícita, además de RLS.
 """
 
 import uuid
@@ -14,10 +18,11 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.modules.care_plan.application.ports import AccesoDelRelevo, EntradaIndice
+from app.modules.care_plan.application.ports import AccesoDelRelevo, EntradaIndice, SeccionDelRelevo
 from app.modules.care_plan.domain.cifrado import SeccionCifrada
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA
 from app.modules.care_plan.domain.relevo import INTENTOS_PIN_MAXIMOS
+from app.modules.care_plan.domain.secciones import SECCIONES_COMPLEMENTARIAS
 
 _INDICE = "SELECT referencia_id, expira_en, revocado_en FROM indice_token WHERE tipo = 'relevo'"
 _POR_TOKEN = text(_INDICE + " AND token_hash = :token_hash")
@@ -25,7 +30,7 @@ _POR_ACCESO = text(_INDICE + " AND referencia_id = :acceso_id")
 
 _LEER = text(
     "SELECT id, grupo_id, plan_id, secciones_permitidas, nombre_pila_persona, nombre_pila_comparte, pin_hash,"
-    " pin_intentos_fallidos, expira_en FROM acceso_relevo"
+    " pin_intentos_fallidos, expira_en, creado_en FROM acceso_relevo"
 )
 _AUTORIZACION = text("SELECT relevo_autorizacion_vigente(:ahora)")
 _LEER_PARA_CANJE = text(_LEER.text + " FOR UPDATE")
@@ -39,9 +44,11 @@ _USO = text("UPDATE acceso_relevo SET usos = usos + 1, ultimo_uso_en = :ahora")
 
 _PLAN = text("SELECT persona_cuidada_id FROM plan_cuidado WHERE id = :plan_id")
 _TIPOS = ", ".join(f"'{c.value}'" for c in CAMPOS_FICHA)
+_COMPLEMENTARIAS = ", ".join(f"'{s.value}'" for s in SECCIONES_COMPLEMENTARIAS)
 _SECCIONES = text(
-    "SELECT tipo, contenido_cifrado, nonce, tag_auth, kek_version FROM plan_seccion"
-    f" WHERE plan_id = :plan_id AND tipo IN ({_TIPOS})"
+    "SELECT tipo, contenido_cifrado, nonce, tag_auth, kek_version, creado_en FROM plan_seccion"
+    f" WHERE plan_id = :plan_id AND (tipo IN ({_TIPOS})"
+    f" OR (tipo IN ({_COMPLEMENTARIAS}) AND creado_en <= :acceso_creado_en))"
 )
 
 
@@ -86,6 +93,7 @@ class RepositorioAccesoRelevoSQL:
             pin_hash=f.pin_hash,
             pin_intentos_fallidos=f.pin_intentos_fallidos,
             expira_en=f.expira_en.astimezone(UTC),
+            creado_en=f.creado_en.astimezone(UTC),
         )
 
     def autorizacion_vigente(self, ahora: datetime) -> bool:
@@ -110,14 +118,16 @@ class SeccionesRelevoSQL:
         valor = self._sesion.execute(_PLAN, {"plan_id": plan_id}).scalar_one_or_none()
         return None if valor is None else uuid.UUID(str(valor))
 
-    def secciones(self, plan_id: uuid.UUID) -> list[tuple[str, SeccionCifrada]]:
+    def secciones(self, plan_id: uuid.UUID, acceso_creado_en: datetime) -> list[SeccionDelRelevo]:
+        filas = self._sesion.execute(_SECCIONES, {"plan_id": plan_id, "acceso_creado_en": acceso_creado_en}).all()
         return [
-            (
-                f.tipo,
-                SeccionCifrada(
+            SeccionDelRelevo(
+                tipo=f.tipo,
+                cifrada=SeccionCifrada(
                     contenido_cifrado=bytes(f.contenido_cifrado), nonce=bytes(f.nonce), tag_auth=bytes(f.tag_auth),
                     kek_version=f.kek_version,
                 ),
+                creado_en=f.creado_en.astimezone(UTC),
             )
-            for f in self._sesion.execute(_SECCIONES, {"plan_id": plan_id}).all()
+            for f in filas
         ]

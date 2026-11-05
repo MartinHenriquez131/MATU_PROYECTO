@@ -25,6 +25,7 @@ from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
+from app.modules.care_plan.api.router_secciones import router as router_secciones
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.iam.api.router import router as router_iam
@@ -80,6 +81,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")
     app.include_router(router_ficha, prefix="/v1")
+    app.include_router(router_secciones, prefix="/v1")
     app.include_router(router_relevo, prefix="/v1")
     app.include_router(router_relevo_publico, prefix="/v1")
     app.include_router(router_autorizaciones, prefix="/v1")

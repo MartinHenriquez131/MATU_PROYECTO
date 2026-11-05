@@ -33,7 +33,9 @@ PROBLEMA = "application/problem+json"
 RUTA = "/v1/personas-cuidadas/{}/plan/accesos-relevo"
 AHORA = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)  # el RelojFijo de las pruebas
 URL = re.compile(r"^https://[^/#]+/r#([A-Za-z0-9_-]{43})$")
-CLAVES_CREADO = {"id", "url", "pin", "campos", "expira_en", "nombre_relevo", "nombre_pila_persona"}
+CLAVES_CREADO = {
+    "id", "url", "pin", "campos", "secciones_adicionales", "expira_en", "nombre_relevo", "nombre_pila_persona"
+}
 
 
 def _cuerpo(**cambios: Any) -> dict[str, Any]:
@@ -178,9 +180,11 @@ def test_vigencia_maxima_30_dias(entorno: EntornoRelevo) -> None:
 def test_acceso_con_ficha_incompleta(entorno: EntornoRelevo) -> None:
     # Sin plan: nadie escribió la ficha. El acceso se crea y el plan nace vacío, sin clave de datos
     vacia = entorno.familia()
-    respuesta = entorno.crear(vacia.admin, vacia.grupo.id, vacia.persona.id, _cuerpo(campos=["red_apoyo"]))
+    # MATU-50: sin campos, los tres campos base van siempre
+    respuesta = entorno.crear(vacia.admin, vacia.grupo.id, vacia.persona.id, _cuerpo(campos=None))
     assert respuesta.status_code == 201, respuesta.text
-    assert respuesta.json()["campos"] == ["red_apoyo"]
+    assert respuesta.json()["campos"] == ["rutina", "manejo_situaciones", "red_apoyo"]
+    assert respuesta.json()["secciones_adicionales"] == []
     assert _una(
         "SELECT modo, completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", vacia.persona.id
     ) == ("ficha_relevo", 0)
@@ -209,13 +213,14 @@ def test_acceso_guarda_los_nombres_de_pila_y_el_telefono_normalizado(entorno: En
     cuidador = familia.miembros["cuidador"].usuario
     respuesta = entorno.crear(
         cuidador, familia.grupo.id, familia.persona.id,
-        _cuerpo(nombre_relevo="  Rosa  ", campos=["red_apoyo", "rutina"], motivo="otro"),
+        # MATU-50: campos deprecado se acepta con los tres base, en cualquier orden, y se ignora
+        _cuerpo(nombre_relevo="  Rosa  ", campos=["red_apoyo", "rutina", "manejo_situaciones"], motivo="otro"),
     )
     assert respuesta.status_code == 201, respuesta.text
     creado = respuesta.json()
     assert creado["nombre_relevo"] == "Rosa"
     assert creado["nombre_pila_persona"] == familia.persona.nombre_pila
-    assert creado["campos"] == ["rutina", "red_apoyo"]  # en el orden de la ficha
+    assert creado["campos"] == ["rutina", "manejo_situaciones", "red_apoyo"]  # en el orden de la ficha
     fila = _una(
         "SELECT otorgado_por, otorgado_a_nombre, otorgado_a_telefono, nombre_pila_persona, nombre_pila_comparte,"
         " secciones_permitidas, motivo FROM acceso_relevo WHERE id = %s",
@@ -223,7 +228,7 @@ def test_acceso_guarda_los_nombres_de_pila_y_el_telefono_normalizado(entorno: En
     )
     assert fila == (
         cuidador.id, "Rosa", "+56955550137", familia.persona.nombre_pila, cuidador.nombre.split()[0],
-        ["rutina", "red_apoyo"], "otro",
+        ["rutina", "manejo_situaciones", "red_apoyo"], "otro",
     )
 
 
@@ -255,7 +260,8 @@ def test_cuerpo_invalido_422_sin_repetir_el_valor(entorno: EntornoRelevo, cambio
 
 def test_falta_un_campo_obligatorio_422(entorno: EntornoRelevo) -> None:
     familia = entorno.familia()
-    for falta in ("nombre_relevo", "telefono_relevo", "campos", "motivo"):
+    # MATU-50: campos ya no es obligatorio (deprecado); los tres campos base van siempre
+    for falta in ("nombre_relevo", "telefono_relevo", "motivo"):
         cuerpo = _cuerpo()
         del cuerpo[falta]
         respuesta = entorno.crear(familia.admin, familia.grupo.id, familia.persona.id, cuerpo)

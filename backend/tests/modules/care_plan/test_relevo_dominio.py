@@ -96,7 +96,7 @@ def test_huellas_token_sha256_y_pin_hmac_ligado_al_acceso() -> None:
 
 def test_token_y_pin_nunca_en_el_repr() -> None:
     entregado = AccesoEntregado(
-        id=uuid.uuid4(), token="TokenSinteticoDePrueba", pin="4821", campos=(CampoFicha.RUTINA,),
+        id=uuid.uuid4(), token="TokenSinteticoDePrueba", pin="4821", campos=(CampoFicha.RUTINA,), secciones=(),
         expira_en=AHORA, nombre_relevo="Rosa", nombre_pila_persona="María",
     )
     assert "TokenSinteticoDePrueba" not in repr(entregado)

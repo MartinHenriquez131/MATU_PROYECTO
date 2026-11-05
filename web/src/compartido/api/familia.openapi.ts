@@ -254,6 +254,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Agregar o editar una sección complementaria
+         * @description Agrega o edita **una** sección complementaria (ADR-028). Mismo patrón que un campo de la
+         *     ficha (MATU-13), con exactamente una cabecera:
+         *
+         *     | Situación | Cabecera | Si otra persona se adelantó |
+         *     |---|---|---|
+         *     | La sección no está agregada | `If-None-Match: *` | 412 con lo que esa persona guardó |
+         *     | La sección ya está | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+         *
+         *     - Sin ninguna, o con `If-Match` vacío o `*`, **428**. Con las dos, **422**.
+         *     - `If-Match` sobre una sección que no está (nunca agregada, o quitada): **412** con `actual: null`.
+         *     - `texto` vacío o solo espacios: **422** `vacio`. Una sección no se vacía: se quita con `DELETE`.
+         *     - Más de 500 caracteres (800 en `remedios`): **422** `largo_maximo`.
+         *     - `seccion` fuera de las seis (incluidos `rutina`, `horarios`, `actividades` y `red_apoyo`): **404**.
+         *
+         *     La primera escritura crea el plan y la clave de datos de la persona si no existían. **201** si se agregó,
+         *     **200** si se editó. Escriben `admin` y `cuidador`. Registra `plan.editar` con el tipo de la sección, sin el
+         *     texto; el 412, `plan.leer`. Las secciones no cuentan para la completitud.
+         */
+        put: operations["guardarSeccionFicha"];
+        post?: never;
+        /**
+         * Quitar una sección complementaria
+         * @description Quita una sección complementaria **borrando su fila**: el texto cifrado deja de
+         *     existir. Exige `If-Match: "<etag leído>"`, para no borrar lo que otra persona acaba de escribir:
+         *
+         *     - Sin `If-Match`, o con `If-Match` vacío o `*`: **428**. `If-None-Match`: **422**.
+         *     - ETag distinto del actual: **412** con el contenido actual.
+         *     - La sección no está (nunca agregada, o ya quitada): **412** con `actual: null`. No es 404, para que la
+         *       pantalla distinga "ya la quitó otra persona" de "no tienes acceso".
+         *     - **204** sin cuerpo.
+         *
+         *     Registra `plan.quitar_seccion` con el tipo de la sección, sin el texto. Un acceso de relevo que la compartía
+         *     deja de mostrarla; si se vuelve a agregar, ese acceso no la ve.
+         */
+        delete: operations["quitarSeccionFicha"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar Accesos */
+        get: operations["listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get"];
+        put?: never;
+        /** Crear Acceso */
+        post: operations["crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
         parameters: {
             query?: never;
@@ -268,8 +336,27 @@ export interface paths {
          *     Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).
          *
          *     Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.
+         *
+         *     MATU-50: cada ítem de `tipo: apertura` trae `secciones`, los tipos de las secciones complementarias que se mostraron (leídos del `detalle` de `relevo.abrir`; `[]` en las aperturas anteriores). Los demás tipos no la traen. Nunca trae texto.
          */
         get: operations["listarAperturasRelevo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/relevo/ficha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer Ficha Como Relevo */
+        get: operations["leer_ficha_como_relevo_v1_relevo_ficha_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -559,6 +646,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccesoCreadoVista */
+        AccesoCreadoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Url */
+            url: string;
+            /** Pin */
+            pin: string;
+            /** Campos */
+            campos: components["schemas"]["CampoFicha"][];
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Nombre Pila Persona */
+            nombre_pila_persona: string;
+        };
         /**
          * AccesoDeAperturaVista
          * @description El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono.
@@ -571,6 +683,45 @@ export interface components {
             id: string;
             /** Nombre Relevo */
             nombre_relevo: string;
+        };
+        /**
+         * AccesoResumenVista
+         * @description telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31).
+         *     otorgado_por.nombre es el nombre de pila de quien compartió, nunca el completo (decisión 35).
+         */
+        AccesoResumenVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
+            telefono_relevo?: string | null;
+            /** Campos */
+            campos: components["schemas"]["CampoFicha"][];
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
+            motivo: components["schemas"]["MotivoAcceso"];
+            estado: components["schemas"]["EstadoAcceso"];
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Usos */
+            usos: number;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            otorgado_por: components["schemas"]["AutorAccesoVista"] | null;
         };
         /**
          * AlertaVista
@@ -613,6 +764,21 @@ export interface components {
             ocurrido_en: string;
             tipo: components["schemas"]["TipoApertura"];
             acceso: components["schemas"]["AccesoDeAperturaVista"];
+            /**
+             * Secciones
+             * @description Solo en `tipo: apertura`. Tipos mostrados, sin texto
+             */
+            secciones?: components["schemas"]["SeccionComplementaria"][];
+        };
+        /** AutorAccesoVista */
+        AutorAccesoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
         };
         /**
          * AutorPerfilVista
@@ -674,6 +840,11 @@ export interface components {
          */
         CalidadOtorgante: "titular" | "representante_legal" | "cuidador_de_hecho";
         /**
+         * CampoFicha
+         * @enum {string}
+         */
+        CampoFicha: "rutina" | "manejo_situaciones" | "red_apoyo";
+        /**
          * CampoGuardadoVista
          * @description Respuesta 200 o 201 de PUT …/plan/ficha/{campo}.
          */
@@ -698,6 +869,11 @@ export interface components {
              * @enum {integer}
              */
             completitud: 0 | 33 | 67 | 100;
+        };
+        /** CampoRelevoVista */
+        CampoRelevoVista: {
+            /** Texto */
+            texto: string | null;
         };
         /** CamposVista */
         CamposVista: {
@@ -838,6 +1014,11 @@ export interface components {
             actual: boolean;
         };
         /**
+         * EstadoAcceso
+         * @enum {string}
+         */
+        EstadoAcceso: "vigente" | "vencido" | "revocado" | "bloqueado";
+        /**
          * EstadoAlerta
          * @enum {string}
          */
@@ -856,8 +1037,42 @@ export interface components {
             actualizado_en: string | null;
         };
         /**
+         * EstadoSeccionVista
+         * @description Una sección complementaria agregada (MATU-50). No hay estado "vacío": una sección que no está no viene.
+         */
+        EstadoSeccionVista: {
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"] | null;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** FichaRelevoVista */
+        FichaRelevoVista: {
+            /** Nombre Pila */
+            nombre_pila: string;
+            /** Nombre Pila Comparte */
+            nombre_pila_comparte: string;
+            /**
+             * Vence En
+             * Format: date-time
+             */
+            vence_en: string;
+            /** Campos */
+            campos: {
+                [key: string]: components["schemas"]["CampoRelevoVista"];
+            };
+            /** Secciones */
+            secciones: components["schemas"]["SeccionRelevoVista"][];
+        };
+        /**
          * FichaVista
-         * @description Respuesta 200 de GET …/plan/ficha: siempre los tres campos.
+         * @description Respuesta 200 de GET …/plan/ficha: siempre los tres campos, y solo las secciones agregadas.
          */
         FichaVista: {
             /**
@@ -873,6 +1088,13 @@ export interface components {
             /** Actualizado En */
             actualizado_en: string | null;
             campos: components["schemas"]["CamposVista"];
+            /**
+             * Secciones
+             * @description Solo las secciones complementarias agregadas (MATU-50). Las que no están no vienen
+             */
+            secciones: {
+                [key: string]: components["schemas"]["EstadoSeccionVista"];
+            };
         };
         /** GrupoRespuesta */
         GrupoRespuesta: {
@@ -951,6 +1173,13 @@ export interface components {
              */
             alerta_id: string | null;
         };
+        /** ListaAccesosVista */
+        ListaAccesosVista: {
+            /** Items */
+            items: components["schemas"]["AccesoResumenVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
         /** ListaAlertas */
         ListaAlertas: {
             /** Items */
@@ -982,6 +1211,12 @@ export interface components {
             /** Items */
             items: components["schemas"]["InsumoPorAcabarseVista"][];
         };
+        /**
+         * MotivoAcceso
+         * @description Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría.
+         * @enum {string}
+         */
+        MotivoAcceso: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
         /**
          * PerfilConsumoVista
          * @description Un perfil. Exactamente uno de producto y nombre_libre no es null. Sin grupo_id ni precios.
@@ -1113,6 +1348,34 @@ export interface components {
             presentacion: string;
         };
         /**
+         * SeccionComplementaria
+         * @enum {string}
+         */
+        SeccionComplementaria: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+        /**
+         * SeccionGuardadaVista
+         * @description Respuesta 200 o 201 de PUT …/plan/secciones/{seccion}. Sin completitud: las secciones no cuentan.
+         */
+        SeccionGuardadaVista: {
+            seccion: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"];
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** SeccionRelevoVista */
+        SeccionRelevoVista: {
+            tipo: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+        };
+        /**
          * SesionRespuesta
          * @description Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh.
          */
@@ -1127,6 +1390,29 @@ export interface components {
             token_type: "bearer";
             /** Expira En */
             expira_en: number;
+        };
+        /** SolicitudAccesoVista */
+        SolicitudAccesoVista: {
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
+            telefono_relevo: string;
+            /**
+             * Campos
+             * @deprecated
+             * @description Deprecado. Si viene, debe tener los tres campos base; si no, 422 campos_base_obligatorios
+             */
+            campos?: components["schemas"]["CampoFicha"][] | null;
+            /**
+             * Secciones Adicionales
+             * @description Secciones complementarias que también ve el relevo, sin repetir. Cada una debe estar agregada (si no, 422 seccion_no_agregada). El servidor nunca agrega una por su cuenta
+             */
+            secciones_adicionales?: components["schemas"]["SeccionComplementaria"][];
+            /** Expira En */
+            expira_en?: string | null;
+            motivo: components["schemas"]["MotivoAcceso"];
+            /** Relevo Informado */
+            relevo_informado: boolean;
         };
         /**
          * SolicitudAutorizacionEntrada
@@ -1288,6 +1574,17 @@ export interface components {
              * @description Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999
              */
             cantidad?: number | null;
+        };
+        /**
+         * SolicitudSeccion
+         * @description Cuerpo de PUT …/plan/secciones/{seccion} (MATU-50). Un campo extra responde 422.
+         */
+        SolicitudSeccion: {
+            /**
+             * Texto
+             * @description Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios`, contados después de quitar los espacios de los extremos. Vacío o solo espacios responde 422 `vacio`
+             */
+            texto: string;
         };
         /**
          * SolicitudSesion
@@ -2197,6 +2494,520 @@ export interface operations {
             };
         };
     };
+    guardarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio si la sección ya está. Vacío o * responde 428 */
+                "If-Match"?: string | null;
+                /** @description Solo *, para agregar una sección que no está. Otro valor, o junto con If-Match, responde 422 */
+                "If-None-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSeccion"];
+            };
+        };
+        responses: {
+            /** @description Sección editada, con If-Match */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Sección agregada, con If-None-Match: * */
+            201: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Cuerpo inválido: `texto` falta, no es texto, trae caracteres de control (tipo value_error), está vacío o solo con espacios (tipo vacio) o supera 500 caracteres, 800 en remedios (tipo largo_maximo); o hay un campo extra. También If-Match e If-None-Match a la vez (precondicion_doble) o If-None-Match distinto de * (precondicion_invalida). errores[] nombra el campo o la cabecera, nunca el valor */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    quitarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio. Vacío o * responde 428. If-None-Match no se admite al quitar: responde 422 */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sección quitada: su fila se borró */
+            204: {
+                headers: {
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Vino If-None-Match: quitar solo admite If-Match (tipo precondicion_invalida) */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get: {
+        parameters: {
+            query?: {
+                estado?: components["schemas"]["EstadoAcceso"] | null;
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaAccesosVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudAccesoVista"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccesoCreadoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo, nunca el valor. MATU-50: `campos` con menos de los tres campos base, vacío o null (tipo campos_base_obligatorios); `secciones_adicionales` con una sección repetida (tipo duplicado) o que no está agregada (tipo seccion_no_agregada) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Error inesperado */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta PEPPER_PIN: compartir falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     listarAperturasRelevo: {
         parameters: {
             query?: {
@@ -2232,7 +3043,11 @@ export interface operations {
                      *           "acceso": {
                      *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
                      *             "nombre_relevo": "Rosa"
-                     *           }
+                     *           },
+                     *           "secciones": [
+                     *             "comunicacion",
+                     *             "remedios"
+                     *           ]
                      *         },
                      *         {
                      *           "ocurrido_en": "2026-10-31T13:01:30Z",
@@ -2276,6 +3091,62 @@ export interface operations {
             };
             /** @description cursor inválido o limite fuera de 1 a 100 */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    leer_ficha_como_relevo_v1_relevo_ficha_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FichaRelevoVista"];
+                };
+            };
+            /** @description Sin cookie, o cookie sin sesión en Redis */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description relevo-vencido, relevo-revocado o relevo-pausado. Borra la cookie */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Bloqueado después del canje. Borra la cookie */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis o la custodia de la clave no responden */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

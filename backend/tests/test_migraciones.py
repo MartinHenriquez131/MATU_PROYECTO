@@ -532,3 +532,90 @@ def test_0012_celular_verificado_y_baja_al_esquema_de_0011(base_desechable):
     for parte, filas in esquema_0011.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0013 (MATU-50): secciones complementarias, creado_en, lo que ve el relevo y el detalle de la auditoría
+
+_FILAS_0013 = r"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{u}', 'b@correo.ejemplo', 'Persona B', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{g}', 'Familia B', '{u}');
+INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)
+    VALUES ('{p}', '{g}', 'Persona Cuidada', 'Persona', 'apoyo_total');
+INSERT INTO plan_cuidado (id, grupo_id, persona_cuidada_id) VALUES ('{plan}', '{g}', '{p}');
+INSERT INTO plan_seccion (plan_id, tipo, contenido_cifrado, nonce, tag_auth, kek_version)
+    VALUES ('{plan}', 'remedios', '\xcc', '\x0000000000000000000013a1', '\x00000000000000000000000000000000', 1);
+"""
+
+
+@pytest.mark.rf("RF-03")
+def test_0013_secciones_complementarias_y_baja_al_esquema_de_0012(base_desechable):
+    alembic("upgrade", "0012")
+    esquema_0012 = catalogo()
+
+    alembic("upgrade", "0013")
+    restricciones = dict(consultar(
+        "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint"
+        " WHERE conname IN ('plan_seccion_tipo_check', 'acceso_relevo_secciones_permitidas_check',"
+        " 'auditoria_detalle_acotado')"))
+    for nombre in ("plan_seccion_tipo_check", "acceso_relevo_secciones_permitidas_check"):
+        for tipo in ("quien_es", "comunicacion", "remedios", "horarios", "actividades"):
+            assert f"'{tipo}'" in restricciones[nombre], (nombre, tipo)
+    assert "secciones" in restricciones["auditoria_detalle_acotado"]
+    assert "NOT VALID" not in restricciones["auditoria_detalle_acotado"]
+    assert consultar(
+        "SELECT is_nullable, column_default FROM information_schema.columns"
+        " WHERE table_name = 'plan_seccion' AND column_name = 'creado_en'"
+    ) == [("NO", "now()")]
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'seccion_relevo'")
+    assert "creado_en" in qual
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'plan_seccion_creado_fijo'") == [
+        ("plan_seccion_creado_fijo",)]
+    # Decisión 102: lectura y escritura separadas; escribir exige app_escribe_plan()
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'plan_seccion' AND policyname <> 'seccion_relevo'"))
+    assert politicas == {"seccion_leer": "SELECT", "seccion_crear": "INSERT", "seccion_editar": "UPDATE",
+                         "seccion_borrar": "DELETE"}
+    for nombre, columna in (("seccion_crear", "with_check"), ("seccion_editar", "qual"), ("seccion_borrar", "qual")):
+        [(expresion,)] = consultar(f"SELECT {columna} FROM pg_policies WHERE policyname = '{nombre}'")
+        assert "app_escribe_plan()" in expresion, nombre
+    # Decisión 103: plan_cuidado sin DELETE para matu_app, ni política ni permiso
+    politicas = dict(consultar(
+        "SELECT policyname, cmd FROM pg_policies WHERE tablename = 'plan_cuidado' AND policyname <> 'plan_relevo'"))
+    assert politicas == {"plan_leer": "SELECT", "plan_crear": "INSERT", "plan_editar": "UPDATE"}
+    assert consultar(
+        "SELECT privilege_type FROM information_schema.role_table_grants"
+        " WHERE table_name = 'plan_cuidado' AND grantee = 'matu_app' AND privilege_type = 'DELETE'") == []
+
+    alembic("downgrade", "0012")
+    despues = catalogo()
+    for parte, filas in esquema_0012.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
+
+
+@pytest.mark.rf("RF-03")
+def test_0013_no_baja_si_quedan_secciones_nuevas_y_conserva_la_auditoria(base_desechable):
+    """El downgrade no borra datos sin aviso: con una sección remedios se detiene. La auditoría no se
+    toca: con detalles de secciones, el CHECK de la 0008 vuelve como NOT VALID."""
+    alembic("upgrade", "0013")
+    ids = {"u": "00000000-0000-0000-0000-0000000013a1", "g": "00000000-0000-0000-0000-0000000013a2",
+           "p": "00000000-0000-0000-0000-0000000013a3", "plan": "00000000-0000-0000-0000-0000000013a4"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(_FILAS_0013.format(**ids))
+        c.execute(
+            "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle)"
+            " VALUES (%s, 'usuario', %s, 'plan.quitar_seccion', 'plan_seccion', '{\"seccion\": \"remedios\"}')",
+            (ids["g"], ids["u"]),
+        )
+    with pytest.raises(AssertionError, match="no borra datos"):
+        alembic("downgrade", "0012")
+    assert consultar("SELECT count(*) FROM plan_seccion WHERE tipo = 'remedios'") == [(1,)]
+
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute("DELETE FROM plan_seccion WHERE tipo = 'remedios'")
+    alembic("downgrade", "0012")
+    [(definicion,)] = consultar(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'auditoria_detalle_acotado'")
+    assert definicion.endswith("NOT VALID") and "secciones" not in definicion
+    assert consultar("SELECT detalle FROM auditoria") == [({"seccion": "remedios"},)]
+    alembic("upgrade", "head")

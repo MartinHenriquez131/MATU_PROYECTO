@@ -11,15 +11,21 @@ CampoGuardado, todos con extra="forbid".
 - El autor lleva solo id y nombre, nunca el email (analista normativo, condición 6).
 - No llevan las preguntas guía ni los ejemplos de cada campo: son textos de la interfaz y salen de
   docs/lenguaje.md, secciones 5.1 a 5.3 (el contrato los deja fuera a propósito).
+- Secciones complementarias (MATU-50, ficha-ampliada.openapi.yaml): SolicitudSeccion, EstadoSeccionVista
+  y SeccionGuardadaVista. El esquema solo rechaza lo que no es texto y los caracteres de control (como
+  en los campos base); el vacío (``vacio``) y el máximo por sección (``largo_maximo``: 500, 800 en
+  remedios) los decide domain/secciones.py, porque el máximo depende de la ruta. El OpenAPI declara
+  minLength 1 y maxLength 800, el mayor, como el contrato.
 """
 
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints
 
 from app.modules.care_plan.domain.ficha import LARGO_MAXIMO_CAMPO, normalizar_texto, tiene_caracteres_de_control
+from app.modules.care_plan.domain.secciones import LARGO_MAXIMO_REMEDIOS, SeccionComplementaria
 
 CampoFichaVista = Literal["rutina", "manejo_situaciones", "red_apoyo"]
 Completitud = Literal[0, 33, 67, 100]
@@ -43,6 +49,21 @@ TextoFicha = Annotated[
     StringConstraints(max_length=LARGO_MAXIMO_CAMPO),
     BeforeValidator(_normalizar),
     AfterValidator(_sin_caracteres_de_control),
+]
+
+
+# Sin StringConstraints: el vacío y el máximo dependen de la sección y los responde la ruta con su tipo
+TextoSeccion = Annotated[
+    str,
+    BeforeValidator(_normalizar),
+    AfterValidator(_sin_caracteres_de_control),
+    Field(
+        json_schema_extra={"minLength": 1, "maxLength": LARGO_MAXIMO_REMEDIOS},
+        description=(
+            "Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios`, contados después de"
+            " quitar los espacios de los extremos. Vacío o solo espacios responde 422 `vacio`"
+        ),
+    ),
 ]
 
 
@@ -80,8 +101,19 @@ class CamposVista(BaseModel):
     red_apoyo: EstadoCampoVista
 
 
+class EstadoSeccionVista(BaseModel):
+    """Una sección complementaria agregada (MATU-50). No hay estado "vacío": una sección que no está no viene."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    texto: str
+    etag: str
+    actualizado_por: AutorVista | None
+    actualizado_en: datetime
+
+
 class FichaVista(BaseModel):
-    """Respuesta 200 de GET …/plan/ficha: siempre los tres campos."""
+    """Respuesta 200 de GET …/plan/ficha: siempre los tres campos, y solo las secciones agregadas."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -89,6 +121,10 @@ class FichaVista(BaseModel):
     completitud: Completitud
     actualizado_en: datetime | None
     campos: CamposVista
+    secciones: Annotated[
+        dict[SeccionComplementaria, EstadoSeccionVista],
+        Field(description="Solo las secciones complementarias agregadas (MATU-50). Las que no están no vienen"),
+    ]
 
 
 class CampoGuardadoVista(BaseModel):
@@ -102,6 +138,26 @@ class CampoGuardadoVista(BaseModel):
     actualizado_por: AutorVista
     actualizado_en: datetime
     completitud: Completitud
+
+
+class SolicitudSeccion(BaseModel):
+    """Cuerpo de PUT …/plan/secciones/{seccion} (MATU-50). Un campo extra responde 422."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    texto: TextoSeccion
+
+
+class SeccionGuardadaVista(BaseModel):
+    """Respuesta 200 o 201 de PUT …/plan/secciones/{seccion}. Sin completitud: las secciones no cuentan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seccion: SeccionComplementaria
+    texto: str
+    etag: str
+    actualizado_por: AutorVista
+    actualizado_en: datetime
 
 
 # --- Problemas RFC 7807 de la escritura (MATU-13). Solo documentan el OpenAPI: la respuesta la arma
@@ -131,3 +187,13 @@ class ProblemaFaltaVersionVista(_ProblemaVista):
     type: Literal["/errores/falta-version"]
     title: str
     status: Literal[428]
+
+
+class ProblemaVersionSeccionVista(_ProblemaVista):
+    """412 de una sección (MATU-50): otra persona se adelantó, o la sección no está (``actual`` null)."""
+
+    type: Literal["/errores/version-desactualizada"]
+    title: str
+    status: Literal[412]
+    # La sección vigente, descifrada, o null si no está (nunca agregada o ya quitada)
+    actual: EstadoSeccionVista | None

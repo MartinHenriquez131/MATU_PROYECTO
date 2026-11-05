@@ -112,6 +112,7 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
         "completitud": 0,
         "actualizado_en": None,
         "campos": {campo: NUNCA_ESCRITO for campo in CAMPOS},
+        "secciones": {},
     }
     assert _planes(persona.id) == 0
     assert _claves(persona.id) == 0

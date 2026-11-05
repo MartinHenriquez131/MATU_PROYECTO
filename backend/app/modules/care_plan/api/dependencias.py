@@ -44,6 +44,7 @@ from app.modules.care_plan.application.ports import (
 )
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
 from app.modules.care_plan.domain.relevo import puede_revocar
+from app.modules.care_plan.domain.secciones import SECCIONES_COMPLEMENTARIAS, SeccionComplementaria, seccion_de
 from app.modules.care_plan.infrastructure.auditoria_ficha import AuditoriaFichaRegistro
 from app.modules.care_plan.infrastructure.cifrador_aes_gcm import CifradorAesGcm
 from app.modules.care_plan.infrastructure.credenciales_relevo import GeneradorSecrets, HuellasHmac
@@ -61,6 +62,14 @@ from app.shared.puertos import RegistroAuditoria, Reloj
 PersonaIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 AccesoIdRuta = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 CampoRuta = Annotated[str, Path(json_schema_extra={"enum": [c.value for c in CAMPOS_FICHA]})]
+# MATU-50: una de las seis secciones complementarias. Otro valor (también un campo base) responde 404
+SeccionRuta = Annotated[
+    str,
+    Path(
+        description="Una de las seis secciones complementarias. Otro valor responde 404",
+        json_schema_extra={"enum": [s.value for s in SECCIONES_COMPLEMENTARIAS]},
+    ),
+]
 
 
 # --- Custodia de la KEK (decisión D-A) ----------------------------------------------------------------
@@ -123,6 +132,12 @@ class CampoAutorizado:
     campo: CampoFicha
 
 
+@dataclass(frozen=True)
+class SeccionAutorizada:
+    ficha: FichaAutorizada
+    seccion: SeccionComplementaria
+
+
 def _contexto_que_lee(contexto: SesionDeGrupo) -> ContextoGrupo:
     if not puede_leer(contexto.rol, contexto.puede_ver_plan):
         raise ErrorMATU(404)
@@ -182,6 +197,24 @@ def campo_para_escribir(
     return CampoAutorizado(ficha=_autorizar(contexto, persona, reloj), campo=campo_valido)
 
 
+def seccion_para_escribir(
+    contexto: Annotated[ContextoGrupo, Depends(_contexto_que_escribe)],
+    persona_id: PersonaIdRuta,
+    seccion: SeccionRuta,
+    reloj: Annotated[Reloj, Depends(obtener_reloj)],
+) -> SeccionAutorizada:
+    """Agregar, editar o quitar una sección complementaria (MATU-50): los mismos pasos que escribir un campo.
+
+    Escriben admin y cuidador (si no, 404); persona del grupo y una de las seis secciones (si no, 404);
+    consentimiento vigente y revisión al día (403).
+    """
+    persona = _uuid_o_404(persona_id)
+    seccion_valida = seccion_de(seccion)
+    if seccion_valida is None:
+        raise ErrorMATU(404)
+    return SeccionAutorizada(ficha=_autorizar(contexto, persona, reloj), seccion=seccion_valida)
+
+
 # --- Cifrador y repositorio de la petición ---------------------------------------------------------------
 
 
@@ -204,6 +237,14 @@ def cifrador_para_escribir(
     custodia: Annotated[CustodiaClaves | None, Depends(obtener_custodia)],
 ) -> CifradorSecciones:
     return _cifrador(campo.ficha.contexto, custodia)
+
+
+def cifrador_para_seccion(
+    seccion: Annotated[SeccionAutorizada, Depends(seccion_para_escribir)],
+    custodia: Annotated[CustodiaClaves | None, Depends(obtener_custodia)],
+) -> CifradorSecciones:
+    """También al quitar: el 412 devuelve la sección vigente descifrada. Sin custodia, 503."""
+    return _cifrador(seccion.ficha.contexto, custodia)
 
 
 def obtener_repositorio_ficha(contexto: SesionDeGrupo) -> RepositorioFicha:
