@@ -126,15 +126,15 @@ La semilla es idempotente, se niega a correr con `ENTORNO=produccion` y solo ent
 ## 5. Verificar
 
 ```
-curl -sS https://<algo>.up.railway.app/v1/salud
+curl -sS https://matu-api-production.up.railway.app/v1/salud
 ```
 
 responde `{"estado":"ok"}` por HTTPS, con el certificado de Railway. Además:
 
-- `curl -sSI http://<algo>.up.railway.app/v1/salud` no debe responder la API en claro: Railway redirige a
+- `curl -sSI http://matu-api-production.up.railway.app/v1/salud` no debe responder la API en claro: Railway redirige a
   `https://`. Si no redirige, anótalo como hallazgo.
 
-- `https://<algo>.up.railway.app/docs`: con `ENTORNO=staging` se ve la documentación (solo se apaga con `produccion`, `app/main.py`). Pendiente de decisión de Jorge (05-11).
+- `https://matu-api-production.up.railway.app/docs`: con `ENTORNO=staging` se ve la documentación (solo se apaga con `produccion`, `app/main.py`). Pendiente de decisión de Jorge (05-11).
 - **Límite por IP:** seis `POST /v1/usuarios` con cuerpo `{}` desde la misma red: los cinco primeros
   responden 422 y el sexto 429 con `Retry-After`. Gasta el cupo de esa IP por una hora.
 - **Logs:** `railway logs --service matu-api` muestra una línea JSON por petición, con la plantilla de la
@@ -169,8 +169,17 @@ servidores con IP públicas que Railway no publica. Con `PROXY_SALTOS` vacía (0
 la derecha que no es de confianza, la del borde: el límite cuenta por servidor de borde y no por persona
 (hallazgo de Martín del 05-11: seis intentos dieron seis 422, sin 429). Con `PROXY_SALTOS=1` la API toma
 la IP que queda justo a la izquierda del borde, nunca la primera de la lista: si alguien antepone una IP
-inventada, no le sirve. Si la lista trae menos IP de las esperadas o una que no es IP, cuenta la del
-proxy, que es lo más estricto. Solo se aplica a conexiones desde `FORWARDED_ALLOW_IPS`.
+inventada o basura, no le sirve, porque lo que queda a la izquierda de esa IP se ignora por completo. Si
+la lista trae menos IP de las esperadas, o el cliente o el borde no son una IP, cuenta la del proxy, que
+es lo más estricto. Solo se aplica a conexiones desde `FORWARDED_ALLOW_IPS`.
+
+Los comandos son de **bash**: córrelos en Git Bash (o en macOS o Linux). En PowerShell `curl` es un alias
+de `Invoke-WebRequest` y no entiende estas opciones; ahí usa `curl.exe` y cambia `$BASE`, el `for` y las
+`\` del final de línea por su equivalente. Primero fija el dominio de staging (el de la tabla del paso 1):
+
+```
+BASE=https://matu-api-production.up.railway.app
+```
 
 1. En *Variables* de `matu-api`, carga `PROXY_SALTOS=1` y, **solo para esta verificación**,
    `DIAGNOSTICO_PROXY=true`. Anota la fecha y hora de encendido en la tabla del paso 1. Despliega: el log
@@ -179,7 +188,7 @@ proxy, que es lo más estricto. Solo se aplica a conexiones desde `FORWARDED_ALL
 2. Seis intentos normales, desde la misma red:
    ```
    for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
-     -H "Content-Type: application/json" -d '{}' https://<algo>.up.railway.app/v1/usuarios; done
+     -H "Content-Type: application/json" -d '{}' "$BASE/v1/usuarios"; done
    ```
    Deben dar cinco `422` y un `429`.
 3. En `railway logs --service matu-api`, las líneas `"mensaje": "diagnostico_proxy"` de esos intentos
@@ -192,12 +201,21 @@ proxy, que es lo más estricto. Solo se aplica a conexiones desde `FORWARDED_ALL
    ```
    for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
      -H "Content-Type: application/json" -H "X-Forwarded-For: 198.51.100.$i" \
-     -d '{}' https://<algo>.up.railway.app/v1/usuarios; done
+     -d '{}' "$BASE/v1/usuarios"; done
    ```
    También deben dar cinco `422` y un `429`: la IP falsa no cambia el contador. El diagnóstico muestra 2
    elementos si Railway reemplaza la cabecera, o 3 si concatena la tuya; con `PROXY_SALTOS=1` las dos
    formas cuentan tu IP.
-5. **Apaga el diagnóstico:** borra `DIAGNOSTICO_PROXY` de las *Variables* y despliega. El log de arranque
+5. Seis intentos con **basura** en `X-Forwarded-For`, desde una red con cupo (una tercera, o una hora
+   después del paso 2 o del 4):
+   ```
+   for i in 1 2 3 4 5 6; do curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
+     -H "Content-Type: application/json" -H "X-Forwarded-For: basura" \
+     -d '{}' "$BASE/v1/usuarios"; done
+   ```
+   También deben dar cinco `422` y un `429`, en el contador de tu IP y no en el compartido del proxy. Si
+   Railway concatena, el diagnóstico muestra 3 elementos, el primero `invalida`, e `"ip_contada": "xff"`.
+6. **Apaga el diagnóstico:** borra `DIAGNOSTICO_PROXY` de las *Variables* y despliega. El log de arranque
    dice `diagnostico_proxy=apagado`. Anota la fecha y hora de apagado y el valor final de `PROXY_SALTOS`
    en la tabla del paso 1.
 
