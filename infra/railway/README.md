@@ -134,7 +134,7 @@ responde `{"estado":"ok"}` por HTTPS, con el certificado de Railway. Además:
 - `curl -sSI http://matu-api-production.up.railway.app/v1/salud` no debe responder la API en claro: Railway redirige a
   `https://`. Si no redirige, anótalo como hallazgo.
 
-- `https://matu-api-production.up.railway.app/docs`: con `ENTORNO=staging` se ve la documentación (solo se apaga con `produccion`, `app/main.py`). Pendiente de decisión de Jorge (05-11).
+- `https://matu-api-production.up.railway.app/docs` y `/openapi.json` responden 404 en staging: la documentación solo se publica con `ENTORNO` local o pruebas (decisión 115, MATU-58).
 - **Límite por IP:** seis `POST /v1/usuarios` con cuerpo `{}` desde la misma red: los cinco primeros
   responden 422 y el sexto 429 con `Retry-After`. Gasta el cupo de esa IP por una hora.
 - **Logs:** `railway logs --service matu-api` muestra una línea JSON por petición, con la plantilla de la
