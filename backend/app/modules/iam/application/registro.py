@@ -4,7 +4,12 @@ import uuid
 from dataclasses import dataclass
 
 from app.modules.iam.application.ports import HasherContrasenas, NuevoUsuario, RepositorioUsuarios
-from app.modules.iam.domain.credenciales import indice_email, normalizar_email
+from app.modules.iam.domain.credenciales import (
+    DominioNoPermitido,
+    es_dominio_reservado,
+    indice_email,
+    normalizar_email,
+)
 
 
 @dataclass(frozen=True)
@@ -23,6 +28,7 @@ def registrar_usuario(
     pepper: bytes,
     hasher: HasherContrasenas,
     repositorio: RepositorioUsuarios,
+    solo_dominios_reservados: bool = False,
 ) -> CuentaCreada:
     """Crea la cuenta y su fila de indice_credencial.
 
@@ -30,9 +36,14 @@ def registrar_usuario(
     fila nueva sea la del usuario en contexto (id = app.usuario_id), y para fijar ese contexto
     hay que conocer el id antes del INSERT.
 
+    Con solo_dominios_reservados (staging, decisión 105), un email que no es de un dominio reservado
+    lanza DominioNoPermitido antes de hashear ni de tocar el repositorio.
+
     Lanza EmailYaRegistrado si el email ya tiene una cuenta.
     """
     email_normalizado = normalizar_email(email)
+    if solo_dominios_reservados and not es_dominio_reservado(email_normalizado):
+        raise DominioNoPermitido()
     nuevo = NuevoUsuario(
         id=uuid.uuid4(),
         nombre=nombre.strip(),

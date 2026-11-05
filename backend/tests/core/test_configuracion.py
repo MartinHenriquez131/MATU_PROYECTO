@@ -5,15 +5,27 @@ MAYOR.MENOR. Esta historia no tiene RF: su traza es la Ley 21.719.
 
 MATU-07 (RF-01) la hace obligatoria fuera del ambiente de pruebas: sin ella la API no arranca.
 
+MATU-25 (decisión 105): ENTORNO admite staging, que también exige POLITICA_VERSION; la KEK y el envío
+simulado tienen cada uno su lista permitida, y el arranque registra el entorno.
+
 Las pruebas leen solo del entorno que fijan, nunca del .env del equipo.
 """
+
+import io
+import json
 
 import pytest
 from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 
 from app.core import config
-from app.core.config import POLITICA_VERSION_FABRICA, Configuracion
+from app.core.config import (
+    ENTORNOS_ENVIO_SIMULADO,
+    ENTORNOS_KEK_SINTETICA,
+    ENTORNOS_SOLO_DOMINIOS_RESERVADOS,
+    POLITICA_VERSION_FABRICA,
+    Configuracion,
+)
 from app.main import crear_app
 
 
@@ -47,7 +59,7 @@ def test_politica_version_acepta_varios_digitos(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.rf("RF-01")
-@pytest.mark.parametrize("entorno", ["local", "produccion"])
+@pytest.mark.parametrize("entorno", ["local", "staging", "produccion"])
 def test_sin_politica_version_fuera_de_pruebas_no_carga(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
     monkeypatch.setenv("ENTORNO", entorno)
     monkeypatch.delenv("POLITICA_VERSION", raising=False)
@@ -67,7 +79,7 @@ def test_sin_politica_version_en_pruebas_usa_la_version_de_fabrica(monkeypatch: 
 
 
 @pytest.mark.rf("RF-01")
-@pytest.mark.parametrize("entorno", ["local", "pruebas", "produccion"])
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging", "produccion"])
 def test_politica_version_definida_manda_en_todo_entorno(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
     monkeypatch.setenv("ENTORNO", entorno)
     monkeypatch.setenv("POLITICA_VERSION", "0.9")
@@ -253,9 +265,112 @@ def test_envio_simulado_en_produccion_no_arranca(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.rf("RF-37")
-@pytest.mark.parametrize("entorno", ["local", "pruebas"])
+@pytest.mark.parametrize("entorno", ["local", "pruebas", "staging"])
 def test_envio_simulado_fuera_de_produccion_carga(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
     monkeypatch.setenv("ENTORNO", entorno)
     monkeypatch.setenv("POLITICA_VERSION", "0.10")
     monkeypatch.setenv("ENVIADOR_CODIGOS", "simulado")
     assert cargar().enviador_codigos == "simulado"
+
+
+# --- MATU-25 · staging y las dos listas (decisión 105) --------------------------------------------
+
+
+def test_staging_carga_con_politica_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+
+    assert cargar().entorno == "staging"
+
+
+@pytest.mark.parametrize("entorno", ["Staging", "stage", "prod", "STAGING", "staging ", "desarrollo"])
+def test_entorno_desconocido_no_carga_sin_normalizar(monkeypatch: pytest.MonkeyPatch, entorno: str) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+
+    with pytest.raises(ValidationError) as error:
+        cargar()
+
+    assert [e["loc"] for e in error.value.errors()] == [("entorno",)]
+
+
+def test_las_dos_listas_son_separadas_y_ninguna_tiene_produccion() -> None:
+    # Hoy tienen los mismos valores, pero son dos decisiones: ampliar una no amplía la otra
+    assert ENTORNOS_KEK_SINTETICA is not ENTORNOS_ENVIO_SIMULADO
+    assert ENTORNOS_KEK_SINTETICA == {"local", "pruebas", "staging"}
+    assert ENTORNOS_ENVIO_SIMULADO == {"local", "pruebas", "staging"}
+    assert ENTORNOS_SOLO_DOMINIOS_RESERVADOS == {"staging"}
+    for lista in (ENTORNOS_KEK_SINTETICA, ENTORNOS_ENVIO_SIMULADO, ENTORNOS_SOLO_DOMINIOS_RESERVADOS):
+        assert "produccion" not in lista
+
+
+def test_el_envio_simulado_usa_su_propia_lista(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Si el validador volviera a usar la lista de la KEK, sacar staging de ENTORNOS_ENVIO_SIMULADO no
+    # cambiaría nada y esta prueba fallaría
+    monkeypatch.setattr(config, "ENTORNOS_ENVIO_SIMULADO", frozenset({"local", "pruebas"}))
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_CODIGOS", "simulado")
+
+    with pytest.raises(ValidationError) as error:
+        cargar()
+
+    assert "ENVIADOR_CODIGOS=simulado" in str(error.value)
+
+
+def test_la_kek_usa_su_propia_lista(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Al revés: sacar staging de la lista de la KEK no saca el envío simulado
+    monkeypatch.setattr(config, "ENTORNOS_KEK_SINTETICA", frozenset({"local", "pruebas"}))
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("ENVIADOR_CODIGOS", "simulado")
+
+    assert cargar().enviador_codigos == "simulado"
+
+    monkeypatch.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    monkeypatch.setenv("KEK_ENTORNO", "a" * 43 + "=")
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    assert "La KEK en variable de entorno" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"CUSTODIA_KEK": "entorno_sintetico", "KEK_ENTORNO": "a" * 43 + "="},
+        {"ENVIADOR_CODIGOS": "simulado"},
+    ],
+    ids=["kek", "envio-simulado"],
+)
+def test_produccion_no_carga_ni_con_la_kek_ni_con_el_envio_simulado(
+    monkeypatch: pytest.MonkeyPatch, variables: dict[str, str]
+) -> None:
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    for nombre, valor in variables.items():
+        monkeypatch.setenv(nombre, valor)
+
+    with pytest.raises(ValidationError):
+        cargar()
+
+
+def test_el_arranque_registra_el_entorno_y_nada_mas(monkeypatch: pytest.MonkeyPatch) -> None:
+    # En WARNING: se ve aunque LOG_NIVEL=WARNING, así el despliegue siempre deja la marca (decisión 105, (j))
+    monkeypatch.setattr(config, "Configuracion", ConfiguracionSinArchivo)
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("LOG_NIVEL", "WARNING")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    secreto = "s" * 64
+    monkeypatch.setenv("JWT_CLAVE", secreto)
+    config.obtener_configuracion.cache_clear()
+    salida = io.StringIO()
+    try:
+        crear_app(stream_logs=salida)
+    finally:
+        config.obtener_configuracion.cache_clear()
+
+    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
+    assert [(x["nivel"], x["mensaje"]) for x in lineas if x["logger"] == "matu.api.arranque"] == [
+        ("WARNING", "entorno=staging")
+    ]
+    assert secreto not in salida.getvalue()
