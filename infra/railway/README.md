@@ -127,7 +127,7 @@ responde `{"estado":"ok"}` por HTTPS, con el certificado de Railway. Además:
 - `curl -sSI http://<algo>.up.railway.app/v1/salud` no debe responder la API en claro: Railway redirige a
   `https://`. Si no redirige, anótalo como hallazgo.
 
-- `https://<algo>.up.railway.app/docs` responde 404 (`ENTORNO=produccion`).
+- `https://<algo>.up.railway.app/docs`: con `ENTORNO=staging` se ve la documentación (solo se apaga con `produccion`, `app/main.py`). Pendiente de decisión de Jorge (05-11).
 - **Límite por IP:** seis `POST /v1/usuarios` con cuerpo `{}` desde la misma red: los cinco primeros
   responden 422 y el sexto 429 con `Retry-After`. Gasta el cupo de esa IP por una hora.
 - **Logs:** `railway logs --service matu-api` muestra una línea JSON por petición, con la plantilla de la
