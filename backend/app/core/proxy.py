@@ -14,8 +14,11 @@ dos veces.
 - **PROXY_SALTOS = N ≥ 1**: el borde de Railway agrega N IP propias a la derecha de la lista, públicas y
   que se turnan. La IP del cliente es ``xff[-(N+1)]``, la que queda justo a la izquierda de esos N saltos.
   Nunca la primera de la lista: con N=1, ``cliente, borde`` y ``falsa, cliente, borde`` cuentan las dos
-  ``cliente``. Si la lista trae menos de N+1 elementos o alguno no es una IP, cuenta la IP del socket (el
-  proxy): lo más estricto, nunca lo más permisivo. X-Forwarded-Proto se trata igual que en Uvicorn.
+  ``cliente``. Solo se valida la cola ``xff[-(N+1):]`` (el cliente y los N saltos): lo que queda a la
+  izquierda lo escribe el cliente y se ignora por completo, sea lo que sea, así una basura antepuesta no
+  le sirve para elegir el contador compartido del proxy. Si la lista trae menos de N+1 elementos o la
+  cola trae algo que no es una IP, cuenta la IP del socket (el proxy): lo más estricto, nunca lo más
+  permisivo. X-Forwarded-Proto se trata igual que en Uvicorn.
 - **Diagnóstico** (DIAGNOSTICO_PROXY, temporal y apagado por omisión): una línea JSON por petición de
   origen confiable con cuántas cabeceras y cuántos elementos trae X-Forwarded-For y la clase de cada uno
   (``interna``, ``privada``, ``publica`` o ``invalida``). Nunca una IP, el X-Forwarded-For crudo, una IP
@@ -73,21 +76,23 @@ def elementos_xff(valores: Sequence[bytes]) -> list[str]:
 def ip_tras_saltos(elementos: Sequence[str], saltos: int) -> str | None:
     """La IP que queda justo a la izquierda de los ``saltos`` del proxy: ``elementos[-(saltos+1)]``.
 
-    None si algún elemento no es una IP (también una IP con puerto o un elemento vacío) o si la lista trae
-    menos de saltos+1 elementos: quien llama cuenta entonces la IP del socket. La IP vuelve normalizada,
-    así una misma IPv6 escrita de dos formas cuenta una sola vez.
+    Solo se valida la cola ``elementos[-(saltos+1):]``, el cliente y los saltos. Lo que queda a la
+    izquierda lo escribe el cliente y se ignora por completo: si invalidara la lista, una basura antepuesta
+    le dejaría elegir el contador compartido del proxy. None si la lista trae menos de saltos+1 elementos o
+    si un elemento de la cola no es una IP (también una IP con puerto o un elemento vacío): quien llama
+    cuenta entonces la IP del socket. La IP vuelve normalizada, así una misma IPv6 escrita de dos formas
+    cuenta una sola vez.
     """
     if saltos < 0:
         raise ValueError("saltos no puede ser negativo")
-    ips: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
-    for elemento in elementos:
-        try:
-            ips.append(ipaddress.ip_address(elemento))
-        except ValueError:
-            return None
-    if len(ips) < saltos + 1:
+    if len(elementos) < saltos + 1:
         return None
-    return str(ips[-(saltos + 1)])
+    cola = elementos[len(elementos) - (saltos + 1) :]
+    try:
+        ips = [ipaddress.ip_address(elemento) for elemento in cola]
+    except ValueError:
+        return None
+    return str(ips[0])
 
 
 def clase_de(elemento: str) -> str:

@@ -33,6 +33,7 @@ PROXY = "100.64.0.7"
 CLIENTE = "203.0.113.9"
 BORDE_1 = "198.51.100.1"
 BORDE_2 = "198.51.100.2"
+CLIENTE_12 = "203.0.113.12"
 
 
 # --- La selección: xff[-(N+1)] -------------------------------------------------------------------------
@@ -46,6 +47,12 @@ BORDE_2 = "198.51.100.2"
         # Railway concatena lo que mandó el cliente: la falsa queda a la izquierda y no se toma
         (["198.51.100.77", CLIENTE, BORDE_1], 1, CLIENTE),
         (["192.0.2.1", "192.0.2.2", CLIENTE, BORDE_1], 1, CLIENTE),
+        # Lo que queda a la izquierda de la cola se ignora por completo, sea lo que sea (P2-1 de la QA):
+        # una basura antepuesta no manda al cliente al contador compartido del proxy
+        (["basura", CLIENTE_12, BORDE_1], 1, CLIENTE_12),
+        (["", f"{CLIENTE_12}:80", "[2001:db8::9]:443", "basura", CLIENTE, BORDE_1], 1, CLIENTE),
+        (["basura", CLIENTE, "198.51.100.50", BORDE_1], 2, CLIENTE),
+        (["basura", CLIENTE], 0, CLIENTE),
         ([CLIENTE, "198.51.100.50", BORDE_1], 2, CLIENTE),
         ([CLIENTE], 0, CLIENTE),
         ([CLIENTE, BORDE_1], 0, BORDE_1),
@@ -68,9 +75,11 @@ def test_ip_tras_saltos_toma_la_que_queda_a_la_izquierda_de_los_saltos(
         ([], 0),
         ([CLIENTE, BORDE_1], 2),
         ([CLIENTE, "198.51.100.50", BORDE_1], SALTOS_MAXIMOS),
-        # Mal formada, también en la parte que pone el cliente
+        # Mal formada dentro de la cola (el cliente y los saltos)
         (["basura", BORDE_1], 1),
-        (["basura", CLIENTE, BORDE_1], 1),
+        ([CLIENTE_12, "basura"], 1),
+        (["192.0.2.1", CLIENTE_12, "basura"], 1),
+        ([CLIENTE, "basura", BORDE_1], 2),
         ([f"{CLIENTE}:443", BORDE_1], 1),
         (["[2001:db8::9]:443", BORDE_1], 1),
         (["", BORDE_1], 1),
@@ -162,7 +171,9 @@ def _matu(saltos: int, redes: list[str] | None = None) -> Any:
     return lambda app: MiddlewareProxy(app, redes=redes or RAILWAY, saltos=saltos)
 
 
-@pytest.mark.parametrize("xff", [f"{CLIENTE}, {BORDE_1}", f"198.51.100.77, {CLIENTE}, {BORDE_2}"])
+@pytest.mark.parametrize(
+    "xff", [f"{CLIENTE}, {BORDE_1}", f"198.51.100.77, {CLIENTE}, {BORDE_2}", f"basura, {CLIENTE}, {BORDE_1}"]
+)
 def test_con_un_salto_el_cliente_es_el_que_queda_antes_del_borde(xff: str) -> None:
     visto = _pasar(_matu(1), _scope(PROXY, ("X-Forwarded-For", xff)))
     assert visto["client"] == (CLIENTE, 0)
@@ -174,7 +185,8 @@ def test_con_un_salto_el_cliente_es_el_que_queda_antes_del_borde(xff: str) -> No
         (),
         (("X-Forwarded-For", BORDE_1),),
         (("X-Forwarded-For", ""),),
-        (("X-Forwarded-For", f"basura, {CLIENTE}, {BORDE_1}"),),
+        (("X-Forwarded-For", f"{CLIENTE}, basura"),),
+        (("X-Forwarded-For", f"basura, {BORDE_1}"),),
         (("X-Forwarded-For", f"{CLIENTE}:5000, {BORDE_1}"),),
     ],
 )

@@ -165,6 +165,7 @@ CLIENTE = "203.0.113.9"
 OTRO_CLIENTE = "203.0.113.10"
 BORDE_1 = "198.51.100.1"
 BORDE_2 = "198.51.100.2"
+CLIENTE_12 = "203.0.113.12"
 
 
 @pytest.fixture
@@ -213,13 +214,36 @@ def test_con_un_salto_dos_clientes_tras_el_mismo_borde_no_comparten_el_limite(
     assert _conteos(entorno_iam) == {_clave(entorno_iam, CLIENTE): 6, _clave(entorno_iam, OTRO_CLIENTE): 1}
 
 
-@pytest.mark.parametrize("xff", [BORDE_1, "", f"basura, {CLIENTE}, {BORDE_1}", f"{CLIENTE}:5000, {BORDE_1}"])
-def test_con_un_salto_y_menos_ip_que_saltos_o_mal_formada_cuenta_el_proxy(
+@pytest.mark.parametrize(
+    "xff", [BORDE_1, "", f"{CLIENTE_12}, basura", f"basura, {BORDE_1}", f"{CLIENTE}:5000, {BORDE_1}"]
+)
+def test_con_un_salto_y_menos_ip_que_saltos_o_cola_mal_formada_cuenta_el_proxy(
     entorno_iam: EntornoIam, railway: dict[str, TestClient], xff: str
 ) -> None:
-    # Lo más estricto: la IP del socket, que comparten todos los que llegan así
+    # Lo más estricto: la IP del socket, que comparten todos los que llegan así. La cola (el cliente y el
+    # borde) la escribe Railway: si trae algo que no es una IP, no se adivina
     assert _registrar(railway["proxy"], xff).status_code == 422
     assert _conteos(entorno_iam) == {_clave(entorno_iam, PROXY_RAILWAY): 1}
+
+
+def test_con_un_salto_la_basura_a_la_izquierda_se_ignora(
+    entorno_iam: EntornoIam, railway: dict[str, TestClient]
+) -> None:
+    # P2-1 de la QA: si la basura antepuesta invalidara la lista, el cliente elegiría el contador
+    # compartido del proxy. Se ignora: cuenta el cliente, que queda justo a la izquierda del borde
+    assert _registrar(railway["proxy"], f"basura, {CLIENTE_12}, {BORDE_1}").status_code == 422
+    assert _conteos(entorno_iam) == {_clave(entorno_iam, CLIENTE_12): 1}
+
+
+def test_con_un_salto_seis_intentos_con_basura_variable_a_la_izquierda_dan_429(
+    entorno_iam: EntornoIam, railway: dict[str, TestClient]
+) -> None:
+    izquierdas = ["basura", "", "x, y", f"{CLIENTE}:443", "[2001:db8::9]:443", "otra-basura"]
+    for izquierda in izquierdas[:5]:
+        assert _registrar(railway["proxy"], f"{izquierda}, {CLIENTE_12}, {BORDE_1}").status_code == 422
+    assert _registrar(railway["proxy"], f"{izquierdas[5]}, {CLIENTE_12}, {BORDE_2}").status_code == 429
+    # En el contador del cliente, nunca en el del socket
+    assert _conteos(entorno_iam) == {_clave(entorno_iam, CLIENTE_12): 6}
 
 
 def test_con_un_salto_un_origen_no_confiable_cuenta_su_socket(
@@ -249,7 +273,7 @@ def test_con_un_salto_la_demora_de_la_entrada_cuenta_al_cliente(
 
 # Cada IP usada, completa y truncada: ninguna aparece en el log
 IP_PROHIBIDAS = (
-    CLIENTE, OTRO_CLIENTE, BORDE_1, BORDE_2, PROXY_RAILWAY, "198.51.100.77",
+    CLIENTE, OTRO_CLIENTE, CLIENTE_12, BORDE_1, BORDE_2, PROXY_RAILWAY, "198.51.100.77",
     "203.0.113", "198.51.100", "100.64.0", "2001:db8", "basura",
 )
 
@@ -266,11 +290,13 @@ def test_el_diagnostico_registra_cantidades_y_clases_sin_ninguna_ip(
     respuestas = [
         _registrar(diagnostico, f"{CLIENTE}, {BORDE_1}"),
         _registrar(diagnostico, f"198.51.100.77, {CLIENTE}, {BORDE_2}"),
-        # Mal formada: con puerto, basura, IPv6 entre corchetes y un elemento vacío
+        # Basura a la izquierda de la cola: se clasifica, pero no cambia la IP contada
+        _registrar(diagnostico, f"basura, {CLIENTE_12}, {BORDE_1}"),
+        # Mal formada también en la cola: con puerto, basura, IPv6 entre corchetes y un elemento vacío
         _registrar(diagnostico, f"{CLIENTE}:443, basura, [2001:db8::9]:443, , {BORDE_1}"),
         diagnostico.post("/v1/usuarios", json={}),
     ]
-    assert [respuesta.status_code for respuesta in respuestas] == [422, 422, 422, 422]
+    assert [respuesta.status_code for respuesta in respuestas] == [422, 422, 422, 422, 422]
 
     salida = entorno_iam.salida_logs.getvalue()
     for prohibida in IP_PROHIBIDAS:
@@ -284,6 +310,7 @@ def test_el_diagnostico_registra_cantidades_y_clases_sin_ninguna_ip(
     assert resumen == [
         (1, 2, ["privada", "privada"], "xff"),
         (1, 3, ["privada", "privada", "privada"], "xff"),
+        (1, 3, ["invalida", "privada", "privada"], "xff"),
         (1, 5, ["invalida", "invalida", "invalida", "invalida", "privada"], "socket"),
         (0, 0, [], "socket"),
     ]
