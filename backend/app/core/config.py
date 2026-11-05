@@ -34,6 +34,8 @@ Cada historia agrega aquí lo suyo:
 - MATU-25 (decisión 114, punto 7): DIAGNOSTICO_PROXY, el diagnóstico temporal de X-Forwarded-For
   (app/core/proxy.py). Apagado por omisión; con ENTORNO=produccion, encendido impide cargar la
   configuración. PROXY_SALTOS y FORWARDED_ALLOW_IPS no viven aquí: los valida app/servidor.py
+- MATU-58: WEB_DIST también es la app de familia, que la API entrega en toda ruta que no sea de la API
+  (decisión 115). /docs y /openapi.json solo se publican en ENTORNOS_DOCUMENTACION (local y pruebas)
 """
 
 import base64
@@ -64,6 +66,10 @@ ENTORNOS_KEK_SINTETICA: frozenset[str] = frozenset({"local", "pruebas", "staging
 # Entornos donde se admite ENVIADOR_CODIGOS=simulado (decisión 82; staging por la decisión 105). Es otra
 # lista, aunque hoy tenga los mismos valores: ampliar una no amplía la otra
 ENTORNOS_ENVIO_SIMULADO: frozenset[str] = frozenset({"local", "pruebas", "staging"})
+
+# Entornos que publican la documentación de la API, /docs y /openapi.json (MATU-58, decisión 115). Lista
+# permitida, como las anteriores: en staging y produccion, o con un valor nuevo, responden 404
+ENTORNOS_DOCUMENTACION: frozenset[str] = frozenset({"local", "pruebas"})
 
 # Entornos donde el registro de cuentas solo acepta correos de dominios reservados (decisión 105, (i)):
 # staging tiene solo datos sintéticos
@@ -156,8 +162,9 @@ class Configuracion(BaseSettings):
     # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
     redis_url: str = "redis://127.0.0.1:6379/0"
 
-    # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y los archivos de
-    # /assets en el mismo origen. Sin la carpeta, /r responde 404 y el resto de la API no cambia
+    # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y en las rutas de la
+    # app de familia (MATU-58), y los archivos de /assets, en el mismo origen. Sin la carpeta, /r y las
+    # rutas de la app responden 404 y el resto de la API no cambia
     web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
 
     # Diagnóstico temporal del proxy (MATU-25, decisión 114, punto 7): una línea por petición de origen

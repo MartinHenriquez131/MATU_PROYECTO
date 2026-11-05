@@ -32,6 +32,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
+from tests.textos import aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-06")]
 
@@ -250,7 +251,9 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert entorno.abrir(token, pin).status_code == 200
 
     filas = _todas(
-        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, a::text FROM auditoria a"
+        # Sin la columna id: con la secuencia avanzada podría valer el PIN (como en ac8a315)
+        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, (to_jsonb(a) - 'id')::text"
+        " FROM auditoria a"
         " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
     assert len(filas) == 1
     grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, fila = filas[0]
@@ -259,7 +262,8 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
         familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
     assert motivo is None and ip is None  # C8
-    assert token not in fila and pin not in fila.replace(str(acceso_id), "") and "Rosa" not in fila
+    # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
+    assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
     usos, ultimo = cast(tuple[int, datetime], _una(
         "SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id))
     assert usos == 1 and ultimo == entorno.reloj.ahora()

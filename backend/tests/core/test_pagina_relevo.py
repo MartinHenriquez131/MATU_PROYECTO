@@ -21,6 +21,8 @@ HTML = (
 )
 JS = "console.log('relevo sintetico')"
 CABECERAS = {"cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex"}
+# MATU-58 (decisión 115): la página del PIN no se puede incrustar en otro sitio. Solo /r, no /v1/relevo/
+SIN_INCRUSTAR = {"content-security-policy": "frame-ancestors 'none'"}
 
 
 def _cliente(monkeypatch: pytest.MonkeyPatch, web_dist: Path) -> Iterator[TestClient]:
@@ -59,6 +61,25 @@ def test_r_sirve_el_html_con_las_tres_cabeceras_y_su_csp(con_dist: TestClient) -
         assert respuesta.headers[clave] == valor
     # La CSP del build se entrega intacta
     assert respuesta.text == HTML
+
+
+@pytest.mark.rf("RF-06")
+def test_r_no_se_puede_incrustar_en_otro_sitio(con_dist: TestClient, sin_dist: TestClient) -> None:
+    # Falla sin MATU-58: /r no llevaba la CSP como cabecera, y frame-ancestors en la etiqueta meta se ignora
+    for respuesta in (con_dist.get("/r"), sin_dist.get("/r")):
+        for clave, valor in {**CABECERAS, **SIN_INCRUSTAR}.items():
+            assert respuesta.headers[clave] == valor
+    # Lo demás de /r no cambia: el cuerpo, el 307 de la barra final y el 405 de HEAD
+    assert con_dist.get("/r").text == HTML
+    barra = con_dist.get("/r/", follow_redirects=False)
+    assert barra.status_code == 307
+    assert barra.headers["location"].endswith("/r")
+    assert con_dist.head("/r").status_code == 405
+    # Las respuestas de la API del relevo siguen sin la CSP
+    relevo = con_dist.post("/v1/relevo/presentacion", json={})
+    assert relevo.status_code == 422
+    assert relevo.headers["cache-control"] == "no-store"
+    assert "content-security-policy" not in relevo.headers
 
 
 @pytest.mark.rf("RF-06")
