@@ -23,14 +23,24 @@ CABECERAS_RELEVO = {
     **CABECERAS_PAGINA,
 }
 
+# Ninguna página de la API se puede incrustar en otro sitio (MATU-58, decisión 115). frame-ancestors solo
+# vale como cabecera: en la etiqueta meta del build se ignora. Se suma a la CSP de la etiqueta meta sin
+# aflojarla, porque el navegador aplica las dos
+SIN_INCRUSTAR = {"Content-Security-Policy": "frame-ancestors 'none'"}
+
+# La página del relevo, /r: las del relevo y sin incrustar, para que la página del PIN no quede dentro de
+# otro sitio. Las respuestas de /v1/relevo/ siguen con CABECERAS_RELEVO, sin la CSP
+CABECERAS_PAGINA_RELEVO = {
+    **CABECERAS_RELEVO,
+    **SIN_INCRUSTAR,
+}
+
 # La app de familia (MATU-58, decisión 115): las de la página del relevo, con no-cache en vez de
 # no-store (el index.html no trae datos y se revalida en cada visita, para no quedar con un build viejo)
-# y frame-ancestors 'none', que solo vale como cabecera: en la etiqueta meta del build se ignora. Se suma
-# a la CSP de la etiqueta meta sin aflojarla, porque el navegador aplica las dos
 CABECERAS_APP = {
     **CABECERAS_PAGINA,
     "Cache-Control": "no-cache",
-    "Content-Security-Policy": "frame-ancestors 'none'",
+    **SIN_INCRUSTAR,
 }
 
 

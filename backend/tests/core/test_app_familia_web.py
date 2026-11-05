@@ -199,7 +199,8 @@ def test_r_sigue_igual(con_dist: TestClient) -> None:
     assert respuesta.status_code == 200
     assert respuesta.text == HTML
     _cabeceras(respuesta, CABECERAS_RELEVO)
-    assert "content-security-policy" not in respuesta.headers
+    # Desde MATU-58 tampoco se puede incrustar (decisión 115)
+    assert respuesta.headers["content-security-policy"] == "frame-ancestors 'none'"
     # /r/ redirige a /r, como antes, y HEAD /r sigue sin estar permitido
     barra = con_dist.get("/r/", follow_redirects=False)
     assert barra.status_code == 307

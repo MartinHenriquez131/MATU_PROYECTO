@@ -2,7 +2,8 @@
 
 Página del relevo (MATU-23). GET /r responde el index.html del build de web/ (el fragmento #token nunca
 llega al servidor) con Cache-Control: no-store, Referrer-Policy: no-referrer y X-Robots-Tag: noindex
-(decisión D6). El HTML trae su propia Content-Security-Policy en una etiqueta meta, que se entrega intacta.
+(decisión D6), y desde MATU-58 con Content-Security-Policy: frame-ancestors 'none' (decisión 115). El HTML
+trae su propia Content-Security-Policy en una etiqueta meta, que se entrega intacta.
 
 App de familia (MATU-58, decisión 115). La app enruta en el navegador con la History API
 (web/src/familia/ruteo.ts), así que el servidor entrega el mismo index.html en cualquier ruta suya:
@@ -10,7 +11,8 @@ todo GET o HEAD que no sea de la API ni de las demás piezas servidas aquí (ver
 copia la lista de rutas de ruteo.ts, que crece con cada pantalla. Si la ruta es un archivo que existe en
 la carpeta del build (favicon, manifest, service worker), se entrega ese archivo, sin salir nunca de ella.
 Las respuestas llevan las cabeceras de la página del relevo, con Cache-Control: no-cache en vez de
-no-store, y Content-Security-Policy: frame-ancestors 'none', que en una etiqueta meta no tiene efecto.
+no-store, y las dos llevan Content-Security-Policy: frame-ancestors 'none', que en una etiqueta meta no
+tiene efecto.
 
 El respaldo no es una ruta: es el destino por omisión del enrutador (Router.default de Starlette), al que
 llega una petición solo cuando ninguna ruta coincide, ni siquiera en parte. Así no tapa ninguna ruta, se
@@ -33,7 +35,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.types import Receive, Scope, Send
 
-from app.core.cabeceras import CABECERAS_APP, CABECERAS_RELEVO
+from app.core.cabeceras import CABECERAS_APP, CABECERAS_PAGINA_RELEVO
 from app.core.errores import respuesta_problema
 
 RUTA_PAGINA_RELEVO = "/r"
@@ -85,9 +87,9 @@ def montar_pagina_relevo(app: FastAPI, web_dist: Path) -> None:
                 request,
                 404,
                 detalle="La página del relevo no está disponible en este servidor",
-                headers=CABECERAS_RELEVO,
+                headers=CABECERAS_PAGINA_RELEVO,
             )
-        return FileResponse(indice, media_type="text/html; charset=utf-8", headers=CABECERAS_RELEVO)
+        return FileResponse(indice, media_type="text/html; charset=utf-8", headers=CABECERAS_PAGINA_RELEVO)
 
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
