@@ -2,14 +2,14 @@
 // `Navegacion` de la demo (Demo/src/familia/Shell.tsx). Cambios: tres secciones, el distintivo del
 // piloto, la persona con su selector y «Salir»; sin fecha ni «Conectada: Carmen» (D5).
 import { useId, useState, type ReactNode } from 'react'
-import { ChevronDown, ClipboardList, LogOut, Package, Share2 } from 'lucide-react'
+import { ChevronDown, ClipboardList, LogOut, Package, Share2, UserRound } from 'lucide-react'
 import { Boton } from '../compartido/ui/Boton'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { listarPersonas, nombrePilaDe } from '../compartido/api/familia'
 import { camposListos } from './ui'
 import { puedeCompartir, puedeVerFicha, useFamilia } from './estado'
 import { navegar, useRuta, type Ruta } from './ruteo'
-import { MARCO } from './textos'
+import { CUENTA_PROPIA, MARCO } from './textos'
 
 type Seccion = 'ficha' | 'insumos' | 'compartir'
 
@@ -162,7 +162,9 @@ function Persona() {
 }
 
 function Encabezado() {
-  const { salir } = useFamilia()
+  const { salir, fijar } = useFamilia()
+  const ruta = useRuta()
+  const enCuenta = ruta.startsWith('/cuenta')
   return (
     <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-linea px-4 angosto:px-2 @3xl/app:px-11 py-3">
       <Persona />
@@ -170,6 +172,20 @@ function Encabezado() {
         <span className="hidden @4xl/app:contents">
           <DistintivoPiloto />
         </span>
+        {/* MATU-57 D5: «Tu cuenta», con el celular y su confirmación. */}
+        <a
+          href="/cuenta"
+          aria-current={enCuenta ? 'page' : undefined}
+          onClick={(e) => {
+            e.preventDefault()
+            fijar({ celularDesde: 'cuenta' })
+            navegar('/cuenta')
+          }}
+          className={`inline-flex min-h-12 items-center gap-2 rounded-xl px-3 font-bold text-turquesa ${enCuenta ? 'bg-rocio' : 'underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa'}`}
+        >
+          <UserRound aria-hidden className="size-5 shrink-0 angosto:hidden" />
+          {CUENTA_PROPIA.menu}
+        </a>
         <Boton variante="texto" icono={<LogOut aria-hidden className="size-5" />} onClick={() => void salir()}>
           {MARCO.salir}
         </Boton>

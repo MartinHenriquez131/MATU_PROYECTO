@@ -109,8 +109,8 @@ class FamiliaDemo:
 FAMILIAS: tuple[FamiliaDemo, ...] = (
     FamiliaDemo(
         grupo="Familia Soto",
-        admin=CuentaDemo("Carmen Fuentes", "carmen@correo.ejemplo", "admin"),
-        miembros=(CuentaDemo("Rodrigo Soto", "rodrigo@correo.ejemplo", "pagador", puede_ver_plan=True),),
+        admin=CuentaDemo("Carmen Fuentes", "carmen@example.com", "admin"),
+        miembros=(CuentaDemo("Rodrigo Soto", "rodrigo@example.com", "pagador", puede_ver_plan=True),),
         persona=PersonaDemo(
             nombre="María Soto",
             nombre_pila="María",
@@ -129,8 +129,8 @@ FAMILIAS: tuple[FamiliaDemo, ...] = (
     ),
     FamiliaDemo(
         grupo="Familia Riquelme",
-        admin=CuentaDemo("Patricia Riquelme", "patricia@correo.ejemplo", "admin"),
-        miembros=(CuentaDemo("Tomás Riquelme", "tomas@correo.ejemplo", "observador"),),
+        admin=CuentaDemo("Patricia Riquelme", "patricia@example.com", "admin"),
+        miembros=(CuentaDemo("Tomás Riquelme", "tomas@example.com", "observador"),),
         persona=PersonaDemo(
             nombre="Hernán Riquelme",
             nombre_pila="Hernán",
@@ -201,6 +201,9 @@ class Sembradora:
                 pepper=self.pepper,
                 hasher=self.hasher,
                 repositorio=repositorio,
+                # Los correos de la semilla son de example.com, un dominio reservado: así también
+                # sirve en staging, que rechaza los demás (decisión 105)
+                solo_dominios_reservados=True,
             )
             return creada.id, True
         except EmailYaRegistrado:

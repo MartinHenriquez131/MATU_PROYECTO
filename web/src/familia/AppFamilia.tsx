@@ -2,12 +2,14 @@
 // y el rol (especificación 1, 2 y 5). El foco va al título y el <title> nunca lleva nombres.
 import { useEffect, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
+import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { campoDeRuta } from './datos'
 import { Abriendo, CompartirPronto, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { Insumos } from './Insumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
+import { CambiarConCodigo, PedirCodigo } from './Recuperar'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
 import { MarcoSimple, ShellFamilia } from './Shell'
 import { FICHA, TITULOS } from './textos'
@@ -33,6 +35,8 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   if (!esRuta(ruta) || ruta === '/') return inicio(s)
   if (s.fase !== 'dentro') return PUBLICAS.has(ruta) ? null : '/entrar'
   if (PUBLICAS.has(ruta)) return inicio(s)
+  // MATU-57: «Tu cuenta» no depende del grupo ni de la persona.
+  if (ruta === '/cuenta' || ruta === '/cuenta/celular') return null
   const editor = puedeEditar(s.rol)
   if (ruta === '/empezar/grupo') return s.grupos.length ? '/empezar/persona' : null
   // 5.3: sin grupo, toda sección lleva a crear el grupo.
@@ -96,6 +100,10 @@ function Rutas() {
       return <CrearCuenta />
     case '/entrar':
       return <Entrar />
+    case '/entrar/recuperar':
+      return <PedirCodigo />
+    case '/entrar/recuperar/codigo':
+      return <CambiarConCodigo />
     case '/empezar/grupo':
       return <CrearGrupo />
     case '/empezar/persona':
@@ -106,7 +114,9 @@ function Rutas() {
 
   const campo = campoDeRuta(ruta)
   let pantalla
-  if (!s.persona) pantalla = <SinPersona />
+  if (ruta === '/cuenta') pantalla = <TuCuenta />
+  else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
+  else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo) {
     if (!puedeVerFicha(s.rol, s.grupo)) pantalla = <SinAcceso />
