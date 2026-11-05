@@ -1,6 +1,9 @@
 // Botones de MATU (especificación MATU-23, sección 5). Al ancho de su texto, 48 px o más de alto
 // (`min-h-12` = 51 px con la raíz de 17 px). La validación ocurre al enviar; solo se deshabilitan
-// donde la especificación lo pide (429 de Entrar, dictado mientras se guarda).
+// donde la especificación lo pide (429 de Entrar, dictado mientras se guarda). El de Entrar usa
+// `aria-disabled` y no `disabled`: un botón `disabled` pierde el foco y lo deja en el cuerpo de la
+// página justo cuando aparece el aviso. Con `aria-disabled` (y las mismas clases de `disabled`, en
+// Alta.tsx) se ve y se anuncia igual, conserva el foco, y la pantalla ignora el envío mientras espera.
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
 type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro'
