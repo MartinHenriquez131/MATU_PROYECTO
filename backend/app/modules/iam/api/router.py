@@ -8,7 +8,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
-from app.core.config import obtener_configuracion
+from app.core.config import ENTORNOS_SOLO_DOMINIOS_RESERVADOS, obtener_configuracion
 from app.core.db import fabrica_sesiones
 from app.core.errores import TITULOS, ErrorMATU
 from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_reloj
@@ -36,7 +36,7 @@ from app.modules.iam.application.ports import (
 )
 from app.modules.iam.application.registro import registrar_usuario
 from app.modules.iam.application.sesiones import DemoraActiva, entrar
-from app.modules.iam.domain.credenciales import EmailYaRegistrado
+from app.modules.iam.domain.credenciales import DominioNoPermitido, EmailYaRegistrado
 from app.modules.iam.domain.sesion import CredencialesInvalidas
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL
@@ -64,6 +64,20 @@ def obtener_repositorio_usuarios() -> RepositorioUsuarios:
     return RepositorioUsuariosSQL(fabrica_sesiones())
 
 
+def registro_solo_dominios_reservados() -> bool:
+    """True si el entorno solo admite cuentas con correos de dominios reservados (staging, decisión 105)."""
+    return obtener_configuracion().entorno in ENTORNOS_SOLO_DOMINIOS_RESERVADOS
+
+
+# El 422 de un correo que no es de un dominio reservado, en staging. Igual que el de la validación del
+# cuerpo: nunca repite el email
+_ERROR_DOMINIO = {
+    "campo": "email",
+    "mensaje": "en este ambiente solo se admiten correos de dominios reservados, como example.com",
+    "tipo": "dominio_no_permitido",
+}
+
+
 _EJEMPLO_409: dict[str, Any] = {
     "type": "/errores/email-registrado",
     "title": TITULOS[409],
@@ -80,7 +94,10 @@ _EJEMPLO_409: dict[str, Any] = {
     response_model=CuentaCreadaRespuesta,
     description=(
         "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en"
-        " E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Orden: 422 y 409."
+        " E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta"
+        " correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los"
+        " terminados en .test, .example, .invalid o .localhost): otro responde 422 con"
+        " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 y 409."
     ),
     responses={
         409: {
@@ -92,7 +109,13 @@ _EJEMPLO_409: dict[str, Any] = {
                 }
             },
         },
-        422: {"description": "Cuerpo inválido, incluido celular_invalido. Nunca repite el valor", **PROBLEMA},
+        422: {
+            "description": (
+                "Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido"
+                " (errores[].campo = email). Nunca repite el valor"
+            ),
+            **PROBLEMA,
+        },
     },
 )
 def crear_cuenta(
@@ -100,6 +123,7 @@ def crear_cuenta(
     pepper: Annotated[bytes, Depends(obtener_pepper_email)],
     hasher: Annotated[HasherContrasenas, Depends(obtener_hasher)],
     repositorio: Annotated[RepositorioUsuarios, Depends(obtener_repositorio_usuarios)],
+    solo_dominios_reservados: Annotated[bool, Depends(registro_solo_dominios_reservados)],
 ) -> CuentaCreadaRespuesta:
     try:
         cuenta = registrar_usuario(
@@ -110,7 +134,11 @@ def crear_cuenta(
             pepper=pepper,
             hasher=hasher,
             repositorio=repositorio,
+            solo_dominios_reservados=solo_dominios_reservados,
         )
+    except DominioNoPermitido:
+        # Staging tiene solo datos sintéticos (decisión 105, (i)). El detalle nunca repite el email
+        raise ErrorMATU(422, detalle="Revisa los campos indicados", errores=[dict(_ERROR_DOMINIO)]) from None
     except EmailYaRegistrado:
         # Riesgo aceptado en el backlog: el 409 revela que el email existe. Se mitiga con el
         # límite por IP de MATU-25. El detalle nunca repite el email.

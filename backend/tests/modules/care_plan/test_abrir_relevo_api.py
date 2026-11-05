@@ -530,3 +530,41 @@ def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -
     assert "set-cookie" not in respuesta.headers
     assert orden == ["auditado"]
     assert _acciones(acceso_id) == ["relevo.canje"]
+
+
+@pytest.mark.rf("RF-02")
+def test_staging_sin_custodia_ficha_y_relevo_503(entorno: EntornoAbrir, monkeypatch: pytest.MonkeyPatch) -> None:
+    """MATU-25 (decisión 105): con ENTORNO=staging y sin CUSTODIA_KEK, la API no tiene custodia y la
+    ficha, de la familia y del relevo, responde 503 y falla cerrada. Nunca se genera una KEK."""
+    from app.core import config
+    from app.modules.care_plan.api import dependencias
+
+    # Dada una ficha escrita y un relevo con su sesión abierta
+    familia = entorno.familia_con_ficha()
+    _, token, pin = entorno.compartir(familia)
+    assert entorno.canjear(token, pin).status_code == 204
+
+    # Cuando la API corre en staging sin CUSTODIA_KEK, con la custodia real de la configuración
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.10")
+    monkeypatch.setenv("CUSTODIA_KEK", "")
+    monkeypatch.setenv("KEK_ENTORNO", "")
+    config.obtener_configuracion.cache_clear()
+    dependencias.custodia_configurada.cache_clear()
+    entorno.ficha.app.dependency_overrides.pop(dependencias.obtener_custodia)
+    try:
+        assert config.obtener_configuracion().entorno == "staging"
+        assert dependencias.obtener_custodia() is None
+        familia_lee = entorno.ficha.leer(familia.admin, familia.grupo.id, familia.persona.id)
+        relevo_lee = entorno.leer()
+    finally:
+        config.obtener_configuracion.cache_clear()
+        dependencias.custodia_configurada.cache_clear()
+
+    # Entonces las dos responden 503, sin texto de la ficha
+    for respuesta in (familia_lee, relevo_lee):
+        assert respuesta.status_code == 503, respuesta.text
+        assert respuesta.headers["content-type"] == PROBLEMA
+        assert respuesta.json()["type"] == "/errores/servicio-no-disponible"
+        assert RUTINA not in respuesta.text
+    _cabeceras_relevo(relevo_lee)
