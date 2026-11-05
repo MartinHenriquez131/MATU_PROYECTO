@@ -22,9 +22,21 @@ export interface PerfilDoble {
   autor: { id: string; nombre: string } | null
 }
 
+export interface AlertaDoble {
+  id: string
+  perfil_id: string
+  fecha_prevista: string
+  estado: 'pendiente' | 'notificada' | 'resuelta' | 'descartada'
+  creada_en: string
+  notificada_en: string | null
+  cerrada_en: string | null
+}
+
 export interface ConsumoDoble {
   autorizacion: 'no' | 'vigente' | 'vencida'
   perfiles: PerfilDoble[]
+  /** MATU-37: las alertas que ya creó «el trabajo diario». Un perfil sin alerta da `alerta_id: null`. */
+  alertas?: AlertaDoble[]
 }
 
 type Responder = {
@@ -124,6 +136,130 @@ function errores(b: Record<string, unknown>, parcial: boolean) {
 
 const conflictosHechos = new Set<string>()
 
+// ---------------------------------------------------------------- MATU-37 alertas
+
+/** La alerta de la fecha estimada actual del perfil, abierta o cerrada. */
+const alertaDe = (c: ConsumoDoble, p: PerfilDoble) => (c.alertas ?? []).find((a) => a.perfil_id === p.id && a.fecha_prevista === vista(p).fecha_quiebre_estimada)
+const enVentana = (p: PerfilDoble) => p.activo && vista(p).dias_restantes <= p.dias_aviso
+const abierta = (a: AlertaDoble | undefined) => !!a && (a.estado === 'pendiente' || a.estado === 'notificada')
+
+function vistaPorAcabarse(c: ConsumoDoble, p: PerfilDoble) {
+  const a = alertaDe(c, p)
+  return { ...vista(p), avisando: enVentana(p) && (!a || abierta(a)), alerta_id: abierta(a) ? a!.id : null }
+}
+
+/** «El trabajo diario»: alertas abiertas para los perfiles en ventana, salvo el último (queda con `alerta_id: null`). */
+export function crearAlertas(c: ConsumoDoble): void {
+  const ahora = new Date().toISOString()
+  const en = c.perfiles.filter(enVentana).sort(orden)
+  c.alertas = en.slice(0, Math.max(0, en.length - 1)).map((p, i) => ({
+    id: randomUUID(),
+    perfil_id: p.id,
+    fecha_prevista: vista(p).fecha_quiebre_estimada,
+    estado: i === 0 ? 'notificada' : 'pendiente',
+    creada_en: ahora,
+    notificada_en: i === 0 ? ahora : null,
+    cerrada_en: null,
+  }))
+}
+
+const cerradasUnaVez = new Set<string>()
+
+/** `por-acabarse`, `alertas`, `alertas/{id}/descartar` y `{perfil}/resolver`. Devuelve `false` si la ruta no es de alertas. */
+function atenderAlertas(
+  metodo: string,
+  ruta: string,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  ctx: { rol: Rol; consumo: ConsumoDoble; usuario: { id: string; nombre: string; modo?: string } },
+  r: Responder,
+  ifMatch?: string,
+): boolean {
+  const { json, problema } = r
+  const { rol, consumo: c, usuario } = ctx
+  const escribe = rol === 'admin' || rol === 'cuidador'
+  const ahora = () => new Date().toISOString()
+
+  if (/\/consumo\/por-acabarse$/.test(ruta) && metodo === 'GET') {
+    if (usuario.modo === 'alertas-error-carga') return problema(res, 500, '/errores/error-interno'), true
+    res.setHeader('Cache-Control', 'no-store')
+    const items = c.perfiles.filter(enVentana).sort((a, b) => orden(a, b) || a.id.localeCompare(b.id))
+    return json(res, 200, { items: items.map((p) => vistaPorAcabarse(c, p)) }), true
+  }
+  if (/\/consumo\/alertas$/.test(ruta) && metodo === 'GET') {
+    res.setHeader('Cache-Control', 'no-store')
+    return json(res, 200, { items: (c.alertas ?? []).filter(abierta), siguiente_cursor: null }), true
+  }
+  const md = /\/consumo\/alertas\/([^/]+)\/descartar$/.exec(ruta)
+  if (md && metodo === 'POST') {
+    if (!escribe) return problema(res, 404, '/errores/no-encontrado'), true
+    const a = (c.alertas ?? []).find((x) => x.id === decodeURIComponent(md[1]))
+    if (!a) return problema(res, 404, '/errores/no-encontrado'), true
+    if (!abierta(a)) return problema(res, 409, '/errores/alerta-cerrada', { estado: a.estado }), true
+    Object.assign(a, { estado: 'descartada', cerrada_en: ahora() })
+    return json(res, 200, a), true
+  }
+  const mr = /\/consumo\/([^/]+)\/resolver$/.exec(ruta)
+  if (mr && metodo === 'POST') {
+    if (!escribe) return problema(res, 404, '/errores/no-encontrado'), true
+    const p = c.perfiles.find((x) => x.id === decodeURIComponent(mr[1]))
+    if (!p) return problema(res, 404, '/errores/no-encontrado'), true
+    if (!p.activo) return problema(res, 409, '/errores/perfil-inactivo'), true
+    // Decisión 80: siempre condicional.
+    if (!ifMatch || ifMatch === '*') return problema(res, 428, '/errores/falta-version'), true
+    // Cuenta «alertas-conflicto»: el primer intento de cada insumo encuentra que Rodrigo lo cambió.
+    if (usuario.modo === 'alertas-conflicto' && !conflictosHechos.has(p.id)) {
+      conflictosHechos.add(p.id)
+      Object.assign(p, { version: p.version + 1, autor: RODRIGO_CONSUMO })
+    }
+    if (ifMatch !== `"v${p.version}"`) {
+      res.setHeader('ETag', `"v${p.version}"`)
+      return problema(res, 412, '/errores/version-desactualizada', { actual: vista(p) }), true
+    }
+    const b = cuerpo ?? {}
+    for (const k of Object.keys(b))
+      if (k !== 'cantidad') return problema(res, 422, '/errores/validacion', { errores: [{ campo: k, mensaje: 'MENSAJE DEL DOBLE', tipo: 'extra_forbidden' }] }), true
+    const conCantidad = b.cantidad !== undefined && b.cantidad !== null
+    if (conCantidad && !entero(b.cantidad, 1, 9999)) {
+      const tipo = typeof b.cantidad === 'number' && Number.isInteger(b.cantidad) ? (b.cantidad < 1 ? 'greater_than_equal' : 'less_than_equal') : 'int_type'
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'cantidad', mensaje: 'MENSAJE DEL DOBLE', tipo }] }), true
+    }
+    if (usuario.modo === 'alertas-error') return problema(res, 500, '/errores/error-interno'), true
+    let a = alertaDe(c, p)
+    // Cuenta «alertas-cerrada»: el primer intento encuentra que alguien más ya la cerró.
+    if (usuario.modo === 'alertas-cerrada' && !cerradasUnaVez.has(p.id)) {
+      cerradasUnaVez.add(p.id)
+      if (!a) {
+        a = { id: randomUUID(), perfil_id: p.id, fecha_prevista: vista(p).fecha_quiebre_estimada, estado: 'pendiente', creada_en: ahora(), notificada_en: null, cerrada_en: null }
+        ;(c.alertas ??= []).push(a)
+      }
+      Object.assign(a, { estado: 'descartada', cerrada_en: ahora() })
+    }
+    if (a && !abierta(a)) return problema(res, 409, '/errores/alerta-cerrada', { estado: a.estado }), true
+    const estado = conCantidad ? 'resuelta' : 'descartada'
+    const fechaPrevista = vista(p).fecha_quiebre_estimada
+    if (a) Object.assign(a, { estado, cerrada_en: ahora() })
+    if (conCantidad) {
+      // Lo que se estima que queda hoy (nunca menos de 0) más lo comprado, medido hoy.
+      const dias = entre(p.stock_medido_en, hoy())
+      const queda = Math.max(0, p.stock_unidades - Math.floor((dias * p.tasa_unidades) / p.tasa_dias))
+      Object.assign(p, { stock_unidades: queda + (b.cantidad as number), stock_medido_en: hoy(), version: p.version + 1, autor: { id: usuario.id, nombre: usuario.nombre } })
+    }
+    if (!a)
+      (c.alertas ??= []).push({
+        id: randomUUID(),
+        perfil_id: p.id,
+        fecha_prevista: fechaPrevista,
+        estado,
+        creada_en: ahora(),
+        notificada_en: null,
+        cerrada_en: ahora(),
+      })
+    return json(res, 200, vistaPorAcabarse(c, p)), true
+  }
+  return false
+}
+
 /** Atiende `…/consumo…` y `…/consentimientos` de una persona ya resuelta en su grupo. */
 export function atenderConsumo(
   req: IncomingMessage,
@@ -138,8 +274,9 @@ export function atenderConsumo(
   const { rol, consumo, usuario } = ctx
   const escribe = rol === 'admin' || rol === 'cuidador'
   const m = /\/(consumo|consentimientos)(?:\/([^/]+))?(?:\/(activar|desactivar))?$/.exec(ruta)
-  if (!m) return problema(res, 404, '/errores/no-encontrado')
-  const [, recurso, perfilId, accion] = m
+  const deAlertas = /\/consumo\/(por-acabarse|alertas(\/.*)?|[^/]+\/resolver)$/.test(ruta)
+  if (!m && !deAlertas) return problema(res, 404, '/errores/no-encontrado')
+  const [, recurso, perfilId, accion] = m ?? ['', 'consumo', undefined, undefined]
 
   if (recurso === 'consentimientos') {
     if (metodo !== 'POST' || perfilId || !escribe) return problema(res, 404, '/errores/no-encontrado')
@@ -172,6 +309,10 @@ export function atenderConsumo(
   // La autorización se evalúa antes de leer nada del consumo (contrato, 403).
   if (consumo.autorizacion === 'no') return problema(res, 403, '/errores/sin-consentimiento', { finalidad: 'consumo' })
   if (consumo.autorizacion === 'vencida') return problema(res, 403, '/errores/revision-vencida', { finalidad: 'consumo' })
+  if (deAlertas) {
+    if (!atenderAlertas(metodo, ruta, res, cuerpo, ctx, r, req.headers['if-match'])) problema(res, 404, '/errores/no-encontrado')
+    return
+  }
 
   if (!perfilId) {
     if (metodo === 'GET') {
