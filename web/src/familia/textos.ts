@@ -4,6 +4,7 @@
 //   [demo]         la demo aprobada, con "email" cambiado a "correo" (D1)
 //   [PROPUESTO]    de la especificación, pendiente de entrar a lenguaje.md (sección 8)
 //   [INSTRUCCIÓN]  dictado por decisión de Jorge del 02-11, pendiente de lenguaje.md
+//   [aprobado por Jorge el 03-11]  textos de MATU-57, pendientes de lenguaje.md
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 
 export const GENERAL = {
@@ -73,9 +74,12 @@ export const ENTRAR = {
   vencida: 'Hace tiempo que no entrabas. Vuelve a entrar con tu correo y tu contraseña.', // [INSTRUCCIÓN]
   salio: 'Saliste de MATU. Para volver, entra con tu correo y tu contraseña.', // [PROPUESTO]
   credenciales: 'El correo o la contraseña no coinciden. Revísalos y vuelve a intentarlo.', // [PROPUESTO]
-  /** [INSTRUCCIÓN], con «Espera 1 minuto.» [PROPUESTO] */
-  espera: (minutos: number) =>
-    `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1 minuto.' : `Espera ${minutos} minutos.`} Si olvidaste tu contraseña, pídele ayuda a alguien de tu familia.`,
+  /** [aprobado por Jorge el 03-11] MATU-57 (especificación 4): reemplaza el de lenguaje 13.3; sigue el enlace a recuperar. */
+  espera: (minutos: number) => `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1 minuto.' : `Espera ${minutos} minutos.`}`,
+  esperaRecuperar: 'Recupera tu cuenta', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
+  olvidaste: '¿Olvidaste tu contraseña?', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
+  /** [aprobado por Jorge el 03-11, D2] Tras cambiar la contraseña con el código. */
+  claveCambiada: 'Listo. Cambiamos tu contraseña. Por seguridad, tendrás que volver a entrar en tus otros teléfonos y computadores.', // pragma: allowlist secret
   noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO]
 }
 
@@ -213,6 +217,80 @@ export const ESTADOS = {
   insumosTitulo: 'Insumos',
 }
 
+// ---------------------------------------------------------------- MATU-57
+// Especificación docs/diseno/matu-57-recuperar-acceso.md. Siempre «correo», nunca «email» (D1), y
+// nunca «sesión» (D2). Ningún texto dice a qué canal fue el código.
+
+export const RECUPERAR = {
+  volver: 'Volver a entrar', // [aprobado por Jorge el 03-11]
+  titulo: 'Recupera tu cuenta', // [aprobado por Jorge el 03-11]
+  bajada: 'Escribe tu correo y te enviaremos un código para crear una contraseña nueva.', // [aprobado por Jorge el 03-11] // pragma: allowlist secret
+  correo: 'Tu correo',
+  boton: 'Enviar código', // [aprobado por Jorge el 03-11]
+  enviando: 'Enviando…', // [aprobado por Jorge el 03-11]
+  errCorreo: 'Revisa tu correo.', // [MATU-39]
+  /** [aprobado por Jorge el 03-11], con «correo» (D1). */
+  enviado: 'Si hay una cuenta con ese correo, te enviamos un código. Puede tardar un minuto.',
+  // Pantalla del código
+  volverCodigo: 'Volver', // [aprobado por Jorge el 03-11]
+  tituloCodigo: 'Escribe el código', // [aprobado por Jorge el 03-11]
+  bajadaCodigo: 'Te lo enviamos por mensaje al celular o al correo. Tiene 6 números.', // [aprobado por Jorge el 03-11]
+  codigo: 'Código', // [aprobado por Jorge el 03-11]
+  nueva: 'Nueva contraseña', // [aprobado por Jorge el 03-11] // pragma: allowlist secret
+  nuevaAyuda: 'Al menos 10 caracteres.', // [MATU-39]
+  botonCambiar: 'Cambiar contraseña', // [aprobado por Jorge el 03-11] // pragma: allowlist secret
+  cambiando: 'Cambiando…', // [aprobado por Jorge el 03-11]
+  noLlego: '¿No te llegó?', // [aprobado por Jorge el 03-11]
+  reenviar: 'Pide que te lo enviemos a tu correo', // [aprobado por Jorge el 03-11]
+  // Sin «El código anterior ya no sirve»: dentro de 60 s la API no envía otro (decisión 84) y el anterior sigue sirviendo.
+  reenviado: 'Si hay una cuenta con ese correo, te enviamos un código nuevo al correo. Puede tardar un minuto.', // [aprobado por Jorge el 03-11]
+  enUnMinuto: 'Puedes pedir otro en un minuto.', // [aprobado por Jorge el 03-11] especificación 6.6
+  errCodigoCorto: 'El código tiene 6 números.', // [aprobado por Jorge el 03-11]
+  errCodigo: 'El código no es correcto o ya venció. Pide uno nuevo.', // [aprobado por Jorge el 03-11]
+  errClaveCorta: 'La contraseña necesita al menos 10 caracteres.', // [MATU-39] // pragma: allowlist secret
+  errClave422: 'La contraseña necesita entre 10 y 128 caracteres.', // [MATU-39] // pragma: allowlist secret
+  /** [aprobado por Jorge el 03-11] 429 al probar el código. */
+  esperaCodigo: (minutos: number) => `Hubo varios intentos con ese código. Pide uno nuevo en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.`,
+}
+
+export const CUENTA_PROPIA = {
+  menu: 'Tu cuenta', // [aprobado por Jorge el 03-11] D5
+  titulo: 'Tu cuenta', // [aprobado por Jorge el 03-11] D5
+  bajada: 'Tus datos para entrar a MATU.', // [aprobado por Jorge el 03-11]
+  correo: 'Tu correo',
+  celular: 'Tu celular', // [aprobado por Jorge el 03-11]
+  confirmado: 'Confirmado', // [aprobado por Jorge el 03-11]
+  sinConfirmar: 'Sin confirmar', // [aprobado por Jorge el 03-11]
+  sinCelular: 'Tu cuenta todavía no tiene un celular.', // [aprobado por Jorge el 03-11]
+  confirmar: 'Confirmar celular', // [aprobado por Jorge el 03-11]
+  volver: 'Volver a tu cuenta', // [aprobado por Jorge el 03-11]
+}
+
+export const CELULAR = {
+  titulo: 'Confirma tu celular', // [aprobado por Jorge el 03-11]
+  explicacion: 'Si algún día olvidas la contraseña, te enviaremos un código a este número para que puedas volver a entrar.', // [aprobado por Jorge el 03-11] // pragma: allowlist secret
+  tuCelular: 'Tu celular', // [aprobado por Jorge el 03-11]
+  /** SMS o WhatsApp se elige una vez, al confirmar (decisión de Jorge del 03-11). */
+  canal: '¿Cómo prefieres recibir los códigos?', // [aprobado por Jorge el 03-11]
+  sms: 'Mensaje de texto (SMS)', // [aprobado por Jorge el 03-11]
+  whatsapp: 'WhatsApp', // [aprobado por Jorge el 03-11]
+  enviar: 'Enviar código', // [aprobado por Jorge el 03-11]
+  enviando: 'Enviando…', // [aprobado por Jorge el 03-11]
+  ahoraNo: 'Ahora no', // [aprobado por Jorge el 03-11] D4
+  enviado: 'Te enviamos un código al ', // [aprobado por Jorge el 03-11]
+  confirmar: 'Confirmar', // [aprobado por Jorge el 03-11]
+  confirmando: 'Confirmando…', // [aprobado por Jorge el 03-11]
+  otro: '¿No te llegó? Enviar otro código', // [aprobado por Jorge el 03-11]
+  enUnMinuto: 'Puedes pedir otro en un minuto.', // [aprobado por Jorge el 03-11]
+  listo: 'Listo. Tu celular quedó confirmado.', // [aprobado por Jorge el 03-11]
+  irAFicha: 'Ir a la ficha', // [aprobado por Jorge el 03-11]
+  errCodigo: 'El código no es correcto o ya venció. Pide uno nuevo.', // [aprobado por Jorge el 03-11]
+  errCodigoCorto: 'El código tiene 6 números.', // [aprobado por Jorge el 03-11]
+  /** [aprobado por Jorge el 03-11] */
+  espera: (minutos: number) => `Ya pediste varios códigos. Espera ${minutos === 1 ? '1 minuto' : `${minutos} minutos`} y vuelve a intentarlo.`,
+  noEnvio: 'No pudimos enviar el mensaje ahora. Vuelve a intentarlo en unos minutos.', // [aprobado por Jorge el 03-11]
+}
+
 /** Quién la vio (MATU-45, especificación docs/diseno/matu-45-aperturas.md). */
 export const QUIEN = {
   titulo: 'Quién la vio', // [lenguaje 9]
@@ -240,6 +318,10 @@ export const QUIEN = {
 export const TITULOS: Record<string, string> = {
   '/crear-cuenta': CUENTA.titulo,
   '/entrar': ENTRAR.titulo,
+  '/entrar/recuperar': RECUPERAR.titulo,
+  '/entrar/recuperar/codigo': RECUPERAR.tituloCodigo,
+  '/cuenta': CUENTA_PROPIA.titulo,
+  '/cuenta/celular': CELULAR.titulo,
   '/empezar/grupo': GRUPO.titulo,
   '/empezar/persona': PERSONA.titulo,
   '/empezar/autorizacion': AUTORIZACION.titulo,

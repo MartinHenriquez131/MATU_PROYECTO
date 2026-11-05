@@ -11,7 +11,7 @@ import { Boton } from '../compartido/ui/Boton'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
-import { navegar } from './ruteo'
+import { navegar, type Ruta } from './ruteo'
 import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 import { AUTORIZACION, CUENTA, ENTRAR, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
 
@@ -61,7 +61,7 @@ export function MarcoAlta({ paso, children }: { paso?: 1 | 2 | 3 | 4; children: 
   )
 }
 
-function Encabezado({ paso, bajada, antes, children }: { paso?: number; bajada?: ReactNode; antes?: ReactNode; children: ReactNode }) {
+export function Encabezado({ paso, bajada, antes, children }: { paso?: number; bajada?: ReactNode; antes?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
       {antes}
@@ -73,12 +73,13 @@ function Encabezado({ paso, bajada, antes, children }: { paso?: number; bajada?:
 }
 
 /** Enlace de texto que cambia de ruta sin recargar. */
-function EnlaceRuta({ a, children }: { a: '/entrar' | '/crear-cuenta'; children: ReactNode }) {
+export function EnlaceRuta({ a, children, antes }: { a: Ruta; children: ReactNode; antes?: () => void }) {
   return (
     <a
       href={a}
       onClick={(e) => {
         e.preventDefault()
+        antes?.()
         navegar(a)
       }}
       className="inline-flex min-h-12 items-center font-bold text-turquesa underline underline-offset-4"
@@ -88,7 +89,7 @@ function EnlaceRuta({ a, children }: { a: '/entrar' | '/crear-cuenta'; children:
   )
 }
 
-function BotonMostrar({ visible, onCambio }: { visible: boolean; onCambio: () => void }) {
+export function BotonMostrar({ visible, onCambio }: { visible: boolean; onCambio: () => void }) {
   return (
     <button
       type="button"
@@ -103,7 +104,7 @@ function BotonMostrar({ visible, onCambio }: { visible: boolean; onCambio: () =>
 }
 
 /** Lleva el foco al primer campo con error (se marca con `aria-invalid`). */
-function enfocarPrimerError(form: HTMLFormElement | null) {
+export function enfocarPrimerError(form: HTMLFormElement | null) {
   window.setTimeout(() => form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0)
 }
 
@@ -288,14 +289,24 @@ export function Entrar() {
   return (
     <MarcoAlta>
       <Encabezado>{ENTRAR.titulo}</Encabezado>
-      {avisoEntrar && (
-        <Nota tono="rocio" rol="status">
-          {avisoEntrar === 'vencida' ? ENTRAR.vencida : ENTRAR.salio}
+      {avisoEntrar === 'clave-cambiada' ? (
+        <Nota tono="ok" rol="status">
+          {ENTRAR.claveCambiada}
         </Nota>
+      ) : (
+        avisoEntrar && (
+          <Nota tono="rocio" rol="status">
+            {avisoEntrar === 'vencida' ? ENTRAR.vencida : ENTRAR.salio}
+          </Nota>
+        )
       )}
       {falla?.tipo === 'espera' && (
         <Nota tono="atenta" rol="status">
-          {ENTRAR.espera(falla.minutos)}
+          <span className="block">{ENTRAR.espera(falla.minutos)}</span>
+          {/* MATU-57 4: el enlace sigue activo mientras «Entrar» espera. */}
+          <EnlaceRuta a="/entrar/recuperar" antes={() => fijar({ correo: email.trim() })}>
+            {ENTRAR.esperaRecuperar}
+          </EnlaceRuta>
         </Nota>
       )}
       {falla?.tipo === 'no-disponible' && (
@@ -320,7 +331,12 @@ export function Entrar() {
           className="max-w-md"
           junto={<BotonMostrar visible={ver} onCambio={() => setVer((v) => !v)} />}
         />
-        {/* «¿Olvidaste tu contraseña?» llega con MATU-57: mientras no exista, no se pone. */}
+        {/* MATU-57 4: el correo escrito pasa en memoria, nunca en la URL. */}
+        <p className="-mt-3">
+          <EnlaceRuta a="/entrar/recuperar" antes={() => fijar({ correo: email.trim() })}>
+            {ENTRAR.olvidaste}
+          </EnlaceRuta>
+        </p>
         {falla?.tipo === 'faltan' && <MensajeError>{ENTRAR.faltan}</MensajeError>}
         {falla?.tipo === 'credenciales' && (
           <Nota tono="pronto" rol="alert">
@@ -538,7 +554,9 @@ export function Autorizacion() {
       const vista = { id: p.id, nombre: p.nombre, nombre_pila: p.nombre_pila, nivel_apoyo: p.nivel_apoyo, direccion: p.direccion, consentimiento: p.consentimiento }
       fijar({ personas: [...personas, vista], personaId: p.id, ficha: null, borrador: BORRADOR_VACIO })
       anunciar(AUTORIZACION.registrada(nombrePilaDe(vista)))
-      navegar('/ficha', { reemplazar: true })
+      // MATU-57 5.1 (D4): en la primera entrada se ofrece confirmar el celular, con «Ahora no».
+      fijar({ celularDesde: 'primera' })
+      navegar('/cuenta/celular', { reemplazar: true })
     } catch (x) {
       if (esVencida(x)) return
       const f = leerFallo(x)

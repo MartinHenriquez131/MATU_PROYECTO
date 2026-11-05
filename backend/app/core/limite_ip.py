@@ -7,7 +7,7 @@
 Cada ruta declara ``dependencies=[Depends(limite_por_ip(LIMITE_…))]``. La dependencia corre antes de
 validar los campos del cuerpo, así el 429 va antes del 422 de validación (orden de evaluación del
 contrato). Un cuerpo que no es JSON válido responde 422 antes, sin contar: FastAPI lo parsea antes de
-resolver las dependencias (decisión 81).
+resolver las dependencias (decisión 106).
 
 - La IP es la del socket, ``request.client.host``. Detrás del proxy de Railway, Uvicorn la reemplaza
   por la del X-Forwarded-For solo si la conexión viene de FORWARDED_ALLOW_IPS (app/servidor.py). Un
