@@ -26,7 +26,8 @@ export const PIN = {
   incompleto: 'El PIN tiene 4 números. Revisa que estén todos.',
   incorrectoInicio: 'Ese PIN no es.',
   incorrectoRevisa: 'Revisa los cuatro números que te dictaron.',
-  intentos: (n: number) => (n === 1 ? '1 intento' : `${n} intentos`),
+  /** Con espacio duro (`\u00A0`): «3» e «intentos» no se separan al cortar la línea. */
+  intentos: (n: number) => (n === 1 ? '1\u00A0intento' : `${n}\u00A0intentos`),
   teQuedan: (n: number) => (n === 1 ? 'Te queda' : 'Te quedan'),
   incorrectoFin: 'Después, el enlace se bloquea.',
 }

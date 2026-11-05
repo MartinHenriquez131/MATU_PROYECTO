@@ -1359,6 +1359,8 @@ function DialogoEliminar({
     }
   }
 
+  // En modo angosto el diálogo gana ancho y achica el relleno: a 320 px con el texto al 200 % el
+  // texto pasa de 150 a 252 px y las palabras ya no se parten (revisión visual del #53, P2).
   return (
     <dialog
       ref={ref}
@@ -1368,7 +1370,7 @@ function DialogoEliminar({
         e.preventDefault()
         onCancelar()
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-hoja p-6 text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
     >
       <div className="flex flex-col gap-4">
         <h2 id={`${uid}-t`} className="text-xl font-bold break-words [overflow-wrap:anywhere]">
