@@ -31,6 +31,11 @@ Cada historia agrega aquí lo suyo:
 - MATU-25: ENTORNO admite staging (decisión 105, que amplía la D-A). La KEK en variable de entorno y el
   envío simulado tienen cada uno su lista permitida (ENTORNOS_KEK_SINTETICA y ENTORNOS_ENVIO_SIMULADO),
   y en staging el registro de cuentas solo acepta correos de dominios reservados
+- MATU-25 (decisión 114, punto 7): DIAGNOSTICO_PROXY, el diagnóstico temporal de X-Forwarded-For
+  (app/core/proxy.py). Apagado por omisión; con ENTORNO=produccion, encendido impide cargar la
+  configuración. PROXY_SALTOS y FORWARDED_ALLOW_IPS no viven aquí: los valida app/servidor.py
+- MATU-58: WEB_DIST también es la app de familia, que la API entrega en toda ruta que no sea de la API
+  (decisión 115). /docs y /openapi.json solo se publican en ENTORNOS_DOCUMENTACION (local y pruebas)
 """
 
 import base64
@@ -62,9 +67,17 @@ ENTORNOS_KEK_SINTETICA: frozenset[str] = frozenset({"local", "pruebas", "staging
 # lista, aunque hoy tenga los mismos valores: ampliar una no amplía la otra
 ENTORNOS_ENVIO_SIMULADO: frozenset[str] = frozenset({"local", "pruebas", "staging"})
 
+# Entornos que publican la documentación de la API, /docs y /openapi.json (MATU-58, decisión 115). Lista
+# permitida, como las anteriores: en staging y produccion, o con un valor nuevo, responden 404
+ENTORNOS_DOCUMENTACION: frozenset[str] = frozenset({"local", "pruebas"})
+
 # Entornos donde el registro de cuentas solo acepta correos de dominios reservados (decisión 105, (i)):
 # staging tiene solo datos sintéticos
 ENTORNOS_SOLO_DOMINIOS_RESERVADOS: frozenset[str] = frozenset({"staging"})
+
+# Entornos donde se admite DIAGNOSTICO_PROXY encendido (MATU-25, decisión 114, punto 7). Otra lista más:
+# produccion, o un valor nuevo, quedan fuera
+ENTORNOS_DIAGNOSTICO_PROXY: frozenset[str] = frozenset({"local", "pruebas", "staging"})
 LARGO_KEK = 32
 
 
@@ -149,9 +162,15 @@ class Configuracion(BaseSettings):
     # Redis de las sesiones de relevo (MATU-19). Local por omisión; en otro entorno, desde .env
     redis_url: str = "redis://127.0.0.1:6379/0"
 
-    # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y los archivos de
-    # /assets en el mismo origen. Sin la carpeta, /r responde 404 y el resto de la API no cambia
+    # Build de la aplicación web (MATU-23, ADR-026): la API sirve index.html en /r y en las rutas de la
+    # app de familia (MATU-58), y los archivos de /assets, en el mismo origen. Sin la carpeta, /r y las
+    # rutas de la app responden 404 y el resto de la API no cambia
     web_dist: Path = RAIZ_REPOSITORIO / "web" / "dist"
+
+    # Diagnóstico temporal del proxy (MATU-25, decisión 114, punto 7): una línea por petición de origen
+    # confiable con la cantidad y la clase de los elementos de X-Forwarded-For, nunca una IP. Solo lo usa
+    # python -m app.servidor. Apagado por omisión; con ENTORNO=produccion, encendido no carga
+    diagnostico_proxy: bool = False
 
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
@@ -161,6 +180,12 @@ class Configuracion(BaseSettings):
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @field_validator("diagnostico_proxy", mode="before")
+    @classmethod
+    def _diagnostico_vacio_es_apagado(cls, valor: object) -> object:
+        # DIAGNOSTICO_PROXY= en el .env cuenta como apagado
+        return False if valor == "" else valor
 
     @field_validator("kek_entorno")
     @classmethod
@@ -265,6 +290,14 @@ class Configuracion(BaseSettings):
         # Su lista es ENTORNOS_ENVIO_SIMULADO, no la de la KEK (decisión 105)
         if self.enviador_codigos == "simulado" and self.entorno not in ENTORNOS_ENVIO_SIMULADO:
             raise ValueError("ENVIADOR_CODIGOS=simulado solo se admite con ENTORNO local, pruebas o staging")
+        return self
+
+    @model_validator(mode="after")
+    def _diagnostico_proxy_solo_fuera_de_produccion(self) -> "Configuracion":
+        # Condición 2 del analista normativo (MATU-25): el diagnóstico es temporal y de staging. En
+        # produccion la API no arranca con él encendido. El mensaje nombra la variable, nunca su valor
+        if self.diagnostico_proxy and self.entorno not in ENTORNOS_DIAGNOSTICO_PROXY:
+            raise ValueError("DIAGNOSTICO_PROXY solo se admite con ENTORNO local, pruebas o staging")
         return self
 
     @model_validator(mode="after")

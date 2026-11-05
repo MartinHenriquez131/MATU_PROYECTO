@@ -22,12 +22,21 @@ from tests.modules.care_plan.test_abrir_relevo_api import (
     _todas,
     _una,
 )
+from tests.textos import aparece_celular
 
 # Las fixtures de MATU-19: el reloj desde la hora real, el pepper y las sesiones en memoria
 entorno = abrir.entorno
 reloj_fijo = abrir.reloj_fijo
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-07")]
+
+# El celular del relevo y el de la red de apoyo de la ficha (abrir.RED)
+CELULARES = ("+56 9 5555 0137", "+56 9 5555 0101")
+
+
+def _con_celular(texto: str) -> bool:
+    """Si texto trae alguno de los celulares, escrito como sea; nunca por un UUID o un hash que contenga 5555."""
+    return any(aparece_celular(celular, texto) for celular in CELULARES)
 
 RUTA_ACCESO = "/v1/accesos-relevo/{}"
 RUTA_ACCESOS = "/v1/personas-cuidadas/{}/plan/accesos-relevo"
@@ -131,7 +140,7 @@ def test_idempotente_conserva_el_primer_revocado_en(entorno: EntornoAbrir) -> No
     assert len(filas) == 1
     actor_tipo, actor_ref, fila = filas[0]
     assert actor_tipo == "usuario" and actor_ref == familia.admin.id
-    assert "Rosa" not in fila and "5555" not in fila  # ni el nombre ni el teléfono del relevo
+    assert "Rosa" not in fila and not _con_celular(fila)  # ni el nombre ni el teléfono del relevo
 
 
 def test_revocar_vencido_no_fija_revocado_en(entorno: EntornoAbrir) -> None:
@@ -216,4 +225,4 @@ def test_logs_sin_datos_sensibles(entorno: EntornoAbrir, caplog: pytest.LogCaptu
     with caplog.at_level("DEBUG"):
         _sin_cuerpo_204(_revocar(entorno, familia.admin, familia.grupo.id, acceso_id))
     texto = caplog.text
-    assert token not in texto and "Rosa" not in texto and "5555" not in texto
+    assert token not in texto and "Rosa" not in texto and not _con_celular(texto)

@@ -32,6 +32,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
+from tests.textos import aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-06")]
 
@@ -265,7 +266,9 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert entorno.abrir(token, pin).status_code == 200
 
     filas = _todas(
-        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, a::text FROM auditoria a"
+        # Sin la columna id: con la secuencia avanzada podría valer el PIN (como en ac8a315)
+        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, (to_jsonb(a) - 'id')::text"
+        " FROM auditoria a"
         " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
     assert len(filas) == 1
     grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, fila = filas[0]
@@ -274,7 +277,8 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
         familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
     assert motivo is None and ip is None  # C8
-    assert token not in fila and pin not in fila.replace(str(acceso_id), "") and "Rosa" not in fila
+    # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
+    assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
     usos, ultimo = cast(tuple[int, datetime], _una(
         "SELECT usos, ultimo_uso_en FROM acceso_relevo WHERE id = %s", acceso_id))
     assert usos == 1 and ultimo == entorno.reloj.ahora()
@@ -530,6 +534,44 @@ def test_la_sesion_se_crea_despues_del_commit_del_canje(entorno: EntornoAbrir) -
     assert "set-cookie" not in respuesta.headers
     assert orden == ["auditado"]
     assert _acciones(acceso_id) == ["relevo.canje"]
+
+
+# --- MATU-25 · Límite por IP del relevo (decisión 29) ----------------------------------------------------
+
+
+def test_canje_429_por_ip_sin_tocar_el_acceso_y_vuelve_a_la_hora(entorno: EntornoAbrir) -> None:
+    """El 11.º canje de la hora desde la misma IP responde 429 aunque el token y el PIN sean correctos: no
+    suma intento, no audita y no crea sesión. A la hora del primero, el mismo canje entra."""
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(10):
+        assert entorno.relevo.post("/v1/relevo/canje", json={"token": token}).status_code == 422
+    entorno.reloj.avanzar(timedelta(minutes=30))
+
+    respuesta = entorno.canjear(token, pin)
+    cuerpo = _problema(respuesta, 429, "demasiadas-peticiones")
+    assert respuesta.headers["retry-after"] == str(30 * 60)
+    assert "set-cookie" not in respuesta.headers
+    assert token not in respuesta.text and pin not in str(cuerpo)
+    assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
+    assert _acciones(acceso_id) == []
+
+    entorno.reloj.avanzar(timedelta(minutes=30))
+    assert entorno.canjear(token, pin).status_code == 204
+    assert _acciones(acceso_id) == ["relevo.canje"]
+    log = entorno.ficha.iam.texto_log()
+    assert token not in log and f'"{pin}"' not in log and "testclient" not in log
+
+
+def test_presentacion_429_tras_treinta_y_no_agota_el_canje(entorno: EntornoAbrir) -> None:
+    familia = entorno.familia_con_ficha()
+    acceso_id, token, pin = entorno.compartir(familia)
+    for _ in range(30):
+        assert entorno.presentar(token).status_code == 200
+    _problema(entorno.presentar(token), 429, "demasiadas-peticiones")
+    assert _acciones(acceso_id).count("relevo.presentar") == 30
+    # Contador separado (decisión 29): el canje sigue disponible
+    assert entorno.canjear(token, pin).status_code == 204
 
 
 @pytest.mark.rf("RF-02")
