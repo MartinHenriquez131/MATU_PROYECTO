@@ -41,6 +41,8 @@ Cada historia agrega aquí lo suyo:
   configuración. PROXY_SALTOS y FORWARDED_ALLOW_IPS no viven aquí: los valida app/servidor.py
 - MATU-58: WEB_DIST también es la app de familia, que la API entrega en toda ruta que no sea de la API
   (decisión 115). /docs y /openapi.json solo se publican en ENTORNOS_DOCUMENTACION (local y pruebas)
+- MATU-40: CAPA3_HABILITADA, si la API monta los routers de la capa 3, el despacho (ADR-002). Apagada
+  por omisión: las capas 1 y 2 no dependen de ella y la API arranca igual. Ver app/main.py
 """
 
 import base64
@@ -186,6 +188,11 @@ class Configuracion(BaseSettings):
     # confiable con la cantidad y la clase de los elementos de X-Forwarded-For, nunca una IP. Solo lo usa
     # python -m app.servidor. Apagado por omisión; con ENTORNO=produccion, encendido no carga
     diagnostico_proxy: bool = False
+
+    # Capa 3, el despacho (MATU-40, ADR-002): con true, la API monta los routers de ROUTERS_CAPA_3 de
+    # app/main.py. Apagada por omisión: sin convenio no hay despacho, y la ficha, el relevo y el consumo
+    # funcionan igual. No es un secreto
+    capa3_habilitada: bool = False
 
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",

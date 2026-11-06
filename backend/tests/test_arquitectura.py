@@ -33,12 +33,15 @@ APP = Path(__file__).resolve().parents[1] / "app"
 # El grafo permitido, declarado una sola vez
 # ---------------------------------------------------------------------------
 
-# Flechas de la sección 6.3: el módulo de la izquierda puede importar a los de la derecha
+# Flechas de la sección 6.3: el módulo de la izquierda puede importar a los de la derecha.
+# consumption no llega a catalog (decisión 104 de docs/api/README.md, Jorge, 04-11, MATU-40): catalog es
+# capa 3 y se puede quitar. La flecha consumption → catalog de la sección 6.3 se corrige en la v1.2
+# (MATU-43). En el sprint 4, consumption usa el catálogo solo por un puerto opcional (CatalogoComercio)
 FLECHAS: dict[str, frozenset[str]] = {
     "iam": frozenset(),
     "care_circle": frozenset({"iam"}),
     "care_plan": frozenset({"care_circle"}),
-    "consumption": frozenset({"care_plan", "catalog"}),
+    "consumption": frozenset({"care_plan"}),
     "catalog": frozenset({"iam"}),
     "replenishment": frozenset({"consumption", "ordering"}),
     "ordering": frozenset({"care_circle", "catalog"}),
@@ -372,6 +375,11 @@ IMPORTACIONES_PROHIBIDAS = [
                  "regla 3", id="care_plan-importa-fulfillment"),
     pytest.param("modules/consumption/x.py", "from ..settlement import liquidacion\n",
                  "regla 3", id="consumption-importa-settlement-relativo"),
+    # Decisión 104 (MATU-40): catalog es capa 3; las capas 1 y 2 nunca lo importan
+    pytest.param("modules/consumption/application/lista.py", "from app.modules.catalog.domain import producto\n",
+                 "regla 1", id="consumption-importa-catalog"),
+    pytest.param("modules/care_plan/application/x.py", "import app.modules.catalog\n",
+                 "regla 1", id="care_plan-importa-catalog"),
     pytest.param("modules/ordering/application/x.py", "from app.modules.notifications import enviar\n",
                  "regla 4", id="ordering-importa-notifications"),
     pytest.param("modules/backoffice/x.py", "import app.modules.notifications.application\n",
@@ -417,8 +425,6 @@ IMPORTACIONES_PERMITIDAS = [
                  "from app.modules.care_plan.interfaz_consumo import PerfilLectura\n", id="consumption-por-interfaz"),
     pytest.param("modules/consumption/application/perfil.py",
                  "from app.modules.care_plan import interfaz_consumo\n", id="consumption-interfaz-como-submodulo"),
-    pytest.param("modules/consumption/application/lista.py",
-                 "from app.modules.catalog.domain import producto\n", id="consumption-a-catalog"),
     pytest.param("modules/consumption/application/lista.py",
                  "from app.modules.care_circle.domain import persona\n", id="consumption-a-care_circle-transitiva"),
     pytest.param("modules/settlement/servicio.py",
