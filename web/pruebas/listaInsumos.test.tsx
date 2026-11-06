@@ -1,14 +1,18 @@
-// MATU-60: la pantalla «Lista de insumos» (especificación docs/diseno/matu-60-lista-insumos.md v1.1).
+// MATU-60: la pantalla «Lista de insumos» (especificación docs/diseno/matu-60-lista-insumos.md v1.2).
 // El observador sin botones ni campos, el 403 con sus textos, quitar y agregar con sus anuncios,
 // copiar con éxito y con error, `navigator.share` solo con `text`, la impresión y que nada se
 // escribe en el navegador. Textos de lenguaje.md, sección 21, tal cual. Datos sintéticos.
-import { render, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Rol } from '../src/compartido/api/familia'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
+import { Insumos } from '../src/familia/Insumos'
 import { ListaDeInsumos } from '../src/familia/ListaInsumos'
+import { useRuta } from '../src/familia/ruteo'
 import { responderCon, type RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 
@@ -92,7 +96,7 @@ describe('La lista, para quien la puede sacar del teléfono', () => {
     expect(panal).toHaveValue('6')
     expect(pantalla.getByText('envases de 20 unidades')).toBeVisible()
     expect(pantalla.getByRole('button', { name: 'Menos: Cantidad de Pañal adulto talla M' })).toBeVisible()
-    expect(pantalla.getByRole('button', { name: 'Quitar «Pañal adulto talla M» de la lista' })).toHaveTextContent('Quitar de la lista')
+    expect(pantalla.getByRole('button', { name: 'Quitar de la lista: Pañal adulto talla M' })).toHaveTextContent('Quitar de la lista')
 
     expect(pantalla.getByText(/^La lista no lleva el nombre de María/)).toHaveTextContent(
       'La lista no lleva el nombre de María, pero sí lo que usa. Lo que imprimas o compartas sale de MATU y no podemos borrarlo. Compártela solo con quien va a comprar.',
@@ -209,7 +213,7 @@ describe('Quitar y agregar', () => {
     const u = userEvent.setup()
     await pantalla.findByText('Pañal adulto talla M')
 
-    await u.click(pantalla.getByRole('button', { name: 'Quitar «Crema humectante» de la lista' }))
+    await u.click(pantalla.getByRole('button', { name: 'Quitar de la lista: Crema humectante' }))
     await waitFor(() => expect(amable).toHaveTextContent('Quitamos «Crema humectante» de la lista. Sigue en Insumos.'))
     expect(pantalla.queryByText('Crema humectante')).toBeNull()
     expect(pantalla.getByText('Lo que quitaste sigue en Insumos. Vuelve a esta lista cuando entras de nuevo.')).toBeVisible()
@@ -221,7 +225,7 @@ describe('Quitar y agregar', () => {
     const { pantalla } = abrir('admin')
     const u = userEvent.setup()
     await pantalla.findByText('Pañal adulto talla M')
-    for (const n of ['Crema humectante', 'Toallitas húmedas', 'Pañal adulto talla M']) await u.click(pantalla.getByRole('button', { name: `Quitar «${n}» de la lista` }))
+    for (const n of ['Crema humectante', 'Toallitas húmedas', 'Pañal adulto talla M']) await u.click(pantalla.getByRole('button', { name: `Quitar de la lista: ${n}` }))
 
     expect(pantalla.getByText('Quitaste todo de la lista. Si quieres, agrega uno a mano.')).toBeVisible()
     expect(pantalla.queryByText('No hay insumos que se acaben pronto. Si quieres, agrega uno a mano.')).toBeNull()
@@ -263,7 +267,7 @@ describe('Quitar y agregar', () => {
     expect(writeText).toHaveBeenCalledWith(`${TEXTO_200.replace('\nPiloto', '\n- Toallitas para el baño: 2 envases\nPiloto')}`)
 
     // Quitar lo agregado a mano: su propio anuncio, sin «Sigue en Insumos».
-    await u.click(pantalla.getByRole('button', { name: 'Quitar «Toallitas para el baño» de la lista' }))
+    await u.click(pantalla.getByRole('button', { name: 'Quitar de la lista: Toallitas para el baño' }))
     await waitFor(() => expect(amable).toHaveTextContent('Quitamos «Toallitas para el baño» de la lista.'))
     expect(amable.textContent).not.toContain('Sigue en Insumos')
     expect(pantalla.queryByText(/Lo que quitaste sigue en Insumos/)).toBeNull()
@@ -387,7 +391,7 @@ describe('Nada de la lista queda en el navegador', () => {
     await u.click(pantalla.getByRole('button', { name: 'Agregar otro insumo' }))
     await u.type(pantalla.getByRole('textbox', { name: '¿Qué insumo es?' }), 'Gasas')
     await u.click(pantalla.getByRole('button', { name: 'Agregar' }))
-    await u.click(pantalla.getByRole('button', { name: 'Quitar «Crema humectante» de la lista' }))
+    await u.click(pantalla.getByRole('button', { name: 'Quitar de la lista: Crema humectante' }))
     await u.click(pantalla.getByRole('button', { name: 'Copiar la lista' }))
 
     expect(escrituras).toEqual([])
@@ -396,5 +400,82 @@ describe('Nada de la lista queda en el navegador', () => {
     expect(window.location.pathname + window.location.search + window.location.hash).toBe('/insumos/lista')
     expect(window.history.state).toBeNull()
     expect(document.title).not.toMatch(/Pañal|Gasas|María/)
+  })
+})
+
+describe('Revisión visual del 06-11 (v1.2)', () => {
+  /** 2.3: `useAncho` mide el ancho del contenedor; jsdom no tiene diseño, así que se simula. */
+  const enAncho = () => vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+
+  it('4.3: la grilla de la línea se decide por el ancho de la lista, con la cantidad en una columna de 20 rem', async () => {
+    const { pantalla } = abrir('admin')
+    await pantalla.findByText('Pañal adulto talla M')
+    const ul = pantalla.getByText('Pañal adulto talla M').closest('ul')!
+    expect(ul).toHaveClass('@container/lista')
+    for (const li of ul.querySelectorAll('li')) {
+      expect(li).toHaveClass('grid', 'grid-cols-1', '@2xl/lista:grid-cols-[minmax(0,1fr)_20rem_auto]', '@2xl/lista:items-center', 'gap-x-6', 'gap-y-2')
+      expect(li.className).not.toMatch(/@3xl\/main/)
+    }
+    const quitar = pantalla.getByRole('button', { name: 'Quitar de la lista: Pañal adulto talla M' })
+    expect(quitar).toHaveClass('@2xl/lista:mt-0', 'justify-self-end')
+    expect(quitar.className).not.toMatch(/@3xl\/main/)
+  })
+
+  it('4.3: la línea del observador son dos columnas, con la cantidad a la derecha', async () => {
+    const { pantalla } = abrir('observador')
+    const cantidad = await pantalla.findByText('6 envases de 20 unidades')
+    expect(cantidad).toHaveClass('text-right')
+    expect(cantidad.closest('li')).toHaveClass('@2xl/lista:grid-cols-[minmax(0,1fr)_auto]')
+    expect(cantidad.closest('ul')).toHaveClass('@container/lista')
+  })
+
+  it('2.3: el observador en ancho va en una sola columna: líneas, nota y la frase debajo', async () => {
+    enAncho()
+    const { pantalla } = abrir('observador')
+    await pantalla.findByText('6 envases de 20 unidades')
+    const ul = pantalla.getByText('6 envases de 20 unidades').closest('ul')!
+    const columna = ul.parentElement!
+    expect(columna).toHaveClass('flex', 'flex-col', 'gap-5', 'max-w-3xl')
+    expect([...columna.children].map((x) => `${x.tagName}:${x.tagName === 'UL' ? '' : x.textContent}`)).toEqual([
+      'UL:',
+      'P:Es una sugerencia con lo que anotó la familia, y ya descuenta lo que queda.',
+      'P:Quien administra, cuida o paga puede imprimirla o compartirla.',
+    ])
+    expect(document.querySelector('[class*="grid-cols-[3fr_2fr]"]')).toBeNull()
+  })
+
+  it('2.3: los demás roles en ancho siguen con la salida a la derecha', async () => {
+    enAncho()
+    const { pantalla } = abrir('admin')
+    await pantalla.findByText('Pañal adulto talla M')
+    expect(pantalla.getByRole('button', { name: 'Copiar la lista' }).closest('[class*="grid-cols-[3fr_2fr]"]')).not.toBeNull()
+  })
+
+  it('6.2: el cuidador sin el permiso llega a Insumos con el foco en su h1', async () => {
+    contexto = familiaFalsa({ persona: PERSONA, personaId: PERSONA.id, rol: 'cuidador' } as never)
+    const sinPermiso = { type: '/errores/sin-consentimiento', status: 403, finalidad: 'consumo' }
+    apiFamilia.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      // La lista responde de inmediato; Insumos, como en la red, después de que la ruta enfocó su h1.
+      if (!/\/consumo\/lista$/.test(config.url ?? '')) await new Promise((r) => setTimeout(r, 60))
+      const respuesta: AxiosResponse = { data: sinPermiso, status: 403, statusText: '', headers: {}, config, request: {} }
+      throw new AxiosError('HTTP 403', AxiosError.ERR_BAD_REQUEST, config, {}, respuesta)
+    }
+    /** Lo mismo que hace AppFamilia (2.6): al cambiar de ruta, el foco va al h1. */
+    function DosRutas() {
+      const ruta = useRuta()
+      useEffect(() => {
+        const t = window.setTimeout(() => document.getElementById('titulo-pagina')?.focus(), 0)
+        return () => window.clearTimeout(t)
+      }, [ruta])
+      return ruta === '/insumos/lista' ? <ListaDeInsumos /> : <Insumos />
+    }
+    render(<DosRutas />)
+
+    await waitFor(() => expect(window.location.pathname).toBe('/insumos'))
+    const h1 = await screen.findByRole('heading', { level: 1, name: 'Antes de calcular, un permiso' })
+    await waitFor(() => expect(h1).toHaveFocus())
+    // Y sigue ahí: nada lo devuelve al body.
+    await new Promise((r) => setTimeout(r, 200))
+    expect(h1).toHaveFocus()
   })
 })

@@ -139,6 +139,21 @@ describe('El campo del envase', () => {
     expect(screen.getByText(/^Cada envase trae 30 unidades\./).closest('li')).toHaveTextContent('Cada envase trae 30 unidades. (cambió)')
     expect(screen.getByText('Sin unidades por envase.')).toBeVisible()
   })
+
+  it.each([
+    ['unidad', 'Cada envase trae 1 unidad.'],
+    ['sobre', 'Cada envase trae 1 sobre.'],
+    ['ml', 'Cada envase trae 1 ml.'],
+    ['g', 'Cada envase trae 1 g.'],
+  ])('el 412 con 1 por envase va en singular (9.4): %s', async (unidad, texto) => {
+    const actual = { ...PANAL, unidad, unidades_por_envase: 1, actualizado_por: { id: 'u2', nombre: 'Rodrigo' }, etag: '"v2"' }
+    const { u, campo } = await abrirCambiar(() => ({ status: 412, cuerpo: { type: '/errores/version-desactualizada', status: 412, actual } }))
+    await u.clear(campo)
+    await u.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Rodrigo cambió «Pañal adulto talla M» mientras lo cambiabas')).toBeVisible()
+    expect(screen.getByText(texto, { exact: false }).closest('li')).toHaveTextContent(`${texto} (cambió)`)
+  })
 })
 
 describe('Al anotar', () => {

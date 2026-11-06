@@ -32,7 +32,7 @@ import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
-import { miles } from './textoLista'
+import { miles, sufijoCantidad } from './textoLista'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
 import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
@@ -133,6 +133,18 @@ export function Insumos() {
   useEffect(() => {
     void cargar()
   }, [cargar])
+
+  // 2.6: el foco de la llegada queda en el h1 de «Cargando», que se reemplaza por el de lo que llega
+  // (la lista, el permiso, el 404…). Si al reemplazarlo el foco cayó al body, lo recibe el h1 nuevo
+  // (MATU-60, revisión del 06-11: el cuidador que llega desde la lista sin el permiso).
+  const cargaAntes = useRef<Carga>(carga)
+  useEffect(() => {
+    const venia = cargaAntes.current
+    cargaAntes.current = carga
+    if (venia !== 'cargando' || carga === 'cargando') return
+    const activo = document.activeElement
+    if (activo === null || activo === document.body) document.getElementById('titulo-pagina')?.focus()
+  }, [carga])
 
   const modo: 'nuevo' | 'cambiar' | null = ruta === '/insumos/nuevo' ? 'nuevo' : ruta === '/insumos/cambiar' ? 'cambiar' : null
   const editado = modo === 'cambiar' ? (items.find((p) => p.id === editandoId && p.activo) ?? null) : null
@@ -1230,7 +1242,7 @@ function Conflicto({
   )
   const l = lineaDias(actual.dias_restantes)
   // MATU-60 9.4: el envase, si lo cambió esta persona o la otra.
-  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), INSUMOS.sufijoStock(actual.unidad)))
+  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
   const envaseLeido = leido.unidades_por_envase ?? null
   const envaseActual = actual.unidades_por_envase ?? null
   const verEnvase = mio.unidades_por_envase !== undefined || envaseActual !== envaseLeido

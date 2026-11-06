@@ -1,5 +1,5 @@
 // «Lista de insumos» de la app de la familia (MATU-60, RF-15, ADR-031; especificación
-// docs/diseno/matu-60-lista-insumos.md v1.1). Lo que hoy está en «Se acaban pronto», con una
+// docs/diseno/matu-60-lista-insumos.md v1.2). Lo que hoy está en «Se acaban pronto», con una
 // cantidad sugerida para 30 días, que la familia ajusta, imprime, copia o comparte como texto.
 //
 // Nada de esto se guarda: las cantidades cambiadas, las líneas agregadas a mano y las quitadas
@@ -350,7 +350,7 @@ export function ListaDeInsumos() {
     if (hay)
       izquierda = (
         <>
-          <ul className="flex flex-col gap-2">
+          <ul className="@container/lista flex flex-col gap-2">
             {lineas.map((l) => (
               <LineaDeLista key={l.clave} linea={l} puede={puede} error={errores.has(l.clave)} onCambio={(v) => alCambiar(l.clave, v)} onQuitar={() => quitar(l.clave)} />
             ))}
@@ -424,7 +424,8 @@ export function ListaDeInsumos() {
       <p className="max-w-prose text-base text-tenue">{LISTA.observador}</p>
     )
 
-    if (ancho && derecha)
+    // 2.3 (v1.2): el observador no tiene salida, así que en ancho va en una sola columna, sin la derecha.
+    if (ancho && derecha && puede)
       return (
         <div className="grid grid-cols-[3fr_2fr] items-start gap-10">
           <div className="flex min-w-0 flex-col gap-5">{izquierda}</div>
@@ -432,9 +433,9 @@ export function ListaDeInsumos() {
         </div>
       )
     return (
-      <div className="flex flex-col gap-5">
+      <div className={`flex flex-col gap-5 ${puede ? '' : 'max-w-3xl'}`}>
         {izquierda}
-        {derecha && <div className="flex flex-col items-start gap-4">{derecha}</div>}
+        {derecha && (puede ? <div className="flex flex-col items-start gap-4">{derecha}</div> : derecha)}
       </div>
     )
   }
@@ -492,8 +493,8 @@ function LineaDeLista({ linea: l, puede, error, onCambio, onQuitar }: { linea: L
   const n = entero(l.valor)
   return (
     <li
-      className={`grid grid-cols-1 items-start gap-x-6 gap-y-2 rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea @3xl/main:items-center ${
-        puede ? '@3xl/main:grid-cols-[minmax(0,1fr)_auto_auto]' : '@3xl/main:grid-cols-[minmax(0,1fr)_auto]'
+      className={`grid grid-cols-1 items-start gap-x-6 gap-y-2 rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea @2xl/lista:items-center ${
+        puede ? '@2xl/lista:grid-cols-[minmax(0,1fr)_20rem_auto]' : '@2xl/lista:grid-cols-[minmax(0,1fr)_auto]'
       }`}
     >
       <div className="flex min-w-0 flex-col gap-1">
@@ -526,12 +527,12 @@ function LineaDeLista({ linea: l, puede, error, onCambio, onQuitar }: { linea: L
             max={l.max}
             error={error ? LISTA.errCantidad : null}
           />
-          <Boton variante="textoPeligro" aria-label={LISTA.quitarDe(l.nombre)} className="mt-2 justify-self-end text-right @3xl/main:mt-0" onClick={onQuitar}>
+          <Boton variante="textoPeligro" aria-label={LISTA.quitarDe(l.nombre)} className="mt-2 justify-self-end text-right @2xl/lista:mt-0" onClick={onQuitar}>
             {LISTA.quitar}
           </Boton>
         </>
       ) : (
-        <p className="text-lg tabular-nums">{cantidadEnTexto(l.ultimoValido, l.unidad, l.envase)}</p>
+        <p className="text-right text-lg tabular-nums">{cantidadEnTexto(l.ultimoValido, l.unidad, l.envase)}</p>
       )}
     </li>
   )

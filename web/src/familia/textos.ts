@@ -558,7 +558,7 @@ export const LISTA = {
   mas: (nombre: string) => `Más: Cantidad de ${nombre}`,
   errCantidad: 'Escribe una cantidad de 1 a 100.000.',
   quitar: 'Quitar de la lista', // [AJUSTE]
-  quitarDe: (nombre: string) => `Quitar «${nombre}» de la lista`, // [AJUSTE]
+  quitarDe: (nombre: string) => `Quitar de la lista: ${nombre}`, // [AJUSTE v1.2] empieza con el texto visible (WCAG 2.5.3)
 
   // 4.6 Nota del cálculo [AJUSTE]
   nota: 'Es una sugerencia con lo que anotaste, y ya descuenta lo que queda. Cambia la cantidad si necesitas otra.',
