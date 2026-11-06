@@ -5,7 +5,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { atenderConsumo, crearAlertas, listaCompleta, perfil, type ConsumoDoble } from './consumo'
+import { atenderConsumo, crearAlertas, listaCompleta, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -287,6 +287,22 @@ function sembrar() {
   insumos(cuenta('alertas-error@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error'), 'vigente', true)
   insumos(cuenta('alertas-error-carga@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error-carga'), 'vigente', true)
   insumos(cuenta('insumos-defectos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
+  // MATU-60: la lista de insumos, una cuenta por estado y por rol.
+  const conLista = (u: Usuario, autorizacion: ConsumoDoble['autorizacion'] = 'vigente', soloFuera = false) => {
+    const c = insumos(u, autorizacion, false)
+    c.perfiles = listaParaLista({ id: u.id, nombre: u.nombre }).filter((p) => !soloFuera || p.nombre_libre.startsWith('Bolsas'))
+    crearAlertas(c)
+  }
+  const sotoLista = (rol: Rol, cuidadorDeHecho = false) => [grupo('Familia Soto', rol, [persona('María Soto', 'María', {}, cuidadorDeHecho ? 'cuidador_de_hecho' : undefined)])]
+  conLista(cuenta('lista@example.com', 'Carmen', sotoLista('admin')))
+  conLista(cuenta('lista-cuidador@example.com', 'Javiera', sotoLista('cuidador')))
+  conLista(cuenta('lista-pagador@example.com', 'Rodrigo', sotoLista('pagador')))
+  conLista(cuenta('lista-observador@example.com', 'Rodrigo', sotoLista('observador')))
+  conLista(cuenta('lista-vacia@example.com', 'Carmen', sotoLista('admin')), 'vigente', true)
+  conLista(cuenta('lista-permiso-cuidador@example.com', 'Javiera', sotoLista('cuidador')), 'no')
+  conLista(cuenta('lista-permiso-observador@example.com', 'Rodrigo', sotoLista('observador')), 'no')
+  conLista(cuenta('lista-renovar@example.com', 'Carmen', sotoLista('admin', true)), 'vencida')
+  conLista(cuenta('lista-error@example.com', 'Carmen', sotoLista('admin'), 'lista-error'))
   // MATU-50: las secciones complementarias, una cuenta por estado.
   const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
   cuenta('secciones-ninguna@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
