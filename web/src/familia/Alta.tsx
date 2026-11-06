@@ -3,8 +3,9 @@
 // campos empiezan vacíos, el panel es `hoja` con borde (no `pino` macizo), cuatro pasos, el
 // celular obligatorio, «correo» en vez de «email» y «autorización» en vez de «permiso».
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { Check, Eye, EyeOff, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { leerFallo } from '../compartido/api/cliente'
+import { esperaDe, leerFallo } from '../compartido/api/cliente'
 import { crearCuenta, crearGrupo, nombrePilaDe, registrarPersona, type Calidad, type SolicitudPersona } from '../compartido/api/familia'
 import { entrar, esVencida, fijarGrupo } from '../compartido/api/sesion'
 import { Boton } from '../compartido/ui/Boton'
@@ -13,7 +14,7 @@ import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
 import { navegar, type Ruta } from './ruteo'
 import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
-import { AUTORIZACION, CUENTA, ENTRAR, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
+import { AUTORIZACION, CUENTA, ENTRAR, ESPERA_CONEXION, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
 
 // ---------------------------------------------------------------- marco
 
@@ -121,6 +122,9 @@ export function CrearCuenta() {
   const [ver, setVer] = useState(false)
   const [errores, setErrores] = useState<ErroresCuenta>({})
   const [falla, setFalla] = useState<'registrado' | 'red' | null>(null)
+  // 429 del límite por IP (lenguaje 13.3). El botón sigue habilitado (la especificación solo deshabilita
+  // el de «Entrar») y el foco no se pierde; otro intento antes de tiempo vuelve a traer los minutos.
+  const [minutos, setMinutos] = useState<number | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const form = useRef<HTMLFormElement>(null)
 
@@ -134,6 +138,7 @@ export function CrearCuenta() {
     if (clave.length < 10) err.contrasena = CUENTA.errContrasenaCorta
     setErrores(err)
     setFalla(null)
+    setMinutos(null)
     if (Object.keys(err).length) return enfocarPrimerError(form.current)
     setOcupado(true)
     try {
@@ -145,16 +150,20 @@ export function CrearCuenta() {
       navegar('/empezar/grupo', { reemplazar: true })
     } catch (x) {
       const f = leerFallo(x)
-      if (f.status === 409) setFalla('registrado')
-      else if (f.status === 422 && f.campos.length) {
+      const espera = esperaDe(f)
+      if (espera) setMinutos(espera.minutos)
+      else if (f.status === 409) setFalla('registrado')
+      else if (f.status === 422 && f.errores.length) {
         const e422: ErroresCuenta = {}
-        for (const c of f.campos) {
-          if (c === 'nombre') e422.nombre = CUENTA.err422Nombre
-          else if (c === 'email') e422.email = CUENTA.errCorreo
-          else if (c === 'telefono') e422.celular = CUENTA.errCelular
-          else if (c === 'contrasena') e422.contrasena = CUENTA.err422Contrasena
+        for (const { campo, tipo } of f.errores) {
+          if (campo === 'nombre') e422.nombre = CUENTA.err422Nombre
+          else if (campo === 'email') e422.email = tipo === 'dominio_no_permitido' ? CUENTA.errDominio : CUENTA.errCorreo
+          else if (campo === 'telefono') e422.celular = CUENTA.errCelular
+          else if (campo === 'contrasena') e422.contrasena = CUENTA.err422Contrasena
         }
-        setErrores(e422)
+        // Tras un `await`, React puede confirmar el estado después del setTimeout de enfocarPrimerError:
+        // flushSync deja el campo con `aria-invalid` antes de buscarlo.
+        flushSync(() => setErrores(e422))
         if (Object.keys(e422).length) enfocarPrimerError(form.current)
         else setFalla('red')
       } else setFalla('red')
@@ -228,6 +237,11 @@ export function CrearCuenta() {
             {GENERAL.error}
           </Nota>
         )}
+        {minutos !== null && (
+          <Nota tono="atenta" titulo={ESPERA_CONEXION.titulo} rol="status">
+            {ESPERA_CONEXION.texto(minutos)}
+          </Nota>
+        )}
         <Acciones>
           <Boton type="submit" ocupado={ocupado} textoOcupado={CUENTA.enviando}>
             {CUENTA.boton}
@@ -275,11 +289,10 @@ export function Entrar() {
       navegar(destino ?? '/', { reemplazar: true })
     } catch (x) {
       const f = leerFallo(x)
+      const espera = esperaDe(f)
       if (f.status === 401) setFalla({ tipo: 'credenciales' })
-      else if (f.status === 429) {
-        const seg = f.reintentarEnSegundos ?? 60
-        setFalla({ tipo: 'espera', minutos: Math.max(1, Math.ceil(seg / 60)), hasta: Date.now() + seg * 1000 })
-      } else if (f.status === 503) setFalla({ tipo: 'no-disponible' })
+      else if (espera) setFalla({ tipo: 'espera', minutos: espera.minutos, hasta: Date.now() + espera.segundos * 1000 })
+      else if (f.status === 503) setFalla({ tipo: 'no-disponible' })
       else setFalla({ tipo: 'red' })
     } finally {
       setOcupado(false)

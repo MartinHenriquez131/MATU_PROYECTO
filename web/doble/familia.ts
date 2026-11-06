@@ -6,7 +6,7 @@ import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { atenderConsumo, crearAlertas, listaCompleta, perfil, type ConsumoDoble } from './consumo'
-import { CONTRASENA_DE_EJEMPLO } from './cuentas'
+import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -208,6 +208,13 @@ function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: 
 }
 
 const usuarios = new Map<string, Usuario>()
+
+/** `Retry-After` del 429 por IP al crear la cuenta, por correo; `null` = sin la cabecera. */
+const ESPERA_IP_CREAR_CUENTA: Record<string, string | null> = {
+  'espera-ip@ejemplo.cl': '61',
+  'espera-ip-60@ejemplo.cl': '60',
+  'espera-ip-sin-cabecera@ejemplo.cl': null,
+}
 
 function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
   const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms' }
@@ -445,12 +452,21 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     const email = typeof cuerpo?.email === 'string' ? cuerpo.email.trim().toLowerCase() : ''
     const telefono = cuerpo?.telefono
     const contrasena = cuerpo?.contrasena
+    // Límite por IP de MATU-25: el 429 va antes del 422, como en la API. Sin IP en el doble: por correo.
+    if (Object.hasOwn(ESPERA_IP_CREAR_CUENTA, email)) {
+      const retryAfter = ESPERA_IP_CREAR_CUENTA[email]
+      if (retryAfter) res.setHeader('Retry-After', retryAfter)
+      return problema(res, 429, '/errores/demasiadas-peticiones'), true
+    }
     const errores: { campo: string; mensaje: string; tipo: string }[] = []
     if (typeof nombre !== 'string' || !nombre.trim() || nombre.length > 100) errores.push({ campo: 'nombre', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (!email.includes('@')) errores.push({ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (typeof telefono !== 'string' || !/^(\+?56 ?)?9( ?[0-9]){8}$/.test(telefono.trim())) errores.push({ campo: 'telefono', mensaje: 'MENSAJE DEL DOBLE', tipo: 'celular_invalido' })
     if (typeof contrasena !== 'string' || contrasena.length < 10 || contrasena.length > 128) errores.push({ campo: 'contrasena', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_too_short' }) // pragma: allowlist secret
     if (errores.length) return problema(res, 422, '/errores/validacion', { errores }), true
+    // Decisión 105: en staging, después del cuerpo y antes del 409. El doble acepta cualquier dominio salvo este.
+    if (email.endsWith(`@${DOMINIO_NO_PERMITIDO}`))
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'dominio_no_permitido' }] }), true
     if (usuarios.has(email)) return problema(res, 409, '/errores/email-registrado'), true
     const u = cuenta(email, String(nombre).trim(), [])
     u.contrasena = String(contrasena)

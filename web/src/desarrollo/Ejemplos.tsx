@@ -2,7 +2,7 @@
 // del diseñador (especificación MATU-23, sección 8). main.tsx lo carga bajo import.meta.env.DEV,
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
-import { CONTRASENA_DE_EJEMPLO, CUENTAS } from '../../doble/cuentas'
+import { CONTRASENA_DE_EJEMPLO, CORREOS_CREAR_CUENTA, CUENTAS } from '../../doble/cuentas'
 import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 
 export function Ejemplos() {
@@ -19,6 +19,17 @@ export function Ejemplos() {
       </p>
       <ul className="flex flex-col gap-3">
         {CUENTAS.map((c) => (
+          <li key={c.email} className="flex flex-col">
+            <b className="digitos">{c.email}</b>
+            <span className="text-base text-tenue">{c.que}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-tenue">
+        En <a className="font-bold text-turquesa underline" href="/crear-cuenta">Crear cuenta</a>, con el resto de los campos bien escritos, estos correos provocan una respuesta:
+      </p>
+      <ul className="flex flex-col gap-3">
+        {CORREOS_CREAR_CUENTA.map((c) => (
           <li key={c.email} className="flex flex-col">
             <b className="digitos">{c.email}</b>
             <span className="text-base text-tenue">{c.que}</span>

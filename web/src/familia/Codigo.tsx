@@ -1,6 +1,7 @@
 // Piezas compartidas de MATU-57 (especificación 3 y 7): el campo del código de 6 números y la
 // espera de un 429 sin cuenta regresiva. El código vive solo en el estado del formulario.
 import { useEffect, useId, useState, type ClipboardEvent, type Ref } from 'react'
+import { ESPERA_SIN_CABECERA, minutosDeEspera } from '../compartido/api/cliente'
 import { MensajeError } from './ui'
 
 /** Solo los números, hasta 6: acepta pegar «123 456» o «123-456». */
@@ -71,9 +72,9 @@ export function useEspera() {
     return () => window.clearTimeout(t)
   }, [hasta])
   const esperar = (segundos: number | null) => {
-    const s = segundos ?? 60
+    const s = segundos ?? ESPERA_SIN_CABECERA
     setHasta(Date.now() + s * 1000)
-    return Math.max(1, Math.ceil(s / 60))
+    return minutosDeEspera(s)
   }
   return { esperando, esperar }
 }
