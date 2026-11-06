@@ -88,6 +88,9 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM acceso_relevo WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM plan_cuidado WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM clave_datos WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-41: los avisos del grupo y lo que el publicador anotó de sus eventos
+    "DELETE FROM notificacion WHERE grupo_id = ANY(%s::uuid[])",
+    "DELETE FROM evento_consumido WHERE evento_id IN (SELECT id FROM evento_outbox WHERE grupo_id = ANY(%s::uuid[]))",
     # MATU-37: los eventos QuiebreProximo del trabajo diario (el outbox no tiene clave foránea)
     "DELETE FROM evento_outbox WHERE grupo_id = ANY(%s::uuid[])",
     # MATU-36: sus reposiciones y alertas caen por ON DELETE CASCADE

@@ -1,7 +1,7 @@
 // Del error de la API a lo que ve Rosa. El texto se elige solo por `type` (lenguaje 8); el status
 // solo decide si una respuesta desconocida obliga a descartar la ficha.
 import { Clock3, Hourglass, KeyRound, Link2Off, Lock, CirclePause, Unlink, type LucideIcon } from 'lucide-react'
-import type { FalloApi } from '../compartido/api/cliente'
+import { minutosDeEspera, type FalloApi } from '../compartido/api/cliente'
 import { ESPERA, QUE_HAGO } from './textos'
 
 export type EstadoNoAbre = 'bloqueado' | 'vencido' | 'cortado' | 'no-disponible' | 'pausado' | 'sin-sesion' | 'espera'
@@ -84,7 +84,7 @@ export type Clasificacion =
 export function clasificar(f: FalloApi, operacion: 'presentacion' | 'canje' | 'ficha'): Clasificacion {
   const estado = f.tipo ? POR_TIPO[f.tipo] : undefined
   if (estado) {
-    const minutos = estado === 'espera' && f.reintentarEnSegundos ? Math.max(1, Math.ceil(f.reintentarEnSegundos / 60)) : null
+    const minutos = estado === 'espera' && f.reintentarEnSegundos ? minutosDeEspera(f.reintentarEnSegundos) : null
     return { clase: 'estado', estado, minutos }
   }
   if (operacion === 'canje' && f.tipo === '/errores/pin-incorrecto' && f.intentosRestantes !== null) {

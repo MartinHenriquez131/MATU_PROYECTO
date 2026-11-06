@@ -31,11 +31,18 @@ Cada historia agrega aquí lo suyo:
 - MATU-25: ENTORNO admite staging (decisión 105, que amplía la D-A). La KEK en variable de entorno y el
   envío simulado tienen cada uno su lista permitida (ENTORNOS_KEK_SINTETICA y ENTORNOS_ENVIO_SIMULADO),
   y en staging el registro de cuentas solo acepta correos de dominios reservados
+- MATU-41: ENVIADOR_AVISOS=simulado enciende el envío simulado de los avisos por correo y push (decisión 112):
+  no envía nada y deja notificacion_id, usuario_id, canal y plantilla, sin el destino ni el texto, en
+  REGISTRO_AVISOS (por omisión .dev/avisos.jsonl). Solo con ENTORNO en ENTORNOS_ENVIO_SIMULADO: con
+  produccion la configuración no carga. Sin ENVIADOR_AVISOS, el publicador de avisos no envía nada y no
+  consume los eventos
 - MATU-25 (decisión 114, punto 7): DIAGNOSTICO_PROXY, el diagnóstico temporal de X-Forwarded-For
   (app/core/proxy.py). Apagado por omisión; con ENTORNO=produccion, encendido impide cargar la
   configuración. PROXY_SALTOS y FORWARDED_ALLOW_IPS no viven aquí: los valida app/servidor.py
 - MATU-58: WEB_DIST también es la app de familia, que la API entrega en toda ruta que no sea de la API
   (decisión 115). /docs y /openapi.json solo se publican en ENTORNOS_DOCUMENTACION (local y pruebas)
+- MATU-40: CAPA3_HABILITADA, si la API monta los routers de la capa 3, el despacho (ADR-002). Apagada
+  por omisión: las capas 1 y 2 no dependen de ella y la API arranca igual. Ver app/main.py
 """
 
 import base64
@@ -156,6 +163,16 @@ class Configuracion(BaseSettings):
     # una carpeta ignorada por git (por ejemplo .dev/envios.jsonl). Nunca es un log de la aplicación
     registro_envios: Path | None = None
 
+    # Cómo se envían los avisos por correo y push de MATU-41 (decisión 112). En el semestre solo "simulado":
+    # no envía nada y deja en REGISTRO_AVISOS el id de la notificación, la persona, el canal y la plantilla,
+    # nunca el destino ni el texto. Sin valor, el publicador de avisos no envía ni consume. Con
+    # ENTORNO=produccion, "simulado" impide cargar la configuración
+    enviador_avisos: Literal["simulado"] | None = None
+
+    # Archivo JSON Lines del envío simulado de avisos, en una carpeta ignorada por git. Por omisión
+    # <repositorio>/.dev/avisos.jsonl. Nunca es un log de la aplicación
+    registro_avisos: Path | None = None
+
     # Origen https de la aplicación web, sin barra final: el enlace del relevo es <origen>/r#<token>
     origen_web: str = Field(default="https://localhost", pattern=r"^https://[^/#?]+$")
 
@@ -172,9 +189,15 @@ class Configuracion(BaseSettings):
     # python -m app.servidor. Apagado por omisión; con ENTORNO=produccion, encendido no carga
     diagnostico_proxy: bool = False
 
+    # Capa 3, el despacho (MATU-40, ADR-002): con true, la API monta los routers de ROUTERS_CAPA_3 de
+    # app/main.py. Apagada por omisión: sin convenio no hay despacho, y la ficha, el relevo y el consumo
+    # funcionan igual. No es un secreto
+    capa3_habilitada: bool = False
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
-        "pepper_recuperacion", "enviador_codigos", "registro_envios", mode="before"
+        "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
+        mode="before",
     )
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
@@ -290,6 +313,13 @@ class Configuracion(BaseSettings):
         # Su lista es ENTORNOS_ENVIO_SIMULADO, no la de la KEK (decisión 105)
         if self.enviador_codigos == "simulado" and self.entorno not in ENTORNOS_ENVIO_SIMULADO:
             raise ValueError("ENVIADOR_CODIGOS=simulado solo se admite con ENTORNO local, pruebas o staging")
+        return self
+
+    @model_validator(mode="after")
+    def _avisos_simulados_solo_fuera_de_produccion(self) -> "Configuracion":
+        # MATU-41 (decisión 112): los avisos simulados no llegan a nadie. Misma lista que el envío de códigos
+        if self.enviador_avisos == "simulado" and self.entorno not in ENTORNOS_ENVIO_SIMULADO:
+            raise ValueError("ENVIADOR_AVISOS=simulado solo se admite con ENTORNO local, pruebas o staging")
         return self
 
     @model_validator(mode="after")

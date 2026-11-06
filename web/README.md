@@ -4,7 +4,7 @@ Aplicación web mobile first de MATU (ADR-026): React 19, TypeScript, Vite, Tail
 
 ## Cómo correrlo
 
-Requiere Node 20 o más nuevo.
+Requiere Node 20.19 o más nuevo (Vite 8), y Node 22.12 o más nuevo para las pruebas.
 
 ```bash
 cd web
@@ -22,6 +22,21 @@ npm run preview:api
 ```
 
 `npm run typecheck` revisa los tipos. `npm run contrato` regenera `src/compartido/api/relevo.openapi.ts` desde `docs/api/propuestos/relevo.openapi.yaml`.
+
+## Pruebas de interfaz
+
+Vitest + Testing Library sobre jsdom (estrategia de pruebas v1.2, fila «Interfaz web»). Requieren Node 22.12 o más nuevo, como Vitest 5. Corren en cada push, en el trabajo `web` del CI, después de los tipos.
+
+```bash
+cd web
+npm test                       # vitest run: todas, una vez
+npx vitest                     # se quedan mirando los cambios
+npx vitest run pruebas/entrar  # solo los archivos que calzan
+```
+
+Viven en `pruebas/`, fuera de `src/`: `vite build` solo empaqueta lo que importa `index.html`, así que nunca entran a `web/dist`, y `tsc` las revisa igual que el resto. La configuración está en `vitest.config.ts` y los matchers de jest-dom se cargan en `pruebas/preparacion.ts`. `pruebas/apiFalsa.ts` reemplaza el adaptador de Axios para que la pantalla pase por su cliente real sin red, y `pruebas/familiaFalsa.ts` da el contexto de la familia sin `ProveedorFamilia`. `pruebas/regiones.tsx` monta las regiones vivas antes de la pantalla, como `main.tsx`.
+
+Qué revisan: la semántica y el foco de los componentes críticos, los errores de campo con `aria-describedby` y `aria-invalid`, los avisos anunciados en las regiones vivas (`role="status"` y `role="alert"`, en `src/compartido/ui/Anuncios.tsx`) y los textos de `docs/lenguaje.md`, escritos tal cual en la prueba. Cada corrección de pantalla deja una prueba que falla sin ella (definición de terminado, punto 6). Solo datos sintéticos: correos `@example.com` y el celular de ejemplo de `lenguaje.md`.
 
 ## El doble del contrato (solo desarrollo)
 
@@ -48,7 +63,7 @@ Los intentos y las sesiones del doble viven en memoria: se reinicia `npm run dev
 
 ## El doble de la app de la familia (MATU-39)
 
-`doble/familia.ts` responde `POST /v1/usuarios`, `POST /v1/sesiones`, `…/renovar` (con la cookie HttpOnly `matu-refresh-doble`, que rota), `…/cerrar`, `GET` y `POST /v1/grupos`, las personas del grupo y la ficha con `ETag`, 412, 428 y 422. La contraseña de todas las cuentas de ejemplo es `contrasena-ejemplo`; la lista con qué muestra cada una está en `/ejemplos`. Las cuentas nuevas se crean con cualquier correo y empiezan sin grupo (primera visita). Todo vive en memoria: reinicia `npm run dev` para volver a cero.
+`doble/familia.ts` responde `POST /v1/usuarios`, `POST /v1/sesiones`, `…/renovar` (con la cookie HttpOnly `matu-refresh-doble`, que rota), `…/cerrar`, `GET` y `POST /v1/grupos`, las personas del grupo y la ficha con `ETag`, 412, 428 y 422. La contraseña de todas las cuentas de ejemplo es `contrasena-ejemplo`; la lista con qué muestra cada una está en `/ejemplos`. Las cuentas nuevas se crean con cualquier correo y empiezan sin grupo (primera visita). En «Crear cuenta», `espera-ip@example.com`, `espera-ip-60@example.com` y `espera-ip-sin-cabecera@example.com` provocan el 429 del límite por IP (`Retry-After` 61, 60 y sin cabecera), y un correo `@dominio-no-permitido.internal` el 422 `dominio_no_permitido` de staging; están también en `/ejemplos`. Los correos de los dobles son de dominios reservados (`@example.com`, decisión 105); el del 422 usa `.internal`, que no está entre los que staging acepta y que ICANN reservó en 2024 para redes privadas: nunca existirá en internet. Todo vive en memoria: reinicia `npm run dev` para volver a cero.
 
 La entrada en el cliente (`src/compartido/api/sesion.ts`): el access token solo en memoria, renovación con la cookie al abrir y ante un 401, serializada entre pestañas con `navigator.locks` y avisada con `BroadcastChannel('matu-entrada')` sin el token.
 

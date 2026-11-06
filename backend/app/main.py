@@ -6,8 +6,14 @@ Ejecutar desde backend/:
 
 Cada historia registra su router aquí, con el prefijo /v1. Para no chocar entre ramas,
 agrega una sola línea por router en el bloque marcado.
+
+Los routers de la capa 3, el despacho (catalog, ordering, payments, fulfillment, settlement y lo que
+dependa de ellos), no se importan arriba: van en ROUTERS_CAPA_3 y se montan solo con CAPA3_HABILITADA
+(MATU-40, ADR-002). Así la API arranca sin la capa 3, aunque sus paquetes no existan.
+tests/test_capa3_desacoplable.py lo verifica.
 """
 
+import importlib
 import logging
 from typing import TextIO
 
@@ -31,15 +37,28 @@ from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
+from app.modules.notifications.api.router import router as router_avisos
 
 log = logging.getLogger("matu.api.arranque")
 
 router_salud = APIRouter(tags=["salud"])
 
+# Routers de la capa 3 (MATU-40, ADR-002), como "paquete.del.router:atributo". Se importan al armar la
+# app y solo con CAPA3_HABILITADA: nunca en el nivel superior de este archivo. Hoy está vacío porque la
+# capa 3 todavía no tiene routers. Ejemplo: "app.modules.ordering.api.router:router"
+ROUTERS_CAPA_3: tuple[str, ...] = ()
+
 
 @router_salud.get("/salud")
 def salud() -> dict[str, str]:
     return {"estado": "ok"}
+
+
+def incluir_capa_3(app: FastAPI) -> None:
+    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1. Solo se llama con CAPA3_HABILITADA."""
+    for referencia in ROUTERS_CAPA_3:
+        modulo, _, atributo = referencia.partition(":")
+        app.include_router(getattr(importlib.import_module(modulo), atributo), prefix="/v1")
 
 
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
@@ -68,8 +87,10 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
     # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
     # MATU-36: también bajo /v1/personas-cuidadas/ (autorización, consumo y ficha), en los 403 y 404
-    # MATU-57: también la recuperación del acceso y la cuenta
-    for prefijo in ("/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta"):
+    # MATU-57: también la recuperación del acceso y la cuenta. MATU-41: la preferencia de avisos (/v1/yo/)
+    for prefijo in (
+        "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/"
+    ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
 
@@ -88,6 +109,12 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # Antes que router_consumo: por-acabarse y alertas son rutas fijas que {perfil_id} capturaría
     app.include_router(router_alertas, prefix="/v1")
     app.include_router(router_consumo, prefix="/v1")
+    app.include_router(router_avisos, prefix="/v1")
+
+    # MATU-40 (ADR-002): la capa 3 se monta aparte y solo si está habilitada. Las capas 1 y 2, arriba,
+    # nunca dependen de ella
+    if config.capa3_habilitada:
+        incluir_capa_3(app)
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)

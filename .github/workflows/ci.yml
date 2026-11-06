@@ -89,8 +89,8 @@ jobs:
       - name: Pruebas (pytest)
         run: pytest -q
 
-  # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint ni pruebas
-  # todavía: se revisan los tipos, que compile y que su contrato siga al openapi.json.
+  # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint todavía: se revisan
+  # los tipos, las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
   web:
     runs-on: ubuntu-latest
 
@@ -113,6 +113,10 @@ jobs:
 
       - name: Tipos (tsc)
         run: npm run typecheck
+
+      # Estrategia de pruebas v1.2, fila «Interfaz web»: Vitest + Testing Library sobre jsdom
+      - name: Pruebas de interfaz (vitest)
+        run: npm test
 
       # web/dist no se sube como artefacto: solo se comprueba que compila
       - name: Compilar (vite build)

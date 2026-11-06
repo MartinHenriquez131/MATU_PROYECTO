@@ -1514,3 +1514,194 @@ def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
     assert contar(cx, "alerta_quiebre", f"perfil_id = '{perfil}'") == 2
     assert contar(cx, "evento_outbox") == 2
     assert contar(cx, "notificacion") == 1
+
+
+# ---- MATU-41 (migración 0014): avisos, dispositivo para el sistema, publicador del outbox y conservación
+
+DISP_OBS_A = uuid.UUID("00000000-0000-0000-0000-0000000009a2")
+
+
+def _dispositivo_obs_a(cx):
+    """Un dispositivo con push_token del observador del grupo A, como superusuario en la transacción."""
+    cx.execute("RESET ROLE")
+    cx.execute(
+        "INSERT INTO dispositivo (id, usuario_id, plataforma, push_token) VALUES (%s, %s, 'web', %s)",
+        (DISP_OBS_A, U_OBS_A, "https://fcm.googleapis.com/fcm/send/obs-a"),
+    )
+
+
+@pytest.mark.rf("RF-39")
+def test_el_sistema_ve_solo_los_dispositivos_de_miembros_activos_de_su_grupo(cx):
+    _sembrar_sesiones(cx)
+    _dispositivo_obs_a(cx)
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert {r[0] for r in cx.execute("SELECT id FROM dispositivo").fetchall()} == {DISP_A, DISP_OBS_A}
+    # Sin grupo, el sistema no ve ninguno; con el otro grupo, solo los de ese grupo
+    como(cx, rol="sistema")
+    assert contar(cx, "dispositivo") == 0
+    como(cx, grupo_id=G_B, rol="sistema")
+    assert [r[0] for r in cx.execute("SELECT id FROM dispositivo").fetchall()] == [DISP_B]
+    # La familia con el grupo en contexto, sin el rol sistema, sigue viendo solo los suyos
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert [r[0] for r in cx.execute("SELECT id FROM dispositivo").fetchall()] == [DISP_A]
+
+
+@pytest.mark.rf("RF-39")
+def test_el_sistema_no_ve_el_dispositivo_de_un_miembro_retirado(cx):
+    _dispositivo_obs_a(cx)
+    cx.execute("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", (U_OBS_A, G_A))
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert contar(cx, "dispositivo", f"id = '{DISP_OBS_A}'") == 0
+    assert cx.execute("UPDATE dispositivo SET push_token = NULL WHERE id = %s RETURNING id", (DISP_OBS_A,)
+                      ).fetchall() == []
+
+
+@pytest.mark.rf("RF-39")
+def test_el_sistema_solo_borra_el_push_token(cx):
+    _sembrar_sesiones(cx)
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert cx.execute("UPDATE dispositivo SET push_token = NULL WHERE id = %s RETURNING id", (DISP_A,)
+                      ).fetchall() == [(DISP_A,)]
+    for cambio in ("push_token = 'https://otro.example/x'", "revocado_en = now()", "nombre = 'otro'"):
+        cx.execute("SAVEPOINT antes")
+        with pytest.raises((errors.CheckViolation, errors.InsufficientPrivilege)):
+            cx.execute(f"UPDATE dispositivo SET {cambio} WHERE id = %s", (DISP_A,))
+        cx.execute("ROLLBACK TO SAVEPOINT antes")
+    # El dispositivo del otro grupo no se alcanza
+    assert cx.execute("UPDATE dispositivo SET push_token = NULL WHERE id = %s RETURNING id", (DISP_B,)
+                      ).fetchall() == []
+    # Ni lo borra
+    assert cx.execute("DELETE FROM dispositivo RETURNING id").fetchall() == []
+
+
+@pytest.mark.rf("RF-39")
+def test_notificaciones_y_preferencias_de_otro_grupo_no_las_ve_el_sistema(cx):
+    cx.execute(
+        "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla) VALUES"
+        " (%s, %s, 1, 'correo', 'quiebre_proximo'), (%s, %s, 2, 'correo', 'quiebre_proximo')",
+        (U_ADMIN_A, G_A, U_ADMIN_B, G_B),
+    )
+    cx.execute(
+        "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo) VALUES"
+        " (%s, 'quiebre_proximo', 'correo', false), (%s, 'quiebre_proximo', 'correo', true)",
+        (U_ADMIN_A, U_ADMIN_B),
+    )
+    como(cx, grupo_id=G_A, rol="sistema")
+    assert contar(cx, "notificacion") == 1 and contar(cx, "preferencia_notificacion") == 1
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla)"
+                   " VALUES (%s, %s, 3, 'push', 'quiebre_proximo')", (U_ADMIN_B, G_B))
+
+
+@pytest.mark.rf("RF-39")
+def test_la_preferencia_propia_no_lee_ni_escribe_la_ajena(cx):
+    cx.execute(
+        "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
+        " VALUES (%s, 'quiebre_proximo', 'correo', false)", (U_ADMIN_B,),
+    )
+    como(cx, usuario_id=U_ADMIN_A)
+    assert contar(cx, "preferencia_notificacion") == 0
+    assert cx.execute("UPDATE preferencia_notificacion SET activo = true RETURNING usuario_id").fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
+                   " VALUES (%s, 'quiebre_proximo', 'push', true)", (U_ADMIN_B,))
+
+
+@pytest.mark.rf("RF-39")
+def test_notificacion_error_es_de_lista_cerrada(cx):
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, estado, error)"
+                   " VALUES (%s, %s, 1, 'push', 'quiebre_proximo', 'fallida', '410 Gone: endpoint')", (U_ADMIN_A, G_A))
+
+
+@pytest.mark.rf("RF-39")
+@pytest.mark.parametrize("llamada", [
+    "SELECT * FROM outbox_tomar(10, now())",
+    "SELECT outbox_publicado(1, now())",
+    "SELECT outbox_reintentar(1, now() + interval '1 minute', now())",
+    "SELECT outbox_posponer(1, now() + interval '1 hour', now())",
+])
+@pytest.mark.parametrize("contexto", [
+    {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+    {"grupo_id": G_A, "rol": "sistema"},
+    {},
+])
+def test_el_outbox_solo_lo_publica_operacion(cx, llamada, contexto):
+    como(cx, **contexto)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(llamada)
+    cx.rollback()
+    # Ni con operación lee la tabla directamente
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT id FROM evento_outbox")
+
+
+def _evento(cx, grupo=G_A, **columnas):
+    cx.execute("RESET ROLE")
+    nombres = ", ".join(["grupo_id", "tipo", "agregado_tipo", "agregado_id", *columnas])
+    marcas = ", ".join(["%s"] * (4 + len(columnas)))
+    return cx.execute(
+        f"INSERT INTO evento_outbox ({nombres}) VALUES ({marcas}) RETURNING id",
+        (grupo, "QuiebreProximo", "alerta_quiebre", uuid.uuid4(), *columnas.values()),
+    ).fetchone()[0]
+
+
+@pytest.mark.rf("RF-39")
+def test_operacion_toma_arrienda_reintenta_y_falla_al_octavo(cx):
+    cx.execute("DELETE FROM evento_outbox")
+    a = _evento(cx)
+    b = _evento(cx, grupo=G_B)
+    _evento(cx, disponible_en="2100-01-01T00:00:00Z")  # todavía no disponible
+    como(cx, rol="operacion")
+    assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now(), %s)", (G_A,)).fetchall()] == [a]
+    # Arrendado: otro publicador no lo vuelve a tomar
+    assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now())").fetchall()] == [b]
+    assert cx.execute("SELECT * FROM outbox_tomar(10, now())").fetchall() == []
+    for intento in range(1, 8):
+        quedo_fallido = cx.execute("SELECT outbox_reintentar(%s, now() + interval '1 second', now())", (a,)).fetchone()
+        assert quedo_fallido == (False,), intento
+    assert cx.execute("SELECT outbox_reintentar(%s, now() + interval '1 second', now())", (a,)).fetchone() == (True,)
+    assert cx.execute("SELECT outbox_publicado(%s, now())", (b,)).fetchone() == (True,)
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT intentos, fallido_en IS NOT NULL FROM evento_outbox WHERE id = %s", (a,)
+                      ).fetchone() == (8, True)
+    assert cx.execute("SELECT publicado_en IS NOT NULL FROM evento_outbox WHERE id = %s", (b,)).fetchone() == (True,)
+
+
+@pytest.mark.rf("RF-39")
+def test_posponer_no_suma_un_intento_y_tiene_limite(cx):
+    cx.execute("DELETE FROM evento_outbox")
+    a = _evento(cx)
+    como(cx, rol="operacion")
+    assert cx.execute("SELECT outbox_posponer(%s, now() + interval '5 hours', now())", (a,)).fetchone() == (True,)
+    assert cx.execute("SELECT * FROM outbox_tomar(10, now())").fetchall() == []
+    cx.execute("SAVEPOINT antes")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT outbox_posponer(%s, now() + interval '2 days', now())", (a,))
+    cx.execute("ROLLBACK TO SAVEPOINT antes")
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT intentos FROM evento_outbox WHERE id = %s", (a,)).fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-39")
+def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(cx):
+    cx.execute("DELETE FROM evento_outbox")
+    cx.execute("DELETE FROM evento_consumido")
+    viejo = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
+    reciente = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
+    publicado = _evento(cx, publicado_en="2026-01-01T00:00:00Z")
+    pendiente = _evento(cx)
+    cx.execute("UPDATE evento_outbox SET fallido_en = now() - interval '31 days' WHERE id = %s", (viejo,))
+    cx.execute("UPDATE evento_outbox SET fallido_en = now() - interval '29 days' WHERE id = %s", (reciente,))
+    cx.execute("UPDATE evento_outbox SET publicado_en = now() - interval '31 days' WHERE id = %s", (publicado,))
+    for evento in (viejo, reciente, publicado, pendiente):
+        cx.execute("INSERT INTO evento_consumido (evento_id, consumidor) VALUES (%s, 'notifications.quiebre_proximo')",
+                   (evento,))
+    como(cx, rol="operacion")
+    fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
+                      " now())").fetchone()
+    assert fila[1] == 2  # el fallido viejo y el publicado viejo
+    cx.execute("RESET ROLE")
+    assert {r[0] for r in cx.execute("SELECT id FROM evento_outbox").fetchall()} == {reciente, pendiente}
+    assert {r[0] for r in cx.execute("SELECT evento_id FROM evento_consumido").fetchall()} == {reciente, pendiente}

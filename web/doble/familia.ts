@@ -6,7 +6,7 @@ import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { atenderConsumo, crearAlertas, listaCompleta, perfil, type ConsumoDoble } from './consumo'
-import { CONTRASENA_DE_EJEMPLO } from './cuentas'
+import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -209,6 +209,13 @@ function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: 
 
 const usuarios = new Map<string, Usuario>()
 
+/** `Retry-After` del 429 por IP al crear la cuenta, por correo; `null` = sin la cabecera. */
+const ESPERA_IP_CREAR_CUENTA: Record<string, string | null> = {
+  'espera-ip@example.com': '61',
+  'espera-ip-60@example.com': '60',
+  'espera-ip-sin-cabecera@example.com': null,
+}
+
 function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
   const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms' }
   usuarios.set(email, u)
@@ -225,42 +232,42 @@ function insumos(u: Usuario, autorizacion: ConsumoDoble['autorizacion'], lista: 
 }
 
 function sembrar() {
-  const carmen = cuenta('carmen@ejemplo.cl', 'Carmen', [])
+  const carmen = cuenta('carmen@example.com', 'Carmen', [])
   const yo = { id: carmen.id, nombre: 'Carmen' }
   carmen.grupos.push(grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))]))
   insumos(carmen, 'vigente', true)
-  cuenta('completa@ejemplo.cl', 'Carmen', [
+  cuenta('completa@example.com', 'Carmen', [
     grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) }))]),
   ])
-  cuenta('vacia@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
-  cuenta('dos-grupos@ejemplo.cl', 'Carmen', [
+  cuenta('vacia@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+  cuenta('dos-grupos@example.com', 'Carmen', [
     grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }), persona('Juan Soto', 'Juan')]),
     grupo('Familia Pérez', 'cuidador', [persona('Elena Pérez', 'Elena')]),
   ])
-  cuenta('sin-persona@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [])])
-  cuenta('sin-persona-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
-  insumos(cuenta('pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
-  cuenta('pagador-ve@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))], true)])
-  cuenta('observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
-  cuenta('cuidador@ejemplo.cl', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
-  cuenta('aperturas-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'aperturas-falla')
-  cuenta('sin-autorizacion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'sin-consentimiento')
-  cuenta('renovar-autorizacion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])], 'revision-vencida')
-  cuenta('revision-al-guardar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'revision-al-guardar')
-  cuenta('conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
-  cuenta('defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
-  cuenta('vence@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
-  insumos(cuenta('lento@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento'), 'vigente', true)
+  cuenta('sin-persona@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [])])
+  cuenta('sin-persona-pagador@example.com', 'Rodrigo', [grupo('Familia Soto', 'pagador', [])])
+  insumos(cuenta('pagador@example.com', 'Rodrigo', [grupo('Familia Soto', 'pagador', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]), 'vigente', true)
+  cuenta('pagador-ve@example.com', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))], true)])
+  cuenta('observador@example.com', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
+  cuenta('cuidador@example.com', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
+  cuenta('aperturas-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'aperturas-falla')
+  cuenta('sin-autorizacion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'sin-consentimiento')
+  cuenta('renovar-autorizacion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])], 'revision-vencida')
+  cuenta('revision-al-guardar@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'revision-al-guardar')
+  cuenta('conflicto@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
+  cuenta('defectos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'defectos')
+  cuenta('vence@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'vence')
+  insumos(cuenta('lento@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'lento'), 'vigente', true)
   // MATU-36: insumos
-  cuenta('insumos-permiso@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
-  insumos(cuenta('insumos-vacio@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
-  insumos(cuenta('insumos-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
-  insumos(cuenta('insumos-renovar@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])]), 'vencida', true)
-  insumos(cuenta('insumos-renovar-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vencida', true)
+  cuenta('insumos-permiso@example.com', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])])
+  insumos(cuenta('insumos-vacio@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', false)
+  insumos(cuenta('insumos-observador@example.com', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('insumos-renovar@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])]), 'vencida', true)
+  insumos(cuenta('insumos-renovar-observador@example.com', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vencida', true)
   // MATU-37: «Se acaban pronto»
-  insumos(cuenta('alertas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('alertas@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])]), 'vigente', true)
   {
-    const u = cuenta('alertas-sin@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const u = cuenta('alertas-sin@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
     const c = insumos(u, 'vigente', false)
     const yo = { id: u.id, nombre: u.nombre }
     c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 120, 0, yo), perfil('Toallitas húmedas', 'unidad', 3, 1, 90, 1, yo), perfil('Champú en sobre', 'sobre', 1, 1, 30, 0, yo)]
@@ -268,28 +275,28 @@ function sembrar() {
   }
   {
     // Recalculo en 0: usa 4 al día y no queda nada; comprar 1 a 3 deja «Alcanza para 0 días».
-    const u = cuenta('alertas-cero@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
+    const u = cuenta('alertas-cero@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])])
     const c = insumos(u, 'vigente', false)
     const yo = { id: u.id, nombre: u.nombre }
     c.perfiles = [perfil('Pañal adulto talla M', 'unidad', 4, 1, 0, 0, yo)]
     crearAlertas(c)
   }
-  insumos(cuenta('alertas-observador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
-  insumos(cuenta('alertas-cerrada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-cerrada'), 'vigente', true)
-  insumos(cuenta('alertas-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-conflicto'), 'vigente', true)
-  insumos(cuenta('alertas-error@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error'), 'vigente', true)
-  insumos(cuenta('alertas-error-carga@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error-carga'), 'vigente', true)
-  insumos(cuenta('insumos-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
+  insumos(cuenta('alertas-observador@example.com', 'Rodrigo', [grupo('Familia Soto', 'observador', [persona('María Soto', 'María')])]), 'vigente', true)
+  insumos(cuenta('alertas-cerrada@example.com', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-cerrada'), 'vigente', true)
+  insumos(cuenta('alertas-conflicto@example.com', 'Carmen', [grupo('Familia Soto', 'cuidador', [persona('María Soto', 'María')])], 'alertas-conflicto'), 'vigente', true)
+  insumos(cuenta('alertas-error@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error'), 'vigente', true)
+  insumos(cuenta('alertas-error-carga@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'alertas-error-carga'), 'vigente', true)
+  insumos(cuenta('insumos-defectos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'insumos-defectos'), 'vigente', true)
   // MATU-50: las secciones complementarias, una cuenta por estado.
   const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
-  cuenta('secciones-ninguna@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
-  cuenta('secciones-algunas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion'])])])
-  cuenta('secciones-remedios@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }), yo, ['preferencias', 'remedios'])])])
-  cuenta('secciones-todas@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, SECCIONES)])])
-  cuenta('secciones-conflicto@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'alimentacion', 'movilidad'])])], 'conflicto-secciones')
-  cuenta('secciones-defectos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'preferencias'])])], 'defectos-secciones')
-  cuenta('secciones-pagador@ejemplo.cl', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'remedios'])], true)])
-  cuenta('secciones-largas@ejemplo.cl', 'Bernardita', [
+  cuenta('secciones-ninguna@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
+  cuenta('secciones-algunas@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion'])])])
+  cuenta('secciones-remedios@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }), yo, ['preferencias', 'remedios'])])])
+  cuenta('secciones-todas@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, SECCIONES)])])
+  cuenta('secciones-conflicto@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'alimentacion', 'movilidad'])])], 'conflicto-secciones')
+  cuenta('secciones-defectos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'preferencias'])])], 'defectos-secciones')
+  cuenta('secciones-pagador@example.com', 'Rodrigo', [grupo('Familia Soto', 'pagador', [conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'remedios'])], true)])
+  cuenta('secciones-largas@example.com', 'Bernardita', [
     grupo('Familia Valenzuela Etchegaray', 'admin', [
       conSecciones(persona('Maximiliana de los Ángeles Valenzuela Etchegaray', 'Maximiliana', completos()), yo, SECCIONES, {
         quien_es: repetir('Extraordinariamente conversadora cuando le preguntan por Constitución y por sus hermanas. ', 500),
@@ -303,31 +310,31 @@ function sembrar() {
   ])
   // MATU-48: compartir y cortar, una cuenta por estado.
   const conTodas = () => conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion', 'remedios'])
-  cuenta('enlaces-pausa@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', {}, 'cuidador_de_hecho'))])], 'revision-vencida')
-  cuenta('enlaces-muchos@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conMuchosEnlaces(conTodas())])])
-  cuenta('enlaces-cortar-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
-  cuenta('enlaces-lista-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
-  cuenta('compartir-nombre@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
-  cuenta('compartir-telefono@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-telefono_relevo')
-  cuenta('compartir-avise@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-relevo_informado')
-  cuenta('compartir-vence-pasada@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_pasada')
-  cuenta('compartir-vence-maxima@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_maxima')
-  cuenta('compartir-seccion@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-seccion_no_agregada')
-  cuenta('compartir-caido@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-503')
-  cuenta('compartir-falla@ejemplo.cl', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-500')
+  cuenta('enlaces-pausa@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', {}, 'cuidador_de_hecho'))])], 'revision-vencida')
+  cuenta('enlaces-muchos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conMuchosEnlaces(conTodas())])])
+  cuenta('enlaces-cortar-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
+  cuenta('enlaces-lista-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
+  cuenta('compartir-nombre@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
+  cuenta('compartir-telefono@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-telefono_relevo')
+  cuenta('compartir-avise@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-relevo_informado')
+  cuenta('compartir-vence-pasada@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_pasada')
+  cuenta('compartir-vence-maxima@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-vigencia_maxima')
+  cuenta('compartir-seccion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-seccion_no_agregada')
+  cuenta('compartir-caido@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-503')
+  cuenta('compartir-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], 'compartir-500')
   cuenta(
-    'largos@ejemplo.cl',
+    'largos@example.com',
     'Bernardita',
     [grupo('Familia Valenzuela Etchegaray', 'admin', [persona('Maximiliana de los Ángeles Valenzuela Etchegaray', 'Maximiliana', { manejo_situaciones: escrito('Extraordinariamente tranquila cuando le hablan de su pueblo. '.repeat(8).slice(0, 480), yo) })])],
   )
   // MATU-57
   const soto = () => [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])]
-  cuenta('celular-verificado@ejemplo.cl', 'Carmen', soto()).celularVerificado = true
-  cuenta('celular-sin-verificar@ejemplo.cl', 'Carmen', soto())
-  cuenta('celular-espera@ejemplo.cl', 'Carmen', soto(), 'celular-espera')
-  cuenta('sin-celular@ejemplo.cl', 'Carmen', soto()).telefono = null
-  cuenta('recuperar-espera@ejemplo.cl', 'Carmen', soto(), 'recuperar-espera')
-  cuenta('codigo-invalido@ejemplo.cl', 'Carmen', soto(), 'codigo-invalido')
+  cuenta('celular-verificado@example.com', 'Carmen', soto()).celularVerificado = true
+  cuenta('celular-sin-verificar@example.com', 'Carmen', soto())
+  cuenta('celular-espera@example.com', 'Carmen', soto(), 'celular-espera')
+  cuenta('sin-celular@example.com', 'Carmen', soto()).telefono = null
+  cuenta('recuperar-espera@example.com', 'Carmen', soto(), 'recuperar-espera')
+  cuenta('codigo-invalido@example.com', 'Carmen', soto(), 'codigo-invalido')
 }
 sembrar()
 
@@ -402,7 +409,7 @@ function usuarioDe(req: IncomingMessage): Usuario | null {
 }
 
 export const esLento = (req: IncomingMessage, cuerpo: Record<string, unknown> | null) =>
-  usuarioDe(req)?.modo === 'lento' || cuerpo?.email === 'lento@ejemplo.cl'
+  usuarioDe(req)?.modo === 'lento' || cuerpo?.email === 'lento@example.com'
 
 // ---------------------------------------------------------------- respuestas
 
@@ -445,12 +452,21 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     const email = typeof cuerpo?.email === 'string' ? cuerpo.email.trim().toLowerCase() : ''
     const telefono = cuerpo?.telefono
     const contrasena = cuerpo?.contrasena
+    // Límite por IP de MATU-25: el 429 va antes del 422, como en la API. Sin IP en el doble: por correo.
+    if (Object.hasOwn(ESPERA_IP_CREAR_CUENTA, email)) {
+      const retryAfter = ESPERA_IP_CREAR_CUENTA[email]
+      if (retryAfter) res.setHeader('Retry-After', retryAfter)
+      return problema(res, 429, '/errores/demasiadas-peticiones'), true
+    }
     const errores: { campo: string; mensaje: string; tipo: string }[] = []
     if (typeof nombre !== 'string' || !nombre.trim() || nombre.length > 100) errores.push({ campo: 'nombre', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (!email.includes('@')) errores.push({ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (typeof telefono !== 'string' || !/^(\+?56 ?)?9( ?[0-9]){8}$/.test(telefono.trim())) errores.push({ campo: 'telefono', mensaje: 'MENSAJE DEL DOBLE', tipo: 'celular_invalido' })
     if (typeof contrasena !== 'string' || contrasena.length < 10 || contrasena.length > 128) errores.push({ campo: 'contrasena', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_too_short' }) // pragma: allowlist secret
     if (errores.length) return problema(res, 422, '/errores/validacion', { errores }), true
+    // Decisión 105: en staging, después del cuerpo y antes del 409. El doble acepta cualquier dominio salvo este.
+    if (email.endsWith(`@${DOMINIO_NO_PERMITIDO}`))
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'dominio_no_permitido' }] }), true
     if (usuarios.has(email)) return problema(res, 409, '/errores/email-registrado'), true
     const u = cuenta(email, String(nombre).trim(), [])
     u.contrasena = String(contrasena)
@@ -459,9 +475,9 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
 
   if (metodo === 'POST' && ruta === '/v1/sesiones') {
     const email = typeof cuerpo?.email === 'string' ? cuerpo.email.trim().toLowerCase() : ''
-    if (email === 'espera@ejemplo.cl') return res.setHeader('Retry-After', '90'), problema(res, 429, '/errores/demasiadas-peticiones'), true
-    if (email === 'espera-1@ejemplo.cl') return res.setHeader('Retry-After', '30'), problema(res, 429, '/errores/demasiadas-peticiones'), true
-    if (email === 'caido@ejemplo.cl') return problema(res, 503, '/errores/servicio-no-disponible'), true
+    if (email === 'espera@example.com') return res.setHeader('Retry-After', '90'), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    if (email === 'espera-1@example.com') return res.setHeader('Retry-After', '30'), problema(res, 429, '/errores/demasiadas-peticiones'), true
+    if (email === 'caido@example.com') return problema(res, 503, '/errores/servicio-no-disponible'), true
     const u = usuarios.get(email)
     if (!u || u.contrasena !== cuerpo?.contrasena) return problema(res, 401, '/errores/credenciales-invalidas'), true
     emitirRefresh(res, u)

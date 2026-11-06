@@ -309,10 +309,10 @@ export function TuFicha() {
 type FallaGuardar = 'falta-version' | 'muy-largo' | 'red' | null
 
 export function Editor({ campo }: { campo: Campo }) {
-  const { ficha, persona, rol, personaId, fijar, sinGuardar, anunciar } = useFamilia()
+  const { ficha, persona, rol, personaId, fijar, sinGuardar } = useFamilia()
   const { carga, pedir } = useFicha()
   if (carga.tipo !== 'lista' || !ficha || !personaId) return <Estado carga={carga} pedir={() => void pedir()} />
-  return <EditorCampo key={`${personaId}-${campo.api}`} campo={campo} ficha={ficha} pila={persona ? nombrePilaDe(persona) : ''} {...{ rol, personaId, fijar, sinGuardar, anunciar }} />
+  return <EditorCampo key={`${personaId}-${campo.api}`} campo={campo} ficha={ficha} pila={persona ? nombrePilaDe(persona) : ''} {...{ rol, personaId, fijar, sinGuardar }} />
 }
 
 function EditorCampo({
@@ -323,13 +323,12 @@ function EditorCampo({
   rol,
   fijar,
   sinGuardar,
-  anunciar,
 }: {
   campo: Campo
   ficha: Ficha
   pila: string
   personaId: string
-} & Pick<ReturnType<typeof useFamilia>, 'fijar' | 'sinGuardar' | 'anunciar' | 'rol'>) {
+} & Pick<ReturnType<typeof useFamilia>, 'fijar' | 'sinGuardar' | 'rol'>) {
   const original = ficha.campos[campo.api]
   const [texto, setTexto] = useState(original.texto ?? '')
   const [etag] = useState(original.etag)
@@ -441,7 +440,6 @@ function EditorCampo({
               aviso: { titulo: CONFLICTO.dejasteSuya(autor) },
             })
           }
-          anunciar(CONFLICTO.dejasteSuya(autor))
           navegar('/ficha')
         }}
         dejarMia={async () => {
