@@ -19,7 +19,8 @@ from app.modules.consumption.domain.perfil import Perfil, UnidadConsumo, nombre_
 _COLUMNAS = (
     "SELECT p.id, p.persona_cuidada_id, p.producto_id, p.nombre_libre, p.unidad, p.tasa_unidades, p.tasa_dias,"
     " p.stock_unidades, p.stock_medido_en, p.dias_aviso, p.fecha_quiebre_estimada, p.activo, p.version,"
-    " p.actualizado_por, pr.nombre AS producto_nombre, pr.presentacion AS producto_presentacion,"
+    " p.actualizado_por, p.unidades_por_envase, pr.nombre AS producto_nombre,"
+    " pr.presentacion AS producto_presentacion,"
     " u.nombre AS autor_nombre"
     " FROM perfil_consumo p"
     " LEFT JOIN producto pr ON pr.id = p.producto_id"
@@ -50,17 +51,17 @@ _HAY_ACTIVO = text(
 _INSERTAR = text(
     "INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, producto_id, nombre_libre, unidad, tasa_unidades,"
     " tasa_dias, stock_unidades, stock_medido_en, fecha_quiebre_estimada, dias_aviso, activo, version,"
-    " actualizado_por)"
+    " actualizado_por, unidades_por_envase)"
     " VALUES (:id, :grupo_id, :persona_id, :producto_id, :nombre_libre, :unidad, :tasa_unidades, :tasa_dias,"
     " :stock_unidades, :stock_medido_en, :fecha_quiebre_estimada, :dias_aviso, :activo, :version,"
-    " :actualizado_por)"
+    " :actualizado_por, :unidades_por_envase)"
 )
 
 _ACTUALIZAR = text(
     "UPDATE perfil_consumo SET nombre_libre = :nombre_libre, tasa_unidades = :tasa_unidades,"
     " tasa_dias = :tasa_dias, stock_unidades = :stock_unidades, stock_medido_en = :stock_medido_en,"
     " fecha_quiebre_estimada = :fecha_quiebre_estimada, dias_aviso = :dias_aviso, activo = :activo,"
-    " version = :version, actualizado_por = :actualizado_por"
+    " version = :version, actualizado_por = :actualizado_por, unidades_por_envase = :unidades_por_envase"
     " WHERE id = :id AND grupo_id = :grupo_id AND version = :version - 1"
 )
 
@@ -103,6 +104,7 @@ def _perfil(fila: Row[Any]) -> PerfilLeido:
             activo=bool(fila.activo),
             version=int(fila.version),
             actualizado_por=fila.actualizado_por,
+            unidades_por_envase=None if fila.unidades_por_envase is None else int(fila.unidades_por_envase),
         ),
         producto=producto,
         actualizado_por_nombre=nombre_de_pila(fila.autor_nombre),
@@ -177,6 +179,7 @@ class RepositorioPerfilesSQL:
             "activo": perfil.activo,
             "version": perfil.version,
             "actualizado_por": perfil.actualizado_por,
+            "unidades_por_envase": perfil.unidades_por_envase,
         }
 
     def insertar(self, grupo_id: uuid.UUID, perfil: Perfil) -> None:

@@ -8,6 +8,7 @@ import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { Insumos } from './Insumos'
+import { ListaDeInsumos } from './ListaInsumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
@@ -131,6 +132,7 @@ function Rutas() {
   } else if (ruta === '/compartir') pantalla = <Compartir />
   else if (ruta === '/compartir/listo') pantalla = <EnlaceListo />
   else if (ruta === '/compartir/enlaces') pantalla = <Enlaces />
+  else if (ruta === '/insumos/lista') pantalla = <ListaDeInsumos />
   else pantalla = <Insumos />
 
   return (

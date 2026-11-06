@@ -2712,6 +2712,89 @@
         }
       }
     },
+    "/v1/personas-cuidadas/{persona_id}/consumo/lista": {
+      "get": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Lista de insumos",
+        "description": "Lo que se acaba pronto, con una cantidad sugerida para 30 días (MATU-60, RF-15, ADR-031). Entra cada insumo de «Se acaban pronto» con avisando = true, calculado al momento: activo, en su ventana y sin una alerta resuelta ni descartada para su fecha estimada actual (decisión 117). La cantidad es lo que falta para 30 días, descontando lo que MATU estima que queda hoy, al menos 1, y en envases enteros si el perfil tiene unidades_por_envase (decisiones 119 a 121). Orden: fecha estimada, nombre sin tildes, nombre y perfil_id. Sin el nombre de la persona, la ficha ni acciones. Leen los cuatro roles. No se audita y no crea ni cierra alertas. No hay exportación ni enlace (decisión 122)",
+        "operationId": "ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaInsumos"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Falta X-Grupo-Id o no es un UUID, no miembro activo del grupo, o la persona es de otro grupo, no existe o su id no es un UUID. Leen los cuatro roles, así que el rol nunca es la causa",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
       "get": {
         "tags": [
@@ -3362,7 +3445,7 @@
             }
           },
           "422": {
-            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control",
+            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic",
             "content": {
               "application/problem+json": {}
             }
@@ -3644,7 +3727,7 @@
             }
           },
           "422": {
-            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control",
+            "description": "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic",
             "content": {
               "application/problem+json": {}
             }
@@ -5480,6 +5563,18 @@
             "type": "integer",
             "title": "Dias Aviso"
           },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase",
+            "description": "Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)"
+          },
           "fecha_quiebre_estimada": {
             "type": "string",
             "format": "date",
@@ -5542,6 +5637,7 @@
           "stock_unidades",
           "stock_medido_en",
           "dias_aviso",
+          "unidades_por_envase",
           "fecha_quiebre_estimada",
           "dias_restantes",
           "activo",
@@ -5703,6 +5799,104 @@
         ],
         "title": "ListaPorAcabarse"
       },
+      "LineaListaInsumos": {
+        "properties": {
+          "perfil_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Perfil Id",
+            "description": "El perfil de consumo de esta línea (PerfilConsumoVista.id)"
+          },
+          "nombre": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Nombre",
+            "description": "producto.nombre si el perfil es de un producto, o nombre_libre si no. Nunca la presentación"
+          },
+          "unidad": {
+            "$ref": "#/components/schemas/UnidadConsumo"
+          },
+          "dias_restantes": {
+            "type": "integer",
+            "title": "Dias Restantes",
+            "description": "fecha_quiebre_estimada menos fecha, en días, como en PerfilConsumoVista. Solo para la pantalla: el texto que se imprime o se comparte no lo lleva (ADR-031, punto 4)"
+          },
+          "unidades_sugeridas": {
+            "type": "integer",
+            "maximum": 300000.0,
+            "minimum": 1.0,
+            "title": "Unidades Sugeridas",
+            "description": "Lo que falta para 30 días, en la unidad del insumo: max(1, techo(30 × tasa_unidades / tasa_dias) - lo que MATU estima que queda hoy) (decisiones 119 y 120)"
+          },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase",
+            "description": "El del perfil, nunca el del catálogo (decisión 121). null si no se anotó"
+          },
+          "envases_sugeridos": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envases Sugeridos",
+            "description": "techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "perfil_id",
+          "nombre",
+          "unidad",
+          "dias_restantes",
+          "unidades_sugeridas",
+          "unidades_por_envase",
+          "envases_sugeridos"
+        ],
+        "title": "LineaListaInsumos",
+        "description": "Una línea de la lista (decisión 118). Sin la tasa, el stock, la fecha estimada, precios, comercios, la\nalerta ni el etag. El nombre puede decir algo de la salud de la persona: nunca va a logs ni errores."
+      },
+      "ListaInsumos": {
+        "properties": {
+          "fecha": {
+            "type": "string",
+            "format": "date",
+            "title": "Fecha",
+            "description": "Hoy en America/Santiago según el Reloj de la API, el mismo de dias_restantes"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LineaListaInsumos"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "En el orden de la decisión 117. Vacía si ningún insumo de «Se acaban pronto» está avisando"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fecha",
+          "items"
+        ],
+        "title": "ListaInsumos",
+        "description": "La lista de insumos de hoy (decisión 118): sin el nombre de la persona, el grupo, la ficha ni acciones."
+      },
       "MotivoAcceso": {
         "type": "string",
         "enum": [
@@ -5766,6 +5960,18 @@
             "type": "integer",
             "title": "Dias Aviso"
           },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase",
+            "description": "Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)"
+          },
           "fecha_quiebre_estimada": {
             "type": "string",
             "format": "date",
@@ -5810,6 +6016,7 @@
           "stock_unidades",
           "stock_medido_en",
           "dias_aviso",
+          "unidades_por_envase",
           "fecha_quiebre_estimada",
           "dias_restantes",
           "activo",
@@ -6363,12 +6570,26 @@
               }
             ],
             "title": "Dias Aviso"
+          },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "description": "Cuántas unidades trae cada envase, en la unidad del insumo (unidades, sobres, ml o g). Opcional. Lo usa solo la lista de insumos para sugerir envases enteros (decisión 121)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "SolicitudEdicionPerfil",
-        "description": "Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido)."
+        "description": "Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido), salvo en\nunidades_por_envase, donde null lo borra (decisión 121)."
       },
       "SolicitudGrupo": {
         "properties": {
@@ -6448,6 +6669,20 @@
             "minimum": 0.0,
             "title": "Dias Aviso",
             "default": 7
+          },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "description": "Cuántas unidades trae cada envase, en la unidad del insumo (unidades, sobres, ml o g). Opcional. Lo usa solo la lista de insumos para sugerir envases enteros (decisión 121)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase"
           }
         },
         "additionalProperties": false,

@@ -8,7 +8,8 @@ America/Santiago (decisión 42).
   ``fecha_quiebre_estimada = stock_medido_en + dias``. Solo esta fórmula: la predicción completa y las
   alertas son de MATU-37.
 - Topes (decisión 43): tasa_unidades 1..10000, tasa_dias 1..90, stock 0..100000, dias_aviso 0..60
-  y una cobertura de 3650 días como máximo.
+  y una cobertura de 3650 días como máximo. unidades_por_envase, opcional, 1..10000 (MATU-60, decisión
+  121): describe el envase y solo lo usa la lista de insumos. Nunca sale del catálogo (decisión 104).
 - Leen los cuatro roles del grupo (admin, cuidador, pagador y observador). Escriben (crear, editar,
   desactivar, activar y eliminar) solo admin y cuidador (decisión 71). Un rol que no alcanza recibe
   404, nunca 403.
@@ -19,7 +20,8 @@ America/Santiago (decisión 42).
 import uuid
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
-from enum import StrEnum
+from enum import Enum, StrEnum
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 ZONA_CHILE = ZoneInfo("America/Santiago")
@@ -31,6 +33,7 @@ DIAS_AVISO_MAXIMO = 60
 DIAS_AVISO_POR_OMISION = 7
 COBERTURA_MAXIMA_DIAS = 3650
 LARGO_MAXIMO_NOMBRE_LIBRE = 60
+UNIDADES_POR_ENVASE_MAXIMO = 10_000
 
 ROLES_QUE_LEEN = frozenset({"admin", "cuidador", "pagador", "observador"})
 ROLES_QUE_ESCRIBEN = frozenset({"admin", "cuidador"})
@@ -150,6 +153,8 @@ class Perfil:
     activo: bool
     version: int
     actualizado_por: uuid.UUID | None
+    # MATU-60 (decisión 121): opcional, None si no se anotó
+    unidades_por_envase: int | None = None
 
 
 def nuevo_perfil(
@@ -165,10 +170,12 @@ def nuevo_perfil(
     dias_aviso: int,
     hoy: date,
     autor: uuid.UUID,
+    unidades_por_envase: int | None = None,
 ) -> Perfil:
     """Un perfil nuevo con stock_medido_en = hoy y la fecha estimada ya calculada."""
     if (producto_id is None) == (nombre_libre is None):
         raise ValueError("producto_id o nombre_libre, exactamente uno")
+    exigir_unidades_por_envase(unidades_por_envase)
     return Perfil(
         id=perfil_id,
         persona_cuidada_id=persona_cuidada_id,
@@ -184,18 +191,37 @@ def nuevo_perfil(
         activo=True,
         version=1,
         actualizado_por=autor,
+        unidades_por_envase=unidades_por_envase,
     )
+
+
+def exigir_unidades_por_envase(valor: int | None) -> None:
+    """None o un entero de 1 a 10.000. Lanza ValueError con un mensaje fijo, sin el valor."""
+    if valor is not None and not 1 <= valor <= UNIDADES_POR_ENVASE_MAXIMO:
+        raise ValueError("unidades_por_envase debe ser de 1 a 10000")
+
+
+class _SinCambio(Enum):
+    SIN_CAMBIO = "sin_cambio"
+
+
+# unidades_por_envase es el único campo del PATCH que admite null, que lo borra (decisión 121): None no
+# puede significar "no vino", así que se usa este marcador
+SIN_CAMBIO = _SinCambio.SIN_CAMBIO
+SinCambio = Literal[_SinCambio.SIN_CAMBIO]
 
 
 @dataclass(frozen=True)
 class CambiosPerfil:
-    """Los campos que trajo el PATCH. None = no vino (null no se admite en la API)."""
+    """Los campos que trajo el PATCH. None = no vino (null no se admite en la API), salvo en
+    unidades_por_envase: SIN_CAMBIO = no vino, None = se borra y un entero = se fija."""
 
     nombre_libre: str | None = None
     tasa_unidades: int | None = None
     tasa_dias: int | None = None
     stock_unidades: int | None = None
     dias_aviso: int | None = None
+    unidades_por_envase: int | None | SinCambio = SIN_CAMBIO
 
 
 class NombreLibreConProducto(ValueError):
@@ -206,11 +232,14 @@ def aplicar_cambios(perfil: Perfil, cambios: CambiosPerfil, hoy: date, autor: uu
     """Aplica el PATCH (decisiones 41 y 42) y suma 1 a la versión.
 
     - Si viene stock_unidades, aunque sea el mismo, stock_medido_en pasa a hoy.
-    - La fecha estimada se recalcula siempre desde stock_medido_en.
-    Lanza NombreLibreConProducto o CoberturaMaxima sin cambiar nada.
+    - La fecha estimada se recalcula siempre desde stock_medido_en. Cambiar solo unidades_por_envase no
+      toca stock_medido_en, y la fecha queda igual.
+    Lanza NombreLibreConProducto, CoberturaMaxima o ValueError (unidades_por_envase) sin cambiar nada.
     """
     if cambios.nombre_libre is not None and perfil.producto_id is not None:
         raise NombreLibreConProducto("nombre_libre solo se edita en un perfil sin producto")
+    envase = perfil.unidades_por_envase if cambios.unidades_por_envase is SIN_CAMBIO else cambios.unidades_por_envase
+    exigir_unidades_por_envase(envase)
     stock = perfil.stock_unidades if cambios.stock_unidades is None else cambios.stock_unidades
     medido_en = perfil.stock_medido_en if cambios.stock_unidades is None else hoy
     tasa_u = perfil.tasa_unidades if cambios.tasa_unidades is None else cambios.tasa_unidades
@@ -226,6 +255,7 @@ def aplicar_cambios(perfil: Perfil, cambios: CambiosPerfil, hoy: date, autor: uu
         fecha_quiebre_estimada=fecha_quiebre(medido_en, stock, tasa_u, tasa_d),
         version=perfil.version + 1,
         actualizado_por=autor,
+        unidades_por_envase=envase,
     )
 
 

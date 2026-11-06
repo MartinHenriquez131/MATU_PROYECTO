@@ -60,6 +60,15 @@ def avisando(*, en_su_ventana: bool, estado_de_la_fecha: EstadoAlerta | None) ->
     return en_su_ventana and estado_de_la_fecha not in CERRADAS
 
 
+def avisa_hoy(perfil: Perfil, estado_de_la_fecha: EstadoAlerta | None, hoy: date) -> bool:
+    """``avisando`` de un perfil para hoy (decisión 74): activo, en su ventana y sin una alerta cerrada
+    para su fecha estimada actual. ``estado_de_la_fecha`` es el de la alerta de esa fecha, o None si el
+    trabajo diario aún no la creó. Lo usan «Se acaban pronto» y la lista de insumos (MATU-60, decisión
+    117), así que la lista es siempre el subconjunto de «Se acaban pronto» con avisando = true."""
+    ventana = perfil.activo and en_ventana(dias_restantes(perfil.fecha_quiebre_estimada, hoy), perfil.dias_aviso)
+    return avisando(en_su_ventana=ventana, estado_de_la_fecha=estado_de_la_fecha)
+
+
 class AlertaCerrada(Exception):
     """La alerta ya está resuelta o descartada. La API responde 409 alerta-cerrada."""
 

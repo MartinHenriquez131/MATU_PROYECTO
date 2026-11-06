@@ -69,6 +69,16 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'alertas-error@example.com', que: 'Se acaban pronto: «Ya lo resolví» responde 500 («No pudimos guardar…»)' },
   { email: 'alertas-error-carga@example.com', que: 'Se acaban pronto: por-acabarse responde 500; la lista se ve y el bloque dice «No pudimos ver qué se acaba pronto»' },
   { email: 'insumos-defectos@example.com', que: 'Insumos: cambiar «Pañal» responde 412 una vez, «Apósitos» 409 perfil-inactivo, «Guantes» 500; anotar «Error» responde 500; stock 100000 con uso 1 da 422 cobertura_maxima' },
+  // MATU-60: la lista de insumos (/insumos/lista)
+  { email: 'lista@example.com', que: 'Lista de insumos: admin con seis líneas (6, 5, 3, 1, 0 y −2 días; con envase, en sobres, en ml con 1 envase y un nombre de 60 caracteres sin espacios). «Se acaban pronto» en Insumos muestra los mismos' },
+  { email: 'lista-cuidador@example.com', que: 'Lista de insumos: cuidador, la misma lista' },
+  { email: 'lista-pagador@example.com', que: 'Lista de insumos: pagador, cambia, agrega, quita y saca la lista, con la nota «lo que anotó la familia»' },
+  { email: 'lista-observador@example.com', que: 'Lista de insumos: observador, ve las líneas sin campos ni botones' },
+  { email: 'lista-vacia@example.com', que: 'Lista de insumos: admin con un solo insumo, que alcanza para 40 días: «No hay insumos que se acaben pronto»' },
+  { email: 'lista-permiso-cuidador@example.com', que: 'Lista de insumos: cuidador sin el permiso (403 sin-consentimiento): /insumos/lista lleva a Insumos, que pide el permiso' },
+  { email: 'lista-permiso-observador@example.com', que: 'Lista de insumos: observador sin el permiso (403 sin-consentimiento): «Falta el permiso…»' },
+  { email: 'lista-renovar@example.com', que: 'Lista de insumos: 403 revision-vencida («Hay que renovar…»)' },
+  { email: 'lista-error@example.com', que: 'Lista de insumos: la lista responde 500 («No pudimos traer la lista…» y «Volver a intentar»)' },
   // MATU-57: recuperar el acceso y confirmar el celular. Los códigos solo se ven en la consola del doble.
   { email: 'celular-verificado@example.com', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
   { email: 'celular-sin-verificar@example.com', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },

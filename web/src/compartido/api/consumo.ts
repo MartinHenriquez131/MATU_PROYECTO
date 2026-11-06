@@ -86,3 +86,17 @@ export async function resolverAviso(personaId: string, perfilId: string, etag: s
 export async function descartarAlerta(personaId: string, alertaId: string): Promise<Alerta> {
   return (await apiFamilia.post<Alerta>(`${base(personaId)}/alertas/${encodeURIComponent(alertaId)}/descartar`)).data
 }
+
+// ---------------------------------------------------------------- MATU-60: la lista de insumos
+
+export type ListaInsumos = S['ListaInsumos']
+export type LineaListaInsumos = S['LineaListaInsumos']
+
+/**
+ * La lista de hoy (`GET …/consumo/lista`, decisiones 116 a 122): sin paginación, sin cuerpo y sin
+ * consulta. Se pide cada vez que se abre la pantalla y nunca se guarda. Lo que la familia cambia,
+ * agrega o quita en la pantalla nunca llega al servidor.
+ */
+export async function verListaInsumos(personaId: string): Promise<ListaInsumos> {
+  return (await apiFamilia.get<ListaInsumos>(`${base(personaId)}/lista`)).data
+}
