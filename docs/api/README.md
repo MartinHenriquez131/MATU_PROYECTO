@@ -11,7 +11,7 @@ docs/api/
     ├── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
     ├── ficha-ampliada.openapi.yaml  MATU-49: secciones complementarias (implementado en MATU-50; se conserva como explicación)
     └── app-familia.openapi.yaml  MATU-32: sesión, dispositivos, autorización para el consumo, consumo y alertas
-                                  (implementados), y MATU-60: lista de insumos y unidades por envase (propuesto)
+                                  (implementados), y MATU-60: lista de insumos y unidades por envase (implementados)
 ```
 
 ## Propuestos e implementados
@@ -50,15 +50,15 @@ docs/api/
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | Implementado. Solo `finalidad: consumo`. En `openapi.json` desde MATU-36 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11), con un cambio propuesto de MATU-60 | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36. MATU-60 propone sumar `unidades_por_envase` a cada perfil (decisión 121) |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11), con un cambio propuesto de MATU-60 | Implementado. En `openapi.json` desde MATU-36. MATU-60 propone `unidades_por_envase`, opcional (decisión 121) |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36, con un cambio propuesto de MATU-60 | Implementado. En `openapi.json` desde MATU-36. MATU-60 propone sumar `unidades_por_envase` (decisión 121) |
-| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36, con un cambio propuesto de MATU-60 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36. MATU-60 propone `unidades_por_envase`, que se borra con `null` (decisión 121) |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36. Cada perfil trae `unidades_por_envase` desde MATU-60 (decisión 121) |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Acepta `unidades_por_envase`, opcional, desde MATU-60 (decisión 121) |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36; cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Trae `unidades_por_envase` desde MATU-60 (decisión 121) |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36; cambio de MATU-60 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36. Acepta `unidades_por_envase` desde MATU-60, y `null` lo borra (decisión 121) |
 | `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 69) | Implementado. 204. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 68) | Implementado. En `openapi.json` desde MATU-36 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | Implementado, con `avisando` y `alerta_id` (decisión 74). En `openapi.json` desde MATU-37 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 (RF-15, ADR-031) | **Propuesto** el 06-11 y aprobado por Jorge con tres ajustes (decisiones 116 a 122). Contrato en `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 (RF-15, ADR-031) | Implementado, con los tres ajustes de Jorge del 06-11 (decisiones 116 a 122). En `openapi.json` desde MATU-60 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
@@ -143,7 +143,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | Implementado | `openapi.json` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | Implementado | `openapi.json` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 | Implementado | `openapi.json` |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 | **Nuevo**, propuesto (decisiones 116 a 122) | `app-familia.openapi.yaml` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 | Implementado (decisiones 116 a 122) | `openapi.json` |
 
 La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni `GET /v1/salud`.
 
@@ -156,7 +156,7 @@ La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni
 - **No hay ruta para consultar las autorizaciones.** La vista de la persona trae solo la de `plan_cuidado` (`consentimiento`). Que falta la de `consumo` se sabe por el 403 con `finalidad: consumo` de `GET …/consumo`.
 - **No hay catálogo** (`/v1/catalogo/…`, arquitectura 9.4). En el sprint 3 la app anota insumos con `nombre_libre`.
 - **No hay invitaciones ni cambio de roles** (MATU-42 y MATU-53, sprint 4), ni salir de un grupo.
-- **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4). *Actualizado el 06-11:* la lista de insumos está propuesta en MATU-60 (`GET …/consumo/lista`, decisiones 116 a 122) y nunca tendrá exportación ni enlace (ADR-031, decisión 122).
+- **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4). *Actualizado el 06-11:* la lista de insumos está implementada en MATU-60 (`GET …/consumo/lista`, decisiones 116 a 122) y nunca tendrá exportación ni enlace (ADR-031, decisión 122).
 - **No hay `/v1/consumo/{id}` ni `/v1/alertas`** sin la persona, como dice la arquitectura 9.3: todo cuelga de `/v1/personas-cuidadas/{persona_id}/consumo…` (decisión 54).
 - **No hay preferencias de aviso** (`preferencia_notificacion`), ni cambiar o recuperar la contraseña, ni "cerrar todas las sesiones" (se sacan los dispositivos uno por uno).
 - **No hay exportación de la ficha** (`GET …/plan/exportar`, RF-09).
@@ -559,7 +559,7 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 | Arquitectura 9.3 | Cuerpo `{producto_id, tasa_uso, unidad_tasa, stock_estimado, dias_aviso}` | `tasa_unidades` / `tasa_dias`, `stock_unidades`, `unidad`, `producto_id` o `nombre_libre` | Esquema (`perfil_consumo`) |
 | Arquitectura 7.3 | Campo `tasa_uso_diaria` y `dias_de_cobertura = piso(stock_unidades / tasa_uso_diaria)` | Fracción entera: `piso(stock_unidades * tasa_dias / tasa_unidades)` | Esquema, comentario de `perfil_consumo` |
 | Arquitectura 9.3 | `PATCH /v1/consumo/{id}`, `GET /v1/alertas?estado=`, `POST /v1/alertas/{id}/descartar` | Todo bajo `/v1/personas-cuidadas/{persona_id}/consumo…`, con `X-Grupo-Id` | Decisión 54, instrucción de MATU-32 |
-| Arquitectura 9.3 | `GET …/lista-reposicion` | `GET …/consumo/por-acabarse`. La lista de reposición (con sugerencias de envases) es del sprint 4. *Desde el 06-11:* la lista es `GET …/consumo/lista` (MATU-60, propuesto), en el espacio de consumo y con el nombre «lista de insumos» (`lenguaje.md`, sección 21) | Decisiones 53 y 116 |
+| Arquitectura 9.3 | `GET …/lista-reposicion` | `GET …/consumo/por-acabarse`. La lista de reposición (con sugerencias de envases) es del sprint 4. *Desde el 06-11:* la lista es `GET …/consumo/lista` (MATU-60, implementado), en el espacio de consumo y con el nombre «lista de insumos» (`lenguaje.md`, sección 21) | Decisiones 53 y 116 |
 | Arquitectura 9.3 y RF-15 | `POST /v1/personas-cuidadas/{id}/lista-reposicion/exportar` → «PDF o enlace compartible», con las exportaciones guardadas en el almacenamiento de objetos | No existe. Ni `POST …/exportar`, ni PDF hecho en el servidor, ni enlace, ni ruta pública, ni archivos guardados. La lista se imprime o se guarda como PDF desde el navegador y se comparte como texto (`navigator.share` o copiar). RF-15 se cumple así (ADR-031, punto 3) | ADR-031, decisión 122. Se corrige en la v1.2 (MATU-43) |
 | Arquitectura 9.6 | Ejemplo con `persona_cuidada` (id y nombre), `generada_en`, `producto` como presentación, `tasa_uso`, `stock_estimado`, `fecha_quiebre_estimada`, `sugerido: {cantidad, razon: "cubre 15 días"}`, `estado_alerta` y `acciones: [armar_pedido, exportar_lista, compartir_enlace]` | `{fecha, items: [{perfil_id, nombre, unidad, dias_restantes, unidades_sugeridas, unidades_por_envase, envases_sugeridos}]}`: sin la persona, el grupo, la ficha, la tasa, el stock, la fecha estimada, la alerta, precios, comercios ni acciones. La cantidad cubre 30 días, no 15. Los botones los decide la pantalla con el `rol` de `GET /v1/grupos` | ADR-031 (puntos 4 a 6), decisiones 118 y 119. Se corrige en la v1.2 (MATU-43) |
 | Arquitectura 9.1 | "refresh rotativo de 30 días por dispositivo" | Coincide: 30 días por token, con ventana deslizante y sin tope absoluto (decisión de Jorge del 31-10) | Decisión 57 |
@@ -574,7 +574,7 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 - **Las secciones complementarias de la ficha del ADR-028** (MATU-49).
 - **Invitaciones y roles** (MATU-42 y MATU-53, sprint 4).
 - **Registrar una reposición** ("Ya lo compré", `resuelta`, `reposicion`): MATU-51, sprint 4.
-- **La lista de reposición**, con envases sugeridos, y exportarla (sprint 4). *Desde el 06-11:* la lista de insumos está propuesta en MATU-60 (decisiones 116 a 122). Exportarla no se construye (ADR-031).
+- **La lista de reposición**, con envases sugeridos, y exportarla (sprint 4). *Desde el 06-11:* la lista de insumos está implementada en MATU-60 (decisiones 116 a 122). Exportarla no se construye (ADR-031).
 - **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
 - **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
 - **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
@@ -762,7 +762,9 @@ La 114 es el límite por IP de MATU-25 (PR #29, renumerada desde la 106): no se 
     - `openapi.json` no cambia: el respaldo es `Router.default`, no una ruta, así que no entra en el esquema, y `/r` y `/assets` ya estaban fuera (`include_in_schema=False` y un montaje). (Corregido el 05-11, H3 de la QA: decía que las rutas nuevas quedaban fuera por `include_in_schema=False`.)
     - Lo prueba `backend/tests/core/test_app_familia_web.py`: `/`, `/entrar`, `/insumos`, `/ficha/su-dia` y una ruta futura entregan el `index.html` con las cabeceras, también con `HEAD`; un archivo de la raíz del build se entrega tal cual; `..` y barras codificadas no salen del build y responden 404; un archivo oculto (también bajo `/assets`) y una ruta con extensión que no está en el build responden 404; `.js`, `.css` y `.webmanifest` llevan su tipo aunque `mimetypes` diga `text/plain`; una ruta registrada después no queda tapada; `/r` sigue igual salvo `frame-ancestors 'none'`, que prueba `backend/tests/core/test_pagina_relevo.py`; `/v1` inexistente sigue en 404 y los 405 no cambian; `/assets` se entrega; sin `WEB_DIST` la API arranca y `/` responde 404; `/docs` y `/openapi.json` responden 404 en `staging` y `produccion` y 200 en `local` y `pruebas`.
 
-## MATU-60 · Lista de insumos (propuesto, RF-15, ADR-031)
+## MATU-60 · Lista de insumos (implementado, RF-15, ADR-031)
+
+**Implementado el 06-11** con los tres ajustes de Jorge. La ruta, `ListaInsumos`, `LineaListaInsumos` y `unidades_por_envase` en `SolicitudPerfil`, `SolicitudEdicionPerfil`, `PerfilConsumoVista` e `InsumoPorAcabarseVista` pasaron a `openapi.json`, exportados desde `app.openapi()` sin reordenar lo que ya estaba, y se quitaron de `propuestos/app-familia.openapi.yaml`, que vuelve a no tener rutas. Ver "Notas de MATU-60 (implementación)" al final de esta sección. El párrafo que sigue es el de la propuesta.
 
 Contrato propuesto el 06-11, **antes de implementar**, con las decisiones de Jorge del 06-11 (ADR-031, `docs/lenguaje.md` sección 21 y la cobertura de 30 días, D2) y las condiciones del analista normativo. La ruta nueva y sus esquemas están en `propuestos/app-familia.openapi.yaml`. El cambio al perfil de consumo toca rutas que ya están en `openapi.json`, así que el propuesto no repite esas rutas (lo impiden `test_consumo_contrato.py` y `test_alertas_contrato.py`): lo declara como fragmentos con `x-matu-se-suma-a` (`CambioSolicitudPerfil`, `CambioSolicitudEdicionPerfil` y `CambioPerfilConsumoVista`). **`openapi.json` no cambia todavía**, porque dice solo lo implementado, las pruebas de contrato lo comparan con la API y el CI compara `web/src/compartido/api/familia.openapi.ts` con él.
 
@@ -841,3 +843,21 @@ Las tres preguntas quedaron cerradas por Jorge el 06-11:
 - **Exportación en el mismo PR:** la ruta, `ListaInsumos`, `LineaListaInsumos` y los esquemas del perfil con `unidades_por_envase` pasan a `openapi.json` desde `app.openapi()`, y se quitan de `propuestos/app-familia.openapi.yaml` la ruta y los fragmentos `Cambio*`. La ruta se suma a `RUTAS` de `test_alertas_contrato.py` (o a una prueba propia), que verifica que sale del propuesto. Como el CI compara `web/src/compartido/api/familia.openapi.ts` con `openapi.json`, el frontend vuelve a correr `npm run contrato:familia` en el mismo PR.
 - **Diferencias que se esperan al exportar**, las mismas de las demás rutas del consumo: los 401, 403 y 404 como `application/problem+json` sin esquema, el 422 genérico que agrega FastAPI, `X-Grupo-Id` como `string | null` sin `format: uuid` y el `operationId` que genera FastAPI.
 - **Política y registro:** ya están ajustados en el PR de documentos de MATU-60 (repositorio MATU), sin cambiar `POLITICA_VERSION`. **Pendiente por la opción B de la decisión 120:** el registro de tratamientos dice «cantidad sugerida (consumo de 30 días, …)» y debe decir que la cantidad es lo que falta para 30 días, descontando lo que MATU estima que queda. La política dice «una cantidad sugerida para 30 días», que sigue siendo cierto. Lo corrige el analista normativo en ese PR.
+
+### Notas de MATU-60 (implementación, 06-11)
+
+- **Dónde vive cada regla.**
+  - `consumption/domain/lista.py`: `armar_lista` (qué entra, la línea y el orden), `unidades_sugeridas`, `envases_sugeridos`, `techo_division`, `sin_marcas` y `COBERTURA_LISTA_DIAS = 30`.
+  - `consumption/domain/alerta.py`: `avisa_hoy`, la regla de `avisando` (decisión 74). La usan «Se acaban pronto» y la lista, así que la lista es siempre el subconjunto de `GET …/consumo/por-acabarse` con `avisando = true`. Lo que queda hoy es `stock_estimado_hoy`, la misma función de «Ya lo resolví» (decisión 79).
+  - `consumption/application/lista.py`: lee el `Reloj` una vez y usa `RepositorioAlertas.en_ventana`, el repositorio de «Se acaban pronto». No hay SQL nuevo.
+  - `consumption/api/router_lista.py`: la ruta, con `consumo_para_leer`. `app.main` la registra después de `router_alertas` y antes que `router_consumo`.
+- **El orden** usa, además de lo que dice la decisión 117, NFC antes del `casefold()` de la clave 3, para que una «ñ» escrita como `n` más tilde combinante empate con la «ñ» compuesta y desempate el `perfil_id`.
+- **`unidades_por_envase` en el `PATCH`.** El dominio distingue "no vino" de `null` con el marcador `SIN_CAMBIO` (`domain/perfil.py`). El router solo exceptúa ese campo de `null_no_admitido`: un `null` en otro campo del mismo cuerpo sigue respondiendo 422. El orden de evaluación de MATU-36 no cambia.
+- **Migración 0015** (`backend/alembic/versions/0015_perfil_unidades_por_envase.py`): la columna y el `CHECK perfil_consumo_envase`, con `op.execute`. RLS no cambia. Se verificó `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Pruebas.**
+  - `tests/modules/consumption/test_lista_dominio.py`: la fórmula, el techo, el mínimo de 1, el stock 0, lo estimado negativo, el orden y el envase en el perfil.
+  - `test_envase_router.py`: el `PATCH` y el `POST` del envase con dobles, y los 422.
+  - `test_lista_api.py`: contra PostgreSQL.
+  - `test_lista_contrato.py`: la ruta y los esquemas contra `openapi.json`, y que salieron del propuesto.
+  - `tests/test_aislamiento.py` y `tests/test_migraciones.py`: el bloque de la 0015.
+- **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`.

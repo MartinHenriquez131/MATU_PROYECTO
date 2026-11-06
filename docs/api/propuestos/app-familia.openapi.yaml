@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MATU API · App de familia (propuesto)
-  version: 0.2.0-propuesto
+  version: 0.3.0-propuesto
   summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto, alertas y la lista de insumos.
   description: |
     Contrato **propuesto** de MATU-32, acordado antes de implementar (arquitectura 15.5, regla 1).
@@ -38,17 +38,14 @@ info:
     decisiones 74 a 78 están en el README. MATU-37 dejó este archivo sin rutas, con las copias
     idénticas de los componentes de `relevo.openapi.yaml`.
 
-    **Lista de insumos (MATU-60, RF-15, ADR-031): propuesto el 06-11 y aprobado por Jorge el
-    06-11 con tres ajustes** (decisiones 117, 119 a 121). Agrega una ruta, `GET …/consumo/lista`, y un dato opcional del perfil,
-    `unidades_por_envase` (decisiones 116 a 122 del README). El cambio al perfil toca rutas que
-    ya están en `docs/api/openapi.json`, así que aquí no se repiten esas rutas: se declara como
-    fragmentos (`CambioSolicitudPerfil`, `CambioSolicitudEdicionPerfil` y
-    `CambioPerfilConsumoVista`), cada uno con `x-matu-se-suma-a`, que nombra el esquema de
-    `openapi.json` al que se suma. Al implementar, la ruta, sus componentes y el perfil con
-    `unidades_por_envase` se exportan a `openapi.json` y se quitan de aquí en el mismo PR. Vuelven
-    `UnidadConsumo`, `NoAutenticadoApp`, `NoEncontradoApp` y `SinAutorizacionConsumo`, que MATU-37
-    había quitado por no tener uso. No existe `POST …/exportar` ni una ruta pública para la lista
-    (decisión 122).
+    **Lista de insumos y unidades por envase (MATU-60, RF-15, ADR-031): implementados.** Se
+    propusieron aquí el 06-11, Jorge los aprobó con tres ajustes y MATU-60 los implementó.
+    `GET …/consumo/lista` (`ListaInsumos` y `LineaListaInsumos`) y `unidades_por_envase` en
+    `SolicitudPerfil`, `SolicitudEdicionPerfil`, `PerfilConsumoVista` e `InsumoPorAcabarseVista`
+    pasaron a `docs/api/openapi.json` y se quitaron de este archivo, con los fragmentos `Cambio*` y
+    las respuestas que solo la lista usaba (`NoAutenticadoApp`, `NoEncontradoApp` y
+    `SinAutorizacionConsumo`). Las decisiones 116 a 122 están en el README. El archivo vuelve a no
+    tener rutas.
 
     **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
     (MATU-02) y fijan el contexto con `sesion_de_grupo`. Las de sesión y dispositivos no dependen de
@@ -59,8 +56,8 @@ info:
     ni la IP. Un 422 nombra el campo y nunca repite el valor (`app/core/errores.py`). Los eventos
     del outbox llevan solo identificadores (`payload_solo_identificadores`).
 
-    **`Cache-Control: no-store`** en toda respuesta de sesión, dispositivos, autorización, consumo,
-    alertas y la lista de insumos, también en sus 401, 403 y 404. La cabecera `CacheControlNoStore` es la misma, idéntica, de `ficha.openapi.yaml` y
+    **`Cache-Control: no-store`** en toda respuesta de sesión, dispositivos, autorización, consumo
+    y alertas. La cabecera `CacheControlNoStore` es la misma, idéntica, de `ficha.openapi.yaml` y
     `relevo.openapi.yaml`: su descripción habla de la ficha y del relevo, y aquí vale igual para
     lo que dice cuánto usa la persona de cada insumo o cómo entra la familia.
 
@@ -84,130 +81,7 @@ tags:
   - name: alertas
     description: Avisos antes de que algo se acabe (capa 2, MATU-37)
 
-paths:
-  /v1/personas-cuidadas/{persona_id}/consumo/lista:
-    parameters:
-      - $ref: '#/components/parameters/PersonaId'
-      - $ref: '#/components/parameters/XGrupoId'
-    get:
-      tags: [consumo]
-      operationId: verListaInsumos
-      summary: Lista de insumos
-      description: |
-        **Propuesto (MATU-60, RF-15, ADR-031).** La lista de insumos de la persona: lo que se acaba
-        pronto, con una cantidad sugerida para 30 días. La pantalla la imprime, la guarda como PDF o
-        la comparte como texto desde el teléfono, y la API solo la entrega (decisiones 116 a 122 de
-        `docs/api/README.md`).
-
-        **Qué entra** (decisión 117, ajuste de Jorge del 06-11): cada insumo que hoy está en «Se
-        acaban pronto» con `avisando = true` (decisión 74), calculado al momento: perfil **activo**,
-        en su ventana (`dias_restantes <= dias_aviso`, incluidos los ya pasados) y **sin** una alerta
-        `resuelta` ni `descartada` para su `fecha_quiebre_estimada` actual. No depende de que el
-        trabajo diario haya creado la alerta: la lista es el subconjunto de
-        `GET …/consumo/por-acabarse` con `avisando = true`. No entran los desactivados, los que
-        están fuera de su ventana ni los que tienen cerrada la alerta de su fecha actual («Ya lo
-        resolví» o «No avisar esta vez»).
-
-        **Orden exacto** (decisión 117):
-
-        1. `fecha_quiebre_estimada` ascendente (lo mismo que `dias_restantes` ascendente).
-        2. `nombre` sin marcas diacríticas (Unicode NFD sin la categoría `Mn`) y con `casefold()`.
-        3. `nombre` con `casefold()`, para desempatar `n` y `ñ` o `a` y `á`.
-        4. `perfil_id` ascendente, como texto en minúsculas.
-
-        Se ordena en el dominio, no en SQL, para no depender de la colación de la base.
-
-        **Cantidad sugerida, en enteros** (decisiones 119 y 120, opción B de Jorge):
-        `unidades_sugeridas = max(1, techo(30 × tasa_unidades / tasa_dias) − queda_hoy)`, con
-        `queda_hoy = piso(stock_unidades − días transcurridos × tasa_unidades / tasa_dias)`, y 0 si
-        da negativo (la fórmula de la decisión 79, con el `Reloj` y la fecha de Chile). Si el perfil
-        tiene `unidades_por_envase`, `envases_sugeridos = techo(unidades_sugeridas /
-        unidades_por_envase)`. El envase sale solo del perfil, nunca del catálogo (decisión 121).
-
-        **Lo que no trae** (decisión 118): el nombre de la persona cuidada, nada de la ficha, el
-        grupo, la tasa, el stock, la fecha estimada, precios, comercios, el `etag`, la alerta ni
-        acciones. Quién ve los botones de imprimir y compartir lo decide la pantalla con el `rol` de
-        `GET /v1/grupos` (ADR-031, punto 5).
-
-        **Sin exportación** (decisión 122): no existe `POST …/exportar` ni una ruta pública para la
-        lista. Las líneas agregadas a mano y las cantidades cambiadas en la pantalla nunca llegan al
-        servidor.
-
-        Leen los cuatro roles (decisión 71), con la misma dependencia de lectura que
-        `GET …/consumo` y `GET …/consumo/por-acabarse`. **Orden de evaluación:** 401, 404
-        (`X-Grupo-Id`, membresía, persona), 403 (autorización para `consumo`) y 200. No tiene cuerpo
-        ni parámetros de consulta, no se pagina, no se audita (decisión 52) y no crea ni cierra
-        alertas. La ruta fija `lista` se registra antes que `…/consumo/{perfil_id}` (decisión 54).
-      x-matu-historia: MATU-60, RF-15 (ADR-031)
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: |
-            La lista de insumos de hoy. `items` puede venir vacío: la pantalla muestra «No hay
-            insumos que se acaben pronto» (`docs/lenguaje.md`, sección 21).
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/XRequestId'
-            Cache-Control:
-              $ref: '#/components/headers/CacheControlNoStore'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ListaInsumos'
-              examples:
-                conEnvase:
-                  summary: Dos insumos con unidades por envase (ml en el primero)
-                  description: |
-                    La crema se acabó según la estimación (`dias_restantes: -2`, «Puede que ya no
-                    quede», queda 0) y va primero. Crema: `techo(30 × 50 / 7) − 0` = 215 ml,
-                    `techo(215 / 250)` = 1 envase. Pañal, de 4 al día, anotado hoy con 12:
-                    `techo(30 × 4 / 1) − 12` = 108 unidades, `techo(108 / 20)` = 6 envases.
-                  value:
-                    fecha: '2026-11-06'
-                    items:
-                      - perfil_id: 3c9d4e20-0000-4000-8000-0000000000c2
-                        nombre: Crema hidratante
-                        unidad: ml
-                        dias_restantes: -2
-                        unidades_sugeridas: 215
-                        unidades_por_envase: 250
-                        envases_sugeridos: 1
-                      - perfil_id: 3c9d4e20-0000-4000-8000-0000000000c1
-                        nombre: Pañal adulto talla M
-                        unidad: unidad
-                        dias_restantes: 3
-                        unidades_sugeridas: 108
-                        unidades_por_envase: 20
-                        envases_sugeridos: 6
-                sinEnvase:
-                  summary: Un insumo sin unidades por envase
-                  description: |
-                    Sin `unidades_por_envase`, la cantidad va en la unidad del insumo y
-                    `envases_sugeridos` es `null`. Toallitas de 12 cada 3 días, 14 anotadas hace 3
-                    días: quedan `piso((14 × 3 − 3 × 12) / 3)` = 2, y `techo(30 × 12 / 3) − 2` = 118
-                    unidades. Se acaba hoy (`dias_restantes: 0`).
-                  value:
-                    fecha: '2026-11-06'
-                    items:
-                      - perfil_id: 3c9d4e20-0000-4000-8000-0000000000c3
-                        nombre: Toallitas húmedas
-                        unidad: unidad
-                        dias_restantes: 0
-                        unidades_sugeridas: 118
-                        unidades_por_envase: null
-                        envases_sugeridos: null
-                vacia:
-                  summary: Ningún insumo que se acabe pronto con avisando
-                  value:
-                    fecha: '2026-11-06'
-                    items: []
-        '401':
-          $ref: '#/components/responses/NoAutenticadoApp'
-        '403':
-          $ref: '#/components/responses/SinAutorizacionConsumo'
-        '404':
-          $ref: '#/components/responses/NoEncontradoApp'
+paths: {}
 
 components:
   securitySchemes:
@@ -335,162 +209,6 @@ components:
             errores:
               minItems: 1
 
-    # --- MATU-60 · Lista de insumos (propuesto) -----------------------------------------------
-
-    UnidadConsumo:
-      type: string
-      enum: [unidad, sobre, ml, g]
-      description: La unidad del insumo, la misma de `UnidadConsumo` en `docs/api/openapi.json`.
-
-    UnidadesPorEnvase:
-      type: [integer, 'null']
-      minimum: 1
-      maximum: 10000
-      description: |
-        **Nuevo (MATU-60, decisión 121).** Cuántas unidades trae cada envase, en la unidad del
-        insumo: unidades, sobres, ml o g («Pañal adulto talla M» de 20 unidades, una crema de
-        250 ml). Opcional: `null` cuando no se anotó. Describe el envase, no a la persona. Lo usa
-        solo la lista de insumos para sugerir envases enteros. Un valor fuera de 1 a 10.000 responde
-        422 con `errores[].campo = unidades_por_envase`, sin repetir el valor.
-      examples: [20, 250, null]
-
-    CambioSolicitudPerfil:
-      type: object
-      x-matu-se-suma-a: [SolicitudPerfil]
-      description: |
-        **Cambio propuesto a `SolicitudPerfil`** (cuerpo de `POST …/consumo`, en
-        `docs/api/openapi.json`, decisión 121). Se suma esta propiedad, opcional, y el resto del
-        cuerpo no cambia (sigue con `additionalProperties: false`). Omitida o `null`: el perfil nace
-        sin unidades por envase. No se declara aquí la ruta para no duplicar una ruta implementada
-        en el propuesto: la ruta y su esquema completo se vuelven a exportar a `openapi.json` al
-        implementar.
-
-        Cuerpo completo de ejemplo: `{"nombre_libre": "Pañal adulto talla M", "unidad": "unidad",
-        "tasa_unidades": 4, "tasa_dias": 1, "stock_unidades": 24, "unidades_por_envase": 20}`.
-      properties:
-        unidades_por_envase:
-          $ref: '#/components/schemas/UnidadesPorEnvase'
-      examples:
-        - unidades_por_envase: 20
-        - unidades_por_envase: null
-
-    CambioSolicitudEdicionPerfil:
-      type: object
-      x-matu-se-suma-a: [SolicitudEdicionPerfil]
-      description: |
-        **Cambio propuesto a `SolicitudEdicionPerfil`** (cuerpo de `PATCH …/consumo/{perfil_id}`,
-        en `docs/api/openapi.json`, decisión 121). Se suma esta propiedad, opcional:
-
-        - **omitida:** no cambia.
-        - **un entero de 1 a 10.000:** lo fija.
-        - **`null`:** lo borra. Es la única propiedad del `PATCH` que admite `null`. Las demás
-          siguen respondiendo 422 `null_no_admitido` (MATU-36).
-
-        El `PATCH` sigue igual en todo lo demás: `If-Match` obligatorio (428 sin él, vacío o `*`, y
-        412 con `actual` si no coincide), 409 `perfil-inactivo` en un perfil desactivado, versión
-        nueva (`etag`) y `actualizado_por`. Cambiar solo este dato no toca `stock_medido_en` ni
-        `fecha_quiebre_estimada`, y un cuerpo que solo lo trae no es `cuerpo_vacio`. Se admite
-        también en un perfil con `producto` (decisión 121).
-      properties:
-        unidades_por_envase:
-          $ref: '#/components/schemas/UnidadesPorEnvase'
-      examples:
-        - unidades_por_envase: 20
-        - unidades_por_envase: null
-
-    CambioPerfilConsumoVista:
-      type: object
-      x-matu-se-suma-a: [PerfilConsumoVista, InsumoPorAcabarseVista]
-      required: [unidades_por_envase]
-      description: |
-        **Cambio propuesto a `PerfilConsumoVista`** (decisión 121) y, porque hereda de ella, a
-        `InsumoPorAcabarseVista`, las dos en `docs/api/openapi.json`. Se suma esta propiedad,
-        siempre presente y `null` si no se anotó. Llega así a `GET …/consumo`,
-        `GET …/consumo/{perfil_id}`, el 201 de `POST …/consumo`, el 200 de `PATCH`, `…/activar` y
-        `…/desactivar`, el `actual` del 412, `GET …/consumo/por-acabarse` y `POST …/resolver`. Es
-        un cambio aditivo: ninguna propiedad existente cambia.
-      properties:
-        unidades_por_envase:
-          $ref: '#/components/schemas/UnidadesPorEnvase'
-
-    LineaListaInsumos:
-      type: object
-      additionalProperties: false
-      required:
-        - perfil_id
-        - nombre
-        - unidad
-        - dias_restantes
-        - unidades_sugeridas
-        - unidades_por_envase
-        - envases_sugeridos
-      description: |
-        Una línea de la lista (decisión 118). Solo lo que la pantalla necesita para mostrarla e
-        imprimirla: sin la tasa, el stock, la fecha estimada, precios, comercios, la alerta ni el
-        `etag`. El `nombre` puede decir algo de la salud de la persona: nunca va a logs, errores,
-        auditoría ni eventos.
-      properties:
-        perfil_id:
-          type: string
-          format: uuid
-          description: El perfil de consumo de esta línea (`PerfilConsumoVista.id`).
-        nombre:
-          type: string
-          minLength: 1
-          description: |
-            `producto.nombre` si el perfil es de un producto del catálogo, o `nombre_libre` si no.
-            Nunca la presentación ni la marca.
-        unidad:
-          $ref: '#/components/schemas/UnidadConsumo'
-        dias_restantes:
-          type: integer
-          description: |
-            `fecha_quiebre_estimada` menos `fecha`, en días, igual que en `PerfilConsumoVista`. Es
-            una estimación con lo que anotó la familia. Solo se muestra en la pantalla: el texto
-            que se imprime o se comparte no lo lleva (ADR-031, punto 4). Textos de
-            `docs/lenguaje.md`, sección 21. Mayor que 1, «Alcanza para {n} días». 1, «Alcanza para
-            1 día». 0, «Se acaba hoy». Negativo, «Puede que ya no quede».
-        unidades_sugeridas:
-          type: integer
-          minimum: 1
-          maximum: 300000
-          description: |
-            Cantidad sugerida en la unidad del insumo: lo que falta para 30 días,
-            `max(1, techo(30 × tasa_unidades / tasa_dias) − queda_hoy)` (decisiones 119 y 120).
-            Al menos 1, también cuando lo que queda cubre 30 días o más. Con los topes de la
-            decisión 43 nunca pasa de 300.000.
-        unidades_por_envase:
-          $ref: '#/components/schemas/UnidadesPorEnvase'
-        envases_sugeridos:
-          type: [integer, 'null']
-          minimum: 1
-          maximum: 300000
-          description: |
-            `techo(unidades_sugeridas / unidades_por_envase)` si el perfil tiene
-            `unidades_por_envase`, y `null` si no. Cuando no es `null`, la pantalla muestra la
-            cantidad en envases («6 envases de 20 unidades»). Si es `null`, en la unidad
-            («120 unidades»).
-
-    ListaInsumos:
-      type: object
-      additionalProperties: false
-      required: [fecha, items]
-      description: |
-        La lista de insumos (decisión 118). Sin el nombre de la persona cuidada, el grupo, la
-        ficha ni acciones (a diferencia del ejemplo de la arquitectura 9.6).
-      properties:
-        fecha:
-          type: string
-          format: date
-          description: |
-            Hoy en America/Santiago según el `Reloj` de la API, el mismo «hoy» de `dias_restantes`.
-            La pantalla la muestra como `DD/MM/AAAA` en «Lista de insumos · {fecha}».
-        items:
-          type: array
-          description: En el orden exacto de la decisión 117. Vacío si ningún insumo está avisando.
-          items:
-            $ref: '#/components/schemas/LineaListaInsumos'
-
   responses:
     NoAutenticado:
       description: |
@@ -570,126 +288,3 @@ components:
             detail: null
             errores: []
             request_id: 9b2f4c1e-0000-4000-8000-0000000000e3
-
-    # --- MATU-60 · Respuestas de la app con Cache-Control: no-store -----------------------------
-    # Las mismas de MATU-32 (quitadas en MATU-37 porque quedaron sin uso), de vuelta para la lista.
-
-    NoAutenticadoApp:
-      description: |
-        El 401 de `NoAutenticado` (idéntico a `relevo.openapi.yaml`), más `Cache-Control: no-store`.
-        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
-        (`/errores/token-invalido`).
-
-        **En la app de familia, `token-invalido` significa "renueva":** la app llama una vez a
-        `POST /v1/sesiones/renovar` y repite la petición. Solo si la renovación responde 401
-        `sesion-expirada` vuelve a la pantalla de entrada. El `detail` del ejemplo es el que
-        devuelve hoy `usuario_actual` (MATU-05a), y la app no lo muestra (`docs/lenguaje.md`,
-        sección 8).
-      headers:
-        X-Request-ID:
-          $ref: '#/components/headers/XRequestId'
-        WWW-Authenticate:
-          $ref: '#/components/headers/WWWAuthenticateBearer'
-        Cache-Control:
-          $ref: '#/components/headers/CacheControlNoStore'
-      content:
-        application/problem+json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/Problema'
-              - properties:
-                  type:
-                    enum: [/errores/no-autenticado, /errores/token-invalido]
-                  status:
-                    const: 401
-          example:
-            type: /errores/token-invalido
-            title: No autenticado
-            status: 401
-            detail: Inicia sesión de nuevo
-            errores: []
-            request_id: 9b2f4c1e-0000-4000-8000-000000000160
-
-    NoEncontradoApp:
-      description: |
-        El mismo 404 para todos estos casos, para no revelar qué existe, con `Cache-Control:
-        no-store`: falta `X-Grupo-Id` o no es un UUID, el usuario no es miembro activo del grupo,
-        o la persona no existe, es de otro grupo o su id no es un UUID. En la lista de insumos leen
-        los cuatro roles, así que el rol nunca es la causa.
-      headers:
-        X-Request-ID:
-          $ref: '#/components/headers/XRequestId'
-        Cache-Control:
-          $ref: '#/components/headers/CacheControlNoStore'
-      content:
-        application/problem+json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/Problema'
-              - properties:
-                  type:
-                    const: /errores/no-encontrado
-                  status:
-                    const: 404
-          example:
-            type: /errores/no-encontrado
-            title: No encontrado
-            status: 404
-            detail: null
-            errores: []
-            request_id: 9b2f4c1e-0000-4000-8000-000000000161
-
-    SinAutorizacionConsumo:
-      description: |
-        No hay una autorización vigente para `consumo` (decisión 37). Es la única causa de 403 en el
-        consumo: un rol sin permiso recibe 404. Dos `type`, los mismos de la ficha, con el miembro
-        de extensión **`finalidad: consumo`** para que la app sepa qué autorización falta:
-
-        - `/errores/sin-consentimiento`: no hay consentimiento no revocado para `consumo`. La app
-          muestra los textos de «Permiso» (`docs/lenguaje.md`, sección 18).
-        - `/errores/revision-vencida`: lo dio un cuidador de hecho y su revisión anual
-          (`revision_vence_en`) ya pasó, según el `Reloj` (decisión 33).
-
-        Se evalúa antes de leer nada del consumo: sin autorización no se lee ningún perfil ni
-        ninguna alerta. Lleva `Cache-Control: no-store`.
-      headers:
-        X-Request-ID:
-          $ref: '#/components/headers/XRequestId'
-        Cache-Control:
-          $ref: '#/components/headers/CacheControlNoStore'
-      content:
-        application/problem+json:
-          schema:
-            allOf:
-              - $ref: '#/components/schemas/Problema'
-              - type: object
-                required: [finalidad]
-                properties:
-                  type:
-                    enum: [/errores/sin-consentimiento, /errores/revision-vencida]
-                  status:
-                    const: 403
-                  finalidad:
-                    type: string
-                    const: consumo
-          examples:
-            sinConsentimiento:
-              summary: Falta la autorización para el consumo
-              value:
-                type: /errores/sin-consentimiento
-                title: Sin permiso
-                status: 403
-                detail: Falta la autorización para calcular los insumos de esta persona
-                errores: []
-                request_id: 9b2f4c1e-0000-4000-8000-000000000162
-                finalidad: consumo
-            revisionVencida:
-              summary: Revisión anual del cuidador de hecho vencida
-              value:
-                type: /errores/revision-vencida
-                title: Autorización por renovar
-                status: 403
-                detail: Venció la revisión anual de la autorización para calcular los insumos de esta persona
-                errores: []
-                request_id: 9b2f4c1e-0000-4000-8000-000000000163
-                finalidad: consumo
