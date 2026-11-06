@@ -662,6 +662,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/yo/avisos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leer Avisos
+         * @description Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). Orden: 401 y 200.
+         */
+        get: operations["leerPreferenciaAvisos"];
+        /**
+         * Guardar Avisos
+         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Orden: 401, 422 y 200.
+         */
+        put: operations["guardarPreferenciaAvisos"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1660,6 +1684,23 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * PreferenciaAvisosVista
+         * @description Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia
+         *     guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo.
+         */
+        PreferenciaAvisosVista: {
+            /**
+             * Correo
+             * @description Avisos por correo
+             */
+            correo: boolean;
+            /**
+             * Push
+             * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)
+             */
+            push: boolean;
         };
     };
     responses: never;
@@ -4330,6 +4371,81 @@ export interface operations {
             };
             /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    leerPreferenciaAvisos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciaAvisosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardarPreferenciaAvisos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferenciaAvisosVista"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciaAvisosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

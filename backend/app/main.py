@@ -37,6 +37,7 @@ from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
+from app.modules.notifications.api.router import router as router_avisos
 
 log = logging.getLogger("matu.api.arranque")
 
@@ -86,8 +87,10 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
     # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
     # MATU-36: también bajo /v1/personas-cuidadas/ (autorización, consumo y ficha), en los 403 y 404
-    # MATU-57: también la recuperación del acceso y la cuenta
-    for prefijo in ("/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta"):
+    # MATU-57: también la recuperación del acceso y la cuenta. MATU-41: la preferencia de avisos (/v1/yo/)
+    for prefijo in (
+        "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/"
+    ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
 
@@ -106,6 +109,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # Antes que router_consumo: por-acabarse y alertas son rutas fijas que {perfil_id} capturaría
     app.include_router(router_alertas, prefix="/v1")
     app.include_router(router_consumo, prefix="/v1")
+    app.include_router(router_avisos, prefix="/v1")
 
     # MATU-40 (ADR-002): la capa 3 se monta aparte y solo si está habilitada. Las capas 1 y 2, arriba,
     # nunca dependen de ella

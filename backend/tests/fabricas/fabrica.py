@@ -629,6 +629,9 @@ class Fabrica:
                 )
                 cx.execute("DELETE FROM sesion_refresh WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
+                # MATU-41: sus avisos y su preferencia de avisos
+                cx.execute("DELETE FROM notificacion WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
+                cx.execute("DELETE FROM preferencia_notificacion WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM usuario WHERE id = ANY(%s::uuid[])", (usuarios,))
         self.creados.clear()
 

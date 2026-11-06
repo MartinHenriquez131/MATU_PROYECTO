@@ -49,7 +49,9 @@ FLECHAS: dict[str, frozenset[str]] = {
     "fulfillment": frozenset({"ordering"}),
     "settlement": frozenset({"fulfillment", "catalog"}),
     "rx": frozenset({"ordering"}),
-    "notifications": frozenset(),
+    # Las flechas punteadas de la sección 6.3 (notifications -.->|eventos|) se declaran a medida que aparece
+    # su consumidor. MATU-41 consume QuiebreProximo de consumption. Regla 4: nadie importa notifications
+    "notifications": frozenset({"consumption"}),
 }
 
 # backoffice no está en el diagrama: importa cualquier módulo salvo estos
@@ -382,6 +384,11 @@ IMPORTACIONES_PROHIBIDAS = [
                  "regla 4", id="ordering-importa-notifications"),
     pytest.param("modules/backoffice/x.py", "import app.modules.notifications.application\n",
                  "regla 4", id="backoffice-importa-notifications"),
+    pytest.param("modules/consumption/application/trabajo_diario.py",
+                 "from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo\n",
+                 "regla 4", id="consumption-importa-notifications"),
+    pytest.param("modules/notifications/application/x.py", "from app.modules.ordering import pedido\n",
+                 "regla 1", id="notifications-importa-ordering-sin-flecha"),
     pytest.param("shared/eventos.py", "from app.modules.catalog import eventos\n",
                  "transversal", id="shared-importa-modulo"),
     pytest.param("core/dependencias.py", "import app.modules.iam.api\n",
@@ -437,6 +444,8 @@ IMPORTACIONES_PERMITIDAS = [
                  id="modulo-a-si-mismo"),
     pytest.param("modules/notifications/application/envio.py",
                  "from app.modules.notifications.domain import plantilla\n", id="notifications-a-si-mismo"),
+    pytest.param("modules/notifications/infrastructure/tarea.py",
+                 "from app.modules.consumption.events import QUIEBRE_PROXIMO\n", id="notifications-consume-eventos"),
     pytest.param("main.py", "from app.modules.catalog.api import router\n", id="main-arma-la-aplicacion"),
     pytest.param("shared/eventos.py", "from app.core.config import obtener_configuracion\nimport httpx\n",
                  id="shared-a-core-y-terceros"),
