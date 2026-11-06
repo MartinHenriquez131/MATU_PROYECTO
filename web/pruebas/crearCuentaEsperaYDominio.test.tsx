@@ -1,7 +1,8 @@
 // PR #51 (P2-1 y P3-1 de la prueba en el teléfono): crear cuenta con el 429 del límite por IP de
 // MATU-25 y con el 422 `dominio_no_permitido` de staging. Los textos van tal cual en lenguaje.md,
 // sección 13.3 (aprobados por Jorge el 05-11). Fallan sin la corrección: antes, el 429 caía en el
-// error general y el dominio decía «Revisa tu correo.». Datos sintéticos.
+// error general y el dominio decía «Revisa tu correo.». El aviso se anuncia por la región viva
+// amable que existe desde el primer render (revisión visual del #51, P2-3). Datos sintéticos.
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,6 +10,7 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { CrearCuenta } from '../src/familia/Alta'
 import { problema422, responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { conRegiones } from './regiones'
 
 vi.mock('../src/familia/estado', async (original) => ({
   ...(await original<typeof import('../src/familia/estado')>()),
@@ -41,15 +43,15 @@ describe('Crear cuenta con el 429 por IP', () => {
     { caso: 'sin Retry-After', cabeceras: {}, final: 'en 1 minuto.' },
   ])('$caso se anuncia con role status: «…$final»', async ({ cabeceras, final }) => {
     responderCon(apiFamilia, demasiadas(cabeceras))
-    render(<CrearCuenta />)
+    const { amable, urgente } = conRegiones(<CrearCuenta />)
 
     await llenarYEnviar()
 
-    const aviso = await screen.findByRole('status')
-    expect(aviso).toHaveTextContent('Espera un momento')
-    expect(aviso).toHaveTextContent(`Hubo muchos intentos desde esta conexión. Vuelve a intentarlo ${final}`)
+    await waitFor(() => expect(amable).not.toBeEmptyDOMElement())
+    expect(amable).toHaveTextContent('Espera un momento')
+    expect(amable).toHaveTextContent(`Hubo muchos intentos desde esta conexión. Vuelve a intentarlo ${final}`)
     // Nunca el error general de la conexión.
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(urgente).toBeEmptyDOMElement()
     expect(screen.queryByText(/Revisa tu conexión/)).not.toBeInTheDocument()
   })
 
@@ -59,7 +61,7 @@ describe('Crear cuenta con el 429 por IP', () => {
 
     await llenarYEnviar()
 
-    await screen.findByRole('status')
+    await screen.findByText(/Hubo muchos intentos desde esta conexión/)
     const boton = screen.getByRole('button', { name: 'Crear cuenta' })
     expect(boton).toBeEnabled()
     expect(boton).toHaveFocus()

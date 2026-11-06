@@ -47,7 +47,7 @@ function conSeccion(f: Ficha, api: Seccion['api'], estado: EstadoSeccion | null)
 }
 
 function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: Ficha; pila: string; personaId: string }) {
-  const { fijar, sinGuardar, anunciar, rol } = useFamilia()
+  const { fijar, sinGuardar, rol } = useFamilia()
   const original = seccionesDe(ficha)[seccion.api] ?? null
   const existe = !!original?.texto?.trim()
   const tope = topeDe(seccion.api)
@@ -210,7 +210,6 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
           const autor = conflictoQuitar.actual.actualizado_por?.nombre || CONFLICTO.otraPersona
           const aviso = MAS.dejasteComoLaGuardo(seccion.titulo, autor)
           fijar({ ficha: conSeccion(ficha, seccion.api, conflictoQuitar.actual), aviso: { titulo: aviso } })
-          anunciar(aviso)
           navegar('/ficha')
         }}
       />
@@ -235,7 +234,6 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
         dejarla={() => {
           const aviso = MAS.dejasteQuitada(seccion.titulo)
           fijar({ ficha: conSeccion(ficha, seccion.api, null), aviso: { titulo: aviso, tono: 'rocio' } })
-          anunciar(aviso)
           navegar('/ficha')
         }}
       />
@@ -257,7 +255,6 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
             const vigente = conflicto.actual.texto?.trim() ? (conflicto.actual as EstadoSeccion) : null
             fijar({ ficha: conSeccion(ficha, seccion.api, vigente), aviso: { titulo: CONFLICTO.dejasteSuya(autor) } })
           }
-          anunciar(CONFLICTO.dejasteSuya(autor))
           navegar('/ficha')
         }}
         dejarMia={async () => {

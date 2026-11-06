@@ -10,6 +10,7 @@ import {
   type PersonaListada,
   type Rol,
 } from '../compartido/api/familia'
+import { anunciar as anunciarEnRegion } from '../compartido/ui/Anuncios'
 import { escucharSesion, fijarGrupo, renovar, salir as cerrarSesion } from '../compartido/api/sesion'
 import type { Apoyo } from './datos'
 import { navegar, type Ruta } from './ruteo'
@@ -104,15 +105,12 @@ const INICIAL: Estado = {
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
   const [s, setS] = useState<Estado>(INICIAL)
-  const [anuncio, setAnuncio] = useState('')
   const sinGuardar = useRef<(() => string | null) | null>(null)
 
   const fijar = useCallback((cambios: Partial<Estado>) => setS((x) => ({ ...x, ...cambios })), [])
 
-  const anunciar = useCallback((texto: string) => {
-    setAnuncio('')
-    window.setTimeout(() => setAnuncio(texto), 50)
-  }, [])
+  /** Por la región viva amable de main.tsx, la misma de los avisos (compartido/ui/Anuncios). */
+  const anunciar = useCallback((texto: string) => anunciarEnRegion(texto, 'status'), [])
 
   /** Pide grupos y personas, y elige el primer grupo y la primera persona (2.3). */
   const alEntrar = useCallback(async () => {
@@ -192,9 +190,6 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={valor}>
       {children}
-      <div aria-live="polite" className="sr-only">
-        {anuncio}
-      </div>
     </Ctx.Provider>
   )
 }

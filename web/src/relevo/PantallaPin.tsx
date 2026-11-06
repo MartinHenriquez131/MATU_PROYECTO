@@ -3,6 +3,7 @@
 import { useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { CircleAlert, FileText, KeyRound, ShieldCheck } from 'lucide-react'
 import type { Presentacion } from '../compartido/api/relevo'
+import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { Baldosa, Columna, Titulo } from './Marco'
 import { AVISO, ERROR, PIN, RUTA_POLITICA } from './textos'
@@ -107,27 +108,27 @@ export function PantallaPin({ presentacion, onCanjear }: { presentacion: Present
 function MensajePin({ mensaje }: { mensaje: Mensaje }) {
   if (mensaje.tipo === 'incompleto') {
     return (
-      <p id="pin-mensaje" role="alert" className="max-w-md text-base font-bold text-pronto">
+      <Anunciado urgencia="alert" como="p" id="pin-mensaje" className="max-w-md text-base font-bold text-pronto">
         {PIN.incompleto}
-      </p>
+      </Anunciado>
     )
   }
   if (mensaje.tipo === 'incorrecto') {
     return (
-      <p id="pin-mensaje" role="alert" className="max-w-md text-base text-tinta">
+      <Anunciado urgencia="alert" como="p" id="pin-mensaje" className="max-w-md text-base text-tinta">
         <b className="font-bold text-pronto">{PIN.incorrectoInicio}</b> {PIN.incorrectoRevisa} {PIN.teQuedan(mensaje.intentos)}{' '}
         <b className="font-bold">{PIN.intentos(mensaje.intentos)}</b>. {PIN.incorrectoFin}
-      </p>
+      </Anunciado>
     )
   }
   // Sin conexión o 5xx: Rosa no hizo nada mal y no se perdió nada. No va en `pronto`.
   return (
-    <p id="pin-mensaje" role="alert" className="flex max-w-md items-start justify-center gap-2 text-base text-tinta">
+    <Anunciado urgencia="alert" como="p" id="pin-mensaje" className="flex max-w-md items-start justify-center gap-2 text-base text-tinta">
       <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
       <span>
         <b className="font-bold">{ERROR.titulo}</b> {ERROR.conexion} {ERROR.escrito}
       </span>
-    </p>
+    </Anunciado>
   )
 }
 

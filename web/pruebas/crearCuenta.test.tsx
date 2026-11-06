@@ -1,6 +1,7 @@
 // Crear cuenta (especificación MATU-39, 3.2): (b) el foco va al primer campo con error, al validar
 // en la pantalla y tras un 422 de la API, y (c) el error general se anuncia con `role="alert"` y
-// el texto de lenguaje.md, sección 8. Datos sintéticos.
+// el texto de lenguaje.md, sección 8, por la región viva urgente que existe desde el primer render
+// (revisión visual del #51, P2-3). Datos sintéticos.
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,7 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { CrearCuenta } from '../src/familia/Alta'
 import { problema422, responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { conRegiones } from './regiones'
 
 vi.mock('../src/familia/estado', async (original) => ({
   ...(await original<typeof import('../src/familia/estado')>()),
@@ -65,12 +67,12 @@ describe('Crear cuenta', () => {
 
   it('un error del servidor se anuncia con role alert y el texto de lenguaje.md, y lo escrito sigue ahí', async () => {
     responderCon(apiFamilia, { status: 500, cuerpo: { type: '/errores/interno', status: 500 } })
-    render(<CrearCuenta />)
+    const { urgente } = conRegiones(<CrearCuenta />)
 
     await llenarYEnviar()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo. Lo que escribiste sigue aquí.',
+    await waitFor(() =>
+      expect(urgente).toHaveTextContent('No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo. Lo que escribiste sigue aquí.'),
     )
     expect(screen.getByLabelText('Tu correo')).toHaveValue('ana.prueba@example.com')
   })
