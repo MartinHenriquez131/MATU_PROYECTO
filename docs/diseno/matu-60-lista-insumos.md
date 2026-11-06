@@ -1,6 +1,6 @@
 # MATU-60 · Lista de insumos · Especificación de diseño
 
-**Versión 1.1 · 06/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir. La v1.1 aplica las decisiones de Jorge del 06-11 sobre la v1.0 y los ajustes del contrato (decisiones 116 a 122 de `docs/api/README.md`)
+**Versión 1.2 · 06/11/2026** · agente 6 (UI/UX) · para el frontend. La v1.1 aplicó las decisiones de Jorge del 06-11 sobre la v1.0 y los ajustes del contrato (decisiones 116 a 122 de `docs/api/README.md`). La v1.2 corrige lo que encontró la revisión visual del 06-11: la grilla de la línea en ancho (4.2), el observador en ancho (2.3), el `aria-label` de «Quitar de la lista» (4.3) y el singular del envase en el 412 (9.4)
 **Historia:** MATU-60, la lista de insumos (RF-14 y RF-15, ADR-031). Con los insumos que hoy aparecen en «Se acaban pronto», MATU arma una lista con lo que falta para cubrir 30 días, que la familia puede ajustar, imprimir o compartir como texto.
 **Dónde se construye:** `web/`, dentro de la sección «Insumos» de la app de la familia (MATU-39 y MATU-36), React 19, TypeScript y Tailwind CSS v4, mobile first.
 
@@ -102,6 +102,7 @@
 - Vive dentro del `<main id="contenido">` de `ShellFamilia`, con sus márgenes.
 - **A 360 px y hasta 48 rem de contenido:** una columna. Orden: pestañas, título, bajada, líneas, nota, «Agregar otro insumo», aviso, botones y mensaje.
 - **Desde 48 rem de contenido** (el mismo `useAncho` de `Insumos.tsx`): dos columnas `grid grid-cols-[3fr_2fr] items-start gap-10`, como Insumos. A la izquierda las líneas, la nota y «Agregar otro insumo». A la derecha el aviso, los botones y el mensaje, en una columna `flex flex-col items-start gap-4` con `sticky top-6`, para que los botones sigan a la vista con una lista larga. Es la composición de la tabla de DISENO.md (sección 3): a la izquierda las cantidades, a la derecha la salida.
+- **El observador, en ancho, va en una sola columna** `flex flex-col gap-5 max-w-3xl`: las líneas, la nota y, debajo, «Quien administra, cuida o paga puede imprimirla o compartirla.». Sin columna derecha. *(Nuevo en la v1.2.)* La columna derecha es el lugar de la salida, y el observador no tiene salida: una frase sola arriba a la derecha se lee como un rótulo suelto, lejos de la lista a la que se refiere. `max-w-3xl` (48 rem) deja la cantidad cerca del nombre, como la columna izquierda de los demás roles.
 
 ### 2.4 Roles
 
@@ -250,8 +251,8 @@ Los botones van **uno debajo del otro, al ancho de su texto** cuando no caben en
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Cada línea es `grid grid-cols-1 @3xl/main:grid-cols-[minmax(0,1fr)_auto_auto] @3xl/main:items-center gap-x-6 gap-y-2`: nombre y días a la izquierda, la cantidad al medio y «Quitar de la lista» al final. Para el observador, que no tiene «Quitar», son dos columnas (`@3xl/main:grid-cols-[minmax(0,1fr)_auto]`). A 360 px, una sola columna, con «Quitar de la lista» abajo a la derecha (`justify-self-end`).
-- A 1920 px no cambia nada: el contenido ya está limitado por el `max-w-7xl` del marco.
+- *(Corregido en la v1.2.)* La línea vive en la columna izquierda (3fr), así que su grilla se decide por **el ancho de la lista, no el del `main`**. El `ul` lleva `@container/lista`, y cada línea es `grid grid-cols-1 @2xl/lista:grid-cols-[minmax(0,1fr)_20rem_auto] @2xl/lista:items-center gap-x-6 gap-y-2`: nombre y días a la izquierda, la cantidad al medio en una columna fija de 20 rem (así el campo queda en la misma vertical en todas las líneas, y el sufijo largo baja dentro de ella) y «Quitar de la lista» al final, con `@2xl/lista:mt-0`. Para el observador, que no tiene «Quitar», son dos columnas (`@2xl/lista:grid-cols-[minmax(0,1fr)_auto]`, la cantidad con `text-right`). Bajo 42 rem de lista, una sola columna, con «Quitar de la lista» abajo a la derecha (`justify-self-end`), igual que a 360 px. **Por qué:** con `@3xl/main`, a 1280 px el `main` mide más de 48 rem pero la columna izquierda mide 518 px, las dos columnas `auto` se llevan 481 px y el nombre queda en 0 px, una letra por renglón (revisión del 06-11).
+- Con eso, a 1280 px las líneas van en una columna dentro de la columna izquierda, y a 1920 px (lista de 791 px) en tres, con el nombre en unos 230 px.
 
 ### 4.3 La línea · *cambió en la v1.1*
 
@@ -266,7 +267,7 @@ Los botones van **uno debajo del otro, al ancho de su texto** cuando no caben en
 | Agregado a mano | En lugar de los días, `Etiqueta` neutra (`bg-tinta/7 text-tenue`) con `Pencil` `size-4` `aria-hidden` | «Solo en esta pantalla» [L 21] |
 | Cantidad, editable | El `Stepper` de `Insumos.tsx` (campo de texto numérico con − y +), etiqueta «Cantidad» [L 21] y el sufijo de la unidad (4.5) | — |
 | Cantidad, observador | `p` `text-lg tabular-nums`, sin etiqueta | El texto completo de 4.5, por ejemplo «6 envases de 20 unidades» |
-| Quitar, en **todas** las líneas (de MATU y agregadas a mano), salvo para el observador | `Boton variante="textoPeligro"`, `justify-self-end` a 360 px, al final de la línea en ancho, separado del campo por al menos `gap-4` | «Quitar de la lista» **[AJUSTE]** de «Quitar» [L 21]: en una línea que viene de MATU, «Quitar» solo se puede leer como borrar el insumo de MATU. Con «de la lista» se entiende que sale de esta lista y nada más. Va igual en las dos clases de línea, para que el mismo botón diga lo mismo. `aria-label` «Quitar «`{nombre}`» de la lista» **[AJUSTE]** de «Quitar «`{nombre}`»» [L 21] |
+| Quitar, en **todas** las líneas (de MATU y agregadas a mano), salvo para el observador | `Boton variante="textoPeligro"`, `justify-self-end` a 360 px, al final de la línea en ancho, separado del campo por al menos `gap-4` | «Quitar de la lista» **[AJUSTE]** de «Quitar» [L 21]: en una línea que viene de MATU, «Quitar» solo se puede leer como borrar el insumo de MATU. Con «de la lista» se entiende que sale de esta lista y nada más. Va igual en las dos clases de línea, para que el mismo botón diga lo mismo. `aria-label` «Quitar de la lista: `{nombre}`» **[AJUSTE v1.2]** de «Quitar «`{nombre}`» de la lista»: el nombre accesible tiene que empezar con el texto visible completo (WCAG 2.5.3), para que quien usa control por voz diga «Quitar de la lista» y funcione. Es la misma forma de «Menos: Cantidad de `{nombre}`» |
 
 **Orden dentro de la línea:** nombre, días, cantidad. La sección 21 da el contenido de la línea («{nombre} · {cantidad} · {días}»). Pongo los días bajo el nombre y la cantidad al final para que el campo quede junto al pulgar y no separe el nombre de sus días. El texto no cambia.
 
@@ -729,7 +730,7 @@ Al tocar «Guardar», con el resto del formulario. El foco va al primer campo co
 
 ### 9.4 En el conflicto (412) de Insumos
 
-Si la persona cambió este campo y otra persona guardó antes, los bloques «Lo que guardó» y «Lo tuyo, sin guardar» (MATU-36, 3.5) muestran el envase con «Cada envase trae `{u}` `{sufijo}`.» o «Sin unidades por envase.» [L 21], con «(cambió)» y negrita si es distinto.
+Si la persona cambió este campo y otra persona guardó antes, los bloques «Lo que guardó» y «Lo tuyo, sin guardar» (MATU-36, 3.5) muestran el envase con «Cada envase trae `{u}` `{sufijo}`.» o «Sin unidades por envase.» [L 21], con «(cambió)» y negrita si es distinto. *(Precisado en la v1.2.)* Con `{u}` igual a 1, el sufijo va en singular: «Cada envase trae 1 unidad.», «Cada envase trae 1 sobre.» (con ml y g no cambia). Es la misma regla de 4.5, y la arma la misma `sufijoCantidad(u, unidad, null)` de `textoLista.ts`.
 
 ### 9.5 Lo que no cambia
 
@@ -900,7 +901,7 @@ Es la tabla final de la sección 21, para pegarla tal cual en el PR de documento
 | Agregar a mano, cómo se cuenta | ¿Cómo se cuenta? (de la sección 18) · Unidades · Sobres · Envases |
 | Agregar a mano, botón | Agregar |
 | Agregar a mano, anuncio | Agregamos «{nombre}» a la lista. |
-| Quitar una línea | Quitar de la lista · Para el lector: Quitar «{nombre}» de la lista |
+| Quitar una línea | Quitar de la lista · Para el lector: Quitar de la lista: {nombre} |
 | Quitar, anuncio, línea de MATU | Quitamos «{nombre}» de la lista. Sigue en Insumos. |
 | Quitar, anuncio, línea agregada a mano | Quitamos «{nombre}» de la lista. |
 | Después de quitar una línea de MATU | Lo que quitaste sigue en Insumos. Vuelve a esta lista cuando entras de nuevo. |
@@ -920,7 +921,7 @@ Es la tabla final de la sección 21, para pegarla tal cual en el PR de documento
 | Al imprimir cualquier otra pantalla de la app | Esta pantalla no se imprime. |
 | Campo nuevo en el formulario del insumo (opcional) | ¿Cuántas unidades trae cada envase? · Ayuda: Si lo anotas, la lista sugiere envases enteros. Puedes dejarlo en blanco. |
 | Campo del envase, fuera de rango | Escribe un número de 1 a 10.000, o déjalo en blanco. |
-| Campo del envase, en el conflicto (412) | Cada envase trae {u} {unidades / sobres / ml / g}. · Sin unidades por envase. |
+| Campo del envase, en el conflicto (412) | Cada envase trae {u} {unidades / sobres / ml / g}. (con 1: «Cada envase trae 1 unidad.», «Cada envase trae 1 sobre.») · Sin unidades por envase. |
 
 **Qué es nuevo o cambió en esta versión**, para la descripción del PR:
 
