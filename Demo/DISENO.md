@@ -252,12 +252,14 @@ Para que el turquesa no sea el de cualquier app de salud: no hay degradados ni f
 
 Todos con 48 px de alto como mínimo y el foco base: contorno de 3 px en `pino` con 2 px de separación (6,0:1 sobre `papel`). Ningún componente quita el contorno de foco sin poner otro igual de visible.
 
+**Un botón deshabilitado que conserva el foco (05/11/2026).** Un botón `disabled` pierde el foco y lo deja en el cuerpo de la página. Por eso, en `web/`, el botón que tiene que esperar y conservar el foco (Entrar después de un 429) usa `aria-disabled` y no `disabled`: se ve atenuado, ignora el envío y el lector lo anuncia como no disponible. La opacidad también atenúa el contorno de foco: con `pino` al 60 % sobre `papel` queda en 2,7:1, bajo el 3:1 que pide el foco. En ese caso el contorno va en `tinta` (`aria-disabled:focus-visible:outline-tinta`), que al 60 % queda en 4,1:1 en claro y 6,1:1 en oscuro. No es un token nuevo: es `tinta`, y la variante `peligro` ya cambia el color del contorno de foco por la misma razón de visibilidad.
+
 | Componente | Normal | Presionado o elegido | Deshabilitado | Cargando | Error |
 |---|---|---|---|---|---|
-| Botón principal | `pino` macizo con texto `papel`. Uno solo por pantalla | `brightness-95` | Opacidad 50 %, con una frase al lado que dice por qué ("Resuelve lo que falta para seguir") | Mismo ancho, texto en gerundio ("Guardando…") y `aria-busy` | El botón no cambia: el error va en `MensajeError` encima |
+| Botón principal | `pino` macizo con texto `papel`. Uno solo por pantalla | `brightness-95` | Opacidad 50 % en la demo y 60 % en `web/`, con una frase al lado que dice por qué ("Resuelve lo que falta para seguir"). Si conserva el foco, `aria-disabled` y contorno en `tinta` (ver arriba) | Mismo ancho, texto en gerundio ("Guardando…") y `aria-busy` | El botón no cambia: el error va en `MensajeError` encima |
 | Botón secundario | `hoja` con anillo `pino` al 70 % (3,5:1) y texto `pino` | Fondo `rocio` | Igual que el principal | Igual que el principal | — |
-| Botón suave y de texto | `rocio` o subrayado, texto `pino` | `brightness-95` o subrayado pleno | Opacidad 50 % | — | — |
-| Campo de texto | `hoja` con anillo `borde` de 2 px | Foco: anillo `pino` y el contorno de foco base | Opacidad 50 % | — | Anillo `pronto` y el mensaje en `pronto` negrita debajo |
+| Botón suave y de texto | `rocio` o subrayado, texto `pino` | `brightness-95` o subrayado pleno | Opacidad 50 % en la demo y 60 % en `web/` | — | — |
+| Campo de texto | `hoja` con anillo `borde` de 2 px | Foco: anillo `pino` y el contorno de foco base | Opacidad 50 % en la demo y 60 % en `web/` | — | Anillo `pronto` y el mensaje en `pronto` negrita debajo |
 | Opción (radio) y chip | `hoja`, anillo `borde`; indicador en `tenue` (7,2:1) | Fondo `rocio`, anillo `pino`, indicador lleno o con check. El chip elegido no va en `pino` macizo: ese lugar es del botón principal. **La figura dice cuántas se eligen** (27/10): un chip de opción única es un radio nativo con indicador redondo y punto; un chip de varias opciones lleva el cuadrado con check | Opacidad 50 % | — | — |
 | Etiqueta de estado | Fondo semántico, palabra y figura (● ◐ ○ ✓) en `text-base` | — | — | — | — |
 | Página | — | — | — | Sin esqueletos: el contenido llega en menos de un segundo en la demo | Qué pasó y cómo seguir, en `pronto` solo si se perdió algo; un conflicto de versiones (412) va en `atenta` |
