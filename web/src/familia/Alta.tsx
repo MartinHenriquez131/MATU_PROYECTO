@@ -359,7 +359,7 @@ export function Entrar() {
         <Acciones>
           {/* 429: espera con `aria-disabled` para que el foco siga en el botón (Boton.tsx); `enviar` no envía. */}
           <Boton type="submit" ocupado={ocupado} textoOcupado={ENTRAR.enviando} aria-disabled={esperando || undefined}
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:focus-visible:outline-tinta"
           >
             {ENTRAR.boton}
           </Boton>
