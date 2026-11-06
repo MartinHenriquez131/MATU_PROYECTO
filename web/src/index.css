@@ -231,3 +231,57 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Al imprimir, siempre el tema claro: el papel es blanco aunque el teléfono esté en oscuro.
+   Mismos valores que @theme. Si cambia uno, cambia el otro (MATU-60, 8.4). */
+@media print {
+  :root:root,
+  :root[data-tema='oscuro'],
+  :root:not([data-tema='claro']) {
+    color-scheme: light;
+    --color-papel: #ecf3f2;
+    --color-hoja: #ffffff;
+    --color-tinta: #13252a;
+    --color-tenue: #485b5f;
+    --color-turquesa: #086764;
+    --color-miel: #e3a43a;
+    --color-pronto: #a8261b;
+    --color-pronto-fondo: #fbe9e6;
+    --color-atenta: #835000;
+    --color-atenta-fondo: #fcefd8;
+    --color-ok: #22663d;
+    --color-ok-fondo: #e1f1e6;
+  }
+}
+
+@page {
+  margin: 18mm 16mm;
+}
+
+/* MATU no imprime pantallas (MATU-60 y ADR-029). Solo sale la hoja de impresión de una
+   pantalla que la tenga (data-impresion), y en las demás una línea. Fuera de @layer a
+   propósito: así ninguna utilidad de Tailwind la puede ganar. */
+@media print {
+  body > :not([data-impresion]),
+  :modal {
+    display: none;
+  }
+  body:not(:has(> [data-impresion]))::before {
+    content: 'Esta pantalla no se imprime.';
+    display: block;
+    font-family: var(--font-sans);
+    font-size: var(--text-lg, 1.125rem);
+    line-height: 1.5;
+    font-weight: 700;
+    color: var(--color-tinta);
+  }
+}
+
+@layer base {
+  @media print {
+    body {
+      background: none;
+      min-height: 0;
+    }
+  }
+}
