@@ -532,7 +532,7 @@ function LineaDeLista({ linea: l, puede, error, onCambio, onQuitar }: { linea: L
           </Boton>
         </>
       ) : (
-        <p className="text-right text-lg tabular-nums">{cantidadEnTexto(l.ultimoValido, l.unidad, l.envase)}</p>
+        <p className="text-lg tabular-nums @2xl/lista:text-right">{cantidadEnTexto(l.ultimoValido, l.unidad, l.envase)}</p>
       )}
     </li>
   )

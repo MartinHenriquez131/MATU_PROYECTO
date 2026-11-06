@@ -421,10 +421,12 @@ describe('Revisión visual del 06-11 (v1.2)', () => {
     expect(quitar.className).not.toMatch(/@3xl\/main/)
   })
 
-  it('4.3: la línea del observador son dos columnas, con la cantidad a la derecha', async () => {
+  it('4.3: la línea del observador son dos columnas, con la cantidad a la derecha solo en ancho', async () => {
     const { pantalla } = abrir('observador')
     const cantidad = await pantalla.findByText('6 envases de 20 unidades')
-    expect(cantidad).toHaveClass('text-right')
+    expect(cantidad).toHaveClass('@2xl/lista:text-right')
+    // A 360 px, una sola columna: la cantidad no va a la derecha.
+    expect(cantidad).not.toHaveClass('text-right')
     expect(cantidad.closest('li')).toHaveClass('@2xl/lista:grid-cols-[minmax(0,1fr)_auto]')
     expect(cantidad.closest('ul')).toHaveClass('@container/lista')
   })
