@@ -38,8 +38,8 @@ info:
     decisiones 74 a 78 están en el README. MATU-37 dejó este archivo sin rutas, con las copias
     idénticas de los componentes de `relevo.openapi.yaml`.
 
-    **Lista de insumos (MATU-60, RF-15, ADR-031): propuesto el 06-11, pendiente de la aprobación
-    de Jorge.** Agrega una ruta, `GET …/consumo/lista`, y un dato opcional del perfil,
+    **Lista de insumos (MATU-60, RF-15, ADR-031): propuesto el 06-11 y aprobado por Jorge el
+    06-11 con tres ajustes** (decisiones 117, 119 a 121). Agrega una ruta, `GET …/consumo/lista`, y un dato opcional del perfil,
     `unidades_por_envase` (decisiones 116 a 122 del README). El cambio al perfil toca rutas que
     ya están en `docs/api/openapi.json`, así que aquí no se repiten esas rutas: se declara como
     fragmentos (`CambioSolicitudPerfil`, `CambioSolicitudEdicionPerfil` y
@@ -99,11 +99,14 @@ paths:
         la comparte como texto desde el teléfono, y la API solo la entrega (decisiones 116 a 122 de
         `docs/api/README.md`).
 
-        **Qué entra** (decisión 117): cada perfil **activo** de la persona que tiene una alerta
-        **abierta** (`pendiente` o `notificada`) cuya `fecha_prevista` es la `fecha_quiebre_estimada`
-        actual del perfil. No entran los desactivados, los que todavía no tienen alerta, los que
-        tienen cerrada la alerta de su fecha actual («Ya lo resolví» o «No avisar esta vez») ni los
-        que solo tienen alertas abiertas de otra fecha.
+        **Qué entra** (decisión 117, ajuste de Jorge del 06-11): cada insumo que hoy está en «Se
+        acaban pronto» con `avisando = true` (decisión 74), calculado al momento: perfil **activo**,
+        en su ventana (`dias_restantes <= dias_aviso`, incluidos los ya pasados) y **sin** una alerta
+        `resuelta` ni `descartada` para su `fecha_quiebre_estimada` actual. No depende de que el
+        trabajo diario haya creado la alerta: la lista es el subconjunto de
+        `GET …/consumo/por-acabarse` con `avisando = true`. No entran los desactivados, los que
+        están fuera de su ventana ni los que tienen cerrada la alerta de su fecha actual («Ya lo
+        resolví» o «No avisar esta vez»).
 
         **Orden exacto** (decisión 117):
 
@@ -114,12 +117,12 @@ paths:
 
         Se ordena en el dominio, no en SQL, para no depender de la colación de la base.
 
-        **Cantidad sugerida, en enteros** (decisión 119): `unidades_sugeridas =
-        techo(30 × tasa_unidades / tasa_dias)`, al menos 1. Si el perfil tiene
-        `unidades_por_envase`, `envases_sugeridos = techo(unidades_sugeridas /
-        unidades_por_envase)`. Si a los 30 días se les resta lo que MATU estima que queda hoy es la
-        decisión 120, **pendiente de Jorge**. Los ejemplos usan la opción recomendada (30 días
-        completos, sin restar).
+        **Cantidad sugerida, en enteros** (decisiones 119 y 120, opción B de Jorge):
+        `unidades_sugeridas = max(1, techo(30 × tasa_unidades / tasa_dias) − queda_hoy)`, con
+        `queda_hoy = piso(stock_unidades − días transcurridos × tasa_unidades / tasa_dias)`, y 0 si
+        da negativo (la fórmula de la decisión 79, con el `Reloj` y la fecha de Chile). Si el perfil
+        tiene `unidades_por_envase`, `envases_sugeridos = techo(unidades_sugeridas /
+        unidades_por_envase)`. El envase sale solo del perfil, nunca del catálogo (decisión 121).
 
         **Lo que no trae** (decisión 118): el nombre de la persona cuidada, nada de la ficha, el
         grupo, la tasa, el stock, la fecha estimada, precios, comercios, el `etag`, la alerta ni
@@ -154,12 +157,12 @@ paths:
                 $ref: '#/components/schemas/ListaInsumos'
               examples:
                 conEnvase:
-                  summary: Dos insumos con unidades por envase (ml en el segundo)
+                  summary: Dos insumos con unidades por envase (ml en el primero)
                   description: |
                     La crema se acabó según la estimación (`dias_restantes: -2`, «Puede que ya no
-                    quede») y va primero. Crema: `techo(30 × 50 / 7)` = 215 ml, `techo(215 / 250)` =
-                    1 envase. Pañal: `techo(30 × 4 / 1)` = 120 unidades, `techo(120 / 20)` = 6
-                    envases.
+                    quede», queda 0) y va primero. Crema: `techo(30 × 50 / 7) − 0` = 215 ml,
+                    `techo(215 / 250)` = 1 envase. Pañal, de 4 al día, anotado hoy con 12:
+                    `techo(30 × 4 / 1) − 12` = 108 unidades, `techo(108 / 20)` = 6 envases.
                   value:
                     fecha: '2026-11-06'
                     items:
@@ -174,15 +177,16 @@ paths:
                         nombre: Pañal adulto talla M
                         unidad: unidad
                         dias_restantes: 3
-                        unidades_sugeridas: 120
+                        unidades_sugeridas: 108
                         unidades_por_envase: 20
                         envases_sugeridos: 6
                 sinEnvase:
                   summary: Un insumo sin unidades por envase
                   description: |
                     Sin `unidades_por_envase`, la cantidad va en la unidad del insumo y
-                    `envases_sugeridos` es `null`. `techo(30 × 12 / 3)` = 120 unidades. Se acaba hoy
-                    (`dias_restantes: 0`).
+                    `envases_sugeridos` es `null`. Toallitas de 12 cada 3 días, 14 anotadas hace 3
+                    días: quedan `piso((14 × 3 − 3 × 12) / 3)` = 2, y `techo(30 × 12 / 3) − 2` = 118
+                    unidades. Se acaba hoy (`dias_restantes: 0`).
                   value:
                     fecha: '2026-11-06'
                     items:
@@ -190,11 +194,11 @@ paths:
                         nombre: Toallitas húmedas
                         unidad: unidad
                         dias_restantes: 0
-                        unidades_sugeridas: 120
+                        unidades_sugeridas: 118
                         unidades_por_envase: null
                         envases_sugeridos: null
                 vacia:
-                  summary: Ningún insumo con una alerta abierta
+                  summary: Ningún insumo que se acabe pronto con avisando
                   value:
                     fecha: '2026-11-06'
                     items: []
@@ -451,9 +455,10 @@ components:
           minimum: 1
           maximum: 300000
           description: |
-            Cantidad sugerida en la unidad del insumo: `techo(30 × tasa_unidades / tasa_dias)`, al
-            menos 1 (decisión 119. La resta de lo que queda es la decisión 120, pendiente). Con los
-            topes de la decisión 43 nunca pasa de 300.000.
+            Cantidad sugerida en la unidad del insumo: lo que falta para 30 días,
+            `max(1, techo(30 × tasa_unidades / tasa_dias) − queda_hoy)` (decisiones 119 y 120).
+            Al menos 1, también cuando lo que queda cubre 30 días o más. Con los topes de la
+            decisión 43 nunca pasa de 300.000.
         unidades_por_envase:
           $ref: '#/components/schemas/UnidadesPorEnvase'
         envases_sugeridos:
@@ -482,7 +487,7 @@ components:
             La pantalla la muestra como `DD/MM/AAAA` en «Lista de insumos · {fecha}».
         items:
           type: array
-          description: En el orden exacto de la decisión 117. Vacío si no hay alertas abiertas.
+          description: En el orden exacto de la decisión 117. Vacío si ningún insumo está avisando.
           items:
             $ref: '#/components/schemas/LineaListaInsumos'
 
