@@ -46,6 +46,10 @@ describe('Entrar con un 429', () => {
     // eso se comprueba aparte; el recorrido en Chrome lo muestra).
     expect(boton).toBeEnabled()
     expect(boton).toHaveFocus()
+    // Revisión visual del #53b, P1: atenuado al 60 %, el contorno `turquesa` bajaba de 3:1 en tema
+    // claro; con `aria-disabled` el contorno va en `tinta`. jsdom no aplica Tailwind, así que aquí
+    // solo se cuida que la clase siga en el botón; el contraste (≥ 4,1:1) se mide en Chrome.
+    expect(boton).toHaveClass('aria-disabled:opacity-60', 'aria-disabled:focus-visible:outline-tinta')
     expect(document.activeElement).not.toBe(document.body)
 
     await u.click(boton)
