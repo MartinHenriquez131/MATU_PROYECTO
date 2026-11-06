@@ -2,7 +2,7 @@
 
 La familia comparte por su ruta (MATU-18) y el relevo usa un cliente https (base_url
 "https://testserver"), porque la cookie __Secure-matu-relevo es Secure. Las sesiones van en
-SesionesRelevoEnMemoria (el pipeline no tiene Redis); el adaptador Redis tiene su propia prueba.
+SesionesRelevoEnMemoria, sin depender de Redis; el adaptador Redis tiene su propia prueba.
 
 El reloj de estas pruebas parte de la hora real: las políticas RLS del relevo usan now() de la base,
 y un acceso creado con el reloj sintético de 2026-10-20 ya estaría vencido para la base.

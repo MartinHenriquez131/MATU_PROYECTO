@@ -1,6 +1,6 @@
 """MATU-25 · Límite por IP de POST /v1/usuarios por la API: 5 por hora, ventana fija, 429 y 503 (RF-37).
 
-El contador es ContadorVentanaEnMemoria con el reloj de la prueba (el pipeline no tiene Redis); el script
+El contador es ContadorVentanaEnMemoria con el reloj de la prueba, sin depender de Redis; el script
 de Redis tiene su propia prueba (tests/core/test_limite_ip_redis.py). Las peticiones con cuerpo inválido
 cuentan igual: el límite se evalúa antes de validar, así estas pruebas no necesitan la base.
 """

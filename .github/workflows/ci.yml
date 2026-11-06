@@ -26,6 +26,19 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
+      # Redis 7, como infra/docker-compose.yml: sin él se saltan las pruebas del límite por IP
+      # (MATU-25), la demora de intentos (MATU-38), las sesiones de relevo (MATU-19) y los códigos
+      # (MATU-57). Sin contraseña, igual que el Redis local: solo existe durante el pipeline.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     # Contraseñas de una base desechable que solo existe durante el pipeline
     env:
       PGHOST: localhost
@@ -36,6 +49,7 @@ jobs:
       MIGRATIONS_DATABASE_URL: postgresql+psycopg://matu_owner:owner_ci@localhost:5432/matu
       DATABASE_URL: postgresql+psycopg://matu_app:app_ci@localhost:5432/matu
       MATU_TEST_DSN: host=localhost port=5432 user=postgres password=postgres_ci dbname=matu
+      REDIS_URL: redis://localhost:6379/0
 
     defaults:
       run:
