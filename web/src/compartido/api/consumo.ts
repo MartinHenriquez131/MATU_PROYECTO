@@ -4,15 +4,13 @@
 import { isAxiosError } from 'axios'
 import { apiFamilia } from './sesion'
 import type { components } from './familia.openapi'
-// MATU-60, provisorio: el perfil con `unidades_por_envase` y la lista, mientras no estén en openapi.json.
-import type { CambioPerfilVista, CambioSolicitudEnvase, ListaInsumos } from './listaPropuesta'
 
 type S = components['schemas']
 
-export type Perfil = S['PerfilConsumoVista'] & CambioPerfilVista
+export type Perfil = S['PerfilConsumoVista']
 export type Unidad = S['UnidadConsumo']
-export type SolicitudPerfil = S['SolicitudPerfil'] & CambioSolicitudEnvase
-export type SolicitudEdicion = S['SolicitudEdicionPerfil'] & CambioSolicitudEnvase
+export type SolicitudPerfil = S['SolicitudPerfil']
+export type SolicitudEdicion = S['SolicitudEdicionPerfil']
 export type SolicitudAutorizacion = S['SolicitudAutorizacionEntrada']
 export type AutorizacionCreada = S['AutorizacionCreada']
 
@@ -60,7 +58,7 @@ export const nombreDe = (p: Perfil) => p.nombre_libre ?? p.producto?.nombre ?? '
 
 // ---------------------------------------------------------------- MATU-37: lo que se acaba pronto
 
-export type PorAcabarse = S['InsumoPorAcabarseVista'] & CambioPerfilVista
+export type PorAcabarse = S['InsumoPorAcabarseVista']
 export type Alerta = S['AlertaVista']
 
 /** Los insumos dentro de su ventana de aviso, con `avisando` y `alerta_id` (decisión 74). */
@@ -91,7 +89,8 @@ export async function descartarAlerta(personaId: string, alertaId: string): Prom
 
 // ---------------------------------------------------------------- MATU-60: la lista de insumos
 
-export type { LineaListaInsumos, ListaInsumos } from './listaPropuesta'
+export type ListaInsumos = S['ListaInsumos']
+export type LineaListaInsumos = S['LineaListaInsumos']
 
 /**
  * La lista de hoy (`GET …/consumo/lista`, decisiones 116 a 122): sin paginación, sin cuerpo y sin
