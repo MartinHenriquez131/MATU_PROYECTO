@@ -13,7 +13,10 @@ contrato (docs/api/propuestos/ficha.openapi.yaml, "Orden de evaluación"):
 5. Consentimiento vigente para plan_cuidado, con el puerto Reloj. Si no hay, 403
    /errores/sin-consentimiento; si lo dio un cuidador de hecho y venció la revisión anual, 403
    /errores/revision-vencida (decisión D-B de Jorge, 28-10).
-6. La custodia de la KEK está configurada. Si no, 503: la ficha falla cerrada (decisión D-A).
+6. MATU-44 (decisión 130): si la clave de datos de la persona fue destruida (la ficha se borró 90 días
+   después de un retiro), 404, como una persona eliminada. Va después del 403: sin autorización no se
+   lee nada del plan, tampoco su clave. No aplica a la lista de enlaces ni a las aperturas.
+7. La custodia de la KEK está configurada. Si no, 503: la ficha falla cerrada (decisión D-A).
 
 Recién después FastAPI valida el cuerpo (422) y corre la ruta. Así, sin consentimiento no se lee
 nada del plan, no se descifra, no se crea ni el plan ni la clave de datos y no se valida el texto
@@ -157,8 +160,12 @@ def _uuid_o_404(valor: str) -> uuid.UUID:
         raise ErrorMATU(404) from None
 
 
-def _autorizar(contexto: ContextoGrupo, persona_id: uuid.UUID, reloj: Reloj) -> FichaAutorizada:
-    persona = persona_con_autorizacion(contexto.sesion, contexto.grupo_id, persona_id)
+def _autorizar(
+    contexto: ContextoGrupo, persona_id: uuid.UUID, reloj: Reloj, *, bloquear: bool = False
+) -> FichaAutorizada:
+    """``bloquear`` (MATU-44, condición 7): compartir lee la autorización con FOR SHARE, para no cruzarse
+    con un retiro simultáneo."""
+    persona = persona_con_autorizacion(contexto.sesion, contexto.grupo_id, persona_id, bloquear=bloquear)
     if persona is None:
         raise ErrorMATU(404)
     estado = estado_autorizacion(persona.autorizacion, reloj.ahora())
@@ -173,6 +180,8 @@ def _autorizar(contexto: ContextoGrupo, persona_id: uuid.UUID, reloj: Reloj) -> 
             titulo="Autorización por renovar",
             detalle="Venció la revisión anual de la autorización para usar la ficha de esta persona",
         )
+    if RepositorioClavesSQL(contexto.sesion).destruida_en(persona_id) is not None:
+        raise ErrorMATU(404)
     return FichaAutorizada(contexto=contexto, persona_id=persona_id)
 
 
@@ -261,9 +270,10 @@ def acceso_para_compartir(
 ) -> FichaAutorizada:
     """Comparten admin y cuidador (si no, 404), con consentimiento vigente y la revisión al día (403).
 
-    Es la misma regla que escribir la ficha: la decisión 33 vale también para compartir.
+    Es la misma regla que escribir la ficha: la decisión 33 vale también para compartir. La autorización se
+    lee con FOR SHARE (MATU-44, decisión 133): un retiro simultáneo espera, o hace esperar, hasta el commit.
     """
-    return _autorizar(contexto, _uuid_o_404(persona_id), reloj)
+    return _autorizar(contexto, _uuid_o_404(persona_id), reloj, bloquear=True)
 
 
 def persona_para_listar(
