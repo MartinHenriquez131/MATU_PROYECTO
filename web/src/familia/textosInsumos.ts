@@ -18,11 +18,14 @@ export const DECLARACION_CONSUMO: Record<Calidad, string> = {
     'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarme cuando se esté por acabar, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
 }
 
-/** «4», «1 sobre», «2 sobres», «15 ml», «5.000 ml», «30 g»: con punto de miles, como `cantidadEnTexto`. */
+/**
+ * «4», «1 sobre», «2 sobres», «15 ml», «5.000 ml», «30 g»: con punto de miles, como `cantidadEnTexto`.
+ * Entre la cifra y la unidad va un espacio duro (U+00A0): al cortar la línea no quedan separadas.
+ */
 export function cantidad(n: number, unidad: Unidad): string {
-  if (unidad === 'sobre') return `${miles(n)} ${n === 1 ? 'sobre' : 'sobres'}`
-  if (unidad === 'ml') return `${miles(n)} ml`
-  if (unidad === 'g') return `${miles(n)} g`
+  if (unidad === 'sobre') return `${miles(n)}\u00A0${n === 1 ? 'sobre' : 'sobres'}`
+  if (unidad === 'ml') return `${miles(n)}\u00A0ml`
+  if (unidad === 'g') return `${miles(n)}\u00A0g`
   return miles(n)
 }
 
