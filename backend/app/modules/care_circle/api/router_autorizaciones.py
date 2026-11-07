@@ -414,7 +414,7 @@ def retirar(
         raise ErrorMATU(404) from None
     except YaRetirada:
         raise ErrorMATU(409, tipo="ya-retirada", detalle="Esta autorización ya estaba retirada") from None
-    except RetiroNoPermitido:  # pragma: no cover - RETIRO_CON_REVISION_VENCIDA (P6, pendiente de Jorge)
+    except RetiroNoPermitido:  # pragma: no cover - RETIRO_CON_REVISION_VENCIDA (P6, decidido por Jorge el 06-11)
         raise ErrorMATU(409, tipo="ya-retirada", detalle="Esta autorización no se puede retirar") from None
     except EfectoNoDisponible:
         log.error("falta el efecto del retiro de una finalidad")

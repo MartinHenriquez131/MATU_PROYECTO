@@ -4,8 +4,8 @@ Sin I/O y sin reloj del sistema: el instante llega como argumento (puerto Reloj)
 
 - Retiran admin y cuidador, sin importar quién dio la autorización (D1). Los demás roles: 404.
 - Una autorización ya retirada no se retira otra vez (409, decisión 125).
-- Con la revisión anual vencida también se retira (condición 3 del analista). Pendiente de Jorge (P6):
-  RETIRO_CON_REVISION_VENCIDA es la única regla que cambia si decide otra cosa.
+- Con la revisión anual vencida también se retira (condición 3 del analista). Decidido por Jorge el 06-11 (P6):
+  RETIRO_CON_REVISION_VENCIDA es la regla que lo dice.
 - Lo guardado de una finalidad se borra 90 días después de su última revocación (decisiones 70 y 129).
 - El estado de cada autorización (decisión 127) se decide aquí: la pantalla no suma 90 días.
 """
@@ -32,7 +32,7 @@ ROLES_QUE_RETIRAN = frozenset({"admin", "cuidador"})
 DIAS_HASTA_BORRAR = 90
 PLAZO_BORRADO = timedelta(days=DIAS_HASTA_BORRAR)
 
-# Pendiente de Jorge (P6, C6): retirar con la revisión anual vencida. Implementado como lo pide el analista
+# Decidido por Jorge el 06-11 (P6, C6): se puede retirar con la revisión anual vencida, como pide el analista
 RETIRO_CON_REVISION_VENCIDA = True
 
 MOTIVO_RETIRO = "retiro"
