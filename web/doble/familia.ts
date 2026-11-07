@@ -375,9 +375,16 @@ function sembrar() {
   {
     // P8 sin el modo de toda la cuenta: la ficha de María se retiró hace 100 días y ya se borró.
     // Al volver a autorizar empieza en blanco, en 0 de 3 (decisión 130).
+    // Todo lo de los relevos pasó antes del corte: las aperturas y los enlaces se corren 101 días
+    // atrás, y los que todavía abrían el día del retiro quedan cortados ese día.
     const p = conAperturas(persona('María Soto', 'María', completos()))
     conSecciones(p, yo, ['quien_es', 'comunicacion'])
+    const antes = (iso: string) => new Date(new Date(iso).getTime() - 101 * DIA * 60_000).toISOString()
+    p.aperturas = p.aperturas.map((x) => ({ ...x, ocurrido_en: antes(x.ocurrido_en) }))
+    p.accesos = p.accesos.map((x) => ({ ...x, creado_en: antes(x.creado_en), expira_en: antes(x.expira_en), revocado_en: x.revocado_en && antes(x.revocado_en) }))
     conRetiro(p, 'plan_cuidado', 100 * DIA)
+    const corte = p.autorizaciones.plan_cuidado.retiro!.revocado_en
+    for (const x of p.accesos) if (!x.revocado_en && x.expira_en > corte) x.revocado_en = corte
     insumos(cuenta('borrada@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [p])]), 'vigente', true)
   }
   estados(cuenta('grupo-estados@example.com', 'Carmen', tres('admin'), 'revision-vencida'))
