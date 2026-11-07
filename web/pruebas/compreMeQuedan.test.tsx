@@ -611,3 +611,23 @@ describe('Un solo panel abierto en toda la pantalla', () => {
     await waitFor(() => expect(document.getElementById(`falla-compre-${PANAL.id}`)).not.toBeNull())
   })
 })
+
+// Segunda revisión visual (P1): a 320 px con el texto al 200 %, la fecha de la confirmación se
+// cortaba («01/05/202»). En `angosto:` el ícono se oculta, como el de la previa, y deja su ancho a la
+// fecha. jsdom no mide: la prueba comprueba las clases. El estado sigue dicho con texto, no solo color.
+describe('La confirmación en angosto', () => {
+  it('el ícono se oculta en angosto y la fecha sigue entera y sin partirse', async () => {
+    const fecha = sumar(hoy, 1)
+    const { u } = await abrir(() => ({ status: 200, cuerpo: enBloque({ ...CHAMPU, stock_unidades: 1, fecha_quiebre_estimada: fecha, dias_restantes: 1, etag: '"v2"' }) }))
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
+    await u.type(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' }), '1')
+    await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
+    const hecho = await waitFor(() => document.getElementById(`hecho-${CHAMPU.id}`)!)
+
+    const icono = hecho.querySelector('svg')!
+    expect(icono).toHaveAttribute('aria-hidden')
+    expect(icono).toHaveClass('angosto:hidden')
+    expect(within(hecho).getByText(`${fechaCorta(fecha)}.`)).toHaveClass('whitespace-nowrap')
+    expect(hecho).toHaveTextContent(/^Anotamos lo que queda de/)
+  })
+})

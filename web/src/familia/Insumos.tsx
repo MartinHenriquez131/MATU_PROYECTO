@@ -757,7 +757,7 @@ function Fila({
       {p.activo && <LoAnotado p={p} />}
       {hecho && (
         <div id={`hecho-${p.id}`} tabIndex={-1} role="status" className="animate-aparecer flex scroll-mb-28 gap-3 rounded-xl bg-ok-fondo px-4 angosto:px-2 py-3 outline-none">
-          <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-ok" strokeWidth={3} />
+          <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-ok angosto:hidden" strokeWidth={3} />
           <p className="min-w-0 break-words [overflow-wrap:anywhere]">
             {hecho.texto}
             {hecho.fecha && (
