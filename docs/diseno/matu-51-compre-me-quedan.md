@@ -1,6 +1,8 @@
 # MATU-51 · «Compré» y «Me quedan» en cada insumo · Especificación de diseño
 
-**Versión 1.2 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.3 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.3 (revisión visual):** tres puntos que el frontend dejó abiertos quedan decididos, sin cambiar textos ni tokens. En el 412, «Ver cómo quedó» lleva el foco a la fila (`insumo-{id}`) (5.5). La confirmación, el error del panel y el 404 siguen con `role` directo porque reciben el foco, y `Anunciado` queda para los avisos que aparecen sin moverlo (4). La confirmación lleva `scroll-mb-28`, igual que el panel (3.3). Se corrige el contraste medido del borde del campo (6).
 
 **Cambios de la 1.2:** las decisiones de Jorge del 07-11 sobre A2 a A5 cierran la sección 0. «Ya lo resolví» pregunta en envases (3.8, y los textos de la sección 17 que cambian, en 11), los insumos «Sin seguir» no tienen botones y su 409 tiene texto (5.5), y A5 se corrige en esta historia. El contrato de MATU-51 (`docs/api/README.md`, decisiones 136 a 146) ya está en la rama: confirma rutas, cuerpos, `If-Match` y respuesta, y se agrega el 428 (5.5).
 
@@ -120,7 +122,7 @@ La fila vive en la columna izquierda (`3fr`), que mide unos 500 px a 1280 y unos
 | Campo | `Stepper` de `insumosComun.tsx`, con `label` visible, ayuda en `aria-describedby` y sufijo |
 | Confirmar | `Boton` principal (`bg-turquesa text-papel`), con `ocupado` y `textoOcupado` |
 | Volver | `Boton variante="secundario"` |
-| Confirmación en la fila | El aspecto de `AvisoOk`: `animate-aparecer flex gap-3 rounded-xl bg-ok-fondo px-4 angosto:px-2 py-3 outline-none`, `Check` `size-5 text-ok` `aria-hidden`, `role="status"`, `tabIndex={-1}`, con un `id` propio por fila (`hecho-{id}`), porque `aviso-insumos` es único en la página |
+| Confirmación en la fila | El aspecto de `AvisoOk`: `animate-aparecer flex scroll-mb-28 gap-3 rounded-xl bg-ok-fondo px-4 angosto:px-2 py-3 outline-none` (`scroll-mb-28`, como el panel, para que la barra fija no la tape al recibir el foco), `Check` `size-5 text-ok` `aria-hidden`, `role="status"`, `tabIndex={-1}`, con un `id` propio por fila (`hecho-{id}`), porque `aviso-insumos` es único en la página |
 | Error del campo | El del `Stepper`: anillo `ring-pronto`, `aria-invalid` y `MensajeError` debajo |
 | Error del panel | `MensajeError` dentro de un `div` `role="alert"` `tabIndex={-1}`, como `falla-{id}` de MATU-37 |
 
@@ -255,6 +257,8 @@ Mismo lugar y misma forma que «Compré».
 | Error del panel (red, 404, 409, 412) | En el mensaje (`role="alert"`, `tabIndex={-1}`), sin desplazar con `preventScroll`. Después se desplaza el panel entero a la vista | El mensaje |
 | 403 | Al `h1` de la pantalla de permiso de MATU-36 o MATU-44 | El título de esa pantalla |
 
+**Roles y regiones vivas (decidido en la revisión visual, 1.3).** La confirmación (`hecho-{id}`), el error del panel (`falla-{tipo}-{id}`) y el 404 (`aviso-insumos`) llevan `role="status"` o `role="alert"` directo, sin `Anunciado`, porque **reciben el foco**: el lector los lee al enfocarlos. Es la misma regla que dejó el PR #53 para `AvisoOk` y `falla-{id}` de MATU-37. `Anunciado` es para los avisos que aparecen **sin mover el foco**, como el error de «Seguir» en la fila. Un aviso nunca usa los dos a la vez, para que no se lea dos veces.
+
 **Nombres de los botones:** «Compré: {nombre}» y «Me quedan: {nombre}», como «Ya lo resolví: {nombre}» [L 17]. El botón de confirmar no repite el nombre: está dentro del grupo, que ya lo tiene en su contexto. Los botones «−» y «+» del `Stepper` usan su texto de hoy («Uno menos: {etiqueta}», «Uno más: {etiqueta}»).
 
 ---
@@ -302,7 +306,7 @@ Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 | 404 | «Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado.» [NUEVO] | Se cierra el panel, se recarga la lista en silencio (`cargar(true)`) y el mensaje va arriba, en el lugar del `AvisoOk`, como `MensajeError` con `role="alert"` y el foco. La fila ya no existe, así que el mensaje no puede ir en ella |
 | 403 `sin-consentimiento` o `revision-vencida` | Los de MATU-36 y MATU-44 [L 18, L 22] | Se cierra el panel y la pantalla pasa al estado de permiso (`setCarga(permiso)`), como hoy con «Seguir» |
 | 409 `perfil-inactivo` (A3: alguien desmarcó «Seguir» en otro teléfono mientras el panel estaba abierto) | «Alguien de tu familia dejó de seguir «{nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir».» [NUEVO] | Error del panel con «Ver cómo quedó» [L 17]. Al tocarlo se cierra el panel, se recarga la lista en silencio, la fila aparece en «Sin seguir» sin «Compré» ni «Me quedan», y el foco va a su casilla «Seguir» (`seguir-{id}`), que es el paso que sigue |
-| 412 `version-desactualizada` (decisión 141) | «{autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.» [NUEVO, con la forma de L 17] · «Ver cómo quedó» [L 17] | Igual que el 409. No se suma ni se reemplaza nada |
+| 412 `version-desactualizada` (decisión 141) | «{autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.» [NUEVO, con la forma de L 17] · «Ver cómo quedó» [L 17] | Igual que el 409, salvo el foco: al tocar «Ver cómo quedó» va a la fila (`insumo-{id}`, `tabIndex={-1}`, sin contorno, como al anotar un insumo nuevo). El lector lee la fila con los datos nuevos, que es lo que pide el mensaje («Revisa cómo quedó»), y el `Tab` siguiente llega a «Compré» de esa misma fila para volver a intentarlo. Si la fila ya no está, al `h1`. No se suma ni se reemplaza nada |
 | 428 `falta-version` (no debería pasar: la pantalla siempre manda `If-Match`) | «No pudimos guardar este insumo. Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.» [L 18] | Error del panel. El panel sigue abierto con lo escrito |
 | 401 | El de MATU-36 (renovar una vez y, si falla, a la entrada) | — |
 
@@ -317,7 +321,7 @@ Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 
 - **Áreas táctiles:** «Compré», «Me quedan», «Anotar la compra», «Anotar lo que queda», «Volver», «Ver cómo quedó» y los «−» y «+» del `Stepper` miden `min-h-12` (51 px) y al menos 48 px de ancho. Entre un botón y el siguiente, `gap-3` (12,75 px), para no tocar el vecino con el pulgar.
 - **Foco visible:** el contorno base de 3 px en `turquesa` con 2 px de separación, sobre `hoja` (6,7:1 claro y 8,2:1 oscuro). El panel que recibe el foco por programa no es un control y no lleva contorno.
-- **Contraste, con los valores de DISENO.md:** texto `turquesa` sobre `hoja` 6,7:1 y 8,2:1 · anillo `turquesa` al 70 % del secundario sobre `hoja` 3,5:1 · `papel` sobre `turquesa` (confirmar) 6,0:1 y 9,4:1 · `tenue` sobre `hoja` (ayuda y sufijo) 7,2:1 y 8,1:1 · `tinta` sobre `ok-fondo` y `ok` sobre `ok-fondo` (confirmación) 5,9:1 o más · `borde` del campo sobre `hoja` 3,5:1 y 4:1 · `pronto` del error sobre `hoja`, sobre 4,5:1. Se miden en la revisión en los dos temas.
+- **Contraste, con los valores de DISENO.md:** texto `turquesa` sobre `hoja` 6,7:1 y 8,2:1 · anillo `turquesa` al 70 % del secundario sobre `hoja` 3,5:1 · `papel` sobre `turquesa` (confirmar) 6,0:1 y 9,4:1 · `tenue` sobre `hoja` (ayuda y sufijo) 7,2:1 y 8,1:1 · `tinta` sobre `ok-fondo` y `ok` sobre `ok-fondo` (confirmación) 5,9:1 o más · `borde` del campo sobre `hoja` 3,2:1 y 4,4:1 (medido en la revisión) · `pronto` del error sobre `hoja`, sobre 4,5:1. Se miden en la revisión en los dos temas.
 - **Estado nunca solo con color:** la confirmación lleva palabra y el `Check`. El error lleva palabra, el ícono de `MensajeError` y el anillo del campo.
 - **320 px con texto al 200% (160 px efectivos, modo `angosto:`):** los dos botones bajan uno por renglón, el `li` usa `angosto:px-2`, el `Stepper` y su sufijo bajan de renglón, «Anotar la compra» y «Volver» quedan uno bajo otro. La fecha de la confirmación va en `cifras` con el punto final dentro, y el resto de la frase refluye. Un nombre de 60 caracteres sin espacios se parte con `[overflow-wrap:anywhere]`, como hoy. Sin desplazamiento horizontal.
 - **`prefers-reduced-motion`:** el panel abre y cierra sin animación, y la confirmación aparece sin el fundido de `aparecer`. La fila que se reordena cambia de lugar sin moverse.
