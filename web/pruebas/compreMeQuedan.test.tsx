@@ -183,6 +183,8 @@ describe('«Compré»', () => {
     })
     expect(confirmacion).toHaveAttribute('role', 'status')
     expect(confirmacion).toHaveTextContent(`Compra anotada para «Pañal adulto talla M»: 2 envases de 20 unidades. Ahora alcanza para 16 días, hasta el ${fechaCorta(fecha)}.`)
+    // Espacio duro tras cada cifra, solo en pantalla (tercera revisión visual, P3).
+    expect(confirmacion.textContent).toContain('2 envases de 20 unidades')
     await waitFor(() => expect(confirmacion).toHaveFocus())
     // La confirmación va dentro de la fila, que ya no está avisando y dice lo de la respuesta.
     expect(fila('Pañal adulto talla M')).toContainElement(confirmacion)
@@ -508,6 +510,7 @@ describe('«Ya lo resolví» en envases', () => {
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/resolver`, cuerpo: { envases: 2 }, ifMatch: '"v1"' })
     const ok = await waitFor(() => document.getElementById('aviso-alertas')!)
     expect(ok).toHaveTextContent('Anotamos tu compra de Pañal adulto talla M: 2 envases de 20 unidades. Ahora alcanza para 16 días.')
+    expect(ok.textContent).toContain('2 envases de 20 unidades')
   })
 
   it('con envase y 0: un toque en «−» y confirmar va sin cuerpo y solo descarta', async () => {

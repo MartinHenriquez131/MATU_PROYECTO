@@ -38,7 +38,7 @@ import { navegar, useRuta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
-import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
+import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
@@ -843,7 +843,7 @@ function Fila({
 /** La confirmación de 5.3 y 8, con los días y la fecha de la respuesta, nunca calculados aquí. */
 function textoHecho(tipo: 'compre' | 'quedan', nombre: string, n: number, envase: number | null, r: PorAcabarse): Hecho {
   if (tipo === 'quedan' && n === 0) return { texto: REGISTRO.noQueda(nombre), fecha: null }
-  const cant = cantidadEnTexto(n, r.unidad, envase)
+  const cant = enPantalla(cantidadEnTexto(n, r.unidad, envase))
   const base = tipo === 'compre' ? REGISTRO.compraAnotada(nombre, cant) : REGISTRO.quedaAnotado(nombre, cant)
   const d = r.dias_restantes
   if (d > 0) return { texto: `${base} ${tipo === 'compre' ? REGISTRO.ahoraAlcanza(d) : REGISTRO.alcanza(d)}`, fecha: fechaCorta(r.fecha_quiebre_estimada) }
@@ -2003,7 +2003,7 @@ function PanelResolver({
     try {
       // Sin interfaz optimista (4.4): el aviso sigue igual hasta la respuesta.
       const r = await resolverAviso(personaId, a.id, a.etag, comprado)
-      const c = cant === null ? null : cantidadEnTexto(cant, a.unidad, envase)
+      const c = cant === null ? null : enPantalla(cantidadEnTexto(cant, a.unidad, envase))
       const texto = c === null ? ALERTAS.okSinCantidad(nombre) : r.dias_restantes > 0 ? ALERTAS.okCantidad(c, nombre, r.dias_restantes) : ALERTAS.okCantidadSinDias(c, nombre)
       await onResuelto(texto)
     } catch (x) {

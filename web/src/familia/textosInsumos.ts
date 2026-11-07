@@ -29,6 +29,13 @@ export function cantidad(n: number, unidad: Unidad): string {
   return miles(n)
 }
 
+/**
+ * Solo para mostrar: «6 envases de 20 unidades» con un espacio duro (U+00A0) después de cada cifra,
+ * para que al cortar la línea la cifra no quede separada de su unidad. La lista que se exporta usa
+ * `cantidadEnTexto` sin esto: su texto exacto lo fija la especificación (sección 7.2).
+ */
+export const enPantalla = (texto: string) => texto.replace(/(\d) /g, '$1 ')
+
 export const INSUMOS = {
   titulo: 'Insumos',
   cargando: 'Cargando los insumos…', // [aprobado por Jorge el 03-11]
