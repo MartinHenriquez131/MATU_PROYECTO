@@ -30,7 +30,11 @@ _OBTENER = (
     "SELECT k.dek_cifrada_con_kek, k.kek_version FROM clave_datos k WHERE k.persona_cuidada_id = :persona_id"
     " AND (k.destruida_en IS NULL OR NOT EXISTS (SELECT 1 FROM consentimiento c"
     " WHERE c.persona_cuidada_id = k.persona_cuidada_id AND c.finalidad = 'plan_cuidado'"
-    " AND c.revocado_en IS NULL AND c.otorgado_en >= k.destruida_en))"
+    " AND c.revocado_en IS NULL AND c.otorgado_en >= k.destruida_en)"
+    # Y solo si ya no queda ninguna sección cifrada con la clave anterior (se descartan al volver a autorizar):
+    # con secciones viejas la clave sigue contando como destruida y la ficha responde 404, nunca 500
+    " OR EXISTS (SELECT 1 FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+    " WHERE p.persona_cuidada_id = k.persona_cuidada_id))"
     " ORDER BY (k.destruida_en IS NULL) DESC, k.destruida_en DESC LIMIT 1"
 )
 _LEER = text(_OBTENER)
