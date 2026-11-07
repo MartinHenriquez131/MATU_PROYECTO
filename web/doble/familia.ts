@@ -35,6 +35,13 @@ interface Persona {
   aperturas: Apertura[]
   /** Los enlaces de relevo (MATU-48), del más nuevo al más antiguo. */
   accesos: Acceso[]
+  /** MATU-44: cuándo se otorgó cada autorización y, si se retiró, cuándo y cuándo se borra lo guardado. */
+  autorizaciones: Record<Finalidad, { otorgado_en: string; retiro: Retiro | null }>
+}
+type Finalidad = 'plan_cuidado' | 'consumo'
+interface Retiro {
+  revocado_en: string
+  borrado_en: string
 }
 type Motivo = 'salgo_unas_horas' | 'fin_de_semana_fuera' | 'turno_de_noche' | 'otro'
 interface Acceso {
@@ -104,7 +111,17 @@ function persona(nombre: string, pila: string, campos: Partial<Record<CampoApi, 
     consumo: { autorizacion: 'no', perfiles: [] },
     aperturas: [],
     accesos: [],
+    autorizaciones: { plan_cuidado: { otorgado_en: hace(60 * 24 * 2), retiro: null }, consumo: { otorgado_en: hace(60 * 24), retiro: null } },
   }
+}
+
+const NOVENTA_DIAS = 90 * 24 * 60
+/** MATU-44: la finalidad se retiró hace `min` minutos; lo guardado se borra 90 días después. */
+function conRetiro(p: Persona, finalidad: Finalidad, min: number) {
+  p.autorizaciones[finalidad].retiro = { revocado_en: hace(min), borrado_en: en(NOVENTA_DIAS - min) }
+  if (finalidad === 'plan_cuidado') for (const a of p.accesos) if (!a.revocado_en && new Date(a.expira_en).getTime() > Date.now()) a.revocado_en = hace(min)
+  if (finalidad === 'consumo') p.consumo.autorizacion = 'no'
+  return p
 }
 
 const DIA = 24 * 60
@@ -251,7 +268,7 @@ function sembrar() {
   cuenta('observador@example.com', 'Rodrigo', [grupo('Familia Soto', 'observador', [conAperturas(persona('María Soto', 'María'))])])
   cuenta('cuidador@example.com', 'Javiera', [grupo('Familia Soto', 'cuidador', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])])
   cuenta('aperturas-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) }))])], 'aperturas-falla')
-  cuenta('sin-autorizacion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'sin-consentimiento')
+  cuenta('sin-autorizacion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conRetiro(persona('María Soto', 'María'), 'plan_cuidado', 60)])])
   cuenta('renovar-autorizacion@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', {}, 'cuidador_de_hecho')])], 'revision-vencida')
   cuenta('revision-al-guardar@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María')])], 'revision-al-guardar')
   cuenta('conflicto@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], 'conflicto')
@@ -328,6 +345,39 @@ function sembrar() {
   const conTodas = () => conSecciones(persona('María Soto', 'María', completos()), yo, ['quien_es', 'comunicacion', 'remedios'])
   cuenta('enlaces-pausa@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', {}, 'cuidador_de_hecho'))])], 'revision-vencida')
   cuenta('enlaces-muchos@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conMuchosEnlaces(conTodas())])])
+  // MATU-44: retirar y volver a autorizar, una cuenta por estado y por rol.
+  {
+    const u = cuenta('retirar@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])])
+    insumos(u, 'vigente', true)
+  }
+  {
+    const p = conAperturas(persona('María Soto', 'María', completos()))
+    const u = cuenta('retirada@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [p])])
+    insumos(u, 'vigente', true)
+    conRetiro(conRetiro(p, 'plan_cuidado', 2 * DIA), 'consumo', 2 * DIA)
+  }
+  const estados = (u: Usuario) => {
+    // María: la ficha por renovar (la cuenta) y los insumos sin autorizar. Juan: las dos retiradas.
+    // Elena: las dos retiradas hace más de 90 días, ya borradas.
+    const [maria, juan, elena] = u.grupos[0].personas
+    maria.accesos = aperturasDeEjemplo().accesos
+    juan.accesos = aperturasDeEjemplo().accesos
+    juan.consumo = { autorizacion: 'vigente', perfiles: listaCompleta({ id: u.id, nombre: u.nombre }) }
+    conRetiro(conRetiro(juan, 'plan_cuidado', 3 * DIA), 'consumo', DIA)
+    elena.consumo = { autorizacion: 'vigente', perfiles: listaCompleta({ id: u.id, nombre: u.nombre }) }
+    conRetiro(conRetiro(elena, 'plan_cuidado', 100 * DIA), 'consumo', 95 * DIA)
+    return u
+  }
+  const tres = (rol: Rol) => [
+    grupo('Familia Soto', rol, [persona('María Soto', 'María', completos(), 'cuidador_de_hecho'), persona('Juan Soto', 'Juan', completos()), persona('Elena Soto', 'Elena', completos())], rol === 'pagador'),
+  ]
+  estados(cuenta('grupo-estados@example.com', 'Carmen', tres('admin'), 'revision-vencida'))
+  estados(cuenta('grupo-pagador@example.com', 'Rodrigo', tres('pagador'), 'revision-vencida'))
+  estados(cuenta('grupo-observador@example.com', 'Rodrigo', tres('observador'), 'revision-vencida'))
+  for (const [email, modo] of [['retiro-falla@example.com', 'retiro-falla'], ['retiro-otra@example.com', 'retiro-otra'], ['retiro-lento@example.com', 'lento']] as const) {
+    const u = cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo)
+    insumos(u, 'vigente', true)
+  }
   cuenta('enlaces-cortar-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
   cuenta('enlaces-lista-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
   cuenta('compartir-nombre@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
@@ -611,6 +661,15 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
   }
 
+  // MATU-44: el estado de las autorizaciones, retirar y volver a autorizar la ficha.
+  const mAut = /^\/v1\/personas-cuidadas\/([^/]+)\/consentimientos(?:\/([^/]+)\/retiro)?$/.exec(ruta)
+  if (mAut) {
+    const pc = g?.personas.find((x) => x.id === decodeURIComponent(mAut[1]))
+    if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
+    const atendido = atenderAutorizaciones(req, res, cuerpo, r, u, g, pc, mAut[2] ? decodeURIComponent(mAut[2]) : null)
+    if (atendido) return true
+  }
+
   // MATU-36: el consumo y su autorización.
   const mConsumo = /^\/v1\/personas-cuidadas\/([^/]+)\/(?:consumo|consentimientos)(?:\/|$)/.exec(ruta)
   if (mConsumo) {
@@ -657,7 +716,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   if (!g || !p) return problema(res, 404, '/errores/no-encontrado'), true
   const puedeLeer = g.rol === 'admin' || g.rol === 'cuidador' || (g.rol === 'pagador' && g.puede_ver_plan)
   if (!puedeLeer) return problema(res, 404, '/errores/no-encontrado'), true
-  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento'), true
+  if (u.modo === 'sin-consentimiento' || p.autorizaciones.plan_cuidado.retiro) return problema(res, 403, '/errores/sin-consentimiento'), true
   if (u.modo === 'revision-vencida') return problema(res, 403, '/errores/revision-vencida'), true
 
   if (metodo === 'GET' && !mFicha[2]) {
@@ -727,6 +786,100 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   )
 }
 
+// ---------------------------------------------------------------- autorizaciones (MATU-44)
+
+/** La `AutorizacionVista` de una finalidad (decisión 127). Al pagador y al observador, sin la calidad. */
+function vistaAutorizacion(p: Persona, u: Usuario, finalidad: Finalidad, rol: Rol) {
+  const { otorgado_en, retiro } = p.autorizaciones[finalidad]
+  const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: p.calidad } : {}
+  const vacia = { revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }
+  if (retiro) {
+    const borrada = new Date(retiro.borrado_en).getTime() <= Date.now()
+    return { finalidad, estado: borrada ? 'borrada' : 'retirada', id: `${p.id}-${finalidad}`, ...calidad, otorgado_en, ...vacia, ...retiro, borrada }
+  }
+  const nunca = finalidad === 'consumo' && p.consumo.autorizacion === 'no'
+  if (nunca) return { finalidad, estado: 'sin_autorizar', id: null, ...(rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: null } : {}), otorgado_en: null, ...vacia }
+  const vencida = finalidad === 'consumo' ? p.consumo.autorizacion === 'vencida' : u.modo === 'revision-vencida'
+  return {
+    finalidad,
+    estado: vencida ? 'revision_vencida' : 'vigente',
+    id: `${p.id}-${finalidad}`,
+    ...calidad,
+    otorgado_en,
+    ...vacia,
+    revision_vence_en: vencida ? hace(30 * DIA) : null,
+  }
+}
+
+/**
+ * `GET …/consentimientos`, `POST …/consentimientos/{finalidad}/retiro` y el `POST` con
+ * `plan_cuidado`. El `POST` con `consumo` sigue en consumo.ts (devuelve `false`), salvo que antes
+ * borra lo anotado si ya pasaron los 90 días. Cuentas: «retiro-falla» responde 500 al retirar y
+ * «retiro-otra» retira como si fuera otra persona y responde 409.
+ */
+function atenderAutorizaciones(
+  req: IncomingMessage,
+  res: ServerResponse,
+  cuerpo: Record<string, unknown> | null,
+  { json, problema }: Responder,
+  u: Usuario,
+  g: Grupo,
+  p: Persona,
+  retiro: string | null,
+): boolean {
+  const metodo = req.method ?? 'GET'
+  const editor = g.rol === 'admin' || g.rol === 'cuidador'
+  if (metodo === 'GET' && !retiro) {
+    res.setHeader('Cache-Control', 'no-store')
+    return json(res, 200, { autorizaciones: (['plan_cuidado', 'consumo'] as const).map((f) => vistaAutorizacion(p, u, f, g.rol)) }), true
+  }
+  if (metodo !== 'POST' || !editor) return problema(res, 404, '/errores/no-encontrado'), true
+
+  if (retiro) {
+    if (retiro !== 'plan_cuidado' && retiro !== 'consumo') return problema(res, 404, '/errores/no-encontrado'), true
+    const a = p.autorizaciones[retiro]
+    if (retiro === 'consumo' && !a.retiro && p.consumo.autorizacion === 'no') return problema(res, 404, '/errores/no-encontrado'), true
+    if (a.retiro) return problema(res, 409, '/errores/ya-retirada'), true
+    if (u.modo === 'retiro-falla') return problema(res, 500, '/errores/error-interno'), true
+    const antes = p.accesos.filter((x) => estadoDe(x) !== 'vencido' && !x.revocado_en).length
+    conRetiro(p, retiro, 0)
+    if (u.modo === 'retiro-otra') return problema(res, 409, '/errores/ya-retirada'), true
+    return json(res, 200, { autorizacion: { ...vistaAutorizacion(p, u, retiro, g.rol), calidad_otorgante: p.calidad }, enlaces_cortados: retiro === 'plan_cuidado' ? antes : 0 }), true
+  }
+
+  const b = cuerpo ?? {}
+  if (b.finalidad === 'consumo') {
+    // Decisión 128: después del día 90, lo anotado se borra antes de autorizar de nuevo.
+    const r = p.autorizaciones.consumo.retiro
+    if (r && new Date(r.borrado_en).getTime() <= Date.now()) p.consumo.perfiles = []
+    if (r) p.consumo.autorizacion = 'no'
+    res.once('finish', () => {
+      if (res.statusCode === 201) p.autorizaciones.consumo = { otorgado_en: new Date().toISOString(), retiro: null }
+    })
+    return false
+  }
+  if (b.finalidad !== 'plan_cuidado') return false
+  const calidad = b.calidad_otorgante
+  const aviso = b.aviso as { id?: unknown } | null | undefined
+  const ref = typeof b.referencia_documento === 'string' ? b.referencia_documento.trim() : ''
+  const mal = (campo: string, tipo: string) => (problema(res, 422, '/errores/validacion', { errores: [{ campo, mensaje: 'MENSAJE DEL DOBLE: NO SE MUESTRA', tipo }] }), true)
+  if (!['titular', 'representante_legal', 'cuidador_de_hecho'].includes(String(calidad))) return mal('calidad_otorgante', 'enum')
+  if (calidad === 'representante_legal' && !ref) return mal('referencia_documento', 'regla_calidad_otorgante')
+  if (calidad === 'cuidador_de_hecho' && aviso?.id !== 'aviso_cuidador_de_hecho') return mal('aviso', 'regla_calidad_otorgante')
+  const r = p.autorizaciones.plan_cuidado.retiro
+  if (!r) return problema(res, 409, '/errores/autorizacion-vigente'), true
+  // Decisión 130 (P8): después del día 90 la ficha empieza en blanco, en 0 de 3.
+  if (new Date(r.borrado_en).getTime() <= Date.now()) {
+    p.campos = { rutina: vacio(), manejo_situaciones: vacio(), red_apoyo: vacio() }
+    p.secciones = {}
+  }
+  const ahora = new Date().toISOString()
+  p.calidad = String(calidad)
+  p.autorizaciones.plan_cuidado = { otorgado_en: ahora, retiro: null }
+  const consentimiento = { id: randomUUID(), calidad_otorgante: calidad, finalidad: 'plan_cuidado', version_politica: '0.10', otorgado_en: ahora, revision_vence_en: null }
+  return json(res, 201, { consentimiento, aviso: null }), true
+}
+
 // ---------------------------------------------------------------- secciones complementarias (MATU-50)
 
 const seccionesHechas = new Set<string>()
@@ -753,7 +906,7 @@ function atenderSeccion(
   if (!g || !p || !(SECCIONES as string[]).includes(nombre) || (metodo !== 'PUT' && metodo !== 'DELETE')) return problema(res, 404, '/errores/no-encontrado')
   const seccion = nombre as SeccionApi
   if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
-  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'sin-consentimiento' || p.autorizaciones.plan_cuidado.retiro) return problema(res, 403, '/errores/sin-consentimiento')
   if (u.modo === 'revision-vencida' || u.modo === 'revision-al-guardar') return problema(res, 403, '/errores/revision-vencida')
   if (u.modo === 'defectos-secciones') {
     if (seccion === 'quien_es') return problema(res, 428, '/errores/falta-version')
@@ -869,7 +1022,7 @@ function atenderAccesos(
 
   if (metodo !== 'POST') return problema(res, 404, '/errores/no-encontrado')
   if (g.rol !== 'admin' && g.rol !== 'cuidador') return problema(res, 404, '/errores/no-encontrado')
-  if (u.modo === 'sin-consentimiento') return problema(res, 403, '/errores/sin-consentimiento')
+  if (u.modo === 'sin-consentimiento' || p.autorizaciones.plan_cuidado.retiro) return problema(res, 403, '/errores/sin-consentimiento')
   if (u.modo === 'revision-vencida') return problema(res, 403, '/errores/revision-vencida')
   const b = cuerpo ?? {}
   const error = (campo: string, tipo: string) => problema(res, 422, '/errores/validacion', { errores: [{ campo, mensaje: 'MENSAJE DEL DOBLE', tipo }] })
