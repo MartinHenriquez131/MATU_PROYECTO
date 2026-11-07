@@ -650,16 +650,24 @@ function Fila({
 
 // ---------------------------------------------------------------- 3.1 el permiso
 
-function Permiso({
+/**
+ * También lo usa volver a autorizar los insumos (MATU-44 5.2), sin cambiarlo: `antes` pone «Volver a
+ * Grupo familiar» arriba y `frase` la frase de estado bajo la bajada. En Insumos no van (P3).
+ */
+export function Permiso({
   pila,
   personaId,
   onListo,
   onNoEncontrado,
+  antes,
+  frase,
 }: {
   pila: string
   personaId: string | null
   onListo: (yaVigente: boolean) => void
   onNoEncontrado: () => void
+  antes?: ReactNode
+  frase?: ReactNode
 }) {
   const [calidad, setCalidad] = useState<Calidad | null>('cuidador_de_hecho')
   const [leido, setLeido] = useState(false)
@@ -698,9 +706,11 @@ function Permiso({
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
+        {antes}
         <p className="text-base text-tenue">{INSUMOS.titulo}</p>
         <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.permisoTitulo}</Titulo>
         <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
+        {frase}
       </div>
       <GrupoOpciones
         leyenda={INSUMOS.permisoLeyenda}
