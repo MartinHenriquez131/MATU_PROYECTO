@@ -63,10 +63,10 @@ export function Boton({
     >
       {icono && <span className="contents angosto:hidden">{icono}</span>}
       {/* Los dos textos ocupan la misma celda: el botón mide lo que el más largo y no salta. */}
-      <span className="grid min-w-0">
-        <span className={`col-start-1 row-start-1 break-words hyphens-auto ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
+      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
         {textoOcupado && (
-          <span className={`col-start-1 row-start-1 break-words hyphens-auto ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
+          <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
             {textoOcupado}
           </span>
         )}
