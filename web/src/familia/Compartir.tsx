@@ -727,7 +727,7 @@ export function Enlaces() {
 /** Decisión 33 y lenguaje 9.1: la autorización por renovar, arriba de la lista, con lo que pide 6.4b. */
 function AvisoPausa() {
   return (
-    <Nota tono="atenta" borde titulo={T.pausa} icono={<ShieldAlert aria-hidden className="mt-0.5 size-6 shrink-0 text-atenta" />}>
+    <Nota tono="atenta" borde iconoEnLinea titulo={T.pausa} icono={<ShieldAlert aria-hidden className="mt-0.5 size-6 shrink-0 text-atenta" />}>
       {FICHA.revisionPide}
     </Nota>
   )
@@ -740,7 +740,7 @@ function AvisoPausa() {
 function AvisoRetirada({ gestiona }: { gestiona: boolean }) {
   return (
     <div className="flex flex-col items-start gap-1">
-      <Nota tono="rocio" borde titulo={GRUPO_FAMILIAR.enlacesRetiradaTitulo} icono={<Unlink aria-hidden className="mt-0.5 size-6 shrink-0 text-turquesa" />}>
+      <Nota tono="rocio" borde iconoEnLinea titulo={GRUPO_FAMILIAR.enlacesRetiradaTitulo} icono={<Unlink aria-hidden className="mt-0.5 size-6 shrink-0 text-turquesa" />}>
         {GRUPO_FAMILIAR.enlacesRetirada}
       </Nota>
       {gestiona && (

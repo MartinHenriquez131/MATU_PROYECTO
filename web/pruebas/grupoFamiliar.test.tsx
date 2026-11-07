@@ -606,6 +606,18 @@ describe('Después de retirar la ficha', () => {
     )
   }
 
+  /**
+   * Revisión del 07-11 (P1): a 320 px con el texto al 200 % la nota se salía 3 px. En modo angosto
+   * el ícono va en la primera línea del título y el de al lado se oculta, como en `MensajeError`.
+   */
+  function iconoEnLaLineaDelTitulo(titulo: string) {
+    const p = screen.getByText(titulo)
+    const enLinea = p.querySelector(':scope > span > svg')?.parentElement
+    expect(enLinea).toHaveClass('hidden', 'angosto:inline-flex')
+    const nota = p.closest('.flex.max-w-prose')!
+    expect(nota.querySelector(':scope > span.contents')).toHaveClass('angosto:hidden')
+  }
+
   it('Enlaces con la autorización retirada: la nota de corte, sin «En pausa» ni nota atenta, y el enlace a los permisos', async () => {
     abrirEnlaces('admin', 'sin-consentimiento', 'revocado')
     expect(await screen.findByText('Se retiró la autorización de la ficha.')).toBeVisible()
@@ -614,6 +626,7 @@ describe('Después de retirar la ficha', () => {
     expect(screen.queryByText(/Mientras no se renueve/)).toBeNull()
     expect(document.querySelector('.bg-atenta-fondo')).toBeNull()
     expect(screen.getByText('Cortado')).toBeVisible()
+    iconoEnLaLineaDelTitulo('Se retiró la autorización de la ficha.')
     await userEvent.click(screen.getByRole('button', { name: 'Ver los permisos en Grupo familiar' }))
     expect(window.location.pathname).toBe('/grupo')
   })
@@ -631,6 +644,7 @@ describe('Después de retirar la ficha', () => {
     ).toBeVisible()
     expect(screen.getByText('En pausa')).toBeVisible()
     expect(screen.queryByText('Se retiró la autorización de la ficha.')).toBeNull()
+    iconoEnLaLineaDelTitulo('Mientras no se renueve la autorización, ningún enlace abre. Cuando se renueve, vuelven a abrir los que no hayan vencido.')
   })
 })
 

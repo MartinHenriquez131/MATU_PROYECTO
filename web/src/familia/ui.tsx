@@ -216,6 +216,7 @@ export function Nota({
   className = '',
   id,
   enfocable = false,
+  iconoEnLinea = false,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -227,6 +228,11 @@ export function Nota({
   id?: string
   /** MATU-44 3.5: la nota recibe el foco tras una acción. No es un control: sin contorno. */
   enfocable?: boolean
+  /**
+   * MATU-44 (revisión del 07-11): en modo angosto el ícono va en la primera línea del título, como
+   * en `MensajeError`, para que el título use todo el ancho y una palabra larga no se salga.
+   */
+  iconoEnLinea?: boolean
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   const ref = useRef<HTMLDivElement>(null)
@@ -239,9 +245,14 @@ export function Nota({
       tabIndex={enfocable ? -1 : undefined}
       className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${enfocable ? 'outline-none' : ''} ${className}`}
     >
-      {icono ?? ICONO_NOTA[tono]}
+      {iconoEnLinea && titulo ? <span className="contents angosto:hidden">{icono ?? ICONO_NOTA[tono]}</span> : (icono ?? ICONO_NOTA[tono])}
       <div className="min-w-0">
-        {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
+        {titulo && (
+          <p className="mb-0.5 font-bold">
+            {iconoEnLinea && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle">{icono ?? ICONO_NOTA[tono]}</span>}
+            {titulo}
+          </p>
+        )}
         {children && <div className="text-base leading-relaxed">{children}</div>}
       </div>
     </div>
