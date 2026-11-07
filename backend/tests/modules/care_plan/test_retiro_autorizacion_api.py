@@ -450,6 +450,92 @@ def test_compartir_primero_el_retiro_espera_y_corta_el_acceso_nuevo(entorno: Ent
     assert revocado is not None and revocado == indice
 
 
+
+# La misma carrera por la ruta POST …/accesos-relevo, de punta a punta (P3 de la revisión de Martín)
+
+CUERPO_ACCESO = {"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "turno_de_noche",
+                 "relevo_informado": True}
+
+
+def _crear_acceso(entorno: EntornoAbrir, familia: FamiliaCreada) -> Any:
+    return entorno.ficha.iam.cliente.post(RUTA_ACCESOS.format(familia.persona.id), json=CUERPO_ACCESO,
+                                          headers=_cab(entorno, _cuidador(familia), familia))
+
+
+def _accesos_del_grupo(grupo: uuid.UUID) -> list[tuple[Any, ...]]:
+    return _todas("SELECT id FROM acceso_relevo WHERE grupo_id = %s", grupo)
+
+
+@pytest.mark.rf("RF-02")
+def test_crear_un_acceso_simultaneo_a_un_retiro_espera_y_termina_en_403(entorno: EntornoAbrir) -> None:
+    familia = entorno.familia_con_ficha()
+    fabrica, grupo, persona = _fabrica(entorno), familia.grupo.id, familia.persona.id
+    respuestas: list[Any] = []
+
+    def crear() -> None:
+        respuestas.append(_crear_acceso(entorno, familia))
+
+    with sesion_tenant(fabrica, usuario_id=familia.admin.id, grupo_id=grupo) as sesion:
+        registro = RegistroAuditoriaSql(sesion, entorno.reloj)
+        retirar_autorizacion(
+            SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
+            entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+        )
+        hilo = threading.Thread(target=crear)
+        hilo.start()
+        hilo.join(timeout=1.0)
+        assert hilo.is_alive()  # crear el acceso espera el bloqueo del retiro (FOR SHARE contra FOR UPDATE)
+    hilo.join(timeout=15)
+    [respuesta] = respuestas
+    assert respuesta.status_code == 403, respuesta.text
+    assert respuesta.json()["type"] == "/errores/sin-consentimiento"
+    # Sin el acceso creado: ni la fila, ni su índice de token, ni la auditoría de compartir
+    assert _accesos_del_grupo(grupo) == []
+    assert _todas("SELECT 1 FROM indice_token WHERE grupo_id = %s AND tipo = 'relevo'", grupo) == []
+    assert _acciones(grupo, "relevo.compartir") == []
+
+
+@pytest.mark.rf("RF-02")
+def test_crear_un_acceso_primero_el_retiro_espera_y_lo_corta(
+    entorno: EntornoAbrir, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    familia = entorno.familia_con_ficha()
+    grupo = familia.grupo.id
+    insertado, soltar = threading.Event(), threading.Event()
+    original = RepositorioAccesosSQL.crear
+
+    def crear_y_esperar(self: RepositorioAccesosSQL, acceso: Any) -> None:
+        # El acceso queda escrito en la transacción de la petición, que sigue abierta con el FOR SHARE tomado
+        original(self, acceso)
+        insertado.set()
+        assert soltar.wait(timeout=15)
+
+    monkeypatch.setattr(RepositorioAccesosSQL, "crear", crear_y_esperar)
+    creadas: list[Any] = []
+    retiros: list[Any] = []
+    crear = threading.Thread(target=lambda: creadas.append(_crear_acceso(entorno, familia)))
+    retirar = threading.Thread(target=lambda: retiros.append(_retirar(entorno, familia)))
+
+    crear.start()
+    assert insertado.wait(timeout=15)
+    retirar.start()
+    retirar.join(timeout=1.0)
+    assert retirar.is_alive()  # el retiro espera a que crear el acceso confirme (FOR UPDATE contra FOR SHARE)
+    soltar.set()
+    crear.join(timeout=15)
+    retirar.join(timeout=15)
+
+    [creada], [retiro] = creadas, retiros
+    assert creada.status_code == 201, creada.text
+    assert retiro.status_code == 200, retiro.text
+    assert retiro.json()["enlaces_cortados"] == 1
+    acceso_id = uuid.UUID(creada.json()["id"])
+    assert _accesos_del_grupo(grupo) == [(acceso_id,)]
+    revocado, indice, _ = _acceso(acceso_id)
+    assert revocado is not None and revocado == indice
+    [corte] = _acciones(grupo, "relevo.revocar")
+    assert corte[2] == acceso_id
+
 # --- Logs ----------------------------------------------------------------------------------------------------
 
 
