@@ -278,7 +278,7 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     tono = 'text-ok'
     frase = (
       <>
-        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} />.
+        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." />
       </>
     )
   } else if (v.estado === 'revision_vencida') {
@@ -286,18 +286,18 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     tono = 'text-atenta'
     frase = (
       <>
-        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} />. {ficha ? T.renovarFicha : T.renovarInsumos}{' '}
-        <Fecha iso={v.revision_vence_en} />.
+        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." /> {ficha ? T.renovarFicha : T.renovarInsumos}{' '}
+        <Fecha iso={v.revision_vence_en} fin="." />
       </>
     )
   } else if (v.estado === 'retirada') {
     Icono = ShieldOff
     frase = (
       <>
-        {T.retiradaEl} <Fecha iso={v.revocado_en} />.{' '}
+        {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." />{' '}
         {v.borrado_en ? (
           <>
-            {editor ? T.siNoVuelves : T.siNadieVuelve} <Fecha iso={v.borrado_en} />.
+            {editor ? T.siNoVuelves : T.siNadieVuelve} <Fecha iso={v.borrado_en} fin="." />
           </>
         ) : (
           T.siNoVuelvesSinFecha
@@ -308,7 +308,7 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     Icono = ShieldOff
     frase = (
       <>
-        {T.retiradaEl} <Fecha iso={v.revocado_en} />. {T.seBorro} <Fecha iso={v.borrado_en} />.
+        {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." /> {T.seBorro} <Fecha iso={v.borrado_en} fin="." />
       </>
     )
   } else frase = T.sinAutorizar

@@ -210,6 +210,9 @@ describe('Grupo familiar, por rol y por estado', () => {
 
     const fichaPedro = within(pedro.getByRole('region', { name: 'Permiso para guardar su ficha' }))
     expect(fichaPedro.getByText(/^Autorización retirada el/)).toHaveTextContent('Autorización retirada el 01/07/2026. Lo guardado se borró el 29/09/2026.')
+    // 3.4 (revisión del 07-11): cada punto final va dentro del `cifras` de su fecha.
+    expect([...fichaPedro.getByText(/^Autorización retirada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['01/07/2026.', '29/09/2026.'])
+    expect([...fichaMaria.getByText(/^Autorizada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['04/11/2026.', '01/10/2026.'])
     expect(fichaPedro.getByRole('button', { name: 'Volver a autorizar la ficha de Pedro' })).toBeVisible()
 
     const insumosPedro = within(pedro.getByRole('region', { name: 'Permiso para calcular sus insumos' }))
