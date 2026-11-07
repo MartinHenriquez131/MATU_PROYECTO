@@ -6,6 +6,7 @@
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API. Ninguna palabra de lenguaje 3.2.
 import type { Calidad } from '../compartido/api/familia'
 import type { Unidad } from '../compartido/api/consumo'
+import { miles } from './textoLista'
 
 /** Declaraciones del permiso para el consumo, tal cual (especificación 7.2, aprobadas el 03-11). */
 export const DECLARACION_CONSUMO: Record<Calidad, string> = {
@@ -17,12 +18,12 @@ export const DECLARACION_CONSUMO: Record<Calidad, string> = {
     'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarme cuando se esté por acabar, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
 }
 
-/** «4», «1 sobre», «2 sobres», «15 ml», «30 g». */
+/** «4», «1 sobre», «2 sobres», «15 ml», «5.000 ml», «30 g»: con punto de miles, como `cantidadEnTexto`. */
 export function cantidad(n: number, unidad: Unidad): string {
-  if (unidad === 'sobre') return `${n} ${n === 1 ? 'sobre' : 'sobres'}`
-  if (unidad === 'ml') return `${n} ml`
-  if (unidad === 'g') return `${n} g`
-  return String(n)
+  if (unidad === 'sobre') return `${miles(n)} ${n === 1 ? 'sobre' : 'sobres'}`
+  if (unidad === 'ml') return `${miles(n)} ml`
+  if (unidad === 'g') return `${miles(n)} g`
+  return miles(n)
 }
 
 export const INSUMOS = {
@@ -176,11 +177,11 @@ export const INSUMOS = {
   volverAlInicio: 'Volver al inicio',
 }
 
-/** Línea principal según `dias_restantes` (3.2.1). */
-export function lineaDias(n: number): { texto: string; cifra: number | null; resto: string } {
+/** Línea principal según `dias_restantes` (3.2.1). La cifra, con punto de miles («2.000»). */
+export function lineaDias(n: number): { texto: string; cifra: string | null; resto: string } {
   if (n < 0) return { texto: INSUMOS.puedeQueNo, cifra: null, resto: '' }
   if (n === 0) return { texto: INSUMOS.seAcabaHoy, cifra: null, resto: '' }
-  return { texto: INSUMOS.alcanzaDias, cifra: n, resto: n === 1 ? 'día' : 'días' }
+  return { texto: INSUMOS.alcanzaDias, cifra: miles(n), resto: n === 1 ? 'día' : 'días' }
 }
 
 /** El mismo texto en una sola cadena, para avisos. */
