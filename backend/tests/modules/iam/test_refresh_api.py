@@ -18,6 +18,7 @@ import psycopg
 import pytest
 
 from app.modules.iam.application.sesiones import conservar
+from app.modules.iam.domain.dispositivo import LimitesConservacion, limites_conservacion
 from app.modules.iam.domain.refresh import NOMBRE_COOKIE
 from app.modules.iam.infrastructure.repositorio_sesiones import UnidadIamSql
 from app.modules.iam.infrastructure.tokens_jwt import EmisorJWT
@@ -490,6 +491,36 @@ def _sesiones_y_dispositivos(usuario_id: uuid.UUID) -> tuple[set[uuid.UUID], set
     )
 
 
+def _por_borrar(limites: LimitesConservacion) -> tuple[int, int]:
+    """MATU-73: (sesiones, dispositivos) que iam_conservar borraría ahora en toda la base, contados como
+    superusuario con el mismo criterio de su definición en la migración 0008. Las sesiones son las
+    vencidas o revocadas antes de limite_sesion más las que cuelgan de un dispositivo borrable; los
+    dispositivos, los sin uso desde limite_dispositivo y sin una sesión vigente en ahora. Ninguna sesión
+    del primer grupo es vigente, así que borrarlas antes no cambia qué dispositivos son borrables."""
+    parametros = {"ls": limites.limite_sesion, "ld": limites.limite_dispositivo, "ahora": limites.ahora}
+    with psycopg.connect(DSN) as cx:
+        fila = cx.execute(
+            """
+            WITH borrables AS (
+                SELECT d.id FROM dispositivo d
+                 WHERE coalesce(d.ultimo_uso_en, d.creado_en) <= %(ld)s
+                   AND NOT EXISTS (
+                       SELECT 1 FROM sesion_refresh s
+                        WHERE s.dispositivo_id = d.id AND s.revocado_en IS NULL AND s.usado_en IS NULL
+                          AND s.expira_en > %(ahora)s))
+            SELECT
+                (SELECT count(*) FROM sesion_refresh s
+                  WHERE s.expira_en <= %(ls)s
+                     OR (s.revocado_en IS NOT NULL AND s.revocado_en <= %(ls)s)
+                     OR s.dispositivo_id IN (SELECT id FROM borrables)),
+                (SELECT count(*) FROM borrables)
+            """,
+            parametros,
+        ).fetchone()
+    assert fila is not None
+    return int(fila[0]), int(fila[1])
+
+
 def _dispositivo_ajeno(entorno: EntornoIam, ultimo_uso_en: datetime) -> uuid.UUID:
     """MATU-73: otra cuenta sintética con un dispositivo sin sesiones, sembrado como superusuario. El
     fixture lo borra con la cuenta."""
@@ -520,9 +551,10 @@ def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
     app.dependency_overrides[obtener_reloj] = lambda: reloj
     entorno_iam.reloj = reloj
 
-    # MATU-73: iam_conservar borra lo vencido de todas las cuentas de la base, así que la prueba mira sus
-    # filas y no el total que devuelve. El caso con un dispositivo ajeno lo demuestra: sin uso desde medio
-    # día antes que el viejo, sobrevive a la primera pasada y cae en la segunda (con el total, (0, 2))
+    # MATU-73: iam_conservar borra lo vencido de todas las cuentas de la base. La prueba mira sus filas,
+    # y exige los contadores exactos contra lo que había por borrar en toda la base justo antes de cada
+    # pasada. El caso con un dispositivo ajeno lo demuestra: sin uso desde medio día antes que el viejo,
+    # sobrevive a la primera pasada y cae en la segunda
     ajeno = _dispositivo_ajeno(entorno_iam, reloj.ahora() - timedelta(hours=12)) if con_ajeno else None
 
     viejo = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
@@ -537,16 +569,20 @@ def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
     # A los 89 días del viejo: su sesión venció hace 59 días (se borra), pero el dispositivo se conserva
     entorno_iam.reloj.avanzar(timedelta(days=9))
     unidad = UnidadIamSql(fabrica_sesiones(), entorno_iam.reloj)
+    esperado = _por_borrar(limites_conservacion(entorno_iam.reloj.ahora()))
     resultado = conservar(unidad=unidad, reloj=entorno_iam.reloj)
-    assert resultado.sesiones_borradas >= 1
+    assert (resultado.sesiones_borradas, resultado.dispositivos_borrados) == esperado
+    assert esperado[0] >= 1
     assert _sesiones_y_dispositivos(cuenta) == ({id_actual}, {id_viejo, id_actual}, 1)
     if ajeno is not None:
         assert _filas("SELECT count(*) FROM dispositivo WHERE id = %s", ajeno) == [(1,)]
 
     # A los 90 días sin uso, el viejo se borra; el actual, con sesión vigente, no
     entorno_iam.reloj.avanzar(timedelta(days=1))
+    esperado = _por_borrar(limites_conservacion(entorno_iam.reloj.ahora()))
     resultado = conservar(unidad=unidad, reloj=entorno_iam.reloj)
-    assert resultado.dispositivos_borrados >= (2 if ajeno is not None else 1)
+    assert (resultado.sesiones_borradas, resultado.dispositivos_borrados) == esperado
+    assert esperado[1] >= (2 if ajeno is not None else 1)
     assert _sesiones_y_dispositivos(cuenta) == ({id_actual}, {id_actual}, 1)
     if ajeno is not None:
         assert _filas("SELECT count(*) FROM dispositivo WHERE id = %s", ajeno) == [(0,)]
