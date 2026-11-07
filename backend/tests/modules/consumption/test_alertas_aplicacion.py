@@ -29,7 +29,7 @@ from app.modules.consumption.application.ports import (
     PerfilLeido,
 )
 from app.modules.consumption.application.trabajo_diario import recalcular_quiebres
-from app.modules.consumption.domain.alerta import AlertaCerrada, EstadoAlerta
+from app.modules.consumption.domain.alerta import ABIERTAS, AlertaCerrada, EstadoAlerta
 from app.modules.consumption.domain.perfil import FaltaVersion, Perfil, UnidadConsumo
 from app.modules.consumption.events import QuiebreProximo
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria
@@ -154,9 +154,11 @@ class ConservacionEnMemoria:
     def __init__(self) -> None:
         self.llamada: tuple[datetime, datetime, datetime] | None = None
 
-    def conservar(self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime) -> tuple[int, int, int]:
+    def conservar(
+        self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime
+    ) -> tuple[int, int, int, int]:
         self.llamada = (limite_alertas, limite_eventos, ahora)
-        return (2, 3, 4)
+        return (2, 3, 4, 5)
 
 
 def test_conservacion_con_90_y_30_dias() -> None:
@@ -164,6 +166,8 @@ def test_conservacion_con_90_y_30_dias() -> None:
     resultado = conservar_quiebres(unidad=unidad, reloj=RelojFijo(AHORA))
     assert unidad.llamada == (AHORA - timedelta(days=90), AHORA - timedelta(days=30), AHORA)
     assert (resultado.alertas_borradas, resultado.eventos_borrados, resultado.notificaciones_borradas) == (2, 3, 4)
+    # MATU-51, decisión 145: las compras declaradas con el mismo límite de 90 días
+    assert resultado.reposiciones_borradas == 5
 
 
 # --- Descartar y «Ya lo resolví» -----------------------------------------------------------------------
@@ -247,6 +251,10 @@ class AlertasEnMemoria:
         a = AlertaLeida(alerta_id, perfil_id, fecha, estado, ahora, None, ahora)
         self.filas[a.id] = a
         return a
+
+    def abiertas_del_perfil(self, perfil_id: uuid.UUID) -> list[AlertaLeida]:
+        abiertas = [a for a in self.filas.values() if a.perfil_id == perfil_id and a.estado in ABIERTAS]
+        return sorted(abiertas, key=lambda a: (a.fecha_prevista, a.id))
 
 
 PETICION = PeticionConsumo(grupo_id=GRUPO, usuario_id=CARMEN, persona_id=PERSONA, request_id="r-1")

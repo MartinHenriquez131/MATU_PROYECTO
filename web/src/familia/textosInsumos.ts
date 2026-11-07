@@ -6,6 +6,7 @@
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API. Ninguna palabra de lenguaje 3.2.
 import type { Calidad } from '../compartido/api/familia'
 import type { Unidad } from '../compartido/api/consumo'
+import { miles } from './textoLista'
 
 /** Declaraciones del permiso para el consumo, tal cual (especificación 7.2, aprobadas el 03-11). */
 export const DECLARACION_CONSUMO: Record<Calidad, string> = {
@@ -17,13 +18,23 @@ export const DECLARACION_CONSUMO: Record<Calidad, string> = {
     'Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU a guardar qué insumos usa, cuánto usa y cuánto queda, y a calcular cuándo se acaban y avisarme cuando se esté por acabar, según la política de privacidad vigente. Leí el aviso sobre el límite de esta autorización.',
 }
 
-/** «4», «1 sobre», «2 sobres», «15 ml», «30 g». */
+/**
+ * «4», «1 sobre», «2 sobres», «15 ml», «5.000 ml», «30 g»: con punto de miles, como `cantidadEnTexto`.
+ * Entre la cifra y la unidad va un espacio duro (U+00A0): al cortar la línea no quedan separadas.
+ */
 export function cantidad(n: number, unidad: Unidad): string {
-  if (unidad === 'sobre') return `${n} ${n === 1 ? 'sobre' : 'sobres'}`
-  if (unidad === 'ml') return `${n} ml`
-  if (unidad === 'g') return `${n} g`
-  return String(n)
+  if (unidad === 'sobre') return `${miles(n)}\u00A0${n === 1 ? 'sobre' : 'sobres'}`
+  if (unidad === 'ml') return `${miles(n)}\u00A0ml`
+  if (unidad === 'g') return `${miles(n)}\u00A0g`
+  return miles(n)
 }
+
+/**
+ * Solo para mostrar: «6 envases de 20 unidades» con un espacio duro (U+00A0) después de cada cifra,
+ * para que al cortar la línea la cifra no quede separada de su unidad. La lista que se exporta usa
+ * `cantidadEnTexto` sin esto: su texto exacto lo fija la especificación (sección 7.2).
+ */
+export const enPantalla = (texto: string) => texto.replace(/(\d) /g, '$1 ')
 
 export const INSUMOS = {
   titulo: 'Insumos',
@@ -52,13 +63,16 @@ export const INSUMOS = {
   renovarPide: 'Pídele a quien administra el grupo que la renueve.', // [lenguaje 6.4b]
 
   // 3.2 Lista
-  notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo.', // [APROBADO 02-11]
+  // MATU-51 (especificación 7, [CAMBIA] lenguaje 13.1): dice dónde se anota.
+  notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo con «Compré» o «Me quedan».',
   notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [aprobado por Jorge el 03-11] observador y pagador
   comoTitulo: 'Cómo calculamos', // [aprobado por Jorge el 03-11]
+  // MATU-51 (especificación 7, [CAMBIA] lenguaje 16): desde MATU-51 la familia puede anotar la compra.
   comoLector: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11] observador y pagador
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. Si compraron y no lo anotaron, no lo sabe. Tampoco sabe si cambió lo que usa ${pila}.`, // observador y pagador
+  // MATU-51 (especificación 7, [ANALISTA] [CAMBIA] lenguaje 18).
   como: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11]
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. Si compraste o cambió lo que queda, anótalo con «Compré» o «Me quedan». No sabe si cambió lo que usa ${pila}.`,
   anotar: 'Anotar un insumo', // [aprobado por Jorge el 03-11]
   cambiar: 'Cambiar',
   cambiarDe: (nombre: string) => `Cambiar ${nombre}`,
@@ -173,11 +187,11 @@ export const INSUMOS = {
   volverAlInicio: 'Volver al inicio',
 }
 
-/** Línea principal según `dias_restantes` (3.2.1). */
-export function lineaDias(n: number): { texto: string; cifra: number | null; resto: string } {
+/** Línea principal según `dias_restantes` (3.2.1). La cifra, con punto de miles («2.000»). */
+export function lineaDias(n: number): { texto: string; cifra: string | null; resto: string } {
   if (n < 0) return { texto: INSUMOS.puedeQueNo, cifra: null, resto: '' }
   if (n === 0) return { texto: INSUMOS.seAcabaHoy, cifra: null, resto: '' }
-  return { texto: INSUMOS.alcanzaDias, cifra: n, resto: n === 1 ? 'día' : 'días' }
+  return { texto: INSUMOS.alcanzaDias, cifra: miles(n), resto: n === 1 ? 'día' : 'días' }
 }
 
 /** El mismo texto en una sola cadena, para avisos. */
@@ -196,9 +210,13 @@ export const ALERTAS = {
   tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // más de 3, aprobado por Jorge el 03-11
   fechaEstimada: 'Fecha estimada:', // [APROBADO] (decisión de Jorge) + {fecha}
   nota: 'Es una estimación con lo que anotaste.', // aprobado por Jorge el 03-11
+  notaLector: 'Es una estimación con lo que anotó la familia.', // pagador y observador, aprobado por Jorge el 07-11 (MATU-51)
   marca: 'Te estamos avisando', // aprobado por Jorge el 03-11
   boton: 'Ya lo resolví', // [APROBADO]
   botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // aprobado por Jorge el 03-11
+  /** MATU-51 3.8: con envase conocido pregunta en envases, como «Compré» (decisión A2 de Jorge). */
+  preguntaEnvases: '¿Compraste? ¿Cuántos envases?',
+  ayudaEnvases: 'Si no compraste, déjalo en 0 y solo dejamos de avisarte.',
   pregunta: (unidad: Unidad) =>
     unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // aprobado por Jorge el 03-11
   ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // aprobado por Jorge el 03-11
@@ -211,8 +229,62 @@ export const ALERTAS = {
   errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo resolvías. Revisa cómo quedó y vuelve a intentarlo.`, // aprobado por Jorge el 03-11
   errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // aprobado por Jorge el 03-11
   errRol: 'Solo quien administra o cuida puede resolver un aviso.', // aprobado por Jorge el 03-11
-  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // aprobado por Jorge el 03-11
+  // MATU-51 3.8 ([CAMBIA] lenguaje 17, decisión A2): el tope pasa a 10.000 y con envase va de 0 a 99.
+  errCantidad: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
+  errCantidadEnvases: 'Escribe un número de 0 a 99. Si no compraste, déjalo en 0.',
   errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // aprobado por Jorge el 03-11
   verComoQuedo: 'Ver cómo quedó', // aprobado por Jorge el 03-11
   errCarga: 'No pudimos ver qué se acaba pronto.', // aprobado por Jorge el 03-11
+}
+
+/**
+ * MATU-51 «Compré» y «Me quedan» (especificación docs/diseno/matu-51-compre-me-quedan.md v1.2,
+ * secciones 8 y 11, que entran a lenguaje.md 23). Nunca «quiebre», «stock», «reponer» ni
+ * «reposición», y nunca se ofrece comprar: «Compré» habla de lo ya hecho. Los días y la fecha de la
+ * confirmación salen de la respuesta de la API.
+ */
+export const REGISTRO = {
+  compre: 'Compré',
+  meQuedan: 'Me quedan',
+  compreDe: (nombre: string) => `Compré: ${nombre}`,
+  meQuedanDe: (nombre: string) => `Me quedan: ${nombre}`,
+  preguntaEnvases: '¿Cuántos envases compraste?',
+  pregunta: (unidad: Unidad) =>
+    unidad === 'sobre' ? '¿Cuántos sobres compraste?' : unidad === 'ml' ? '¿Cuántos ml compraste?' : unidad === 'g' ? '¿Cuántos gramos compraste?' : '¿Cuántos compraste?',
+  ayudaCompre: 'Lo sumamos a lo que calculamos que queda hoy.',
+  anotarCompra: 'Anotar la compra',
+  preguntaQuedan: '¿Cuántos quedan hoy, más o menos?', // [L 18]
+  ayudaQuedan: 'Reemplaza lo que calculábamos. Si no queda nada, escribe 0.',
+  anotarQueda: 'Anotar lo que queda',
+  guardando: 'Guardando…', // [L 17]
+  volver: 'Volver', // [L 17]
+
+  /** «Compra anotada para «{nombre}»: {cantidad}.» y lo que sigue según los días (8). */
+  compraAnotada: (nombre: string, cant: string) => `Compra anotada para «${nombre}»: ${cant}.`,
+  quedaAnotado: (nombre: string, cant: string) => `Anotamos lo que queda de «${nombre}»: ${cant}.`,
+  ahoraAlcanza: (n: number) => `Ahora alcanza para ${n === 1 ? '1 día' : `${n} días`}, hasta el`, // + {fecha}.
+  alcanza: (n: number) => `Alcanza para ${n === 1 ? '1 día' : `${n} días`}, hasta el`, // + {fecha}.
+  seAcabaHoy: 'Así, se acaba hoy.',
+  puedeQueNo: 'Según lo anotado, puede que ya no quede.',
+  noQueda: (nombre: string) => `Anotamos que no queda «${nombre}». Cuando compres, anótalo con «Compré».`,
+
+  // Errores del campo (5.4 y 8)
+  errVacioEnvases: 'Escribe cuántos envases compraste, al menos 1.',
+  errVacio: 'Escribe cuántos compraste, al menos 1.',
+  errTopeEnvases: 'Escribe un número de 1 a 99 envases.',
+  errTope: 'Escribe un número hasta 10.000.', // [L 18]
+  errStockMaximo: (sufijo: string) => `Con esa compra quedarían más de 100.000 ${sufijo}. Revisa cuántos compraste.`,
+  errVacioQuedan: 'Escribe cuántos quedan. Si no queda nada, escribe 0.', // [L 18]
+  errTopeQuedan: 'Escribe un número hasta 100.000.', // [L 18]
+  errCoberturaCompre: 'Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste.',
+  errCoberturaQuedan: 'Con esa cantidad alcanzaría para más de 10 años. Revisa cuántos quedan.',
+
+  // Errores del panel (5.5 y 8)
+  errOtro422: 'No pudimos guardar. Revisa los datos y vuelve a intentarlo.', // [L 18]
+  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // [L 17]
+  errNoEsta: 'Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado.',
+  errInactivo: (nombre: string) => `Alguien de tu familia dejó de seguir «${nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir».`,
+  errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.`,
+  errFaltaVersion: 'No pudimos guardar este insumo. Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.', // [L 18]
+  verComoQuedo: 'Ver cómo quedó', // [L 17]
 }

@@ -22,7 +22,7 @@ import { enfocar, entero, permisoDe, Stepper, unaLinea, useAncho } from './insum
 import { navegar } from './ruteo'
 import { FICHA, GENERAL, LISTA } from './textos'
 import { armarLista, cantidadEnTexto, sufijoCantidad, textoDeLista, type LineaParaSacar, type UnidadLinea } from './textoLista'
-import { INSUMOS } from './textosInsumos'
+import { enPantalla, INSUMOS } from './textosInsumos'
 import { Acciones, Etiqueta, GrupoOpciones, MensajeError, Nota, Titulo } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
@@ -532,7 +532,7 @@ function LineaDeLista({ linea: l, puede, error, onCambio, onQuitar }: { linea: L
           </Boton>
         </>
       ) : (
-        <p className="text-lg tabular-nums @2xl/lista:text-right">{cantidadEnTexto(l.ultimoValido, l.unidad, l.envase)}</p>
+        <p className="text-lg tabular-nums @2xl/lista:text-right">{enPantalla(cantidadEnTexto(l.ultimoValido, l.unidad, l.envase))}</p>
       )}
     </li>
   )

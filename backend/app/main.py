@@ -38,6 +38,7 @@ from app.modules.care_plan.infrastructure.efecto_retiro import EfectoRetiroFicha
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.consumption.api.router_lista import router as router_lista
+from app.modules.consumption.api.router_reposicion import router as router_reposicion
 from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
@@ -119,6 +120,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_alertas, prefix="/v1")
     app.include_router(router_lista, prefix="/v1")
     app.include_router(router_consumo, prefix="/v1")
+    app.include_router(router_reposicion, prefix="/v1")
     app.include_router(router_avisos, prefix="/v1")
 
     # MATU-40 (ADR-002): la capa 3 se monta aparte y solo si está habilitada. Las capas 1 y 2, arriba,

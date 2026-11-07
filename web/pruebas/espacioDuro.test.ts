@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest'
 import { CELULAR, ENTRAR, ESPERA_CONEXION, RECUPERAR } from '../src/familia/textos'
 import { ESPERA, PIN } from '../src/relevo/textos'
+import { armarLista, cantidadEnTexto, textoDeLista } from '../src/familia/textoLista'
+import { enPantalla } from '../src/familia/textosInsumos'
 
 const esperas: [string, (m: number) => string][] = [
   ['ESPERA_CONEXION.texto', ESPERA_CONEXION.texto],
@@ -33,5 +35,19 @@ describe('Espacio duro en los intentos del PIN (revisión visual del #53, P3)', 
     expect(PIN.intentos(1)).toBe('1\u00A0intento')
     expect(PIN.intentos(3)).toBe('3\u00A0intentos')
     expect(PIN.intentos(3)).not.toMatch(/\d intento/)
+  })
+})
+
+describe('Espacio duro tras la cifra, solo en pantalla (tercera revisión visual del #51, P3)', () => {
+  it('enPantalla cambia el espacio después de cada cifra y nada más', () => {
+    expect(enPantalla(cantidadEnTexto(6, 'unidad', 20))).toBe('6\u00A0envases de 20\u00A0unidades')
+    expect(enPantalla(cantidadEnTexto(1200, 'unidad', null))).toBe('1.200\u00A0unidades')
+    expect(enPantalla(cantidadEnTexto(2, 'ml', 250))).toBe('2\u00A0envases de 250\u00A0ml')
+  })
+
+  it('la lista que se exporta sigue con el espacio común (sección 7.2)', () => {
+    const texto = textoDeLista(armarLista('2026-11-06', [{ nombre: 'Pañal adulto talla M', cantidad: 6, unidad: 'unidad', envase: 20 }]))
+    expect(texto).toContain('- Pañal adulto talla M: 6 envases de 20 unidades')
+    expect(texto).not.toContain('\u00A0')
   })
 })

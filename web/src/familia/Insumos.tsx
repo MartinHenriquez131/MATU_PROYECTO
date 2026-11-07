@@ -2,10 +2,14 @@
 // el permiso la primera vez, la lista con «Seguir» y la papelera, anotar o cambiar un insumo con
 // `If-Match`, el conflicto 412 a la vista y el diálogo de eliminar. Sin interfaz optimista: la
 // lista cambia solo con la respuesta de la API. Nada se guarda en el navegador ni en la URL.
+// MATU-51 (docs/diseno/matu-51-compre-me-quedan.md v1.2): «Compré» y «Me quedan» en cada fila, con
+// `If-Match` y sin interfaz optimista, y un solo panel abierto a la vez en toda la pantalla.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2 } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
+  anotarCompra,
+  anotarLoQueQueda,
   autorizarConsumo,
   crearPerfil,
   editarPerfil,
@@ -14,6 +18,7 @@ import {
   listarConsumo,
   listarPorAcabarse,
   resolverAviso,
+  type LoComprado,
   type PorAcabarse,
   nombreDe,
   seguirPerfil,
@@ -32,8 +37,8 @@ import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
-import { miles, sufijoCantidad } from './textoLista'
-import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
+import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
+import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
@@ -59,11 +64,22 @@ export function PestanasInsumos({ activa }: { activa: '/insumos' | '/insumos/lis
 }
 
 /**
- * MATU-37: el campo opcional «¿Compraste? ¿Cuántos?» de «Ya lo resolví» (aprobado por Jorge el
- * 03-11). Con cantidad, el backend la suma a lo que estima que queda hoy y devuelve el insumo
- * recalculado; sin cantidad, solo descarta. Apagarla deja solo la confirmación sin cantidad.
+ * MATU-51 3.6: el panel abierto, uno solo en toda la pantalla: «Compré» o «Me quedan» de una fila,
+ * o «Ya lo resolví» de un aviso. El formulario de «Anotar un insumo» también cuenta: abrir un panel
+ * lo cierra, y abrirlo cierra el panel.
  */
-const CANTIDAD_EN_RESOLVER = true
+type Panel = { tipo: 'compre' | 'quedan' | 'resolver'; id: string }
+
+/** La confirmación de una fila (5.3): la frase y, si la hay, la fecha, que va en `cifras` con su punto. */
+type Hecho = { texto: string; fecha: string | null }
+
+/** Lleva el foco a un elemento y lo desplaza a la vista, sin pasar por debajo de la barra fija (4). */
+const mostrar = (id: string, ms = 40) =>
+  window.setTimeout(() => {
+    const el = document.getElementById(id)
+    el?.focus()
+    el?.scrollIntoView?.({ block: 'nearest' })
+  }, ms)
 
 // ---------------------------------------------------------------- pantalla
 
@@ -89,6 +105,12 @@ export function Insumos() {
   const [porAcabarse, setPorAcabarse] = useState<PorAcabarse[] | null>(null)
   const [errorBloque, setErrorBloque] = useState(false)
   const [avisoAlerta, setAvisoAlerta] = useState<string | null>(null)
+  // MATU-51: el panel abierto, la confirmación de la fila y el 404 arriba, en el lugar del aviso.
+  const [panel, setPanel] = useState<Panel | null>(null)
+  const [hecho, setHecho] = useState<(Hecho & { id: string }) | null>(null)
+  const [avisoFalla, setAvisoFalla] = useState<string | null>(null)
+  // Mientras un panel guarda, no se abre otro ni se cierra (5.2).
+  const guardandoPanel = useRef(false)
 
   /** La lista y el bloque se piden juntos y se pintan cuando llegan ambos (MATU-37, 4.2). */
   const cargar = useCallback(
@@ -156,9 +178,74 @@ export function Insumos() {
     if (!editor || (modo === 'cambiar' && !editado)) navegar('/insumos', { reemplazar: true })
   }, [carga, modo, editor, editado])
 
+  // Abrir el formulario cierra el panel abierto (3.6).
+  useEffect(() => {
+    if (modo) setPanel(null)
+  }, [modo])
+
+  /** En la pantalla hay un solo mensaje a la vez (3.6). */
+  const limpiarMensajes = () => {
+    setAviso(null)
+    setAvisoAlerta(null)
+    setHecho(null)
+    setAvisoFalla(null)
+  }
+
+  const abrirPanel = (tipo: Panel['tipo'], id: string) => {
+    if (guardandoPanel.current) return
+    limpiarMensajes()
+    setErrorFila(null)
+    if (modo) {
+      setEditandoId(null)
+      navegar('/insumos')
+    }
+    setPanel({ tipo, id })
+  }
+
+  /** «Volver» y Escape: cierra sin guardar y devuelve el foco al botón que lo abrió. */
+  const cerrarPanel = (foco: string) => {
+    if (guardandoPanel.current) return
+    setPanel(null)
+    enfocar(foco)
+  }
+
+  /** «Compré» o «Me quedan» guardó: la fila, el bloque y la confirmación salen de la respuesta (5.3). */
+  const alAnotar = (r: PorAcabarse, texto: Hecho) => {
+    reemplazar(r)
+    setPorAcabarse((xs) => xs && (xs.some((x) => x.id === r.id) ? xs.map((x) => (x.id === r.id ? r : x)) : r.avisando ? [...xs, r] : xs))
+    void refrescarBloque()
+    setPanel(null)
+    setHecho({ id: r.id, ...texto })
+    mostrar(`hecho-${r.id}`)
+  }
+
+  const alPermiso = (c: 'sin-consentimiento' | 'revision-vencida') => {
+    setPanel(null)
+    setCarga(c)
+    enfocar('titulo-pagina', 60)
+  }
+
+  /** 404: la fila ya no existe, así que el mensaje va arriba, con el foco (5.5). */
+  const alNoEstar = () => {
+    setPanel(null)
+    limpiarMensajes()
+    setAvisoFalla(REGISTRO.errNoEsta)
+    void cargar(true)
+    enfocar('aviso-insumos', 60)
+  }
+
+  /** «Ver cómo quedó» después de un 409 o un 412: recarga en silencio y lleva el foco a lo que sigue. */
+  const verComoQuedo = async (foco: string) => {
+    setPanel(null)
+    await cargar(true)
+    enfocar(document.getElementById(foco) ? foco : 'titulo-pagina', 80)
+  }
+
   const volverALista = (texto: string | null) => {
     setAviso(texto)
     setAvisoAlerta(null)
+    setHecho(null)
+    setAvisoFalla(null)
     setEditandoId(null)
     navegar('/insumos')
     if (texto) enfocar('aviso-insumos', 60)
@@ -190,6 +277,9 @@ export function Insumos() {
     if (!personaId || ocupadoId) return
     setOcupadoId(p.id)
     setErrorFila(null)
+    setHecho(null)
+    setAvisoFalla(null)
+    if (panel?.id === p.id && !guardandoPanel.current) setPanel(null)
     try {
       const nuevo = await seguirPerfil(personaId, p.id, seguir)
       reemplazar(nuevo)
@@ -211,6 +301,9 @@ export function Insumos() {
 
   const alEliminado = (p: Perfil, yaNoEstaba: boolean) => {
     setEliminando(null)
+    setHecho(null)
+    setAvisoFalla(null)
+    if (panel?.id === p.id) setPanel(null)
     if (yaNoEstaba) {
       void cargar()
     } else {
@@ -337,15 +430,23 @@ export function Insumos() {
           editor={editor}
           personaId={personaId}
           confirmacion={avisoAlerta}
+          abiertoId={panel?.tipo === 'resolver' ? panel.id : null}
+          onAbrir={(id) => abrirPanel('resolver', id)}
+          onCerrar={(id) => cerrarPanel(`resolver-${id}`)}
+          onOcupado={(v) => (guardandoPanel.current = v)}
           onReintentar={() => void refrescarBloque()}
           onResuelto={async (texto) => {
             setAviso(null)
             await cargar(true)
+            setPanel(null)
             setAvisoAlerta(texto)
             enfocar('aviso-alertas', 60)
           }}
-          onVerComoQuedo={() => void cargar(true).then(() => enfocar(document.getElementById('titulo-se-acaban') ? 'titulo-se-acaban' : 'titulo-pagina', 80))}
-          onPermiso={(c) => setCarga(c)}
+          onVerComoQuedo={() => {
+            setPanel(null)
+            void cargar(true).then(() => enfocar(document.getElementById('titulo-se-acaban') ? 'titulo-se-acaban' : 'titulo-pagina', 80))
+          }}
+          onPermiso={alPermiso}
         />
       ) : null
     const activos = items.filter((p) => p.activo).sort(porFecha)
@@ -359,24 +460,49 @@ export function Insumos() {
         elegida={!!form && modo === 'cambiar' && p.id === editandoId}
         ocupado={ocupadoId === p.id}
         error={errorFila?.id === p.id ? errorFila.texto : null}
+        hecho={hecho?.id === p.id ? hecho : null}
+        abierto={panel && panel.id === p.id && panel.tipo !== 'resolver' ? panel.tipo : null}
+        panel={
+          panel && panel.id === p.id && panel.tipo !== 'resolver' && personaId ? (
+            <PanelRegistro
+              key={`${panel.tipo}-${p.id}`}
+              tipo={panel.tipo}
+              perfil={p}
+              personaId={personaId}
+              onCerrar={() => cerrarPanel(`${panel.tipo}-${p.id}`)}
+              onOcupado={(v) => (guardandoPanel.current = v)}
+              onHecho={alAnotar}
+              onPermiso={alPermiso}
+              onNoEncontrado={alNoEstar}
+              onVerComoQuedo={(foco) => void verComoQuedo(foco)}
+            />
+          ) : null
+        }
+        onAbrir={(tipo) => abrirPanel(tipo, p.id)}
         onCambiar={() => {
-          setAviso(null)
-          setAvisoAlerta(null)
+          if (guardandoPanel.current) return
+          limpiarMensajes()
+          setPanel(null)
           setEditandoId(p.id)
           navegar('/insumos/cambiar')
         }}
         onSeguir={(v) => void alSeguir(p, v)}
-        onEliminar={() => setEliminando(p)}
+        onEliminar={() => {
+          if (guardandoPanel.current) return
+          setEliminando(p)
+        }}
       />
     )
     const botonAnotar = editor && items.length > 0 && (
       <Boton
-        variante={form ? 'secundario' : 'principal'}
+        // A5: con un panel abierto, el macizo es su confirmar, no «Anotar un insumo».
+        variante={form || panel ? 'secundario' : 'principal'}
         icono={<Plus aria-hidden className="size-5" />}
         className="self-start"
         onClick={() => {
-          setAviso(null)
-          setAvisoAlerta(null)
+          if (guardandoPanel.current) return
+          limpiarMensajes()
+          setPanel(null)
           navegar('/insumos/nuevo')
         }}
       >
@@ -400,6 +526,7 @@ export function Insumos() {
         {!ancho && nota}
         {!ancho && botonAnotar}
         {!ancho && aviso && <AvisoOk texto={aviso} />}
+        {!ancho && avisoFalla && <AvisoFalla texto={avisoFalla} />}
 
         <div className={ancho ? 'grid grid-cols-[3fr_2fr] items-start gap-10' : 'flex flex-col gap-5'}>
           <div className="flex min-w-0 flex-col gap-5">
@@ -407,6 +534,7 @@ export function Insumos() {
             {ancho && bloque}
             {ancho && nota}
             {ancho && aviso && <AvisoOk texto={aviso} />}
+            {ancho && avisoFalla && <AvisoFalla texto={avisoFalla} />}
             {items.length === 0 ? (
               <Vacio pila={pila} editor={editor} />
             ) : (
@@ -492,6 +620,15 @@ function AvisoOk({ texto }: { texto: string }) {
   )
 }
 
+/** MATU-51 5.5: el 404 de «Compré» o «Me quedan», en el lugar de `AvisoOk` y con el foco. */
+function AvisoFalla({ texto }: { texto: string }) {
+  return (
+    <div id="aviso-insumos" tabIndex={-1} role="alert" className="max-w-prose outline-none">
+      <MensajeError>{texto}</MensajeError>
+    </div>
+  )
+}
+
 function Vacio({ pila, editor }: { pila: string; editor: boolean }) {
   return (
     <div className="flex flex-col items-start gap-4">
@@ -565,6 +702,10 @@ function Fila({
   elegida,
   ocupado,
   error,
+  hecho,
+  abierto,
+  panel,
+  onAbrir,
   onCambiar,
   onSeguir,
   onEliminar,
@@ -575,12 +716,19 @@ function Fila({
   elegida: boolean
   ocupado: boolean
   error: string | null
+  /** MATU-51: la confirmación de «Compré» o «Me quedan» de esta fila. */
+  hecho: Hecho | null
+  /** El panel abierto en esta fila, que reemplaza el renglón de registro (3.4). */
+  abierto: 'compre' | 'quedan' | null
+  panel: ReactNode
+  onAbrir: (tipo: 'compre' | 'quedan') => void
   onCambiar: () => void
   onSeguir: (v: boolean) => void
   onEliminar: () => void
 }) {
   const nombre = nombreDe(p)
   const idNombre = `nombre-${p.id}`
+  const registro = editor && p.activo
   const forma = p.activo
     ? `bg-hoja ring-inset ${elegida ? 'ring-2 ring-turquesa' : 'ring-1 ring-linea'}`
     : 'bg-papel border-2 border-dashed border-borde'
@@ -607,8 +755,50 @@ function Fila({
         {p.activo ? <LineaDias p={p} /> : <p className="text-base text-tenue">{INSUMOS.sinSeguirLinea}</p>}
       </div>
       {p.activo && <LoAnotado p={p} />}
+      {hecho && (
+        <div id={`hecho-${p.id}`} tabIndex={-1} role="status" className="animate-aparecer flex scroll-mb-28 gap-3 rounded-xl bg-ok-fondo px-4 angosto:px-2 py-3 outline-none">
+          <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-ok angosto:hidden" strokeWidth={3} />
+          <p className="min-w-0 break-words [overflow-wrap:anywhere]">
+            {hecho.texto}
+            {hecho.fecha && (
+              <>
+                {' '}
+                <span className="cifras whitespace-nowrap">{hecho.fecha}.</span>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+      {/* MATU-51 3.1 y 3.7: «Compré» y «Me quedan» solo para admin y cuidador, y solo en lo que se sigue. */}
+      {registro &&
+        (abierto ? (
+          panel
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <Boton
+              id={`compre-${p.id}`}
+              variante="secundario"
+              aria-label={REGISTRO.compreDe(nombre)}
+              aria-expanded={false}
+              aria-controls={`panel-compre-${p.id}`}
+              onClick={() => onAbrir('compre')}
+            >
+              {REGISTRO.compre}
+            </Boton>
+            <Boton
+              id={`quedan-${p.id}`}
+              variante="secundario"
+              aria-label={REGISTRO.meQuedanDe(nombre)}
+              aria-expanded={false}
+              aria-controls={`panel-quedan-${p.id}`}
+              onClick={() => onAbrir('quedan')}
+            >
+              {REGISTRO.meQuedan}
+            </Boton>
+          </div>
+        ))}
       {editor && (
-        <div className="flex flex-wrap items-center gap-4">
+        <div className={`flex flex-wrap items-center gap-4 ${registro ? 'border-t border-linea pt-3' : ''}`}>
           <label className={`inline-flex min-h-12 cursor-pointer items-center gap-3 font-bold ${ocupado ? 'cursor-wait' : ''}`}>
             <input
               id={`seguir-${p.id}`}
@@ -645,6 +835,203 @@ function Fila({
         </Anunciado>
       )}
     </li>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-51 «Compré» y «Me quedan»
+
+/** La confirmación de 5.3 y 8, con los días y la fecha de la respuesta, nunca calculados aquí. */
+function textoHecho(tipo: 'compre' | 'quedan', nombre: string, n: number, envase: number | null, r: PorAcabarse): Hecho {
+  if (tipo === 'quedan' && n === 0) return { texto: REGISTRO.noQueda(nombre), fecha: null }
+  const cant = enPantalla(cantidadEnTexto(n, r.unidad, envase))
+  const base = tipo === 'compre' ? REGISTRO.compraAnotada(nombre, cant) : REGISTRO.quedaAnotado(nombre, cant)
+  const d = r.dias_restantes
+  if (d > 0) return { texto: `${base} ${tipo === 'compre' ? REGISTRO.ahoraAlcanza(d) : REGISTRO.alcanza(d)}`, fecha: fechaCorta(r.fecha_quiebre_estimada) }
+  if (d < 0 && tipo === 'compre') return { texto: `${base} ${REGISTRO.puedeQueNo}`, fecha: null }
+  return { texto: `${base} ${REGISTRO.seAcabaHoy}`, fecha: null }
+}
+
+/** Un error del panel (5.5): con «Ver cómo quedó» después de un 409 o un 412, que lleva el foco a `foco`. */
+type FallaPanel = { texto: string; foco?: string }
+
+/**
+ * El panel de «Compré» o «Me quedan» (3.4 y 3.5), dentro de la fila. «Compré» pregunta en envases,
+ * con 1 por omisión, cuando se sabe cuánto trae cada uno; si no, en la unidad del insumo y vacío.
+ * «Me quedan» siempre en la unidad del insumo, vacío. La cantidad va solo en el cuerpo.
+ */
+function PanelRegistro({
+  tipo,
+  perfil: p,
+  personaId,
+  onCerrar,
+  onOcupado,
+  onHecho,
+  onPermiso,
+  onNoEncontrado,
+  onVerComoQuedo,
+}: {
+  tipo: 'compre' | 'quedan'
+  perfil: Perfil
+  personaId: string
+  onCerrar: () => void
+  onOcupado: (v: boolean) => void
+  onHecho: (r: PorAcabarse, texto: Hecho) => void
+  onPermiso: (c: 'sin-consentimiento' | 'revision-vencida') => void
+  onNoEncontrado: () => void
+  onVerComoQuedo: (foco: string) => void
+}) {
+  const nombre = nombreDe(p)
+  const compre = tipo === 'compre'
+  const envase = compre ? (p.unidades_por_envase ?? null) : null
+  const conEnvase = envase !== null
+  const id = `panel-${tipo}-${p.id}`
+  const campo = `campo-${tipo}-${p.id}`
+  const idFalla = `falla-${tipo}-${p.id}`
+  const sufijoUnidad = INSUMOS.sufijoStock(p.unidad)
+  const [valor, setValor] = useState(conEnvase ? '1' : '')
+  const [errorCampo, setErrorCampo] = useState<string | null>(null)
+  const [falla, setFalla] = useState<FallaPanel | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+
+  // 4: con envase el foco va al panel (no se abre el teclado); si hay que escribir, al campo.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      document.getElementById(conEnvase ? id : campo)?.focus({ preventScroll: true })
+      document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' })
+    }, 40)
+    return () => window.clearTimeout(t)
+  }, [conEnvase, id, campo])
+
+  // Error del panel: el foco al mensaje sin desplazar, y después el panel entero a la vista (4).
+  useEffect(() => {
+    if (!falla) return
+    const t = window.setTimeout(() => {
+      document.getElementById(idFalla)?.focus({ preventScroll: true })
+      document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [falla, id, idFalla])
+
+  const errorDeCampo = (texto: string) => {
+    setErrorCampo(texto)
+    enfocar(campo, 0)
+  }
+
+  /** Validación de la pantalla (5.4): el mismo texto que si lo devolviera la API. */
+  const validar = (n: number | null): string | null => {
+    if (!compre) return n === null ? REGISTRO.errVacioQuedan : n > 100_000 ? REGISTRO.errTopeQuedan : null
+    if (conEnvase) return n === null || n < 1 ? REGISTRO.errVacioEnvases : n > 99 ? REGISTRO.errTopeEnvases : null
+    return n === null || n < 1 ? REGISTRO.errVacio : n > 10_000 ? REGISTRO.errTope : null
+  }
+
+  /** El 422 de la API en el campo de la cantidad, o `null` si va como error del panel. */
+  const leer422 = (errores: { campo: string; tipo: string }[]): string | null => {
+    const campos = compre ? ['envases', 'cantidad'] : ['stock_unidades']
+    for (const e of errores) {
+      if (!campos.includes(e.campo.split('.').pop() ?? e.campo)) continue
+      if (e.tipo === 'cobertura_maxima') return compre ? REGISTRO.errCoberturaCompre : REGISTRO.errCoberturaQuedan
+      if (e.tipo === 'stock_maximo') return REGISTRO.errStockMaximo(sufijoUnidad)
+      if (e.tipo === 'envases_o_cantidad' || e.tipo === 'sin_unidades_por_envase') continue
+      if (e.tipo.startsWith('less')) return !compre ? REGISTRO.errTopeQuedan : conEnvase ? REGISTRO.errTopeEnvases : REGISTRO.errTope
+      return !compre ? REGISTRO.errVacioQuedan : conEnvase ? REGISTRO.errVacioEnvases : REGISTRO.errVacio
+    }
+    return null
+  }
+
+  const enviar = async () => {
+    if (ocupado) return
+    setFalla(null)
+    const n = entero(valor)
+    const mal = validar(n)
+    if (mal) return errorDeCampo(mal)
+    setErrorCampo(null)
+    setOcupado(true)
+    onOcupado(true)
+    try {
+      // Sin interfaz optimista (5.2): la fila no cambia hasta la respuesta.
+      const comprado: LoComprado = conEnvase ? { envases: n! } : { cantidad: n! }
+      const r = compre ? await anotarCompra(personaId, p.id, p.etag, comprado) : await anotarLoQueQueda(personaId, p.id, p.etag, n!)
+      onHecho(r, textoHecho(tipo, nombreDe(r) || nombre, n!, envase, r))
+    } catch (x) {
+      if (esVencida(x)) return
+      const permiso = permisoDe(x)
+      if (permiso) return onPermiso(permiso)
+      const f = leerFallo(x)
+      if (f.status === 404) return onNoEncontrado()
+      if (f.status === 412) {
+        const actual = leerConflictoPerfil(x)
+        return setFalla({ texto: REGISTRO.errConflicto(actual?.actualizado_por?.nombre?.trim() || INSUMOS.otraPersona, actual ? nombreDe(actual) : nombre), foco: `insumo-${p.id}` })
+      }
+      if (f.status === 409 && esTipo(f.tipo, 'perfil-inactivo')) return setFalla({ texto: REGISTRO.errInactivo(nombre), foco: `seguir-${p.id}` })
+      if (f.status === 428) return setFalla({ texto: REGISTRO.errFaltaVersion })
+      if (f.status === 422) {
+        const texto = leer422(f.errores)
+        return texto ? errorDeCampo(texto) : setFalla({ texto: REGISTRO.errOtro422 })
+      }
+      setFalla({ texto: REGISTRO.errRed })
+    } finally {
+      setOcupado(false)
+      onOcupado(false)
+    }
+  }
+
+  const n = entero(valor)
+  return (
+    <div
+      id={id}
+      role="group"
+      aria-labelledby={`${campo}-l`}
+      tabIndex={-1}
+      className="flex scroll-mb-28 flex-col gap-3 border-t border-linea pt-3 outline-none"
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || ocupado) return
+        e.stopPropagation()
+        onCerrar()
+      }}
+    >
+      <form
+        noValidate
+        className="flex flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void enviar()
+        }}
+      >
+        <Stepper
+          id={campo}
+          etiqueta={compre ? (conEnvase ? REGISTRO.preguntaEnvases : REGISTRO.pregunta(p.unidad)) : REGISTRO.preguntaQuedan}
+          ayuda={compre ? REGISTRO.ayudaCompre : REGISTRO.ayudaQuedan}
+          sufijo={conEnvase ? sufijoCantidad(n ?? 0, p.unidad, envase) : sufijoUnidad}
+          valor={valor}
+          onCambio={(v) => {
+            setValor(v)
+            setErrorCampo(null)
+          }}
+          min={compre ? 1 : 0}
+          max={compre ? (conEnvase ? 99 : 10_000) : 100_000}
+          error={errorCampo}
+          soloLectura={ocupado}
+        />
+        <div className="flex flex-wrap gap-3">
+          <Boton type="submit" ocupado={ocupado} textoOcupado={REGISTRO.guardando}>
+            {compre ? REGISTRO.anotarCompra : REGISTRO.anotarQueda}
+          </Boton>
+          <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
+            {REGISTRO.volver}
+          </Boton>
+        </div>
+      </form>
+      {falla && (
+        <div id={idFalla} tabIndex={-1} role="alert" className="flex flex-col items-start gap-3 outline-none">
+          <MensajeError>{falla.texto}</MensajeError>
+          {falla.foco && (
+            <Boton variante="secundario" onClick={() => onVerComoQuedo(falla.foco!)}>
+              {REGISTRO.verComoQuedo}
+            </Boton>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1447,6 +1834,10 @@ function SeAcabanPronto({
   editor,
   personaId,
   confirmacion,
+  abiertoId,
+  onAbrir,
+  onCerrar,
+  onOcupado,
   onReintentar,
   onResuelto,
   onVerComoQuedo,
@@ -1457,82 +1848,16 @@ function SeAcabanPronto({
   editor: boolean
   personaId: string
   confirmacion: string | null
+  /** MATU-51 3.6: el panel abierto lo lleva la pantalla, uno solo entre todos. */
+  abiertoId: string | null
+  onAbrir: (id: string) => void
+  onCerrar: (id: string) => void
+  onOcupado: (v: boolean) => void
   onReintentar: () => void
   onResuelto: (texto: string) => Promise<void>
   onVerComoQuedo: () => void
   onPermiso: (c: 'sin-consentimiento' | 'revision-vencida') => void
 }) {
-  const [abiertoId, setAbiertoId] = useState<string | null>(null)
-  const [valor, setValor] = useState('')
-  const [ocupado, setOcupado] = useState(false)
-  const [falla, setFalla] = useState<ErrorAviso | null>(null)
-
-  const abrir = (id: string) => {
-    if (ocupado) return
-    setAbiertoId(id)
-    setValor('')
-    setFalla(null)
-    enfocar(CANTIDAD_EN_RESOLVER ? `cantidad-${id}` : `confirmar-${id}`)
-  }
-  const cerrar = (id: string) => {
-    if (ocupado) return
-    setAbiertoId(null)
-    setFalla(null)
-    enfocar(`resolver-${id}`)
-  }
-
-  const confirmar = async (a: PorAcabarse) => {
-    if (ocupado) return
-    const nombre = nombreDe(a)
-    const n = CANTIDAD_EN_RESOLVER ? entero(valor) : null
-    const cant = n === null || n === 0 ? null : n
-    if (cant !== null && cant > 9999) {
-      setFalla({ texto: ALERTAS.errCantidad, tipo: 'campo' })
-      return void enfocar(`cantidad-${a.id}`)
-    }
-    setOcupado(true)
-    setFalla(null)
-    try {
-      // Sin interfaz optimista (4.4): el aviso sigue igual hasta la respuesta.
-      const r = await resolverAviso(personaId, a.id, a.etag, cant)
-      const texto =
-        cant === null
-          ? ALERTAS.okSinCantidad(nombre)
-          : r.dias_restantes > 0
-            ? ALERTAS.okCantidad(cantidad(cant, a.unidad), nombre, r.dias_restantes)
-            : ALERTAS.okCantidadSinDias(cantidad(cant, a.unidad), nombre)
-      await onResuelto(texto)
-      setAbiertoId(null)
-    } catch (x) {
-      if (esVencida(x)) return
-      const permiso = permisoDe(x)
-      if (permiso) return onPermiso(permiso)
-      const f = leerFallo(x)
-      const actual = leerConflictoPerfil(x)
-      // 412: otra persona cambió el insumo; no se sumó nada. 428 no debería pasar: cae en el genérico.
-      if (f.status === 412) setFalla({ texto: ALERTAS.errConflicto(actual?.actualizado_por?.nombre?.trim() || INSUMOS.otraPersona, actual ? nombreDe(actual) : nombre), tipo: 'cerrado' })
-      else if (f.status === 409 && esTipo(f.tipo, 'alerta-cerrada')) setFalla({ texto: ALERTAS.errCerrada, tipo: 'cerrado' })
-      else if (f.status === 404 || f.status === 409) setFalla({ texto: ALERTAS.errNoEsta, tipo: 'cerrado' })
-      else if (f.status === 422 && CANTIDAD_EN_RESOLVER) {
-        setFalla({ texto: ALERTAS.errCantidad, tipo: 'campo' })
-        enfocar(`cantidad-${a.id}`)
-      } else setFalla({ texto: ALERTAS.errRed, tipo: 'general' })
-    } finally {
-      setOcupado(false)
-    }
-  }
-
-  // A 360 px el panel con el error no puede quedar bajo la barra fija: se enfoca el aviso y se
-  // desplaza el panel completo (scroll-mb-28 deja el espacio de la barra).
-  useEffect(() => {
-    if (!falla || !abiertoId) return
-    const t = window.setTimeout(() => {
-      if (falla.tipo !== 'campo') document.getElementById(`falla-${abiertoId}`)?.focus({ preventScroll: true })
-      document.getElementById(`panel-${abiertoId}`)?.scrollIntoView({ block: 'nearest' })
-    }, 60)
-    return () => window.clearTimeout(t)
-  }, [falla, abiertoId])
-
   const titulo = !error && avisos.length > 3 ? ALERTAS.tituloCuantos(avisos.length) : ALERTAS.titulo
   const hayBloque = error || avisos.length > 0
 
@@ -1565,7 +1890,6 @@ function SeAcabanPronto({
                 {avisos.map((a) => {
                   const nombre = nombreDe(a)
                   const abierto = abiertoId === a.id
-                  const panel = `panel-${a.id}`
                   return (
                     <li key={a.id} className="flex flex-col rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea">
                       <div className="flex flex-col gap-2 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-center @3xl/main:justify-between @3xl/main:gap-x-6">
@@ -1577,79 +1901,184 @@ function SeAcabanPronto({
                             variante="secundario"
                             aria-label={ALERTAS.botonDe(nombre)}
                             aria-expanded={false}
-                            aria-controls={panel}
+                            aria-controls={`panel-${a.id}`}
                             className="self-end @3xl/main:ms-auto @3xl/main:self-auto"
-                            onClick={() => abrir(a.id)}
+                            onClick={() => onAbrir(a.id)}
                           >
                             {ALERTAS.boton}
                           </Boton>
                         )}
                       </div>
                       {editor && abierto && (
-                        <div
-                          id={panel}
-                          className="mt-3 flex scroll-mb-28 flex-col gap-3 border-t border-linea pt-3"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              e.stopPropagation()
-                              cerrar(a.id)
-                            }
-                          }}
-                        >
-                          <div className="flex flex-col gap-3 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-end @3xl/main:gap-4">
-                            {CANTIDAD_EN_RESOLVER && (
-                              <Stepper
-                                id={`cantidad-${a.id}`}
-                                etiqueta={ALERTAS.pregunta(a.unidad)}
-                                ayuda={ALERTAS.ayuda}
-                                sufijo={a.unidad === 'sobre' ? 'sobres' : a.unidad === 'unidad' ? undefined : a.unidad}
-                                valor={valor}
-                                onCambio={(v) => {
-                                  setValor(v)
-                                  if (falla?.tipo === 'campo') setFalla(null)
-                                }}
-                                min={1}
-                                max={9999}
-                                error={falla?.tipo === 'campo' ? falla.texto : null}
-                              />
-                            )}
-                            <div className="flex flex-wrap gap-3">
-                              <Boton id={`confirmar-${a.id}`} aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar(a)}>
-                                {ALERTAS.boton}
-                              </Boton>
-                              <Boton variante="secundario" disabled={ocupado} onClick={() => cerrar(a.id)}>
-                                {ALERTAS.volver}
-                              </Boton>
-                            </div>
-                          </div>
-                          {falla && falla.tipo !== 'campo' && (
-                            <div id={`falla-${a.id}`} tabIndex={-1} role="alert" className="flex flex-col items-start gap-3 outline-none">
-                              <MensajeError>{falla.texto}</MensajeError>
-                              {falla.tipo === 'cerrado' && (
-                                <Boton
-                                  variante="secundario"
-                                  onClick={() => {
-                                    setAbiertoId(null)
-                                    setFalla(null)
-                                    onVerComoQuedo()
-                                  }}
-                                >
-                                  {ALERTAS.verComoQuedo}
-                                </Boton>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                        <PanelResolver
+                          key={a.id}
+                          a={a}
+                          personaId={personaId}
+                          onCerrar={() => onCerrar(a.id)}
+                          onOcupado={onOcupado}
+                          onResuelto={onResuelto}
+                          onVerComoQuedo={onVerComoQuedo}
+                          onPermiso={onPermiso}
+                        />
                       )}
                     </li>
                   )
                 })}
               </ul>
-              <p className="max-w-prose text-base text-tenue">{ALERTAS.nota}</p>
+              <p className="max-w-prose text-base text-tenue">{editor ? ALERTAS.nota : ALERTAS.notaLector}</p>
             </>
           )}
         </section>
       )}
     </>
+  )
+}
+
+/**
+ * El panel de «Ya lo resolví» (MATU-37 3.5, con MATU-51 3.8). Con envase conocido pregunta en
+ * envases, con 1 por omisión y de 0 a 99, y el foco va al panel sin abrir el teclado. Sin envase,
+ * en la unidad del insumo, vacío y con el foco en el campo. 0 o vacío es «no compré»: va sin cuerpo,
+ * porque `cantidad: 0` y `envases: 0` responden 422 (decisión 147).
+ */
+function PanelResolver({
+  a,
+  personaId,
+  onCerrar,
+  onOcupado,
+  onResuelto,
+  onVerComoQuedo,
+  onPermiso,
+}: {
+  a: PorAcabarse
+  personaId: string
+  onCerrar: () => void
+  onOcupado: (v: boolean) => void
+  onResuelto: (texto: string) => Promise<void>
+  onVerComoQuedo: () => void
+  onPermiso: (c: 'sin-consentimiento' | 'revision-vencida') => void
+}) {
+  const nombre = nombreDe(a)
+  const envase = a.unidades_por_envase ?? null
+  const conEnvase = envase !== null
+  const panel = `panel-${a.id}`
+  const campo = `cantidad-${a.id}`
+  const [valor, setValor] = useState(conEnvase ? '1' : '')
+  const [ocupado, setOcupado] = useState(false)
+  const [falla, setFalla] = useState<ErrorAviso | null>(null)
+  const errCantidad = conEnvase ? ALERTAS.errCantidadEnvases : ALERTAS.errCantidad
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
+      document.getElementById(panel)?.scrollIntoView?.({ block: 'nearest' })
+    }, 40)
+    return () => window.clearTimeout(t)
+  }, [conEnvase, panel, campo])
+
+  // A 360 px el panel con el error no puede quedar bajo la barra fija: se enfoca el aviso y se
+  // desplaza el panel completo (scroll-mb-28 deja el espacio de la barra).
+  useEffect(() => {
+    if (!falla) return
+    const t = window.setTimeout(() => {
+      if (falla.tipo !== 'campo') document.getElementById(`falla-${a.id}`)?.focus({ preventScroll: true })
+      document.getElementById(panel)?.scrollIntoView?.({ block: 'nearest' })
+    }, 60)
+    return () => window.clearTimeout(t)
+  }, [falla, a.id, panel])
+
+  const errorDeCampo = (texto: string) => {
+    setFalla({ texto, tipo: 'campo' })
+    enfocar(campo)
+  }
+
+  const confirmar = async () => {
+    if (ocupado) return
+    const n = entero(valor)
+    const cant = n === null || n === 0 ? null : n
+    if (cant !== null && cant > (conEnvase ? 99 : 10_000)) return errorDeCampo(errCantidad)
+    const comprado: LoComprado | null = cant === null ? null : conEnvase ? { envases: cant } : { cantidad: cant }
+    setOcupado(true)
+    onOcupado(true)
+    setFalla(null)
+    try {
+      // Sin interfaz optimista (4.4): el aviso sigue igual hasta la respuesta.
+      const r = await resolverAviso(personaId, a.id, a.etag, comprado)
+      const c = cant === null ? null : enPantalla(cantidadEnTexto(cant, a.unidad, envase))
+      const texto = c === null ? ALERTAS.okSinCantidad(nombre) : r.dias_restantes > 0 ? ALERTAS.okCantidad(c, nombre, r.dias_restantes) : ALERTAS.okCantidadSinDias(c, nombre)
+      await onResuelto(texto)
+    } catch (x) {
+      if (esVencida(x)) return
+      const permiso = permisoDe(x)
+      if (permiso) return onPermiso(permiso)
+      const f = leerFallo(x)
+      const actual = leerConflictoPerfil(x)
+      // 412: otra persona cambió el insumo; no se sumó nada. 428 no debería pasar: cae en el genérico.
+      if (f.status === 412) setFalla({ texto: ALERTAS.errConflicto(actual?.actualizado_por?.nombre?.trim() || INSUMOS.otraPersona, actual ? nombreDe(actual) : nombre), tipo: 'cerrado' })
+      else if (f.status === 409 && esTipo(f.tipo, 'alerta-cerrada')) setFalla({ texto: ALERTAS.errCerrada, tipo: 'cerrado' })
+      else if (f.status === 404 || f.status === 409) setFalla({ texto: ALERTAS.errNoEsta, tipo: 'cerrado' })
+      else if (f.status === 422) {
+        // MATU-51 3.8: los topes que solo sabe la API llevan el texto de «Compré».
+        const tipos = f.errores.map((e) => e.tipo)
+        errorDeCampo(
+          tipos.includes('stock_maximo') ? REGISTRO.errStockMaximo(INSUMOS.sufijoStock(a.unidad)) : tipos.includes('cobertura_maxima') ? REGISTRO.errCoberturaCompre : errCantidad,
+        )
+      } else setFalla({ texto: ALERTAS.errRed, tipo: 'general' })
+    } finally {
+      setOcupado(false)
+      onOcupado(false)
+    }
+  }
+
+  const n = entero(valor)
+  return (
+    <div
+      id={panel}
+      role="group"
+      aria-labelledby={`${campo}-l`}
+      tabIndex={-1}
+      className="mt-3 flex scroll-mb-28 flex-col gap-3 border-t border-linea pt-3 outline-none"
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || ocupado) return
+        e.stopPropagation()
+        onCerrar()
+      }}
+    >
+      <div className="flex flex-col gap-3 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-end @3xl/main:gap-4">
+        <Stepper
+          id={campo}
+          etiqueta={conEnvase ? ALERTAS.preguntaEnvases : ALERTAS.pregunta(a.unidad)}
+          ayuda={conEnvase ? ALERTAS.ayudaEnvases : ALERTAS.ayuda}
+          sufijo={conEnvase ? sufijoCantidad(n ?? 0, a.unidad, envase) : a.unidad === 'sobre' ? 'sobres' : a.unidad === 'unidad' ? undefined : a.unidad}
+          valor={valor}
+          onCambio={(v) => {
+            setValor(v)
+            if (falla?.tipo === 'campo') setFalla(null)
+          }}
+          // 3.8: con envase el − baja hasta 0, que es «no compré» (aprobado por Jorge).
+          min={conEnvase ? 0 : 1}
+          max={conEnvase ? 99 : 10_000}
+          error={falla?.tipo === 'campo' ? falla.texto : null}
+          soloLectura={ocupado}
+        />
+        <div className="flex flex-wrap gap-3">
+          <Boton id={`confirmar-${a.id}`} className="angosto:px-0.5!" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
+            {ALERTAS.boton}
+          </Boton>
+          <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
+            {ALERTAS.volver}
+          </Boton>
+        </div>
+      </div>
+      {falla && falla.tipo !== 'campo' && (
+        <div id={`falla-${a.id}`} tabIndex={-1} role="alert" className="flex flex-col items-start gap-3 outline-none">
+          <MensajeError>{falla.texto}</MensajeError>
+          {falla.tipo === 'cerrado' && (
+            <Boton variante="secundario" onClick={onVerComoQuedo}>
+              {ALERTAS.verComoQuedo}
+            </Boton>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

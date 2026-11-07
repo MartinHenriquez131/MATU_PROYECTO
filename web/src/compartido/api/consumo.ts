@@ -71,13 +71,17 @@ export async function listarAlertas(personaId: string): Promise<S['ListaAlertas'
   return (await apiFamilia.get<S['ListaAlertas']>(`${base(personaId)}/alertas`)).data
 }
 
+/** Lo comprado: exactamente uno de `envases` (1 a 99) o `cantidad` (1 a 10.000), decisiones 137 y 147. */
+export type LoComprado = { envases: number } | { cantidad: number }
+
 /**
- * «Ya lo resolví» por perfil (decisión 76): cierra el aviso de la fecha estimada actual aunque la
- * alerta aún no exista. Sin `cantidad` solo descarta; con `cantidad` hoy el backend responde 422
- * `cantidad_no_disponible`, por eso la pantalla no la manda mientras su bandera esté apagada.
+ * «Ya lo resolví» por perfil (decisiones 76 y 147): cierra el aviso de la fecha estimada actual
+ * aunque la alerta aún no exista. Sin lo comprado (`null`) va sin cuerpo y solo descarta: «no
+ * compré» nunca es `cantidad: 0` ni `envases: 0`, que responden 422. Con lo comprado, el backend lo
+ * suma a lo que estima que queda hoy y devuelve el insumo recalculado.
  */
-export async function resolverAviso(personaId: string, perfilId: string, etag: string, cantidad: number | null): Promise<PorAcabarse> {
-  const cuerpo = cantidad === null ? undefined : { cantidad }
+export async function resolverAviso(personaId: string, perfilId: string, etag: string, comprado: LoComprado | null): Promise<PorAcabarse> {
+  const cuerpo = comprado ?? undefined
   // Siempre condicional (decisión 80): el `etag` del ítem de `por-acabarse`, tal cual. Un 412 no suma nada.
   return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/resolver`, cuerpo, { headers: { 'If-Match': etag } })).data
 }
@@ -99,4 +103,22 @@ export type LineaListaInsumos = S['LineaListaInsumos']
  */
 export async function verListaInsumos(personaId: string): Promise<ListaInsumos> {
   return (await apiFamilia.get<ListaInsumos>(`${base(personaId)}/lista`)).data
+}
+
+// ---------------------------------------------------------------- MATU-51: «Compré» y «Me quedan»
+
+/**
+ * «Compré» (`POST …/{perfil_id}/reponer`, decisiones 136 a 141): suma lo comprado a lo que MATU
+ * estima que queda hoy. Siempre con `If-Match` (412 sin sumar nada, 428 sin él). La cantidad va solo
+ * en el cuerpo, nunca una fecha: la pone el servidor.
+ */
+export async function anotarCompra(personaId: string, perfilId: string, etag: string, comprado: LoComprado): Promise<PorAcabarse> {
+  const cuerpo: S['SolicitudReposicion'] = comprado
+  return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/reponer`, cuerpo, { headers: { 'If-Match': etag } })).data
+}
+
+/** «Me quedan» (`POST …/{perfil_id}/recontar`, decisión 139): lo que queda hoy, de 0 a 100.000, con `If-Match`. */
+export async function anotarLoQueQueda(personaId: string, perfilId: string, etag: string, quedan: number): Promise<PorAcabarse> {
+  const cuerpo: S['SolicitudRecuento'] = { stock_unidades: quedan }
+  return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/recontar`, cuerpo, { headers: { 'If-Match': etag } })).data
 }

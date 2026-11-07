@@ -754,3 +754,34 @@ def test_0016_retiro_con_motivo_y_baja_al_esquema_de_0015(base_desechable):
     for parte, filas in esquema_0015.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0017 (MATU-51): la conservación de las compras declaradas a los 90 días
+
+
+@pytest.mark.rf("RF-11")
+def test_0017_conservar_compras_y_baja_al_esquema_de_0016(base_desechable):
+    alembic("upgrade", "0016")
+    esquema_0016 = catalogo()
+
+    alembic("upgrade", "0017")
+    [(definer, acl, resultado)] = consultar(
+        "SELECT prosecdef, proacl::text, pg_get_function_result(oid) FROM pg_proc WHERE proname = 'quiebre_conservar'")
+    entradas = acl.strip("{}").split(",")
+    assert definer and "matu_app=X/matu_owner" in entradas and not any(e.startswith("=") for e in entradas)
+    assert "reposiciones integer" in resultado
+    [(cuerpo,)] = consultar("SELECT prosrc FROM pg_proc WHERE proname = 'quiebre_conservar'")
+    assert "origen = 'declarada'" in cuerpo and "registrada_en <= limite_alertas" in cuerpo
+    assert "fallido_en" in cuerpo and "evento_consumido" in cuerpo  # lo de la 0014 sigue
+    politicas = dict(consultar("SELECT policyname, cmd || ' ' || roles::text FROM pg_policies"
+                               " WHERE tablename = 'reposicion'"))
+    assert politicas["reposicion_conservacion"] == "SELECT {matu_owner}"
+    assert politicas["reposicion_conservacion_borrar"] == "DELETE {matu_owner}"
+    # Lo de la familia y del sistema no cambia (decisión C: reposicion_pedido igual)
+    assert {politicas[p] for p in ("reposicion_declarar", "reposicion_pedido")} == {"INSERT {public}"}
+
+    alembic("downgrade", "0016")
+    despues = catalogo()
+    for parte, filas in esquema_0016.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")

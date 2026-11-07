@@ -157,6 +157,10 @@ class RepositorioAlertas(Protocol):
         """Una reposicion origen 'declarada', registrada_por = usuario_id (decisión 79)."""
         ...
 
+    def abiertas_del_perfil(self, perfil_id: uuid.UUID) -> list[AlertaLeida]:
+        """Las alertas pendiente y notificada del perfil, bloqueadas (FOR UPDATE), por fecha y id (MATU-51)."""
+        ...
+
 
 @dataclass(frozen=True)
 class InsumoDelTrabajo:
@@ -192,8 +196,10 @@ class RepositorioQuiebres(Protocol):
 
 
 class ConservacionQuiebres(Protocol):
-    """Llama a quiebre_conservar (migración 0011) con app.rol = 'operacion'."""
+    """Llama a quiebre_conservar (migraciones 0011, 0014 y 0017) con app.rol = 'operacion'."""
 
-    def conservar(self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime) -> tuple[int, int, int]:
-        """(alertas, eventos, notificaciones) borrados."""
+    def conservar(
+        self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime
+    ) -> tuple[int, int, int, int]:
+        """(alertas, eventos, notificaciones, reposiciones declaradas) borrados (decisión 145)."""
         ...

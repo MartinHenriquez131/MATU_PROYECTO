@@ -89,6 +89,14 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'lista-permiso-observador@example.com', que: 'Lista de insumos: observador sin el permiso (403 sin-consentimiento): «Falta el permiso…»' },
   { email: 'lista-renovar@example.com', que: 'Lista de insumos: 403 revision-vencida («Hay que renovar…»)' },
   { email: 'lista-error@example.com', que: 'Lista de insumos: la lista responde 500 («No pudimos traer la lista…» y «Volver a intentar»)' },
+  // MATU-51: «Compré» y «Me quedan» en cada insumo (/insumos)
+  { email: 'compre@example.com', que: 'Compré y Me quedan: admin. Pañal con envases de 20 en «Se acaban pronto» (comprar 2 lo saca del bloque), toallitas sin envase también en el bloque, champú en sobres, crema en ml con envases de 250 ml, agua en ml que con 1 bidón pasa de 100.000 ml (422 stock_maximo), bolsas que con 1.000 más alcanzan para más de 10 años (422 cobertura_maxima), un nombre de 60 caracteres con envases de 10.000 y uno sin seguir' },
+  { email: 'compre-cuidador@example.com', que: 'Compré y Me quedan: cuidador, la misma lista' },
+  { email: 'compre-pagador@example.com', que: 'Compré y Me quedan: pagador, la misma lista sin los botones' },
+  { email: 'compre-observador@example.com', que: 'Compré y Me quedan: observador, la misma lista sin los botones' },
+  { email: 'compre-defectos@example.com', que: 'Compré y Me quedan: el pañal responde 412 una vez (Rodrigo lo cambió), las toallitas 409 perfil-inactivo («Ver cómo quedó» la deja en «Sin seguir»), el champú 404 (ya no está) y la crema 500. El agua y las bolsas dan los 422 de la cuenta compre@' },
+  { email: 'compre-renovar@example.com', que: 'Compré y Me quedan: la primera anotación responde 403 revision-vencida («Hay que renovar…»)' },
+  { email: 'compre-lento@example.com', que: 'Compré y Me quedan: cada respuesta tarda 2 segundos («Guardando…» y la fila sin cambios hasta la respuesta)' },
   // MATU-57: recuperar el acceso y confirmar el celular. Los códigos solo se ven en la consola del doble.
   { email: 'celular-verificado@example.com', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
   { email: 'celular-sin-verificar@example.com', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },

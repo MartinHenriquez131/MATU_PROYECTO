@@ -60,6 +60,12 @@ _DECLARAR = text(
     " VALUES (:id, :perfil_id, :cantidad, 'declarada', :ocurrida_en, :usuario_id)"
 )
 
+_ABIERTAS_DEL_PERFIL = text(
+    "SELECT " + _ALERTA + " FROM alerta_quiebre a JOIN perfil_consumo p ON p.id = a.perfil_id"
+    " WHERE p.grupo_id = :grupo_id AND a.perfil_id = :perfil_id AND a.estado IN ('pendiente', 'notificada')"
+    " ORDER BY a.fecha_prevista, a.id FOR UPDATE OF a"
+)
+
 _UNA = text("SELECT " + _ALERTA + " FROM alerta_quiebre a WHERE a.id = :id")
 
 
@@ -161,3 +167,7 @@ class RepositorioAlertasSQL:
                 "usuario_id": usuario_id,
             },
         )
+
+    def abiertas_del_perfil(self, perfil_id: uuid.UUID) -> list[AlertaLeida]:
+        filas = self._sesion.execute(_ABIERTAS_DEL_PERFIL, {"grupo_id": self._grupo_id, "perfil_id": perfil_id}).all()
+        return [alerta_leida(f) for f in filas]

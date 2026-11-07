@@ -143,6 +143,8 @@ describe('El observador', () => {
     const { pantalla } = abrir('observador')
     expect(await pantalla.findByText('6 envases de 20 unidades')).toBeVisible()
     expect(pantalla.getByText('1 envase de 250 ml')).toBeVisible()
+    // En pantalla, espacio duro tras cada cifra; la lista que se copia o comparte (TEXTO_200) no lo lleva.
+    expect(pantalla.getByText('6 envases de 20 unidades').textContent).toBe('6 envases de 20 unidades')
     expect(pantalla.getByText('Lo que se acaba pronto, con una cantidad sugerida para 30 días.')).toBeVisible()
     expect(pantalla.getByText('Es una sugerencia con lo que anotó la familia, y ya descuenta lo que queda.')).toBeVisible()
     expect(pantalla.getByText('Quien administra, cuida o paga puede imprimirla o compartirla.')).toBeVisible()

@@ -25,17 +25,22 @@ def conservar(*, unidad: ConservacionConsumo, reloj: Reloj) -> ResultadoConserva
 
 @dataclass(frozen=True)
 class ResultadoConservacionQuiebres:
-    """MATU-37, decisión 77: alertas cerradas y notificaciones a los 90 días, eventos publicados a los 30."""
+    """MATU-37, decisión 77: alertas cerradas y notificaciones a los 90 días, eventos publicados a los 30.
+    MATU-51, decisión 145: las compras declaradas a los 90 días de registrada_en."""
 
     alertas_borradas: int
     eventos_borrados: int
     notificaciones_borradas: int
+    reposiciones_borradas: int = 0
 
 
 def conservar_quiebres(*, unidad: ConservacionQuiebres, reloj: Reloj) -> ResultadoConservacionQuiebres:
     ahora = reloj.ahora()
     limite_alertas, limite_eventos = limites_conservacion(ahora)
-    alertas, eventos, notificaciones = unidad.conservar(limite_alertas, limite_eventos, ahora)
+    alertas, eventos, notificaciones, reposiciones = unidad.conservar(limite_alertas, limite_eventos, ahora)
     return ResultadoConservacionQuiebres(
-        alertas_borradas=alertas, eventos_borrados=eventos, notificaciones_borradas=notificaciones
+        alertas_borradas=alertas,
+        eventos_borrados=eventos,
+        notificaciones_borradas=notificaciones,
+        reposiciones_borradas=reposiciones,
     )
