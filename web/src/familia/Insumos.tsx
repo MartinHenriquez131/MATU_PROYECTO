@@ -3,7 +3,7 @@
 // `If-Match`, el conflicto 412 a la vista y el diálogo de eliminar. Sin interfaz optimista: la
 // lista cambia solo con la respuesta de la API. Nada se guarda en el navegador ni en la URL.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2 } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizarConsumo,
@@ -34,7 +34,7 @@ import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, use
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
 import { miles, sufijoCantidad } from './textoLista'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
-import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
+import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
 
@@ -737,36 +737,16 @@ export function Permiso({
         />
       )}
       {calidad === 'cuidador_de_hecho' && (
-        <section aria-labelledby="aviso-consumo-t" className="border-l-4 border-atenta bg-atenta-fondo">
-          <h2 id="aviso-consumo-t" className="flex items-start gap-2 px-5 angosto:px-2 pt-4 text-lg font-bold">
-            <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
-            {AVISO_CUIDADOR.titulo}
-          </h2>
-          <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
-            {AVISO_CUIDADOR.parrafos.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
-            <input
-              type="checkbox"
-              checked={leido}
-              aria-invalid={error === 'leido' ? true : undefined}
-              aria-describedby={error === 'leido' ? 'leido-consumo-e' : undefined}
-              onChange={(e) => {
-                setLeido(e.target.checked)
-                setError(null)
-              }}
-              className="size-5 shrink-0 accent-turquesa"
-            />
-            {AUTORIZACION.leido}
-          </label>
-          {error === 'leido' && (
-            <div className="px-5 angosto:px-2 pb-3">
-              <MensajeError id="leido-consumo-e">{AUTORIZACION.errLeido}</MensajeError>
-            </div>
-          )}
-        </section>
+        <AvisoCuidadorDeHecho
+          idTitulo="aviso-consumo-t"
+          idError="leido-consumo-e"
+          leido={leido}
+          error={error === 'leido'}
+          onLeido={(v) => {
+            setLeido(v)
+            setError(null)
+          }}
+        />
       )}
       {calidad && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras}>

@@ -533,6 +533,10 @@ describe('Volver a autorizar', () => {
     abrirAutorizar('ficha', vista('plan_cuidado', 'borrada', BORRADA), () => ({ status: 201, cuerpo: {} }))
     expect(screen.getByText('Lo escrito antes se borró el 29/09/2026. La ficha empieza en blanco.')).toBeVisible()
     await userEvent.click(screen.getByRole('radio', { name: /Cuido a esta persona/ }))
+    // Revisión del 07-11 (P2): en modo angosto el ícono del aviso va en la línea del título.
+    const aviso = screen.getByRole('heading', { level: 2, name: 'Aviso: tu autorización tiene un límite' })
+    expect(aviso).toHaveClass('angosto:block')
+    expect(aviso.querySelector('svg')).toHaveClass('angosto:inline')
     await userEvent.click(screen.getByRole('checkbox', { name: 'Leí el aviso y lo acepto' }))
     await userEvent.click(screen.getByRole('button', { name: 'Acepto y vuelvo a autorizar' }))
     await waitFor(() => expect(window.location.pathname).toBe('/grupo'))

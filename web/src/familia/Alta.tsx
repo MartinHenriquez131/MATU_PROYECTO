@@ -4,7 +4,7 @@
 // celular obligatorio, «correo» en vez de «email» y «autorización» en vez de «permiso».
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { Check, Eye, EyeOff, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Check, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { esperaDe, leerFallo } from '../compartido/api/cliente'
 import { crearCuenta, crearGrupo, nombrePilaDe, registrarPersona, type Calidad, type SolicitudPersona } from '../compartido/api/familia'
 import { entrar, esVencida, fijarGrupo } from '../compartido/api/sesion'
@@ -13,7 +13,7 @@ import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
 import { navegar, type Ruta } from './ruteo'
-import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
+import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 import { AUTORIZACION, CUENTA, ENTRAR, ESPERA_CONEXION, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
 
 // ---------------------------------------------------------------- marco
@@ -594,36 +594,16 @@ export function DeclaracionFicha({ pila, d }: { pila: string; d: ReturnType<type
       )}
 
       {calidad === 'cuidador_de_hecho' && (
-        <section aria-labelledby="aviso-t" className="border-l-4 border-atenta bg-atenta-fondo">
-          <h2 id="aviso-t" className="flex items-start gap-2 px-5 angosto:px-2 pt-4 text-lg font-bold">
-            <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
-            {AVISO_CUIDADOR.titulo}
-          </h2>
-          <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
-            {AVISO_CUIDADOR.parrafos.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
-            <input
-              type="checkbox"
-              checked={leido}
-              aria-invalid={error === 'leido' ? true : undefined}
-              aria-describedby={error === 'leido' ? 'leido-e' : undefined}
-              onChange={(e) => {
-                setLeido(e.target.checked)
-                setError(null)
-              }}
-              className="size-5 shrink-0 accent-turquesa"
-            />
-            {AUTORIZACION.leido}
-          </label>
-          {error === 'leido' && (
-            <div className="px-5 angosto:px-2 pb-3">
-              <MensajeError id="leido-e">{AUTORIZACION.errLeido}</MensajeError>
-            </div>
-          )}
-        </section>
+        <AvisoCuidadorDeHecho
+          idTitulo="aviso-t"
+          idError="leido-e"
+          leido={leido}
+          error={error === 'leido'}
+          onLeido={(v) => {
+            setLeido(v)
+            setError(null)
+          }}
+        />
       )}
 
       {elegida && (

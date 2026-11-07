@@ -4,8 +4,8 @@
 import { useId, useRef, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
-import { CAMPOS } from './datos'
-import { FICHA } from './textos'
+import { AVISO_CUIDADOR, CAMPOS } from './datos'
+import { AUTORIZACION, FICHA } from './textos'
 import { navegar, type Ruta } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
@@ -188,6 +188,56 @@ export function GrupoOpciones<T extends string>({
       {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
       {children}
     </fieldset>
+  )
+}
+
+/**
+ * El aviso `aviso_cuidador_de_hecho` con su casilla, el mismo en la autorización de la ficha (alta y
+ * MATU-44 5.1) y en el permiso de los insumos (MATU-36 3.1). En modo angosto el ícono va en la
+ * primera línea del título, como en `MensajeError`: a 320 px con el texto al 200 % el título se
+ * salía 2 px (revisión de MATU-44 del 07-11).
+ */
+export function AvisoCuidadorDeHecho({
+  idTitulo,
+  idError,
+  leido,
+  error,
+  onLeido,
+}: {
+  idTitulo: string
+  idError: string
+  leido: boolean
+  error: boolean
+  onLeido: (leido: boolean) => void
+}) {
+  return (
+    <section aria-labelledby={idTitulo} className="border-l-4 border-atenta bg-atenta-fondo">
+      <h2 id={idTitulo} className="flex items-start gap-2 angosto:block px-5 angosto:px-2 pt-4 text-lg font-bold">
+        <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta angosto:mt-0 angosto:mr-1.5 angosto:inline angosto:align-middle" />
+        <span className="min-w-0">{AVISO_CUIDADOR.titulo}</span>
+      </h2>
+      <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
+        {AVISO_CUIDADOR.parrafos.map((p) => (
+          <p key={p.slice(0, 24)}>{p}</p>
+        ))}
+      </div>
+      <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
+        <input
+          type="checkbox"
+          checked={leido}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? idError : undefined}
+          onChange={(e) => onLeido(e.target.checked)}
+          className="size-5 shrink-0 accent-turquesa"
+        />
+        {AUTORIZACION.leido}
+      </label>
+      {error && (
+        <div className="px-5 angosto:px-2 pb-3">
+          <MensajeError id={idError}>{AUTORIZACION.errLeido}</MensajeError>
+        </div>
+      )}
+    </section>
   )
 }
 
