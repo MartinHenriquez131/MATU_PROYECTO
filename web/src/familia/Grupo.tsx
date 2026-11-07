@@ -368,6 +368,7 @@ function DialogoRetirar({
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titulo = useRef<HTMLHeadingElement>(null)
+  const confirmar = useRef<HTMLButtonElement>(null)
   const uid = useId()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState(false)
@@ -384,7 +385,9 @@ function DialogoRetirar({
     titulo.current?.focus()
   }, [])
 
+  /** Cerrar a propósito: primero se marca que ya no hay petición en curso (ver `onClose`). */
   const cerrar = () => {
+    enCurso.current = false
     if (ref.current?.open) ref.current.close()
   }
 
@@ -448,6 +451,14 @@ function DialogoRetirar({
         e.preventDefault()
         cancelar()
       }}
+      // 4.4 (revisión del 07-11): Chrome deja anular solo un `cancel` por cada toque, y un segundo
+      // Esc cierra el diálogo igual. Con la petición en curso se vuelve a abrir y el foco vuelve al
+      // botón: si no, un error de red quedaría en un diálogo cerrado.
+      onClose={() => {
+        if (!enCurso.current || !ref.current || ref.current.open) return
+        ref.current.showModal()
+        confirmar.current?.focus()
+      }}
       className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
     >
       <div className="flex flex-col gap-4">
@@ -467,7 +478,7 @@ function DialogoRetirar({
           {error && <MensajeError>{T.errRetirar}</MensajeError>}
         </div>
         <Acciones>
-          <Boton variante="peligroPrincipal" ocupado={ocupado} textoOcupado={T.retirando} onClick={() => void retirar()}>
+          <Boton ref={confirmar} variante="peligroPrincipal" ocupado={ocupado} textoOcupado={T.retirando} onClick={() => void retirar()}>
             {T.retirar}
           </Boton>
           <button

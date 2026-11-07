@@ -32,8 +32,11 @@ beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
     this.setAttribute('open', '')
   }
+  // Como el navegador: `close` cierra y avisa con el evento `close`.
   HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return
     this.removeAttribute('open')
+    this.dispatchEvent(new Event('close'))
   }
 })
 
@@ -313,6 +316,14 @@ describe('La confirmación de retirar', () => {
     fireEvent(d, new Event('cancel', { cancelable: true }))
     expect(d).toHaveAttribute('open')
     expect(pedidas.filter((p) => p.linea.endsWith('/retiro'))).toHaveLength(1)
+
+    // Revisión del 07-11 (P2): un segundo Esc en Chrome cierra el diálogo aunque el primero se anuló.
+    // Con la petición en curso, vuelve a abrirse con el foco en el botón.
+    noRetirar.focus()
+    d.removeAttribute('open')
+    fireEvent(d, new Event('close'))
+    expect(d).toHaveAttribute('open')
+    expect(confirmar).toHaveFocus()
 
     await act(async () =>
       respuesta.soltar({ status: 200, cuerpo: { autorizacion: { ...vista('plan_cuidado', 'retirada', RETIRADA), calidad_otorgante: 'titular' }, enlaces_cortados: 3 } }),
