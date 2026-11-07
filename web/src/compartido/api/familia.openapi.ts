@@ -392,10 +392,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** El estado de las dos autorizaciones de la persona */
+        get: operations["estado_v1_personas_cuidadas__persona_id__consentimientos_get"];
+        put?: never;
+        /** Dar la autorización para calcular los insumos o para usar la ficha */
+        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         get?: never;
         put?: never;
-        /** Dar la autorización para calcular cuándo se acaban los insumos */
-        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        /** Retirar la autorización de una finalidad y cortar lo que depende de ella */
+        post: operations["retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -414,6 +432,26 @@ export interface paths {
          * @description Los perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso (hoy en America/Santiago con el Reloj), incluidos los ya pasados. Por fecha estimada y después por id, sin paginar. Sale de perfil_consumo, no de alerta_quiebre (decisión 53). Cada ítem trae avisando y alerta_id (decisión 74)
          */
         get: operations["por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/lista": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista de insumos
+         * @description Lo que se acaba pronto, con una cantidad sugerida para 30 días (MATU-60, RF-15, ADR-031). Entra cada insumo de «Se acaban pronto» con avisando = true, calculado al momento: activo, en su ventana y sin una alerta resuelta ni descartada para su fecha estimada actual (decisión 117). La cantidad es lo que falta para 30 días, descontando lo que MATU estima que queda hoy, al menos 1, y en envases enteros si el perfil tiene unidades_por_envase (decisiones 119 a 121). Orden: fecha estimada, nombre sin tildes, nombre y perfil_id. Sin el nombre de la persona, la ficha ni acciones. Leen los cuatro roles. No se audita y no crea ni cierra alertas. No hay exportación ni enlace (decisión 122)
+         */
+        get: operations["ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -853,6 +891,74 @@ export interface components {
             aviso: components["schemas"]["AvisoVista"] | null;
         };
         /**
+         * AutorizacionVista
+         * @description El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la
+         *     versión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``
+         *     salen de aquí.
+         */
+        AutorizacionVista: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"] | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+        };
+        /**
+         * AutorizacionVistaResumen
+         * @description Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del
+         *     otorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2).
+         */
+        AutorizacionVistaResumen: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+        };
+        /**
+         * AutorizacionesPersona
+         * @description Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador.
+         */
+        AutorizacionesPersona: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVista"][];
+        };
+        /**
+         * AutorizacionesPersonaResumen
+         * @description Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador.
+         */
+        AutorizacionesPersonaResumen: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVistaResumen"][];
+        };
+        /**
          * AvisoMostradoEntrada
          * @description El aviso que se mostró al elegir la calidad: solo su identificador y su versión.
          */
@@ -1096,6 +1202,11 @@ export interface components {
              */
             actualizado_en: string;
         };
+        /**
+         * EstadoVista
+         * @enum {string}
+         */
+        EstadoVista: "vigente" | "revision_vencida" | "retirada" | "borrada" | "sin_autorizar";
         /** FichaRelevoVista */
         FichaRelevoVista: {
             /** Nombre Pila */
@@ -1190,6 +1301,11 @@ export interface components {
             /** Dias Aviso */
             dias_aviso: number;
             /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
+            /**
              * Fecha Quiebre Estimada
              * Format: date
              * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
@@ -1256,6 +1372,62 @@ export interface components {
             items: components["schemas"]["InsumoPorAcabarseVista"][];
         };
         /**
+         * LineaListaInsumos
+         * @description Una línea de la lista (decisión 118). Sin la tasa, el stock, la fecha estimada, precios, comercios, la
+         *     alerta ni el etag. El nombre puede decir algo de la salud de la persona: nunca va a logs ni errores.
+         */
+        LineaListaInsumos: {
+            /**
+             * Perfil Id
+             * Format: uuid
+             * @description El perfil de consumo de esta línea (PerfilConsumoVista.id)
+             */
+            perfil_id: string;
+            /**
+             * Nombre
+             * @description producto.nombre si el perfil es de un producto, o nombre_libre si no. Nunca la presentación
+             */
+            nombre: string;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos fecha, en días, como en PerfilConsumoVista. Solo para la pantalla: el texto que se imprime o se comparte no lo lleva (ADR-031, punto 4)
+             */
+            dias_restantes: number;
+            /**
+             * Unidades Sugeridas
+             * @description Lo que falta para 30 días, en la unidad del insumo: max(1, techo(30 × tasa_unidades / tasa_dias) - lo que MATU estima que queda hoy) (decisiones 119 y 120)
+             */
+            unidades_sugeridas: number;
+            /**
+             * Unidades Por Envase
+             * @description El del perfil, nunca el del catálogo (decisión 121). null si no se anotó
+             */
+            unidades_por_envase: number | null;
+            /**
+             * Envases Sugeridos
+             * @description techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase
+             */
+            envases_sugeridos: number | null;
+        };
+        /**
+         * ListaInsumos
+         * @description La lista de insumos de hoy (decisión 118): sin el nombre de la persona, el grupo, la ficha ni acciones.
+         */
+        ListaInsumos: {
+            /**
+             * Fecha
+             * Format: date
+             * @description Hoy en America/Santiago según el Reloj de la API, el mismo de dias_restantes
+             */
+            fecha: string;
+            /**
+             * Items
+             * @description En el orden de la decisión 117. Vacía si ningún insumo de «Se acaban pronto» está avisando
+             */
+            items: components["schemas"]["LineaListaInsumos"][];
+        };
+        /**
          * MotivoAcceso
          * @description Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría.
          * @enum {string}
@@ -1288,6 +1460,11 @@ export interface components {
             stock_medido_en: string;
             /** Dias Aviso */
             dias_aviso: number;
+            /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
             /**
              * Fecha Quiebre Estimada
              * Format: date
@@ -1392,6 +1569,15 @@ export interface components {
             presentacion: string;
         };
         /**
+         * RetiroAutorizacion
+         * @description Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo (decisión 126, C2).
+         */
+        RetiroAutorizacion: {
+            autorizacion: components["schemas"]["AutorizacionVista"];
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /**
          * SeccionComplementaria
          * @enum {string}
          */
@@ -1460,14 +1646,15 @@ export interface components {
         };
         /**
          * SolicitudAutorizacionEntrada
-         * @description Cuerpo de la autorización. Solo ``finalidad: consumo``. Un campo extra responde 422.
+         * @description Cuerpo de la autorización: ``consumo`` (MATU-36) o ``plan_cuidado`` para volver a autorizar la ficha
+         *     (MATU-44, decisión 128). Un campo extra responde 422.
          */
         SolicitudAutorizacionEntrada: {
             /**
              * Finalidad
-             * @constant
+             * @enum {string}
              */
-            finalidad: "consumo";
+            finalidad: "consumo" | "plan_cuidado";
             calidad_otorgante: components["schemas"]["CalidadOtorgante"];
             /** Referencia Documento */
             referencia_documento?: string | null;
@@ -1512,7 +1699,8 @@ export interface components {
         };
         /**
          * SolicitudEdicionPerfil
-         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido).
+         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido), salvo en
+         *     unidades_por_envase, donde null lo borra (decisión 121).
          */
         SolicitudEdicionPerfil: {
             /** Nombre Libre */
@@ -1525,6 +1713,8 @@ export interface components {
             stock_unidades?: number | null;
             /** Dias Aviso */
             dias_aviso?: number | null;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
         };
         /**
          * SolicitudGrupo
@@ -1558,6 +1748,8 @@ export interface components {
              * @default 7
              */
             dias_aviso: number;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
         };
         /**
          * SolicitudPersona
@@ -3266,6 +3458,57 @@ export interface operations {
             };
         };
     };
+    estado_v1_personas_cuidadas__persona_id__consentimientos_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutorizacionesPersona"] | components["schemas"]["AutorizacionesPersonaResumen"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     otorgar_v1_personas_cuidadas__persona_id__consentimientos_post: {
         parameters: {
             query?: never;
@@ -3330,6 +3573,68 @@ export interface operations {
             };
         };
     };
+    retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                /** @description plan_cuidado o consumo. Otro valor responde 404 */
+                finalidad: "plan_cuidado" | "consumo";
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetiroAutorizacion"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/ya-retirada: la autorización ya estaba retirada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get: {
         parameters: {
             query?: never;
@@ -3371,6 +3676,66 @@ export interface operations {
                 };
             };
             /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaInsumos"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta X-Grupo-Id o no es un UUID, no miembro activo del grupo, o la persona es de otro grupo, no existe o su id no es un UUID. Leen los cuatro roles, así que el rol nunca es la causa */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3762,7 +4127,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3983,7 +4348,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
             422: {
                 headers: {
                     [name: string]: unknown;

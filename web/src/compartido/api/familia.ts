@@ -210,3 +210,51 @@ export async function listarAccesos(
 export async function cortarAcceso(accesoId: string): Promise<void> {
   await apiFamilia.delete(`/v1/accesos-relevo/${encodeURIComponent(accesoId)}`)
 }
+
+// ---------------------------------------------------------------- MATU-44: retirar y volver a autorizar
+
+/** `plan_cuidado` es la ficha y `consumo` los insumos (decisión 123). */
+export type Finalidad = S['AutorizacionVista']['finalidad']
+export type EstadoAutorizacion = S['EstadoVista']
+/**
+ * `GET …/consentimientos` (decisión 127): `AutorizacionVista` para admin y cuidador y
+ * `AutorizacionVistaResumen` (sin `calidad_otorgante`) para pagador y observador. La pantalla usa
+ * solo lo que tienen en común, así que nunca muestra la calidad.
+ */
+export type AutorizacionVista = S['AutorizacionVistaResumen']
+export interface RetiroAutorizacion {
+  autorizacion: AutorizacionVista
+  enlaces_cortados: number
+}
+export type SolicitudAutorizacion = S['SolicitudAutorizacionEntrada']
+
+/** Lo que la pantalla usa: la calidad de quien autorizó no se guarda ni se muestra (P2, sección 8). */
+const sinCalidad = (a: AutorizacionVista): AutorizacionVista => ({
+  finalidad: a.finalidad,
+  estado: a.estado,
+  id: a.id,
+  otorgado_en: a.otorgado_en,
+  revision_vence_en: a.revision_vence_en,
+  revocado_en: a.revocado_en,
+  borrado_en: a.borrado_en,
+  borrada: a.borrada,
+})
+
+const rutaConsentimientos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/consentimientos`
+
+/** Siempre dos ítems: `plan_cuidado` y `consumo`. */
+export async function leerAutorizaciones(personaId: string): Promise<AutorizacionVista[]> {
+  const r = await apiFamilia.get<S['AutorizacionesPersona'] | S['AutorizacionesPersonaResumen']>(rutaConsentimientos(personaId))
+  return r.data.autorizaciones.map(sinCalidad)
+}
+
+/** `POST …/consentimientos/{finalidad}/retiro`, sin cuerpo: 200, 409 `ya-retirada` o 404. */
+export async function retirarAutorizacion(personaId: string, finalidad: Finalidad): Promise<RetiroAutorizacion> {
+  const r = await apiFamilia.post<S['RetiroAutorizacion']>(`${rutaConsentimientos(personaId)}/${finalidad}/retiro`)
+  return { autorizacion: sinCalidad(r.data.autorizacion), enlaces_cortados: r.data.enlaces_cortados }
+}
+
+/** `POST …/consentimientos` con `plan_cuidado` o `consumo` (decisión 128): 201, 409 `autorizacion-vigente` o 422. */
+export async function autorizar(personaId: string, cuerpo: SolicitudAutorizacion): Promise<void> {
+  await apiFamilia.post(rutaConsentimientos(personaId), cuerpo)
+}

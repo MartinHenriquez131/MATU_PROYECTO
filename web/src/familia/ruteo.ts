@@ -27,9 +27,13 @@ export type Ruta =
   | '/insumos'
   | '/insumos/nuevo'
   | '/insumos/cambiar'
+  | '/insumos/lista'
   | '/compartir'
   | '/compartir/listo'
   | '/compartir/enlaces'
+  | '/grupo'
+  | '/grupo/autorizar-ficha'
+  | '/grupo/autorizar-insumos'
 
 export const RUTAS: readonly Ruta[] = [
   '/',
@@ -56,9 +60,13 @@ export const RUTAS: readonly Ruta[] = [
   '/insumos',
   '/insumos/nuevo',
   '/insumos/cambiar',
+  '/insumos/lista',
   '/compartir',
   '/compartir/listo',
   '/compartir/enlaces',
+  '/grupo',
+  '/grupo/autorizar-ficha',
+  '/grupo/autorizar-insumos',
 ]
 
 /** Las que se ven sin haber entrado. */

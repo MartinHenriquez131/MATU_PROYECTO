@@ -391,6 +391,22 @@ class RepositorioAccesos(Protocol):
         ...
 
 
+class AccesosDeLaPersona(Protocol):
+    """Los accesos de relevo de una persona, para cortarlos al retirar su autorización (MATU-44).
+
+    Implementación: RepositorioAccesosSQL (infrastructure/repositorio_accesos.py).
+    """
+
+    def no_revocados_de_la_persona(self, persona_cuidada_id: uuid.UUID) -> list[tuple[uuid.UUID, VidaAcceso]]:
+        """Los accesos no revocados del plan de la persona en el grupo, con sus filas bloqueadas (FOR UPDATE)
+        hasta el fin de la transacción, en un orden fijo."""
+        ...
+
+    def revocar(self, acceso_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> None:
+        """Lo mismo que RepositorioAccesos.revocar."""
+        ...
+
+
 # --- Abrir la ficha como relevo (MATU-19, RF-06) ----------------------------------------------------------
 
 

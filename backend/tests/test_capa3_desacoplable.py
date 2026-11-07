@@ -8,14 +8,14 @@ existieran, y CAPA3_HABILITADA queda apagada.
 Qué protege cada prueba:
 
 1. Arranque: con la capa 3 bloqueada, app.main se importa, crea la API y no carga nada de la capa 3.
-2. Contrato: el OpenAPI trae la ficha, el relevo, el consumo y las alertas, y ninguna ruta del despacho.
+2. Contrato: el OpenAPI trae la ficha, el relevo, el consumo, las alertas y la lista, y ninguna ruta del despacho.
 3. Respuestas: las rutas de las capas 1 y 2 llegan a su código (401, 422), no a un 404 de ruteo ni a un 500.
 4. Interruptor: CAPA3_HABILITADA monta ROUTERS_CAPA_3, y apagado ni siquiera los importa.
 5. Importaciones: nada de lo que app.main carga, siguiendo sus importaciones, llega a la capa 3.
    Complementa a test_arquitectura.py, que revisa cada importación suelta pero exime a main.py y a
    backoffice: aquí se sigue la cadena completa desde el punto de entrada.
 6. Esquema: ninguna tabla fuera de la capa 3 tiene una llave foránea hacia ella (con base).
-7. Flujos: los caminos felices de la ficha, el relevo, el consumo y las alertas pasan con la capa 3
+7. Flujos: los caminos felices de la ficha, el relevo, el consumo, las alertas y la lista pasan con la capa 3
    bloqueada (con base).
 """
 
@@ -49,7 +49,7 @@ NUCLEO_DESPACHO = frozenset({"catalog", "ordering", "payments", "fulfillment", "
 
 PERSONA = str(uuid.UUID(int=1))
 
-# Las rutas que deben estar: ficha (capa 1), relevo (capa 1), consumo y alertas (capa 2)
+# Las rutas que deben estar: ficha (capa 1), relevo (capa 1), consumo, alertas y lista (capa 2)
 RUTAS_CAPAS_1_Y_2 = (
     "/v1/personas-cuidadas/{persona_id}/plan/ficha",
     "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo",
@@ -59,6 +59,7 @@ RUTAS_CAPAS_1_Y_2 = (
     "/v1/personas-cuidadas/{persona_id}/consumo",
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse",
     "/v1/personas-cuidadas/{persona_id}/consumo/alertas",
+    "/v1/personas-cuidadas/{persona_id}/consumo/lista",
 )
 
 # Los prefijos del despacho en el contrato (arquitectura, sección 9.4)
@@ -88,6 +89,7 @@ PETICIONES: list[tuple[str, str, Any, int]] = [
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/por-acabarse", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/alertas", None, 401),
+    ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/lista", None, 401),
     ("POST", "/v1/sesiones", {}, 422),
     ("POST", "/v1/pedidos", {}, 404),
 ]
@@ -489,6 +491,8 @@ FLUJOS = (
     "tests/modules/care_plan/test_abrir_relevo_api.py::test_relevo_ve_solo_campos_habilitados",
     "tests/modules/consumption/test_consumo_api.py::test_crear_ver_listar_editar_desactivar_activar_eliminar",
     "tests/modules/consumption/test_alertas_api.py::test_listar_y_descartar_una_alerta",
+    # La lista de insumos (MATU-60): se exporta sin catálogo, con nombre libre
+    "tests/modules/consumption/test_lista_api.py::test_la_lista_trae_lo_que_avisa_con_la_cantidad_y_en_orden",
 )
 
 

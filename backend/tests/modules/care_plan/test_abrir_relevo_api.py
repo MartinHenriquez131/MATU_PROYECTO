@@ -384,7 +384,8 @@ def test_indice_vigente_pero_rls_sin_filas_410_vencido(entorno: EntornoAbrir) ->
 
 def _revocar_consentimientos(familia: FamiliaCreada) -> None:
     # El consentimiento es inalterable (migración 0006): solo se registra la revocación, una vez
-    _ejecutar("UPDATE consentimiento SET revocado_en = now() WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
+    _ejecutar("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
+              " WHERE persona_cuidada_id = %s AND revocado_en IS NULL",
               familia.persona.id)
 
 

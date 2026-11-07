@@ -4,8 +4,8 @@
 import { useId, useRef, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, ChevronLeft, Circle, CircleAlert, CircleCheck, Info, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
-import { CAMPOS } from './datos'
-import { FICHA } from './textos'
+import { AVISO_CUIDADOR, CAMPOS } from './datos'
+import { AUTORIZACION, FICHA } from './textos'
 import { navegar, type Ruta } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
@@ -191,6 +191,56 @@ export function GrupoOpciones<T extends string>({
   )
 }
 
+/**
+ * El aviso `aviso_cuidador_de_hecho` con su casilla, el mismo en la autorización de la ficha (alta y
+ * MATU-44 5.1) y en el permiso de los insumos (MATU-36 3.1). En modo angosto el ícono va en la
+ * primera línea del título, como en `MensajeError`: a 320 px con el texto al 200 % el título se
+ * salía 2 px (revisión de MATU-44 del 07-11).
+ */
+export function AvisoCuidadorDeHecho({
+  idTitulo,
+  idError,
+  leido,
+  error,
+  onLeido,
+}: {
+  idTitulo: string
+  idError: string
+  leido: boolean
+  error: boolean
+  onLeido: (leido: boolean) => void
+}) {
+  return (
+    <section aria-labelledby={idTitulo} className="border-l-4 border-atenta bg-atenta-fondo">
+      <h2 id={idTitulo} className="flex items-start gap-2 angosto:block px-5 angosto:px-2 pt-4 text-lg font-bold">
+        <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta angosto:mt-0 angosto:mr-1.5 angosto:inline angosto:align-middle" />
+        <span className="min-w-0">{AVISO_CUIDADOR.titulo}</span>
+      </h2>
+      <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
+        {AVISO_CUIDADOR.parrafos.map((p) => (
+          <p key={p.slice(0, 24)}>{p}</p>
+        ))}
+      </div>
+      <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
+        <input
+          type="checkbox"
+          checked={leido}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? idError : undefined}
+          onChange={(e) => onLeido(e.target.checked)}
+          className="size-5 shrink-0 accent-turquesa"
+        />
+        {AUTORIZACION.leido}
+      </label>
+      {error && (
+        <div className="px-5 angosto:px-2 pb-3">
+          <MensajeError id={idError}>{AUTORIZACION.errLeido}</MensajeError>
+        </div>
+      )}
+    </section>
+  )
+}
+
 type TonoNota = 'rocio' | 'atenta' | 'pronto' | 'ok'
 const FONDO_NOTA: Record<TonoNota, string> = { rocio: 'bg-rocio', atenta: 'bg-atenta-fondo', pronto: 'bg-pronto-fondo', ok: 'bg-ok-fondo' }
 const ICONO_NOTA: Record<TonoNota, ReactNode> = {
@@ -215,6 +265,8 @@ export function Nota({
   borde = false,
   className = '',
   id,
+  enfocable = false,
+  iconoEnLinea = false,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -224,15 +276,33 @@ export function Nota({
   borde?: boolean
   className?: string
   id?: string
+  /** MATU-44 3.5: la nota recibe el foco tras una acción. No es un control: sin contorno. */
+  enfocable?: boolean
+  /**
+   * MATU-44 (revisión del 07-11): en modo angosto el ícono va en la primera línea del título, como
+   * en `MensajeError`, para que el título use todo el ancho y una palabra larga no se salga.
+   */
+  iconoEnLinea?: boolean
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   const ref = useRef<HTMLDivElement>(null)
   useAnunciarAlMostrar(ref, rol)
   return (
-    <div ref={ref} id={id} data-aviso={rol} className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
-      {icono ?? ICONO_NOTA[tono]}
+    <div
+      ref={ref}
+      id={id}
+      data-aviso={rol}
+      tabIndex={enfocable ? -1 : undefined}
+      className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${enfocable ? 'outline-none' : ''} ${className}`}
+    >
+      {iconoEnLinea && titulo ? <span className="contents angosto:hidden">{icono ?? ICONO_NOTA[tono]}</span> : (icono ?? ICONO_NOTA[tono])}
       <div className="min-w-0">
-        {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
+        {titulo && (
+          <p className="mb-0.5 font-bold">
+            {iconoEnLinea && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle">{icono ?? ICONO_NOTA[tono]}</span>}
+            {titulo}
+          </p>
+        )}
         {children && <div className="text-base leading-relaxed">{children}</div>}
       </div>
     </div>

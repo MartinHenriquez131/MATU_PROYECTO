@@ -102,14 +102,20 @@ def test_pagador_y_observador_no_dan_la_autorizacion(entorno_consumo: EntornoCon
 
 @pytest.mark.rf("RF-10")
 def test_autorizacion_con_finalidad_distinta_es_422(entorno_consumo: EntornoConsumo) -> None:
+    """Desde MATU-44 (decisión 128) se acepta también plan_cuidado: con la del alta vigente, 409. Otra, 422."""
     e = entorno_consumo
     familia = e.familia(con_autorizacion=False)
-    respuesta = e.iam.cliente.post(
-        f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
-        json={"finalidad": "plan_cuidado", "calidad_otorgante": "titular"},
-        headers=e.cabeceras(familia.admin, familia.grupo.id),
-    )
-    assert respuesta.status_code == 422
+
+    def pedir(finalidad: str) -> Any:
+        return e.iam.cliente.post(
+            f"/v1/personas-cuidadas/{familia.persona.id}/consentimientos",
+            json={"finalidad": finalidad, "calidad_otorgante": "titular"},
+            headers=e.cabeceras(familia.admin, familia.grupo.id),
+        )
+
+    assert pedir("despacho").status_code == 422
+    vigente = pedir("plan_cuidado")
+    assert vigente.status_code == 409 and vigente.json()["type"] == "/errores/autorizacion-vigente"
 
 
 @pytest.mark.rf("RF-10")

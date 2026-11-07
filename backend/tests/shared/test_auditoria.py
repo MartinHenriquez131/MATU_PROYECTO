@@ -73,6 +73,7 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "alerta.descartar",
         "alerta.resolver",
         "reposicion.declarar",
+        "clave.destruir",
     }
 
 
@@ -92,6 +93,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "perfil_consumo",
         "alerta_quiebre",
         "reposicion",
+        "clave_datos",
     }
 
 
