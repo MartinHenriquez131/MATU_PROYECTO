@@ -481,8 +481,34 @@ def test_push_sin_did_responde_404_antes_que_422(entorno_iam: EntornoIam, cuenta
 # --- Conservación (decisión 59) ------------------------------------------------------------------------
 
 
+def _sesiones_y_dispositivos(usuario_id: uuid.UUID) -> tuple[set[uuid.UUID], set[uuid.UUID], int]:
+    """(dispositivos de las sesiones, dispositivos, índices de refresh) que quedan del usuario."""
+    return (
+        {fila[0] for fila in _filas("SELECT dispositivo_id FROM sesion_refresh WHERE usuario_id = %s", usuario_id)},
+        {fila[0] for fila in _filas("SELECT id FROM dispositivo WHERE usuario_id = %s", usuario_id)},
+        _filas("SELECT count(*) FROM indice_token WHERE tipo = 'refresh' AND usuario_id = %s", usuario_id)[0][0],
+    )
+
+
+def _dispositivo_ajeno(entorno: EntornoIam, ultimo_uso_en: datetime) -> uuid.UUID:
+    """MATU-73: otra cuenta sintética con un dispositivo sin sesiones, sembrado como superusuario. El
+    fixture lo borra con la cuenta."""
+    respuesta = entorno.registrar(nombre="Familiar Ajeno", email=f"ajeno.{uuid.uuid4().hex[:12]}@example.com",
+                                  contrasena=f"clave-{uuid.uuid4().hex[:16]}")
+    assert respuesta.status_code == 201
+    dispositivo_id = uuid.uuid4()
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        cx.execute(
+            "INSERT INTO dispositivo (id, usuario_id, plataforma, nombre, creado_en, ultimo_uso_en)"
+            " VALUES (%s, %s, 'web', 'Firefox en Windows', %s, %s)",
+            (dispositivo_id, respuesta.json()["id"], ultimo_uso_en, ultimo_uso_en),
+        )
+    return dispositivo_id
+
+
+@pytest.mark.parametrize("con_ajeno", [False, True], ids=["solo_la_cuenta", "con_dispositivo_ajeno"])
 def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
-    entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str
+    entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str, con_ajeno: bool
 ) -> None:
     from app.core.db import fabrica_sesiones
     from app.modules.iam.api.dependencias import obtener_reloj
@@ -494,26 +520,36 @@ def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
     app.dependency_overrides[obtener_reloj] = lambda: reloj
     entorno_iam.reloj = reloj
 
+    # MATU-73: iam_conservar borra lo vencido de todas las cuentas de la base, así que la prueba mira sus
+    # filas y no el total que devuelve. El caso con un dispositivo ajeno lo demuestra: sin uso desde medio
+    # día antes que el viejo, sobrevive a la primera pasada y cae en la segunda (con el total, (0, 2))
+    ajeno = _dispositivo_ajeno(entorno_iam, reloj.ahora() - timedelta(hours=12)) if con_ajeno else None
+
     viejo = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     id_viejo = _did(entorno_iam, viejo.json()["access_token"])
     refresh_viejo, _ = _cookie(viejo)
     entorno_iam.reloj.avanzar(timedelta(days=80))
     actual = _entrar(entorno_iam, email_sintetico, contrasena_sintetica, agente=WINDOWS)
     id_actual = _did(entorno_iam, actual.json()["access_token"])
+    assert id_viejo != id_actual
+    assert _sesiones_y_dispositivos(cuenta) == ({id_viejo, id_actual}, {id_viejo, id_actual}, 2)
 
     # A los 89 días del viejo: su sesión venció hace 59 días (se borra), pero el dispositivo se conserva
     entorno_iam.reloj.avanzar(timedelta(days=9))
     unidad = UnidadIamSql(fabrica_sesiones(), entorno_iam.reloj)
     resultado = conservar(unidad=unidad, reloj=entorno_iam.reloj)
-    assert (resultado.sesiones_borradas, resultado.dispositivos_borrados) == (1, 0)
-    assert _filas("SELECT count(*) FROM indice_token WHERE tipo = 'refresh' AND usuario_id = %s", cuenta) == [(1,)]
+    assert resultado.sesiones_borradas >= 1
+    assert _sesiones_y_dispositivos(cuenta) == ({id_actual}, {id_viejo, id_actual}, 1)
+    if ajeno is not None:
+        assert _filas("SELECT count(*) FROM dispositivo WHERE id = %s", ajeno) == [(1,)]
 
     # A los 90 días sin uso, el viejo se borra; el actual, con sesión vigente, no
     entorno_iam.reloj.avanzar(timedelta(days=1))
     resultado = conservar(unidad=unidad, reloj=entorno_iam.reloj)
-    assert (resultado.sesiones_borradas, resultado.dispositivos_borrados) == (0, 1)
-    assert _filas("SELECT id FROM dispositivo WHERE usuario_id = %s", cuenta) == [(id_actual,)]
-    assert id_viejo != id_actual
+    assert resultado.dispositivos_borrados >= (2 if ajeno is not None else 1)
+    assert _sesiones_y_dispositivos(cuenta) == ({id_actual}, {id_actual}, 1)
+    if ajeno is not None:
+        assert _filas("SELECT count(*) FROM dispositivo WHERE id = %s", ajeno) == [(0,)]
     _sesion_expirada(_renovar(entorno_iam, refresh_viejo))
 
 
