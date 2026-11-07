@@ -1,6 +1,6 @@
 # MATU · Instrucciones para Claude Code
 
-**Versión 2.3 · 4 de noviembre de 2026** (reparto en prueba, sección 0.1) · basada en el prompt del profesor y la adaptación de Martín. Agente 6 UI/UX. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
+**Versión 2.4 · 6 de noviembre de 2026** (roles del equipo, ADR-030, sección 0.1) · basada en el prompt del profesor y la adaptación de Martín. Agente 6 UI/UX. Los subagentes están en `.claude/agents/`. El orquestador es la sesión principal.
 
 ---
 
@@ -20,13 +20,22 @@ El vault de Obsidian (`../Brain/MATU`) resume y enlaza esos documentos, y se con
 
 **Si una instrucción de este prompt contradice uno de esos documentos, no elijas tú.** Detente, señala la contradicción y pregunta a Jorge o a Martín.
 
-### 0.1 Reparto en prueba y modo de trabajo (desde el 04-11-2026)
+### 0.1 Roles del equipo y modo de trabajo (ADR-030, desde el 05-11-2026)
 
-Desde el 4 de noviembre hay un **reparto en prueba**, aprobado por Jorge y Martín. Se evalúa el jueves 5 de noviembre (`docs/sprints/reparto-en-prueba.md` del repositorio MATU):
-- **Jorge** es PO y desarrolla todo.
-- **Martín** prueba, despliega y revisa.
+El reparto que se probó desde el 4 de noviembre **quedó como definitivo el 5 de noviembre**, por decisión de Jorge. Está en el ADR-030 (`docs/adr/ADR-030-roles-del-equipo.md` del repositorio MATU):
+- **Jorge** es PO y desarrolla todo, con los seis agentes.
+- **Martín:**
+  - despliega staging y el entorno de demostración;
+  - prueba en el teléfono;
+  - hace la usabilidad y las entrevistas;
+  - revisa los documentos;
+  - fusiona los PR de Jorge, con su informe en `TESTER/`.
 
-**Mientras dure la prueba, esa nota manda sobre las secciones 3 y 4 de este archivo** donde se contradigan.
+**El ADR-030 manda sobre las secciones 3 y 4 de este archivo** donde se contradigan. Por ejemplo, en quién revisa y fusiona, quién lleva cada módulo y de quién son las horas que se anotan. La nota `docs/sprints/reparto-en-prueba.md` queda como antecedente, y su tabla sigue sirviendo para ver qué cambia.
+
+**En Trello:**
+- la etiqueta Eje A (Jorge) o Eje B (Martín) dice quién lleva la tarjeta;
+- cada ítem de checklist empieza con «Jorge ·» o «Martín ·».
 
 **Al iniciar la sesión, el orquestador elige su modo** según [`.claude/modos-de-trabajo.md`](.claude/modos-de-trabajo.md):
 - **Modo Jorge:** orquestador completo, con los seis agentes.
