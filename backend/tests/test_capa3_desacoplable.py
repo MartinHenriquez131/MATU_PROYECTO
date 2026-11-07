@@ -59,6 +59,9 @@ RUTAS_CAPAS_1_Y_2 = (
     "/v1/personas-cuidadas/{persona_id}/consumo",
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse",
     "/v1/personas-cuidadas/{persona_id}/consumo/alertas",
+    # MATU-51: «Compré» y «Me quedan N» son capa 2 y no dependen del despacho (decisión C de Jorge)
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer",
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar",
 )
 
 # Los prefijos del despacho en el contrato (arquitectura, sección 9.4)
@@ -88,6 +91,8 @@ PETICIONES: list[tuple[str, str, Any, int]] = [
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/por-acabarse", None, 401),
     ("GET", f"/v1/personas-cuidadas/{PERSONA}/consumo/alertas", None, 401),
+    ("POST", f"/v1/personas-cuidadas/{PERSONA}/consumo/{PERSONA}/reponer", {"cantidad": 1}, 401),
+    ("POST", f"/v1/personas-cuidadas/{PERSONA}/consumo/{PERSONA}/recontar", {"stock_unidades": 1}, 401),
     ("POST", "/v1/sesiones", {}, 422),
     ("POST", "/v1/pedidos", {}, 404),
 ]
