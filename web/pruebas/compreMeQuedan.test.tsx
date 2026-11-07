@@ -224,7 +224,7 @@ describe('«Compré»', () => {
     expect(screen.getByRole('group', { name: '¿Cuántos ml compraste?' })).toHaveTextContent('ml')
   })
 
-  it('valida en la pantalla antes de enviar: vacío, sobre 99 envases y sobre 10.000', async () => {
+  it('valida en la pantalla antes de enviar: vacío y sobre 99 envases', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Compré: Pañal adulto talla M' }))
     const envases = screen.getByRole('textbox', { name: '¿Cuántos envases compraste?' })
@@ -236,8 +236,11 @@ describe('«Compré»', () => {
     await u.type(envases, '100')
     await u.click(screen.getByRole('button', { name: 'Anotar la compra' }))
     expect(envases).toHaveAccessibleDescription(/Escribe un número de 1 a 99 envases\.$/)
+    expect(escritas(pedidas)).toEqual([])
+  })
 
-    await u.click(screen.getByRole('button', { name: 'Volver' }))
+  it('valida en la pantalla antes de enviar: sin envase, vacío y sobre 10.000', async () => {
+    const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Compré: Toallitas húmedas' }))
     const unidades = screen.getByRole('textbox', { name: '¿Cuántos compraste?' })
     await u.click(screen.getByRole('button', { name: 'Anotar la compra' }))
