@@ -5,7 +5,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-import { atenderConsumo, crearAlertas, listaCompleta, listaParaLista, perfil, type ConsumoDoble } from './consumo'
+import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -320,6 +320,19 @@ function sembrar() {
   conLista(cuenta('lista-permiso-observador@example.com', 'Rodrigo', sotoLista('observador')), 'no')
   conLista(cuenta('lista-renovar@example.com', 'Carmen', sotoLista('admin', true)), 'vencida')
   conLista(cuenta('lista-error@example.com', 'Carmen', sotoLista('admin'), 'lista-error'))
+  // MATU-51: «Compré» y «Me quedan», una cuenta por estado y por rol (especificación 10).
+  const conCompre = (u: Usuario) => {
+    const c = insumos(u, 'vigente', false)
+    c.perfiles = listaParaCompre({ id: u.id, nombre: u.nombre })
+    crearAlertas(c)
+  }
+  conCompre(cuenta('compre@example.com', 'Carmen', sotoLista('admin')))
+  conCompre(cuenta('compre-cuidador@example.com', 'Javiera', sotoLista('cuidador')))
+  conCompre(cuenta('compre-pagador@example.com', 'Rodrigo', sotoLista('pagador')))
+  conCompre(cuenta('compre-observador@example.com', 'Rodrigo', sotoLista('observador')))
+  conCompre(cuenta('compre-defectos@example.com', 'Carmen', sotoLista('admin'), 'compre-defectos'))
+  conCompre(cuenta('compre-renovar@example.com', 'Carmen', sotoLista('admin', true), 'compre-renovar'))
+  conCompre(cuenta('compre-lento@example.com', 'Carmen', sotoLista('admin'), 'lento'))
   // MATU-50: las secciones complementarias, una cuenta por estado.
   const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
   cuenta('secciones-ninguna@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])
