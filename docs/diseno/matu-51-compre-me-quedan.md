@@ -1,6 +1,8 @@
 # MATU-51 · «Compré» y «Me quedan» en cada insumo · Especificación de diseño
 
-**Versión 1.1 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.2 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.2:** las decisiones de Jorge del 07-11 sobre A2 a A5 cierran la sección 0. «Ya lo resolví» pregunta en envases (3.8, y los textos de la sección 17 que cambian, en 11), los insumos «Sin seguir» no tienen botones y su 409 tiene texto (5.5), y A5 se corrige en esta historia. El contrato de MATU-51 (`docs/api/README.md`, decisiones 136 a 146) ya está en la rama: confirma rutas, cuerpos, `If-Match` y respuesta, y se agrega el 428 (5.5).
 
 **Cambios de la 1.1:** los topes cerrados por el orquestador (A1, 3.4, 3.5, 5.4) y sus textos de error (secciones 8 y 11).
 
@@ -14,15 +16,24 @@
 
 ---
 
-## 0. Lo que tiene que decidir alguien más
+## 0. Decisiones y lo que queda abierto
+
+### 0.1 Cerrado el 07-11
+
+| # | Qué | Decisión |
+|---|---|---|
+| A1, topes | Cuánto acepta cada campo | **Orquestador y contrato (decisión 137).** «Compré» en envases de 1 a 99, en la unidad del insumo de 1 a 10.000. «Me quedan» de 0 a 100.000. 422 `stock_maximo` si lo anotado deja más de 100.000 y `cobertura_maxima` si alcanzaría para más de 10 años (5.4) |
+| A1, contrato | Rutas, cuerpo, versión y respuesta | **Contrato, decisiones 136 a 141.** `POST …/consumo/{perfil_id}/reponer` con `envases` o `cantidad` (exactamente uno), `POST …/consumo/{perfil_id}/recontar` con `stock_unidades`. Las dos con `If-Match` obligatorio (412 y 428 posibles), 409 `perfil-inactivo`, y la respuesta 200 es `InsumoPorAcabarseVista` (el perfil recalculado con `avisando`). El orquestador pidió dejar estos puntos como supuesto hasta que el backend los confirme implementados. La especificación ya los sigue |
+| A2 | «Ya lo resolví» de MATU-37 preguntaba en unidades y «Compré» en envases | **Jorge.** «Ya lo resolví» pregunta igual que «Compré»: en envases, con 1 por omisión, cuando se sabe cuánto trae cada uno, y si no, en la unidad del insumo. Topes de 1 a 99 envases o de 1 a 10.000. Cambia textos aprobados de la sección 17. Se especifica en 3.8, y los reemplazos están en la sección 11 |
+| A3 | Los insumos «Sin seguir» | **Jorge.** No muestran «Compré» ni «Me quedan» (3.7). Si llega un 409 porque el insumo dejó de seguirse en otro teléfono, el texto está en 5.5 |
+| A4 | «Me quedan N» como rótulo | **Jorge, aceptado como se propuso.** El botón dice «Me quedan» y el número se escribe en el panel |
+| A5 | Con el panel de «Ya lo resolví» abierto, «Anotar un insumo» seguía macizo, contra el criterio 2 de MATU-37 | **Jorge, se corrige en MATU-51.** La regla de 3.6 vale para los tres paneles |
+
+### 0.2 Abierto, lo cierra el orquestador con el backend
 
 | # | Qué | Por qué importa | Mientras tanto |
 |---|---|---|---|
-| A1 | **El contrato de MATU-51 todavía no está en el worktree.** La pantalla necesita saber: las dos rutas, si «Compré» recibe envases o unidades, si alguna de las dos exige `If-Match` (y puede responder 412), si responde 409 `perfil-inactivo` y que la respuesta sea el `PerfilConsumoVista` recalculado (`dias_restantes`, `fecha_quiebre_estimada`, `stock_unidades`, `stock_medido_en`) | Sin la respuesta recalculada, la confirmación no puede decir hasta cuándo alcanza, y la pantalla no debe calcularlo | **Topes, cerrados por el orquestador el 07-11:** «Compré» en envases de 1 a 99, en la unidad del insumo de 1 a 10.000, «Me quedan» de 0 a 100.000, y 422 si lo anotado deja más de 100.000 o alcanzaría para más de 10 años (5.4). Lo demás se supone: respuesta = perfil recalculado y sin `If-Match`. Los textos de 412 y 409 (5.5) quedan listos por si el contrato los trae. **Lo cierra el orquestador con el backend** |
-| A2 | **Dos maneras de anotar una compra, con unidades distintas.** «Ya lo resolví» de MATU-37 pregunta «¿Compraste? ¿Cuántos?» en la unidad del insumo (el campo `cantidad` de `SolicitudResolver` dice «no en envases»). «Compré» pregunta en envases cuando se conoce `unidades_por_envase` (decisión de Jorge del 07-11). Carmen puede ver las dos en la misma pantalla para el mismo insumo | Si en el bloque de avisos escribe «2» pensando en paquetes, MATU suma 2 pañales | **Recomiendo** que el campo de «Ya lo resolví» siga la misma regla que «Compré» (envases si se conoce el envase, vacío por omisión porque ahí es opcional), con la pregunta «¿Compraste? ¿Cuántos envases?» [NUEVO]. Cambia un texto aprobado de MATU-37, así que **lo decide Jorge**. Mientras no decida, el bloque «Se acaban pronto» no cambia en esta historia |
-| A3 | **Los insumos «Sin seguir».** Jorge dijo «en cada insumo de la lista». Un insumo sin seguir no se calcula ni avisa (MATU-36 3.6) | Anotar una compra en algo que no se calcula no cambia nada en pantalla, y Carmen creería que no funcionó | **Propongo** que «Compré» y «Me quedan» se muestren solo en los insumos que se siguen. Para anotar en uno sin seguir, primero se marca «Seguir», que ya dice «Si cambió cuánto queda, anótalo» [L 18]. **Lo confirma Jorge** |
-| A4 | **«Me quedan N» como rótulo.** El botón de la fila no puede llevar un número antes de que Carmen cuente | — | El botón dice «Me quedan» y la `N` se escribe en el panel. Es también lo que usa el texto del analista para «Cómo calculamos» («con «Compré» o «Me quedan»») |
-| A5 | **Observación sobre MATU-37, fuera de alcance.** Su criterio 2 pide que, con el panel de «Ya lo resolví» abierto, «Anotar un insumo» deje de ser macizo. El código lo pasa a secundario solo cuando hay formulario (`variante={form ? 'secundario' : 'principal'}`) | Con un panel abierto quedan dos `turquesa` macizos | Esta historia lo resuelve para los tres paneles a la vez (3.6), porque la regla es la misma. Si el orquestador prefiere no tocar MATU-37, se aplica solo a los paneles nuevos |
+| A6 | **«Ya lo resolví» no tiene campo `envases`.** La decisión 144 sube su `cantidad` a 10.000, pero sigue en la unidad del insumo. «Compré» sí recibe `envases` (decisión 137), y su multiplicación puede pasar de 10.000 | Con la decisión A2 de Jorge, la pantalla tendría que mandar `envases × {u}` como `cantidad`. Con 99 envases de 200 ml serían 19.800 y el resolver respondería 422 en `cantidad`, aunque «Compré» acepta lo mismo | **Pido** que `SolicitudResolver` acepte `envases` (1 a 99) igual que `SolicitudReposicion`, con las mismas reglas. Si el backend prefiere no cambiarlo, la pantalla manda `envases × {u}` y un 422 de rango en `cantidad` muestra «Con esa compra quedarían más de 100.000…» o el error de rango con envase de 3.8. Los textos no cambian con esta decisión |
 
 ---
 
@@ -151,7 +162,7 @@ Se abre **dentro del mismo `li`**, en el lugar del renglón de registro (los dos
 - **Vacío** al abrir: un «1» por omisión tiene sentido para un paquete, no para pañales sueltos o mililitros. Mínimo 1, máximo **10.000** en la unidad del insumo.
 - Sufijo `INSUMOS.sufijoStock(unidad)`: «unidades», «sobres», «ml», «g» [L 18].
 
-**Lo que va a la API:** lo que diga el contrato (A1). Si el contrato pide unidades, la pantalla manda `envases × {u}`. Nunca manda una fecha.
+**Lo que va a la API (decisión 137):** con envase, `{"envases": n}`. Sin envase, `{"cantidad": n}`. Nunca los dos y nunca una fecha. Siempre con `If-Match` y el `etag` de la fila.
 
 ### 3.5 Panel «Me quedan»
 
@@ -170,18 +181,64 @@ Mismo lugar y misma forma que «Compré».
 - **Vacío** al abrir, por la misma razón que MATU-36 deja vacío el stock al cambiar: un número precargado invita a confirmar sin contar.
 - Mínimo **0**, máximo **100.000**. Siempre en la unidad del insumo, aunque tenga envase (decisión de Jorge). Sufijo `INSUMOS.sufijoStock(unidad)`.
 - «−» con el campo vacío deja 0, como ya hace el `Stepper` con `min={0}`.
+- **Lo que va a la API (decisión 139):** `{"stock_unidades": n}`, con `If-Match` y el `etag` de la fila. Nunca una fecha.
 
 ### 3.6 Reglas de los paneles
 
 - **Uno abierto a la vez en toda la pantalla**, contando el de «Ya lo resolví» de MATU-37. Abrir otro cierra el anterior sin guardar.
-- Mientras hay un panel abierto, «Anotar un insumo» va en `variante="secundario"` (A5). Al cerrarse, vuelve a principal.
+- Mientras hay un panel abierto, sea «Compré», «Me quedan» o «Ya lo resolví», «Anotar un insumo» va en `variante="secundario"` (A5, decidido por Jorge: se corrige en MATU-51 también para el panel de MATU-37). Al cerrarse, vuelve a principal.
 - «Volver» y `Escape` cierran el panel y devuelven el foco al botón que lo abrió («Compré» o «Me quedan» de esa fila).
 - Abrir un panel borra la confirmación anterior de cualquier fila y el `AvisoOk` de arriba. En la pantalla hay un solo mensaje a la vez.
 
 ### 3.7 Pagador, observador y «Sin seguir»
 
 - **Pagador y observador:** el renglón de registro no existe en el DOM (no deshabilitado: ausente). La fila es la de hoy.
-- **Insumo «Sin seguir»:** sin renglón de registro (A3). La fila es la de hoy, con «Seguir» desmarcado.
+- **Insumo «Sin seguir»:** sin renglón de registro (A3, decidido por Jorge). La fila es la de hoy, con «Seguir» desmarcado.
+
+### 3.8 «Ya lo resolví» en el bloque «Se acaban pronto» (A2, decidido por Jorge)
+
+**Cambia solo el campo del panel.** Lo demás de MATU-37 no cambia: el bloque, el botón «Ya lo resolví», el panel dentro del aviso, «Volver», `Escape`, la confirmación arriba del bloque, y los errores 409, 404, 412 y de red.
+
+**Con `unidades_por_envase` (`{u}`):**
+
+```
+│ │ ┌────────────────────────────┐ │
+│ │ │ Pañal adulto M             │ │
+│ │ │ Alcanza para 3 días        │ │
+│ │ │ Fecha estimada: 10/11/2026 │ │
+│ │ │ ────────────────────────── │ │  border-t border-linea (MATU-37)
+│ │ │ ¿Compraste? ¿Cuántos       │ │  label font-bold
+│ │ │ envases?                   │ │
+│ │ │ Si no compraste, déjalo en │ │  ayuda text-base text-tenue
+│ │ │ 0 y solo dejamos de        │ │
+│ │ │ avisarte.                  │ │
+│ │ │ [ − ] [  1  ] [ + ]        │ │  Stepper, 1 por omisión, de 0 a 99
+│ │ │ envase de 20 unidades      │ │  sufijoCantidad(n, unidad, u)
+│ │ │ [ Ya lo resolví ]          │ │  principal
+│ │ │ [ Volver ]                 │ │  secundario
+│ │ └────────────────────────────┘ │
+```
+
+- **1 por omisión,** como «Compré» (decisión de Jorge).
+- **El `Stepper` va de 0 a 99, no de 1 a 99.** Con 1 por omisión, quien no compró tendría que borrar el número con el teclado para solo descartar. Con mínimo 0, le basta un toque en «−». MATU-37 ya trata el 0 como vacío: 0 o vacío solo descarta, y de 1 a 99 anota la compra. El tope de 99 no cambia. Ver la sección 12, punto 1.
+- La ayuda cambia de «déjalo en blanco» a «déjalo en 0», porque el campo ya no abre en blanco.
+- El sufijo es el de «Compré»: «envase de 20 unidades», «envases de 20 unidades», «envases de 250 ml».
+- **Foco al abrir:** en el panel (`role="group"` con `aria-labelledby` a la etiqueta, `tabIndex={-1}`), no en el campo, como «Compré» con envase (sección 4). El teclado no se abre. Hoy MATU-37 lleva el foco al campo: con envase, eso cambia.
+
+**Sin `unidades_por_envase`:** como hoy en MATU-37. Pregunta en la unidad del insumo, abre vacío con el foco en el campo, y la ayuda dice «déjalo en blanco». Solo el tope pasa de 9.999 a **10.000** (decisión 144).
+
+**Errores del campo:**
+
+| Caso | Texto | Marca |
+|---|---|---|
+| Con envase, más de 99 | Escribe un número de 0 a 99. Si no compraste, déjalo en 0. | [CAMBIA] la fila «Cantidad inválida» de la sección 17 |
+| Sin envase, fuera de 1 a 10.000 | Escribe un número de 1 a 10.000, o déjalo en blanco. | [CAMBIA] la misma fila (antes «entre 1 y 9999») |
+| Lo que queda pasaría de 100.000 (422 `stock_maximo`, decisión 144) | Con esa compra quedarían más de 100.000 {unidades / sobres / ml / g}. Revisa cuántos compraste. | El texto de «Compré» (sección 8) |
+| Más de 10 años (422 `cobertura_maxima`) | Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste. | El texto de «Compré» (sección 8) |
+
+**Confirmación:** los textos de MATU-37 no cambian. Solo `{cantidad}` pasa a armarse con `cantidadEnTexto(n, unidad, envase)`, como en «Compré»: «Anotamos tu compra de Pañal adulto M: 2 envases de 20 unidades. Ahora alcanza para 23 días.» Sin envase, en unidades, dice «24 unidades» donde hoy dice «24».
+
+**Lo que va a la API:** lo que diga el contrato (A6).
 
 ---
 
@@ -244,8 +301,9 @@ Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 | Red o 5xx | «No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.» [L 17] | Error del panel. El panel sigue abierto con lo escrito y el botón vuelve a «Anotar la compra» o «Anotar lo que queda». No se reintenta solo |
 | 404 | «Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado.» [NUEVO] | Se cierra el panel, se recarga la lista en silencio (`cargar(true)`) y el mensaje va arriba, en el lugar del `AvisoOk`, como `MensajeError` con `role="alert"` y el foco. La fila ya no existe, así que el mensaje no puede ir en ella |
 | 403 `sin-consentimiento` o `revision-vencida` | Los de MATU-36 y MATU-44 [L 18, L 22] | Se cierra el panel y la pantalla pasa al estado de permiso (`setCarga(permiso)`), como hoy con «Seguir» |
-| 409 `perfil-inactivo`, si el contrato lo trae (A1) | «Alguien dejó de seguir «{nombre}» mientras lo anotabas. Para anotar, vuelve a marcar «Seguir».» [NUEVO] | Error del panel con «Ver cómo quedó» [L 17], que cierra el panel y recarga la lista |
-| 412, si el contrato pide `If-Match` (A1) | «{autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.» [NUEVO, con la forma de L 17] · «Ver cómo quedó» [L 17] | Igual que el 409. No se suma ni se reemplaza nada |
+| 409 `perfil-inactivo` (A3: alguien desmarcó «Seguir» en otro teléfono mientras el panel estaba abierto) | «Alguien de tu familia dejó de seguir «{nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir».» [NUEVO] | Error del panel con «Ver cómo quedó» [L 17]. Al tocarlo se cierra el panel, se recarga la lista en silencio, la fila aparece en «Sin seguir» sin «Compré» ni «Me quedan», y el foco va a su casilla «Seguir» (`seguir-{id}`), que es el paso que sigue |
+| 412 `version-desactualizada` (decisión 141) | «{autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.» [NUEVO, con la forma de L 17] · «Ver cómo quedó» [L 17] | Igual que el 409. No se suma ni se reemplaza nada |
+| 428 `falta-version` (no debería pasar: la pantalla siempre manda `If-Match`) | «No pudimos guardar este insumo. Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.» [L 18] | Error del panel. El panel sigue abierto con lo escrito |
 | 401 | El de MATU-36 (renovar una vez y, si falla, a la entrada) | — |
 
 ### 5.6 Sin permiso
@@ -320,8 +378,8 @@ La frase del analista se adopta tal cual. Dice «cambió lo que queda», que cub
 | Otro 422 | No pudimos guardar. Revisa los datos y vuelve a intentarlo. | [L 18] |
 | Red o 5xx | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. | [L 17] |
 | 404 | Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado. | [NUEVO] |
-| 409 `perfil-inactivo` (A1) | Alguien dejó de seguir «{nombre}» mientras lo anotabas. Para anotar, vuelve a marcar «Seguir». | [NUEVO] |
-| 412 (A1) | {autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo. («Otra persona» si no hay autor, [L 18]) | [NUEVO] |
+| 409 `perfil-inactivo` (A3) | Alguien de tu familia dejó de seguir «{nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir». | [NUEVO] |
+| 412 | {autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo. («Otra persona» si no hay autor, [L 18]) | [NUEVO] |
 | Después de 409 o 412 | Ver cómo quedó | [L 17] |
 
 **`{cantidad}`** es `cantidadEnTexto(n, unidad, envase)` de `textoLista.ts`: «2 envases de 20 unidades», «24 unidades», «1 sobre», «500 ml», «1.200 unidades». En «Me quedan», `envase` va siempre en `null`, porque se cuenta en la unidad del insumo. La cifra con punto de miles desde 1.000. **`{n}` y `{fecha}`** salen de la respuesta (`dias_restantes` y `fecha_quiebre_estimada`), nunca de un cálculo de la pantalla.
@@ -350,7 +408,7 @@ La frase del analista se adopta tal cual. Dice «cambió lo que queda», que cub
 
 1. Con los paneles cerrados, «Anotar un insumo» es el único `turquesa` macizo de la pantalla. Con un panel abierto, el único es su botón de confirmar.
 2. En cada insumo que se sigue, como admin o cuidador, «Compré» y «Me quedan» están en un renglón propio, encima del renglón de «Seguir», «Cambiar» y la papelera, con un divisor `linea` entre los dos. A 360 px los dos botones caben en un renglón.
-3. Como pagador u observador, no existe ningún «Compré» ni «Me quedan» en el DOM. En un insumo «Sin seguir», tampoco (si Jorge confirma A3).
+3. Como pagador u observador, no existe ningún «Compré» ni «Me quedan» en el DOM. En un insumo «Sin seguir», tampoco.
 4. «Compré» en un insumo con 20 unidades por envase abre con «1» y «envase de 20 unidades», y el teclado del teléfono no se abre. «+» lo deja en «2» y «envases de 20 unidades». Se confirma con tres toques desde la fila.
 5. «Compré» sin envase y «Me quedan» abren con el campo vacío y el foco en él.
 6. Con la red lenta, la fila y el bloque «Se acaban pronto» no cambian hasta la respuesta, y el botón dice «Guardando…».
@@ -360,8 +418,12 @@ La frase del analista se adopta tal cual. Dice «cambió lo que queda», que cub
 10. A 320 px con texto al 200%, sin desplazamiento horizontal, con un nombre de 60 caracteres sin espacios y el sufijo «envases de 10.000 unidades».
 11. Todo lo que se toca mide al menos 48 × 48 px, y el foco se ve en claro y en oscuro.
 12. Ningún texto de la fila, del panel ni de la confirmación ofrece comprar, pedir, precios o catálogo, ni dice «quiebre», «stock» o «reposición».
+13. «Ya lo resolví» en un insumo con 20 unidades por envase abre con «1» y «envase de 20 unidades», sin abrir el teclado. Un toque en «−» lo deja en 0, y confirmar con 0 solo descarta el aviso («Listo. No te avisaremos de nuevo…»).
+14. «Ya lo resolví» en un insumo sin envase abre vacío, con el foco en el campo, igual que en MATU-37.
+15. Con cualquiera de los tres paneles abiertos, «Anotar un insumo» no es macizo (A5).
+16. Después de un 409 `perfil-inactivo` y «Ver cómo quedó», la fila queda en «Sin seguir», sin «Compré» ni «Me quedan», y con el foco en su «Seguir».
 
-**Para la revisión:** el frontend deja levantable, contra el doble del contrato, una lista con un insumo con envase de 20 que esté en «Se acaban pronto» y salga al comprar 2, uno sin envase en sobres, uno en ml, uno «Sin seguir», uno de 60 caracteres sin espacios, y respuestas de 422 `cobertura_maxima`, 422 por pasar de 100.000, 404, 403 `revision-vencida`, 500 y una respuesta lenta. Las capturas son a 360, 1280 y 1920 px, en claro y oscuro, y con texto al 200%.
+**Para la revisión:** el frontend deja levantable, contra el doble del contrato, una lista con un insumo con envase de 20 que esté en «Se acaban pronto» y salga al comprar 2, uno sin envase en sobres, uno en ml, uno «Sin seguir», uno de 60 caracteres sin espacios, el bloque «Se acaban pronto» con un insumo con envase y otro sin envase, y respuestas de 409 `perfil-inactivo`, 412, 422 `cobertura_maxima`, 422 por pasar de 100.000, 404, 403 `revision-vencida`, 500 y una respuesta lenta. Las capturas son a 360, 1280 y 1920 px, en claro y oscuro, y con texto al 200%.
 
 ---
 
@@ -394,26 +456,29 @@ En la app se dice «Compré» y «Me quedan», nunca «reposición», «reponer�
 | Me quedan, falta o sobre el tope | Escribe cuántos quedan. Si no queda nada, escribe 0. · Escribe un número hasta 100.000. (de la sección 18) |
 | Más de 10 años | Compré: Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste. · Me quedan: Con esa cantidad alcanzaría para más de 10 años. Revisa cuántos quedan. |
 | El insumo ya no está (404) | Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado. |
-| Dejaron de seguirlo (409) | Alguien dejó de seguir «{nombre}» mientras lo anotabas. Para anotar, vuelve a marcar «Seguir». · Ver cómo quedó |
+| Dejaron de seguirlo (409) | Alguien de tu familia dejó de seguir «{nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir». · Ver cómo quedó |
 | Otra persona lo cambió (412) | {autor} cambió «{nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo. · Ver cómo quedó |
 | Errores generales | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. (sección 17) · No pudimos guardar. Revisa los datos y vuelve a intentarlo. (sección 18) |
 
-**Si Jorge aprueba A2,** se agrega en la sección 17: «Panel, con envase conocido: ¿Compraste? ¿Cuántos envases?».
+### Textos aprobados que cambian
 
-### Textos aprobados que cambian (con el visto de Jorge)
+Las filas de la sección 17 salen de la decisión A2 de Jorge del 07-11. Las de las secciones 13.1, 16 y 18 todavía necesitan su visto.
 
 | Sección y fila | Hoy | Desde MATU-51 |
 |---|---|---|
 | 13.1, Nota bajo la fecha | Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo | Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo con «Compré» o «Me quedan». |
 | 16, Cómo calculamos, observador y pagador | Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa {pila}. | Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. Si compraron y no lo anotaron, no lo sabe. Tampoco sabe si cambió lo que usa {pila}. |
 | 18, Lista, «Cómo calculamos» | … No sabe si compraste ni si cambió lo que usa {nombre}. | … Si compraste o cambió lo que queda, anótalo con «Compré» o «Me quedan». No sabe si cambió lo que usa {nombre}. (texto del analista) |
+| 17, Panel | ¿Compraste? ¿Cuántos? / ¿Cuántos sobres? · Si no compraste, déjalo en blanco y solo dejamos de avisarte. · Guardando… · Volver | Con envase conocido: ¿Compraste? ¿Cuántos envases? · Si no compraste, déjalo en 0 y solo dejamos de avisarte. · Junto al campo: envase de {u} unidades / envases de {u} unidades (la cantidad de la sección 21). Sin envase: ¿Compraste? ¿Cuántos? / ¿Cuántos sobres? / ¿Cuántos ml? / ¿Cuántos gramos? · Si no compraste, déjalo en blanco y solo dejamos de avisarte. En los dos: Guardando… · Volver |
+| 17, Con cantidad · Con cantidad, si sigue en 0 o menos | {cantidad} como «4» o «2 sobres» | Los mismos textos, con {cantidad} armada como en la sección 21: «2 envases de 20 unidades», «24 unidades», «1 sobre», «500 ml» |
+| 17, Cantidad inválida | Escribe un número entre 1 y 9999, o déjalo en blanco. | Con envase: Escribe un número de 0 a 99. Si no compraste, déjalo en 0. · Sin envase: Escribe un número de 1 a 10.000, o déjalo en blanco. |
+| 17, fila nueva: más de 100.000 o más de 10 años | — | Los de «Compré» de la sección 23: Con esa compra quedarían más de 100.000 {unidades / sobres / ml / g}. Revisa cuántos compraste. · Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste. |
 
 ---
 
-## 12. Decisiones que Jorge debe ver
+## 12. Lo que Jorge debe ver
 
-1. **A2, la unidad de «Ya lo resolví».** Recomiendo que pregunte en envases igual que «Compré», para que la misma persona no anote 2 pañales creyendo que anotó 2 paquetes.
-2. **A3, sin botones en los insumos «Sin seguir».**
-3. **La confirmación va dentro de la fila y no arriba de la lista.** Después de anotar, la lista se reordena por fecha y la fila puede moverse. Con la confirmación en la fila, el foco y la vista la siguen. Arriba, en un teléfono, Carmen perdería la fila.
-4. **Con envase, «Compré» abre con 1 y sin el teclado,** para confirmar en tres toques. Sin envase y en «Me quedan», el campo abre vacío, para no confirmar un número que no se contó.
-5. **Los tres textos aprobados que cambian** (sección 11, segunda tabla). El de 360 px es el que más importa: hoy la nota corta dice «anótalo» sin decir dónde.
+1. **Mínimo 0 en «Ya lo resolví» con envase (3.8).** Jorge pidió 1 por omisión y de 1 a 99. Dejo el 1 por omisión y el tope de 99, pero el «−» baja hasta 0, que MATU-37 ya trata como «no compré, solo deja de avisar». Sin eso, quien no compró tendría que borrar el número con el teclado, o anotaría una compra que no hizo. Si Jorge prefiere de 1 a 99 sin el 0, la ayuda tiene que decir «Si no compraste, borra el número y solo dejamos de avisarte.» y el error «Escribe un número de 1 a 99, o bórralo si no compraste.».
+2. **La confirmación va dentro de la fila y no arriba de la lista.** Después de anotar, la lista se reordena por fecha y la fila puede moverse. Con la confirmación en la fila, el foco y la vista la siguen.
+3. **Con envase, «Compré» y «Ya lo resolví» abren con 1 y sin el teclado.** Sin envase, y en «Me quedan», el campo abre vacío para no confirmar un número que no se contó.
+4. **Los textos aprobados de las secciones 13.1, 16 y 18 que cambian** (sección 11). El de 360 px es el que más importa: hoy la nota corta dice «anótalo» sin decir dónde.
