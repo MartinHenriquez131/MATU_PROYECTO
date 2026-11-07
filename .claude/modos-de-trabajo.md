@@ -1,6 +1,6 @@
 # Modos de trabajo del orquestador
 
-**En prueba desde el 04-11-2026**, hasta la reunión del jueves 05-11. La decisión está en `../MATU/docs/sprints/reparto-en-prueba.md`, y mientras dure la prueba, esa nota manda sobre las secciones 3 y 4 de `CLAUDE.md`.
+**Definitivo desde el 05-11-2026** (ADR-030, `../MATU/docs/adr/ADR-030-roles-del-equipo.md`). El ADR-030 manda sobre las secciones 3 y 4 de `CLAUDE.md` donde se contradigan. La nota `../MATU/docs/sprints/reparto-en-prueba.md`, de la prueba del 04-11, queda como antecedente.
 
 ---
 
