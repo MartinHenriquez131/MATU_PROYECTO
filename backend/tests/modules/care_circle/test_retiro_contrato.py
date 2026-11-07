@@ -19,7 +19,7 @@ DOCS = Path(__file__).resolve().parents[4] / "docs" / "api"
 RUTA = "/v1/personas-cuidadas/{persona_id}/consentimientos"
 RETIRO = RUTA + "/{finalidad}/retiro"
 COMPONENTES = ("AutorizacionVista", "AutorizacionesPersona", "RetiroAutorizacion", "EstadoVista",
-               "SolicitudAutorizacionEntrada")
+               "SolicitudAutorizacionEntrada", "AutorizacionVistaResumen", "AutorizacionesPersonaResumen")
 
 
 @pytest.fixture(scope="module")
@@ -68,5 +68,11 @@ def test_la_vista_trae_solo_lo_acordado(esquema: dict[str, Any]) -> None:
     assert vista["additionalProperties"] is False
     assert set(esquema["components"]["schemas"]["EstadoVista"]["enum"]) == {
         "vigente", "revision_vencida", "retirada", "borrada", "sin_autorizar"}
+    resumen = esquema["components"]["schemas"]["AutorizacionVistaResumen"]
+    assert set(resumen["properties"]) == set(resumen["required"]) == campos - {"calidad_otorgante"}
+    assert resumen["additionalProperties"] is False
+    respuesta = esquema["paths"][RUTA]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert {r["$ref"].rsplit("/", 1)[1] for r in respuesta["anyOf"]} == {
+        "AutorizacionesPersona", "AutorizacionesPersonaResumen"}
     retiro = esquema["components"]["schemas"]["RetiroAutorizacion"]
     assert set(retiro["properties"]) == set(retiro["required"]) == {"autorizacion", "enlaces_cortados"}

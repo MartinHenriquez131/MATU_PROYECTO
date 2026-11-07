@@ -229,16 +229,60 @@ def test_se_retira_con_la_revision_anual_vencida(entorno: EntornoAbrir) -> None:
 
 
 @pytest.mark.parametrize("etiqueta", ["pagador", "pagador_con_plan", "observador"])
-def test_pagador_y_observador_404_y_nada_cambia(entorno: EntornoAbrir, etiqueta: str) -> None:
+@pytest.mark.parametrize("finalidad", ["plan_cuidado", "consumo"])
+def test_pagador_y_observador_no_retiran_ni_autorizan_404_y_nada_cambia(
+    entorno: EntornoAbrir, etiqueta: str, finalidad: str
+) -> None:
+    """D1: retirar y volver a autorizar siguen siendo solo de admin y cuidador."""
     familia = entorno.familia_con_ficha()
+    entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
     acceso_id, _, _ = entorno.compartir(familia)
     usuario = familia.miembros[etiqueta].usuario
-    for respuesta in (_retirar(entorno, familia, usuario), _estado(entorno, familia, usuario)):
+    autorizar = entorno.ficha.iam.cliente.post(
+        RUTA.format(familia.persona.id), json={"finalidad": finalidad, "calidad_otorgante": "titular"},
+        headers=_cab(entorno, usuario, familia),
+    )
+    for respuesta in (_retirar(entorno, familia, usuario, finalidad=finalidad), autorizar):
         assert respuesta.status_code == 404
         assert respuesta.json()["type"] == "/errores/no-encontrado"
         assert respuesta.headers["cache-control"] == "no-store"
     assert _acceso(acceso_id)[:2] == (None, None)
     assert _consentimientos(familia)[0][1] is None
+    assert _consentimientos(familia, "consumo")[0][1] is None
+
+
+CAMPOS_RESUMEN = {"finalidad", "estado", "id", "otorgado_en", "revision_vence_en", "revocado_en", "borrado_en",
+                  "borrada"}
+
+
+@pytest.mark.parametrize(("etiqueta", "con_calidad"), [
+    ("admin", True), ("cuidador", True), ("pagador", False), ("pagador_con_plan", False), ("observador", False),
+])
+def test_el_estado_lo_ven_los_cuatro_roles_y_la_calidad_solo_admin_y_cuidador(
+    entorno: EntornoAbrir, etiqueta: str, con_calidad: bool
+) -> None:
+    """P2 y C5: el pagador y el observador ven el estado y sus fechas, con otro esquema sin la calidad."""
+    familia = entorno.familia_con_ficha()
+    assert _retirar(entorno, familia).status_code == 200
+    usuario = familia.admin if etiqueta == "admin" else familia.miembros[etiqueta].usuario
+
+    respuesta = _estado(entorno, familia, usuario)
+
+    assert respuesta.status_code == 200 and respuesta.headers["cache-control"] == "no-store"
+    plan, consumo = respuesta.json()["autorizaciones"]
+    campos = CAMPOS_RESUMEN | {"calidad_otorgante"} if con_calidad else CAMPOS_RESUMEN
+    assert set(plan) == set(consumo) == campos
+    assert (plan["finalidad"], plan["estado"], plan["borrada"]) == ("plan_cuidado", "retirada", False)
+    assert plan["borrado_en"] is not None and consumo["estado"] == "sin_autorizar"
+    assert "titular" not in respuesta.text or con_calidad
+
+
+def test_el_estado_de_otro_grupo_o_sin_membresia_404(entorno: EntornoAbrir) -> None:
+    a, b = entorno.familia_con_ficha(), entorno.familia_con_ficha()
+    otra = entorno.ficha.iam.cliente.get(RUTA.format(b.persona.id), headers=_cab(entorno, a.admin, a))
+    assert otra.status_code == 404 and otra.headers["cache-control"] == "no-store"
+    sin_grupo = entorno.ficha.iam.cliente.get(RUTA.format(a.persona.id), headers=_cab(entorno, b.admin, a))
+    assert sin_grupo.status_code == 404
 
 
 def test_otro_grupo_finalidad_y_persona_invalidas_404(entorno: EntornoAbrir) -> None:

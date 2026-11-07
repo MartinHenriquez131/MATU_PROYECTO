@@ -51,12 +51,11 @@ class EfectoDelRetiro(Protocol):
         """Corta lo que depende de la autorización retirada. Devuelve cuántos enlaces cortó (0 si no aplica)."""
         ...
 
-    def borrar_vencido(self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None) -> None:
-        """Borra lo guardado de una autorización cuyo plazo de 90 días ya se cumplió (decisión 128)."""
-        ...
-
-    def destruido_en(self, persona_id: uuid.UUID) -> datetime | None:
-        """Cuándo se destruyó lo guardado, si se sabe (la clave de la ficha). None si no."""
+    def antes_de_otorgar(
+        self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None, plazo_cumplido: bool
+    ) -> None:
+        """Antes de una autorización nueva: con ``plazo_cumplido`` borra lo que quedaba (decisión 128), y deja
+        lista una ficha en blanco si lo anterior ya no se puede leer (decisión 130)."""
         ...
 
 
@@ -72,6 +71,12 @@ class RepositorioRetiros(Protocol):
 
     def ultima(self, persona_id: uuid.UUID, finalidad: str) -> AutorizacionRegistrada | None:
         """La no revocada o, si no hay, la de revocación más reciente. None si nunca hubo."""
+        ...
+
+    def retiro_anterior(
+        self, persona_id: uuid.UUID, finalidad: str, antes_de: datetime
+    ) -> AutorizacionRegistrada | None:
+        """El último retiro (motivo retiro) revocado en ``antes_de`` o antes. None si no hay."""
         ...
 
     def retirar(
@@ -122,28 +127,24 @@ def retirar_autorizacion(
     repositorio.retirar(vigente.id, ahora, solicitud.usuario_id, solicitud.request_id)
     cortados = efecto.aplicar(solicitud.persona_id, ahora, solicitud.usuario_id, solicitud.request_id)
     retirada = replace(vigente, revocado_en=ahora)
-    return AutorizacionRetirada(
-        estado=estado_de(solicitud.finalidad, retirada, efecto.destruido_en(solicitud.persona_id), ahora),
-        enlaces_cortados=cortados,
-    )
+    return AutorizacionRetirada(estado=estado_de(solicitud.finalidad, retirada, None, ahora), enlaces_cortados=cortados)
 
 
 def estado_autorizaciones(
-    rol: str,
-    persona_id: uuid.UUID,
-    reloj: Reloj,
-    repositorio: RepositorioRetiros,
-    efectos: Mapping[str, EfectoDelRetiro],
+    persona_id: uuid.UUID, reloj: Reloj, repositorio: RepositorioRetiros
 ) -> list[EstadoDeAutorizacion]:
-    """Las dos finalidades, en el orden de la vista (decisión 127). Solo admin y cuidador."""
-    if not puede_retirar(rol):
-        raise RolSinPermisoRetiro()
+    """Las dos finalidades, en el orden de la vista (decisión 127). La ven los cuatro roles (P2): la API
+    elige la proyección del rol. Sale solo de los consentimientos y del Reloj, sin leer la ficha."""
     ahora = reloj.ahora()
     estados = []
     for finalidad in FINALIDADES_RETIRABLES:
-        efecto = efectos.get(finalidad)
-        destruido = None if efecto is None else efecto.destruido_en(persona_id)
-        estados.append(estado_de(finalidad, repositorio.ultima(persona_id, finalidad), destruido, ahora))
+        actual = repositorio.ultima(persona_id, finalidad)
+        anterior = (
+            None
+            if actual is None or actual.revocado_en is not None
+            else repositorio.retiro_anterior(persona_id, finalidad, actual.otorgado_en)
+        )
+        estados.append(estado_de(finalidad, actual, anterior, ahora))
     return estados
 
 
@@ -155,12 +156,13 @@ def antes_de_otorgar(
     repositorio: RepositorioRetiros,
     efectos: Mapping[str, EfectoDelRetiro],
 ) -> None:
-    """Antes de una autorización nueva: si la anterior se retiró hace 90 días o más, borra lo que quedaba
-    aunque la tarea no haya corrido (decisión 128). Una autorización tardía no recupera nada."""
+    """Antes de una autorización nueva. Si la anterior se retiró hace 90 días o más, el efecto borra lo que
+    quedaba aunque la tarea no haya corrido (decisión 128): una autorización tardía no recupera nada. Si
+    nunca hubo una autorización revocada, no hace nada."""
     ultima = repositorio.ultima(persona_id, finalidad)
-    if ultima is None or ultima.revocado_en is None or not plazo_cumplido(ultima.revocado_en, ahora):
+    if ultima is None or ultima.revocado_en is None:
         return
     efecto = efectos.get(finalidad)
     if efecto is None:
         raise EfectoNoDisponible()
-    efecto.borrar_vencido(persona_id, ahora, request_id)
+    efecto.antes_de_otorgar(persona_id, ahora, request_id, plazo_cumplido(ultima.revocado_en, ahora))

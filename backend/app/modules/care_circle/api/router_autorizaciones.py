@@ -2,7 +2,7 @@
 retirarlas (MATU-44, decisiones 123 a 127).
 
     POST /v1/personas-cuidadas/{persona_id}/consentimientos                       admin y cuidador. 201
-    GET  /v1/personas-cuidadas/{persona_id}/consentimientos                       admin y cuidador. 200
+    GET  /v1/personas-cuidadas/{persona_id}/consentimientos                       todo miembro activo. 200
     POST /v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro    admin y cuidador. 200
 
 Contrato: docs/api/openapi.json. Orden de evaluación del POST: 401, 404 (membresía, rol, persona), 422
@@ -263,11 +263,35 @@ class AutorizacionVista(BaseModel):
 
 
 class AutorizacionesPersona(BaseModel):
-    """Siempre dos ítems: plan_cuidado y consumo, en ese orden."""
+    """Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador."""
 
     model_config = ConfigDict(extra="forbid")
 
     autorizaciones: list[AutorizacionVista]
+
+
+class AutorizacionVistaResumen(BaseModel):
+    """Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del
+    otorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    finalidad: FinalidadVista
+    estado: EstadoVista
+    id: uuid.UUID | None
+    otorgado_en: datetime | None
+    revision_vence_en: datetime | None
+    revocado_en: datetime | None
+    borrado_en: datetime | None
+    borrada: bool
+
+
+class AutorizacionesPersonaResumen(BaseModel):
+    """Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    autorizaciones: list[AutorizacionVistaResumen]
 
 
 class RetiroAutorizacion(BaseModel):
@@ -294,18 +318,41 @@ def _vista(estado: EstadoDeAutorizacion) -> AutorizacionVista:
     )
 
 
+def persona_para_ver(
+    contexto: SesionDeGrupo, persona_id: Annotated[str, Path(json_schema_extra={"format": "uuid"})]
+) -> PersonaParaAutorizar:
+    """Ven el estado los cuatro roles (P2). La persona debe ser del grupo; si no, 404."""
+    try:
+        persona = uuid.UUID(persona_id)
+    except ValueError:
+        raise ErrorMATU(404) from None
+    if persona_con_autorizacion(contexto.sesion, contexto.grupo_id, persona) is None:
+        raise ErrorMATU(404)
+    return PersonaParaAutorizar(contexto, persona)
+
+
+def _resumen(estado: EstadoDeAutorizacion) -> AutorizacionVistaResumen:
+    completa = _vista(estado)
+    return AutorizacionVistaResumen.model_validate(completa.model_dump(exclude={"calidad_otorgante"}))
+
+
 @router.get(
     RUTA,
-    response_model=AutorizacionesPersona,
-    responses={401: _ERRORES[401], 404: _ERRORES[404]},
+    response_model=AutorizacionesPersona | AutorizacionesPersonaResumen,
+    responses={
+        401: _ERRORES[401],
+        404: {"description": "No miembro, persona de otro grupo o inexistente", **_PROBLEMA},
+    },
     summary="El estado de las dos autorizaciones de la persona",
 )
-def estado(autorizar: Autorizar, retiros: Retiros, efectos: Efectos, reloj: RelojDep) -> AutorizacionesPersona:
-    try:
-        estados = estado_autorizaciones(autorizar.contexto.rol, autorizar.persona_id, reloj, retiros, efectos)
-    except RolSinPermisoRetiro:  # pragma: no cover - la dependencia ya lo verificó
-        raise ErrorMATU(404) from None
-    return AutorizacionesPersona(autorizaciones=[_vista(e) for e in estados])
+def estado(
+    ver: Annotated[PersonaParaAutorizar, Depends(persona_para_ver)], retiros: Retiros, reloj: RelojDep
+) -> AutorizacionesPersona | AutorizacionesPersonaResumen:
+    estados = estado_autorizaciones(ver.persona_id, reloj, retiros)
+    # Cada rol recibe su propia proyección: el pagador y el observador nunca reciben la calidad del otorgante
+    if puede_dar_de_alta(ver.contexto.rol):
+        return AutorizacionesPersona(autorizaciones=[_vista(e) for e in estados])
+    return AutorizacionesPersonaResumen(autorizaciones=[_resumen(e) for e in estados])
 
 
 FinalidadRuta = Annotated[

@@ -104,13 +104,20 @@ def test_estado_retirada_y_borrada_segun_el_reloj() -> None:
     assert (borrada.estado, borrada.borrada) == (EstadoVista.BORRADA, True)
 
 
-def test_la_destruccion_manda_sobre_el_plazo() -> None:
-    destruida = AHORA - timedelta(hours=1)
-    retirada = estado_de("plan_cuidado", _autorizacion(revocado=AHORA - timedelta(days=100)), destruida, AHORA)
-    assert (retirada.estado, retirada.borrado_en, retirada.borrada) == (EstadoVista.BORRADA, destruida, True)
-    # Autorizada de nuevo después de destruida: vigente, pero lo anterior ya se borró
-    vigente = estado_de("plan_cuidado", _autorizacion(), destruida, AHORA)
-    assert (vigente.estado, vigente.borrado_en, vigente.borrada) == (EstadoVista.VIGENTE, destruida, True)
+def test_autorizada_de_nuevo_despues_del_dia_90_dice_que_lo_anterior_se_borro() -> None:
+    """P8: la ficha empieza en blanco. La vista lo dice con borrada y borrado_en, sin leer la ficha."""
+    retiro = _autorizacion(revocado=AHORA - timedelta(days=100))
+    nueva = replace(_autorizacion(), otorgado_en=AHORA - timedelta(days=5))
+    vigente = estado_de("plan_cuidado", nueva, retiro, AHORA)
+    assert (vigente.estado, vigente.borrado_en, vigente.borrada) == (
+        EstadoVista.VIGENTE, retiro.revocado_en + timedelta(days=90), True)  # type: ignore[operator]
+
+
+def test_autorizada_de_nuevo_antes_del_dia_90_no_se_borro_nada() -> None:
+    retiro = _autorizacion(revocado=AHORA - timedelta(days=30))
+    nueva = replace(_autorizacion(), otorgado_en=AHORA - timedelta(days=5))
+    vigente = estado_de("plan_cuidado", nueva, retiro, AHORA)
+    assert (vigente.estado, vigente.borrado_en, vigente.borrada) == (EstadoVista.VIGENTE, None, False)
 
 
 # --- Caso de uso, con dobles -----------------------------------------------------------------------------
@@ -132,6 +139,11 @@ class Repo:
         revocadas = sorted((a for a in filas if a.revocado_en), key=lambda a: a.revocado_en or AHORA)
         return revocadas[-1] if revocadas else None
 
+    def retiro_anterior(self, persona_id: uuid.UUID, finalidad: str,
+                        antes_de: datetime) -> AutorizacionRegistrada | None:
+        revocadas = [a for a in self.filas.get(finalidad, []) if a.revocado_en and a.revocado_en <= antes_de]
+        return max(revocadas, key=lambda a: a.revocado_en or AHORA) if revocadas else None
+
     def retirar(self, consentimiento_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID,
                 request_id: str | None) -> None:
         self.retiradas.append((consentimiento_id, ahora))
@@ -142,7 +154,7 @@ class Efecto:
         self.cortados = cortados
         self.falla = falla
         self.aplicados: list[datetime] = []
-        self.borrados: list[datetime] = []
+        self.preparados: list[tuple[datetime, bool]] = []
 
     def aplicar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
         if self.falla:
@@ -150,11 +162,10 @@ class Efecto:
         self.aplicados.append(ahora)
         return self.cortados
 
-    def borrar_vencido(self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None) -> None:
-        self.borrados.append(ahora)
-
-    def destruido_en(self, persona_id: uuid.UUID) -> datetime | None:
-        return None
+    def antes_de_otorgar(
+        self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None, plazo_cumplido: bool
+    ) -> None:
+        self.preparados.append((ahora, plazo_cumplido))
 
 
 def _solicitud(rol: str = "cuidador", finalidad: str = "plan_cuidado") -> SolicitudRetiro:
@@ -205,19 +216,17 @@ def test_si_el_efecto_falla_la_excepcion_sigue() -> None:
 
 def test_estado_trae_las_dos_finalidades_en_orden() -> None:
     repo = Repo({"plan_cuidado": [_autorizacion()]})
-    estados = estado_autorizaciones("admin", uuid.uuid4(), RelojFijo(AHORA), repo, {})
+    estados = estado_autorizaciones(uuid.uuid4(), RelojFijo(AHORA), repo)
     assert [(e.finalidad, e.estado) for e in estados] == [
         ("plan_cuidado", EstadoVista.VIGENTE), ("consumo", EstadoVista.SIN_AUTORIZAR)]
-    with pytest.raises(RolSinPermisoRetiro):
-        estado_autorizaciones("observador", uuid.uuid4(), RelojFijo(AHORA), repo, {})
 
 
 @pytest.mark.parametrize(("dias", "borra"), [(89, False), (90, True)])
-def test_antes_de_otorgar_borra_solo_desde_el_dia_90(dias: int, borra: bool) -> None:
+def test_antes_de_otorgar_avisa_el_plazo_cumplido_solo_desde_el_dia_90(dias: int, borra: bool) -> None:
     efecto = Efecto()
     repo = Repo({"consumo": [_autorizacion("consumo", revocado=AHORA - timedelta(days=dias))]})
     antes_de_otorgar(uuid.uuid4(), "consumo", AHORA, None, repo, {"consumo": efecto})
-    assert efecto.borrados == ([AHORA] if borra else [])
+    assert efecto.preparados == [(AHORA, borra)]
 
 
 def test_antes_de_otorgar_sin_retiro_no_hace_nada() -> None:
@@ -225,4 +234,4 @@ def test_antes_de_otorgar_sin_retiro_no_hace_nada() -> None:
     antes_de_otorgar(uuid.uuid4(), "plan_cuidado", AHORA, None, Repo({}), {"plan_cuidado": efecto})
     antes_de_otorgar(uuid.uuid4(), "plan_cuidado", AHORA, None, Repo({"plan_cuidado": [_autorizacion()]}),
                      {"plan_cuidado": efecto})
-    assert efecto.borrados == []
+    assert efecto.preparados == []

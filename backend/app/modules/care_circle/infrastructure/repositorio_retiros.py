@@ -26,6 +26,11 @@ _BLOQUEAR_VIGENTE = text(_COLUMNAS + _DE_LA_PERSONA + " AND revocado_en IS NULL 
 # La no revocada primero (NULLS FIRST) y, si no hay, la de revocación más reciente
 _ULTIMA = text(_COLUMNAS + _DE_LA_PERSONA + " ORDER BY revocado_en DESC NULLS FIRST, otorgado_en DESC LIMIT 1")
 
+_RETIRO_ANTERIOR = text(
+    _COLUMNAS + _DE_LA_PERSONA + " AND revocacion_motivo = 'retiro' AND revocado_en <= :antes_de"
+    " ORDER BY revocado_en DESC LIMIT 1"
+)
+
 _RETIRAR = text(
     "UPDATE consentimiento SET revocado_en = :ahora, revocacion_motivo = :motivo"
     " WHERE id = :id AND grupo_id = :grupo_id AND revocado_en IS NULL"
@@ -66,6 +71,14 @@ class RepositorioRetirosSQL:
 
     def ultima(self, persona_id: uuid.UUID, finalidad: str) -> AutorizacionRegistrada | None:
         fila = self._sesion.execute(_ULTIMA, self._parametros(persona_id, finalidad)).first()
+        return None if fila is None else _registrada(fila)
+
+    def retiro_anterior(
+        self, persona_id: uuid.UUID, finalidad: str, antes_de: datetime
+    ) -> AutorizacionRegistrada | None:
+        fila = self._sesion.execute(
+            _RETIRO_ANTERIOR, {**self._parametros(persona_id, finalidad), "antes_de": antes_de}
+        ).first()
         return None if fila is None else _registrada(fila)
 
     def retirar(

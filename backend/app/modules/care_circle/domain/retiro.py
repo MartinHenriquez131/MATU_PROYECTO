@@ -112,28 +112,30 @@ class EstadoDeAutorizacion:
 def estado_de(
     finalidad: str,
     autorizacion: AutorizacionRegistrada | None,
-    destruida_en: datetime | None,
+    retiro_anterior: AutorizacionRegistrada | None,
     ahora: datetime,
 ) -> EstadoDeAutorizacion:
-    """El estado de una finalidad.
+    """El estado de una finalidad, solo con los consentimientos y el Reloj (decisión 127).
 
-    ``autorizacion`` es la no revocada o, si no hay, la última revocada. ``destruida_en`` es cuándo la
-    tarea destruyó lo guardado, si se sabe (la clave de la ficha), o None.
+    ``autorizacion`` es la no revocada o, si no hay, la última revocada. ``retiro_anterior`` es, para una no
+    revocada, el último retiro (motivo retiro) anterior a ella, o None.
 
     - Sin autorización: sin_autorizar.
-    - Revocada: retirada antes de los 90 días y borrada desde el día 90, según ``ahora``.
-    - No revocada: vigente o revision_vencida (decisión 33).
-    - ``borrado_en``: el instante de la destrucción si ya ocurrió; si no, para una revocada,
-      revocado_en + 90 días; si no, None. ``borrada``: hubo destrucción o se cumplió el plazo.
+    - Revocada: retirada antes de los 90 días y borrada desde el día 90 según ``ahora``, aunque la tarea no
+      haya corrido (lo borrado nunca vuelve: decisión 128). ``borrado_en`` = revocado_en + 90 días.
+    - No revocada: vigente o revision_vencida (decisión 33). Si se otorgó 90 días o más después del retiro
+      anterior, lo de antes se borró: ``borrada`` y ``borrado_en`` lo dicen, y la ficha empezó en blanco.
     """
     if autorizacion is None:
-        return EstadoDeAutorizacion(finalidad, EstadoVista.SIN_AUTORIZAR, None, destruida_en, destruida_en is not None)
+        return EstadoDeAutorizacion(finalidad, EstadoVista.SIN_AUTORIZAR, None, None, False)
     if autorizacion.revocado_en is not None:
-        fecha = destruida_en or borrado_desde(autorizacion.revocado_en)
-        borrada = destruida_en is not None or plazo_cumplido(autorizacion.revocado_en, ahora)
+        borrada = plazo_cumplido(autorizacion.revocado_en, ahora)
         estado = EstadoVista.BORRADA if borrada else EstadoVista.RETIRADA
-        return EstadoDeAutorizacion(finalidad, estado, autorizacion, fecha, borrada)
+        return EstadoDeAutorizacion(finalidad, estado, autorizacion, borrado_desde(autorizacion.revocado_en), borrada)
     guardada = AutorizacionGuardada(autorizacion.calidad_otorgante, autorizacion.revision_vence_en)
     vigencia = estado_autorizacion(guardada, ahora)
     estado = EstadoVista.REVISION_VENCIDA if vigencia is EstadoAutorizacion.REVISION_VENCIDA else EstadoVista.VIGENTE
-    return EstadoDeAutorizacion(finalidad, estado, autorizacion, destruida_en, destruida_en is not None)
+    anterior = None if retiro_anterior is None else retiro_anterior.revocado_en
+    if anterior is not None and plazo_cumplido(anterior, autorizacion.otorgado_en):
+        return EstadoDeAutorizacion(finalidad, estado, autorizacion, borrado_desde(anterior), True)
+    return EstadoDeAutorizacion(finalidad, estado, autorizacion, None, False)
