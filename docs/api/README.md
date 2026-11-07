@@ -49,9 +49,9 @@ docs/api/
 | `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
-| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36; cambio de MATU-44 | Implementado. Solo `finalidad: consumo`. En `openapi.json` desde MATU-36. **Propuesto (MATU-44):** acepta también `plan_cuidado` (decisión 128) |
-| `GET /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-44 (D8) | **Propuesto** (decisión 127). Contrato en `app-familia.openapi.yaml` |
-| `POST /v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro` | MATU-44 (RF-02, RF-07) | **Propuesto** (decisiones 123 a 126). Contrato en `app-familia.openapi.yaml` |
+| `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36; cambio de MATU-44 | Implementado. En `openapi.json` desde MATU-36. Acepta también `finalidad: plan_cuidado` desde MATU-44 (decisión 128) |
+| `GET /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-44 (D8) | Implementado (decisión 127). En `openapi.json` desde MATU-44 |
+| `POST /v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro` | MATU-44 (RF-02, RF-07) | Implementado (decisiones 123 a 126). En `openapi.json` desde MATU-44 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36. Cada perfil trae `unidades_por_envase` desde MATU-60 (decisión 121) |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Acepta `unidades_por_envase`, opcional, desde MATU-60 (decisión 121) |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36; cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Trae `unidades_por_envase` desde MATU-60 (decisión 121) |
@@ -96,7 +96,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/autorizacion-vigente` | 409 | `POST …/consentimientos`: la persona ya tiene una autorización no revocada para esa finalidad (`consentimiento_vigente_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-duplicado` | 409 | `POST …/consumo`: ya hay un perfil activo de la persona con ese `producto_id` (`perfil_consumo_producto_uq`) | **Nuevo** (MATU-36) |
 | `/errores/perfil-inactivo` | 409 | `PATCH …/consumo/{perfil_id}` sobre un perfil desactivado | **Nuevo** (MATU-36) |
-| `/errores/ya-retirada` | 409 | `POST …/consentimientos/{finalidad}/retiro`: la autorización de esa finalidad ya estaba retirada (decisión 125) | **Nuevo** (MATU-44) |
+| `/errores/ya-retirada` | 409 | `POST …/consentimientos/{finalidad}/retiro`: la autorización de esa finalidad ya estaba retirada (decisión 125) | Existe (MATU-44) |
 | `/errores/alerta-cerrada` | 409 | `POST …/alertas/{alerta_id}/descartar` sobre una alerta `resuelta` o `descartada`, con el `estado` actual como miembro de extensión | **Nuevo** (MATU-37) |
 | `/errores/pin-incorrecto` | 401 | PIN incorrecto, del 1.º al 4.º intento, con `intentos_restantes` | Existe (MATU-19) |
 | `/errores/sin-sesion-relevo` | 401 | `GET /v1/relevo/ficha` sin cookie, o con una cookie que no corresponde a una sesión en Redis (alterada o vencida por su TTL). Nunca por revocar | Existe (MATU-19) |
@@ -331,7 +331,7 @@ Lo que coincide: tope de 500 caracteres, 5 intentos de PIN, contador que vuelve 
 
 Mientras no esté "revocar el consentimiento y cortar los accesos de relevo vigentes" (backlog, sección 8, sprint 3), retirar el consentimiento no corta los accesos ya creados: `GET /v1/relevo/ficha` no puede leer `consentimiento`, porque la sesión de relevo no fija `app.grupo_id`. Se cierra cuando esa historia revoque los accesos al retirar el consentimiento.
 
-**Condición de Jorge (27-10):** esa historia es requisito para operar con datos reales. La política de privacidad v0.9 promete cortar los accesos al retirar la autorización, y MATU no recibe datos reales mientras la historia no esté terminada.
+**Condición de Jorge (27-10):** esa historia es requisito para operar con datos reales. La política de privacidad v0.9 promete cortar los accesos al retirar la autorización, y MATU no recibe datos reales mientras la historia no esté terminada. *Cerrado por MATU-44 (06-11):* el retiro corta los accesos en la misma transacción (decisión 124).
 
 ## Notas de implementación de MATU-19
 
@@ -867,6 +867,8 @@ Las tres preguntas quedaron cerradas por Jorge el 06-11:
 
 ## MATU-44 · Retirar una autorización y cortar los accesos de relevo (RF-02, RF-07, RF-10)
 
+**Implementado el 06-11.** Las dos rutas nuevas, `finalidad: plan_cuidado` en el `POST` y sus esquemas (`AutorizacionVista`, `AutorizacionesPersona`, `RetiroAutorizacion` y `EstadoVista`) pasaron a `openapi.json`, exportados desde `app.openapi()` sin reordenar lo que ya estaba, y se quitaron de `propuestos/app-familia.openapi.yaml`, que vuelve a no tener rutas. Ver "Notas de implementación de MATU-44" al final de esta sección. El párrafo que sigue es el de la propuesta.
+
 Contrato escrito el 06-11, **antes de implementar**, con las decisiones de Jorge del 06-11 (D1 a D8), las condiciones de la revisión previa del analista normativo (Trello, MATU-44) y lo que pide la especificación del diseñador (`docs/diseno/matu-44-retirar-autorizacion.md`, sección 7, C1 a C4). Las rutas y sus esquemas están en `propuestos/app-familia.openapi.yaml`. El cambio a `POST …/consentimientos`, que ya está en `openapi.json`, se declara ahí como fragmento con `x-matu-se-suma-a`, igual que en MATU-60.
 
 La numeración sigue en la 123: la última de esta rama es la 122 (MATU-60).
@@ -923,3 +925,25 @@ La numeración sigue en la 123: la última de esta rama es la 122 (MATU-60).
 2. **P2 y C5:** si el pagador y el observador ven el estado de las autorizaciones, con el analista normativo.
 3. **P6 y C6:** confirmar que se puede retirar con la revisión vencida (así está implementado, por la condición 3 del analista).
 4. **Para saber:** después del día 90 la ficha de esa persona no se vuelve a usar aunque se autorice de nuevo (decisión 130). Si se prefiere una ficha vacía, hay que cambiar la regla de MATU-11.
+
+### Notas de implementación de MATU-44 (06-11)
+
+- **Dónde vive cada regla.**
+  - `care_circle/domain/retiro.py`: quién retira, la finalidad del path, `exigir_retirable` (409 y la regla P6, `RETIRO_CON_REVISION_VENCIDA`), el plazo de 90 días (`PLAZO_BORRADO`, `plazo_cumplido`) y el estado de la vista (`estado_de`).
+  - `care_circle/application/retiro.py`: `retirar_autorizacion`, `estado_autorizaciones`, `antes_de_otorgar` y el puerto `EfectoDelRetiro`. `application/autorizaciones.py` generaliza el alta de la autorización a `otorgar_autorizacion` (con `preparar`, que corre justo antes de guardar) y conserva `otorgar_autorizacion_consumo`.
+  - `care_circle/infrastructure/repositorio_retiros.py` (SQL, `FOR UPDATE`), `efectos_retiro.py` (el registro de efectos) y `autorizacion.py` (`persona_con_autorizacion(..., bloquear=True)`, con `FOR SHARE`).
+  - `care_plan/infrastructure/efecto_retiro.py` (`EfectoRetiroFicha`): corta los accesos con `cortar_por_retiro` (`application/relevo.py`, regla `debe_revocar` de MATU-20), destruye la clave al autorizar tarde y dice cuándo se destruyó. `care_plan/api/dependencias.py` lee con `FOR SHARE` al compartir y responde 404 con la clave destruida (decisión 130).
+  - `consumption/infrastructure/efecto_retiro.py` (`EfectoRetiroConsumo`) y `consumption/application/retiro.py`: descarta las alertas y borra los perfiles al autorizar tarde.
+  - `app.main` registra los dos efectos al armar la aplicación.
+  - La tarea: `care_plan/application/destruccion.py` y `care_plan/infrastructure/tarea_destruccion.py`.
+- **Auditoría nueva:** `clave.destruir` (`AccionAuditoria.CLAVE_DESTRUIR`) y la entidad `clave_datos`.
+- **Migración 0016** (`backend/alembic/versions/0016_retiro_autorizacion.py`). Se verificó `upgrade head`, `downgrade -1` y `upgrade head`. El `downgrade` deja el catálogo idéntico al de la 0015 (`test_0016_…`).
+- **Pruebas que se ajustaron por el `CHECK` nuevo:** las que fijaban `revocado_en` a mano (`test_personas.py`, `test_abrir_relevo_api.py`, `test_ficha_api.py`, `test_avisos_integracion.py`, `test_aislamiento.py` y la fábrica `autorizacion_consumo`) ahora fijan también `revocacion_motivo = 'retiro'`.
+- **Pruebas nuevas.**
+  - `tests/modules/care_circle/test_retiro_dominio.py`: reglas y casos de uso con dobles.
+  - `tests/modules/care_plan/test_retiro_autorizacion_api.py`: el corte (vigentes, bloqueados y en pausa sí, vencidos y cortados no), el relevo en 410 para siempre, la ficha en 403 y la lista y las aperturas en 200, volver a autorizar, el 409, los roles, otras personas y grupos, la otra finalidad, que todo vuelva atrás si falla un corte, la vista, las dos carreras con compartir y los logs.
+  - `tests/modules/care_plan/test_destruccion_ficha_api.py`: el día 89 y el 90, la idempotencia, el 404 después, la autorización antes del día 90 y la tardía.
+  - `tests/modules/consumption/test_retiro_consumo_api.py` y un caso en `tests/modules/notifications/test_avisos_integracion.py`: las alertas descartadas, el 403 con `finalidad: consumo`, el trabajo diario y el aviso `omitida` con `sin_autorizacion`.
+  - `tests/modules/care_circle/test_retiro_contrato.py`: las rutas y los esquemas contra `openapi.json`, y que salieron del propuesto.
+  - `tests/test_aislamiento.py` (como `matu_app`: la barrera por rol, el motivo y `plan_destruir_claves`) y `tests/test_migraciones.py` (la 0016).
+- **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia`, porque el CI lo compara con `openapi.json`.
