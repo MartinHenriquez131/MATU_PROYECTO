@@ -2673,7 +2673,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AutorizacionesPersona"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AutorizacionesPersona"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AutorizacionesPersonaResumen"
+                    }
+                  ],
+                  "title": "Response Estado V1 Personas Cuidadas  Persona Id  Consentimientos Get"
                 }
               }
             }
@@ -2685,7 +2693,7 @@
             }
           },
           "404": {
-            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente",
+            "description": "No miembro, persona de otro grupo o inexistente",
             "content": {
               "application/problem+json": {}
             }
@@ -5035,6 +5043,99 @@
         "title": "AutorizacionVista",
         "description": "El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la\nversión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``\nsalen de aquí."
       },
+      "AutorizacionVistaResumen": {
+        "properties": {
+          "finalidad": {
+            "type": "string",
+            "enum": [
+              "plan_cuidado",
+              "consumo"
+            ],
+            "title": "Finalidad"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoVista"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "otorgado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otorgado En"
+          },
+          "revision_vence_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Vence En"
+          },
+          "revocado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocado En"
+          },
+          "borrado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrado En"
+          },
+          "borrada": {
+            "type": "boolean",
+            "title": "Borrada"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finalidad",
+          "estado",
+          "id",
+          "otorgado_en",
+          "revision_vence_en",
+          "revocado_en",
+          "borrado_en",
+          "borrada"
+        ],
+        "title": "AutorizacionVistaResumen",
+        "description": "Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del\notorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2)."
+      },
       "AutorizacionesPersona": {
         "properties": {
           "autorizaciones": {
@@ -5051,7 +5152,25 @@
           "autorizaciones"
         ],
         "title": "AutorizacionesPersona",
-        "description": "Siempre dos ítems: plan_cuidado y consumo, en ese orden."
+        "description": "Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador."
+      },
+      "AutorizacionesPersonaResumen": {
+        "properties": {
+          "autorizaciones": {
+            "items": {
+              "$ref": "#/components/schemas/AutorizacionVistaResumen"
+            },
+            "type": "array",
+            "title": "Autorizaciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "autorizaciones"
+        ],
+        "title": "AutorizacionesPersonaResumen",
+        "description": "Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador."
       },
       "AvisoMostradoEntrada": {
         "properties": {
