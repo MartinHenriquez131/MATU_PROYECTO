@@ -52,13 +52,16 @@ export const INSUMOS = {
   renovarPide: 'Pídele a quien administra el grupo que la renueve.', // [lenguaje 6.4b]
 
   // 3.2 Lista
-  notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo.', // [APROBADO 02-11]
+  // MATU-51 (especificación 7, [CAMBIA] lenguaje 13.1): dice dónde se anota.
+  notaCorta: 'Es un cálculo con lo que anotaste. Si compraste o te quedan menos, anótalo con «Compré» o «Me quedan».',
   notaCortaLector: 'Es un cálculo con lo que anotó la familia.', // [aprobado por Jorge el 03-11] observador y pagador
   comoTitulo: 'Cómo calculamos', // [aprobado por Jorge el 03-11]
+  // MATU-51 (especificación 7, [CAMBIA] lenguaje 16): desde MATU-51 la familia puede anotar la compra.
   comoLector: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. No sabe si compraron ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11] observador y pagador
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que la familia lo anotó. Si compraron y no lo anotaron, no lo sabe. Tampoco sabe si cambió lo que usa ${pila}.`, // observador y pagador
+  // MATU-51 (especificación 7, [ANALISTA] [CAMBIA] lenguaje 18).
   como: (pila: string) =>
-    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. No sabe si compraste ni si cambió lo que usa ${pila}.`, // [aprobado por Jorge el 03-11]
+    `Dividimos lo que quedaba por lo que se usa, y contamos los días desde que lo anotaste. Si compraste o cambió lo que queda, anótalo con «Compré» o «Me quedan». No sabe si cambió lo que usa ${pila}.`,
   anotar: 'Anotar un insumo', // [aprobado por Jorge el 03-11]
   cambiar: 'Cambiar',
   cambiarDe: (nombre: string) => `Cambiar ${nombre}`,
@@ -199,6 +202,9 @@ export const ALERTAS = {
   marca: 'Te estamos avisando', // aprobado por Jorge el 03-11
   boton: 'Ya lo resolví', // [APROBADO]
   botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // aprobado por Jorge el 03-11
+  /** MATU-51 3.8: con envase conocido pregunta en envases, como «Compré» (decisión A2 de Jorge). */
+  preguntaEnvases: '¿Compraste? ¿Cuántos envases?',
+  ayudaEnvases: 'Si no compraste, déjalo en 0 y solo dejamos de avisarte.',
   pregunta: (unidad: Unidad) =>
     unidad === 'sobre' ? '¿Compraste? ¿Cuántos sobres?' : unidad === 'ml' ? '¿Compraste? ¿Cuántos ml?' : unidad === 'g' ? '¿Compraste? ¿Cuántos gramos?' : '¿Compraste? ¿Cuántos?', // aprobado por Jorge el 03-11
   ayuda: 'Si no compraste, déjalo en blanco y solo dejamos de avisarte.', // aprobado por Jorge el 03-11
@@ -211,8 +217,62 @@ export const ALERTAS = {
   errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo resolvías. Revisa cómo quedó y vuelve a intentarlo.`, // aprobado por Jorge el 03-11
   errNoEsta: 'Este aviso ya no está. Puede que el insumo se haya cambiado o eliminado.', // aprobado por Jorge el 03-11
   errRol: 'Solo quien administra o cuida puede resolver un aviso.', // aprobado por Jorge el 03-11
-  errCantidad: 'Escribe un número entre 1 y 9999, o déjalo en blanco.', // aprobado por Jorge el 03-11
+  // MATU-51 3.8 ([CAMBIA] lenguaje 17, decisión A2): el tope pasa a 10.000 y con envase va de 0 a 99.
+  errCantidad: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
+  errCantidadEnvases: 'Escribe un número de 0 a 99. Si no compraste, déjalo en 0.',
   errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // aprobado por Jorge el 03-11
   verComoQuedo: 'Ver cómo quedó', // aprobado por Jorge el 03-11
   errCarga: 'No pudimos ver qué se acaba pronto.', // aprobado por Jorge el 03-11
+}
+
+/**
+ * MATU-51 «Compré» y «Me quedan» (especificación docs/diseno/matu-51-compre-me-quedan.md v1.2,
+ * secciones 8 y 11, que entran a lenguaje.md 23). Nunca «quiebre», «stock», «reponer» ni
+ * «reposición», y nunca se ofrece comprar: «Compré» habla de lo ya hecho. Los días y la fecha de la
+ * confirmación salen de la respuesta de la API.
+ */
+export const REGISTRO = {
+  compre: 'Compré',
+  meQuedan: 'Me quedan',
+  compreDe: (nombre: string) => `Compré: ${nombre}`,
+  meQuedanDe: (nombre: string) => `Me quedan: ${nombre}`,
+  preguntaEnvases: '¿Cuántos envases compraste?',
+  pregunta: (unidad: Unidad) =>
+    unidad === 'sobre' ? '¿Cuántos sobres compraste?' : unidad === 'ml' ? '¿Cuántos ml compraste?' : unidad === 'g' ? '¿Cuántos gramos compraste?' : '¿Cuántos compraste?',
+  ayudaCompre: 'Lo sumamos a lo que calculamos que queda hoy.',
+  anotarCompra: 'Anotar la compra',
+  preguntaQuedan: '¿Cuántos quedan hoy, más o menos?', // [L 18]
+  ayudaQuedan: 'Reemplaza lo que calculábamos. Si no queda nada, escribe 0.',
+  anotarQueda: 'Anotar lo que queda',
+  guardando: 'Guardando…', // [L 17]
+  volver: 'Volver', // [L 17]
+
+  /** «Compra anotada para «{nombre}»: {cantidad}.» y lo que sigue según los días (8). */
+  compraAnotada: (nombre: string, cant: string) => `Compra anotada para «${nombre}»: ${cant}.`,
+  quedaAnotado: (nombre: string, cant: string) => `Anotamos lo que queda de «${nombre}»: ${cant}.`,
+  ahoraAlcanza: (n: number) => `Ahora alcanza para ${n === 1 ? '1 día' : `${n} días`}, hasta el`, // + {fecha}.
+  alcanza: (n: number) => `Alcanza para ${n === 1 ? '1 día' : `${n} días`}, hasta el`, // + {fecha}.
+  seAcabaHoy: 'Así, se acaba hoy.',
+  puedeQueNo: 'Según lo anotado, puede que ya no quede.',
+  noQueda: (nombre: string) => `Anotamos que no queda «${nombre}». Cuando compres, anótalo con «Compré».`,
+
+  // Errores del campo (5.4 y 8)
+  errVacioEnvases: 'Escribe cuántos envases compraste, al menos 1.',
+  errVacio: 'Escribe cuántos compraste, al menos 1.',
+  errTopeEnvases: 'Escribe un número de 1 a 99 envases.',
+  errTope: 'Escribe un número hasta 10.000.', // [L 18]
+  errStockMaximo: (sufijo: string) => `Con esa compra quedarían más de 100.000 ${sufijo}. Revisa cuántos compraste.`,
+  errVacioQuedan: 'Escribe cuántos quedan. Si no queda nada, escribe 0.', // [L 18]
+  errTopeQuedan: 'Escribe un número hasta 100.000.', // [L 18]
+  errCoberturaCompre: 'Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste.',
+  errCoberturaQuedan: 'Con esa cantidad alcanzaría para más de 10 años. Revisa cuántos quedan.',
+
+  // Errores del panel (5.5 y 8)
+  errOtro422: 'No pudimos guardar. Revisa los datos y vuelve a intentarlo.', // [L 18]
+  errRed: 'No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.', // [L 17]
+  errNoEsta: 'Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado.',
+  errInactivo: (nombre: string) => `Alguien de tu familia dejó de seguir «${nombre}» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir».`,
+  errConflicto: (autor: string, nombre: string) => `${autor} cambió «${nombre}» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.`,
+  errFaltaVersion: 'No pudimos guardar este insumo. Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.', // [L 18]
+  verComoQuedo: 'Ver cómo quedó', // [L 17]
 }
