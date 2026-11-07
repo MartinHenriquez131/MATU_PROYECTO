@@ -1868,8 +1868,14 @@ def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye
     como(cx, rol="operacion")
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (int(destruye),)
     assert _clave_destruida(cx, P_A) == (destruye, destruye)
+    # CL-6: con la clave se van las filas cifradas con ella (secciones y campos base) y el plan queda en 0
+    secciones_a = contar(cx, "plan_seccion", f"plan_id = '{PLAN_A}'")
+    assert secciones_a == (0 if destruye else 3)
+    if destruye:
+        assert cx.execute("SELECT completitud_pct FROM plan_cuidado WHERE id = %s", (PLAN_A,)).fetchone() == (0,)
     # La otra familia no se toca
     assert _clave_destruida(cx, P_B) == (False, False)
+    assert contar(cx, "plan_seccion", f"plan_id = '{PLAN_B}'") == 1
     filas = cx.execute("SELECT actor_tipo, actor_ref, entidad, detalle FROM auditoria WHERE accion = 'clave.destruir'"
                        " AND grupo_id = %s", (G_A,)).fetchall()
     assert filas == ([("sistema", None, "clave_datos", None)] if destruye else [])

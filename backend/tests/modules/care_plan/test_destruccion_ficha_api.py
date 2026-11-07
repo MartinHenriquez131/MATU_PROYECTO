@@ -88,9 +88,10 @@ def test_a_los_89_dias_no_y_a_los_90_si_y_es_idempotente(entorno_ficha: EntornoF
     _tarea(INICIO + timedelta(days=90, hours=1))
     assert _clave(familia) == (True, INICIO + timedelta(days=90))
     assert _destrucciones(familia) == [("sistema", None, "clave_datos", None)]
-    # Las secciones cifradas quedan, ilegibles
+    # CL-6: no queda ninguna fila cifrada de la persona, ni sus metadatos
     assert _una("SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
-                " WHERE p.persona_cuidada_id = %s", familia.persona.id) == (1,)
+                " WHERE p.persona_cuidada_id = %s", familia.persona.id) == (0,)
+    assert _una("SELECT completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == (0,)
 
     # La vista lo dice según el Reloj de la API: desde el día 90 está borrada
     _avanzar(entorno_ficha, timedelta(days=90))
@@ -197,6 +198,11 @@ def test_otra_persona_no_se_destruye_y_el_log_lleva_solo_el_contador(
     with caplog.at_level(logging.INFO, logger="matu.care_plan.destruccion"):
         _tarea(INICIO + timedelta(days=90))
     assert _clave(intacta) == (False, None)
+    # A la otra persona no se le borra nada: su sección sigue y se lee
+    assert _una("SELECT count(*) FROM plan_seccion s JOIN plan_cuidado p ON p.id = s.plan_id"
+                " WHERE p.persona_cuidada_id = %s", intacta.persona.id) == (1,)
+    leida = entorno_ficha.leer(intacta.admin, intacta.grupo.id, intacta.persona.id)
+    assert leida.status_code == 200 and leida.json()["campos"]["rutina"]["texto"] == RUTINA
     mensajes = [r.getMessage() for r in caplog.records if r.name == "matu.care_plan.destruccion"]
     assert len(mensajes) == 1 and mensajes[0].startswith("destruccion de fichas retiradas: ")
     for texto in (mensajes[0], entorno_ficha.iam.texto_log()):

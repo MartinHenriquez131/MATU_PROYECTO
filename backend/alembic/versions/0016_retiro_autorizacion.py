@@ -24,9 +24,14 @@ d) Destrucción de la ficha a los 90 días del retiro (D3, decisión 129): plan_
    consumo_conservar (0009). Destruye la clave de datos (dek NULL y destruida_en = ahora, el borrado
    criptográfico de MATU-11) de cada persona sin un consentimiento no revocado para plan_cuidado y cuya
    última revocación es igual o anterior a limite, y registra clave.destruir (actor sistema, sin
-   detalle) en la misma sentencia. Idempotente: no toca una clave ya destruida. Devuelve un contador.
-   matu_owner necesita leer y actualizar clave_datos bajo RLS forzado: clave_destruccion_leer y
-   clave_destruccion, solo para él y solo con app.rol = 'operacion'. Lo de la familia no cambia.
+   detalle) en la misma sentencia. En esa misma sentencia borra las filas de plan_seccion de esas
+   personas (las secciones y los campos base cifrados con la clave destruida, con su tipo, autor y fechas)
+   y deja su plan en 0 de 3 (hallazgo CL-6 del analista). La auditoría no se toca. Idempotente: no toca una
+   clave ya destruida. Devuelve un contador.
+   matu_owner está sujeto a RLS forzado y necesita, solo para él y solo con app.rol = 'operacion':
+   clave_destruccion_leer y clave_destruccion (clave_datos), plan_destruccion_leer y plan_destruccion
+   (plan_cuidado) y seccion_destruccion_leer y seccion_destruccion (plan_seccion). Lo de la familia no
+   cambia.
 
 e) Una ficha nueva después del borrado (P8 de Jorge, decisión 130). La regla de MATU-11 cambia solo en esto:
    una clave destruida sigue destruida y nunca vuelve a tener DEK (trigger de 0003), pero la persona puede
@@ -114,6 +119,12 @@ CREATE POLICY clave_destruccion_leer ON clave_datos FOR SELECT TO matu_owner USI
 CREATE POLICY clave_destruccion ON clave_datos FOR UPDATE TO matu_owner
     USING (app_rol() = 'operacion') WITH CHECK (app_rol() = 'operacion' AND dek_cifrada_con_kek IS NULL);
 
+CREATE POLICY plan_destruccion_leer ON plan_cuidado FOR SELECT TO matu_owner USING (app_rol() = 'operacion');
+CREATE POLICY plan_destruccion ON plan_cuidado FOR UPDATE TO matu_owner
+    USING (app_rol() = 'operacion') WITH CHECK (app_rol() = 'operacion' AND completitud_pct = 0);
+CREATE POLICY seccion_destruccion_leer ON plan_seccion FOR SELECT TO matu_owner USING (app_rol() = 'operacion');
+CREATE POLICY seccion_destruccion ON plan_seccion FOR DELETE TO matu_owner USING (app_rol() = 'operacion');
+
 CREATE FUNCTION plan_destruir_claves(limite timestamptz, ahora timestamptz) RETURNS integer
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
 $$
@@ -139,7 +150,16 @@ BEGIN
                       AND c.revocado_en IS NULL)
            AND (SELECT max(c.revocado_en) FROM public.consentimiento c
                  WHERE c.persona_cuidada_id = k.persona_cuidada_id AND c.finalidad = 'plan_cuidado') <= limite
-        RETURNING k.id, k.grupo_id)
+        RETURNING k.id, k.grupo_id, k.persona_cuidada_id),
+    -- CL-6: lo cifrado con la clave destruida no se queda en la base, ni sus metadatos
+    borradas AS (
+        DELETE FROM public.plan_seccion s USING public.plan_cuidado p, destruidas d
+         WHERE s.plan_id = p.id AND p.persona_cuidada_id = d.persona_cuidada_id
+        RETURNING s.id),
+    en_blanco AS (
+        UPDATE public.plan_cuidado p SET completitud_pct = 0, actualizado_en = ahora
+          FROM destruidas d WHERE p.persona_cuidada_id = d.persona_cuidada_id
+        RETURNING p.id)
     INSERT INTO public.auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, ocurrido_en)
     SELECT d.grupo_id, 'sistema', NULL, 'clave.destruir', 'clave_datos', d.id, ahora FROM destruidas d;
     GET DIAGNOSTICS n = ROW_COUNT;
@@ -180,6 +200,10 @@ DROP INDEX clave_datos_vigente_uq;
 ALTER TABLE clave_datos ADD CONSTRAINT clave_datos_persona_cuidada_id_key UNIQUE (persona_cuidada_id);
 
 DROP FUNCTION plan_destruir_claves(timestamptz, timestamptz);
+DROP POLICY seccion_destruccion ON plan_seccion;
+DROP POLICY seccion_destruccion_leer ON plan_seccion;
+DROP POLICY plan_destruccion ON plan_cuidado;
+DROP POLICY plan_destruccion_leer ON plan_cuidado;
 DROP POLICY clave_destruccion ON clave_datos;
 DROP POLICY clave_destruccion_leer ON clave_datos;
 
