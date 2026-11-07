@@ -19,7 +19,9 @@ from app.core.db import fabrica_sesiones, sesion_tenant
 from app.modules.care_circle.application.retiro import SolicitudRetiro, retirar_autorizacion
 from app.modules.care_circle.infrastructure.efectos_retiro import efectos_de
 from app.modules.care_circle.infrastructure.repositorio_retiros import RepositorioRetirosSQL
+from app.modules.consumption.application import reposiciones
 from app.modules.consumption.application.conservacion import conservar, conservar_quiebres
+from app.modules.consumption.infrastructure.repositorio_alertas import RepositorioAlertasSQL
 from app.modules.consumption.infrastructure.tarea_conservacion import ConservacionConsumoSql
 from app.modules.consumption.infrastructure.tarea_quiebres import ConservacionQuiebresSql
 from app.shared.auditoria_sql import RegistroAuditoriaSql
@@ -200,6 +202,35 @@ def test_compre_descarta_las_alertas_de_otra_fecha_que_dejan_de_corresponder(ent
     assert {a[0]: a[2] for a in _alertas(perfil)} == {de_la_fecha: "resuelta", vieja: "descartada"}
     acciones = {(f[0], f[2]) for f in _auditoria(familia.grupo.id)}
     assert {("alerta.resolver", de_la_fecha), ("alerta.descartar", vieja)} <= acciones
+
+
+def test_compre_reutiliza_reponer_y_declarar_reposicion(
+    entorno_consumo: EntornoConsumo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Condición 2: la misma suma y la misma escritura de «Ya lo resolví» (MATU-37), sin otra fórmula
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona, unidades_por_envase=30)
+    sumas: list[tuple[int, date]] = []
+    anotadas: list[tuple[int, date]] = []
+    reponer_original = reposiciones.reponer
+    declarar_original = RepositorioAlertasSQL.declarar_reposicion
+
+    def reponer_espia(p: Any, cantidad: int, hoy: date, autor: uuid.UUID) -> Any:
+        sumas.append((cantidad, hoy))
+        return reponer_original(p, cantidad, hoy, autor)
+
+    def declarar_espia(
+        self: Any, reposicion_id: uuid.UUID, perfil_id: uuid.UUID, cantidad: int, hoy: date, autor: uuid.UUID
+    ) -> None:
+        anotadas.append((cantidad, hoy))
+        declarar_original(self, reposicion_id, perfil_id, cantidad, hoy, autor)
+
+    monkeypatch.setattr(reposiciones, "reponer", reponer_espia)
+    monkeypatch.setattr(RepositorioAlertasSQL, "declarar_reposicion", declarar_espia)
+    assert _compre(e, familia.admin, familia, perfil, {"envases": 2}).status_code == 200
+    # Hoy es el del Reloj (20-10), no el del sistema
+    assert sumas == anotadas == [(60, date(2026, 10, 20))]
 
 
 def test_compre_no_publica_eventos_ni_crea_pedidos(entorno_consumo: EntornoConsumo) -> None:
@@ -512,6 +543,21 @@ def test_me_quedan_con_la_misma_fecha_deja_la_alerta_abierta(entorno_consumo: En
     assert _alertas(perfil) == [(abierta, "2026-10-26", "pendiente")]
 
 
+def test_me_quedan_cero_y_el_tope_se_aceptan(entorno_consumo: EntornoConsumo) -> None:
+    e = entorno_consumo
+    familia = e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    cero = _quedan(e, familia.admin, familia, perfil, {"stock_unidades": 0})
+    assert cero.status_code == 200, cero.text
+    assert (cero.json()["stock_unidades"], cero.json()["fecha_quiebre_estimada"]) == (0, HOY)
+    assert _reposiciones(perfil) == []
+    # 100.000 ml a 1.000 por día alcanzan 100 días: el tope del recuento, sin pasar la cobertura máxima
+    grande = e.fabrica.perfil_consumo(familia.persona, unidad="ml", tasa_unidades=1000, nombre_libre="Agua")
+    tope = _quedan(e, familia.admin, familia, grande, {"stock_unidades": 100_000})
+    assert tope.status_code == 200, tope.text
+    assert tope.json()["stock_unidades"] == 100_000
+
+
 @pytest.mark.parametrize(
     ("cuerpo", "campo"),
     [
@@ -557,6 +603,7 @@ def test_logs_errores_y_auditoria_sin_cantidad_stock_ni_nombre(
     perfil = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Toallitas secretas", unidades_por_envase=4321)
     otro = e.fabrica.perfil_consumo(familia.persona, nombre_libre="Crema secreta")
     _alerta(perfil)
+    _alerta(perfil, fecha="2026-10-24")  # de otra fecha: «Compré» la descarta
     with caplog.at_level(logging.DEBUG):
         assert _compre(e, familia.admin, familia, perfil, {"envases": 1}).status_code == 200
         assert _quedan(e, familia.admin, familia, otro, {"stock_unidades": 4322}).status_code == 200
@@ -569,7 +616,7 @@ def test_logs_errores_y_auditoria_sin_cantidad_stock_ni_nombre(
     filas = _filas(
         "SELECT accion, (to_jsonb(a) - 'id')::text, detalle, ip FROM auditoria a WHERE grupo_id = %s", familia.grupo.id
     )
-    assert {f[0] for f in filas} == {"reposicion.declarar", "alerta.resolver", "consumo.editar"}
+    assert {f[0] for f in filas} == {"reposicion.declarar", "alerta.resolver", "alerta.descartar", "consumo.editar"}
     for _, fila, detalle, ip in filas:
         assert "secret" not in fila and detalle is None and ip is None
         assert not any(_aparece_como_dato(v, fila) for v in ("4321", "4322", "4325"))
