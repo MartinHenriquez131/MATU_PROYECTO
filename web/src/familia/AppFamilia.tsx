@@ -7,7 +7,9 @@ import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
+import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
+import { ListaDeInsumos } from './ListaInsumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
@@ -50,6 +52,13 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // pagador con `puede_ver_plan`, sin teléfono ni «Cortar».
   if ((ruta === '/compartir' || ruta === '/compartir/listo') && !puedeCompartir(s.rol)) return inicio(s)
   if (ruta === '/compartir/enlaces' && !puedeCompartir(s.rol) && !(s.rol === 'pagador' && s.grupo?.puede_ver_plan)) return inicio(s)
+  // MATU-44 2.1: volver a autorizar, solo admin y cuidador y solo desde «Volver a autorizar» (con la
+  // persona elegida en memoria). Al recargar no hay intención y se vuelve a Grupo familiar.
+  if (ruta === '/grupo/autorizar-ficha' || ruta === '/grupo/autorizar-insumos') {
+    const finalidad = ruta === '/grupo/autorizar-ficha' ? 'plan_cuidado' : 'consumo'
+    const r = s.reautorizar
+    if (!editor || !r || r.finalidad !== finalidad || r.personaId !== s.personaId) return '/grupo'
+  }
   return null
 }
 
@@ -131,6 +140,10 @@ function Rutas() {
   } else if (ruta === '/compartir') pantalla = <Compartir />
   else if (ruta === '/compartir/listo') pantalla = <EnlaceListo />
   else if (ruta === '/compartir/enlaces') pantalla = <Enlaces />
+  else if (ruta === '/insumos/lista') pantalla = <ListaDeInsumos />
+  else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
+  else if (ruta === '/grupo/autorizar-ficha') pantalla = <AutorizarFicha />
+  else if (ruta === '/grupo/autorizar-insumos') pantalla = <AutorizarInsumos />
   else pantalla = <Insumos />
 
   return (

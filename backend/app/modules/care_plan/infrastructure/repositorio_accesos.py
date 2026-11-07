@@ -63,6 +63,14 @@ _LISTAR = text(
     " ORDER BY a.creado_en DESC, a.id DESC LIMIT :limite"
 )
 
+# MATU-44: los accesos no revocados del plan de la persona, bloqueados, en un orden fijo (sin interbloqueos)
+_NO_REVOCADOS_DE_LA_PERSONA = text(
+    "SELECT a.id, a.expira_en, a.revocado_en, a.pin_intentos_fallidos FROM acceso_relevo a"
+    " JOIN plan_cuidado p ON p.id = a.plan_id"
+    " WHERE p.persona_cuidada_id = :persona_id AND p.grupo_id = :grupo_id AND a.grupo_id = :grupo_id"
+    " AND a.revocado_en IS NULL ORDER BY a.id FOR UPDATE OF a"
+)
+
 # MATU-20. FOR UPDATE: dos revocaciones simultáneas no fijan dos instantes distintos (C15)
 _VIDA_PARA_REVOCAR = text(
     "SELECT expira_en, revocado_en, pin_intentos_fallidos FROM acceso_relevo"
@@ -198,3 +206,19 @@ class RepositorioAccesosSQL:
                 request_id=request_id,
             )
         )
+
+    def no_revocados_de_la_persona(self, persona_cuidada_id: uuid.UUID) -> list[tuple[uuid.UUID, VidaAcceso]]:
+        filas = self._sesion.execute(
+            _NO_REVOCADOS_DE_LA_PERSONA, {"persona_id": persona_cuidada_id, "grupo_id": self._grupo_id}
+        ).all()
+        return [
+            (
+                f.id,
+                VidaAcceso(
+                    expira_en=f.expira_en.astimezone(UTC),
+                    revocado_en=_utc(f.revocado_en),
+                    pin_intentos_fallidos=f.pin_intentos_fallidos,
+                ),
+            )
+            for f in filas
+        ]

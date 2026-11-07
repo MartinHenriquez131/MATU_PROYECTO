@@ -24,6 +24,15 @@ _PERSONA_Y_CONSENTIMIENTO = text(
     " WHERE p.id = :persona_id AND p.grupo_id = :grupo_id AND p.eliminado_en IS NULL"
 )
 
+# MATU-44, condición 7 del analista: compartir lee la autorización con FOR SHARE. Si un retiro la tiene
+# bloqueada (FOR UPDATE), espera a que termine y, al reevaluar, ya no la encuentra: responde 403. FOR SHARE
+# no se puede aplicar al lado opcional de un LEFT JOIN, por eso es una consulta aparte
+_AUTORIZACION_BLOQUEADA = text(
+    "SELECT calidad_otorgante, revision_vence_en FROM consentimiento"
+    " WHERE persona_cuidada_id = :persona_id AND grupo_id = :grupo_id AND finalidad = :finalidad"
+    " AND revocado_en IS NULL FOR SHARE"
+)
+
 
 @dataclass(frozen=True)
 class PersonaDelGrupo:
@@ -33,17 +42,29 @@ class PersonaDelGrupo:
 
 
 def persona_con_autorizacion(
-    sesion: Session, grupo_id: uuid.UUID, persona_id: uuid.UUID, finalidad: str = FINALIDAD_PLAN_CUIDADO
+    sesion: Session,
+    grupo_id: uuid.UUID,
+    persona_id: uuid.UUID,
+    finalidad: str = FINALIDAD_PLAN_CUIDADO,
+    *,
+    bloquear: bool = False,
 ) -> PersonaDelGrupo | None:
     """La persona del grupo con su consentimiento no revocado para ``finalidad`` (plan_cuidado por
     omisión; consumo en MATU-36), o None si no existe en el grupo (inexistente, eliminada o de otro
-    grupo: el mismo None)."""
-    fila = sesion.execute(
-        _PERSONA_Y_CONSENTIMIENTO,
-        {"persona_id": persona_id, "grupo_id": grupo_id, "finalidad": finalidad},
-    ).first()
+    grupo: el mismo None).
+
+    ``bloquear`` (MATU-44): lee el consentimiento con FOR SHARE hasta el fin de la transacción, para que un
+    retiro simultáneo espere o haga esperar (compartir la ficha)."""
+    parametros = {"persona_id": persona_id, "grupo_id": grupo_id, "finalidad": finalidad}
+    fila = sesion.execute(_PERSONA_Y_CONSENTIMIENTO, parametros).first()
     if fila is None:
         return None
+    if bloquear:
+        bloqueada = sesion.execute(_AUTORIZACION_BLOQUEADA, parametros).first()
+        autorizada = None if bloqueada is None else AutorizacionGuardada(
+            calidad_otorgante=bloqueada.calidad_otorgante, revision_vence_en=bloqueada.revision_vence_en
+        )
+        return PersonaDelGrupo(id=fila.id, autorizacion=autorizada)
     autorizacion = (
         None
         if fila.calidad_otorgante is None

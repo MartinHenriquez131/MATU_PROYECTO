@@ -423,7 +423,9 @@ def test_lista_sin_consentimiento_vigente_lo_muestra_null(entorno_personas: Ento
     grupo = entorno_personas.grupo_con_roles(a)
     alta = entorno_personas.crear(a.token, grupo, cuerpo_alta())
     with psycopg.connect(DSN, autocommit=True) as cx:
-        cx.execute("UPDATE consentimiento SET revocado_en = now() WHERE grupo_id = %s", (grupo,))
+        cx.execute(
+            "UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro' WHERE grupo_id = %s", (grupo,)
+        )
 
     lista = entorno_personas.listar(a.token, grupo)
 

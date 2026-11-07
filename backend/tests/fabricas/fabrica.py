@@ -429,6 +429,8 @@ class Fabrica:
                     instante,
                     revision_vence_en(calidad_enum, instante),
                     revocado_en,
+                    # MATU-44: el motivo va junto con revocado_en (CHECK de la 0016)
+                    None if revocado_en is None else "retiro",
                 ),
             )
         self.anotar("consentimiento", consentimiento_id)
@@ -448,8 +450,10 @@ class Fabrica:
         dias_aviso: int = 7,
         activo: bool = True,
         version: int = 1,
+        unidades_por_envase: int | None = None,
     ) -> uuid.UUID:
-        """Un perfil de consumo con la fecha estimada de la fórmula de MATU-36."""
+        """Un perfil de consumo con la fecha estimada de la fórmula de MATU-36. ``unidades_por_envase``
+        es el dato opcional de MATU-60 (decisión 121)."""
         medido = stock_medido_en or date(2026, 10, 20)
         if producto_id is not None:
             nombre_libre = None
@@ -473,6 +477,7 @@ class Fabrica:
                     dias_aviso,
                     activo,
                     version,
+                    unidades_por_envase,
                 ),
             )
         self.anotar("perfil_consumo", perfil_id)

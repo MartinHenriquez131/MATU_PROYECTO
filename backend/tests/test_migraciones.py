@@ -652,3 +652,105 @@ def test_0014_avisos_y_outbox_y_baja_al_esquema_de_0013(base_desechable):
     for parte, filas in esquema_0013.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0015 (MATU-60): unidades por envase en el perfil de consumo, sin cambiar RLS
+
+
+@pytest.mark.rf("RF-15")
+def test_0015_unidades_por_envase_y_baja_al_esquema_de_0014(base_desechable):
+    alembic("upgrade", "0014")
+    esquema_0014 = catalogo()
+    politicas_0014 = [f for f in esquema_0014["politicas"] if f[0] == "perfil_consumo"]
+
+    alembic("upgrade", "0015")
+    assert consultar(
+        "SELECT data_type, is_nullable, column_default FROM information_schema.columns"
+        " WHERE table_name = 'perfil_consumo' AND column_name = 'unidades_por_envase'") == [("integer", "YES", None)]
+    [(definicion,)] = consultar(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'perfil_consumo_envase'")
+    assert "IS NULL" in definicion and ">= 1" in definicion and "<= 10000" in definicion
+    # RLS no cambia: las mismas políticas, el mismo FORCE y los mismos permisos de tabla
+    despues = catalogo()
+    assert [f for f in despues["politicas"] if f[0] == "perfil_consumo"] == politicas_0014
+    assert despues["rls"] == esquema_0014["rls"] and despues["permisos"] == esquema_0014["permisos"]
+    # El CHECK rechaza 0 y 10.001 y admite NULL, 1 y 10.000
+    ids = {"u": "00000000-0000-0000-0000-0000000015a1", "g": "00000000-0000-0000-0000-0000000015a2",
+           "p": "00000000-0000-0000-0000-0000000015a3", "pc": "00000000-0000-0000-0000-0000000015a4"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(f"""
+            INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{ids['u']}', 'a15@example.com', 'A', 'h');
+            INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{ids['g']}', 'Familia 15', '{ids['u']}');
+            INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)
+                VALUES ('{ids['p']}', '{ids['g']}', 'Persona Quince', 'Persona', 'apoyo_total');
+            INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, nombre_libre, tasa_unidades, stock_unidades,
+                                        stock_medido_en, fecha_quiebre_estimada)
+                VALUES ('{ids['pc']}', '{ids['g']}', '{ids['p']}', 'Toallitas', 4, 24, current_date, current_date + 6);
+        """)
+        for valor in ("NULL", "1", "10000"):
+            c.execute(f"UPDATE perfil_consumo SET unidades_por_envase = {valor} WHERE id = '{ids['pc']}'")
+        for valor in ("0", "10001"):
+            with pytest.raises(psycopg.errors.CheckViolation):
+                c.execute(f"UPDATE perfil_consumo SET unidades_por_envase = {valor} WHERE id = '{ids['pc']}'")
+
+    alembic("downgrade", "0014")
+    despues = catalogo()
+    for parte, filas in esquema_0014.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    # El perfil sigue, sin la columna
+    assert consultar(f"SELECT nombre_libre FROM perfil_consumo WHERE id = '{ids['pc']}'") == [("Toallitas",)]
+    alembic("upgrade", "head")
+
+
+# ---- 0016 (MATU-44): el motivo de la revocación, la barrera por rol y la destrucción a los 90 días
+
+
+@pytest.mark.rf("RF-02")
+def test_0016_retiro_con_motivo_y_baja_al_esquema_de_0015(base_desechable):
+    alembic("upgrade", "0015")
+    esquema_0015 = catalogo()
+    ids = {"u": "00000000-0000-0000-0000-0000000016a1", "g": "00000000-0000-0000-0000-0000000016a2",
+           "p": "00000000-0000-0000-0000-0000000016a3", "c1": "00000000-0000-0000-0000-0000000016a4",
+           "c2": "00000000-0000-0000-0000-0000000016a5"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(f"""
+            INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{ids['u']}', 'a16@example.com', 'A', 'h');
+            INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{ids['g']}', 'Familia 16', '{ids['u']}');
+            INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)
+                VALUES ('{ids['p']}', '{ids['g']}', 'Persona Dieciséis', 'Persona', 'apoyo_total');
+            INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,
+                                        version_politica, evidencia, revocado_en)
+                VALUES ('{ids['c1']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado',
+                        '0.9', '{{}}', now() - interval '1 day'),
+                       ('{ids['c2']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado',
+                        '0.9', '{{}}', NULL);
+        """)
+
+    alembic("upgrade", "0016")
+    # La revocación anterior quedó como retiro, y la vigente sin motivo
+    assert dict(consultar("SELECT id::text, revocacion_motivo FROM consentimiento ORDER BY 1")) == {
+        ids["c1"]: "retiro", ids["c2"]: None}
+    restricciones = {n for (n,) in consultar(
+        "SELECT conname FROM pg_constraint WHERE conrelid = 'consentimiento'::regclass")}
+    assert {"consentimiento_revocacion_motivo", "consentimiento_revocacion_completa"} <= restricciones
+    columnas = {c for (c,) in consultar(
+        "SELECT column_name FROM information_schema.column_privileges WHERE table_name = 'consentimiento'"
+        " AND grantee = 'matu_app' AND privilege_type = 'UPDATE'")}
+    assert columnas == {"revocado_en", "revocacion_motivo"}
+    [(condicion,)] = consultar(
+        "SELECT qual FROM pg_policies WHERE policyname = 'consentimiento_familia_revocar'")
+    assert "app_retira_autorizacion" in condicion
+    assert consultar("SELECT relforcerowsecurity FROM pg_class WHERE relname = 'consentimiento'") == [(True,)]
+    funciones = {f for (f,) in consultar("SELECT proname FROM pg_proc WHERE proname = 'plan_destruir_claves'")}
+    assert funciones == {"plan_destruir_claves"}
+    # P8: una sola clave no destruida por persona, y la nueva solo tras una autorización nueva
+    [(indice,)] = consultar("SELECT indexdef FROM pg_indexes WHERE indexname = 'clave_datos_vigente_uq'")
+    assert "UNIQUE" in indice and "destruida_en IS NULL" in indice
+    assert consultar("SELECT conname FROM pg_constraint WHERE conname = 'clave_datos_persona_cuidada_id_key'") == []
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'clave_datos_nueva_tras_autorizacion'") != []
+
+    alembic("downgrade", "0015")
+    despues = catalogo()
+    for parte, filas in esquema_0015.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")

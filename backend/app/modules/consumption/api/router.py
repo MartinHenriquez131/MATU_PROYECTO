@@ -9,7 +9,8 @@
     POST   /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar     admin y cuidador. 200 (decisión 68)
 
 El rol, la persona y la autorización para ``consumo`` se verifican en las dependencias, antes del
-cuerpo. Un perfil_id que no es UUID o no es de la persona: 404, después del 403. nombre_libre nunca
+cuerpo. Un perfil_id que no es UUID o no es de la persona: 404, después del 403. unidades_por_envase
+(MATU-60, decisión 121) es opcional y, en el PATCH, el único campo que admite null, que lo borra. nombre_libre nunca
 llega a los logs: la línea de la petición lleva la plantilla de la ruta, el usuario y el grupo, y los
 422 nombran el campo, nunca el valor. Toda respuesta lleva Cache-Control: no-store (app.main).
 """
@@ -55,6 +56,7 @@ from app.modules.consumption.application.perfiles import (
 )
 from app.modules.consumption.application.ports import PerfilLeido
 from app.modules.consumption.domain.perfil import (
+    SIN_CAMBIO,
     CambiosPerfil,
     CoberturaMaxima,
     FaltaVersion,
@@ -93,7 +95,8 @@ _422_CUERPO = {
     "description": (
         "Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre,"
         " producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido,"
-        " cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control"
+        " cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control."
+        " unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic"
     ),
     **_PROBLEMA,
 }
@@ -114,8 +117,13 @@ MENSAJES = {
     "cobertura_maxima": "con esa tasa, lo que queda alcanza para más de 3650 días",
     "nombre_libre_con_producto": "este insumo es de un producto: su nombre no se edita",
     "null_no_admitido": "no admite null: omite el campo si no cambia",
+    # unidades_por_envase sí admite null en el PATCH: lo borra (decisión 121)
     "cuerpo_vacio": "indica al menos un campo",
 }
+
+
+# El único campo del PATCH que admite null, que lo borra (decisión 121)
+_ADMITE_NULL = "unidades_por_envase"
 
 
 def _error_422(campo: str, tipo: str) -> ErrorMATU:
@@ -153,6 +161,7 @@ def _vista(leido: PerfilLeido, reloj: Reloj) -> PerfilConsumoVista:
         stock_unidades=p.stock_unidades,
         stock_medido_en=p.stock_medido_en,
         dias_aviso=p.dias_aviso,
+        unidades_por_envase=p.unidades_por_envase,
         fecha_quiebre_estimada=p.fecha_quiebre_estimada,
         dias_restantes=dias_restantes(p.fecha_quiebre_estimada, hoy_en_chile(reloj.ahora())),
         activo=p.activo,
@@ -260,6 +269,7 @@ def crear(
         tasa_dias=solicitud.tasa_dias,
         stock_unidades=solicitud.stock_unidades,
         dias_aviso=solicitud.dias_aviso,
+        unidades_por_envase=solicitud.unidades_por_envase,
     )
     try:
         creado = perfiles.crear(_peticion(request, autorizado), datos, reloj, repositorio, auditoria)
@@ -346,7 +356,7 @@ def editar(
     enviados = solicitud.model_fields_set
     if not enviados:
         raise _error_422("cuerpo", "cuerpo_vacio")
-    for campo in sorted(enviados):
+    for campo in sorted(enviados - {_ADMITE_NULL}):
         if getattr(solicitud, campo) is None:
             raise _error_422(campo, "null_no_admitido")
     cambios = CambiosPerfil(
@@ -355,6 +365,7 @@ def editar(
         tasa_dias=solicitud.tasa_dias,
         stock_unidades=solicitud.stock_unidades,
         dias_aviso=solicitud.dias_aviso,
+        unidades_por_envase=solicitud.unidades_por_envase if _ADMITE_NULL in enviados else SIN_CAMBIO,
     )
     try:
         resultado = perfiles.editar(

@@ -2,8 +2,8 @@
 // el permiso la primera vez, la lista con «Seguir» y la papelera, anotar o cambiar un insumo con
 // `If-Match`, el conflicto 412 a la vista y el diálogo de eliminar. Sin interfaz optimista: la
 // lista cambia solo con la respuesta de la API. Nada se guarda en el navegador ni en la URL.
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, Minus, PauseCircle, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2 } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizarConsumo,
@@ -30,41 +30,32 @@ import { AVISO_CUIDADOR, CALIDADES } from './datos'
 import { useDemora } from './Estados'
 import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta } from './ruteo'
-import { AUTORIZACION, FICHA, GENERAL } from './textos'
+import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
+import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
+import { miles, sufijoCantidad } from './textoLista'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
-import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
+import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
-
-const esTipo = (tipo: string | null, nombre: string) => !!tipo && tipo.endsWith(`/errores/${nombre}`)
-
-/** El 403 del consumo, si lo es. */
-function permisoDe(x: unknown): 'sin-consentimiento' | 'revision-vencida' | null {
-  const f = leerFallo(x)
-  if (f.status !== 403) return null
-  return esTipo(f.tipo, 'revision-vencida') ? 'revision-vencida' : 'sin-consentimiento'
-}
 
 /** Los que se siguen, el que se acaba primero arriba (el orden de la API). */
 const porFecha = (a: Perfil, b: Perfil) => a.fecha_quiebre_estimada.localeCompare(b.fecha_quiebre_estimada)
 
-/** `true` cuando el contenido mide 48 rem o más (`@3xl/main`): lista y formulario lado a lado (2.3). */
-function useAncho() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [ancho, setAncho] = useState(false)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const medir = () => {
-      const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-      setAncho(el.clientWidth >= 48 * rem)
-    }
-    medir()
-    const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-  return { ref, ancho }
+/**
+ * MATU-60 (2.1): las vistas de la sección, antes del título. En `/insumos` con la lista cargada y en
+ * `/insumos/lista` en todos sus estados. No en el permiso, en «Falta el permiso», en «Hay que
+ * renovar» ni en el formulario a 360 px.
+ */
+export function PestanasInsumos({ activa }: { activa: '/insumos' | '/insumos/lista' }) {
+  return (
+    <Pestanas
+      etiqueta={LISTA.vistas}
+      items={[
+        { texto: INSUMOS.titulo, ruta: '/insumos', activa: activa === '/insumos' },
+        { texto: LISTA.titulo, ruta: '/insumos/lista', activa: activa === '/insumos/lista' },
+      ]}
+    />
+  )
 }
 
 /**
@@ -73,8 +64,6 @@ function useAncho() {
  * recalculado; sin cantidad, solo descarta. Apagarla deja solo la confirmación sin cantidad.
  */
 const CANTIDAD_EN_RESOLVER = true
-
-const enfocar = (id: string, ms = 40) => window.setTimeout(() => document.getElementById(id)?.focus(), ms)
 
 // ---------------------------------------------------------------- pantalla
 
@@ -144,6 +133,18 @@ export function Insumos() {
   useEffect(() => {
     void cargar()
   }, [cargar])
+
+  // 2.6: el foco de la llegada queda en el h1 de «Cargando», que se reemplaza por el de lo que llega
+  // (la lista, el permiso, el 404…). Si al reemplazarlo el foco cayó al body, lo recibe el h1 nuevo
+  // (MATU-60, revisión del 06-11: el cuidador que llega desde la lista sin el permiso).
+  const cargaAntes = useRef<Carga>(carga)
+  useEffect(() => {
+    const venia = cargaAntes.current
+    cargaAntes.current = carga
+    if (venia !== 'cargando' || carga === 'cargando') return
+    const activo = document.activeElement
+    if (activo === null || activo === document.body) document.getElementById('titulo-pagina')?.focus()
+  }, [carga])
 
   const modo: 'nuevo' | 'cambiar' | null = ruta === '/insumos/nuevo' ? 'nuevo' : ruta === '/insumos/cambiar' ? 'cambiar' : null
   const editado = modo === 'cambiar' ? (items.find((p) => p.id === editandoId && p.activo) ?? null) : null
@@ -387,9 +388,12 @@ export function Insumos() {
 
     return (
       <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-          <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.titulo}</Titulo>
-          {ancho && botonAnotar}
+        <div className="flex flex-col gap-3">
+          <PestanasInsumos activa="/insumos" />
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.titulo}</Titulo>
+            {ancho && botonAnotar}
+          </div>
         </div>
         {/* MATU-37: a 360 px, lo primero bajo el título es «Se acaban pronto». */}
         {!ancho && bloque}
@@ -646,16 +650,27 @@ function Fila({
 
 // ---------------------------------------------------------------- 3.1 el permiso
 
-function Permiso({
+/**
+ * También lo usa volver a autorizar los insumos (MATU-44 5.2), sin cambiarlo: `antes` pone «Volver a
+ * Grupo familiar» arriba, `frase` la frase de estado bajo la bajada y `cargando` reemplaza el
+ * formulario mientras llega la vista, con el mismo título (5.1, revisión del 07-11). En Insumos no van (P3).
+ */
+export function Permiso({
   pila,
   personaId,
   onListo,
   onNoEncontrado,
+  antes,
+  frase,
+  cargando,
 }: {
   pila: string
   personaId: string | null
   onListo: (yaVigente: boolean) => void
   onNoEncontrado: () => void
+  antes?: ReactNode
+  frase?: ReactNode
+  cargando?: ReactNode
 }) {
   const [calidad, setCalidad] = useState<Calidad | null>('cuidador_de_hecho')
   const [leido, setLeido] = useState(false)
@@ -694,10 +709,14 @@ function Permiso({
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
+        {antes}
         <p className="text-base text-tenue">{INSUMOS.titulo}</p>
         <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.permisoTitulo}</Titulo>
         <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
+        {frase}
       </div>
+      {cargando ?? (
+        <>
       <GrupoOpciones
         leyenda={INSUMOS.permisoLeyenda}
         nombre="calidad-consumo"
@@ -723,36 +742,16 @@ function Permiso({
         />
       )}
       {calidad === 'cuidador_de_hecho' && (
-        <section aria-labelledby="aviso-consumo-t" className="border-l-4 border-atenta bg-atenta-fondo">
-          <h2 id="aviso-consumo-t" className="flex items-start gap-2 px-5 angosto:px-2 pt-4 text-lg font-bold">
-            <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
-            {AVISO_CUIDADOR.titulo}
-          </h2>
-          <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
-            {AVISO_CUIDADOR.parrafos.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
-            <input
-              type="checkbox"
-              checked={leido}
-              aria-invalid={error === 'leido' ? true : undefined}
-              aria-describedby={error === 'leido' ? 'leido-consumo-e' : undefined}
-              onChange={(e) => {
-                setLeido(e.target.checked)
-                setError(null)
-              }}
-              className="size-5 shrink-0 accent-turquesa"
-            />
-            {AUTORIZACION.leido}
-          </label>
-          {error === 'leido' && (
-            <div className="px-5 angosto:px-2 pb-3">
-              <MensajeError id="leido-consumo-e">{AUTORIZACION.errLeido}</MensajeError>
-            </div>
-          )}
-        </section>
+        <AvisoCuidadorDeHecho
+          idTitulo="aviso-consumo-t"
+          idError="leido-consumo-e"
+          leido={leido}
+          error={error === 'leido'}
+          onLeido={(v) => {
+            setLeido(v)
+            setError(null)
+          }}
+        />
       )}
       {calidad && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
@@ -769,83 +768,19 @@ function Permiso({
           {INSUMOS.permisoBoton}
         </Boton>
       </Acciones>
+        </>
+      )}
     </div>
   )
 }
 
 // ---------------------------------------------------------------- 3.4 anotar o cambiar
 
-const soloDigitos = (v: string) => v.replace(/[^0-9]/g, '').slice(0, 6)
-const entero = (v: string) => (v.trim() === '' ? null : Number.parseInt(v, 10))
-const unaLinea = (v: string) => v.replace(/[\r\n]+/g, ' ')
-
-function Stepper({
-  id,
-  etiqueta,
-  ayuda,
-  sufijo,
-  valor,
-  onCambio,
-  min,
-  max,
-  error,
-}: {
-  id: string
-  etiqueta: string
-  ayuda?: ReactNode
-  sufijo?: string
-  valor: string
-  onCambio: (v: string) => void
-  min: number
-  max: number
-  error?: string | null
-}) {
-  const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
-  const paso = (d: number) => {
-    const n = entero(valor)
-    const base = n === null ? (d > 0 ? min - 1 : min + 1) : n
-    onCambio(String(Math.max(min, Math.min(max, base + d))))
-  }
-  const claseBoton = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio active:bg-rocio'
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <label htmlFor={id} className="font-bold">
-        {etiqueta}
-      </label>
-      {ayuda && (
-        <span id={`${id}-a`} className="text-base text-tenue">
-          {ayuda}
-        </span>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={claseBoton} aria-label={INSUMOS.menos(etiqueta)} onClick={() => paso(-1)}>
-          <Minus aria-hidden className="size-5" />
-        </button>
-        <input
-          id={id}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoComplete="off"
-          value={valor}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describe}
-          onChange={(e) => onCambio(soloDigitos(e.target.value))}
-          className={`cifras min-h-12 w-24 rounded-xl bg-hoja px-2 py-2 text-center text-xl ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
-        />
-        <button type="button" className={claseBoton} aria-label={INSUMOS.mas(etiqueta)} onClick={() => paso(1)}>
-          <Plus aria-hidden className="size-5" />
-        </button>
-        {sufijo && <span className="text-base text-tenue">{sufijo}</span>}
-      </div>
-      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
-    </div>
-  )
-}
-
-type CampoForm = 'nombre' | 'uso' | 'cada' | 'stock' | 'aviso'
-const ORDEN_NUEVO: CampoForm[] = ['nombre', 'uso', 'cada', 'stock', 'aviso']
-const ORDEN_CAMBIAR: CampoForm[] = ['stock', 'uso', 'cada', 'aviso', 'nombre']
+type CampoForm = 'nombre' | 'uso' | 'cada' | 'stock' | 'aviso' | 'envase'
+// MATU-60 9.1: el envase va al final, al anotar y al cambiar.
+const ORDEN_NUEVO: CampoForm[] = ['nombre', 'uso', 'cada', 'stock', 'aviso', 'envase']
+const ORDEN_CAMBIAR: CampoForm[] = ['stock', 'uso', 'cada', 'aviso', 'nombre', 'envase']
+const ENVASE_MAX = 10_000
 
 /** La vista previa, solo con datos completos (3.4.1). */
 function VistaPrevia({ stock, uso, cada }: { stock: number | null; uso: number | null; cada: number }) {
@@ -916,12 +851,14 @@ function Formulario({
   // Al cambiar, el stock va vacío a propósito: lo anotado no es lo de hoy (3.4).
   const [stock, setStock] = useState('')
   const [aviso, setAviso] = useState(String(perfil?.dias_aviso ?? 7))
+  // MATU-60 9.2: al cambiar, con el valor guardado (el envase no envejece). Al anotar, vacío.
+  const [envase, setEnvase] = useState(perfil?.unidades_por_envase != null ? String(perfil.unidades_por_envase) : '')
   const [errores, setErrores] = useState<Partial<Record<CampoForm, string>>>({})
   const [general, setGeneral] = useState<{ titulo?: string; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [conflicto, setConflicto] = useState<Perfil | null>(null)
   const [inactivo, setInactivo] = useState(false)
-  const ids: Record<CampoForm, string> = { nombre: `${uid}-nombre`, uso: `${uid}-uso`, cada: `${uid}-cada`, stock: `${uid}-stock`, aviso: `${uid}-aviso` }
+  const ids: Record<CampoForm, string> = { nombre: `${uid}-nombre`, uso: `${uid}-uso`, cada: `${uid}-cada`, stock: `${uid}-stock`, aviso: `${uid}-aviso`, envase: `${uid}-envase` }
 
   const tasaDias = frecuencia === 'diario' ? 1 : (entero(cada) ?? 0)
   const nombreLimpio = unaLinea(nombre).trim()
@@ -947,6 +884,9 @@ function Formulario({
     else if (s !== null && s > 100_000) e.stock = INSUMOS.errStockMax
     const a = entero(aviso)
     if (a === null || a < 0 || a > 60) e.aviso = INSUMOS.errAviso
+    // Opcional: vacío no es error (9.3).
+    const ev = entero(envase)
+    if (ev !== null && (ev < 1 || ev > ENVASE_MAX)) e.envase = LISTA.errEnvase
     return e
   }
 
@@ -959,6 +899,9 @@ function Formulario({
     if (tasaDias !== perfil.tasa_dias) c.tasa_dias = tasaDias
     if (entero(stock) !== null) c.stock_unidades = entero(stock)!
     if (entero(aviso) !== perfil.dias_aviso) c.dias_aviso = entero(aviso)!
+    // Decisión 121: vacío se envía como `null`, que borra el dato. Solo si cambió.
+    const ev = entero(envase)
+    if (ev !== (perfil.unidades_por_envase ?? null)) c.unidades_por_envase = ev
     return c
   }
 
@@ -996,6 +939,7 @@ function Formulario({
         else if (c === 'tasa_dias') e.cada = INSUMOS.errCada
         else if (c === 'stock_unidades') e.stock = tipo.startsWith('less') ? INSUMOS.errStockMax : INSUMOS.errStock
         else if (c === 'dias_aviso') e.aviso = INSUMOS.errAviso
+        else if (c === 'unidades_por_envase') e.envase = LISTA.errEnvase
         else gen = INSUMOS.errOtro422
       }
       setErrores(e)
@@ -1025,6 +969,8 @@ function Formulario({
           tasa_dias: tasaDias,
           stock_unidades: entero(stock)!,
           dias_aviso: entero(aviso)!,
+          // Al anotar, vacío no se envía (9.2).
+          ...(entero(envase) !== null ? { unidades_por_envase: entero(envase)! } : {}),
         })
         onGuardado(p, `${INSUMOS.guardado(nombreDe(p))} ${diasEnTexto(p.dias_restantes)}`, true)
       } else {
@@ -1127,6 +1073,7 @@ function Formulario({
   const campoAviso = (
     <Stepper id={ids.aviso} etiqueta={INSUMOS.aviso} ayuda={INSUMOS.avisoAyuda} sufijo={INSUMOS.sufijoAviso} valor={aviso} onCambio={setAviso} min={0} max={60} error={errores.aviso} />
   )
+  const campoEnvase = <CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} error={errores.envase} />
 
   return marco(
     <>
@@ -1146,6 +1093,7 @@ function Formulario({
             {campoUso}
             {campoStock}
             {campoAviso}
+            {campoEnvase}
           </>
         ) : (
           <>
@@ -1154,6 +1102,7 @@ function Formulario({
             {campoAviso}
             {campoNombre}
             {campoUnidad}
+            {campoEnvase}
           </>
         )}
         <VistaPrevia stock={entero(stock)} uso={entero(uso)} cada={tasaDias} />
@@ -1192,6 +1141,41 @@ function Formulario({
         )}
       </form>
     </>,
+  )
+}
+
+/**
+ * MATU-60 9.2: «¿Cuántas unidades trae cada envase?», opcional, de 1 a 10.000. Sin − ni +: los
+ * envases traen 20, 30 u 80. La ayuda va antes del campo y lo describe, con el error si lo hay.
+ */
+function CampoEnvase({ id, valor, onCambio, sufijo, error }: { id: string; valor: string; onCambio: (v: string) => void; sufijo: string; error?: string }) {
+  const describe = [`${id}-a`, error ? `${id}-e` : ''].filter(Boolean).join(' ')
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label htmlFor={id} className="font-bold">
+        {LISTA.envase}
+      </label>
+      <span id={`${id}-a`} className="text-base text-tenue">
+        {LISTA.envaseAyuda}
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete="off"
+          maxLength={5}
+          value={valor}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describe}
+          onChange={(e) => onCambio(soloDigitos(e.target.value, 5))}
+          className={`cifras min-h-12 w-32 rounded-xl bg-hoja px-4 text-xl ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
+        />
+        <span className="text-base text-tenue">{sufijo}</span>
+      </div>
+      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+    </div>
   )
 }
 
@@ -1254,6 +1238,11 @@ function Conflicto({
     </li>
   )
   const l = lineaDias(actual.dias_restantes)
+  // MATU-60 9.4: el envase, si lo cambió esta persona o la otra.
+  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
+  const envaseLeido = leido.unidades_por_envase ?? null
+  const envaseActual = actual.unidades_por_envase ?? null
+  const verEnvase = mio.unidades_por_envase !== undefined || envaseActual !== envaseLeido
   return (
     <div role="alert" className="@container flex flex-col gap-4 rounded-xl border-l-4 border-atenta bg-atenta-fondo px-4 angosto:px-2 py-4">
       <h2 id={id} tabIndex={-1} className="text-xl font-bold break-words [overflow-wrap:anywhere] outline-none">
@@ -1274,6 +1263,7 @@ function Conflicto({
             )}
             {fila(INSUMOS.avisaAntes(actual.dias_aviso), actual.dias_aviso !== leido.dias_aviso)}
             {fila(l.cifra === null ? l.texto : `${l.texto} ${l.cifra} ${l.resto}`, actual.dias_restantes !== leido.dias_restantes)}
+            {verEnvase && fila(envaseDe(envaseActual), envaseActual !== envaseLeido)}
           </ul>
         </section>
         <section className="rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea">
@@ -1285,6 +1275,7 @@ function Conflicto({
             )}
             {mio.stock_unidades != null && <li>{INSUMOS.quedanHoy(mio.stock_unidades, actual.unidad)}</li>}
             {mio.dias_aviso != null && <li>{INSUMOS.avisaAntes(mio.dias_aviso)}</li>}
+            {mio.unidades_por_envase !== undefined && <li>{envaseDe(mio.unidades_por_envase)}</li>}
           </ul>
         </section>
       </div>
