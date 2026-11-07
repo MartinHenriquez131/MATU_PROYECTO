@@ -187,7 +187,7 @@ describe('Grupo familiar, por rol y por estado', () => {
   it('cada estado con su frase y su botón: por renovar, retirada, ya borrada y sin autorizar', async () => {
     apiGrupo(
       {
-        [MARIA.id]: [vista('plan_cuidado', 'revision_vencida', { revision_vence_en: '2026-10-01T15:00:00Z' }), vista('consumo', 'retirada', RETIRADA)],
+        [MARIA.id]: [vista('plan_cuidado', 'revision_vencida', { otorgado_en: '2025-10-01T15:00:00Z', revision_vence_en: '2026-10-01T15:00:00Z' }), vista('consumo', 'retirada', RETIRADA)],
         [PEDRO.id]: [vista('plan_cuidado', 'borrada', BORRADA), vista('consumo', 'sin_autorizar')],
       },
       { personas: [MARIA, PEDRO] },
@@ -197,7 +197,7 @@ describe('Grupo familiar, por rol y por estado', () => {
     const pedro = within(pantalla.getByRole('region', { name: 'Pedro Soto' }))
 
     const fichaMaria = within(maria.getByRole('region', { name: 'Permiso para guardar su ficha' }))
-    expect(fichaMaria.getByText(/^Autorizada el/)).toHaveTextContent('Autorizada el 04/11/2026. Hay que renovarla desde el 01/10/2026.')
+    expect(fichaMaria.getByText(/^Autorizada el/)).toHaveTextContent('Autorizada el 01/10/2025. Hay que renovarla desde el 01/10/2026.')
     // P6: con la revisión vencida también se retira. P5: sin botón de renovar.
     expect(fichaMaria.getByRole('button', { name: 'Retirar la autorización de la ficha de María' })).toBeVisible()
     expect(pantalla.queryByRole('button', { name: /renovar/i })).toBeNull()
@@ -212,7 +212,7 @@ describe('Grupo familiar, por rol y por estado', () => {
     expect(fichaPedro.getByText(/^Autorización retirada el/)).toHaveTextContent('Autorización retirada el 01/07/2026. Lo guardado se borró el 29/09/2026.')
     // 3.4 (revisión del 07-11): cada punto final va dentro del `cifras` de su fecha.
     expect([...fichaPedro.getByText(/^Autorización retirada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['01/07/2026.', '29/09/2026.'])
-    expect([...fichaMaria.getByText(/^Autorizada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['04/11/2026.', '01/10/2026.'])
+    expect([...fichaMaria.getByText(/^Autorizada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['01/10/2025.', '01/10/2026.'])
     expect(fichaPedro.getByRole('button', { name: 'Volver a autorizar la ficha de Pedro' })).toBeVisible()
 
     const insumosPedro = within(pedro.getByRole('region', { name: 'Permiso para calcular sus insumos' }))
@@ -376,7 +376,7 @@ describe('La confirmación de retirar', () => {
 
   it('con la revisión vencida (P6) los enlaces están en pausa y se retira igual', async () => {
     const pedidas = apiGrupo(
-      { [MARIA.id]: [vista('plan_cuidado', 'revision_vencida', { revision_vence_en: '2026-10-01T15:00:00Z' }), vista('consumo', 'vigente')] },
+      { [MARIA.id]: [vista('plan_cuidado', 'revision_vencida', { otorgado_en: '2025-10-01T15:00:00Z', revision_vence_en: '2026-10-01T15:00:00Z' }), vista('consumo', 'vigente')] },
       { enlaces: 2, retiro: () => ({ status: 200, cuerpo: { autorizacion: vista('plan_cuidado', 'retirada', RETIRADA), enlaces_cortados: 2 } }) },
     )
     const pantalla = abrirGrupo('cuidador')

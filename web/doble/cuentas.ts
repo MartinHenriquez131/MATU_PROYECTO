@@ -42,6 +42,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   // MATU-44: Grupo familiar, retirar y volver a autorizar
   { email: 'retirar@example.com', que: 'Grupo familiar: la ficha y los insumos autorizados, con dos enlaces que abren («Hoy abren 2»). Retirar los corta; volver a autorizar dentro de los 90 días' },
   { email: 'retirada@example.com', que: 'Grupo familiar: la ficha y los insumos retirados hace 2 días («se borra el…»). Enlaces con la nota «Se retiró la autorización de la ficha.»' },
+  { email: 'borrada@example.com', que: 'Grupo familiar: la ficha de María se retiró hace 100 días y ya se borró. Volver a autorizar la deja en blanco: la ficha abre en 0 de 3, sin secciones, y los enlaces siguen cortados' },
   { email: 'grupo-estados@example.com', que: 'Grupo familiar con los cinco estados: María por renovar (sus enlaces «en pausa») y sin el permiso de insumos, Juan retirada, Elena ya borrada (volver a autorizar empieza en blanco)' },
   { email: 'grupo-pagador@example.com', que: 'Grupo familiar como pagador: los mismos estados, sin botones ni la calidad' },
   { email: 'grupo-observador@example.com', que: 'Grupo familiar como observador: los mismos estados, sin botones ni la calidad' },

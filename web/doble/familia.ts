@@ -360,6 +360,7 @@ function sembrar() {
     // María: la ficha por renovar (la cuenta) y los insumos sin autorizar. Juan: las dos retiradas.
     // Elena: las dos retiradas hace más de 90 días, ya borradas.
     const [maria, juan, elena] = u.grupos[0].personas
+    maria.autorizaciones.plan_cuidado.otorgado_en = hace(365 * DIA + 30 * DIA)
     maria.accesos = aperturasDeEjemplo().accesos
     juan.accesos = aperturasDeEjemplo().accesos
     juan.consumo = { autorizacion: 'vigente', perfiles: listaCompleta({ id: u.id, nombre: u.nombre }) }
@@ -371,6 +372,14 @@ function sembrar() {
   const tres = (rol: Rol) => [
     grupo('Familia Soto', rol, [persona('María Soto', 'María', completos(), 'cuidador_de_hecho'), persona('Juan Soto', 'Juan', completos()), persona('Elena Soto', 'Elena', completos())], rol === 'pagador'),
   ]
+  {
+    // P8 sin el modo de toda la cuenta: la ficha de María se retiró hace 100 días y ya se borró.
+    // Al volver a autorizar empieza en blanco, en 0 de 3 (decisión 130).
+    const p = conAperturas(persona('María Soto', 'María', completos()))
+    conSecciones(p, yo, ['quien_es', 'comunicacion'])
+    conRetiro(p, 'plan_cuidado', 100 * DIA)
+    insumos(cuenta('borrada@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [p])]), 'vigente', true)
+  }
   estados(cuenta('grupo-estados@example.com', 'Carmen', tres('admin'), 'revision-vencida'))
   estados(cuenta('grupo-pagador@example.com', 'Rodrigo', tres('pagador'), 'revision-vencida'))
   estados(cuenta('grupo-observador@example.com', 'Rodrigo', tres('observador'), 'revision-vencida'))
@@ -800,14 +809,17 @@ function vistaAutorizacion(p: Persona, u: Usuario, finalidad: Finalidad, rol: Ro
   const nunca = finalidad === 'consumo' && p.consumo.autorizacion === 'no'
   if (nunca) return { finalidad, estado: 'sin_autorizar', id: null, ...(rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: null } : {}), otorgado_en: null, ...vacia }
   const vencida = finalidad === 'consumo' ? p.consumo.autorizacion === 'vencida' : u.modo === 'revision-vencida'
+  // Por renovar: se otorgó hace más de un año y la revisión venció 12 meses después (decisión 33).
+  const AÑO = 365 * DIA
+  const otorgada = vencida && new Date(otorgado_en).getTime() > Date.now() - AÑO * 60_000 ? hace(AÑO + 30 * DIA) : otorgado_en
   return {
     finalidad,
     estado: vencida ? 'revision_vencida' : 'vigente',
     id: `${p.id}-${finalidad}`,
     ...calidad,
-    otorgado_en,
+    otorgado_en: otorgada,
     ...vacia,
-    revision_vence_en: vencida ? hace(30 * DIA) : null,
+    revision_vence_en: vencida ? new Date(new Date(otorgada).getTime() + AÑO * 60_000).toISOString() : null,
   }
 }
 
