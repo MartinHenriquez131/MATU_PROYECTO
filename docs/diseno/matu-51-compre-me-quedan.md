@@ -1,6 +1,8 @@
 # MATU-51 · «Compré» y «Me quedan» en cada insumo · Especificación de diseño
 
-**Versión 1.0 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.1:** los topes cerrados por el orquestador (A1, 3.4, 3.5, 5.4) y sus textos de error (secciones 8 y 11).
 
 **Historia:** Carmen anota en dos toques que compró un insumo, o cuántos le quedan después de contarlos. MATU recalcula en el acto cuánto alcanza y hasta cuándo, y si había un aviso que ya no corresponde, desaparece.
 
@@ -16,7 +18,7 @@
 
 | # | Qué | Por qué importa | Mientras tanto |
 |---|---|---|---|
-| A1 | **El contrato de MATU-51 todavía no está en el worktree.** La pantalla necesita saber: las dos rutas, si «Compré» recibe envases o unidades, los topes de cada cantidad, si alguna de las dos exige `If-Match` (y puede responder 412), si responde 409 `perfil-inactivo` y que la respuesta sea el `PerfilConsumoVista` recalculado (`dias_restantes`, `fecha_quiebre_estimada`, `stock_unidades`, `stock_medido_en`) | Sin la respuesta recalculada, la confirmación no puede decir hasta cuándo alcanza, y la pantalla no debe calcularlo | Esta especificación supone: respuesta = perfil recalculado, «Compré» de 1 a 9.999 (el tope de «Ya lo resolví»), «Me quedan» de 0 a 100.000 (el tope del stock de MATU-36), sin `If-Match`. Los textos de 412 y 409 (5.5) quedan listos por si el contrato los trae. **Lo cierra el orquestador con el backend** |
+| A1 | **El contrato de MATU-51 todavía no está en el worktree.** La pantalla necesita saber: las dos rutas, si «Compré» recibe envases o unidades, si alguna de las dos exige `If-Match` (y puede responder 412), si responde 409 `perfil-inactivo` y que la respuesta sea el `PerfilConsumoVista` recalculado (`dias_restantes`, `fecha_quiebre_estimada`, `stock_unidades`, `stock_medido_en`) | Sin la respuesta recalculada, la confirmación no puede decir hasta cuándo alcanza, y la pantalla no debe calcularlo | **Topes, cerrados por el orquestador el 07-11:** «Compré» en envases de 1 a 99, en la unidad del insumo de 1 a 10.000, «Me quedan» de 0 a 100.000, y 422 si lo anotado deja más de 100.000 o alcanzaría para más de 10 años (5.4). Lo demás se supone: respuesta = perfil recalculado y sin `If-Match`. Los textos de 412 y 409 (5.5) quedan listos por si el contrato los trae. **Lo cierra el orquestador con el backend** |
 | A2 | **Dos maneras de anotar una compra, con unidades distintas.** «Ya lo resolví» de MATU-37 pregunta «¿Compraste? ¿Cuántos?» en la unidad del insumo (el campo `cantidad` de `SolicitudResolver` dice «no en envases»). «Compré» pregunta en envases cuando se conoce `unidades_por_envase` (decisión de Jorge del 07-11). Carmen puede ver las dos en la misma pantalla para el mismo insumo | Si en el bloque de avisos escribe «2» pensando en paquetes, MATU suma 2 pañales | **Recomiendo** que el campo de «Ya lo resolví» siga la misma regla que «Compré» (envases si se conoce el envase, vacío por omisión porque ahí es opcional), con la pregunta «¿Compraste? ¿Cuántos envases?» [NUEVO]. Cambia un texto aprobado de MATU-37, así que **lo decide Jorge**. Mientras no decida, el bloque «Se acaban pronto» no cambia en esta historia |
 | A3 | **Los insumos «Sin seguir».** Jorge dijo «en cada insumo de la lista». Un insumo sin seguir no se calcula ni avisa (MATU-36 3.6) | Anotar una compra en algo que no se calcula no cambia nada en pantalla, y Carmen creería que no funcionó | **Propongo** que «Compré» y «Me quedan» se muestren solo en los insumos que se siguen. Para anotar en uno sin seguir, primero se marca «Seguir», que ya dice «Si cambió cuánto queda, anótalo» [L 18]. **Lo confirma Jorge** |
 | A4 | **«Me quedan N» como rótulo.** El botón de la fila no puede llevar un número antes de que Carmen cuente | — | El botón dice «Me quedan» y la `N` se escribe en el panel. Es también lo que usa el texto del analista para «Cómo calculamos» («con «Compré» o «Me quedan»») |
@@ -132,7 +134,7 @@ Se abre **dentro del mismo `li`**, en el lugar del renglón de registro (los dos
 │ │ [x] Seguir  [ Cambiar ]   (pap)│ │
 ```
 
-- Valor inicial **1**. Mínimo 1, máximo el del contrato (A1).
+- Valor inicial **1**. Mínimo 1, máximo **99 envases**. El `Stepper` no pasa de 99 con «+».
 - El sufijo es `sufijoCantidad(n, unidad, u)` de `textoLista.ts`, el mismo de la lista de MATU-60 4.5: «envase de 20 unidades», «envases de 20 unidades», «envases de 250 ml», «envases de 10 sobres», «envases de 1 unidad». Cambia con el número, así que con 2 dice «envases».
 - El sufijo de hoy en el `Stepper` es un `span` fijo al lado del campo. Con «envases de 20 unidades» no cabe junto a los botones a 360 px: va en el mismo `flex flex-wrap` y baja solo. No hace falta otra pieza.
 
@@ -146,7 +148,7 @@ Se abre **dentro del mismo `li`**, en el lugar del renglón de registro (los dos
 │ │ [ Anotar la compra ] [ Volver ]│ │
 ```
 
-- **Vacío** al abrir: un «1» por omisión tiene sentido para un paquete, no para pañales sueltos o mililitros. Mínimo 1, máximo el del contrato.
+- **Vacío** al abrir: un «1» por omisión tiene sentido para un paquete, no para pañales sueltos o mililitros. Mínimo 1, máximo **10.000** en la unidad del insumo.
 - Sufijo `INSUMOS.sufijoStock(unidad)`: «unidades», «sobres», «ml», «g» [L 18].
 
 **Lo que va a la API:** lo que diga el contrato (A1). Si el contrato pide unidades, la pantalla manda `envases × {u}`. Nunca manda una fecha.
@@ -166,7 +168,7 @@ Mismo lugar y misma forma que «Compré».
 ```
 
 - **Vacío** al abrir, por la misma razón que MATU-36 deja vacío el stock al cambiar: un número precargado invita a confirmar sin contar.
-- Mínimo **0**, máximo el del contrato (A1). Siempre en la unidad del insumo, aunque tenga envase (decisión de Jorge). Sufijo `INSUMOS.sufijoStock(unidad)`.
+- Mínimo **0**, máximo **100.000**. Siempre en la unidad del insumo, aunque tenga envase (decisión de Jorge). Sufijo `INSUMOS.sufijoStock(unidad)`.
 - «−» con el campo vacío deja 0, como ya hace el `Stepper` con `min={0}`.
 
 ### 3.6 Reglas de los paneles
@@ -228,7 +230,8 @@ Textos de la confirmación (sección 8): «Compra anotada…» para «Compré» 
 | Caso | Dónde | Qué pasa |
 |---|---|---|
 | Campo vacío al confirmar (validación de la pantalla) | Bajo el campo | `aria-invalid`, foco al campo. No se llama a la API |
-| Fuera de rango (pantalla o API, `errores[].campo` de la cantidad) | Bajo el campo | Igual |
+| Fuera de rango (pantalla o API, `errores[].campo` de la cantidad): «Compré» en envases sobre 99, en unidades sobre 10.000, «Me quedan» sobre 100.000 | Bajo el campo | Igual. La pantalla lo valida antes de enviar, y el texto es el mismo si lo devuelve la API |
+| «Compré» deja lo que queda sobre 100.000 (la suma con lo que MATU calculaba) | Bajo el campo | Igual. Solo lo sabe la API: la pantalla no conoce lo que queda hoy |
 | `cobertura_maxima` | Bajo el campo | Igual. El panel sigue abierto con lo escrito |
 | Otro 422 | Error del panel | «No pudimos guardar. Revisa los datos y vuelve a intentarlo.» [L 18] |
 
@@ -307,7 +310,9 @@ La frase del analista se adopta tal cual. Dice «cambió lo que queda», que cub
 | Me quedan, hecho con 0 | Anotamos que no queda «{nombre}». Cuando compres, anótalo con «Compré». | [NUEVO] |
 | Compré, campo vacío, con envase | Escribe cuántos envases compraste, al menos 1. | [NUEVO] |
 | Compré, campo vacío, sin envase | Escribe cuántos compraste, al menos 1. | [NUEVO] |
-| Compré, sobre el tope | Escribe un número hasta {tope}. (con punto de miles: «9.999») | [NUEVO], con la forma de «Escribe un número hasta 10.000.» [L 18] |
+| Compré, sobre el tope, con envase (más de 99) | Escribe un número de 1 a 99 envases. | [NUEVO] |
+| Compré, sobre el tope, sin envase (más de 10.000) | Escribe un número hasta 10.000. | [L 18] |
+| Compré, lo que queda pasaría de 100.000 (422) | Con esa compra quedarían más de 100.000 {sufijo}. Revisa cuántos compraste. («{sufijo}» es «unidades», «sobres», «ml» o «g») | [NUEVO] |
 | Me quedan, campo vacío | Escribe cuántos quedan. Si no queda nada, escribe 0. | [L 18] |
 | Me quedan, sobre el tope | Escribe un número hasta 100.000. | [L 18] |
 | Compré, `cobertura_maxima` | Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste. | [NUEVO] |
@@ -356,7 +361,7 @@ La frase del analista se adopta tal cual. Dice «cambió lo que queda», que cub
 11. Todo lo que se toca mide al menos 48 × 48 px, y el foco se ve en claro y en oscuro.
 12. Ningún texto de la fila, del panel ni de la confirmación ofrece comprar, pedir, precios o catálogo, ni dice «quiebre», «stock» o «reposición».
 
-**Para la revisión:** el frontend deja levantable, contra el doble del contrato, una lista con un insumo con envase de 20 que esté en «Se acaban pronto» y salga al comprar 2, uno sin envase en sobres, uno en ml, uno «Sin seguir», uno de 60 caracteres sin espacios, y respuestas de 422 `cobertura_maxima`, 404, 403 `revision-vencida`, 500 y una respuesta lenta. Las capturas son a 360, 1280 y 1920 px, en claro y oscuro, y con texto al 200%.
+**Para la revisión:** el frontend deja levantable, contra el doble del contrato, una lista con un insumo con envase de 20 que esté en «Se acaban pronto» y salga al comprar 2, uno sin envase en sobres, uno en ml, uno «Sin seguir», uno de 60 caracteres sin espacios, y respuestas de 422 `cobertura_maxima`, 422 por pasar de 100.000, 404, 403 `revision-vencida`, 500 y una respuesta lenta. Las capturas son a 360, 1280 y 1920 px, en claro y oscuro, y con texto al 200%.
 
 ---
 
@@ -384,7 +389,8 @@ En la app se dice «Compré» y «Me quedan», nunca «reposición», «reponer�
 | Lo que queda, anotado | Anotamos lo que queda de «{nombre}»: {cantidad}. Alcanza para {n} días, hasta el {fecha}. (Con 1: «1 día». Si se acaba hoy: «Anotamos lo que queda de «{nombre}»: {cantidad}. Así, se acaba hoy.») |
 | Lo que queda, con 0 | Anotamos que no queda «{nombre}». Cuando compres, anótalo con «Compré». |
 | Compré, falta la cantidad | Escribe cuántos envases compraste, al menos 1. · Escribe cuántos compraste, al menos 1. |
-| Compré, sobre el tope | Escribe un número hasta {tope}. |
+| Compré, sobre el tope | Con envase: Escribe un número de 1 a 99 envases. · Sin envase: Escribe un número hasta 10.000. (de la sección 18) |
+| Compré, lo que queda pasaría de 100.000 | Con esa compra quedarían más de 100.000 {unidades / sobres / ml / g}. Revisa cuántos compraste. |
 | Me quedan, falta o sobre el tope | Escribe cuántos quedan. Si no queda nada, escribe 0. · Escribe un número hasta 100.000. (de la sección 18) |
 | Más de 10 años | Compré: Con esa compra alcanzaría para más de 10 años. Revisa cuántos compraste. · Me quedan: Con esa cantidad alcanzaría para más de 10 años. Revisa cuántos quedan. |
 | El insumo ya no está (404) | Este insumo ya no está. Puede que alguien de tu familia lo haya eliminado. |
