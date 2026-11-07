@@ -68,11 +68,12 @@ export const GRUPO_FAMILIAR = {
   // 5: volver a autorizar
   volverAGrupo: 'Volver a Grupo familiar',
   fichaVuelve: 'Al autorizar de nuevo, vuelve lo que estaba escrito. Los enlaces que se cortaron no vuelven a abrir.',
-  fichaSeBorro: (fecha: string) => `Lo escrito antes se borró el ${fecha}. La ficha empieza en blanco.`,
+  // Con una fecha: [antes, lo que va pegado a la fecha dentro de su `cifras`, después] (3.4, revisión del 07-11).
+  fichaSeBorro: ['Lo escrito antes se borró el ', '.', ' La ficha empieza en blanco.'] as const,
   fichaBoton: 'Acepto y vuelvo a autorizar',
   fichaEnviando: 'Autorizando…',
-  insumosVuelve: (fecha: string) => `Si vuelves a dar el permiso antes del ${fecha}, vuelve lo que estaba anotado.`,
-  insumosSeBorro: (fecha: string) => `Lo anotado antes se borró el ${fecha}. Hay que anotar los insumos de nuevo.`,
+  insumosVuelve: ['Si vuelves a dar el permiso antes del ', ',', ' vuelve lo que estaba anotado.'] as const,
+  insumosSeBorro: ['Lo anotado antes se borró el ', '.', ' Hay que anotar los insumos de nuevo.'] as const,
   errAutorizar: 'No pudimos guardar la autorización. Revisa lo que elegiste y vuelve a intentarlo.',
   yaAutorizada: 'Otra persona de tu grupo ya volvió a autorizar.',
   registradaFicha: (pila: string) => `Autorización registrada. Ya puedes ver y cambiar la ficha de ${pila}.`,

@@ -148,6 +148,8 @@ function abrirGrupo(rol: Rol, cambios: Record<string, unknown> = {}) {
   return within(container)
 }
 
+/** Un párrafo por su texto completo, aunque la fecha vaya en su propio `span`. */
+const parrafo = (texto: string) => screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === texto)
 const bloque = (titulo: string) => screen.getByRole('region', { name: titulo })
 const dialogo = () => screen.getByRole('dialog')
 
@@ -531,7 +533,10 @@ describe('Volver a autorizar', () => {
 
   it('la ficha después de los 90 días (P8) empieza en blanco, y lo dice antes y después', async () => {
     abrirAutorizar('ficha', vista('plan_cuidado', 'borrada', BORRADA), () => ({ status: 201, cuerpo: {} }))
-    expect(screen.getByText('Lo escrito antes se borró el 29/09/2026. La ficha empieza en blanco.')).toBeVisible()
+    const frase = parrafo('Lo escrito antes se borró el 29/09/2026. La ficha empieza en blanco.')
+    expect(frase).toBeVisible()
+    // 3.4 (revisión del 07-11): el punto va pegado a la fecha, en el mismo `cifras`.
+    expect(frase.querySelector('.cifras')).toHaveTextContent(/^29\/09\/2026\.$/)
     await userEvent.click(screen.getByRole('radio', { name: /Cuido a esta persona/ }))
     // Revisión del 07-11 (P2): en modo angosto el ícono del aviso va en la línea del título.
     const aviso = screen.getByRole('heading', { level: 2, name: 'Aviso: tu autorización tiene un límite' })
@@ -559,6 +564,28 @@ describe('Volver a autorizar', () => {
     expect(contexto.fijar).toHaveBeenCalledWith(expect.objectContaining({ aviso: { titulo: 'Otra persona de tu grupo ya volvió a autorizar.', tono: 'rocio' } }))
   })
 
+  it.each([
+    ['ficha', 'La autorización para guardar su ficha', 'plan_cuidado'],
+    ['insumos', 'Antes de calcular, un permiso', 'consumo'],
+  ] as const)('desde el aviso, la %s carga con su propio h1, que conserva el foco al llegar la vista (revisión P2)', async (pantalla, titulo, finalidad) => {
+    const respuesta = diferida()
+    abrirAutorizar(pantalla, null, () => respuesta.promesa)
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(h1).toHaveAccessibleName(titulo)
+    expect(screen.queryByRole('heading', { name: 'Grupo familiar' })).toBeNull()
+    h1.focus()
+    const otra = finalidad === 'plan_cuidado' ? 'consumo' : 'plan_cuidado'
+    await act(async () =>
+      respuesta.soltar({
+        status: 200,
+        cuerpo: { autorizaciones: finalidad === 'plan_cuidado' ? [vista(finalidad, 'retirada', RETIRADA), vista(otra, 'vigente')] : [vista(otra, 'vigente'), vista(finalidad, 'retirada', RETIRADA)] },
+      }),
+    )
+    expect(await screen.findByRole('radio', { name: /María lo autoriza/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toBe(h1)
+    expect(h1).toHaveFocus()
+  })
+
   it('si la ficha ya no está retirada, vuelve a Grupo familiar', async () => {
     abrirAutorizar('ficha', null, () => ({ status: 200, cuerpo: { autorizaciones: [vista('plan_cuidado', 'vigente'), vista('consumo', 'vigente')] } }))
     await waitFor(() => expect(window.location.pathname).toBe('/grupo'))
@@ -571,7 +598,7 @@ describe('Volver a autorizar', () => {
     const pedidas = abrirAutorizar('insumos', vista('consumo', estado, fechas), () => ({ status: 201, cuerpo: {} }))
     expect(screen.getByRole('heading', { level: 1, name: 'Antes de calcular, un permiso' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Volver a Grupo familiar' })).toBeVisible()
-    expect(screen.getByText(frase)).toBeVisible()
+    expect(parrafo(frase)).toBeVisible()
     await userEvent.click(screen.getByRole('radio', { name: /María lo autoriza/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Acepto y continúo' }))
     await waitFor(() => expect(window.location.pathname).toBe('/grupo'))

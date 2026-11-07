@@ -43,12 +43,30 @@ const retirada = (v: AutorizacionVista | undefined) => v?.estado === 'retirada' 
 /** Lo guardado ya no vuelve (decisión 127: `borrada` aunque la tarea todavía no haya corrido). */
 const seBorro = (v: AutorizacionVista) => v.estado === 'borrada' || v.borrada
 
-/** DD/MM/AAAA en la hora de Chile, en su `cifras`. */
-function Fecha({ iso }: { iso: string | null }) {
+/**
+ * DD/MM/AAAA en la hora de Chile, en su `cifras`, con el signo que la sigue (`fin`) dentro del mismo
+ * `cifras`: si queda fuera, en modo angosto el punto baja solo a un renglón (3.4, revisión del 07-11).
+ */
+function Fecha({ iso, fin = '' }: { iso: string | null; fin?: string }) {
   if (!iso || Number.isNaN(new Date(iso).getTime())) return null
-  return <span className="cifras">{fechaYHoraDeChile(new Date(iso)).fecha}</span>
+  return (
+    <span className="cifras">
+      {fechaYHoraDeChile(new Date(iso)).fecha}
+      {fin}
+    </span>
+  )
 }
-const fechaTexto = (iso: string | null) => (iso && !Number.isNaN(new Date(iso).getTime()) ? fechaYHoraDeChile(new Date(iso)).fecha : '')
+
+/** Una frase de textosGrupo con una fecha: `[antes, pegado a la fecha, después]`. */
+function ConFecha({ partes: [antes, pegado, despues], iso }: { partes: readonly [string, string, string]; iso: string | null }) {
+  return (
+    <>
+      {antes}
+      <Fecha iso={iso} fin={pegado} />
+      {despues}
+    </>
+  )
+}
 
 // ---------------------------------------------------------------- 3 Grupo familiar
 
@@ -529,19 +547,9 @@ function useVistaAReautorizar(finalidad: Finalidad) {
   return { vista, falla, pedir }
 }
 
-function CargandoVista({ falla, pedir }: { falla: 'red' | 'no-encontrado' | null; pedir: () => void }) {
-  if (falla === 'no-encontrado') return <SinAcceso />
-  if (falla === 'red')
-    return (
-      <Pagina titulo={T.titulo}>
-        <ErrorAlCargar reintentar={pedir} />
-      </Pagina>
-    )
-  return (
-    <Pagina titulo={T.titulo}>
-      <Cargando />
-    </Pagina>
-  )
+/** Mientras llega la vista (5.1): «Cargando…» o el error al cargar, bajo el título de la pantalla. */
+function EsperaVista({ falla, pedir }: { falla: 'red' | 'no-encontrado' | null; pedir: () => void }) {
+  return falla === 'red' ? <ErrorAlCargar reintentar={pedir} /> : <Cargando />
 }
 
 function VolverAGrupo() {
@@ -554,7 +562,11 @@ function volverConAviso(cambios: Parameters<ReturnType<typeof useFamilia>['fijar
   navegar('/grupo')
 }
 
-/** 5.1: el cuerpo de la autorización del alta, sin su marco, en el esqueleto de la app. */
+/**
+ * 5.1: el cuerpo de la autorización del alta, sin su marco, en el esqueleto de la app. Mientras
+ * llega la vista, el `h1` ya es el de esta pantalla y es el mismo elemento al terminar: así el foco
+ * de la regla de ruta no se pierde (revisión del 07-11).
+ */
 export function AutorizarFicha() {
   const { persona, personaId, fijar } = useFamilia()
   const { vista, falla: fallaVista, pedir } = useVistaAReautorizar('plan_cuidado')
@@ -563,9 +575,9 @@ export function AutorizarFicha() {
   const [ocupado, setOcupado] = useState(false)
   const pila = persona ? nombrePilaDe(persona) : ''
 
-  if (!vista || !retirada(vista)) return <CargandoVista falla={fallaVista} pedir={() => void pedir()} />
-  if (falla === 'no-encontrado') return <SinAcceso />
-  const enBlanco = seBorro(vista)
+  if (fallaVista === 'no-encontrado' || falla === 'no-encontrado') return <SinAcceso />
+  const lista = vista && retirada(vista) ? vista : null
+  const enBlanco = lista ? seBorro(lista) : false
 
   const aceptar = async () => {
     if (ocupado || !personaId) return
@@ -596,25 +608,35 @@ export function AutorizarFicha() {
       <div className="flex flex-col gap-2">
         <VolverAGrupo />
         <Titulo className="text-3xl @2xl/main:text-5xl">{AUTORIZACION.titulo}</Titulo>
-        <p className="max-w-prose text-base text-tenue">{AUTORIZACION.bajada(pila)}</p>
-        <p className="max-w-prose text-base">{enBlanco ? T.fichaSeBorro(fechaTexto(vista.borrado_en)) : T.fichaVuelve}</p>
+        {lista && (
+          <>
+            <p className="max-w-prose text-base text-tenue">{AUTORIZACION.bajada(pila)}</p>
+            <p className="max-w-prose text-base">{enBlanco ? <ConFecha partes={T.fichaSeBorro} iso={lista.borrado_en} /> : T.fichaVuelve}</p>
+          </>
+        )}
       </div>
-      <DeclaracionFicha pila={pila} d={d} />
-      {falla === '422' && (
-        <Nota tono="pronto" rol="alert">
-          {T.errAutorizar}
-        </Nota>
+      {!lista ? (
+        <EsperaVista falla={fallaVista} pedir={() => void pedir()} />
+      ) : (
+        <>
+          <DeclaracionFicha pila={pila} d={d} />
+          {falla === '422' && (
+            <Nota tono="pronto" rol="alert">
+              {T.errAutorizar}
+            </Nota>
+          )}
+          {falla === 'red' && (
+            <Nota tono="pronto" rol="alert">
+              {GENERAL.error}
+            </Nota>
+          )}
+          <Acciones>
+            <Boton onClick={() => void aceptar()} ocupado={ocupado} textoOcupado={T.fichaEnviando}>
+              {T.fichaBoton}
+            </Boton>
+          </Acciones>
+        </>
       )}
-      {falla === 'red' && (
-        <Nota tono="pronto" rol="alert">
-          {GENERAL.error}
-        </Nota>
-      )}
-      <Acciones>
-        <Boton onClick={() => void aceptar()} ocupado={ocupado} textoOcupado={T.fichaEnviando}>
-          {T.fichaBoton}
-        </Boton>
-      </Acciones>
     </div>
   )
 }
@@ -626,8 +648,7 @@ export function AutorizarInsumos() {
   const [noEncontrado, setNoEncontrado] = useState(false)
   const pila = persona ? nombrePilaDe(persona) : ''
 
-  if (!vista || !retirada(vista)) return <CargandoVista falla={falla} pedir={() => void pedir()} />
-  if (noEncontrado)
+  if (noEncontrado || falla === 'no-encontrado')
     return (
       <Pagina titulo={T.titulo}>
         <Nota tono="rocio" icono={<Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
@@ -635,15 +656,16 @@ export function AutorizarInsumos() {
         </Nota>
       </Pagina>
     )
-  const enBlanco = seBorro(vista)
-  const fecha = fechaTexto(vista.borrado_en)
+  const lista = vista && retirada(vista) ? vista : null
+  const enBlanco = lista ? seBorro(lista) : false
 
   return (
     <Permiso
       pila={pila}
       personaId={personaId}
-      antes=<VolverAGrupo />
-      frase={<p className="max-w-prose text-base">{enBlanco ? T.insumosSeBorro(fecha) : T.insumosVuelve(fecha)}</p>}
+      antes={<VolverAGrupo />}
+      frase={lista ? <p className="max-w-prose text-base"><ConFecha partes={enBlanco ? T.insumosSeBorro : T.insumosVuelve} iso={lista.borrado_en} /></p> : undefined}
+      cargando={lista ? undefined : <EsperaVista falla={falla} pedir={() => void pedir()} />}
       onListo={(yaVigente) => {
         volverConAviso(
           { reautorizar: null, aviso: yaVigente ? { titulo: T.yaAutorizada, tono: 'rocio' } : { titulo: enBlanco ? T.guardadoInsumosEnBlanco : T.guardadoInsumos, tono: 'ok' } },

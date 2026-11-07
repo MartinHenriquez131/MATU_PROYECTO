@@ -652,7 +652,8 @@ function Fila({
 
 /**
  * También lo usa volver a autorizar los insumos (MATU-44 5.2), sin cambiarlo: `antes` pone «Volver a
- * Grupo familiar» arriba y `frase` la frase de estado bajo la bajada. En Insumos no van (P3).
+ * Grupo familiar» arriba, `frase` la frase de estado bajo la bajada y `cargando` reemplaza el
+ * formulario mientras llega la vista, con el mismo título (5.1, revisión del 07-11). En Insumos no van (P3).
  */
 export function Permiso({
   pila,
@@ -661,6 +662,7 @@ export function Permiso({
   onNoEncontrado,
   antes,
   frase,
+  cargando,
 }: {
   pila: string
   personaId: string | null
@@ -668,6 +670,7 @@ export function Permiso({
   onNoEncontrado: () => void
   antes?: ReactNode
   frase?: ReactNode
+  cargando?: ReactNode
 }) {
   const [calidad, setCalidad] = useState<Calidad | null>('cuidador_de_hecho')
   const [leido, setLeido] = useState(false)
@@ -712,6 +715,8 @@ export function Permiso({
         <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
         {frase}
       </div>
+      {cargando ?? (
+        <>
       <GrupoOpciones
         leyenda={INSUMOS.permisoLeyenda}
         nombre="calidad-consumo"
@@ -763,6 +768,8 @@ export function Permiso({
           {INSUMOS.permisoBoton}
         </Boton>
       </Acciones>
+        </>
+      )}
     </div>
   )
 }
