@@ -66,8 +66,8 @@ def test_retirar_descarta_las_alertas_abiertas_en_la_misma_transaccion(entorno_c
     assert estados == {pendiente: "descartada", notificada: "descartada"}
     descartes = _filas("SELECT actor_tipo, actor_ref, entidad_id, detalle FROM auditoria"
                        " WHERE accion = 'alerta.descartar' AND grupo_id = %s ORDER BY entidad_id", familia.grupo.id)
-    assert sorted(descartes, key=lambda f: str(f[2])) == sorted(
-        [("usuario", cuidador.id, pendiente, None), ("usuario", cuidador.id, notificada, None)], key=lambda f: str(f[2]))
+    esperados = [("usuario", cuidador.id, pendiente, None), ("usuario", cuidador.id, notificada, None)]
+    assert sorted(descartes, key=lambda f: str(f[2])) == sorted(esperados, key=lambda f: str(f[2]))
 
 
 def test_los_insumos_tras_el_retiro_403_con_finalidad_consumo(entorno_consumo: EntornoConsumo) -> None:

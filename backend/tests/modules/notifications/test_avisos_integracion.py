@@ -364,7 +364,9 @@ def test_retiro_por_el_caso_de_uso_omite_el_aviso_pendiente(entorno_avisos: Ento
     with sesion_tenant(fabrica_sesiones(), usuario_id=familia.admin.id, grupo_id=grupo) as sesion:
         registro = RegistroAuditoriaSql(sesion, e.reloj)
         retirar_autorizacion(
-            SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="consumo"),
+            SolicitudRetiro(
+                usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="consumo"
+            ),
             e.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
         )
 
