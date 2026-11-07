@@ -2061,7 +2061,7 @@ function PanelResolver({
           soloLectura={ocupado}
         />
         <div className="flex flex-wrap gap-3">
-          <Boton id={`confirmar-${a.id}`} aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
+          <Boton id={`confirmar-${a.id}`} className="angosto:px-0.5!" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
             {ALERTAS.boton}
           </Boton>
           <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
