@@ -1,8 +1,10 @@
 # MATU-44 · Retirar una autorización · Especificación de diseño
 
-**Versión 1.1 · 06/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.2 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
 
 **Cambios de la 1.1:** las decisiones de Jorge del 06-11 sobre P1 a P8 (sección 11) y los nombres reales del contrato de MATU-44 (`docs/api/openapi.json` y README, decisiones 123 a 135, sección 7).
+
+**Cambios de la 1.2, tras la revisión visual del 07-11:** A1 y A2 quedan resueltas en el contrato (decisiones 127 y 130) y sale la nota provisional de 3.6. Se confirman cuatro decisiones del frontend (sección 0.1). Se agregan tres reglas que la revisión mostró que faltaban: el punto final va pegado a la fecha (3.4), la confirmación no se cierra con un segundo `Esc` mientras retira (4.4) y la espera de 5.1 y 5.2 no cambia el título ni pierde el foco (5.1).
 
 **Historia:** Carmen puede retirar, desde Grupo familiar, la autorización para guardar la ficha de María o la autorización para calcular sus insumos. Retirar la de la ficha corta para siempre todos sus enlaces de relevo. Lo guardado queda sin que nadie lo vea y se borra a los 90 días si nadie vuelve a autorizar.
 
@@ -12,12 +14,23 @@
 
 ---
 
-## 0. Lo que sigue abierto
+## 0. Lo que estaba abierto
 
-| # | Qué falta | Por qué importa | Qué hace esta especificación |
-|---|---|---|---|
-| A1 | **El pagador y el observador no reciben el estado.** Jorge aprobó que lo vean (P2), pero `GET …/consentimientos` les responde 404 (decisión 127, «Quién») y el contrato deja C5 fuera | Sin ese dato, su variante de bloque (3.6) no se puede construir | Especifica la variante. El backend tiene que abrir la lectura a esos dos roles, sin `calidad_otorgante` (sección 7, C5) |
-| A2 | **Después del día 90 la ficha no empieza en blanco.** Jorge decidió que al volver a autorizar la ficha empieza en blanco, en 0 de 3 (P8). La decisión 130 del contrato dice lo contrario: con la clave destruida, la ficha responde 404 aunque se autorice de nuevo, y una ficha nueva exige cambiar la regla de MATU-11 | La pantalla mostraría «empieza en blanco» y después un 404 | La especificación sigue P8 (5.1 y 5.3). Lo informo al orquestador: el contrato tiene que cambiar o Jorge tiene que revisar P8. No elijo |
+Nada queda abierto en el contrato.
+
+| # | Qué faltaba | Cómo se resolvió |
+|---|---|---|
+| A1 | El pagador y el observador no recibían el estado (P2) | **Resuelta, decisión 127.** `GET …/consentimientos` responde a los cuatro roles. El pagador y el observador reciben `AutorizacionesPersonaResumen` con `AutorizacionVistaResumen`, la misma vista sin `calidad_otorgante` |
+| A2 | Después del día 90 la ficha respondía 404 al volver a autorizar, contra P8 | **Resuelta, decisión 130.** La ficha queda en blanco, en 0 de 3 y sin secciones. Lo borrado no vuelve, la primera escritura crea una clave nueva y los enlaces cortados siguen cortados |
+
+### 0.1 Decisiones del frontend, confirmadas
+
+| Decisión | Veredicto |
+|---|---|
+| En 6.4, para `admin` y `cuidador`, se reemplaza la última oración («Pídele a quien administra el grupo que la registre.») por «La puedes volver a autorizar desde Grupo familiar.» | **Confirmada.** Es lo que pide 4.5, y ya está en `lenguaje.md` |
+| El 404 general (lenguaje 8) va en una `Nota tono="rocio"` con `Lock` cuando Grupo familiar se queda sin personas y cuando volver a autorizar los insumos responde 404 | **Confirmada.** Es el patrón de «sin acceso» de MATU-39 5.6, sin decir por qué. En Grupo familiar ese caso solo ocurre si todas las personas responden 404: sin personas, el ruteo de MATU-39 5.4 actúa antes |
+| «Cargando…» pasados 400 ms en 5.1 | **Confirmada**, con la regla nueva de 5.1: mientras carga, el título es el de la pantalla que se abre, no «Grupo familiar», y el foco queda en ese `h1` |
+| `Permiso` de Insumos sigue preseleccionando `cuidador_de_hecho` y 5.1 no preselecciona | **Confirmada.** 5.2 reutiliza `Permiso` sin cambios (P3), y la preselección es la aprobada en MATU-36. 5.1 sigue al alta, que no preselecciona. La diferencia se acepta: unificarla cambiaría Insumos
 
 ---
 
@@ -169,6 +182,8 @@ Grupo familiar no existía en `web/`, solo en la demo (`Demo/src/familia/Grupo.t
 
 Las fechas, `DD/MM/AAAA` en hora de Chile, cada una en su `cifras`. «Autorizada» es la ficha y «Autorizado» el permiso de los insumos, como en el borrador.
 
+**El punto que cierra la frase va dentro del mismo `cifras` que la fecha** (por ejemplo `<span class="cifras">05/11/2026.</span>`). Si queda fuera, en modo angosto el punto baja solo a un renglón propio (revisión del 07-11). Vale para todas las fechas de esta pantalla, de 5.1 y de 5.2.
+
 | `estado` | Ícono | Frase y fechas | Botón (`admin` y `cuidador`) |
 |---|---|---|---|
 | `vigente` | `ShieldCheck` `text-ok` | Autorizada el `{otorgado_en}`. · Autorizado el `{otorgado_en}`. | `peligro` «Retirar la autorización» |
@@ -208,7 +223,8 @@ Van entre el título y la frase de estado, solo después de una acción, y desap
 | `sin_autorizar` | Ninguna: «Se pide al anotar el primer insumo» ya lo dice |
 
 - La frase de `retirada` les dice «Si no vuelves a autorizar…», que no pueden hacer. Para estos dos roles va en impersonal **[NUEVO]**: «Autorización retirada el `{revocado_en}`. Si nadie vuelve a autorizar, lo guardado se borra el `{borrado_en}`.»
-- **Depende de A1:** hoy la API les responde 404. Mientras no cambie, ven solo el nombre de la persona y, en `Nota tono="rocio"` con `Lock`, «Solo quien administra el grupo o quien cuida a `{nombre_pila}` ve sus permisos.» **[NUEVO, provisional]**. Se retira cuando el contrato cumpla C5.
+- Los datos salen de `AutorizacionesPersonaResumen` (decisión 127), que no trae `calidad_otorgante`.
+- `{nombre_pila}`: la vista del pagador y del observador no trae `nombre_pila`, así que la frase usa lo que devuelve `nombrePilaDe` («María Soto»). Se acepta: se lee bien y no exige otro dato.
 
 ### 3.7 Estados de la pantalla
 
@@ -321,7 +337,7 @@ En pantalla ancha es el mismo diálogo, centrado, de 32 rem como máximo. Los do
 | Estado | Qué se ve | Foco |
 |---|---|---|
 | Abierta | El esquema de 4.2 | En el `h2`. Así, con la lista larga a 360 px o con el texto al 200 %, la pregunta se ve primero y no se desplaza fuera de la vista (APG, diálogo modal). `Tab` lleva a «Retirar la autorización» y luego a «No retirar» |
-| En curso | El botón dice «Retirando…» con el mismo ancho y `aria-busy` (`Boton` con `ocupado`). **«No retirar» y `Esc` no hacen nada mientras tanto** (`aria-disabled` en «No retirar», `onCancel` con `preventDefault`): la petición ya salió y Carmen no debe creer que la canceló | Se queda en el botón |
+| En curso | El botón dice «Retirando…» con el mismo ancho y `aria-busy` (`Boton` con `ocupado`). **«No retirar» y `Esc` no hacen nada mientras tanto** (`aria-disabled` en «No retirar», `onCancel` con `preventDefault`): la petición ya salió y Carmen no debe creer que la canceló. **Un segundo `Esc` también:** Chrome deja anular solo el primer `cancel` después de un toque, y el segundo cierra el `<dialog>` igual. Por eso, si el diálogo recibe `close` con la petición en curso, se vuelve a abrir con `showModal()` y el foco vuelve al botón. Si no, un error de red quedaría dentro de un diálogo cerrado, sin que nadie lo vea | Se queda en el botón |
 | 200 `RetiroAutorizacion` | Se cierra el diálogo. El bloque pasa a `retirada` con `autorizacion` y muestra la `Nota` de 3.5 con `enlaces_cortados` | En la `Nota` de confirmación |
 | 409 `/errores/ya-retirada` | Se cierra el diálogo, se vuelve a pedir `GET …/consentimientos` y el bloque muestra la `Nota` rocío de 3.5 | En esa `Nota` |
 | Red o 5xx | En la región del diálogo, `MensajeError`: «No pudimos retirar la autorización. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.» El botón vuelve a «Retirar la autorización» para reintentar. Si falla un corte, la API no escribe nada (decisión 124), así que la frase es verdad | Se queda en el botón |
@@ -337,7 +353,7 @@ En pantalla ancha es el mismo diálogo, centrado, de 32 rem como máximo. Los do
 - La app saca de la memoria la ficha de esa persona (`fijar({ ficha: null })` si es la persona elegida) y deja `autorizacion: 'sin-consentimiento'`. Después del alta, ese 403 solo ocurre por un retiro (decisión 131), y `revision-vencida` sigue siendo «por renovar».
 - **Ficha** (`/ficha` y sus campos), 403 `sin-consentimiento`: el aviso de lenguaje 6.4 de siempre. **Para `admin` y `cuidador` (P4)** el aviso termina en «La puedes volver a autorizar desde Grupo familiar.» **[NUEVO]** en lugar de «Pídele a quien administra el grupo que la registre.», y debajo, `Boton variante="secundario"` «Volver a autorizar» **[NUEVO]**, que elige la persona y lleva a `/grupo/autorizar-ficha`. Pagador y observador ven el texto de hoy, sin botón. Cierra el [PENDIENTE] de lenguaje 6.4.
 - **Compartir** (`/compartir`) muestra lo mismo que hoy sin autorización: no se crea nada (decisión 18).
-- **Enlaces** (`/compartir/enlaces`), con `sin-consentimiento`: arriba de la lista, en lugar del aviso de pausa, `Nota tono="rocio" borde` con `Unlink`, título «Se retiró la autorización de la ficha.» y cuerpo «Los enlaces se cortaron y no vuelven a abrir.» **[AJUSTE, solo de forma]**. Las tarjetas son las que da la API: todas en «Ya no abren», con «Cortado» y «Lo cortaron el…», sin «En pausa». Debajo de la nota, para `admin` y `cuidador`, `Boton variante="texto"` «Ver los permisos en Grupo familiar» **[NUEVO]** a `/grupo`. No es `atenta`: no hay nada que hacer para que vuelvan a abrir.
+- **Enlaces** (`/compartir/enlaces`), con `sin-consentimiento`: arriba de la lista, en lugar del aviso de pausa, `Nota tono="rocio" borde` con `Unlink`, título «Se retiró la autorización de la ficha.» y cuerpo «Los enlaces se cortaron y no vuelven a abrir.» **[AJUSTE, solo de forma]**. Las tarjetas son las que da la API: todas en «Ya no abren», con «Cortado» y «Lo cortaron el…», sin «En pausa». Debajo de la nota, para `admin` y `cuidador`, `Boton variante="texto"` «Ver los permisos en Grupo familiar» **[NUEVO]** a `/grupo`. No es `atenta`: no hay nada que hacer para que vuelvan a abrir. **En modo angosto** la nota no puede medir más que su columna: a 320 px con el texto al 200 %, el borde, el ícono `size-6`, el hueco y «autorización» en negrita suman 154 px en 143 (revisión del 07-11). El ícono va en la primera línea del título, como en `MensajeError` (`angosto:inline`), o el título lleva `hyphens-auto`. Vale también para el aviso de pausa, que usa la misma nota.
 - El aviso de pausa (`atenta`, con «En pausa» en las tarjetas) queda **solo** para `revision-vencida`, con la fila nueva de 9.1 (sección 10.2).
 
 **Insumos (P3: la pantalla no cambia):**
@@ -361,7 +377,7 @@ Cambia:
 - Arriba, `Volver` «Volver a Grupo familiar» **[NUEVO]** a `/grupo`.
 - Debajo de la bajada del alta, una frase según `estado`, en `text-base`, `max-w-prose`:
   - `retirada`: «Al autorizar de nuevo, vuelve lo que estaba escrito. Los enlaces que se cortaron no vuelven a abrir.» **[NUEVO]** (decisión 128)
-  - `borrada` (P8): «Lo escrito antes se borró el `{borrado_en}`. La ficha empieza en blanco.» **[NUEVO]** · **Depende de A2.**
+  - `borrada` (P8): «Lo escrito antes se borró el `{borrado_en}`. La ficha empieza en blanco.» **[NUEVO]** (decisión 130)
 - El botón, único `turquesa` macizo: «Acepto y vuelvo a autorizar» **[NUEVO]**, ocupado «Autorizando…» **[NUEVO]**. El del alta («Acepto y registro a `{nombre_pila}`») no sirve: María ya está registrada.
 
 ```
@@ -396,6 +412,7 @@ En pantalla ancha, el mismo bloque en `max-w-3xl`, como el permiso de los insumo
 | 409 `autorizacion-vigente` | Otra persona ya autorizó: vuelve a `/grupo` con «Otra persona de tu grupo ya volvió a autorizar.» **[NUEVO]** en `Nota tono="rocio"` |
 | 422 | «No pudimos guardar la autorización. Revisa lo que elegiste y vuelve a intentarlo.» **[NUEVO, como L 18]** en `Nota tono="pronto" rol="alert"` |
 | Red o 5xx | Lenguaje 8, «No pudimos completar esto…» |
+| Cargando la vista | «Cargando…» pasados 400 ms (confirmado). **Mientras carga, el `h1` ya es el de esta pantalla** («La autorización para guardar su ficha», o el título del permiso de los insumos en 5.2), no «Grupo familiar», y es el mismo elemento que queda al terminar de cargar. Así el foco que pone la regla de ruta no se pierde en el `body` cuando la vista llega. Pasa al entrar desde el aviso 6.4 de la ficha, que no trae la vista en memoria |
 | 404 | MATU-39 5.6 |
 
 ### 5.2 Los insumos (`/grupo/autorizar-insumos`)
@@ -415,7 +432,7 @@ En `/grupo`, `Nota tono="ok"` con `rol="status"` justo debajo de la bajada de la
 | Caso | Texto |
 |---|---|
 | Ficha, desde `retirada` | Autorización registrada. Ya puedes ver y cambiar la ficha de `{nombre_pila}`. **[NUEVO]** |
-| Ficha, desde `borrada` (P8) | Autorización registrada. La ficha de `{nombre_pila}` empieza en blanco. **[NUEVO]** · Depende de A2 |
+| Ficha, desde `borrada` (P8) | Autorización registrada. La ficha de `{nombre_pila}` empieza en blanco. **[NUEVO]** |
 | Insumos, desde `retirada` | Permiso guardado. Volvió lo que estaba anotado. **[NUEVO]** |
 | Insumos, desde `borrada` | Permiso guardado. Ahora anota el primer insumo. **[L 18]** |
 
@@ -425,7 +442,7 @@ En `/grupo`, `Nota tono="ok"` con `rol="status"` justo debajo de la bajada de la
 3. Después: «Autorización registrada. La ficha de `{nombre_pila}` empieza en blanco.» y la ficha con sus tres campos en «Sin completar» (MATU-39, 0 de 3), sin ningún rastro de lo anterior. **Lo de antes no vuelve.**
 4. Los enlaces anteriores siguen en «Ya no abren», cortados. Para compartir se crea uno nuevo.
 
-Esto coincide con P8. **El punto 3 no lo permite hoy el contrato** (decisión 130: la ficha responde 404). Ver A2.
+Esto coincide con P8 y con la decisión 130: `GET …/plan/ficha` responde 200 con 0 de 3 y sin secciones.
 
 ---
 
@@ -472,9 +489,9 @@ Esto coincide con P8. **El punto 3 no lo permite hoy el contrato** (decisión 13
 | Retirada o por renovar en la ficha | 403 `sin-consentimiento` o `revision-vencida` (decisión 131) | Enlaces y Ficha (4.5) |
 | El conteo de «Hoy abren `{n}`» | `GET …/accesos-relevo?estado=vigente&limite=100` (ya existe) | La cantidad de `items` |
 
-**Pendiente en el contrato:**
-- **C5 (A1, P2 aprobada):** `GET …/consentimientos` responde 404 al pagador y al observador. Tiene que responderles 200, sin `calidad_otorgante` (o con ese campo en `null`), y con el mismo `estado` y las mismas fechas.
-- **P8 (A2):** la decisión 130 deja la ficha en 404 después de volver a autorizar desde el día 90. P8 pide una ficha vacía, en 0 de 3, que exige cambiar la regla de MATU-11 (README, «Para Jorge», punto 4).
+**Resuelto el 06-11:**
+- **P2:** el pagador y el observador reciben `AutorizacionesPersonaResumen` (`AutorizacionVistaResumen`, sin `calidad_otorgante`), decisión 127.
+- **P8:** después del día 90, volver a autorizar deja la ficha en 0 de 3 y sin secciones, con una clave nueva en la primera escritura, decisión 130.
 
 ---
 
@@ -570,13 +587,13 @@ Esto coincide con P8. **El punto 3 no lo permite hoy el contrato** (decisión 13
 | # | Decisión | Dónde queda |
 |---|---|---|
 | P1 | Grupo familiar es una cuarta sección mínima | Sección 2 |
-| P2 | Pagador y observador ven el estado y las fechas, sin la calidad de quien autorizó y sin botones | 3.6. Pendiente en el contrato (A1, C5) |
+| P2 | Pagador y observador ven el estado y las fechas, sin la calidad de quien autorizó y sin botones | 3.6. Contrato: decisión 127 |
 | P3 | En Insumos no se agrega la línea | 4.5 y 5.2 |
 | P4 | El aviso de 6.4 muestra «Volver a autorizar» a admin y cuidador | 4.5 |
 | P5 | Renovar queda fuera | 3.4 y sección 8 |
 | P6 | Se puede retirar con la revisión vencida, con «Hoy están en pausa `{n}`» | 3.4 y 4.3 |
 | P7 | La confirmación de los insumos dice que lo ya impreso o compartido no se borra | 4.2 y 4.3 |
-| P8 | Desde el día 90, al volver a autorizar, la ficha empieza en blanco (0 de 3) y lo de antes no vuelve | 5.1 y 5.3. Coincide con la especificación. Contradice la decisión 130 del contrato (A2) |
+| P8 | Desde el día 90, al volver a autorizar, la ficha empieza en blanco (0 de 3) y lo de antes no vuelve | 5.1 y 5.3. Coincide con la especificación y con la decisión 130 |
 
 ---
 
