@@ -1512,7 +1512,7 @@ def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
     como(cx, rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
-    assert fila == (1, 1, 1)
+    assert fila == (1, 1, 1, 0)  # MATU-51: el cuarto contador, las compras declaradas
     cx.execute("RESET ROLE")
     assert contar(cx, "alerta_quiebre", f"perfil_id = '{perfil}'") == 2
     assert contar(cx, "evento_outbox") == 2
@@ -1928,3 +1928,67 @@ def test_clave_nueva_solo_tras_una_autorizacion_nueva_y_la_destruida_sigue_destr
     assert cx.execute("SELECT count(*) FILTER (WHERE destruida_en IS NOT NULL AND dek_cifrada_con_kek IS NULL),"
                       " count(*) FILTER (WHERE destruida_en IS NULL) FROM clave_datos WHERE persona_cuidada_id = %s",
                       (P_A,)).fetchone() == (1, 1)
+
+
+# ---- MATU-51 (migración 0017): «Compré» declara reposiciones y la conservación las borra a los 90 días
+# Las políticas de INSERT de la 0011 no cambian: reposicion_declarar (admin y cuidador, a su nombre, perfil del
+# grupo) y reposicion_pedido (solo sistema). La 0017 suma dos políticas solo para matu_owner con operación.
+
+
+@pytest.mark.rf("RF-11")
+def test_reposicion_no_se_declara_sobre_un_perfil_de_otro_grupo(cx):
+    """Condición 5 del analista: el admin de B no puede anotar una compra sobre un perfil de A, ni ver las de A."""
+    perfil_a = _perfil_de(cx, G_A)
+    cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+               " VALUES (%s, 5, 'declarada', current_date, %s)", (perfil_a, U_ADMIN_A))
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "reposicion", f"perfil_id = '{perfil_a}'") == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+                   " VALUES (%s, 5, 'declarada', current_date, %s)", (perfil_a, U_ADMIN_B))
+
+
+@pytest.mark.rf("RF-11")
+def test_reposicion_acepta_lo_que_sale_de_envases_hasta_el_tope_del_stock(cx):
+    """Decisión 146: cantidad_unidades solo exige > 0; 99 envases de 1.000 caben sin cambiar la columna."""
+    perfil = _perfil_de(cx, G_A)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+               " VALUES (%s, 99000, 'declarada', current_date, %s)", (perfil, U_ADMIN_A))
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_por)"
+                   " VALUES (%s, 0, 'declarada', current_date, %s)", (perfil, U_ADMIN_A))
+
+
+@pytest.mark.rf("RF-11")
+def test_conservacion_borra_las_compras_declaradas_a_los_90_dias(cx):
+    """Decisión 145: declaradas con registrada_en de 90 días o más se borran; las recientes y las de pedido no."""
+    perfil = _perfil_de(cx, G_A)
+    cx.execute(
+        "INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, pedido_ref, ocurrida_en, registrada_en) VALUES"
+        " (%(p)s, 5, 'declarada', NULL, current_date - 91, now() - interval '91 days'),"
+        " (%(p)s, 6, 'declarada', NULL, current_date - 89, now() - interval '89 days'),"
+        " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days')",
+        {"p": perfil},
+    )
+    como(cx, rol="operacion")
+    fila = cx.execute("SELECT reposiciones FROM quiebre_conservar(now() - interval '90 days',"
+                      " now() - interval '30 days', now())").fetchone()
+    assert fila == (1,)
+    cx.execute("RESET ROLE")
+    restantes = {r[0] for r in cx.execute("SELECT cantidad_unidades FROM reposicion WHERE perfil_id = %s",
+                                          (perfil,)).fetchall()}
+    assert {6, 7} <= restantes and 5 not in restantes
+
+
+@pytest.mark.rf("RF-11")
+def test_operacion_no_lee_ni_borra_reposiciones_como_matu_app(cx):
+    """Las políticas de la 0017 son solo para matu_owner: matu_app con app.rol = 'operacion' no ve ni borra."""
+    perfil = _perfil_de(cx, G_A)
+    cx.execute("INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, ocurrida_en, registrada_en)"
+               " VALUES (%s, 5, 'declarada', current_date - 200, now() - interval '200 days')", (perfil,))
+    como(cx, rol="operacion")
+    assert contar(cx, "reposicion") == 0
+    assert cx.execute("DELETE FROM reposicion").rowcount == 0
+    cx.execute("RESET ROLE")
+    assert contar(cx, "reposicion", f"perfil_id = '{perfil}'") == 1

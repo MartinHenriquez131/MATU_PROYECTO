@@ -8,7 +8,8 @@ a las 04:00, desde backend/ y con DATABASE_URL de matu_app:
 1. Enumera los grupos activos con app.rol = 'operacion' (política grupo_operacion: solo los ids).
 2. Por cada grupo abre su propia transacción con app.grupo_id y app.rol = 'sistema', y corre
    recalcular_quiebres. Si un grupo falla, se deshace solo ese grupo y sigue con el siguiente.
-3. Llama a quiebre_conservar (migración 0011) con app.rol = 'operacion'.
+3. Llama a quiebre_conservar (migraciones 0011, 0014 y 0017) con app.rol = 'operacion'. Desde la 0017
+   (MATU-51, decisión 145) borra también las compras declaradas a los 90 días de registrada_en.
 
 El log lleva solo contadores, nunca un identificador, un nombre ni una cantidad.
 """
@@ -77,7 +78,8 @@ _PUBLICAR = text(
 )
 
 _CONSERVAR = text(
-    "SELECT alertas, eventos, notificaciones FROM quiebre_conservar(:limite_alertas, :limite_eventos, :ahora)"
+    "SELECT alertas, eventos, notificaciones, reposiciones"
+    " FROM quiebre_conservar(:limite_alertas, :limite_eventos, :ahora)"
 )
 
 
@@ -134,12 +136,14 @@ class ConservacionQuiebresSql:
     def __init__(self, fabrica: sessionmaker[Session]) -> None:
         self._fabrica = fabrica
 
-    def conservar(self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime) -> tuple[int, int, int]:
+    def conservar(
+        self, limite_alertas: datetime, limite_eventos: datetime, ahora: datetime
+    ) -> tuple[int, int, int, int]:
         with sesion_tenant(self._fabrica, rol="operacion") as sesion:
             fila = sesion.execute(
                 _CONSERVAR, {"limite_alertas": limite_alertas, "limite_eventos": limite_eventos, "ahora": ahora}
             ).one()
-            return int(fila.alertas), int(fila.eventos), int(fila.notificaciones)
+            return int(fila.alertas), int(fila.eventos), int(fila.notificaciones), int(fila.reposiciones)
 
 
 @dataclass(frozen=True)
@@ -191,10 +195,11 @@ def ejecutar() -> tuple[ResultadoTarea, ResultadoConservacionQuiebres]:
     )
     conservacion = conservar_quiebres(unidad=ConservacionQuiebresSql(fabrica), reloj=reloj)
     log.info(
-        "conservacion de alertas: %d alertas, %d eventos y %d notificaciones borrados",
+        "conservacion de alertas: %d alertas, %d eventos, %d notificaciones y %d compras borrados",
         conservacion.alertas_borradas,
         conservacion.eventos_borrados,
         conservacion.notificaciones_borradas,
+        conservacion.reposiciones_borradas,
     )
     return tarea, conservacion
 
