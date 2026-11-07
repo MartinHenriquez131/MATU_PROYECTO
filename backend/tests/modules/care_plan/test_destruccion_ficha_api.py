@@ -5,6 +5,8 @@ con un «ahora» que no pasa de now() de la base, como exige plan_destruir_clave
 """
 
 import logging
+import secrets
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -12,6 +14,7 @@ import psycopg
 import pytest
 
 from app.core.db import fabrica_sesiones
+from app.modules.care_plan.api.dependencias import obtener_pepper_pin
 from app.modules.care_plan.infrastructure.tarea_destruccion import ejecutar
 from tests.base_datos import DSN, requiere_base
 from tests.dobles.reloj_fijo import RelojFijo
@@ -28,6 +31,15 @@ INICIO = (datetime.now(UTC) - timedelta(days=91)).replace(microsecond=0)
 @pytest.fixture
 def reloj_fijo() -> RelojFijo:
     return RelojFijo(INICIO)
+
+
+@pytest.fixture(autouse=True)
+def pepper_pin(entorno_ficha: EntornoFicha) -> Iterator[None]:
+    """Compartir exige PEPPER_PIN (sin él, 503). Un pepper sintético por prueba, como en MATU-19: no depende
+    del .env de quien corre las pruebas ni del CI."""
+    entorno_ficha.app.dependency_overrides[obtener_pepper_pin] = lambda: secrets.token_bytes(32)
+    yield
+    entorno_ficha.app.dependency_overrides.pop(obtener_pepper_pin, None)
 
 
 def _una(sql: str, *parametros: Any) -> tuple[Any, ...] | None:
