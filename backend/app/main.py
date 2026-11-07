@@ -34,6 +34,7 @@ from app.modules.care_plan.api.router_relevo_publico import router as router_rel
 from app.modules.care_plan.api.router_secciones import router as router_secciones
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
+from app.modules.consumption.api.router_lista import router as router_lista
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
@@ -106,8 +107,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_relevo, prefix="/v1")
     app.include_router(router_relevo_publico, prefix="/v1")
     app.include_router(router_autorizaciones, prefix="/v1")
-    # Antes que router_consumo: por-acabarse y alertas son rutas fijas que {perfil_id} capturaría
+    # Antes que router_consumo: por-acabarse, alertas y lista (MATU-60) son rutas fijas que {perfil_id} capturaría
     app.include_router(router_alertas, prefix="/v1")
+    app.include_router(router_lista, prefix="/v1")
     app.include_router(router_consumo, prefix="/v1")
     app.include_router(router_avisos, prefix="/v1")
 

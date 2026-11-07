@@ -406,6 +406,7 @@ export const TITULOS: Record<string, string> = {
   '/insumos': ESTADOS.insumosTitulo,
   '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
   '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/lista': 'Lista de insumos', // [lenguaje 21] MATU-60, 2.2
   '/compartir': ESTADOS.compartirTitulo,
   // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
   '/compartir/listo': 'Enlace creado', // aprobado por Jorge el 04-11
@@ -530,4 +531,91 @@ export const loQueVeAcceso = (campos: readonly string[], secciones: readonly str
   const todo = [...campos, ...secciones].map((t) => t.toLowerCase())
   if (!todo.length) return ''
   return todo.length === 1 ? `Ve ${todo[0]}.` : `Ve ${todo.slice(0, -1).join(', ')} y ${todo[todo.length - 1]}.`
+}
+
+/**
+ * La lista de insumos (MATU-60, docs/diseno/matu-60-lista-insumos.md v1.1). Todos [lenguaje 21],
+ * aprobados por Jorge el 06-11, incluidos los [NUEVO] y [AJUSTE] de la sección 13 de la
+ * especificación, que van a lenguaje.md en el PR de documentos #45. Nunca «reposición», «quiebre»,
+ * «stock», «comprar» ni «pedir». La línea «Esta pantalla no se imprime.» vive en index.css (8.4).
+ */
+export const LISTA = {
+  titulo: 'Lista de insumos',
+  /** Las pestañas de Insumos (2.1). La primera es «Insumos» [M36]. */
+  vistas: 'Vistas de Insumos',
+  /** `document.title` durante la impresión (8.3). Fuera de ella, «Lista de insumos · MATU». */
+  documentoImpreso: 'Lista de insumos',
+  bajada: 'Lo que se acaba pronto, con una cantidad sugerida para 30 días. Puedes cambiarla antes de imprimir o compartir.',
+  bajadaObservador: 'Lo que se acaba pronto, con una cantidad sugerida para 30 días.',
+
+  // 4.3 La línea
+  alcanzaPara: 'Alcanza para', // + {n} + «días» / «día», con la cifra aparte
+  seAcabaHoy: 'Se acaba hoy',
+  puedeQueNo: 'Puede que ya no quede',
+  soloAqui: 'Solo en esta pantalla',
+  cantidad: 'Cantidad',
+  menos: (nombre: string) => `Menos: Cantidad de ${nombre}`,
+  mas: (nombre: string) => `Más: Cantidad de ${nombre}`,
+  errCantidad: 'Escribe una cantidad de 1 a 100.000.',
+  quitar: 'Quitar de la lista', // [AJUSTE]
+  quitarDe: (nombre: string) => `Quitar de la lista: ${nombre}`, // [AJUSTE v1.2] empieza con el texto visible (WCAG 2.5.3)
+
+  // 4.6 Nota del cálculo [AJUSTE]
+  nota: 'Es una sugerencia con lo que anotaste, y ya descuenta lo que queda. Cambia la cantidad si necesitas otra.',
+  notaPagador: 'Es una sugerencia con lo que anotó la familia, y ya descuenta lo que queda. Cambia la cantidad si necesitas otra.',
+  notaObservador: 'Es una sugerencia con lo que anotó la familia, y ya descuenta lo que queda.',
+
+  // 4.7 Agregar otro insumo
+  agregarOtro: 'Agregar otro insumo',
+  nombre: '¿Qué insumo es?', // [lenguaje 18]
+  nombreAyuda: 'Por ejemplo: «Toallitas húmedas». Sin remedios ni para qué se usa.',
+  comoSeCuenta: '¿Cómo se cuenta?', // [lenguaje 18]
+  /** [NUEVO] decisión 2, en este orden. */
+  unidades: [
+    { valor: 'unidad' as const, texto: 'Unidades' },
+    { valor: 'sobre' as const, texto: 'Sobres' },
+    { valor: 'envase' as const, texto: 'Envases' },
+  ],
+  soloAquiNota: 'Esto queda solo en esta pantalla. No lo guardamos.',
+  agregar: 'Agregar',
+  cancelar: 'Cancelar', // [M36]
+  errNombre: 'Escribe el nombre del insumo.', // [lenguaje 18]
+  errNombreLargo: 'El nombre admite hasta 60 caracteres. Acórtalo un poco.', // [lenguaje 18]
+  agregamos: (nombre: string) => `Agregamos «${nombre}» a la lista.`,
+
+  // 4.10 Quitar
+  quitamosDeMatu: (nombre: string) => `Quitamos «${nombre}» de la lista. Sigue en Insumos.`, // [NUEVO]
+  quitamos: (nombre: string) => `Quitamos «${nombre}» de la lista.`, // [AJUSTE]
+  sigueEnInsumos: 'Lo que quitaste sigue en Insumos. Vuelve a esta lista cuando entras de nuevo.', // [NUEVO]
+  quitasteTodo: 'Quitaste todo de la lista. Si quieres, agrega uno a mano.', // [NUEVO]
+
+  // 4.8 y 4.9 Aviso y botones
+  aviso: (pila: string) =>
+    `La lista no lleva el nombre de ${pila}, pero sí lo que usa. Lo que imprimas o compartas sale de MATU y no podemos borrarlo. Compártela solo con quien va a comprar.`,
+  compartir: 'Compartir la lista',
+  imprimir: 'Imprimir o guardar en PDF',
+  copiar: 'Copiar la lista',
+
+  // 7.3 y 7.4 Mensajes
+  copiada: 'Copiamos la lista. Pégala donde quieras.',
+  errCopiarCompartir: 'No pudimos copiar la lista. Usa «Compartir la lista».',
+  errCopiarImprimir: 'No pudimos copiar la lista. Usa «Imprimir o guardar en PDF».',
+  errCompartir: 'No pudimos abrir Compartir. Usa «Copiar la lista».',
+
+  // 5 y 6
+  vacio: 'No hay insumos que se acaben pronto. Si quieres, agrega uno a mano.',
+  vacioObservador: 'No hay insumos que se acaben pronto.',
+  observador: 'Quien administra, cuida o paga puede imprimirla o compartirla.',
+  errCarga: 'No pudimos traer la lista. Revisa tu conexión e inténtalo de nuevo.',
+
+  // 7.2 y 8 El texto y el papel
+  encabezado: (fecha: string) => `Lista de insumos · ${fecha}`,
+  pie: 'Piloto académico con datos de prueba',
+
+  // 9 El campo del envase en el formulario del insumo
+  envase: '¿Cuántas unidades trae cada envase?',
+  envaseAyuda: 'Si lo anotas, la lista sugiere envases enteros. Puedes dejarlo en blanco.',
+  errEnvase: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
+  envaseConflicto: (u: string, sufijo: string) => `Cada envase trae ${u} ${sufijo}.`,
+  sinEnvase: 'Sin unidades por envase.',
 }

@@ -422,6 +422,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/consumo/lista": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista de insumos
+         * @description Lo que se acaba pronto, con una cantidad sugerida para 30 días (MATU-60, RF-15, ADR-031). Entra cada insumo de «Se acaban pronto» con avisando = true, calculado al momento: activo, en su ventana y sin una alerta resuelta ni descartada para su fecha estimada actual (decisión 117). La cantidad es lo que falta para 30 días, descontando lo que MATU estima que queda hoy, al menos 1, y en envases enteros si el perfil tiene unidades_por_envase (decisiones 119 a 121). Orden: fecha estimada, nombre sin tildes, nombre y perfil_id. Sin el nombre de la persona, la ficha ni acciones. Leen los cuatro roles. No se audita y no crea ni cierra alertas. No hay exportación ni enlace (decisión 122)
+         */
+        get: operations["ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
         parameters: {
             query?: never;
@@ -1190,6 +1210,11 @@ export interface components {
             /** Dias Aviso */
             dias_aviso: number;
             /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
+            /**
              * Fecha Quiebre Estimada
              * Format: date
              * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
@@ -1256,6 +1281,62 @@ export interface components {
             items: components["schemas"]["InsumoPorAcabarseVista"][];
         };
         /**
+         * LineaListaInsumos
+         * @description Una línea de la lista (decisión 118). Sin la tasa, el stock, la fecha estimada, precios, comercios, la
+         *     alerta ni el etag. El nombre puede decir algo de la salud de la persona: nunca va a logs ni errores.
+         */
+        LineaListaInsumos: {
+            /**
+             * Perfil Id
+             * Format: uuid
+             * @description El perfil de consumo de esta línea (PerfilConsumoVista.id)
+             */
+            perfil_id: string;
+            /**
+             * Nombre
+             * @description producto.nombre si el perfil es de un producto, o nombre_libre si no. Nunca la presentación
+             */
+            nombre: string;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos fecha, en días, como en PerfilConsumoVista. Solo para la pantalla: el texto que se imprime o se comparte no lo lleva (ADR-031, punto 4)
+             */
+            dias_restantes: number;
+            /**
+             * Unidades Sugeridas
+             * @description Lo que falta para 30 días, en la unidad del insumo: max(1, techo(30 × tasa_unidades / tasa_dias) - lo que MATU estima que queda hoy) (decisiones 119 y 120)
+             */
+            unidades_sugeridas: number;
+            /**
+             * Unidades Por Envase
+             * @description El del perfil, nunca el del catálogo (decisión 121). null si no se anotó
+             */
+            unidades_por_envase: number | null;
+            /**
+             * Envases Sugeridos
+             * @description techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase
+             */
+            envases_sugeridos: number | null;
+        };
+        /**
+         * ListaInsumos
+         * @description La lista de insumos de hoy (decisión 118): sin el nombre de la persona, el grupo, la ficha ni acciones.
+         */
+        ListaInsumos: {
+            /**
+             * Fecha
+             * Format: date
+             * @description Hoy en America/Santiago según el Reloj de la API, el mismo de dias_restantes
+             */
+            fecha: string;
+            /**
+             * Items
+             * @description En el orden de la decisión 117. Vacía si ningún insumo de «Se acaban pronto» está avisando
+             */
+            items: components["schemas"]["LineaListaInsumos"][];
+        };
+        /**
          * MotivoAcceso
          * @description Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría.
          * @enum {string}
@@ -1288,6 +1369,11 @@ export interface components {
             stock_medido_en: string;
             /** Dias Aviso */
             dias_aviso: number;
+            /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
             /**
              * Fecha Quiebre Estimada
              * Format: date
@@ -1512,7 +1598,8 @@ export interface components {
         };
         /**
          * SolicitudEdicionPerfil
-         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido).
+         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido), salvo en
+         *     unidades_por_envase, donde null lo borra (decisión 121).
          */
         SolicitudEdicionPerfil: {
             /** Nombre Libre */
@@ -1525,6 +1612,8 @@ export interface components {
             stock_unidades?: number | null;
             /** Dias Aviso */
             dias_aviso?: number | null;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
         };
         /**
          * SolicitudGrupo
@@ -1558,6 +1647,8 @@ export interface components {
              * @default 7
              */
             dias_aviso: number;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
         };
         /**
          * SolicitudPersona
@@ -3390,6 +3481,66 @@ export interface operations {
             };
         };
     };
+    ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaInsumos"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta X-Grupo-Id o no es un UUID, no miembro activo del grupo, o la persona es de otro grupo, no existe o su id no es un UUID. Leen los cuatro roles, así que el rol nunca es la causa */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get: {
         parameters: {
             query?: {
@@ -3762,7 +3913,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3983,7 +4134,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control */
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
             422: {
                 headers: {
                     [name: string]: unknown;

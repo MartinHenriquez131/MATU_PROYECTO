@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: MATU API · App de familia (propuesto)
-  version: 0.1.0-propuesto
-  summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto y alertas.
+  version: 0.3.0-propuesto
+  summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto, alertas y la lista de insumos.
   description: |
     Contrato **propuesto** de MATU-32, acordado antes de implementar (arquitectura 15.5, regla 1).
     Lo implementan MATU-38 (sesión y dispositivos, ya en `openapi.json`), MATU-36 (autorización para el consumo y
@@ -35,8 +35,17 @@ info:
     (`AlertaId`, `ETag`, `UnidadConsumo`, `NombreLibre`, `ProductoResumen`, `PerfilConsumo`,
     `ListaPorAcabarse`, `EstadoAlerta`, `Alerta`, `ListaAlertas`, `NoAutenticadoApp`,
     `NoEncontradoApp`, `ValidacionConsultaApp`, `SinAutorizacionConsumo` y `AlertaCerrada`). Las
-    decisiones 74 a 78 están en el README. Este archivo ya no tiene rutas: quedan las copias
+    decisiones 74 a 78 están en el README. MATU-37 dejó este archivo sin rutas, con las copias
     idénticas de los componentes de `relevo.openapi.yaml`.
+
+    **Lista de insumos y unidades por envase (MATU-60, RF-15, ADR-031): implementados.** Se
+    propusieron aquí el 06-11, Jorge los aprobó con tres ajustes y MATU-60 los implementó.
+    `GET …/consumo/lista` (`ListaInsumos` y `LineaListaInsumos`) y `unidades_por_envase` en
+    `SolicitudPerfil`, `SolicitudEdicionPerfil`, `PerfilConsumoVista` e `InsumoPorAcabarseVista`
+    pasaron a `docs/api/openapi.json` y se quitaron de este archivo, con los fragmentos `Cambio*` y
+    las respuestas que solo la lista usaba (`NoAutenticadoApp`, `NoEncontradoApp` y
+    `SinAutorizacionConsumo`). Las decisiones 116 a 122 están en el README. El archivo vuelve a no
+    tener rutas.
 
     **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
     (MATU-02) y fijan el contexto con `sesion_de_grupo`. Las de sesión y dispositivos no dependen de

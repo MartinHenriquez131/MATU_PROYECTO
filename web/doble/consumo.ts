@@ -20,6 +20,8 @@ export interface PerfilDoble {
   activo: boolean
   version: number
   autor: { id: string; nombre: string } | null
+  /** MATU-60 (decisión 121): cuántas unidades trae cada envase, o `null`. */
+  unidades_por_envase?: number | null
 }
 
 export interface AlertaDoble {
@@ -96,6 +98,7 @@ function vista(p: PerfilDoble) {
     dias_restantes: entre(hoy(), quiebre),
     activo: p.activo,
     actualizado_por: p.autor,
+    unidades_por_envase: p.unidades_por_envase ?? null,
     etag: `"v${p.version}"`,
   }
 }
@@ -104,7 +107,7 @@ const orden = (a: PerfilDoble, b: PerfilDoble) => Number(b.activo) - Number(a.ac
 
 const entero = (v: unknown, min: number, max: number) => typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
 
-const CAMPOS_EDICION = ['nombre_libre', 'tasa_unidades', 'tasa_dias', 'stock_unidades', 'dias_aviso']
+const CAMPOS_EDICION = ['nombre_libre', 'tasa_unidades', 'tasa_dias', 'stock_unidades', 'dias_aviso', 'unidades_por_envase']
 const RANGOS: Record<string, [number, number]> = { tasa_unidades: [1, 10_000], tasa_dias: [1, 90], stock_unidades: [0, 100_000], dias_aviso: [0, 60] }
 
 /** Errores de un cuerpo de creación o edición, con los tipos del contrato. */
@@ -128,6 +131,13 @@ function errores(b: Record<string, unknown>, parcial: boolean) {
     else if (typeof v !== 'number' || !Number.isInteger(v)) add(k, 'int_type')
     else if (v < min) add(k, 'greater_than_equal')
     else if (v > max) add(k, 'less_than_equal')
+  }
+  // MATU-60: opcional, de 1 a 10.000. `null` no lo trae (al crear) o lo borra (al cambiar).
+  if ('unidades_por_envase' in b && b.unidades_por_envase !== null) {
+    const v = b.unidades_por_envase
+    if (typeof v !== 'number' || !Number.isInteger(v)) add('unidades_por_envase', 'int_type')
+    else if (v < 1) add('unidades_por_envase', 'greater_than_equal')
+    else if (v > 10_000) add('unidades_por_envase', 'less_than_equal')
   }
   if (!parcial && b.unidad !== undefined && b.unidad !== null && !['unidad', 'sobre', 'ml', 'g'].includes(String(b.unidad))) add('unidad', 'enum')
   if (parcial && !Object.keys(b).length) add('cuerpo', 'cuerpo_vacio')
@@ -260,6 +270,61 @@ function atenderAlertas(
   return false
 }
 
+// ---------------------------------------------------------------- MATU-60 la lista de insumos
+
+const sinMarcas = (t: string) => t.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase()
+
+/**
+ * `GET …/consumo/lista` (decisiones 116 a 120): lo que está avisando en «Se acaban pronto», en el
+ * orden de la decisión 117, con lo que falta para 30 días después de descontar lo que queda hoy.
+ */
+function listaDe(c: ConsumoDoble) {
+  const items = c.perfiles
+    .filter((p) => vistaPorAcabarse(c, p).avisando)
+    .sort(
+      (a, b) =>
+        vista(a).fecha_quiebre_estimada.localeCompare(vista(b).fecha_quiebre_estimada) ||
+        sinMarcas(a.nombre_libre).localeCompare(sinMarcas(b.nombre_libre)) ||
+        a.nombre_libre.toLowerCase().localeCompare(b.nombre_libre.toLowerCase()) ||
+        a.id.localeCompare(b.id),
+    )
+    .map((p) => {
+      const dias = entre(p.stock_medido_en, hoy())
+      const queda = Math.max(0, Math.floor(p.stock_unidades - (dias * p.tasa_unidades) / p.tasa_dias))
+      const unidades = Math.max(1, Math.ceil((30 * p.tasa_unidades) / p.tasa_dias) - queda)
+      const envase = p.unidades_por_envase ?? null
+      return {
+        perfil_id: p.id,
+        nombre: p.nombre_libre,
+        unidad: p.unidad,
+        dias_restantes: vista(p).dias_restantes,
+        unidades_sugeridas: unidades,
+        unidades_por_envase: envase,
+        envases_sugeridos: envase ? Math.ceil(unidades / envase) : null,
+      }
+    })
+  return { fecha: hoy(), items }
+}
+
+const conEnvase = (p: PerfilDoble, u: number): PerfilDoble => ({ ...p, unidades_por_envase: u })
+
+/**
+ * La lista de la especificación MATU-60 (14): 6, 5, 3, 1, 0 y −2 días, con envase («5 envases de
+ * 20 unidades»), sin envase en sobres, en ml con 1 envase, un nombre de 60 caracteres sin
+ * espacios, y uno que alcanza para 40 días y no entra.
+ */
+export function listaParaLista(autor: { id: string; nombre: string }): PerfilDoble[] {
+  return [
+    conEnvase(perfil('Pañal adulto talla M', 'unidad', 4, 1, 24, 0, autor), 20),
+    perfil('Toallitas húmedas', 'unidad', 3, 1, 3, 0, autor),
+    perfil('Champú en sobre', 'sobre', 1, 1, 0, 0, autor),
+    conEnvase(perfil('Crema humectante', 'ml', 50, 7, 50, 9, autor), 250),
+    conEnvase(perfil('Guantes desechables', 'unidad', 6, 1, 30, 0, RODRIGO_CONSUMO), 100),
+    perfil('ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60'.slice(0, 60), 'unidad', 3, 1, 9, 0, autor),
+    perfil('Bolsas de basura', 'unidad', 1, 1, 40, 0, autor),
+  ]
+}
+
 /** Atiende `…/consumo…` y `…/consentimientos` de una persona ya resuelta en su grupo. */
 export function atenderConsumo(
   req: IncomingMessage,
@@ -275,6 +340,7 @@ export function atenderConsumo(
   const escribe = rol === 'admin' || rol === 'cuidador'
   const m = /\/(consumo|consentimientos)(?:\/([^/]+))?(?:\/(activar|desactivar))?$/.exec(ruta)
   const deAlertas = /\/consumo\/(por-acabarse|alertas(\/.*)?|[^/]+\/resolver)$/.test(ruta)
+  const deLista = /\/consumo\/lista$/.test(ruta)
   if (!m && !deAlertas) return problema(res, 404, '/errores/no-encontrado')
   const [, recurso, perfilId, accion] = m ?? ['', 'consumo', undefined, undefined]
 
@@ -309,6 +375,12 @@ export function atenderConsumo(
   // La autorización se evalúa antes de leer nada del consumo (contrato, 403).
   if (consumo.autorizacion === 'no') return problema(res, 403, '/errores/sin-consentimiento', { finalidad: 'consumo' })
   if (consumo.autorizacion === 'vencida') return problema(res, 403, '/errores/revision-vencida', { finalidad: 'consumo' })
+  if (deLista) {
+    if (metodo !== 'GET') return problema(res, 404, '/errores/no-encontrado')
+    if (usuario.modo === 'lista-error') return problema(res, 500, '/errores/error-interno')
+    res.setHeader('Cache-Control', 'no-store')
+    return json(res, 200, listaDe(consumo))
+  }
   if (deAlertas) {
     if (!atenderAlertas(metodo, ruta, res, cuerpo, ctx, r, req.headers['if-match'])) problema(res, 404, '/errores/no-encontrado')
     return
@@ -340,6 +412,7 @@ export function atenderConsumo(
       stock_unidades: b.stock_unidades as number,
       stock_medido_en: hoy(),
       dias_aviso: (b.dias_aviso as number) ?? 7,
+      unidades_por_envase: (b.unidades_por_envase as number | null | undefined) ?? null,
       activo: true,
       version: 1,
       autor: { id: usuario.id, nombre: usuario.nombre },
@@ -399,6 +472,7 @@ export function atenderConsumo(
   const nuevo = { ...p }
   if ('nombre_libre' in b) nuevo.nombre_libre = String(b.nombre_libre).trim()
   for (const k of ['tasa_unidades', 'tasa_dias', 'dias_aviso'] as const) if (entero(b[k], ...RANGOS[k])) nuevo[k] = b[k] as number
+  if ('unidades_por_envase' in b) nuevo.unidades_por_envase = b.unidades_por_envase as number | null
   // Con stock nuevo se re-ancla la fecha a hoy (contrato).
   if (entero(b.stock_unidades, 0, 100_000)) {
     nuevo.stock_unidades = b.stock_unidades as number

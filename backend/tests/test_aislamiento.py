@@ -1705,3 +1705,56 @@ def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(c
     cx.execute("RESET ROLE")
     assert {r[0] for r in cx.execute("SELECT id FROM evento_outbox").fetchall()} == {reciente, pendiente}
     assert {r[0] for r in cx.execute("SELECT evento_id FROM evento_consumido").fetchall()} == {reciente, pendiente}
+
+
+# ---- MATU-60 (migración 0015): unidades por envase en el perfil y la lista de insumos
+# La columna no cambia RLS: las políticas de la 0009 deciden filas. La lista lee lo mismo que «Se acaban
+# pronto» (perfil_consumo con su alerta), así que no hay tabla ni política nueva.
+
+
+@pytest.mark.rf("RF-15")
+def test_envase_de_otro_grupo_no_se_lee_ni_se_cambia(cx):
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute("SELECT unidades_por_envase FROM perfil_consumo WHERE grupo_id = %s", (G_A,)).fetchall() == []
+    assert cx.execute("UPDATE perfil_consumo SET unidades_por_envase = 20 WHERE grupo_id = %s RETURNING id",
+                      (G_A,)).fetchall() == []
+    # Con el grupo ajeno en contexto y sin membresía, tampoco
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A)
+    assert cx.execute("UPDATE perfil_consumo SET unidades_por_envase = 20 RETURNING id").fetchall() == []
+    # La lista une el perfil con su alerta: desde el grupo B no aparece nada del A
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute(
+        "SELECT p.id FROM perfil_consumo p LEFT JOIN alerta_quiebre a ON a.perfil_id = p.id"
+        " WHERE p.persona_cuidada_id = %s", (P_A,)).fetchall() == []
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT unidades_por_envase FROM perfil_consumo WHERE grupo_id = %s",
+                      (G_A,)).fetchall() == [(None,)]
+
+
+@pytest.mark.rf("RF-15")
+@pytest.mark.parametrize("usuario, cambia", [
+    (U_ADMIN_A, True),
+    (U_CUID_CONSUMO_A, True),
+    (U_PAG_A, False),
+    (U_PAG2_A, False),
+    (U_OBS_A, False),
+])
+def test_el_envase_lo_leen_todos_y_lo_cambian_admin_y_cuidador(cx, usuario, cambia):
+    _con_cuidador_a(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute("SELECT unidades_por_envase FROM perfil_consumo").fetchall() == [(None,)]
+    filas = cx.execute("UPDATE perfil_consumo SET unidades_por_envase = 20 RETURNING id").fetchall()
+    assert len(filas) == (1 if cambia else 0)
+
+
+@pytest.mark.rf("RF-14")
+@pytest.mark.parametrize("valor, acepta", [(None, True), (1, True), (10_000, True), (0, False), (10_001, False),
+                                           (-5, False)])
+def test_envase_admite_null_o_de_1_a_10000(cx, valor, acepta):
+    if acepta:
+        cx.execute("UPDATE perfil_consumo SET unidades_por_envase = %s WHERE grupo_id = %s", (valor, G_A))
+        assert cx.execute("SELECT unidades_por_envase FROM perfil_consumo WHERE grupo_id = %s",
+                          (G_A,)).fetchall() == [(valor,)]
+    else:
+        with pytest.raises(errors.CheckViolation):
+            cx.execute("UPDATE perfil_consumo SET unidades_por_envase = %s WHERE grupo_id = %s", (valor, G_A))

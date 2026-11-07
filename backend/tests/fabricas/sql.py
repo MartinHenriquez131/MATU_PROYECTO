@@ -34,8 +34,9 @@ INSERTAR_CONSENTIMIENTO_REVOCABLE = (
 )
 INSERTAR_PERFIL_CONSUMO = (
     "INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, producto_id, nombre_libre, unidad, tasa_unidades,"
-    " tasa_dias, stock_unidades, stock_medido_en, fecha_quiebre_estimada, dias_aviso, activo, version)"
-    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    " tasa_dias, stock_unidades, stock_medido_en, fecha_quiebre_estimada, dias_aviso, activo, version,"
+    " unidades_por_envase)"
+    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 )
 INSERTAR_PLAN = (
     "INSERT INTO plan_cuidado (id, grupo_id, persona_cuidada_id, modo, actualizado_por)"

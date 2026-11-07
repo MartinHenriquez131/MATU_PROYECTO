@@ -1,10 +1,14 @@
-"""Esquemas de la API del consumo (MATU-36). Contrato: docs/api/openapi.json.
+"""Esquemas de la API del consumo (MATU-36, MATU-37 y MATU-60). Contrato: docs/api/openapi.json.
 
 - Los cuerpos usan extra="forbid": stock_medido_en, grupo_id, producto_id en la edición, activo o
   cualquier otro campo extra responden 422.
 - nombre_libre: 1 a 60 caracteres después de quitar los espacios de los extremos, una línea, sin
   caracteres de control. El 422 nunca repite el valor (app/core/errores.py no copia input ni ctx).
 - Las respuestas no llevan grupo_id ni precios.
+- unidades_por_envase (MATU-60, decisión 121): opcional, de 1 a 10.000. En el PATCH es el único campo que
+  admite null, que lo borra.
+- La lista de insumos (MATU-60, decisión 118) trae solo {fecha, items}, sin la persona, la ficha, la tasa,
+  el stock, la alerta ni el etag.
 """
 
 import uuid
@@ -21,6 +25,7 @@ from app.modules.consumption.domain.perfil import (
     STOCK_MAXIMO,
     TASA_DIAS_MAXIMA,
     TASA_UNIDADES_MAXIMA,
+    UNIDADES_POR_ENVASE_MAXIMO,
     UnidadConsumo,
     nombre_libre_valido,
 )
@@ -40,6 +45,17 @@ TasaUnidades = Annotated[int, Field(ge=1, le=TASA_UNIDADES_MAXIMA)]
 TasaDias = Annotated[int, Field(ge=1, le=TASA_DIAS_MAXIMA)]
 Stock = Annotated[int, Field(ge=0, le=STOCK_MAXIMO)]
 DiasAviso = Annotated[int, Field(ge=0, le=DIAS_AVISO_MAXIMO)]
+UnidadesPorEnvase = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=UNIDADES_POR_ENVASE_MAXIMO,
+        description=(
+            "Cuántas unidades trae cada envase, en la unidad del insumo (unidades, sobres, ml o g). Opcional."
+            " Lo usa solo la lista de insumos para sugerir envases enteros (decisión 121)"
+        ),
+    ),
+]
 
 
 class SolicitudPerfil(BaseModel):
@@ -54,10 +70,12 @@ class SolicitudPerfil(BaseModel):
     tasa_dias: TasaDias = 1
     stock_unidades: Stock
     dias_aviso: DiasAviso = DIAS_AVISO_POR_OMISION
+    unidades_por_envase: UnidadesPorEnvase | None = None
 
 
 class SolicitudEdicionPerfil(BaseModel):
-    """Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido)."""
+    """Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido), salvo en
+    unidades_por_envase, donde null lo borra (decisión 121)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -66,6 +84,7 @@ class SolicitudEdicionPerfil(BaseModel):
     tasa_dias: TasaDias | None = None
     stock_unidades: Stock | None = None
     dias_aviso: DiasAviso | None = None
+    unidades_por_envase: UnidadesPorEnvase | None = None
 
 
 class ProductoResumen(BaseModel):
@@ -99,6 +118,9 @@ class PerfilConsumoVista(BaseModel):
     stock_unidades: int
     stock_medido_en: date
     dias_aviso: int
+    unidades_por_envase: int | None = Field(
+        description="Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)"
+    )
     fecha_quiebre_estimada: date = Field(
         description="Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura"
     )
@@ -187,4 +209,58 @@ class SolicitudResolver(BaseModel):
         ge=1,
         le=CANTIDAD_MAXIMA,
         description="Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999",
+    )
+
+
+# --- MATU-60: lista de insumos ---------------------------------------------------------------------------
+
+UNIDADES_SUGERIDAS_MAXIMO = 300_000
+
+
+class LineaListaInsumos(BaseModel):
+    """Una línea de la lista (decisión 118). Sin la tasa, el stock, la fecha estimada, precios, comercios, la
+    alerta ni el etag. El nombre puede decir algo de la salud de la persona: nunca va a logs ni errores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    perfil_id: uuid.UUID = Field(description="El perfil de consumo de esta línea (PerfilConsumoVista.id)")
+    nombre: str = Field(
+        min_length=1,
+        description="producto.nombre si el perfil es de un producto, o nombre_libre si no. Nunca la presentación",
+    )
+    unidad: UnidadConsumo
+    dias_restantes: int = Field(
+        description=(
+            "fecha_quiebre_estimada menos fecha, en días, como en PerfilConsumoVista. Solo para la pantalla: el"
+            " texto que se imprime o se comparte no lo lleva (ADR-031, punto 4)"
+        )
+    )
+    unidades_sugeridas: int = Field(
+        ge=1,
+        le=UNIDADES_SUGERIDAS_MAXIMO,
+        description=(
+            "Lo que falta para 30 días, en la unidad del insumo: max(1, techo(30 × tasa_unidades / tasa_dias)"
+            " - lo que MATU estima que queda hoy) (decisiones 119 y 120)"
+        ),
+    )
+    unidades_por_envase: int | None = Field(
+        ge=1,
+        le=UNIDADES_POR_ENVASE_MAXIMO,
+        description="El del perfil, nunca el del catálogo (decisión 121). null si no se anotó",
+    )
+    envases_sugeridos: int | None = Field(
+        ge=1,
+        le=UNIDADES_SUGERIDAS_MAXIMO,
+        description="techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase",
+    )
+
+
+class ListaInsumos(BaseModel):
+    """La lista de insumos de hoy (decisión 118): sin el nombre de la persona, el grupo, la ficha ni acciones."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fecha: date = Field(description="Hoy en America/Santiago según el Reloj de la API, el mismo de dias_restantes")
+    items: list[LineaListaInsumos] = Field(
+        description="En el orden de la decisión 117. Vacía si ningún insumo de «Se acaban pronto» está avisando"
     )

@@ -73,6 +73,8 @@ class DatosPerfil:
     tasa_dias: int
     stock_unidades: int
     dias_aviso: int
+    # MATU-60 (decisión 121): opcional
+    unidades_por_envase: int | None = None
 
 
 def _auditar(
@@ -140,6 +142,7 @@ def crear(
         dias_aviso=datos.dias_aviso,
         hoy=hoy_en_chile(reloj.ahora()),
         autor=peticion.usuario_id,
+        unidades_por_envase=datos.unidades_por_envase,
     )
     if datos.producto_id is not None and repositorio.hay_activo_del_producto(
         peticion.persona_id, datos.producto_id, salvo=None

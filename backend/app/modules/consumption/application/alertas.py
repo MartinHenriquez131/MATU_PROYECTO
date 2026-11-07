@@ -29,8 +29,8 @@ from app.modules.consumption.application.ports import (
     RepositorioAlertas,
     RepositorioPerfiles,
 )
-from app.modules.consumption.domain.alerta import EstadoAlerta, avisando, en_ventana, exigir_abierta, reponer
-from app.modules.consumption.domain.perfil import coincide, dias_restantes, exigir_if_match, hoy_en_chile
+from app.modules.consumption.domain.alerta import EstadoAlerta, avisa_hoy, exigir_abierta, reponer
+from app.modules.consumption.domain.perfil import coincide, exigir_if_match, hoy_en_chile
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria, Reloj
 
@@ -47,12 +47,10 @@ class InsumoAvisado:
 
 
 def _avisado(insumo: InsumoEnVentana, hoy: date) -> InsumoAvisado:
-    p = insumo.leido.perfil
-    ventana = p.activo and en_ventana(dias_restantes(p.fecha_quiebre_estimada, hoy), p.dias_aviso)
     estado = None if insumo.alerta is None else insumo.alerta.estado
     return InsumoAvisado(
         leido=insumo.leido,
-        avisando=avisando(en_su_ventana=ventana, estado_de_la_fecha=estado),
+        avisando=avisa_hoy(insumo.leido.perfil, estado, hoy),
         alerta_id=None if insumo.alerta is None else insumo.alerta.id,
     )
 

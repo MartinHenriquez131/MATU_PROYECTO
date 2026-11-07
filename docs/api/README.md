@@ -11,6 +11,7 @@ docs/api/
     ├── relevo.openapi.yaml       MATU-09 parte 2: acceso de relevo
     ├── ficha-ampliada.openapi.yaml  MATU-49: secciones complementarias (implementado en MATU-50; se conserva como explicación)
     └── app-familia.openapi.yaml  MATU-32: sesión, dispositivos, autorización para el consumo, consumo y alertas
+                                  (implementados), y MATU-60: lista de insumos y unidades por envase (implementados)
 ```
 
 ## Propuestos e implementados
@@ -49,14 +50,15 @@ docs/api/
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `POST /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-36 | Implementado. Solo `finalidad: consumo`. En `openapi.json` desde MATU-36 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36 |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11) | Implementado. En `openapi.json` desde MATU-36 |
-| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
-| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado, con `activo=todos` (decisión 72). En `openapi.json` desde MATU-36. Cada perfil trae `unidades_por_envase` desde MATU-60 (decisión 121) |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo` | MATU-36 (RF-10, RF-11); cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Acepta `unidades_por_envase`, opcional, desde MATU-60 (decisión 121) |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36; cambio aditivo de MATU-60 | Implementado. En `openapi.json` desde MATU-36. Trae `unidades_por_envase` desde MATU-60 (decisión 121) |
+| `PATCH /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36; cambio de MATU-60 | Implementado, con `If-Match`, 412 (con `actualizado_por`, decisión 73) y 428. En `openapi.json` desde MATU-36. Acepta `unidades_por_envase` desde MATU-60, y `null` lo borra (decisión 121) |
 | `DELETE /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}` | MATU-36 (decisión 69) | Implementado. 204. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar` | MATU-36 | Implementado. En `openapi.json` desde MATU-36 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar` | MATU-36 (decisión 68) | Implementado. En `openapi.json` desde MATU-36 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/por-acabarse` | MATU-37 (RF-11, RF-12) | Implementado, con `avisando` y `alerta_id` (decisión 74). En `openapi.json` desde MATU-37 |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 (RF-15, ADR-031) | Implementado, con los tres ajustes de Jorge del 06-11 (decisiones 116 a 122). En `openapi.json` desde MATU-60 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
@@ -141,6 +143,7 @@ Todas las rutas que usa la app de familia: MATU-39 (la app), MATU-48 y MATU-45 (
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 | Implementado | `openapi.json` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 | Implementado | `openapi.json` |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 | Implementado | `openapi.json` |
+| `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 | Implementado (decisiones 116 a 122) | `openapi.json` |
 
 La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni `GET /v1/salud`.
 
@@ -153,7 +156,7 @@ La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni
 - **No hay ruta para consultar las autorizaciones.** La vista de la persona trae solo la de `plan_cuidado` (`consentimiento`). Que falta la de `consumo` se sabe por el 403 con `finalidad: consumo` de `GET …/consumo`.
 - **No hay catálogo** (`/v1/catalogo/…`, arquitectura 9.4). En el sprint 3 la app anota insumos con `nombre_libre`.
 - **No hay invitaciones ni cambio de roles** (MATU-42 y MATU-53, sprint 4), ni salir de un grupo.
-- **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4).
+- **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4). *Actualizado el 06-11:* la lista de insumos está implementada en MATU-60 (`GET …/consumo/lista`, decisiones 116 a 122) y nunca tendrá exportación ni enlace (ADR-031, decisión 122).
 - **No hay `/v1/consumo/{id}` ni `/v1/alertas`** sin la persona, como dice la arquitectura 9.3: todo cuelga de `/v1/personas-cuidadas/{persona_id}/consumo…` (decisión 54).
 - **No hay preferencias de aviso** (`preferencia_notificacion`), ni cambiar o recuperar la contraseña, ni "cerrar todas las sesiones" (se sacan los dispositivos uno por uno).
 - **No hay exportación de la ficha** (`GET …/plan/exportar`, RF-09).
@@ -556,7 +559,9 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 | Arquitectura 9.3 | Cuerpo `{producto_id, tasa_uso, unidad_tasa, stock_estimado, dias_aviso}` | `tasa_unidades` / `tasa_dias`, `stock_unidades`, `unidad`, `producto_id` o `nombre_libre` | Esquema (`perfil_consumo`) |
 | Arquitectura 7.3 | Campo `tasa_uso_diaria` y `dias_de_cobertura = piso(stock_unidades / tasa_uso_diaria)` | Fracción entera: `piso(stock_unidades * tasa_dias / tasa_unidades)` | Esquema, comentario de `perfil_consumo` |
 | Arquitectura 9.3 | `PATCH /v1/consumo/{id}`, `GET /v1/alertas?estado=`, `POST /v1/alertas/{id}/descartar` | Todo bajo `/v1/personas-cuidadas/{persona_id}/consumo…`, con `X-Grupo-Id` | Decisión 54, instrucción de MATU-32 |
-| Arquitectura 9.3 | `GET …/lista-reposicion` | `GET …/consumo/por-acabarse`. La lista de reposición (con sugerencias de envases) es del sprint 4 | Decisión 53 |
+| Arquitectura 9.3 | `GET …/lista-reposicion` | `GET …/consumo/por-acabarse`. La lista de reposición (con sugerencias de envases) es del sprint 4. *Desde el 06-11:* la lista es `GET …/consumo/lista` (MATU-60, implementado), en el espacio de consumo y con el nombre «lista de insumos» (`lenguaje.md`, sección 21) | Decisiones 53 y 116 |
+| Arquitectura 9.3 y RF-15 | `POST /v1/personas-cuidadas/{id}/lista-reposicion/exportar` → «PDF o enlace compartible», con las exportaciones guardadas en el almacenamiento de objetos | No existe. Ni `POST …/exportar`, ni PDF hecho en el servidor, ni enlace, ni ruta pública, ni archivos guardados. La lista se imprime o se guarda como PDF desde el navegador y se comparte como texto (`navigator.share` o copiar). RF-15 se cumple así (ADR-031, punto 3) | ADR-031, decisión 122. Se corrige en la v1.2 (MATU-43) |
+| Arquitectura 9.6 | Ejemplo con `persona_cuidada` (id y nombre), `generada_en`, `producto` como presentación, `tasa_uso`, `stock_estimado`, `fecha_quiebre_estimada`, `sugerido: {cantidad, razon: "cubre 15 días"}`, `estado_alerta` y `acciones: [armar_pedido, exportar_lista, compartir_enlace]` | `{fecha, items: [{perfil_id, nombre, unidad, dias_restantes, unidades_sugeridas, unidades_por_envase, envases_sugeridos}]}`: sin la persona, el grupo, la ficha, la tasa, el stock, la fecha estimada, la alerta, precios, comercios ni acciones. La cantidad cubre 30 días, no 15. Los botones los decide la pantalla con el `rol` de `GET /v1/grupos` | ADR-031 (puntos 4 a 6), decisiones 118 y 119. Se corrige en la v1.2 (MATU-43) |
 | Arquitectura 9.1 | "refresh rotativo de 30 días por dispositivo" | Coincide: 30 días por token, con ventana deslizante y sin tope absoluto (decisión de Jorge del 31-10) | Decisión 57 |
 | Arquitectura 11.6 | Aplicación móvil: "tokens en el keystore del sistema" | Web (ADR-026): refresh en cookie `HttpOnly` y access token en memoria | Decisiones 39 y 40 |
 | Política v0.9, sección 4, "Tu sesión" | "Cuando entras, tu sesión dura 15 minutos" | El access token dura 15 minutos, pero la sesión dura hasta 30 días con la cookie | Decisión 39. Se corrige en la 0.10 |
@@ -569,7 +574,7 @@ Este contrato sigue el esquema de la base (`backend/db/01_esquema.sql` y las mig
 - **Las secciones complementarias de la ficha del ADR-028** (MATU-49).
 - **Invitaciones y roles** (MATU-42 y MATU-53, sprint 4).
 - **Registrar una reposición** ("Ya lo compré", `resuelta`, `reposicion`): MATU-51, sprint 4.
-- **La lista de reposición**, con envases sugeridos, y exportarla (sprint 4).
+- **La lista de reposición**, con envases sugeridos, y exportarla (sprint 4). *Desde el 06-11:* la lista de insumos está implementada en MATU-60 (decisiones 116 a 122). Exportarla no se construye (ADR-031).
 - **Revocar la autorización para el consumo y cortar los accesos** (MATU-44), y renovar la revisión anual (ver la contradicción con la migración 0006).
 - **El catálogo** (`/v1/catalogo/…`, capa 3) y las rutas del despacho.
 - **Editar el `nombre` de un dispositivo**, las preferencias de aviso y el correo de MATU-41.
@@ -756,3 +761,103 @@ La 114 es el límite por IP de MATU-25 (PR #29, renumerada desde la 106): no se 
     - **Regla 2, la documentación.** `/docs` y `/openapi.json` solo existen con `ENTORNO` en `ENTORNOS_DOCUMENTACION = {local, pruebas}` (`backend/app/core/config.py`), una lista permitida al estilo de las de la decisión 105. En `staging` y `produccion` responden 404 RFC 7807 y no caen en el `index.html`. Antes se apagaban solo en `produccion`. Nada depende de pedirlas a un servidor de staging: `openapi.json` se exporta con `app.openapi()`, las pruebas de contrato lo leen del archivo, el CI no levanta un servidor y `npm run contrato:familia` lee `docs/api/openapi.json` del repositorio.
     - `openapi.json` no cambia: el respaldo es `Router.default`, no una ruta, así que no entra en el esquema, y `/r` y `/assets` ya estaban fuera (`include_in_schema=False` y un montaje). (Corregido el 05-11, H3 de la QA: decía que las rutas nuevas quedaban fuera por `include_in_schema=False`.)
     - Lo prueba `backend/tests/core/test_app_familia_web.py`: `/`, `/entrar`, `/insumos`, `/ficha/su-dia` y una ruta futura entregan el `index.html` con las cabeceras, también con `HEAD`; un archivo de la raíz del build se entrega tal cual; `..` y barras codificadas no salen del build y responden 404; un archivo oculto (también bajo `/assets`) y una ruta con extensión que no está en el build responden 404; `.js`, `.css` y `.webmanifest` llevan su tipo aunque `mimetypes` diga `text/plain`; una ruta registrada después no queda tapada; `/r` sigue igual salvo `frame-ancestors 'none'`, que prueba `backend/tests/core/test_pagina_relevo.py`; `/v1` inexistente sigue en 404 y los 405 no cambian; `/assets` se entrega; sin `WEB_DIST` la API arranca y `/` responde 404; `/docs` y `/openapi.json` responden 404 en `staging` y `produccion` y 200 en `local` y `pruebas`.
+
+## MATU-60 · Lista de insumos (implementado, RF-15, ADR-031)
+
+**Implementado el 06-11** con los tres ajustes de Jorge. La ruta, `ListaInsumos`, `LineaListaInsumos` y `unidades_por_envase` en `SolicitudPerfil`, `SolicitudEdicionPerfil`, `PerfilConsumoVista` e `InsumoPorAcabarseVista` pasaron a `openapi.json`, exportados desde `app.openapi()` sin reordenar lo que ya estaba, y se quitaron de `propuestos/app-familia.openapi.yaml`, que vuelve a no tener rutas. Ver "Notas de MATU-60 (implementación)" al final de esta sección. El párrafo que sigue es el de la propuesta.
+
+Contrato propuesto el 06-11, **antes de implementar**, con las decisiones de Jorge del 06-11 (ADR-031, `docs/lenguaje.md` sección 21 y la cobertura de 30 días, D2) y las condiciones del analista normativo. La ruta nueva y sus esquemas están en `propuestos/app-familia.openapi.yaml`. El cambio al perfil de consumo toca rutas que ya están en `openapi.json`, así que el propuesto no repite esas rutas (lo impiden `test_consumo_contrato.py` y `test_alertas_contrato.py`): lo declara como fragmentos con `x-matu-se-suma-a` (`CambioSolicitudPerfil`, `CambioSolicitudEdicionPerfil` y `CambioPerfilConsumoVista`). **`openapi.json` no cambia todavía**, porque dice solo lo implementado, las pruebas de contrato lo comparan con la API y el CI compara `web/src/compartido/api/familia.openapi.ts` con él.
+
+La numeración sigue en la 116: la última de `main` es la 115 (MATU-58), y ninguna rama de `origin` pasa de la 115 (revisado el 06-11).
+
+### Decisiones de MATU-60 (06-11), aprobadas por Jorge con tres ajustes
+
+Jorge aprobó el diseño el 06-11 con tres ajustes, que ya están escritos en las decisiones de abajo: la regla de entrada de la 117 pasa a `avisando = true` de «Se acaban pronto», la cantidad de la 119 descuenta lo que queda (opción B de la 120), y la 121 confirma que el envase sale solo del perfil. Las tres preguntas de "Para Jorge (MATU-60)" quedan cerradas.
+
+116. **La lista es `GET /v1/personas-cuidadas/{persona_id}/consumo/lista`**, en el espacio de consumo de la persona (decisión 54), con `X-Grupo-Id`. Se llama `lista` y no `lista-reposicion` porque la app dice «lista de insumos» y nunca «lista de reposición» (`lenguaje.md`, sección 21).
+    - **Autorización:** la misma dependencia de lectura de `GET …/consumo` y `GET …/consumo/por-acabarse` (`consumo_para_leer`). La leen los cuatro roles (decisión 71, ADR-031 punto 5).
+    - **Orden de evaluación:** 401 (access token), 404 (sin `X-Grupo-Id` o que no es un UUID, no miembro activo, persona de otro grupo o inexistente, o un `persona_id` que no es un UUID), 403 `sin-consentimiento` o `revision-vencida` con `finalidad: consumo` (antes de leer nada del consumo) y 200. Es el orden de las demás lecturas del consumo.
+    - **`Cache-Control: no-store`** en todas las respuestas, también en 401, 403 y 404. Ya lo pone el middleware de `/v1/personas-cuidadas/` (notas de MATU-36).
+    - Sin cuerpo ni parámetros de consulta y sin paginación: está acotada por los perfiles activos de una persona, como `por-acabarse` (decisión 53).
+    - Es una lectura pura: no crea ni cierra alertas y no se audita (decisión 52). Imprimir o compartir tampoco se audita, porque el navegador no lo confirma (registro de tratamientos, MATU-60).
+    - La ruta fija `lista` se registra antes que `…/consumo/{perfil_id}` (decisión 54). Hoy `GET …/consumo/lista` responde 404, porque `lista` no es un UUID.
+117. **Qué entra y en qué orden.**
+    - **Entra** cada insumo que hoy está en «Se acaban pronto» con `avisando = true` (ajuste de Jorge del 06-11). Es la regla de la decisión 74, calculada al momento en el dominio (`domain/alerta.py`, `avisando`): el perfil está activo, está en su ventana (`dias_restantes <= dias_aviso`, incluidos los ya pasados) y no hay una alerta `resuelta` ni `descartada` para su `fecha_quiebre_estimada` actual.
+    - **No entran** los perfiles desactivados, los que están fuera de su ventana y los que tienen cerrada la alerta de su fecha actual (`resuelta` con «Ya lo resolví» con cantidad, o `descartada` con «No avisar esta vez» o «Ya lo resolví» sin cantidad).
+    - **No depende del trabajo diario.** Un insumo en su ventana entra aunque el trabajo diario todavía no haya creado su alerta, y también si solo tiene alertas abiertas de otra fecha (quedaron desalineadas tras un `PATCH`, decisión 75). Así la lista coincide con lo que se ve en Insumos: es exactamente el subconjunto de `GET …/consumo/por-acabarse` con `avisando = true`, y «Ya lo resolví» y «No avisar esta vez» sacan el insumo de la lista. Sin autorización vigente la ruta responde 403 antes de leer.
+    - *Reemplaza* la regla propuesta el 06-11 («perfil activo con una alerta abierta para su fecha estimada actual»), que dejaba fuera hasta el día siguiente un insumo que la familia acababa de anotar de nuevo.
+    - **Orden exacto**, en el dominio y no en SQL, para no depender de la colación de la base:
+      1. `fecha_quiebre_estimada` ascendente (lo mismo que `dias_restantes` ascendente),
+      2. `nombre` sin marcas diacríticas (Unicode NFD sin la categoría `Mn`) y con `casefold()`,
+      3. `nombre` con `casefold()`, que desempata `n` y `ñ` o `a` y `á` por punto de código,
+      4. `perfil_id` ascendente, como texto en minúsculas.
+
+      Ejemplo, todos con la misma fecha: «Crema hidratante», «óleo calcáreo», «Pañal adulto talla M». Con la clave 2, «óleo» va con la `o` y no después de la `z`.
+    - La consecuencia que tenía la regla anterior (el insumo salía de la lista hasta las 04:00 del día siguiente cuando la familia anotaba de nuevo cuánto quedaba) ya no ocurre: con `avisando` el insumo sigue en la lista mientras esté en su ventana.
+118. **La respuesta trae solo lo que la lista necesita**, `{fecha, items}`.
+    - `fecha` es hoy en America/Santiago según el `Reloj` (`hoy_en_chile`), el mismo «hoy» de `dias_restantes`, leído una sola vez por petición. Así la fecha impresa («Lista de insumos · 06/11/2026») es la de la API y no la de la zona horaria del teléfono.
+    - Cada ítem trae `perfil_id`, `nombre` (`producto.nombre` si el perfil es de un producto, o `nombre_libre` si no, nunca la presentación ni la marca), `unidad`, `dias_restantes`, `unidades_sugeridas`, `unidades_por_envase` y `envases_sugeridos`.
+    - `dias_restantes` es `fecha_quiebre_estimada − fecha`, igual que en `PerfilConsumoVista`, con los mismos estados de Insumos: mayor que 1 «Alcanza para {n} días», 1 «Alcanza para 1 día», 0 «Se acaba hoy» y negativo «Puede que ya no quede» (`lenguaje.md`, sección 21). Solo se muestra en la pantalla. El texto que se imprime o se comparte no lo lleva (ADR-031, punto 4).
+    - **Sin**, frente al ejemplo de la arquitectura 9.6: `persona_cuidada` (ni el id ni el nombre), `generada_en` (un instante, y basta la fecha), el producto como presentación, `tasa_uso`, `stock_estimado`, `fecha_quiebre_estimada`, `sugerido.razon`, `estado_alerta` y `acciones` (`armar_pedido`, `exportar_lista`, `compartir_enlace`). Tampoco el grupo, la ficha, precios, comercios, el `etag` ni el `alerta_id`, porque la lista no ofrece acciones sobre el insumo ni comprar.
+    - **Quién ve los botones** (ADR-031, punto 5: administrador, cuidador y pagador, y el observador no) lo decide la pantalla con el `rol` de `GET /v1/grupos`. No es una autorización: la API no participa en imprimir ni en compartir, y los cuatro roles reciben la misma respuesta.
+    - El `nombre` puede decir algo de la salud de la persona. Nunca va a logs, errores, auditoría ni eventos, igual que `nombre_libre` (decisión 38).
+119. **Cantidad sugerida, en enteros, para 30 días y descontando lo que queda** (D2 de Jorge del 06-11, con el ajuste del 06-11 de la decisión 120).
+    - `unidades_sugeridas = max(1, techo(30 × tasa_unidades / tasa_dias) − queda_hoy)`. El techo se calcula como `(30 × tasa_unidades + tasa_dias − 1) // tasa_dias`, sin punto flotante.
+    - `queda_hoy` es lo que MATU estima que queda hoy, con la misma fórmula de la decisión 79: `piso(stock_unidades − días transcurridos × tasa_unidades / tasa_dias)`, calculado como `(stock_unidades × tasa_dias − días × tasa_unidades) // tasa_dias`, y 0 si da negativo. Los días transcurridos van desde `stock_medido_en` hasta hoy en America/Santiago según el `Reloj`. Es la misma función de dominio de «Ya lo resolví» (`domain/alerta.py`, `stock_estimado_hoy`), no una copia.
+    - **El mínimo de 1** hace falta porque lo que queda puede cubrir 30 días o más (con `dias_aviso` mayor que 30, que admite hasta 60). Un insumo de la lista nunca sale con 0.
+    - **Máximo 300.000** (`30 × 10.000 / 1` con `queda_hoy = 0`), con los topes de la decisión 43.
+    - Si el perfil tiene `unidades_por_envase`, `envases_sugeridos = techo(unidades_sugeridas / unidades_por_envase)`, es decir `(unidades_sugeridas + unidades_por_envase − 1) // unidades_por_envase`. Si no, `null`, y la cantidad va en la unidad del insumo.
+    - Todo va en la unidad del insumo, también en ml y g. Ejemplos:
+      - pañal de 4 al día con envases de 20, anotado hoy con 12: `techo(30 × 4 / 1) − 12` = 108 unidades y `techo(108 / 20)` = 6 envases.
+      - crema de 50 ml cada 7 días con frascos de 250 ml, que según la estimación ya se acabó (queda 0): `techo(1500 / 7)` = 215 ml y 1 envase.
+      - toallitas de 12 cada 3 días sin envase, 14 anotadas hace 3 días (quedan `piso((14 × 3 − 3 × 12) / 3)` = 2): `techo(30 × 12 / 3) − 2` = 118 unidades.
+    - La constante `COBERTURA_LISTA_DIAS = 30` y la fórmula viven en `consumption/domain/lista.py` (función pura). La pantalla deja cambiar la cantidad antes de imprimir o compartir, y ese cambio nunca llega al servidor (decisión 122).
+120. **A los 30 días se les resta lo que MATU estima que queda hoy: opción B, decidida por Jorge el 06-11.**
+    - **Motivo de Jorge:** es lo que hay que comprar, y evita que quien recibe la lista deduzca el consumo diario dividiendo por 30. Con la opción A una línea sin envase decía exactamente el consumo de 30 días («120 unidades» son 4 al día). Con B quien recibe el texto no sabe cuánto quedaba.
+    - La fórmula es la de la decisión 119.
+    - **Lo que se acepta con B** (era el análisis de la opción A, que se descartó): la cantidad cambia de un día a otro, porque lo que queda baja cada día, así que una lista impresa hoy no coincide mañana con la pantalla, y por eso la lista lleva su `fecha`. Si la estimación de lo que queda es mayor que lo real, la cantidad sugerida queda corta: la pantalla dice que es una sugerencia y deja cambiarla (`lenguaje.md`, sección 21).
+    - **Texto fuera de este repositorio, ya corregido:** el registro de tratamientos del PR de documentos de MATU-60 (MATU #45) dice que la cantidad descuenta lo que MATU estima que queda.
+121. **Dato nuevo `unidades_por_envase` en el perfil de consumo.**
+    - **Qué es:** un entero opcional de 1 a 10.000 en la unidad del insumo (unidades, sobres, ml o g por envase). Describe el envase, no a la persona (registro de tratamientos, MATU-60). El 10.000 es el mismo tope de `tasa_unidades` (decisión 43) y alcanza para 10 litros o 10 kilos.
+    - **Crear (`POST …/consumo`):** opcional. Omitido o `null`, el perfil nace sin él.
+    - **Editar (`PATCH …/consumo/{perfil_id}`):** omitido no cambia, un entero lo fija y **`null` lo borra**. Es una excepción explícita a `null_no_admitido` (MATU-36), solo para este campo, porque es el único opcional que se puede vaciar. El resto del `PATCH` sigue igual: `If-Match` obligatorio (428, y 412 con `actual`, decisión 41), 409 `perfil-inactivo`, versión nueva y `actualizado_por`. Cambiar solo este dato no toca `stock_medido_en` ni `fecha_quiebre_estimada`, y un cuerpo que solo lo trae no es `cuerpo_vacio`. El orden de evaluación del `PATCH` de MATU-36 no cambia.
+    - **Validación:** fuera de 1 a 10.000, o un valor que no es entero, responde 422 `validacion` con `errores[].campo = unidades_por_envase` y los `tipo` de Pydantic (`greater_than_equal`, `less_than_equal`, `int_parsing`, `int_from_float`), sin repetir el valor. Son las mismas reglas de los demás enteros del perfil.
+    - **Lectura:** `PerfilConsumoVista` suma `unidades_por_envase`, siempre presente y `null` si no se anotó. Por herencia llega a `InsumoPorAcabarseVista`, así que sale en `GET …/consumo`, `GET …/consumo/{perfil_id}`, el 201 del `POST`, el 200 del `PATCH`, `…/activar`, `…/desactivar`, el `actual` del 412, `GET …/por-acabarse` y `POST …/resolver`. Es aditivo.
+    - **El envase sale solo de `perfil_consumo.unidades_por_envase`, nunca del catálogo** (confirmado por Jorge el 06-11). En un perfil con producto el dato también se puede anotar, y la lista usa solo el valor del perfil. No lee `producto.unidades_por_envase`, porque el catálogo es capa 3 y se puede quitar (decisión 104). Que el catálogo lo proponga por omisión es del puerto `CatalogoComercio` del sprint 4, no de este contrato.
+    - **Auditoría:** `consumo.crear` y `consumo.editar`, como hoy, sin el valor.
+    - **Migración nueva y reversible** (la 0015 sobre la 0014, o sobre la cabeza que haya al implementar): `ALTER TABLE perfil_consumo ADD COLUMN unidades_por_envase integer NULL` y `CHECK perfil_consumo_envase (unidades_por_envase IS NULL OR unidades_por_envase BETWEEN 1 AND 10000)`, con `op.execute`. El `downgrade` quita el `CHECK` y la columna, y con ella los valores anotados. **No cambia RLS:** las políticas de la 0009 (`perfil_leer`, `perfil_crear`, `perfil_editar` y `perfil_borrar`) deciden filas y ya cubren la columna, y no hay permisos por columna. Tampoco cambia la conservación, porque el dato se borra con su fila (decisiones 69 y 70).
+122. **No existe `POST …/exportar` ni una ruta pública para la lista** (ADR-031). MATU no hace PDF en el servidor, no crea un enlace, no emite un token, no guarda archivos ni exportaciones y no usa el almacenamiento de objetos para la lista. Se imprime o se guarda como PDF desde el navegador, y se comparte con `navigator.share` (solo texto) o con «Copiar la lista». Las líneas agregadas a mano y las cantidades cambiadas viven solo en la memoria de la página, y no hay ruta para guardarlas. Si después hace falta un enlace, va con un ADR nuevo, una revisión normativa y su propio acceso con token, vencimiento y corte (ADR-031, consecuencias). Las diferencias con la arquitectura 9.3 y 9.6 y con RF-15 están en la tabla "Contradicciones (MATU-32)".
+
+### Para Jorge (MATU-60)
+
+Las tres preguntas quedaron cerradas por Jorge el 06-11:
+
+1. **Decisión 120:** opción B, 30 días contando lo que queda. Motivo: es lo que hay que comprar, y evita que quien recibe la lista deduzca el consumo diario dividiendo por 30.
+2. **Decisión 117, la regla de entrada:** `avisando = true` de «Se acaban pronto» (decisión 74), calculada al momento en el dominio. No depende del trabajo diario y la lista coincide con lo que se ve en Insumos. El orden no cambia.
+3. **Decisión 121, perfiles con producto:** el envase sale solo de `perfil_consumo.unidades_por_envase`, nunca del catálogo, porque el catálogo es capa 3 (decisión 104).
+
+### Notas para implementar MATU-60
+
+- **Módulo `consumption`:** la regla de qué entra, el orden y la cantidad van en una función pura de `domain/lista.py`, sin reloj ni I/O, que reutiliza `avisando` y `en_ventana` (`domain/alerta.py`) para la entrada y `stock_estimado_hoy` (`domain/alerta.py`) para lo que queda. El caso de uso lee el `Reloj` una vez. El repositorio es el de «Se acaban pronto» (`RepositorioAlertas.en_ventana`): perfiles activos en su ventana, con la alerta de su fecha estimada actual en cualquier estado y el producto para el nombre (`COLUMNAS_PERFIL`). No hay consulta nueva. Los esquemas `ListaInsumos` y `LineaListaInsumos` van en `api/esquemas.py`.
+- **Pruebas, marcadas con `@pytest.mark.rf("RF-15")` o `rf("RF-14")`:** dominio (la fórmula con y sin envase, lo que queda que cubre más de 30 días y deja el mínimo de 1, stock 0, techo, máximo, orden con empates, tildes y `ñ`, qué entra y qué no), API (200 con envase, sin envase y vacía, los cuatro roles, 403 de los dos tipos y de la autorización retirada, 404 de no miembro, de otro grupo, de persona inexistente y de id que no es UUID, `no-store` en 200, 401, 403 y 404, entra sin que el trabajo diario haya corrido y con una alerta desalineada, y fuera de la lista el desactivado y la alerta cerrada), `PATCH` que pone y que borra el dato con `null` y el 422 fuera de rango, migración (`upgrade head`, `downgrade -1`, `upgrade head`, y el `CHECK` rechaza 0 y 10.001), contrato y logs sin `nombre_libre`.
+- **Exportación en el mismo PR:** la ruta, `ListaInsumos`, `LineaListaInsumos` y los esquemas del perfil con `unidades_por_envase` pasan a `openapi.json` desde `app.openapi()`, y se quitan de `propuestos/app-familia.openapi.yaml` la ruta y los fragmentos `Cambio*`. La ruta se suma a `RUTAS` de `test_alertas_contrato.py` (o a una prueba propia), que verifica que sale del propuesto. Como el CI compara `web/src/compartido/api/familia.openapi.ts` con `openapi.json`, el frontend vuelve a correr `npm run contrato:familia` en el mismo PR.
+- **Diferencias que se esperan al exportar**, las mismas de las demás rutas del consumo: los 401, 403 y 404 como `application/problem+json` sin esquema, el 422 genérico que agrega FastAPI, `X-Grupo-Id` como `string | null` sin `format: uuid` y el `operationId` que genera FastAPI.
+- **Política y registro:** ajustados en el PR de documentos de MATU-60 (MATU #45), sin cambiar `POLITICA_VERSION`, incluida la cantidad que descuenta lo que queda (opción B de la decisión 120).
+
+### Notas de MATU-60 (implementación, 06-11)
+
+- **Dónde vive cada regla.**
+  - `consumption/domain/lista.py`: `armar_lista` (qué entra, la línea y el orden), `unidades_sugeridas`, `envases_sugeridos`, `techo_division`, `sin_marcas` y `COBERTURA_LISTA_DIAS = 30`.
+  - `consumption/domain/alerta.py`: `avisa_hoy`, la regla de `avisando` (decisión 74). La usan «Se acaban pronto» y la lista, así que la lista es siempre el subconjunto de `GET …/consumo/por-acabarse` con `avisando = true`. Lo que queda hoy es `stock_estimado_hoy`, la misma función de «Ya lo resolví» (decisión 79).
+  - `consumption/application/lista.py`: lee el `Reloj` una vez y usa `RepositorioAlertas.en_ventana`, el repositorio de «Se acaban pronto». No hay SQL nuevo.
+  - `consumption/api/router_lista.py`: la ruta, con `consumo_para_leer`. `app.main` la registra después de `router_alertas` y antes que `router_consumo`.
+- **El orden** usa, además de lo que dice la decisión 117, NFC antes del `casefold()` de la clave 3, para que una «ñ» escrita como `n` más tilde combinante empate con la «ñ» compuesta y desempate el `perfil_id`.
+- **`unidades_por_envase` en el `PATCH`.** El dominio distingue "no vino" de `null` con el marcador `SIN_CAMBIO` (`domain/perfil.py`). El router solo exceptúa ese campo de `null_no_admitido`: un `null` en otro campo del mismo cuerpo sigue respondiendo 422. El orden de evaluación de MATU-36 no cambia.
+- **Migración 0015** (`backend/alembic/versions/0015_perfil_unidades_por_envase.py`): la columna y el `CHECK perfil_consumo_envase`, con `op.execute`. RLS no cambia. Se verificó `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Pruebas.**
+  - `tests/modules/consumption/test_lista_dominio.py`: la fórmula, el techo, el mínimo de 1, el stock 0, lo estimado negativo, el orden y el envase en el perfil.
+  - `test_envase_router.py`: el `PATCH` y el `POST` del envase con dobles, y los 422.
+  - `test_lista_api.py`: contra PostgreSQL.
+  - `test_lista_contrato.py`: la ruta y los esquemas contra `openapi.json`, y que salieron del propuesto.
+  - `tests/test_aislamiento.py` y `tests/test_migraciones.py`: el bloque de la 0015.
+- **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`.
