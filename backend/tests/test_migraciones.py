@@ -743,6 +743,11 @@ def test_0016_retiro_con_motivo_y_baja_al_esquema_de_0015(base_desechable):
     assert consultar("SELECT relforcerowsecurity FROM pg_class WHERE relname = 'consentimiento'") == [(True,)]
     funciones = {f for (f,) in consultar("SELECT proname FROM pg_proc WHERE proname = 'plan_destruir_claves'")}
     assert funciones == {"plan_destruir_claves"}
+    # P8: una sola clave no destruida por persona, y la nueva solo tras una autorización nueva
+    [(indice,)] = consultar("SELECT indexdef FROM pg_indexes WHERE indexname = 'clave_datos_vigente_uq'")
+    assert "UNIQUE" in indice and "destruida_en IS NULL" in indice
+    assert consultar("SELECT conname FROM pg_constraint WHERE conname = 'clave_datos_persona_cuidada_id_key'") == []
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'clave_datos_nueva_tras_autorizacion'") != []
 
     alembic("downgrade", "0015")
     despues = catalogo()

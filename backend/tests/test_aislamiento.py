@@ -702,8 +702,8 @@ def test_clave_destruida_no_vuelve_a_tener_dek(cx, db_rol, cambio):
         cx.execute("RESET ROLE")
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute(f"UPDATE clave_datos SET {cambio} WHERE persona_cuidada_id = %s", (P_A,))
-    # Tampoco se crea otra clave para la misma persona
-    with pytest.raises(errors.UniqueViolation), cx.transaction():
+    # Tampoco se crea otra clave para la misma persona sin una autorización nueva (trigger de 0016, P8)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("""INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)
                       VALUES (%s, %s, '\\x04', 1)""", (G_A, P_A))
     assert cx.execute("SELECT dek_cifrada_con_kek IS NULL FROM clave_datos WHERE persona_cuidada_id = %s",
@@ -1899,3 +1899,26 @@ def test_operacion_sigue_sin_leer_clave_datos(cx):
     como(cx, rol="operacion")
     assert contar(cx, "clave_datos") == 0
     assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()").rowcount == 0
+
+
+@pytest.mark.rf("RF-02")
+def test_clave_nueva_solo_tras_una_autorizacion_nueva_y_la_destruida_sigue_destruida(cx):
+    """MATU-44, P8: después de destruida la clave, una autorización nueva para plan_cuidado deja crear otra para
+    contenido nuevo. La destruida no cambia y hay una sola no destruida por persona (clave_datos_vigente_uq)."""
+    _retiro_de_plan(cx, "100 days")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now() - interval '1 day'"
+               " WHERE persona_cuidada_id = %s", (P_A,))
+    nueva = """INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)
+               VALUES (%s, %s, '\\x06', 1)"""
+    with pytest.raises(errors.CheckViolation), cx.transaction():  # sin autorización nueva
+        cx.execute(nueva, (G_A, P_A))
+    cx.execute("RESET ROLE")
+    _consentimiento(cx)  # otorgada ahora, después de la destrucción
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute(nueva, (G_A, P_A))
+    with pytest.raises(errors.UniqueViolation), cx.transaction():  # una sola vigente
+        cx.execute(nueva, (G_A, P_A))
+    assert cx.execute("SELECT count(*) FILTER (WHERE destruida_en IS NOT NULL AND dek_cifrada_con_kek IS NULL),"
+                      " count(*) FILTER (WHERE destruida_en IS NULL) FROM clave_datos WHERE persona_cuidada_id = %s",
+                      (P_A,)).fetchone() == (1, 1)

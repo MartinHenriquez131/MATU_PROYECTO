@@ -28,9 +28,21 @@ d) Destrucción de la ficha a los 90 días del retiro (D3, decisión 129): plan_
    matu_owner necesita leer y actualizar clave_datos bajo RLS forzado: clave_destruccion_leer y
    clave_destruccion, solo para él y solo con app.rol = 'operacion'. Lo de la familia no cambia.
 
+e) Una ficha nueva después del borrado (P8 de Jorge, decisión 130). La regla de MATU-11 cambia solo en esto:
+   una clave destruida sigue destruida y nunca vuelve a tener DEK (trigger de 0003), pero la persona puede
+   tener una clave NUEVA para contenido nuevo, y solo después de una autorización nueva para plan_cuidado.
+   - El UNIQUE (persona_cuidada_id) pasa a ser el índice parcial clave_datos_vigente_uq: una sola clave
+     no destruida por persona.
+   - Trigger clave_datos_nueva_tras_autorizacion (BEFORE INSERT): si la persona tiene una clave destruida,
+     la nueva exige un consentimiento no revocado para plan_cuidado otorgado en el instante de la última
+     destrucción o después. Sin eso, check_violation: nunca se crea una clave de reemplazo en silencio.
+   - Las secciones cifradas con la clave anterior se borran al volver a autorizar (caso de uso, no trigger).
+
 backend/db/*.sql no se tocan: son el esquema de 0001.
 
-downgrade() deja el esquema como en 0015 y se pierde revocacion_motivo.
+downgrade() deja el esquema como en 0015 y se pierde revocacion_motivo. Si alguna persona ya tiene una
+clave nueva además de la destruida, el UNIQUE de 0001 no se puede restituir y el downgrade falla: se
+detiene en vez de borrar claves.
 
 Revision ID: 0016
 Revises: 0015
@@ -136,9 +148,37 @@ END
 $$;
 REVOKE ALL ON FUNCTION plan_destruir_claves(timestamptz, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION plan_destruir_claves(timestamptz, timestamptz) TO matu_app;
+
+-- (e) Una clave nueva solo para contenido nuevo, después de una autorización nueva
+ALTER TABLE clave_datos DROP CONSTRAINT clave_datos_persona_cuidada_id_key;
+CREATE UNIQUE INDEX clave_datos_vigente_uq ON clave_datos (persona_cuidada_id) WHERE destruida_en IS NULL;
+
+CREATE FUNCTION clave_datos_nueva_tras_autorizacion() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    ultima timestamptz;
+BEGIN
+    SELECT max(k.destruida_en) INTO ultima FROM clave_datos k
+     WHERE k.persona_cuidada_id = NEW.persona_cuidada_id AND k.destruida_en IS NOT NULL;
+    IF ultima IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM consentimiento c
+         WHERE c.persona_cuidada_id = NEW.persona_cuidada_id AND c.finalidad = 'plan_cuidado'
+           AND c.revocado_en IS NULL AND c.otorgado_en >= ultima) THEN
+        RAISE EXCEPTION 'la clave de datos fue destruida: una nueva exige una autorización nueva'
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER clave_datos_nueva_tras_autorizacion BEFORE INSERT ON clave_datos
+    FOR EACH ROW EXECUTE FUNCTION clave_datos_nueva_tras_autorizacion();
 """
 
 DOWNGRADE = """
+DROP TRIGGER clave_datos_nueva_tras_autorizacion ON clave_datos;
+DROP FUNCTION clave_datos_nueva_tras_autorizacion();
+DROP INDEX clave_datos_vigente_uq;
+-- Falla si una persona ya tiene dos claves (una destruida y una nueva): no se borran claves para bajar
+ALTER TABLE clave_datos ADD CONSTRAINT clave_datos_persona_cuidada_id_key UNIQUE (persona_cuidada_id);
+
 DROP FUNCTION plan_destruir_claves(timestamptz, timestamptz);
 DROP POLICY clave_destruccion ON clave_datos;
 DROP POLICY clave_destruccion_leer ON clave_datos;
