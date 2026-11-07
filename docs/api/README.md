@@ -63,7 +63,9 @@ docs/api/
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/lista` | MATU-60 (RF-15, ADR-031) | Implementado, con los tres ajustes de Jorge del 06-11 (decisiones 116 a 122). En `openapi.json` desde MATU-60 |
 | `GET /v1/personas-cuidadas/{persona_id}/consumo/alertas` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar` | MATU-37 (RF-12) | Implementado. En `openapi.json` desde MATU-37 |
-| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver` | MATU-37 (RF-12, decisiones 76 y 79) | Implementado, con `cantidad` opcional. En `openapi.json` desde MATU-37. Desde MATU-51 acepta también `envases` y el tope de `cantidad` es 10.000 (decisiones 144 y 147) |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer` | MATU-51 (RF-10, RF-11) | Implementado («Compré», decisiones 136 a 138 y 140 a 143). En `openapi.json` desde MATU-51 |
+| `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar` | MATU-51 (RF-10, RF-11) | Implementado («Me quedan N», decisiones 136 y 139 a 143). En `openapi.json` desde MATU-51 |
 | `POST /v1/recuperacion/codigo` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57. Siempre 202 (decisión 84) |
 | `POST /v1/recuperacion/contrasena` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57 |
 | `GET /v1/cuenta` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57 |
@@ -958,7 +960,9 @@ La numeración sigue en la 123: la última de esta rama es la 122 (MATU-60).
 
 ## MATU-51 · Registrar que se repuso un insumo (RF-10, RF-11, capa 2)
 
-Contrato escrito el 07-11, **antes de implementar**, con las decisiones de Jorge del 07-11 (A a D, con el ajuste de D del mismo día sobre los topes) y las doce condiciones de la revisión previa del analista normativo (Trello, MATU-51). La pantalla es de `docs/diseno/matu-51-compre-me-quedan.md`, del diseñador. Las dos rutas pasan a `openapi.json` en el mismo PR que las implementa, exportadas desde `app.openapi()`, porque ese archivo dice solo lo implementado.
+**Implementado el 07-11.** Ver "Notas de implementación de MATU-51" al final de esta sección. El párrafo que sigue es el de la propuesta.
+
+Contrato escrito el 07-11, **antes de implementar**, con las decisiones de Jorge del 07-11 (A a D, con el ajuste de D del mismo día sobre los topes, y A2 y A3) y las doce condiciones de la revisión previa del analista normativo (Trello, MATU-51). La pantalla es de `docs/diseno/matu-51-compre-me-quedan.md`, del diseñador. Las dos rutas pasan a `openapi.json` en el mismo PR que las implementa, exportadas desde `app.openapi()`, porque ese archivo dice solo lo implementado.
 
 La numeración sigue en la 136: la última de esta rama es la 135 (MATU-44).
 
@@ -1001,3 +1005,23 @@ La numeración sigue en la 136: la última de esta rama es la 135 (MATU-44).
     - Dos políticas solo para `matu_owner` con `app.rol = 'operacion'`, porque está sujeto a RLS forzado: `reposicion_conservacion` (SELECT) y `reposicion_conservacion_borrar` (DELETE). Lo de la familia no cambia y `matu_app` sigue sin `UPDATE` ni `DELETE` en `reposicion`.
     - `reposicion.cantidad_unidades` solo tiene `CHECK (cantidad_unidades > 0)`, sin tope: acepta lo que salga de envases × unidades (hasta 100.000, por el tope del stock) y no se cambia.
     - `downgrade()` deja el esquema como en la 0016.
+147. **«Ya lo resolví» acepta lo mismo que «Compré»** (decisión A2 de Jorge, 07-11; punto A6 del diseñador). `SolicitudResolver` y `SolicitudReposicion` comparten los dos campos con sus topes (`_LoComprado` en `api/esquemas.py`) y la misma regla del dominio (`cantidad_comprada`), sin duplicar la validación: `envases` de 1 a 99 (solo si el perfil tiene `unidades_por_envase`) o `cantidad` de 1 a 10.000 en la unidad del insumo.
+    - Lo que sale de `envases × unidades_por_envase` puede pasar de 10.000 y se acepta (por ejemplo 99 envases de 200 ml son 19.800). Lo limitan el tope del stock (`stock_maximo`) y la cobertura (`cobertura_maxima`), igual que en «Compré».
+    - **Sin `envases` ni `cantidad`** (cuerpo omitido, `{}` o los dos en `null`) sigue siendo «no compré, solo deja de avisar»: la alerta queda `descartada` y el perfil no cambia (decisión 76). `cantidad: 0` sigue respondiendo 422, como desde MATU-37.
+    - Los dos a la vez: 422 `envases_o_cantidad` en `cantidad`. `envases` sin `unidades_por_envase`: 422 `sin_unidades_por_envase` en `envases`. Los clientes que mandan solo `cantidad` siguen funcionando igual.
+    - Orden: los 422 del cuerpo (topes y `envases_o_cantidad`) antes del 404 del perfil; `sin_unidades_por_envase`, `stock_maximo` y `cobertura_maxima` después del 409 `alerta-cerrada`, como el 422 `cobertura_maxima` de la decisión 79.
+148. **«Compré» y «Me quedan N» no se aceptan en un insumo «Sin seguir»** (decisión A3 de Jorge, 07-11): un perfil inactivo responde **409 `/errores/perfil-inactivo`**, el problema que ya usan el `PATCH` y «Ya lo resolví», sin escribir nada. La pantalla no muestra los botones en esos insumos.
+
+### Notas de implementación de MATU-51 (07-11)
+
+- **Dónde vive cada regla.**
+  - `consumption/domain/alerta.py`: `CANTIDAD_MAXIMA = 10_000`, `ENVASES_MAXIMO = 99`, `cantidad_comprada` (envases o cantidad, con `EnvasesOCantidad` y `SinUnidadesPorEnvase`), `reponer` (ahora con `StockMaximo`; el tope de 1 a 10.000 lo pone `cantidad_comprada`) y `dejan_de_corresponder` (llama a `planificar`, decisión 75).
+  - `consumption/domain/perfil.py`: `recontar`, que llama a `aplicar_cambios` con solo `stock_unidades`.
+  - `consumption/application/reposiciones.py`: `comprar` y `anotar_lo_que_queda`. `application/alertas.py` (`resolver`) usa `cantidad_comprada` y acepta `envases`.
+  - `consumption/api/router_reposicion.py`: las dos rutas. `api/dependencias.py`: `ParaEscribirBloqueando`, la dependencia de escritura con `persona_con_autorizacion(..., bloquear=True)`. `api/esquemas.py`: `_LoComprado`, `SolicitudReposicion`, `SolicitudResolver` y `SolicitudRecuento`.
+  - `RepositorioAlertas.abiertas_del_perfil` (SQL con `FOR UPDATE`).
+  - `quiebre_conservar` devuelve cuatro contadores y `ResultadoConservacionQuiebres` suma `reposiciones_borradas`. La tarea los registra solo como números.
+- **Migración 0017** (`backend/alembic/versions/0017_conservar_compras.py`). Se verificó `upgrade head`, `downgrade -1` y `upgrade head`. El `downgrade` deja el catálogo idéntico al de la 0016 (`test_0017_…`).
+- **Pruebas que cambiaron por los topes nuevos:** `test_alertas_api.py` (10.001 en vez de 10.000), `test_alerta_dominio.py` (`reponer` exige solo una cantidad positiva), `test_alertas_contrato.py` (tope 10.000), `test_alertas_aplicacion.py` (el doble de `RepositorioAlertas` y los cuatro contadores) y `test_aislamiento.py` (el cuarto contador de `quiebre_conservar`).
+- **Pruebas nuevas.** `tests/modules/consumption/test_reposicion_dominio.py`, `test_reposicion_api.py` (contra PostgreSQL: caminos felices, 422, 428, 412, 409, roles, otro grupo, 403, la carrera con el retiro, logs y auditoría, conservación y cascada) y `test_reposicion_contrato.py`; el bloque de la 0017 en `tests/test_aislamiento.py` y `tests/test_migraciones.py`; las dos rutas en `tests/test_capa3_desacoplable.py`.
+- **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`. Lo hace quien tenga `web/`.

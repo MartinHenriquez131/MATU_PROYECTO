@@ -3216,7 +3216,7 @@
           "alertas"
         ],
         "summary": "Ya lo resolví",
-        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido",
+        "description": "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76, 79 y 147). Sin envases ni cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido",
         "operationId": "resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post",
         "security": [
           {
@@ -3402,7 +3402,7 @@
             }
           },
           "422": {
-            "description": "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días. errores[].campo = cantidad, sin repetir el valor",
+            "description": "envases fuera de 1..99 o cantidad fuera de 1..10000 (decisiones 144 y 147); envases_o_cantidad (los dos a la vez, en cantidad); sin_unidades_por_envase (envases en un perfil sin unidades_por_envase, en envases); stock_maximo: lo que queda más lo comprado pasa de 100.000; o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días, en el campo que vino. Nunca repite el valor",
             "content": {
               "application/problem+json": {}
             }
@@ -4191,6 +4191,404 @@
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer": {
+      "post": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Compré",
+        "description": "Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una reposición declarada con la fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o alerta.descartar), sin la cantidad. Solo admin y cuidador. Nunca crea un pedido",
+        "operationId": "reponer_v1_personas_cuidadas__persona_id__consumo__perfil_id__reponer_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del perfil tal como se leyó (el campo etag), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141)",
+              "title": "If-Match"
+            },
+            "description": "ETag del perfil tal como se leyó (el campo etag), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141)"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudReposicion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "El If-Match no es la versión vigente del perfil: no se suma, no se anota la compra y no se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: el perfil actual en ``actual``, con quién lo guardó.",
+                  "properties": {
+                    "type": {
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/PerfilConsumoVista"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionPerfilVista",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, sin repetir el valor: envases fuera de 1..99 o cantidad fuera de 1..10000 (tipos de Pydantic); envases_o_cantidad (los dos o ninguno, en cantidad); sin_unidades_por_envase (envases en un perfil sin unidades_por_envase, en envases); stock_maximo (lo que queda más lo comprado pasa de 100.000) o cobertura_maxima (más de 3650 días), en el campo que vino",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "Falta If-Match, está vacío o es *",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar": {
+      "post": {
+        "tags": [
+          "consumo"
+        ],
+        "summary": "Me quedan",
+        "description": "Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una reposición. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador",
+        "operationId": "recontar_v1_personas_cuidadas__persona_id__consumo__perfil_id__recontar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Perfil Id"
+            }
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ETag del perfil tal como se leyó (el campo etag), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141)",
+              "title": "If-Match"
+            },
+            "description": "ETag del perfil tal como se leyó (el campo etag), por ejemplo \"v3\". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141)"
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudRecuento"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsumoPorAcabarseVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "El If-Match no es la versión vigente del perfil: no se suma, no se anota la compra y no se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "412: el perfil actual en ``actual``, con quién lo guardó.",
+                  "properties": {
+                    "type": {
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "title": "Errores",
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "actual": {
+                      "$ref": "#/components/schemas/PerfilConsumoVista"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "actual"
+                  ],
+                  "title": "ProblemaVersionPerfilVista",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, sin repetir el valor: stock_unidades falta o está fuera de 0..100000 (tipos de Pydantic), o cobertura_maxima en stock_unidades (más de 3650 días)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "Falta If-Match, está vacío o es *",
+            "content": {
+              "application/problem+json": {}
             }
           }
         }
@@ -7230,6 +7628,24 @@
         "title": "SolicitudPush",
         "description": "Cuerpo de PUT /v1/dispositivos/actual/push. El valor nunca se repite en un error."
       },
+      "SolicitudRecuento": {
+        "properties": {
+          "stock_unidades": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Stock Unidades",
+            "description": "Cuánto queda hoy, en la unidad del insumo. De 0 a 100.000"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stock_unidades"
+        ],
+        "title": "SolicitudRecuento",
+        "description": "Cuerpo de «Me quedan N» (decisión 139): el stock contado hoy, de 0 a 100.000."
+      },
       "SolicitudRegistro": {
         "properties": {
           "nombre": {
@@ -7270,13 +7686,27 @@
         ],
         "title": "SolicitudRegistro"
       },
-      "SolicitudResolver": {
+      "SolicitudReposicion": {
         "properties": {
+          "envases": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 99.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envases",
+            "description": "Cuántos envases se compraron, de 1 a 99. Solo si el perfil tiene unidades_por_envase (si no, 422 sin_unidades_por_envase). Lo comprado es envases × unidades_por_envase y puede pasar de 10.000"
+          },
           "cantidad": {
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 9999.0,
+                "maximum": 10000.0,
                 "minimum": 1.0
               },
               {
@@ -7284,13 +7714,49 @@
               }
             ],
             "title": "Cantidad",
-            "description": "Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999"
+            "description": "Cuánto se compró en la unidad del insumo (unidades, sobres, ml o g), de 1 a 10.000"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudReposicion",
+        "description": "Cuerpo de «Compré» (decisión 137): exactamente uno de envases y cantidad (si no, 422 envases_o_cantidad).\nSiempre pide la cantidad: el valor por omisión de 1 envase lo pone la pantalla."
+      },
+      "SolicitudResolver": {
+        "properties": {
+          "envases": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 99.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envases",
+            "description": "Cuántos envases se compraron, de 1 a 99. Solo si el perfil tiene unidades_por_envase (si no, 422 sin_unidades_por_envase). Lo comprado es envases × unidades_por_envase y puede pasar de 10.000"
+          },
+          "cantidad": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cantidad",
+            "description": "Cuánto se compró en la unidad del insumo (unidades, sobres, ml o g), de 1 a 10.000"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "SolicitudResolver",
-        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta\npasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la\nalerta pasa a resuelta."
+        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o\nnull): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota\nla reposición y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."
       },
       "SolicitudSeccion": {
         "properties": {
