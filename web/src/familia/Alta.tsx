@@ -528,70 +528,45 @@ export function AQuien() {
 
 const CAMPOS_PASO_1 = /^(nombre|nombre_pila|nivel_apoyo|direccion(\..*)?)$/
 
-export function Autorizacion() {
-  const { borrador, grupoId, fijar, anunciar, personas } = useFamilia()
-  const pila = borrador.pila.trim()
+/** Lo que declara quien autoriza la ficha: el cuerpo de `POST …/personas-cuidadas` y de `POST …/consentimientos`. */
+export interface Otorgamiento {
+  calidad_otorgante: Calidad
+  referencia_documento: string | null
+  aviso: { id: string; version: string } | null
+}
+
+/**
+ * Las declaraciones de la autorización de la ficha (3.5.2), sin el marco: la calidad (ninguna
+ * preseleccionada), la referencia, el aviso del cuidador de hecho con su casilla y «Lo que declaras».
+ * Las usan el alta y volver a autorizar (MATU-44 5.1), sin cambiar una palabra.
+ */
+export function useDeclaracionFicha() {
   const [calidad, setCalidad] = useState<Calidad | null>(null)
   const [leido, setLeido] = useState(false)
   const [referencia, setReferencia] = useState('')
   const [error, setError] = useState<'calidad' | 'referencia' | 'leido' | null>(null)
-  const [falla, setFalla] = useState<'paso1' | 'no-encontrado' | 'red' | null>(null)
-  const [ocupado, setOcupado] = useState(false)
-  const elegida = CALIDADES.find((c) => c.valor === calidad)
-
-  // Sin lo del paso 1 (por ejemplo, recargó la página), se vuelve a escribir.
-  useEffect(() => {
-    if (!pila) navegar('/empezar/persona', { reemplazar: true })
-  }, [pila])
-
-  const aceptar = async () => {
-    if (ocupado) return
-    setFalla(null)
-    if (!calidad) return setError('calidad')
-    if (calidad === 'representante_legal' && !referencia.trim()) return setError('referencia')
-    if (calidad === 'cuidador_de_hecho' && !leido) return setError('leido')
-    setError(null)
-    if (!grupoId) return setFalla('no-encontrado')
-    const conDireccion = borrador.calle.trim() && borrador.numero.trim() && borrador.comuna.trim()
-    const cuerpo: SolicitudPersona = {
-      nombre: borrador.nombre.trim(),
-      nombre_pila: pila,
-      nivel_apoyo: borrador.apoyo ?? 'apoyo_parcial',
+  /** Valida al enviar. Devuelve el cuerpo, o `null` con el error a la vista. */
+  const validar = (): Otorgamiento | null => {
+    let falta: 'calidad' | 'referencia' | 'leido' | null = null
+    if (!calidad) falta = 'calidad'
+    else if (calidad === 'representante_legal' && !referencia.trim()) falta = 'referencia'
+    else if (calidad === 'cuidador_de_hecho' && !leido) falta = 'leido'
+    setError(falta)
+    if (falta || !calidad) return null
+    return {
       calidad_otorgante: calidad,
       referencia_documento: calidad === 'representante_legal' ? referencia.trim() : null,
       aviso: calidad === 'cuidador_de_hecho' ? { id: AVISO_CUIDADOR.id, version: AVISO_CUIDADOR.version } : null,
-      direccion: conDireccion
-        ? { calle: borrador.calle.trim(), numero: borrador.numero.trim(), comuna: borrador.comuna.trim(), depto: borrador.depto.trim() || null }
-        : null,
-    }
-    setOcupado(true)
-    try {
-      const p = await registrarPersona(grupoId, cuerpo)
-      const vista = { id: p.id, nombre: p.nombre, nombre_pila: p.nombre_pila, nivel_apoyo: p.nivel_apoyo, direccion: p.direccion, consentimiento: p.consentimiento }
-      fijar({ personas: [...personas, vista], personaId: p.id, ficha: null, borrador: BORRADOR_VACIO })
-      anunciar(AUTORIZACION.registrada(nombrePilaDe(vista)))
-      // MATU-57 5.1 (D4): en la primera entrada se ofrece confirmar el celular, con «Ahora no».
-      fijar({ celularDesde: 'primera' })
-      navegar('/cuenta/celular', { reemplazar: true })
-    } catch (x) {
-      if (esVencida(x)) return
-      const f = leerFallo(x)
-      if (f.status === 404) setFalla('no-encontrado')
-      else if (f.status === 422 && f.campos.some((c) => CAMPOS_PASO_1.test(c))) setFalla('paso1')
-      else if (f.status === 422 && f.campos.includes('referencia_documento')) setError('referencia')
-      else setFalla('red')
-    } finally {
-      setOcupado(false)
     }
   }
+  return { calidad, setCalidad, leido, setLeido, referencia, setReferencia, error, setError, validar }
+}
 
-  if (!pila) return null
-
+export function DeclaracionFicha({ pila, d }: { pila: string; d: ReturnType<typeof useDeclaracionFicha> }) {
+  const { calidad, setCalidad, leido, setLeido, referencia, setReferencia, error, setError } = d
+  const elegida = CALIDADES.find((c) => c.valor === calidad)
   return (
-    <MarcoAlta paso={4}>
-      <Encabezado paso={4} bajada={AUTORIZACION.bajada(pila)} antes={<Volver onClick={() => navegar('/empezar/persona')}>{AUTORIZACION.volver}</Volver>}>
-        {AUTORIZACION.titulo}
-      </Encabezado>
+    <>
       <GrupoOpciones
         leyenda={AUTORIZACION.leyenda}
         nombre="calidad"
@@ -656,6 +631,67 @@ export function Autorizacion() {
           <p className="max-w-prose">{elegida.declaracion}</p>
         </Nota>
       )}
+    </>
+  )
+}
+
+export function Autorizacion() {
+  const { borrador, grupoId, fijar, anunciar, personas } = useFamilia()
+  const pila = borrador.pila.trim()
+  const d = useDeclaracionFicha()
+  const [falla, setFalla] = useState<'paso1' | 'no-encontrado' | 'red' | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+
+  // Sin lo del paso 1 (por ejemplo, recargó la página), se vuelve a escribir.
+  useEffect(() => {
+    if (!pila) navegar('/empezar/persona', { reemplazar: true })
+  }, [pila])
+
+  const aceptar = async () => {
+    if (ocupado) return
+    setFalla(null)
+    const otorgamiento = d.validar()
+    if (!otorgamiento) return
+    if (!grupoId) return setFalla('no-encontrado')
+    const conDireccion = borrador.calle.trim() && borrador.numero.trim() && borrador.comuna.trim()
+    const cuerpo: SolicitudPersona = {
+      nombre: borrador.nombre.trim(),
+      nombre_pila: pila,
+      nivel_apoyo: borrador.apoyo ?? 'apoyo_parcial',
+      ...otorgamiento,
+      direccion: conDireccion
+        ? { calle: borrador.calle.trim(), numero: borrador.numero.trim(), comuna: borrador.comuna.trim(), depto: borrador.depto.trim() || null }
+        : null,
+    }
+    setOcupado(true)
+    try {
+      const p = await registrarPersona(grupoId, cuerpo)
+      const vista = { id: p.id, nombre: p.nombre, nombre_pila: p.nombre_pila, nivel_apoyo: p.nivel_apoyo, direccion: p.direccion, consentimiento: p.consentimiento }
+      fijar({ personas: [...personas, vista], personaId: p.id, ficha: null, borrador: BORRADOR_VACIO })
+      anunciar(AUTORIZACION.registrada(nombrePilaDe(vista)))
+      // MATU-57 5.1 (D4): en la primera entrada se ofrece confirmar el celular, con «Ahora no».
+      fijar({ celularDesde: 'primera' })
+      navegar('/cuenta/celular', { reemplazar: true })
+    } catch (x) {
+      if (esVencida(x)) return
+      const f = leerFallo(x)
+      if (f.status === 404) setFalla('no-encontrado')
+      else if (f.status === 422 && f.campos.some((c) => CAMPOS_PASO_1.test(c))) setFalla('paso1')
+      else if (f.status === 422 && f.campos.includes('referencia_documento')) d.setError('referencia')
+      else setFalla('red')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  if (!pila) return null
+
+  return (
+    <MarcoAlta paso={4}>
+      <Encabezado paso={4} bajada={AUTORIZACION.bajada(pila)} antes={<Volver onClick={() => navegar('/empezar/persona')}>{AUTORIZACION.volver}</Volver>}>
+        {AUTORIZACION.titulo}
+      </Encabezado>
+      <DeclaracionFicha pila={pila} d={d} />
       {falla === 'paso1' && (
         <Nota tono="pronto" rol="alert">
           <Volver onClick={() => navegar('/empezar/persona')}>{AUTORIZACION.volverACorregir(pila)}</Volver>
