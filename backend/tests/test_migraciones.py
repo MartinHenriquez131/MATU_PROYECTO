@@ -720,10 +720,10 @@ def test_0016_retiro_con_motivo_y_baja_al_esquema_de_0015(base_desechable):
                 VALUES ('{ids['p']}', '{ids['g']}', 'Persona Dieciséis', 'Persona', 'apoyo_total');
             INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,
                                         version_politica, evidencia, revocado_en)
-                VALUES ('{ids['c1']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado', '0.9', '{{}}',
-                        now() - interval '1 day'),
-                       ('{ids['c2']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado', '0.9', '{{}}',
-                        NULL);
+                VALUES ('{ids['c1']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado',
+                        '0.9', '{{}}', now() - interval '1 day'),
+                       ('{ids['c2']}', '{ids['g']}', '{ids['p']}', '{ids['u']}', 'titular', 'plan_cuidado',
+                        '0.9', '{{}}', NULL);
         """)
 
     alembic("upgrade", "0016")

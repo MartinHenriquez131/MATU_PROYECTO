@@ -345,3 +345,31 @@ def test_los_logs_no_llevan_email_token_ni_texto(
     # Ni el repr del consumidor ni el de lo enviado muestran el destino
     assert familia.admin.email not in repr(e.correo.enviados) and _token(7) not in repr(e.push.enviados)
     assert repr(e.consumidor()) == "ConsumidorQuiebreProximo()"
+
+
+def test_retiro_por_el_caso_de_uso_omite_el_aviso_pendiente(entorno_avisos: EntornoAvisos) -> None:
+    """MATU-44 (condición 10): el retiro real descarta la alerta y el aviso pendiente queda omitido."""
+    from app.core.db import fabrica_sesiones, sesion_tenant
+    from app.modules.care_circle.application.retiro import SolicitudRetiro, retirar_autorizacion
+    from app.modules.care_circle.infrastructure.efectos_retiro import efectos_de, registrar_efecto
+    from app.modules.care_circle.infrastructure.repositorio_retiros import RepositorioRetirosSQL
+    from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
+    from app.shared.auditoria_sql import RegistroAuditoriaSql
+
+    registrar_efecto("consumo", EfectoRetiroConsumo)
+    e = entorno_avisos
+    familia = e.familia()
+    avisado = e.avisar(familia)
+    grupo = familia.grupo.id
+    with sesion_tenant(fabrica_sesiones(), usuario_id=familia.admin.id, grupo_id=grupo) as sesion:
+        registro = RegistroAuditoriaSql(sesion, e.reloj)
+        retirar_autorizacion(
+            SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=familia.persona.id, finalidad="consumo"),
+            e.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
+        )
+
+    assert isinstance(e.consumir(avisado), Hecho)
+
+    assert set(e.avisos(familia).values()) == {("omitida", "sin_autorizacion")}
+    assert e.correo.enviados == [] and e.push.enviados == []
+    assert e.estado_alerta(avisado)[0] == "descartada"
