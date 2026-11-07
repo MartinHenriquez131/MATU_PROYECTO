@@ -21,4 +21,13 @@ describe('Boton con texto de espera', () => {
       expect(s).not.toHaveClass('break-words')
     }
   })
+
+  // Segunda revisión visual (P3): con «Ya lo resolví» en dos líneas, «Guardando…» quedaba pegado
+  // arriba de la celda. La celda centra los dos textos en los dos ejes.
+  it('la celda centra el texto de espera cuando conserva la altura de dos líneas', () => {
+    render(<Boton ocupado textoOcupado="Guardando…">Ya lo resolví</Boton>)
+
+    const celda = screen.getByText('Guardando…').parentElement as HTMLElement
+    expect(celda).toHaveClass('grid', 'place-items-center')
+  })
 })

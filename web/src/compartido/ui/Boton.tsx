@@ -62,8 +62,9 @@ export function Boton({
       {...resto}
     >
       {icono && <span className="contents angosto:hidden">{icono}</span>}
-      {/* Los dos textos ocupan la misma celda: el botón mide lo que el más largo y no salta. */}
-      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
+      {/* Los dos textos ocupan la misma celda: el botón mide lo que el más largo y no salta. Cada
+          texto queda al centro de la celda, que conserva la altura del más alto. */}
+      <span className="grid min-w-0 grid-cols-[minmax(0,1fr)] place-items-center">
         <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
         {textoOcupado && (
           <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
