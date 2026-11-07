@@ -29,7 +29,13 @@ from app.modules.consumption.application.ports import (
     RepositorioAlertas,
     RepositorioPerfiles,
 )
-from app.modules.consumption.domain.alerta import EstadoAlerta, avisa_hoy, exigir_abierta, reponer
+from app.modules.consumption.domain.alerta import (
+    EstadoAlerta,
+    avisa_hoy,
+    cantidad_comprada,
+    exigir_abierta,
+    reponer,
+)
 from app.modules.consumption.domain.perfil import coincide, exigir_if_match, hoy_en_chile
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria, Reloj
@@ -130,18 +136,22 @@ def resolver(
     perfiles: RepositorioPerfiles,
     alertas: RepositorioAlertas,
     auditoria: RegistroAuditoria,
+    *,
+    envases: int | None = None,
 ) -> InsumoAvisado | VersionDesactualizada:
     """«Ya lo resolví» por insumo (decisiones 76 y 79), aunque el trabajo diario no haya creado la alerta.
 
     Condicional, como el PATCH (decisión 80): exige If-Match con el ETag del perfil. Orden: 404 (perfil),
     428 (FaltaVersion), 409 perfil-inactivo, 412 (VersionDesactualizada, sin sumar ni cerrar nada), 409
-    alerta-cerrada (la de la fecha estimada actual) y 422 cobertura_maxima. Así un reintento o una segunda
-    pestaña con el mismo ETag nunca suman dos veces: la primera suma sube la versión.
+    alerta-cerrada (la de la fecha estimada actual) y 422 stock_maximo o cobertura_maxima. Así un reintento o
+    una segunda pestaña con el mismo ETag nunca suman dos veces: la primera suma sube la versión.
 
     La alerta de la fecha actual (o una nueva, ya cerrada, si no existía) queda:
 
     - sin cantidad: descartada. El perfil no cambia. Registra alerta.descartar.
-    - con cantidad: resuelta. El stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la
+    - con envases o cantidad (decisión 147, como «Compré»; lanza SinUnidadesPorEnvase, StockMaximo o
+      CoberturaMaxima después del 409 alerta-cerrada): resuelta.
+      El stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la
       cantidad, medido hoy, con la fecha recalculada y la versión + 1; se anota una reposicion declarada a
       nombre del usuario. Registra reposicion.declarar y alerta.resolver, sin la cantidad.
 
@@ -161,7 +171,11 @@ def resolver(
     alerta = alertas.de_la_fecha(perfil.id, perfil.fecha_quiebre_estimada)
     if alerta is not None:
         exigir_abierta(alerta.estado)
-    repuesto = None if cantidad is None else reponer(perfil, cantidad, hoy, peticion.usuario_id)
+    # Decisiones 144 y 147: envases o cantidad, con la misma regla de «Compré» (cantidad_comprada). Sin ninguno
+    # de los dos, se descarta sin sumar
+    compro = envases is not None or cantidad is not None
+    unidades = cantidad_comprada(perfil, envases=envases, cantidad=cantidad) if compro else None
+    repuesto = None if unidades is None else reponer(perfil, unidades, hoy, peticion.usuario_id)
 
     estado = EstadoAlerta.DESCARTADA if repuesto is None else EstadoAlerta.RESUELTA
     if alerta is None:
@@ -169,13 +183,13 @@ def resolver(
     else:
         cerrada = alertas.cerrar(alerta.id, estado, ahora)
 
-    if repuesto is None or cantidad is None:
+    if repuesto is None or unidades is None:
         _auditar(auditoria, peticion, AccionAuditoria.ALERTA_DESCARTAR, EntidadAuditoria.ALERTA_QUIEBRE, cerrada.id)
         return _avisado(InsumoEnVentana(leido=leido, alerta=cerrada), hoy)
 
     perfiles.actualizar(repuesto)
     reposicion_id = uuid.uuid4()
-    alertas.declarar_reposicion(reposicion_id, perfil.id, cantidad, hoy, peticion.usuario_id)
+    alertas.declarar_reposicion(reposicion_id, perfil.id, unidades, hoy, peticion.usuario_id)
     _auditar(auditoria, peticion, AccionAuditoria.REPOSICION_DECLARAR, EntidadAuditoria.REPOSICION, reposicion_id)
     _auditar(auditoria, peticion, AccionAuditoria.ALERTA_RESOLVER, EntidadAuditoria.ALERTA_QUIEBRE, cerrada.id)
     nuevo = perfiles.obtener(peticion.persona_id, perfil.id)

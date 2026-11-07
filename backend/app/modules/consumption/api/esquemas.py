@@ -17,7 +17,7 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-from app.modules.consumption.domain.alerta import CANTIDAD_MAXIMA, EstadoAlerta
+from app.modules.consumption.domain.alerta import CANTIDAD_MAXIMA, ENVASES_MAXIMO, EstadoAlerta
 from app.modules.consumption.domain.perfil import (
     DIAS_AVISO_MAXIMO,
     DIAS_AVISO_POR_OMISION,
@@ -197,19 +197,50 @@ class ListaAlertas(BaseModel):
     siguiente_cursor: str | None
 
 
-class SolicitudResolver(BaseModel):
-    """Cuerpo opcional de «Ya lo resolví» (decisiones 76 y 79). Sin cantidad (u omitido o null): la alerta
-    pasa a descartada. Con cantidad: se suma a lo que MATU estima que queda hoy, se anota la reposición y la
-    alerta pasa a resuelta."""
+class _LoComprado(BaseModel):
+    """Lo comprado, compartido por «Ya lo resolví» y «Compré» (decisiones 137 y 147): envases o cantidad, a lo
+    más uno. La regla completa (uno solo, envases solo con unidades_por_envase) es cantidad_comprada del
+    dominio; aquí van los topes del cuerpo. Sin fecha: ocurrida_en lo fija el servidor con el Reloj."""
 
     model_config = ConfigDict(extra="forbid")
 
+    envases: int | None = Field(
+        default=None,
+        ge=1,
+        le=ENVASES_MAXIMO,
+        description=(
+            "Cuántos envases se compraron, de 1 a 99. Solo si el perfil tiene unidades_por_envase (si no, 422"
+            " sin_unidades_por_envase). Lo comprado es envases × unidades_por_envase y puede pasar de 10.000"
+        ),
+    )
     cantidad: int | None = Field(
         default=None,
         ge=1,
         le=CANTIDAD_MAXIMA,
-        description="Cuánto se compró, en la unidad del insumo (no en envases). De 1 a 9999",
+        description="Cuánto se compró en la unidad del insumo (unidades, sobres, ml o g), de 1 a 10.000",
     )
+
+
+class SolicitudResolver(_LoComprado):
+    """Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o
+    null): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota
+    la reposición y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."""
+
+
+# --- MATU-51: «Compré» y «Me quedan N» ------------------------------------------------------------------
+
+
+class SolicitudReposicion(_LoComprado):
+    """Cuerpo de «Compré» (decisión 137): exactamente uno de envases y cantidad (si no, 422 envases_o_cantidad).
+    Siempre pide la cantidad: el valor por omisión de 1 envase lo pone la pantalla."""
+
+
+class SolicitudRecuento(BaseModel):
+    """Cuerpo de «Me quedan N» (decisión 139): el stock contado hoy, de 0 a 100.000."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stock_unidades: Stock = Field(description="Cuánto queda hoy, en la unidad del insumo. De 0 a 100.000")
 
 
 # --- MATU-60: lista de insumos ---------------------------------------------------------------------------

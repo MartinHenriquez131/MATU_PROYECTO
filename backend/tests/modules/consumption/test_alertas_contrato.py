@@ -66,7 +66,7 @@ def test_el_item_trae_avisando_y_alerta_id_y_cantidad_es_opcional(app: Any) -> N
     resolver = esquemas["SolicitudResolver"]
     assert resolver.get("required", []) == [] and resolver["additionalProperties"] is False
     [entero] = [t for t in resolver["properties"]["cantidad"]["anyOf"] if t.get("type") == "integer"]
-    assert (entero["minimum"], entero["maximum"]) == (1, 9999)
+    assert (entero["minimum"], entero["maximum"]) == (1, 10_000)  # decisión 144
 
 
 def test_resolver_exige_if_match_y_declara_412_y_428(app: Any) -> None:

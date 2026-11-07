@@ -51,7 +51,13 @@ from app.modules.consumption.application import alertas
 from app.modules.consumption.application.alertas import AlertaNoEncontrada, InsumoAvisado
 from app.modules.consumption.application.perfiles import PerfilInactivo, PerfilNoEncontrado, VersionDesactualizada
 from app.modules.consumption.application.ports import AlertaLeida
-from app.modules.consumption.domain.alerta import ABIERTAS, AlertaCerrada, EstadoAlerta
+from app.modules.consumption.domain.alerta import (
+    ABIERTAS,
+    AlertaCerrada,
+    EstadoAlerta,
+    SinUnidadesPorEnvase,
+    StockMaximo,
+)
 from app.modules.consumption.domain.perfil import CoberturaMaxima, FaltaVersion
 from app.shared.puertos import Reloj
 
@@ -84,6 +90,23 @@ def _alerta(a: AlertaLeida) -> AlertaVista:
 
 def _insumo(i: InsumoAvisado, reloj: Reloj) -> InsumoPorAcabarseVista:
     return InsumoPorAcabarseVista(**_vista(i.leido, reloj).model_dump(), avisando=i.avisando, alerta_id=i.alerta_id)
+
+
+MENSAJES_COMPRA = {
+    "stock_maximo": "con esa cantidad, lo que queda pasa de 100.000",
+    "cobertura_maxima": "con esa cantidad, lo que queda alcanza para más de 3650 días",
+    "envases_o_cantidad": "indica envases o cantidad, solo uno",
+    "sin_unidades_por_envase": "este insumo no tiene anotado cuánto trae cada envase: indica la cantidad",
+}
+
+
+def error_compra(campo: str, tipo: str) -> ErrorMATU:
+    """Un 422 de una compra que nombra el campo y el tipo, nunca el valor (decisiones 137 y 144)."""
+    return ErrorMATU(
+        422,
+        detalle="Revisa los campos indicados",
+        errores=[{"campo": campo, "mensaje": MENSAJES_COMPRA[tipo], "tipo": tipo}],
+    )
 
 
 def _alerta_cerrada(error: AlertaCerrada) -> ErrorMATU:
@@ -192,8 +215,10 @@ def descartar(
 
 _422_RESOLVER: dict[str, Any] = {
     "description": (
-        "cantidad fuera de 1..9999, o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días."
-        " errores[].campo = cantidad, sin repetir el valor"
+        "envases fuera de 1..99 o cantidad fuera de 1..10000 (decisiones 144 y 147); envases_o_cantidad (los dos"
+        " a la vez, en cantidad); sin_unidades_por_envase (envases en un perfil sin unidades_por_envase, en"
+        " envases); stock_maximo: lo que queda más lo comprado pasa de 100.000; o cobertura_maxima: con lo comprado"
+        " alcanzaría para más de 3650 días, en el campo que vino. Nunca repite el valor"
     ),
     **_PROBLEMA,
 }
@@ -226,8 +251,9 @@ _422_RESOLVER: dict[str, Any] = {
     summary="Ya lo resolví",
     description=(
         "Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la"
-        " alerta (decisiones 76 y 79). Sin cantidad: la alerta pasa a descartada (o se crea ya descartada) y el"
-        " perfil no cambia; registra alerta.descartar. Con cantidad: el stock pasa a lo que MATU estima que queda hoy"
+        " alerta (decisiones 76, 79 y 147). Sin envases ni cantidad: la alerta pasa a descartada (o se crea ya"
+        " descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o"
+        " cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy"
         " (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una"
         " reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la"
         " cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido"
@@ -254,7 +280,12 @@ def resolver(
         ),
     ] = None,
 ) -> InsumoPorAcabarseVista | JSONResponse:
+    envases = None if solicitud is None else solicitud.envases
     cantidad = None if solicitud is None else solicitud.cantidad
+    # Decisión 147: los dos a la vez es un 422 del cuerpo, antes del 404 del perfil
+    if envases is not None and cantidad is not None:
+        raise error_compra("cantidad", "envases_o_cantidad")
+    campo = "envases" if envases is not None else "cantidad"
     try:
         resultado = alertas.resolver(
             _peticion(request, autorizado),
@@ -265,23 +296,18 @@ def resolver(
             perfiles,
             repositorio,
             auditoria,
+            envases=envases,
         )
     except PerfilNoEncontrado:
         raise ErrorMATU(404) from None
     except FaltaVersion:
         raise ErrorMATU(428, detalle="Vuelve a abrir el insumo e inténtalo de nuevo") from None
+    except SinUnidadesPorEnvase:
+        raise error_compra("envases", "sin_unidades_por_envase") from None
+    except StockMaximo:
+        raise error_compra(campo, "stock_maximo") from None
     except CoberturaMaxima:
-        raise ErrorMATU(
-            422,
-            detalle="Revisa los campos indicados",
-            errores=[
-                {
-                    "campo": "cantidad",
-                    "mensaje": "con esa cantidad, lo que queda alcanza para más de 3650 días",
-                    "tipo": "cobertura_maxima",
-                }
-            ],
-        ) from None
+        raise error_compra(campo, "cobertura_maxima") from None
     except PerfilInactivo:
         raise ErrorMATU(409, tipo="perfil-inactivo", detalle="Este insumo no se está siguiendo") from None
     except AlertaCerrada as error:

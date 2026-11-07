@@ -206,7 +206,7 @@ def test_resolver_cantidad_fuera_de_rango_es_422_sin_tocar_nada(entorno_consumo:
     e = entorno_consumo
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
-    for cantidad in (0, 10_000, -3):
+    for cantidad in (0, 10_001, -3):  # decisión 144: el tope es 10.000
         respuesta = e.pedir(
             "POST", familia.admin, familia, f"/{perfil}/resolver", If_Match=V1, json={"cantidad": cantidad}
         )
