@@ -215,6 +215,7 @@ export function Nota({
   borde = false,
   className = '',
   id,
+  enfocable = false,
 }: {
   titulo?: ReactNode
   children?: ReactNode
@@ -224,12 +225,20 @@ export function Nota({
   borde?: boolean
   className?: string
   id?: string
+  /** MATU-44 3.5: la nota recibe el foco tras una acción. No es un control: sin contorno. */
+  enfocable?: boolean
 }) {
   const linea = borde ? { rocio: 'border-l-4 border-turquesa', atenta: 'border-l-4 border-atenta', pronto: 'border-l-4 border-pronto', ok: 'border-l-4 border-ok' }[tono] : ''
   const ref = useRef<HTMLDivElement>(null)
   useAnunciarAlMostrar(ref, rol)
   return (
-    <div ref={ref} id={id} data-aviso={rol} className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${className}`}>
+    <div
+      ref={ref}
+      id={id}
+      data-aviso={rol}
+      tabIndex={enfocable ? -1 : undefined}
+      className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${enfocable ? 'outline-none' : ''} ${className}`}
+    >
       {icono ?? ICONO_NOTA[tono]}
       <div className="min-w-0">
         {titulo && <p className="mb-0.5 font-bold">{titulo}</p>}
