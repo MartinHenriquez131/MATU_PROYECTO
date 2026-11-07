@@ -60,6 +60,7 @@ export function Stepper({
   nombradoPor,
   textoMenos,
   textoMas,
+  soloLectura = false,
 }: {
   id: string
   etiqueta: string
@@ -73,9 +74,12 @@ export function Stepper({
   nombradoPor?: string
   textoMenos?: string
   textoMas?: string
+  /** MATU-51 5.2: mientras guarda, el campo es de solo lectura y los − y + ignoran el toque. */
+  soloLectura?: boolean
 }) {
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   const paso = (d: number) => {
+    if (soloLectura) return
     const n = entero(valor)
     const base = n === null ? (d > 0 ? min - 1 : min + 1) : n
     onCambio(String(Math.max(min, Math.min(max, base + d))))
@@ -102,6 +106,7 @@ export function Stepper({
           pattern="[0-9]*"
           autoComplete="off"
           value={valor}
+          readOnly={soloLectura || undefined}
           aria-labelledby={nombradoPor ? `${id}-l ${nombradoPor}` : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={describe}
