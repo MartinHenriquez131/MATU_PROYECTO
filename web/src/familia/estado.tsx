@@ -5,7 +5,9 @@ import {
   listarGrupos,
   listarPersonas,
   rolDe,
+  type AutorizacionVista,
   type Ficha,
+  type Finalidad,
   type Grupo,
   type PersonaListada,
   type Rol,
@@ -61,6 +63,13 @@ interface Estado {
   autorizacion: Autorizacion
   /** MATU-57 5.1: desde dónde se abrió «Confirma tu celular» (la primera entrada ofrece «Ahora no»). */
   celularDesde: 'primera' | 'cuenta'
+  /**
+   * MATU-44 2.1: qué se va a volver a autorizar, de la persona elegida. Lo fija «Volver a autorizar»
+   * (en Grupo familiar o en el aviso de la ficha) y lo vacían las dos pantallas al salir. Con `vista`
+   * (lo que mostraba Grupo familiar) la pantalla no la vuelve a pedir. Al recargar no existe y la
+   * subruta vuelve a `/grupo`. Solo en memoria.
+   */
+  reautorizar: { personaId: string; finalidad: Finalidad; vista: AutorizacionVista | null } | null
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -101,6 +110,7 @@ const INICIAL: Estado = {
   textoPerdido: null,
   autorizacion: null,
   celularDesde: 'cuenta',
+  reautorizar: null,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
