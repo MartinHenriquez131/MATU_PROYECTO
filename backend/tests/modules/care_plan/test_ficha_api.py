@@ -431,7 +431,7 @@ def test_consentimiento_revocado_403(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     with psycopg.connect(DSN, autocommit=True) as cx:
         cx.execute(
-            "UPDATE consentimiento SET revocado_en = %s WHERE id = %s", (AHORA, familia.persona.consentimiento_id)
+            "UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro' WHERE id = %s", (AHORA, familia.persona.consentimiento_id)
         )
 
     respuesta = entorno_ficha.leer(familia.admin, familia.grupo.id, familia.persona.id)

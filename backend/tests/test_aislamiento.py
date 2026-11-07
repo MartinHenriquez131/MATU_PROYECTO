@@ -551,8 +551,9 @@ def test_familia_sigue_actualizando_sus_accesos(cx):
 def _consentimiento_relevo(cx, calidad="titular", revision="NULL", revocado="NULL"):
     """Un consentimiento para plan_cuidado de P_A, como superusuario y dentro de la transacción de la prueba."""
     cx.execute(f"""INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,
-                       version_politica, evidencia, revision_vence_en, revocado_en)
-                   VALUES (%s, %s, %s, %s, 'plan_cuidado', '0.0', '{{}}', {revision}, {revocado})""",
+                       version_politica, evidencia, revision_vence_en, revocado_en, revocacion_motivo)
+                   VALUES (%s, %s, %s, %s, 'plan_cuidado', '0.0', '{{}}', {revision}, {revocado},
+                           CASE WHEN {revocado} IS NULL THEN NULL ELSE 'retiro' END)""",
                (G_A, P_A, U_ADMIN_A, calidad))
 
 
@@ -1026,7 +1027,8 @@ def test_consentimiento_no_se_borra(cx):
 def test_revocar_registra_fecha_una_vez(cx):
     cid = _consentimiento(cx)
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
-    cur = cx.execute("UPDATE consentimiento SET revocado_en = now() WHERE id = %s", (cid,))
+    cur = cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro' WHERE id = %s",
+                     (cid,))
     assert cur.rowcount == 1
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("UPDATE consentimiento SET revocado_en = now() + interval '1 day' WHERE id = %s", (cid,))
@@ -1244,8 +1246,9 @@ def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
     for revocado, queda in (("now() - interval '91 days'", 0), ("now() - interval '89 days'", 1)):
         cx.execute(
             "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
-            " version_politica, evidencia, otorgado_en, revocado_en)"
-            f" VALUES (%s, %s, %s, 'titular', 'consumo', '0.10', '{{}}', now() - interval '200 days', {revocado})",
+            " version_politica, evidencia, otorgado_en, revocado_en, revocacion_motivo)"
+            f" VALUES (%s, %s, %s, 'titular', 'consumo', '0.10', '{{}}', now() - interval '200 days', {revocado},"
+            " 'retiro')",
             (G_A, P_A, U_ADMIN_A),
         )
         como(cx, rol="operacion")
@@ -1758,3 +1761,141 @@ def test_envase_admite_null_o_de_1_a_10000(cx, valor, acepta):
     else:
         with pytest.raises(errors.CheckViolation):
             cx.execute("UPDATE perfil_consumo SET unidades_por_envase = %s WHERE grupo_id = %s", (valor, G_A))
+
+
+# ---- MATU-44 (migración 0016): retirar con motivo, solo admin y cuidador, y la destrucción a los 90 días
+
+U_CUID_RETIRO_A = uuid.UUID("00000000-0000-0000-0000-0000000000a8")
+_RETIRAR_SQL = "UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro' WHERE id = %s"
+
+
+def _cuidador_retiro(cx):
+    """Un cuidador de G_A, como superusuario en la transacción que se revierte."""
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'cuid.ret@x.cl', 'Cuid', 'h')",
+               (U_CUID_RETIRO_A,))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES (%s, %s, 'cuidador', false)",
+               (G_A, U_CUID_RETIRO_A))
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("usuario", [U_ADMIN_A, U_CUID_RETIRO_A])
+def test_retiran_admin_y_cuidador(cx, usuario):
+    _cuidador_retiro(cx)
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute(_RETIRAR_SQL, (cid,)).rowcount == 1
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A, U_PAG2_A])
+def test_barrera_por_rol_pagador_y_observador_no_retiran(cx, usuario):
+    """Antes de la 0016 cualquier miembro fijaba revocado_en por SQL directo. Ahora RLS no les muestra la fila."""
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute(_RETIRAR_SQL, (cid,)).rowcount == 0
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT revocado_en FROM consentimiento WHERE id = %s", (cid,)).fetchone() == (None,)
+
+
+@pytest.mark.rf("RF-02")
+def test_otro_grupo_no_retira(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute(_RETIRAR_SQL, (cid,)).rowcount == 0
+
+
+@pytest.mark.rf("RF-02")
+def test_la_revocacion_exige_su_motivo_una_vez(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():  # sin motivo, el trigger la rechaza
+        cx.execute("UPDATE consentimiento SET revocado_en = now() WHERE id = %s", (cid,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'otro' WHERE id = %s", (cid,))
+    assert cx.execute(_RETIRAR_SQL, (cid,)).rowcount == 1
+    with pytest.raises(errors.InsufficientPrivilege):  # el motivo tampoco cambia después
+        cx.execute("UPDATE consentimiento SET revocacion_motivo = 'renovacion' WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-02")
+def test_el_motivo_no_va_sin_revocado_en(cx):
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(
+            "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+            " version_politica, evidencia, revocacion_motivo) VALUES (%s, %s, %s, 'titular', 'consumo', 'v1',"
+            " '{}', 'retiro')", (G_A, P_A, U_ADMIN_A))
+
+
+def _retiro_de_plan(cx, hace: str):
+    """El consentimiento de plan_cuidado de P_A, retirado hace ``hace`` (superusuario, en la transacción)."""
+    cx.execute(
+        "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+        " version_politica, evidencia, otorgado_en, revocado_en, revocacion_motivo)"
+        f" VALUES (%s, %s, %s, 'titular', 'plan_cuidado', '0.10', '{{}}', now() - interval '200 days',"
+        f" now() - interval '{hace}', 'retiro')", (G_A, P_A, U_ADMIN_A))
+
+
+def _clave_destruida(cx, persona):
+    cx.execute("RESET ROLE")
+    fila = cx.execute("SELECT dek_cifrada_con_kek IS NULL, destruida_en IS NOT NULL FROM clave_datos"
+                      " WHERE persona_cuidada_id = %s", (persona,)).fetchone()
+    return fila
+
+
+@pytest.mark.rf("RF-02")
+def test_destruir_claves_exige_operacion_y_los_90_dias(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())")
+    cx.rollback()
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT plan_destruir_claves(now() - interval '89 days', now())")
+    cx.rollback()
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT plan_destruir_claves(now(), now() + interval '91 days')")
+    cx.rollback()
+    como(cx, rol="operacion")
+    # Sin retiros en la semilla: no destruye nada y devuelve solo un contador
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize(("hace", "destruye"), [("91 days", True), ("89 days", False)])
+def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye):
+    _retiro_de_plan(cx, hace)
+    como(cx, rol="operacion")
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (int(destruye),)
+    assert _clave_destruida(cx, P_A) == (destruye, destruye)
+    # La otra familia no se toca
+    assert _clave_destruida(cx, P_B) == (False, False)
+    filas = cx.execute("SELECT actor_tipo, actor_ref, entidad, detalle FROM auditoria WHERE accion = 'clave.destruir'"
+                       " AND grupo_id = %s", (G_A,)).fetchall()
+    assert filas == ([("sistema", None, "clave_datos", None)] if destruye else [])
+
+
+@pytest.mark.rf("RF-02")
+def test_destruir_claves_es_idempotente(cx):
+    _retiro_de_plan(cx, "100 days")
+    como(cx, rol="operacion")
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (1,)
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT count(*) FROM auditoria WHERE accion = 'clave.destruir'").fetchone() == (1,)
+
+
+@pytest.mark.rf("RF-02")
+def test_destruir_claves_no_toca_a_quien_volvio_a_autorizar(cx):
+    _retiro_de_plan(cx, "100 days")
+    _consentimiento(cx)  # una autorización nueva de plan_cuidado, no revocada
+    como(cx, rol="operacion")
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-02")
+def test_operacion_sigue_sin_leer_clave_datos(cx):
+    """Las políticas de la 0016 son solo para matu_owner: matu_app con app.rol = 'operacion' no ve claves."""
+    como(cx, rol="operacion")
+    assert contar(cx, "clave_datos") == 0
+    assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()").rowcount == 0

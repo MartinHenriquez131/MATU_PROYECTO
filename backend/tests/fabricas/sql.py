@@ -29,8 +29,8 @@ INSERTAR_CONSENTIMIENTO = (
 # MATU-36: el consentimiento para consumo, que puede nacer ya revocado (para probar la conservación)
 INSERTAR_CONSENTIMIENTO_REVOCABLE = (
     "INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
-    " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en, revocado_en)"
-    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)"
+    " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en, revocado_en,"
+    " revocacion_motivo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)"
 )
 INSERTAR_PERFIL_CONSUMO = (
     "INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, producto_id, nombre_libre, unidad, tasa_unidades,"

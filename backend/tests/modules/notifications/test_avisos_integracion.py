@@ -101,7 +101,8 @@ def test_autorizacion_retirada_entre_la_creacion_y_el_envio_no_envia(entorno_avi
     familia = e.familia()
     avisado = e.avisar(familia)
     ejecutar(
-        "UPDATE consentimiento SET revocado_en = %s WHERE persona_cuidada_id = %s AND finalidad = 'consumo'",
+        "UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro'"
+        " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'",
         e.reloj.ahora(), familia.persona.id,
     )
 
