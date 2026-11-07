@@ -392,10 +392,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** El estado de las dos autorizaciones de la persona */
+        get: operations["estado_v1_personas_cuidadas__persona_id__consentimientos_get"];
+        put?: never;
+        /** Dar la autorización para calcular los insumos o para usar la ficha */
+        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         get?: never;
         put?: never;
-        /** Dar la autorización para calcular cuándo se acaban los insumos */
-        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        /** Retirar la autorización de una finalidad y cortar lo que depende de ella */
+        post: operations["retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -873,6 +891,74 @@ export interface components {
             aviso: components["schemas"]["AvisoVista"] | null;
         };
         /**
+         * AutorizacionVista
+         * @description El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la
+         *     versión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``
+         *     salen de aquí.
+         */
+        AutorizacionVista: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"] | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+        };
+        /**
+         * AutorizacionVistaResumen
+         * @description Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del
+         *     otorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2).
+         */
+        AutorizacionVistaResumen: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+        };
+        /**
+         * AutorizacionesPersona
+         * @description Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador.
+         */
+        AutorizacionesPersona: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVista"][];
+        };
+        /**
+         * AutorizacionesPersonaResumen
+         * @description Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador.
+         */
+        AutorizacionesPersonaResumen: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVistaResumen"][];
+        };
+        /**
          * AvisoMostradoEntrada
          * @description El aviso que se mostró al elegir la calidad: solo su identificador y su versión.
          */
@@ -1116,6 +1202,11 @@ export interface components {
              */
             actualizado_en: string;
         };
+        /**
+         * EstadoVista
+         * @enum {string}
+         */
+        EstadoVista: "vigente" | "revision_vencida" | "retirada" | "borrada" | "sin_autorizar";
         /** FichaRelevoVista */
         FichaRelevoVista: {
             /** Nombre Pila */
@@ -1478,6 +1569,15 @@ export interface components {
             presentacion: string;
         };
         /**
+         * RetiroAutorizacion
+         * @description Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo (decisión 126, C2).
+         */
+        RetiroAutorizacion: {
+            autorizacion: components["schemas"]["AutorizacionVista"];
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /**
          * SeccionComplementaria
          * @enum {string}
          */
@@ -1546,14 +1646,15 @@ export interface components {
         };
         /**
          * SolicitudAutorizacionEntrada
-         * @description Cuerpo de la autorización. Solo ``finalidad: consumo``. Un campo extra responde 422.
+         * @description Cuerpo de la autorización: ``consumo`` (MATU-36) o ``plan_cuidado`` para volver a autorizar la ficha
+         *     (MATU-44, decisión 128). Un campo extra responde 422.
          */
         SolicitudAutorizacionEntrada: {
             /**
              * Finalidad
-             * @constant
+             * @enum {string}
              */
-            finalidad: "consumo";
+            finalidad: "consumo" | "plan_cuidado";
             calidad_otorgante: components["schemas"]["CalidadOtorgante"];
             /** Referencia Documento */
             referencia_documento?: string | null;
@@ -3357,6 +3458,57 @@ export interface operations {
             };
         };
     };
+    estado_v1_personas_cuidadas__persona_id__consentimientos_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutorizacionesPersona"] | components["schemas"]["AutorizacionesPersonaResumen"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     otorgar_v1_personas_cuidadas__persona_id__consentimientos_post: {
         parameters: {
             query?: never;
@@ -3417,6 +3569,68 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                /** @description plan_cuidado o consumo. Otro valor responde 404 */
+                finalidad: "plan_cuidado" | "consumo";
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetiroAutorizacion"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/ya-retirada: la autorización ya estaba retirada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

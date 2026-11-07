@@ -190,7 +190,10 @@ export const FICHA = {
   muyLargo: 'Cada campo admite hasta 500 caracteres. Acorta un poco el texto para guardarlo.',
   // 403 [lenguaje 6.4 y 6.4b]
   sinConsentimientoTitulo: (pila: string) => `Falta la autorización para usar la ficha de ${pila}.`,
-  sinConsentimiento: 'Sin ella no podemos guardar ni mostrar la ficha. Pídele a quien administra el grupo que la registre.',
+  // [lenguaje 6.4] El final cambia por rol (MATU-44, P4): admin y cuidador ven «La puedes volver a
+  // autorizar desde Grupo familiar.» (GRUPO_FAMILIAR.fichaPuedesVolver) y el resto, `sinConsentimientoPide`.
+  sinConsentimiento: 'Sin ella no podemos guardar ni mostrar la ficha.',
+  sinConsentimientoPide: 'Pídele a quien administra el grupo que la registre.',
   revisionTitulo: (pila: string) => `Hay que renovar la autorización de la ficha de ${pila}.`,
   revision: 'Se renueva una vez al año. Mientras tanto, la ficha no se puede ver ni cambiar, pero lo que escribiste sigue guardado.',
   revisionPide: 'Pídele a quien administra el grupo que la renueve.',
@@ -411,6 +414,10 @@ export const TITULOS: Record<string, string> = {
   // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
   '/compartir/listo': 'Enlace creado', // aprobado por Jorge el 04-11
   '/compartir/enlaces': 'Enlaces',
+  // MATU-44 2.1: las tres rutas, sin nombres.
+  '/grupo': 'Grupo familiar',
+  '/grupo/autorizar-ficha': 'Grupo familiar',
+  '/grupo/autorizar-insumos': 'Grupo familiar',
 }
 
 /**
@@ -490,9 +497,10 @@ export const COMPARTIR = {
   sinEnlaces: 'No hay enlaces todavía. Crea uno desde Compartir.', // [lenguaje 9]
   activoVence: 'Activo, vence en', // [lenguaje 9 + demo]
   estados: { vencido: 'Vencido', revocado: 'Cortado', bloqueado: 'Bloqueado' }, // [lenguaje 9]
-  // Decisión 33, aprobado por Jorge el 04-11: sin autorización vigente, los enlaces quedan en pausa.
+  // Decisión 33, aprobado por Jorge el 04-11: con la autorización por renovar, los enlaces quedan en
+  // pausa. [lenguaje 9.1, ajustado el 06-11 por MATU-44] La retirada está en GRUPO_FAMILIAR.
   enPausa: 'En pausa',
-  pausa: 'Mientras no haya una autorización vigente, ningún enlace abre. Cuando la renueves, vuelven a abrir los que no hayan vencido.',
+  pausa: 'Mientras no se renueve la autorización, ningún enlace abre. Cuando se renueve, vuelven a abrir los que no hayan vencido.',
   loCreo: (nombre: string) => `Lo creó ${nombre}.`,
   /** «Venció el {fecha} a las {hora}.» y «Lo cortaron el {fecha} a las {hora}.», partidos para `cifras`. */
   vencio: ['Venció el ', ' a las ', '.'] as const,

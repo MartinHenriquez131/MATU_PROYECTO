@@ -3,6 +3,7 @@
 // `If-Match` / `If-None-Match: *`, sin interfaz optimista: la ficha cambia solo con la respuesta, y
 // un 412 se muestra como conflicto, nunca se esconde.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { ExternalLink, Lock, PencilLine, Share2, ShieldAlert, ShieldQuestion, TriangleAlert, WifiOff } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import { guardarCampo, leerConflicto, leerFicha, nombrePilaDe, type CampoApi, type Conflicto as DatosConflicto, type EstadoCampo, type Ficha } from '../compartido/api/familia'
@@ -14,6 +15,7 @@ import { puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado
 import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 import { COMPARTIR, CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
+import { GRUPO_FAMILIAR } from './textosGrupo'
 import { useDemora } from './Estados'
 import { UltimasAperturas } from './QuienLaVio'
 import { MasSobre, seccionesEnHoja } from './Secciones'
@@ -94,9 +96,18 @@ export function Bloqueada({ bloqueo, escrito }: { bloqueo: 'sin-consentimiento' 
 
 /** El aviso de 6.4 o 6.4b, sin la página: también va en Compartir (MATU-48 3.6). */
 export function AvisoBloqueo({ bloqueo }: { bloqueo: 'sin-consentimiento' | 'revision-vencida' }) {
-  const { persona } = useFamilia()
+  const { persona, personaId, rol, fijar } = useFamilia()
   const pila = persona ? nombrePilaDe(persona) : ''
   const revision = bloqueo === 'revision-vencida'
+  // MATU-44 (P4): admin y cuidador la pueden volver a autorizar desde Grupo familiar.
+  const editor = puedeEditar(rol)
+  const volverAAutorizar = () => {
+    if (!personaId) return
+    flushSync(() => {
+      fijar({ reautorizar: { personaId, finalidad: 'plan_cuidado', vista: null } })
+      navegar('/grupo/autorizar-ficha')
+    })
+  }
   return (
         <Nota
           tono="atenta"
@@ -122,8 +133,21 @@ export function AvisoBloqueo({ bloqueo }: { bloqueo: 'sin-consentimiento' | 'rev
                 </a>
               </p>
             </div>
+          ) : editor ? (
+            <div className="flex flex-col gap-3">
+              <p>
+                {FICHA.sinConsentimiento} {GRUPO_FAMILIAR.fichaPuedesVolver}
+              </p>
+              <Acciones>
+                <Boton variante="secundario" onClick={volverAAutorizar}>
+                  {GRUPO_FAMILIAR.volverAAutorizar}
+                </Boton>
+              </Acciones>
+            </div>
           ) : (
-            <p>{FICHA.sinConsentimiento}</p>
+            <p>
+              {FICHA.sinConsentimiento} {FICHA.sinConsentimientoPide}
+            </p>
           )}
         </Nota>
   )

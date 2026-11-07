@@ -27,14 +27,18 @@ from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_personas import router as router_personas
+from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, FINALIDAD_PLAN_CUIDADO
+from app.modules.care_circle.infrastructure.efectos_retiro import registrar_efecto
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
 from app.modules.care_plan.api.router_secciones import router as router_secciones
+from app.modules.care_plan.infrastructure.efecto_retiro import EfectoRetiroFicha
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.consumption.api.router_lista import router as router_lista
+from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
@@ -72,6 +76,10 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de su lista permitida,
     # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
     preparar_custodia()
+    # MATU-44 (decisión 124): lo que corta el retiro de cada autorización. care_circle no importa care_plan
+    # ni consumption: aquí se arman. Sin el efecto de una finalidad, su retiro falla cerrado
+    registrar_efecto(FINALIDAD_PLAN_CUIDADO, EfectoRetiroFicha)
+    registrar_efecto(FINALIDAD_CONSUMO, EfectoRetiroConsumo)
 
     # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
     # existen y responden 404 RFC 7807, sin caer en la app de familia

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MATU API · App de familia (propuesto)
-  version: 0.3.0-propuesto
+  version: 0.4.0-propuesto
   summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto, alertas y la lista de insumos.
   description: |
     Contrato **propuesto** de MATU-32, acordado antes de implementar (arquitectura 15.5, regla 1).
@@ -46,6 +46,13 @@ info:
     las respuestas que solo la lista usaba (`NoAutenticadoApp`, `NoEncontradoApp` y
     `SinAutorizacionConsumo`). Las decisiones 116 a 122 están en el README. El archivo vuelve a no
     tener rutas.
+
+    **Retirar una autorización (MATU-44, RF-02 y RF-07): implementado.** Se propuso aquí el 06-11 y
+    MATU-44 lo implementó. `POST …/consentimientos/{finalidad}/retiro`, `GET …/consentimientos` y
+    `finalidad: plan_cuidado` en el `POST` pasaron a `docs/api/openapi.json` (`AutorizacionVista`,
+    `AutorizacionesPersona`, `RetiroAutorizacion` y `EstadoVista`) y se quitaron de este archivo, con el
+    parámetro `Finalidad`, el fragmento `CambioSolicitudAutorizacionEntrada` y la respuesta `YaRetirada`.
+    Las decisiones 123 a 135 están en el README. El archivo vuelve a no tener rutas.
 
     **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
     (MATU-02) y fijan el contexto con `sesion_de_grupo`. Las de sesión y dispositivos no dependen de

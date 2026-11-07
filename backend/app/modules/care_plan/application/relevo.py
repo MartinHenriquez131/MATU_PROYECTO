@@ -25,6 +25,7 @@ from app.modules.care_plan.application.ficha import PeticionFicha, PlanNoDisponi
 from app.modules.care_plan.application.ports import (
     AccesoListado,
     AccesoNuevo,
+    AccesosDeLaPersona,
     GeneradorCredencialesRelevo,
     HuellasRelevo,
     Posicion,
@@ -192,3 +193,24 @@ def revocar(peticion: PeticionRevocar, accesos: RepositorioAccesos, reloj: Reloj
         return False
     accesos.revocar(peticion.acceso_id, ahora, peticion.usuario_id, peticion.request_id)
     return True
+
+
+def cortar_por_retiro(
+    persona_cuidada_id: uuid.UUID,
+    ahora: datetime,
+    usuario_id: uuid.UUID,
+    request_id: str | None,
+    accesos: AccesosDeLaPersona,
+) -> int:
+    """Corta los accesos de la persona al retirar su autorización para plan_cuidado (MATU-44, decisión 124).
+
+    Todos los que debe_revocar da por cortables: no revocados y no vencidos, incluidos los bloqueados y
+    los en pausa. Los vencidos y los ya cortados no se tocan. Cada corte fija acceso_relevo e indice_token
+    y registra relevo.revocar con el mismo request_id. Devuelve cuántos cortó.
+    """
+    cortados = 0
+    for acceso_id, vida in accesos.no_revocados_de_la_persona(persona_cuidada_id):
+        if debe_revocar(vida, ahora):
+            accesos.revocar(acceso_id, ahora, usuario_id, request_id)
+            cortados += 1
+    return cortados
