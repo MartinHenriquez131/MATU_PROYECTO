@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MATU API · App de familia (propuesto)
-  version: 0.3.0-propuesto
+  version: 0.4.0-propuesto
   summary: Sesión con refresh en cookie, dispositivos, autorización para el consumo, perfiles de consumo, qué se acaba pronto, alertas y la lista de insumos.
   description: |
     Contrato **propuesto** de MATU-32, acordado antes de implementar (arquitectura 15.5, regla 1).
@@ -47,6 +47,11 @@ info:
     `SinAutorizacionConsumo`). Las decisiones 116 a 122 están en el README. El archivo vuelve a no
     tener rutas.
 
+    **Retirar una autorización (MATU-44): propuesto.** `POST …/consentimientos/{finalidad}/retiro`, el
+    estado de las autorizaciones (`GET …/consentimientos`, declarado en `x-matu-operaciones-que-se-suman`
+    porque la ruta ya está en `openapi.json` por su `POST`) y `finalidad: plan_cuidado` en el `POST`
+    (fragmento `CambioSolicitudAutorizacionEntrada`). Decisiones 123 a 135 del README.
+
     **Contexto de la familia.** Las rutas de consumo y alertas usan `bearerAuth` + `X-Grupo-Id`
     (MATU-02) y fijan el contexto con `sesion_de_grupo`. Las de sesión y dispositivos no dependen de
     un grupo: no llevan `X-Grupo-Id`.
@@ -81,7 +86,76 @@ tags:
   - name: alertas
     description: Avisos antes de que algo se acabe (capa 2, MATU-37)
 
-paths: {}
+paths:
+  /v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro:
+    post:
+      tags: [autorizaciones]
+      operationId: retirarAutorizacion
+      summary: Retirar la autorización de una finalidad y cortar lo que depende de ella (MATU-44)
+      description: |
+        Decisiones 123 a 126 de `docs/api/README.md`. Sin cuerpo. Lo hacen `admin` y `cuidador`, sin
+        importar quién dio la autorización (D1). En una sola transacción con el instante del `Reloj`:
+        fija `revocado_en` y `revocacion_motivo = 'retiro'` en la fila no revocada, registra
+        `consentimiento.revocar` y, con `plan_cuidado`, corta todos los accesos de relevo no vencidos ni
+        cortados de esa persona (un `relevo.revocar` por acceso); con `consumo`, descarta las alertas
+        abiertas (un `alerta.descartar` por alerta). Se puede retirar con la revisión anual vencida
+        (pendiente de Jorge, P6). Orden: 401, 404, 409 y 200.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XGrupoId'
+        - $ref: '#/components/parameters/PersonaId'
+        - $ref: '#/components/parameters/Finalidad'
+      responses:
+        '200':
+          description: Retirada. `enlaces_cortados` es 0 al retirar `consumo`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetiroAutorizacion'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/YaRetirada'
+
+x-matu-operaciones-que-se-suman:
+  # GET sobre una ruta que ya está en openapi.json (el POST de MATU-36): se declara aparte para que las
+  # pruebas de contrato del consumo sigan viendo esa ruta fuera del propuesto
+  get /v1/personas-cuidadas/{persona_id}/consentimientos:
+    tags: [autorizaciones]
+    operationId: listarAutorizaciones
+    summary: El estado de las dos autorizaciones de la persona (MATU-44, D8)
+    description: |
+      Decisión 127. Siempre dos ítems, `plan_cuidado` y `consumo`, en ese orden. Leen `admin` y
+      `cuidador`; los demás roles reciben 404 (P2 y C5 pendientes). No se audita. Orden: 401, 404 y 200.
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/XGrupoId'
+      - $ref: '#/components/parameters/PersonaId'
+    responses:
+      '200':
+        description: El estado de cada autorización
+        headers:
+          X-Request-ID:
+            $ref: '#/components/headers/XRequestId'
+          Cache-Control:
+            $ref: '#/components/headers/CacheControlNoStore'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutorizacionesPersona'
+      '401':
+        $ref: '#/components/responses/NoAutenticado'
+      '404':
+        $ref: '#/components/responses/NoEncontrado'
 
 components:
   securitySchemes:
@@ -91,6 +165,14 @@ components:
       bearerFormat: JWT
       description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
   parameters:
+    Finalidad:
+      name: finalidad
+      in: path
+      required: true
+      description: La autorización que se retira. Otro valor responde **404**, no 422.
+      schema:
+        type: string
+        enum: [plan_cuidado, consumo]
     XGrupoId:
       name: X-Grupo-Id
       in: header
@@ -159,6 +241,79 @@ components:
         type: string
         const: Bearer
   schemas:
+    CambioSolicitudAutorizacionEntrada:
+      x-matu-se-suma-a: SolicitudAutorizacionEntrada
+      description: |
+        Decisión 128 (D2, C3). `finalidad` admite también `plan_cuidado`, con las mismas reglas de la
+        calidad del alta de MATU-07 y la evidencia `declaracion_<calidad>`. El resto del cuerpo y las
+        respuestas no cambian.
+      type: object
+      properties:
+        finalidad:
+          type: string
+          enum: [plan_cuidado, consumo]
+
+    AutorizacionVista:
+      type: object
+      additionalProperties: false
+      required: [finalidad, estado, id, calidad_otorgante, otorgado_en, revision_vence_en, revocado_en, borrado_en, borrada]
+      description: |
+        El estado de una autorización de la persona (decisión 127, C1). Sin la referencia al documento,
+        la evidencia, la versión de la política ni quién la dio.
+      properties:
+        finalidad:
+          type: string
+          enum: [plan_cuidado, consumo]
+        estado:
+          type: string
+          enum: [vigente, revision_vencida, retirada, borrada, sin_autorizar]
+        id:
+          type: [string, 'null']
+          format: uuid
+        calidad_otorgante:
+          type: [string, 'null']
+          enum: [titular, representante_legal, cuidador_de_hecho, null]
+        otorgado_en:
+          type: [string, 'null']
+          format: date-time
+        revision_vence_en:
+          type: [string, 'null']
+          format: date-time
+        revocado_en:
+          type: [string, 'null']
+          format: date-time
+        borrado_en:
+          type: [string, 'null']
+          format: date-time
+          description: Cuándo se borra o se borró lo guardado. La pantalla no suma 90 días.
+        borrada:
+          type: boolean
+          description: Lo guardado ya no está o ya no se puede recuperar.
+
+    AutorizacionesPersona:
+      type: object
+      additionalProperties: false
+      required: [autorizaciones]
+      properties:
+        autorizaciones:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/AutorizacionVista'
+
+    RetiroAutorizacion:
+      type: object
+      additionalProperties: false
+      required: [autorizacion, enlaces_cortados]
+      properties:
+        autorizacion:
+          $ref: '#/components/schemas/AutorizacionVista'
+        enlaces_cortados:
+          type: integer
+          minimum: 0
+          description: Cuántos accesos de relevo cortó esta transacción (C2). 0 con `consumo`.
+
     ErrorCampo:
       type: object
       additionalProperties: false
@@ -210,6 +365,31 @@ components:
               minItems: 1
 
   responses:
+    YaRetirada:
+      description: La autorización de esa finalidad ya estaba retirada. No escribe nada ni audita otra vez (decisión 125).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/ya-retirada
+                  status:
+                    const: 409
+          example:
+            type: /errores/ya-retirada
+            title: Conflicto
+            status: 409
+            detail: Esta autorización ya estaba retirada
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e4
+
     NoAutenticado:
       description: |
         Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
