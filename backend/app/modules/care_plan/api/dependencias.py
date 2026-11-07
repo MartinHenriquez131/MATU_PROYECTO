@@ -13,9 +13,10 @@ contrato (docs/api/propuestos/ficha.openapi.yaml, "Orden de evaluación"):
 5. Consentimiento vigente para plan_cuidado, con el puerto Reloj. Si no hay, 403
    /errores/sin-consentimiento; si lo dio un cuidador de hecho y venció la revisión anual, 403
    /errores/revision-vencida (decisión D-B de Jorge, 28-10).
-6. MATU-44 (decisión 130): si la clave de datos de la persona fue destruida (la ficha se borró 90 días
-   después de un retiro), 404, como una persona eliminada. Va después del 403: sin autorización no se
-   lee nada del plan, tampoco su clave. No aplica a la lista de enlaces ni a las aperturas.
+6. MATU-44 (decisión 130): si la clave actual de la persona está destruida (la autorización vigente es
+   anterior a la destrucción), 404, como una persona eliminada. Después de una autorización nueva la
+   ficha empieza en blanco con una clave nueva. Va después del 403: sin autorización no se lee nada del
+   plan, tampoco su clave. No aplica a la lista de enlaces ni a las aperturas.
 7. La custodia de la KEK está configurada. Si no, 503: la ficha falla cerrada (decisión D-A).
 
 Recién después FastAPI valida el cuerpo (422) y corre la ruta. Así, sin consentimiento no se lee
@@ -45,6 +46,7 @@ from app.modules.care_plan.application.ports import (
     RepositorioAperturas,
     RepositorioFicha,
 )
+from app.modules.care_plan.domain.cifrado import EstadoClave, estado_clave
 from app.modules.care_plan.domain.ficha import CAMPOS_FICHA, CampoFicha, campo_de, puede_escribir, puede_leer
 from app.modules.care_plan.domain.relevo import puede_revocar
 from app.modules.care_plan.domain.secciones import SECCIONES_COMPLEMENTARIAS, SeccionComplementaria, seccion_de
@@ -180,7 +182,7 @@ def _autorizar(
             titulo="Autorización por renovar",
             detalle="Venció la revisión anual de la autorización para usar la ficha de esta persona",
         )
-    if RepositorioClavesSQL(contexto.sesion).destruida_en(persona_id) is not None:
+    if estado_clave(RepositorioClavesSQL(contexto.sesion).obtener(persona_id)) is EstadoClave.DESTRUIDA:
         raise ErrorMATU(404)
     return FichaAutorizada(contexto=contexto, persona_id=persona_id)
 

@@ -51,8 +51,9 @@ class EfectoRetiroConsumo:
         descartar_por_retiro(self._grupo_id, persona_id, ahora, usuario_id, request_id, self._consumo, self._registro)
         return 0  # el retiro de consumo no corta enlaces
 
-    def borrar_vencido(self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None) -> None:
-        self._consumo.borrar_perfiles_de_la_persona(persona_id)
-
-    def destruido_en(self, persona_id: uuid.UUID) -> datetime | None:
-        return None  # un perfil borrado no deja rastro: la vista usa el plazo
+    def antes_de_otorgar(
+        self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None, plazo_cumplido: bool
+    ) -> None:
+        # Decisión 128: una autorización 90 días o más después del retiro empieza sin los insumos anteriores
+        if plazo_cumplido:
+            self._consumo.borrar_perfiles_de_la_persona(persona_id)
