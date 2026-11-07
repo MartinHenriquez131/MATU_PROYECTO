@@ -244,6 +244,14 @@ describe('Grupo familiar, por rol y por estado', () => {
     expect(pedidas.some((p) => p.linea.includes('accesos-relevo'))).toBe(false)
   })
 
+  it.each(['admin', 'observador'] as const)('retirada sin `borrado_en`: el %s ve solo «Autorización retirada el {fecha}.», sin texto de reserva', async (rol) => {
+    apiGrupo({ [MARIA.id]: [vista('plan_cuidado', 'retirada', { revocado_en: RETIRADA.revocado_en }), vista('consumo', 'vigente')] })
+    const pantalla = abrirGrupo(rol)
+    const ficha = within(await pantalla.findByRole('region', { name: 'Permiso para guardar su ficha' }))
+    expect(ficha.getByText(/^Autorización retirada el/).closest('p')).toHaveTextContent(/^Autorización retirada el 06\/11\/2026\.$/)
+    expect(pantalla.queryByText(/90 días|se borra/)).toBeNull()
+  })
+
   it('si no se pueden traer los permisos, lo dice y deja intentar de nuevo', async () => {
     let falla = true
     api((p) => {

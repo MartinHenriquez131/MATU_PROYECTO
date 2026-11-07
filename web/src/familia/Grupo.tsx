@@ -295,13 +295,13 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     Icono = ShieldOff
     frase = (
       <>
-        {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." />{' '}
-        {v.borrado_en ? (
+        {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." />
+        {/* El dominio siempre entrega `borrado_en` con `retirada`. Si no llega, solo la primera oración. */}
+        {v.borrado_en && (
           <>
+            {' '}
             {editor ? T.siNoVuelves : T.siNadieVuelve} <Fecha iso={v.borrado_en} fin="." />
           </>
-        ) : (
-          T.siNoVuelvesSinFecha
         )}
       </>
     )

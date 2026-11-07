@@ -19,8 +19,6 @@ export const GRUPO_FAMILIAR = {
   retiradaEl: 'Autorización retirada el',
   siNoVuelves: 'Si no vuelves a autorizar, lo guardado se borra el',
   siNadieVuelve: 'Si nadie vuelve a autorizar, lo guardado se borra el',
-  /** 3.4: con `borrado_en` en `null` en `retirada` (no debería pasar). */
-  siNoVuelvesSinFecha: 'Si no vuelves a autorizar en 90 días, lo guardado se borra.',
   seBorro: 'Lo guardado se borró el',
 
   retirar: 'Retirar la autorización',
