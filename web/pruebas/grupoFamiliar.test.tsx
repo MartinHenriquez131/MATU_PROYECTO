@@ -210,6 +210,10 @@ describe('Grupo familiar, por rol y por estado', () => {
 
     const fichaPedro = within(pedro.getByRole('region', { name: 'Permiso para guardar su ficha' }))
     expect(fichaPedro.getByText(/^Autorización retirada el/)).toHaveTextContent('Autorización retirada el 01/07/2026. Lo guardado se borró el 29/09/2026.')
+    // 3.3 (revisión del 07-11): en modo angosto el ícono va en la primera línea de la frase.
+    const estado = fichaPedro.getByText(/^Autorización retirada el/).closest('p')!
+    expect(estado).toHaveClass('flex', 'angosto:block')
+    expect(estado.querySelector('svg')).toHaveClass('angosto:inline', 'angosto:mr-1.5', 'angosto:align-middle')
     // 3.4 (revisión del 07-11): cada punto final va dentro del `cifras` de su fecha.
     expect([...fichaPedro.getByText(/^Autorización retirada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['01/07/2026.', '29/09/2026.'])
     expect([...fichaMaria.getByText(/^Autorizada el/).querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['01/10/2025.', '01/10/2026.'])

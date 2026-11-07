@@ -269,7 +269,8 @@ function Cargando() {
 /** 3.4: cada estado con su ícono distinto y su frase, nunca solo color. */
 function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) {
   const ficha = v.finalidad === 'plan_cuidado'
-  const icono = 'mt-0.5 size-5 shrink-0'
+  // 3.3 (revisión del 07-11): en modo angosto el ícono va en la primera línea, como en `MensajeError`.
+  const icono = 'mt-0.5 size-5 shrink-0 angosto:mt-0 angosto:mr-1.5 angosto:inline angosto:align-middle'
   let Icono = ShieldQuestion
   let tono = 'text-tenue'
   let frase: ReactNode
@@ -313,7 +314,7 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     )
   } else frase = T.sinAutorizar
   return (
-    <p className="flex gap-2 text-base">
+    <p className="flex gap-2 angosto:block text-base">
       <Icono aria-hidden className={`${icono} ${tono}`} />
       <span className="min-w-0">{frase}</span>
     </p>
