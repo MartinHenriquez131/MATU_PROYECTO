@@ -259,6 +259,14 @@ def aplicar_cambios(perfil: Perfil, cambios: CambiosPerfil, hoy: date, autor: uu
     )
 
 
+def recontar(perfil: Perfil, stock_unidades: int, hoy: date, autor: uuid.UUID) -> Perfil:
+    """«Me quedan N» (MATU-51, decisión 139): lo mismo que un PATCH con solo stock_unidades, con
+    aplicar_cambios y sin otra fórmula. Lanza ValueError si N no es de 0 a 100.000 y CoberturaMaxima."""
+    if not 0 <= stock_unidades <= STOCK_MAXIMO:
+        raise ValueError("stock_unidades debe ser de 0 a 100000")
+    return aplicar_cambios(perfil, CambiosPerfil(stock_unidades=stock_unidades), hoy, autor)
+
+
 def con_activo(perfil: Perfil, activo: bool, autor: uuid.UUID) -> Perfil:
     """Desactivar o activar. Si ya está en ese estado, el mismo perfil (idempotente, sin versión nueva)."""
     if perfil.activo is activo:

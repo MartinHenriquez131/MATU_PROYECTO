@@ -19,7 +19,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from enum import StrEnum
 
-from app.modules.consumption.domain.perfil import Perfil, dias_restantes, fecha_quiebre
+from app.modules.consumption.domain.perfil import STOCK_MAXIMO, Perfil, dias_restantes, fecha_quiebre
 
 
 class EstadoAlerta(StrEnum):
@@ -145,9 +145,24 @@ def limites_conservacion(ahora: datetime) -> tuple[datetime, datetime]:
     return ahora - CONSERVACION_ALERTAS, ahora - CONSERVACION_EVENTOS
 
 
-# --- «Ya lo resolví» con cantidad (decisión 79) -------------------------------------------------------
+# --- «Ya lo resolví» con cantidad (decisión 79) y «Compré» (MATU-51, decisiones 137 y 144) ------------------
 
-CANTIDAD_MAXIMA = 9999
+# Lo comprado en la unidad del insumo, en «Ya lo resolví» y en «Compré» (ajuste de D de Jorge, 07-11)
+CANTIDAD_MAXIMA = 10_000
+# «Compré» en envases: de 1 a 99. envases × unidades_por_envase puede pasar de CANTIDAD_MAXIMA
+ENVASES_MAXIMO = 99
+
+
+class StockMaximo(ValueError):
+    """Lo que queda hoy más lo comprado pasa de 100.000 (decisión 43). La API responde 422 stock_maximo."""
+
+
+class SinUnidadesPorEnvase(ValueError):
+    """«Compré» en envases sobre un perfil sin unidades_por_envase. La API responde 422."""
+
+
+class EnvasesOCantidad(ValueError):
+    """«Compré» trae los dos campos o ninguno. La API responde 422 envases_o_cantidad."""
 
 
 def stock_estimado_hoy(perfil: Perfil, hoy: date) -> int:
@@ -158,12 +173,36 @@ def stock_estimado_hoy(perfil: Perfil, hoy: date) -> int:
     return max(0, restante)
 
 
+def cantidad_comprada(perfil: Perfil, *, envases: int | None, cantidad: int | None) -> int:
+    """Lo comprado en la unidad del insumo (decisión 137): ``envases × unidades_por_envase`` o ``cantidad``.
+
+    Exactamente uno de los dos (si no, EnvasesOCantidad). envases de 1 a 99 y solo con unidades_por_envase
+    (si no, SinUnidadesPorEnvase); cantidad de 1 a 10.000. Fuera de rango, ValueError con un mensaje fijo.
+    """
+    if (envases is None) == (cantidad is None):
+        raise EnvasesOCantidad("indica envases o cantidad, solo uno")
+    if envases is not None:
+        if not 1 <= envases <= ENVASES_MAXIMO:
+            raise ValueError("envases debe ser de 1 a 99")
+        if perfil.unidades_por_envase is None:
+            raise SinUnidadesPorEnvase("el insumo no tiene unidades por envase")
+        return envases * perfil.unidades_por_envase
+    assert cantidad is not None
+    if not 1 <= cantidad <= CANTIDAD_MAXIMA:
+        raise ValueError("la cantidad debe ser de 1 a 10000")
+    return cantidad
+
+
 def reponer(perfil: Perfil, cantidad: int, hoy: date, autor: uuid.UUID) -> Perfil:
     """Suma lo comprado a lo que queda hoy: stock nuevo, stock_medido_en = hoy, fecha recalculada y versión
-    + 1. Lanza CoberturaMaxima (del perfil) si pasa de 3650 días, o ValueError si la cantidad no es 1..9999."""
-    if not 1 <= cantidad <= CANTIDAD_MAXIMA:
-        raise ValueError("la cantidad debe ser de 1 a 9999")
+    + 1. ``cantidad`` ya viene en la unidad del insumo (de cantidad_comprada o del cuerpo de «Ya lo resolví»).
+    Lanza ValueError si no es positiva, StockMaximo si el stock pasa de 100.000 y CoberturaMaxima (del perfil)
+    si pasa de 3650 días."""
+    if cantidad < 1:
+        raise ValueError("la cantidad debe ser positiva")
     stock = stock_estimado_hoy(perfil, hoy) + cantidad
+    if stock > STOCK_MAXIMO:
+        raise StockMaximo("lo que queda más lo comprado pasa del máximo")
     return replace(
         perfil,
         stock_unidades=stock,
@@ -172,3 +211,22 @@ def reponer(perfil: Perfil, cantidad: int, hoy: date, autor: uuid.UUID) -> Perfi
         version=perfil.version + 1,
         actualizado_por=autor,
     )
+
+
+# --- Las alertas abiertas después de «Compré» o «Me quedan N» (MATU-51, decisiones 138 y 139) ------------
+
+
+def dejan_de_corresponder(perfil: Perfil, abiertas: tuple[AlertaAbierta, ...], hoy: date) -> tuple[uuid.UUID, ...]:
+    """Las alertas abiertas que, con la fecha estimada nueva del perfil, ya no corresponden: las de otra fecha
+    y, si salió de la ventana, todas. Es la regla del trabajo diario (``planificar``, decisión 75) con la
+    autorización vigente, que la API ya verificó. Nunca pide materializar una alerta."""
+    insumo = InsumoEnSeguimiento(
+        perfil_id=perfil.id,
+        persona_cuidada_id=perfil.persona_cuidada_id,
+        fecha_quiebre_estimada=perfil.fecha_quiebre_estimada,
+        dias_aviso=perfil.dias_aviso,
+        autorizado=True,
+        abiertas=abiertas,
+    )
+    descartar = planificar(insumo, hoy).descartar
+    return descartar if perfil.activo else tuple(a.id for a in abiertas)

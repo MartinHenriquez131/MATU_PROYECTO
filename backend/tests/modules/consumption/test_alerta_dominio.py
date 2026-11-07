@@ -228,8 +228,10 @@ def test_reponer_suma_al_estimado_mide_hoy_recalcula_y_sube_la_version() -> None
     assert nuevo.tasa_unidades == perfil.tasa_unidades and nuevo.dias_aviso == perfil.dias_aviso
 
 
-@pytest.mark.parametrize("cantidad", [0, -1, 10_000])
-def test_reponer_exige_cantidad_de_1_a_9999(cantidad: int) -> None:
+@pytest.mark.parametrize("cantidad", [0, -1])
+def test_reponer_exige_cantidad_positiva(cantidad: int) -> None:
+    # MATU-51: el tope de 1 a 10.000 lo pone cantidad_comprada (decisión 144); reponer recibe lo que salga de
+    # envases × unidades_por_envase, que puede pasar de 10.000
     with pytest.raises(ValueError):
         reponer(_perfil(10), cantidad, ANCLA, AUTOR)
 
