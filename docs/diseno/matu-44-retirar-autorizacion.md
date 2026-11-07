@@ -1,8 +1,10 @@
 # MATU-44 · Retirar una autorización · Especificación de diseño
 
-**Versión 1.2 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.3 · 07/11/2026** · Agente 6, UI/UX. Especifica y no construye.
 
 **Cambios de la 1.1:** las decisiones de Jorge del 06-11 sobre P1 a P8 (sección 11) y los nombres reales del contrato de MATU-44 (`docs/api/openapi.json` y README, decisiones 123 a 135, sección 7).
+
+**Cambios de la 1.3:** el ícono de estado del bloque va en línea en modo angosto (3.3).
 
 **Cambios de la 1.2, tras la revisión visual del 07-11:** A1 y A2 quedan resueltas en el contrato (decisiones 127 y 130) y sale la nota provisional de 3.6. Se confirman cuatro decisiones del frontend (sección 0.1). Se agregan tres reglas que la revisión mostró que faltaban: el punto final va pegado a la fecha (3.4), la confirmación no se cierra con un segundo `Esc` mientras retira (4.4) y la espera de 5.1 y 5.2 no cambia el título ni pierde el foco (5.1).
 
@@ -171,7 +173,7 @@ Grupo familiar no existía en `web/`, solo en la demo (`Demo/src/familia/Grupo.t
 |---|---|---|
 | Contenedor | `section aria-labelledby={id del h3}`, `flex flex-col gap-3 rounded-xl px-4 angosto:px-2 py-4`. Con `vigente` o `revision_vencida`: `bg-hoja ring-1 ring-linea`. Con `retirada`, `borrada` o `sin_autorizar`: `bg-papel border-2 border-dashed border-borde`, el mismo trato que un insumo «Sin seguir» (MATU-36 5) | — |
 | Título | `h3 text-lg font-bold break-words` | «Permiso para guardar su ficha» · «Permiso para calcular sus insumos» |
-| Estado | `p flex gap-2 text-base`, ícono `size-5 shrink-0 mt-0.5 aria-hidden`. Cada estado con **ícono distinto y frase**, nunca solo color | Tabla 3.4 |
+| Estado | `p flex gap-2 text-base`, ícono `size-5 shrink-0 mt-0.5 aria-hidden`. Cada estado con **ícono distinto y frase**, nunca solo color. **En modo angosto el ícono va en la primera línea de la frase**, como en `MensajeError` (`angosto:block` en el `p`, `angosto:inline` en el ícono): con el ícono en su columna, a 320 px con el texto al 200 % «Autorización» se parte en «Autorizació / n» y la fecha toca el borde (revisión del 07-11) | Tabla 3.4 |
 | Confirmación o aviso | `Nota`, solo después de una acción (3.5) | Tabla 3.5 |
 | Botón | `Boton`, `self-start`, sin ícono. Solo `admin` y `cuidador` | Tabla 3.4 |
 | Quién puede retirarla | Solo pagador y observador, `p text-base text-tenue` | 3.6 |
