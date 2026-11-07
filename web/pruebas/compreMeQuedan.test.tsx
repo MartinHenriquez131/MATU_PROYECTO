@@ -457,6 +457,23 @@ describe('Quién ve los botones', () => {
   })
 })
 
+describe('La nota de «Se acaban pronto» según el rol', () => {
+  it.each([
+    ['admin', 'Es una estimación con lo que anotaste.'],
+    ['cuidador', 'Es una estimación con lo que anotaste.'],
+    ['pagador', 'Es una estimación con lo que anotó la familia.'],
+    ['observador', 'Es una estimación con lo que anotó la familia.'],
+  ] as const)('%s: «%s»', async (rol, nota) => {
+    contexto = familiaFalsa({ persona: PERSONA, personaId: PERSONA.id, rol } as never)
+    api(() => problema(500, 'error-interno'), estado)
+    render(<Insumos />)
+    await screen.findByRole('heading', { name: 'Se acaban pronto' })
+    expect(screen.getByText(nota)).toBeInTheDocument()
+    const otra = nota === 'Es una estimación con lo que anotaste.' ? 'Es una estimación con lo que anotó la familia.' : 'Es una estimación con lo que anotaste.'
+    expect(screen.queryByText(otra)).toBeNull()
+  })
+})
+
 // ---------------------------------------------------------------- «Ya lo resolví» (3.8)
 
 describe('«Ya lo resolví» en envases', () => {

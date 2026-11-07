@@ -200,6 +200,7 @@ export const ALERTAS = {
   tituloCuantos: (n: number) => `Se acaban pronto (${n})`, // más de 3, aprobado por Jorge el 03-11
   fechaEstimada: 'Fecha estimada:', // [APROBADO] (decisión de Jorge) + {fecha}
   nota: 'Es una estimación con lo que anotaste.', // aprobado por Jorge el 03-11
+  notaLector: 'Es una estimación con lo que anotó la familia.', // pagador y observador, aprobado por Jorge el 07-11 (MATU-51)
   marca: 'Te estamos avisando', // aprobado por Jorge el 03-11
   boton: 'Ya lo resolví', // [APROBADO]
   botonDe: (nombre: string) => `Ya lo resolví: ${nombre}`, // aprobado por Jorge el 03-11

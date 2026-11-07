@@ -1925,7 +1925,7 @@ function SeAcabanPronto({
                   )
                 })}
               </ul>
-              <p className="max-w-prose text-base text-tenue">{ALERTAS.nota}</p>
+              <p className="max-w-prose text-base text-tenue">{editor ? ALERTAS.nota : ALERTAS.notaLector}</p>
             </>
           )}
         </section>
