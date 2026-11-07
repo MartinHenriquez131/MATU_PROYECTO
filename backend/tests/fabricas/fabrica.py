@@ -429,6 +429,8 @@ class Fabrica:
                     instante,
                     revision_vence_en(calidad_enum, instante),
                     revocado_en,
+                    # MATU-44: el motivo va junto con revocado_en (CHECK de la 0016)
+                    None if revocado_en is None else "retiro",
                 ),
             )
         self.anotar("consentimiento", consentimiento_id)

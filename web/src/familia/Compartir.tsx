@@ -12,7 +12,7 @@
 // - Ningún error se registra en la consola: los de Axios llevan el cuerpo (nombre, teléfono, PIN).
 // - Ningún control para imprimir, descargar ni exportar la ficha (ADR-029).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleAlert, CircleCheck, CirclePause, Clock3, CloudOff, Copy, KeyRound, Link2, Phone, Send, ShieldAlert, ShieldQuestion, TimerOff, Unlink } from 'lucide-react'
+import { CircleAlert, CircleCheck, CirclePause, Clock3, CloudOff, Copy, KeyRound, Link2, Phone, Send, ShieldAlert, TimerOff, Unlink } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   cortarAcceso,
@@ -40,6 +40,7 @@ import { navegar, type Ruta } from './ruteo'
 import { seccionesEnHoja } from './Secciones'
 import { ConfirmacionRemedios, ElegirSecciones, seccionesAgregadas, useEleccionSecciones } from './SeccionesCompartir'
 import { COMPARTIR as T, COMPARTIR_SECCIONES, FICHA, GENERAL, loQueVeAcceso, QUIEN } from './textos'
+import { GRUPO_FAMILIAR } from './textosGrupo'
 import { Acciones, CampoTexto, Etiqueta, GrupoOpciones, HojaFicha, MensajeError, Nota, Pagina, Pestanas, Stepper, Titulo } from './ui'
 
 const HORA = 3_600_000
@@ -548,8 +549,9 @@ type Carga = 'cargando' | 'lista' | 'red' | 'sin-acceso'
 export function Enlaces() {
   const { personaId, rol, anunciar, autorizacion, fijar } = useFamilia()
   const gestiona = puedeCompartir(rol)
-  // Decisión 33: sin autorización vigente, ningún enlace abre aunque la API lo liste como `vigente`.
-  const enPausa = autorizacion !== null
+  // Decisión 33: con la autorización por renovar, ningún enlace abre aunque la API lo liste como
+  // `vigente`. Retirada (MATU-44, decisión 135), la API ya los cortó: no hay pausa, hay corte.
+  const enPausa = autorizacion === 'revision-vencida'
   const [carga, setCarga] = useState<Carga>('cargando')
   const [activos, setActivos] = useState<AccesoResumen[]>([])
   const [anteriores, setAnteriores] = useState<AccesoResumen[]>([])
@@ -660,7 +662,8 @@ export function Enlaces() {
   else
     lista = (
       <>
-        {enPausa && <AvisoPausa autorizacion={autorizacion} />}
+        {autorizacion === 'revision-vencida' && <AvisoPausa />}
+        {autorizacion === 'sin-consentimiento' && <AvisoRetirada gestiona={gestiona} />}
         <section aria-labelledby="abren-t" className="flex flex-col gap-3">
           <h2 id="abren-t" className="text-xl font-bold leading-snug">
             {T.abrenAhora}
@@ -721,18 +724,31 @@ export function Enlaces() {
   )
 }
 
-/** Decisión 33: arriba de la lista, con lo que pide 6.4 o 6.4b para volver. */
-function AvisoPausa({ autorizacion }: { autorizacion: 'sin-consentimiento' | 'revision-vencida' }) {
-  const revision = autorizacion === 'revision-vencida'
+/** Decisión 33 y lenguaje 9.1: la autorización por renovar, arriba de la lista, con lo que pide 6.4b. */
+function AvisoPausa() {
   return (
-    <Nota
-      tono="atenta"
-      borde
-      titulo={T.pausa}
-      icono={revision ? <ShieldAlert aria-hidden className="mt-0.5 size-6 shrink-0 text-atenta" /> : <ShieldQuestion aria-hidden className="mt-0.5 size-6 shrink-0 text-atenta" />}
-    >
-      {revision ? FICHA.revisionPide : FICHA.sinConsentimiento}
+    <Nota tono="atenta" borde iconoEnLinea titulo={T.pausa} icono={<ShieldAlert aria-hidden className="mt-0.5 size-6 shrink-0 text-atenta" />}>
+      {FICHA.revisionPide}
     </Nota>
+  )
+}
+
+/**
+ * MATU-44 4.5: la autorización retirada. Los enlaces ya se cortaron y no vuelven: no es `atenta`,
+ * porque no hay nada que hacer para que abran. Admin y cuidador pueden ir a ver los permisos.
+ */
+function AvisoRetirada({ gestiona }: { gestiona: boolean }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Nota tono="rocio" borde iconoEnLinea titulo={GRUPO_FAMILIAR.enlacesRetiradaTitulo} icono={<Unlink aria-hidden className="mt-0.5 size-6 shrink-0 text-turquesa" />}>
+        {GRUPO_FAMILIAR.enlacesRetirada}
+      </Nota>
+      {gestiona && (
+        <Boton variante="texto" onClick={() => navegar('/grupo')}>
+          {GRUPO_FAMILIAR.verPermisos}
+        </Boton>
+      )}
+    </div>
   )
 }
 

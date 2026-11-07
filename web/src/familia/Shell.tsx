@@ -1,8 +1,9 @@
 // El esqueleto de la app de la familia (especificación 2), copiado de `ShellFamilia` y
 // `Navegacion` de la demo (Demo/src/familia/Shell.tsx). Cambios: tres secciones, el distintivo del
-// piloto, la persona con su selector y «Salir»; sin fecha ni «Conectada: Carmen» (D5).
+// piloto, la persona con su selector y «Salir»; sin fecha ni «Conectada: Carmen» (D5). MATU-44 (P1)
+// suma Grupo familiar, la cuarta sección, visible para todos los roles.
 import { useId, useState, type ReactNode } from 'react'
-import { ChevronDown, ClipboardList, LogOut, Package, Share2, UserRound } from 'lucide-react'
+import { ChevronDown, ClipboardList, LogOut, Package, Share2, UserRound, Users } from 'lucide-react'
 import { Boton } from '../compartido/ui/Boton'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { listarPersonas, nombrePilaDe } from '../compartido/api/familia'
@@ -10,17 +11,27 @@ import { camposListos } from './ui'
 import { puedeCompartir, puedeVerFicha, useFamilia } from './estado'
 import { navegar, useRuta, type Ruta } from './ruteo'
 import { CUENTA_PROPIA, MARCO } from './textos'
+import { GRUPO_FAMILIAR } from './textosGrupo'
 
-type Seccion = 'ficha' | 'insumos' | 'compartir'
+type Seccion = 'ficha' | 'insumos' | 'compartir' | 'grupo'
 
 const SECCIONES: { id: Seccion; texto: string; corto: string; Icono: typeof Package; ruta: Ruta }[] = [
   { id: 'ficha', texto: 'Ficha de relevo', corto: 'Ficha', Icono: ClipboardList, ruta: '/ficha' },
   { id: 'insumos', texto: 'Insumos', corto: 'Insumos', Icono: Package, ruta: '/insumos' },
   { id: 'compartir', texto: 'Compartir', corto: 'Compartir', Icono: Share2, ruta: '/compartir' },
+  { id: 'grupo', texto: GRUPO_FAMILIAR.titulo, corto: GRUPO_FAMILIAR.corto, Icono: Users, ruta: '/grupo' },
 ]
 
 const seccionDe = (ruta: string): Seccion | null =>
-  ruta.startsWith('/ficha') ? 'ficha' : ruta.startsWith('/insumos') ? 'insumos' : ruta.startsWith('/compartir') ? 'compartir' : null
+  ruta.startsWith('/ficha')
+    ? 'ficha'
+    : ruta.startsWith('/insumos')
+      ? 'insumos'
+      : ruta.startsWith('/compartir')
+        ? 'compartir'
+        : ruta === '/grupo' || ruta.startsWith('/grupo/')
+          ? 'grupo'
+          : null
 
 /** Pista de la sección, siempre con palabra. En el teléfono queda para el lector de pantalla. */
 function Pista({ seccion }: { seccion: Seccion }) {
@@ -35,7 +46,7 @@ function Navegacion() {
   const { rol, grupo } = useFamilia()
   const actual = seccionDe(ruta)
   const visibles = SECCIONES.filter((s) => (s.id === 'ficha' ? puedeVerFicha(rol, grupo) : s.id === 'compartir' ? puedeCompartir(rol) : true))
-  const columnas = { 1: 'telefono:grid-cols-1', 2: 'telefono:grid-cols-2', 3: 'telefono:grid-cols-3' }[visibles.length] ?? 'telefono:grid-cols-3'
+  const columnas = { 1: 'telefono:grid-cols-1', 2: 'telefono:grid-cols-2', 3: 'telefono:grid-cols-3', 4: 'telefono:grid-cols-4' }[visibles.length] ?? 'telefono:grid-cols-4'
   return (
     <nav
       aria-label={MARCO.secciones}
@@ -96,7 +107,7 @@ function Persona() {
     setAbierto(false)
     await elegir(grupoId, personaId)
     const seccion = seccionDe(ruta)
-    navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : '/', { reemplazar: true })
+    navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
     window.setTimeout(() => document.getElementById('titulo-pagina')?.focus(), 0)
   }
 

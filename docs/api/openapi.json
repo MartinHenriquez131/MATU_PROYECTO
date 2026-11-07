@@ -2546,7 +2546,7 @@
         "tags": [
           "autorizaciones"
         ],
-        "summary": "Dar la autorización para calcular cuándo se acaban los insumos",
+        "summary": "Dar la autorización para calcular los insumos o para usar la ficha",
         "operationId": "otorgar_v1_personas_cuidadas__persona_id__consentimientos_post",
         "security": [
           {
@@ -2624,6 +2624,185 @@
             "description": "Cuerpo inválido o una combinación que no cumple las reglas de la calidad",
             "content": {
               "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "autorizaciones"
+        ],
+        "summary": "El estado de las dos autorizaciones de la persona",
+        "operationId": "estado_v1_personas_cuidadas__persona_id__consentimientos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AutorizacionesPersona"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AutorizacionesPersonaResumen"
+                    }
+                  ],
+                  "title": "Response Estado V1 Personas Cuidadas  Persona Id  Consentimientos Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, persona de otro grupo o inexistente",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro": {
+      "post": {
+        "tags": [
+          "autorizaciones"
+        ],
+        "summary": "Retirar la autorización de una finalidad y cortar lo que depende de ella",
+        "operationId": "retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "finalidad",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "plan_cuidado o consumo. Otro valor responde 404",
+              "enum": [
+                "plan_cuidado",
+                "consumo"
+              ],
+              "title": "Finalidad"
+            },
+            "description": "plan_cuidado o consumo. Otro valor responde 404"
+          },
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetiroAutorizacion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/ya-retirada: la autorización ya estaba retirada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
             }
           }
         }
@@ -4760,6 +4939,239 @@
         ],
         "title": "AutorizacionCreada"
       },
+      "AutorizacionVista": {
+        "properties": {
+          "finalidad": {
+            "type": "string",
+            "enum": [
+              "plan_cuidado",
+              "consumo"
+            ],
+            "title": "Finalidad"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoVista"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "calidad_otorgante": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalidadOtorgante"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "otorgado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otorgado En"
+          },
+          "revision_vence_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Vence En"
+          },
+          "revocado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocado En"
+          },
+          "borrado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrado En"
+          },
+          "borrada": {
+            "type": "boolean",
+            "title": "Borrada"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finalidad",
+          "estado",
+          "id",
+          "calidad_otorgante",
+          "otorgado_en",
+          "revision_vence_en",
+          "revocado_en",
+          "borrado_en",
+          "borrada"
+        ],
+        "title": "AutorizacionVista",
+        "description": "El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la\nversión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``\nsalen de aquí."
+      },
+      "AutorizacionVistaResumen": {
+        "properties": {
+          "finalidad": {
+            "type": "string",
+            "enum": [
+              "plan_cuidado",
+              "consumo"
+            ],
+            "title": "Finalidad"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoVista"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "otorgado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Otorgado En"
+          },
+          "revision_vence_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Vence En"
+          },
+          "revocado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revocado En"
+          },
+          "borrado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrado En"
+          },
+          "borrada": {
+            "type": "boolean",
+            "title": "Borrada"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finalidad",
+          "estado",
+          "id",
+          "otorgado_en",
+          "revision_vence_en",
+          "revocado_en",
+          "borrado_en",
+          "borrada"
+        ],
+        "title": "AutorizacionVistaResumen",
+        "description": "Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del\notorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2)."
+      },
+      "AutorizacionesPersona": {
+        "properties": {
+          "autorizaciones": {
+            "items": {
+              "$ref": "#/components/schemas/AutorizacionVista"
+            },
+            "type": "array",
+            "title": "Autorizaciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "autorizaciones"
+        ],
+        "title": "AutorizacionesPersona",
+        "description": "Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador."
+      },
+      "AutorizacionesPersonaResumen": {
+        "properties": {
+          "autorizaciones": {
+            "items": {
+              "$ref": "#/components/schemas/AutorizacionVistaResumen"
+            },
+            "type": "array",
+            "title": "Autorizaciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "autorizaciones"
+        ],
+        "title": "AutorizacionesPersonaResumen",
+        "description": "Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador."
+      },
       "AvisoMostradoEntrada": {
         "properties": {
           "id": {
@@ -5367,6 +5779,17 @@
         ],
         "title": "EstadoSeccionVista",
         "description": "Una sección complementaria agregada (MATU-50). No hay estado \"vacío\": una sección que no está no viene."
+      },
+      "EstadoVista": {
+        "type": "string",
+        "enum": [
+          "vigente",
+          "revision_vencida",
+          "retirada",
+          "borrada",
+          "sin_autorizar"
+        ],
+        "title": "EstadoVista"
       },
       "FichaRelevoVista": {
         "properties": {
@@ -6224,6 +6647,25 @@
         ],
         "title": "ProductoResumen"
       },
+      "RetiroAutorizacion": {
+        "properties": {
+          "autorizacion": {
+            "$ref": "#/components/schemas/AutorizacionVista"
+          },
+          "enlaces_cortados": {
+            "type": "integer",
+            "title": "Enlaces Cortados"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "autorizacion",
+          "enlaces_cortados"
+        ],
+        "title": "RetiroAutorizacion",
+        "description": "Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo (decisión 126, C2)."
+      },
       "SeccionComplementaria": {
         "type": "string",
         "enum": [
@@ -6387,7 +6829,10 @@
         "properties": {
           "finalidad": {
             "type": "string",
-            "const": "consumo",
+            "enum": [
+              "consumo",
+              "plan_cuidado"
+            ],
             "title": "Finalidad"
           },
           "calidad_otorgante": {
@@ -6423,7 +6868,7 @@
           "calidad_otorgante"
         ],
         "title": "SolicitudAutorizacionEntrada",
-        "description": "Cuerpo de la autorización. Solo ``finalidad: consumo``. Un campo extra responde 422."
+        "description": "Cuerpo de la autorización: ``consumo`` (MATU-36) o ``plan_cuidado`` para volver a autorizar la ficha\n(MATU-44, decisión 128). Un campo extra responde 422."
       },
       "SolicitudCambioContrasena": {
         "properties": {

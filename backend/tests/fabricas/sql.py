@@ -29,8 +29,8 @@ INSERTAR_CONSENTIMIENTO = (
 # MATU-36: el consentimiento para consumo, que puede nacer ya revocado (para probar la conservación)
 INSERTAR_CONSENTIMIENTO_REVOCABLE = (
     "INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
-    " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en, revocado_en)"
-    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)"
+    " version_politica, evidencia, referencia_documento, otorgado_en, revision_vence_en, revocado_en,"
+    " revocacion_motivo) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)"
 )
 INSERTAR_PERFIL_CONSUMO = (
     "INSERT INTO perfil_consumo (id, grupo_id, persona_cuidada_id, producto_id, nombre_libre, unidad, tasa_unidades,"
@@ -53,7 +53,7 @@ ACTUALIZAR_COMPLETITUD = "UPDATE plan_cuidado SET completitud_pct = %s WHERE id 
 LEER_CLAVE = "SELECT dek_cifrada_con_kek, kek_version FROM clave_datos WHERE persona_cuidada_id = %s"
 CREAR_CLAVE = (
     "INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
-    " VALUES (%s, %s, %s, %s) ON CONFLICT (persona_cuidada_id) DO NOTHING"
+    " VALUES (%s, %s, %s, %s) ON CONFLICT (persona_cuidada_id) WHERE destruida_en IS NULL DO NOTHING"
 )
 CLAVE_DE_PERSONA = "SELECT id FROM clave_datos WHERE persona_cuidada_id = %s"
 

@@ -6,7 +6,7 @@
 // Alta.tsx) se ve y se anuncia igual, conserva el foco, y la pantalla ignora el envío mientras espera.
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
-type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro'
+type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro' | 'peligroPrincipal'
 
 const VARIANTES: Record<Variante, string> = {
   principal: 'px-5 angosto:px-3 bg-turquesa text-papel hover:brightness-110 active:brightness-95',
@@ -19,6 +19,9 @@ const VARIANTES: Record<Variante, string> = {
   peligro: 'px-5 angosto:px-3 bg-hoja text-pronto ring-2 ring-inset ring-pronto hover:bg-pronto-fondo active:bg-pronto-fondo focus-visible:outline-pronto',
   // «Quitar «…»» (4.5): de texto, como `texto`, en `pronto`.
   textoPeligro: 'px-0 text-pronto underline underline-offset-4 decoration-pronto/40 hover:decoration-pronto focus-visible:outline-pronto',
+  // MATU-44 4.1: la confirmación de lo que no se deshace, dentro de un diálogo. Macizo `pronto`, con
+  // la forma del principal y el foco base `turquesa` sobre `hoja` (el botón de eliminar de MATU-36).
+  peligroPrincipal: 'px-5 angosto:px-3 bg-pronto text-papel hover:brightness-110 active:brightness-95',
 }
 
 const BASE = 'inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl py-2.5 font-bold leading-tight'

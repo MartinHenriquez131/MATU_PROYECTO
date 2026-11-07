@@ -73,6 +73,9 @@ class AccionAuditoria(StrEnum):
     # MATU-37, decisión 79: «Ya lo resolví» con cantidad. Sin la cantidad
     ALERTA_RESOLVER = "alerta.resolver"
     REPOSICION_DECLARAR = "reposicion.declarar"
+    # MATU-44 (D3, decisión 129): la clave de datos de la ficha se destruye 90 días después del retiro.
+    # Actor sistema, sin detalle
+    CLAVE_DESTRUIR = "clave.destruir"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -144,6 +147,8 @@ class EntidadAuditoria(StrEnum):
     # MATU-37
     ALERTA_QUIEBRE = "alerta_quiebre"
     REPOSICION = "reposicion"
+    # MATU-44
+    CLAVE_DATOS = "clave_datos"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:

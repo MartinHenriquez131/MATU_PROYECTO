@@ -3,7 +3,7 @@
 // `If-Match`, el conflicto 412 a la vista y el diálogo de eliminar. Sin interfaz optimista: la
 // lista cambia solo con la respuesta de la API. Nada se guarda en el navegador ni en la URL.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { Bell, BellRing, CalendarCheck, Check, CircleAlert, CircleCheck, Hourglass, ListChecks, Lock, PauseCircle, Plus, Trash2 } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizarConsumo,
@@ -34,7 +34,7 @@ import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, use
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
 import { miles, sufijoCantidad } from './textoLista'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, INSUMOS, lineaDias } from './textosInsumos'
-import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
+import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
 
@@ -650,16 +650,27 @@ function Fila({
 
 // ---------------------------------------------------------------- 3.1 el permiso
 
-function Permiso({
+/**
+ * También lo usa volver a autorizar los insumos (MATU-44 5.2), sin cambiarlo: `antes` pone «Volver a
+ * Grupo familiar» arriba, `frase` la frase de estado bajo la bajada y `cargando` reemplaza el
+ * formulario mientras llega la vista, con el mismo título (5.1, revisión del 07-11). En Insumos no van (P3).
+ */
+export function Permiso({
   pila,
   personaId,
   onListo,
   onNoEncontrado,
+  antes,
+  frase,
+  cargando,
 }: {
   pila: string
   personaId: string | null
   onListo: (yaVigente: boolean) => void
   onNoEncontrado: () => void
+  antes?: ReactNode
+  frase?: ReactNode
+  cargando?: ReactNode
 }) {
   const [calidad, setCalidad] = useState<Calidad | null>('cuidador_de_hecho')
   const [leido, setLeido] = useState(false)
@@ -698,10 +709,14 @@ function Permiso({
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
+        {antes}
         <p className="text-base text-tenue">{INSUMOS.titulo}</p>
         <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.permisoTitulo}</Titulo>
         <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
+        {frase}
       </div>
+      {cargando ?? (
+        <>
       <GrupoOpciones
         leyenda={INSUMOS.permisoLeyenda}
         nombre="calidad-consumo"
@@ -727,36 +742,16 @@ function Permiso({
         />
       )}
       {calidad === 'cuidador_de_hecho' && (
-        <section aria-labelledby="aviso-consumo-t" className="border-l-4 border-atenta bg-atenta-fondo">
-          <h2 id="aviso-consumo-t" className="flex items-start gap-2 px-5 angosto:px-2 pt-4 text-lg font-bold">
-            <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />
-            {AVISO_CUIDADOR.titulo}
-          </h2>
-          <div className="flex max-w-prose flex-col gap-2.5 px-5 angosto:px-2 pt-2 pb-4 leading-relaxed">
-            {AVISO_CUIDADOR.parrafos.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
-            <input
-              type="checkbox"
-              checked={leido}
-              aria-invalid={error === 'leido' ? true : undefined}
-              aria-describedby={error === 'leido' ? 'leido-consumo-e' : undefined}
-              onChange={(e) => {
-                setLeido(e.target.checked)
-                setError(null)
-              }}
-              className="size-5 shrink-0 accent-turquesa"
-            />
-            {AUTORIZACION.leido}
-          </label>
-          {error === 'leido' && (
-            <div className="px-5 angosto:px-2 pb-3">
-              <MensajeError id="leido-consumo-e">{AUTORIZACION.errLeido}</MensajeError>
-            </div>
-          )}
-        </section>
+        <AvisoCuidadorDeHecho
+          idTitulo="aviso-consumo-t"
+          idError="leido-consumo-e"
+          leido={leido}
+          error={error === 'leido'}
+          onLeido={(v) => {
+            setLeido(v)
+            setError(null)
+          }}
+        />
       )}
       {calidad && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
@@ -773,6 +768,8 @@ function Permiso({
           {INSUMOS.permisoBoton}
         </Boton>
       </Acciones>
+        </>
+      )}
     </div>
   )
 }
