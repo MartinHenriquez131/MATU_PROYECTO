@@ -71,6 +71,7 @@ from app.modules.care_circle.infrastructure.repositorio_retiros import Repositor
 from app.modules.iam.api.dependencias import obtener_reloj
 from app.shared.auditoria_sql import RegistroAuditoriaSql
 from app.shared.puertos import RegistroAuditoria, Reloj
+from app.shared.reloj_detenido import RelojDetenido
 
 log = logging.getLogger("matu.care_circle.autorizaciones")
 
@@ -133,8 +134,14 @@ def persona_para_autorizar(
     return PersonaParaAutorizar(contexto, persona)
 
 
+def reloj_de_la_peticion(reloj: Annotated[Reloj, Depends(obtener_reloj)]) -> Reloj:
+    """Un solo instante por petición (decisión 124): el caso de uso y la auditoría leen el mismo. FastAPI
+    resuelve esta dependencia una vez por petición y entrega la misma instancia a todos."""
+    return RelojDetenido(reloj.ahora())
+
+
 def obtener_registro_autorizaciones(
-    contexto: SesionDeGrupo, reloj: Annotated[Reloj, Depends(obtener_reloj)]
+    contexto: SesionDeGrupo, reloj: Annotated[Reloj, Depends(reloj_de_la_peticion)]
 ) -> RegistroAuditoria:
     """El registro de auditoría en la transacción de la petición."""
     return RegistroAuditoriaSql(contexto.sesion, reloj)
@@ -159,7 +166,7 @@ def obtener_efectos_retiro(contexto: SesionDeGrupo, registro: RegistroDep) -> di
 
 Efectos = Annotated[dict[str, EfectoDelRetiro], Depends(obtener_efectos_retiro)]
 Retiros = Annotated[RepositorioRetiros, Depends(obtener_repositorio_retiros)]
-RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
+RelojDep = Annotated[Reloj, Depends(reloj_de_la_peticion)]
 Autorizar = Annotated[PersonaParaAutorizar, Depends(persona_para_autorizar)]
 
 

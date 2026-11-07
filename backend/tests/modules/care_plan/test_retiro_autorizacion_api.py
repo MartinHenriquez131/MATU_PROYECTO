@@ -464,3 +464,73 @@ def test_los_logs_no_llevan_nombres_telefonos_tokens_ni_texto(entorno: EntornoAb
     for dato in (familia.persona.nombre, familia.persona.nombre_pila, "Rosa", token, RUTINA):
         assert dato not in log
     assert not aparece_celular("+56 9 5555 0137", log)
+
+
+# --- La otra finalidad y un solo instante (cierre del analista) ------------------------------------------------
+
+
+def test_retirar_la_ficha_no_toca_los_insumos(entorno: EntornoAbrir) -> None:
+    """Contraparte de test_retirar_consumo_no_toca_la_ficha_ni_los_enlaces: perfiles, alertas y lectura intactos."""
+    familia = entorno.familia_con_ficha()
+    entorno.ficha.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
+    perfil = entorno.ficha.fabrica.perfil_consumo(familia.persona)
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        fila = cx.execute("INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 6)"
+                          " RETURNING id", (perfil,)).fetchone()
+    assert fila is not None
+    alerta = fila[0]
+    antes = _una("SELECT version, stock_unidades, activo FROM perfil_consumo WHERE id = %s", perfil)
+
+    assert _retirar(entorno, familia).status_code == 200
+
+    assert _una("SELECT version, stock_unidades, activo FROM perfil_consumo WHERE id = %s", perfil) == antes
+    assert _una("SELECT estado, cerrada_en FROM alerta_quiebre WHERE id = %s", alerta) == ("pendiente", None)
+    assert _consentimientos(familia, "consumo")[0][1:] == (None, None)
+    assert _acciones(familia.grupo.id, "alerta.descartar") == []
+    lectura = entorno.ficha.iam.cliente.get(f"/v1/personas-cuidadas/{familia.persona.id}/consumo",
+                                            headers=_cab(entorno, familia.admin, familia))
+    assert lectura.status_code == 200 and [p["id"] for p in lectura.json()["items"]] == [str(perfil)]
+
+
+class _RelojQueAvanza:
+    """Un reloj que avanza un milisegundo cada vez que se lee: si algo pide su propia hora, se nota."""
+
+    def __init__(self, inicio: Any) -> None:
+        self.actual = inicio
+        self.lecturas = 0
+
+    def ahora(self) -> Any:
+        self.lecturas += 1
+        self.actual += timedelta(milliseconds=1)
+        return self.actual
+
+
+def test_el_retiro_usa_un_solo_instante_en_todo(entorno: EntornoAbrir) -> None:
+    """Decisión 124: revocado_en, el corte de cada acceso e indice_token y el ocurrido_en de toda la auditoría del
+    retiro son el mismo instante, aunque el Reloj real avance entre una lectura y otra."""
+    from app.modules.iam.api.dependencias import obtener_reloj
+
+    familia = entorno.familia_con_ficha()
+    primero, _, _ = entorno.compartir(familia)
+    segundo, _, _ = entorno.compartir(familia)
+    avanza = _RelojQueAvanza(entorno.reloj.ahora())
+    app = entorno.ficha.app
+    anterior = app.dependency_overrides[obtener_reloj]
+    app.dependency_overrides[obtener_reloj] = lambda: avanza
+    try:
+        respuesta = _retirar(entorno, familia)
+    finally:
+        app.dependency_overrides[obtener_reloj] = anterior
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert avanza.lecturas >= 2  # el reloj real sí avanzó durante la petición
+    [(revocado,)] = _todas("SELECT revocado_en FROM consentimiento WHERE id = %s", familia.persona.consentimiento_id)
+    instantes = {revocado}
+    for acceso in (primero, segundo):
+        instantes |= set(_acceso(acceso)[:2])
+    instantes |= {f[0] for f in _todas(
+        "SELECT ocurrido_en FROM auditoria WHERE grupo_id = %s"
+        " AND accion IN ('consentimiento.revocar', 'relevo.revocar')"
+        " AND ocurrido_en >= %s", familia.grupo.id, revocado - timedelta(seconds=1))}
+    assert instantes == {revocado}
+    assert len(_acciones(familia.grupo.id, "relevo.revocar")) == 2
