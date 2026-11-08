@@ -51,7 +51,7 @@ export const INSUMOS = {
   permisoBoton: 'Acepto y continúo', // [alta]
   permisoEnviando: 'Guardando el permiso…', // [alta]
   permisoGuardado: 'Permiso guardado. Ahora anota el primer insumo.', // [aprobado por Jorge el 03-11]
-  errCalidad: 'Elige en qué calidad das el permiso.', // [alta]
+  errCalidad: 'Elige quién da el permiso.', // [lenguaje 13.2]
   errPermiso: 'No pudimos guardar el permiso. Revisa lo que elegiste y vuelve a intentarlo.', // [aprobado por Jorge el 03-11]
 
   // 3.1.3 y 3.1.4
