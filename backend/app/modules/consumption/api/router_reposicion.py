@@ -3,7 +3,7 @@
     POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer    admin y cuidador. 200, If-Match
     POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar   admin y cuidador. 200, If-Match
 
-Rol, persona y autorización (con FOR SHARE, ParaEscribirBloqueando) se verifican en las dependencias, antes
+Rol, persona y autorización (con FOR SHARE, ParaEscribir) se verifican en las dependencias, antes
 del cuerpo. La cantidad viaja solo en el cuerpo, que no admite fecha. Nada del nombre del insumo ni de una
 cantidad llega a los logs, la auditoría ni los errores. No hay ruta de historial de compras.
 """
@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from app.core.errores import ErrorMATU, respuesta_problema
 from app.modules.consumption.api.dependencias import (
     Auditoria,
-    ParaEscribirBloqueando,
+    ParaEscribir,
     PerfilIdRuta,
     RelojDep,
     Repositorio,
@@ -115,7 +115,7 @@ def _responder(
 def reponer(
     request: Request,
     response: Response,
-    autorizado: ParaEscribirBloqueando,
+    autorizado: ParaEscribir,
     perfil_id: PerfilIdRuta,
     solicitud: SolicitudReposicion,
     perfiles: Repositorio,
@@ -176,7 +176,7 @@ def reponer(
 def recontar(
     request: Request,
     response: Response,
-    autorizado: ParaEscribirBloqueando,
+    autorizado: ParaEscribir,
     perfil_id: PerfilIdRuta,
     solicitud: SolicitudRecuento,
     perfiles: Repositorio,

@@ -1,7 +1,7 @@
 """Casos de uso de «Compré» y «Me quedan N» (MATU-51, RF-10 y RF-11, decisiones 136 a 143).
 
 La autorización para ``consumo`` (leída con FOR SHARE), el rol y la persona ya los verificó la API
-(api/dependencias.py, ``ParaEscribirBloqueando``). Los dos son condicionales, como el PATCH y «Ya lo
+(api/dependencias.py, ``ParaEscribir``). Los dos son condicionales, como el PATCH y «Ya lo
 resolví» (decisiones 41 y 80): exigen If-Match con el ETag del perfil.
 
 - «Compré» reutiliza ``reponer()`` y ``declarar_reposicion`` de MATU-37 (decisión 79), sin otra fórmula:

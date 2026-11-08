@@ -9,7 +9,8 @@ Corren antes de validar el cuerpo, en el orden del contrato:
 4. persona_id es una persona del grupo. Si no, 404.
 5. Autorización vigente para ``consumo``, con el puerto Reloj: 403 sin-consentimiento o
    revision-vencida, con el miembro de extensión ``finalidad: consumo``. Se evalúa antes de leer nada
-   del consumo. «Compré» y «Me quedan N» (MATU-51) la leen con FOR SHARE (ParaEscribirBloqueando).
+   del consumo. Toda escritura la lee con FOR SHARE (ParaEscribir): desde MATU-51 «Compré» y «Me quedan N», y
+   desde MATU-72 (C7, absorbe MATU-71, decisión 155) todas las demás.
 """
 
 import uuid
@@ -89,17 +90,10 @@ def consumo_para_leer(
 def consumo_para_escribir(
     contexto: SesionDeGrupo, persona_id: PersonaIdRuta, reloj: Annotated[Reloj, Depends(obtener_reloj)]
 ) -> ConsumoAutorizado:
-    if not puede_escribir(contexto.rol):
-        raise ErrorMATU(404)
-    return _autorizar(contexto, persona_id, reloj)
-
-
-def consumo_para_escribir_bloqueando(
-    contexto: SesionDeGrupo, persona_id: PersonaIdRuta, reloj: Annotated[Reloj, Depends(obtener_reloj)]
-) -> ConsumoAutorizado:
-    """ParaEscribir, con la autorización leída con FOR SHARE hasta el fin de la transacción (MATU-51,
-    condición 7, decisión 142), como compartir en MATU-44: si un retiro la tiene bloqueada, espera y responde
-    403. Solo «Compré» y «Me quedan N»: las demás escrituras del consumo no cambian (MATU-71)."""
+    """Escriben admin y cuidador, con la autorización leída con FOR SHARE hasta el fin de la transacción, como
+    compartir en MATU-44. Si un retiro o un borrado la tiene bloqueada (FOR UPDATE), espera y responde 403 sin
+    escribir; si la escritura va primero, el retiro o el borrado la esperan. Desde MATU-51 en «Compré» y «Me
+    quedan N» (decisión 142) y desde MATU-72 en todas las escrituras del consumo (C7, decisión 155)."""
     if not puede_escribir(contexto.rol):
         raise ErrorMATU(404)
     return _autorizar(contexto, persona_id, reloj, bloquear=True)
@@ -122,7 +116,6 @@ def obtener_registro_auditoria_consumo(
 
 ParaLeer = Annotated[ConsumoAutorizado, Depends(consumo_para_leer)]
 ParaEscribir = Annotated[ConsumoAutorizado, Depends(consumo_para_escribir)]
-ParaEscribirBloqueando = Annotated[ConsumoAutorizado, Depends(consumo_para_escribir_bloqueando)]
 Repositorio = Annotated[RepositorioPerfiles, Depends(obtener_repositorio_perfiles)]
 Auditoria = Annotated[RegistroAuditoria, Depends(obtener_registro_auditoria_consumo)]
 RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
