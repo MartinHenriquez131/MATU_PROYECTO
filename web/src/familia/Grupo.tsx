@@ -595,14 +595,15 @@ function BloqueBorrar({ persona, editor, onBorrar }: { persona: PersonaListada; 
 
 /**
  * 3.5: «Hoy abren {n}.» con la ficha vigente y el conteo de Grupo familiar; sin conteo se omite. Por
- * renovar, retirada o borrada, ningún enlace abre (en pausa o ya cortados). Sin autorizar nunca hubo
- * enlaces que contar: se omite, como sin conteo.
+ * renovar, retirada o borrada, ningún enlace abre (en pausa o ya cortados). Sin autorizar (R3, 1.1)
+ * nunca se pudo crear un enlace: el dato se conoce y es cero. Solo se omite cuando no se sabe: falta
+ * el conteo o la vista de la ficha.
  */
 function hoyAbrenAlBorrar(d: DatosPersona): string {
   const estado = d.vistas.find((v) => v.finalidad === 'plan_cuidado')?.estado
+  if (estado === undefined) return ''
   if (estado === 'vigente') return d.enlaces === null ? '' : T.hoyAbren(d.enlaces)
-  if (estado === 'revision_vencida' || estado === 'retirada' || estado === 'borrada') return T.hoyAbren(0)
-  return ''
+  return T.hoyAbren(0)
 }
 
 function DialogoBorrar({

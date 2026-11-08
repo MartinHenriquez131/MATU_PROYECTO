@@ -307,6 +307,8 @@ describe('La confirmación de borrar', () => {
     ['vigente con 0 enlaces', [vista('plan_cuidado', 'vigente')], 0, 'Hoy ningún enlace abre.'],
     ['por renovar', [vista('plan_cuidado', 'revision_vencida', { revision_vence_en: '2026-10-01T15:00:00Z' })], 2, 'Hoy ningún enlace abre.'],
     ['retirada', [vista('plan_cuidado', 'retirada', RETIRADA)], 2, 'Hoy ningún enlace abre.'],
+    // R3 (1.1): sin autorizar nunca hubo enlaces; el dato se conoce y es cero, no se omite.
+    ['sin autorizar', [vista('plan_cuidado', 'sin_autorizar')], 0, 'Hoy ningún enlace abre.'],
   ] as const)('«Hoy abren» con la ficha %s: «%s»', async (_caso, [ficha], n, frase) => {
     apiGrupo({ [MARIA.id]: [ficha, vista('consumo', 'vigente')] }, { enlaces: n })
     await abrirConfirmacion(abrirGrupo('cuidador'))
@@ -325,6 +327,14 @@ describe('La confirmación de borrar', () => {
       /^Se cortan ahora todos sus enlaces de relevo\. Quien tenga la ficha abierta deja de verla cuando vuelva a mirarla\. No recibe aviso\.$/,
     )
     expect(pedidas.length).toBe(antes)
+  })
+
+  it('sin la vista de la ficha omite «Hoy abren», aunque haya conteo', async () => {
+    apiGrupo({ [MARIA.id]: [vista('consumo', 'vigente')] }, { enlaces: 2 })
+    await abrirConfirmacion(abrirGrupo('admin'))
+    expect(parrafosDialogo()[2]).toHaveTextContent(
+      /^Se cortan ahora todos sus enlaces de relevo\. Quien tenga la ficha abierta deja de verla cuando vuelva a mirarla\. No recibe aviso\.$/,
+    )
   })
 
   it('en curso: «Borrando…», sin cuerpo, y ni «No borrar», ni la casilla, ni uno o dos Esc cambian nada', async () => {
