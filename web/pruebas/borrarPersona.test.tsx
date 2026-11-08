@@ -403,6 +403,25 @@ describe('La confirmación de borrar', () => {
     expect(veces).toBe(2)
   })
 
+  it('P3: al mostrar el error trae la región entera a la vista, con «nearest», y el foco sigue en «Borrar todo»', async () => {
+    const llevar = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = llevar
+    try {
+      apiGrupo({ [MARIA.id]: VIGENTES }, { borrado: () => RED })
+      const d = await abrirConfirmacion(abrirGrupo('admin'))
+      const region = within(d).getByRole('alert')
+      await userEvent.click(casilla())
+      await userEvent.click(borrarTodo())
+      await waitFor(() => expect(region).not.toBeEmptyDOMElement())
+      await waitFor(() => expect(llevar).toHaveBeenCalledWith({ block: 'nearest' }))
+      expect(llevar.mock.contexts.at(-1)).toBe(region)
+      expect(borrarTodo()).toHaveFocus()
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+
   it('404: cierra y Grupo familiar vuelve a cargar, sin decir por qué, con el foco en el título', async () => {
     let borrada = false
     const pedidas = api((p) => {

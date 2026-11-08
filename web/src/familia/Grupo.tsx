@@ -623,6 +623,7 @@ function DialogoBorrar({
   const cuerpo = useRef<HTMLDivElement>(null)
   const confirmar = useRef<HTMLButtonElement>(null)
   const noBorrar = useRef<HTMLButtonElement>(null)
+  const regionError = useRef<HTMLDivElement>(null)
   const uid = useId()
   // 3.6: sin marcar al abrir, siempre; no se recuerda entre aperturas (el diálogo se monta de nuevo).
   const [entiendo, setEntiendo] = useState(false)
@@ -640,6 +641,13 @@ function DialogoBorrar({
     if (d) d.scrollTop = 0
     if (cuerpo.current) cuerpo.current.scrollTop = 0
   }, [])
+
+  // P3 (revisión del 08-11): en modo angosto el pie se desplaza con el cuerpo, y el error puede quedar
+  // cortado. Se trae entero a la vista; el foco sigue en «Borrar todo». Fuera de ese modo el pie es
+  // fijo y el error ya se ve: con `nearest` no se mueve nada.
+  useEffect(() => {
+    if (error) regionError.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [error])
 
   const cerrar = () => {
     enCurso.current = false
@@ -740,7 +748,7 @@ function DialogoBorrar({
             {B.casilla}
           </label>
           {/* Con `showModal` lo de fuera queda inerte: el error usa su propia región, montada vacía. */}
-          <div role="alert" className="empty:hidden">
+          <div ref={regionError} role="alert" className="empty:hidden">
             {error && <MensajeError>{B.errBorrar}</MensajeError>}
           </div>
           <Acciones>
