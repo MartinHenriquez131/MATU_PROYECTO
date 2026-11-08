@@ -87,3 +87,41 @@ export const GRUPO_FAMILIAR = {
   enlacesRetirada: 'Los enlaces se cortaron y no vuelven a abrir.',
   verPermisos: 'Ver los permisos en Grupo familiar',
 }
+
+/**
+ * [lenguaje 24] MATU-72: borrar los datos de la persona al tiro (especificación
+ * docs/diseno/matu-72-borrar-datos.md v1.0, con los ajustes A1 y A2). Aprobados por Jorge el 08-11,
+ * tal cual. En la interfaz se dice «borrar», nunca «eliminar», «suprimir» ni «revocar».
+ */
+export const BORRAR_DATOS = {
+  // 2.3: el bloque al final de cada persona
+  titulo: 'Borrar sus datos',
+  explicacion: (pila: string) =>
+    `Si ${pila} o su representante legal lo pide, o si ya no la cuidan con MATU, puedes borrar todo lo guardado de ella. No se puede deshacer.`,
+  boton: (pila: string) => `Borrar los datos de ${pila}`,
+  /** A2: pagador y observador ven solo el título y esta línea. */
+  quienPuede: (pila: string) => `Puede borrarlos quien administra el grupo o quien cuida a ${pila}.`,
+
+  // 3.5: la confirmación
+  pregunta: (pila: string) => `¿Borrar todo lo guardado de ${pila}?`,
+  noSeDeshace: 'Esto no se puede deshacer.',
+  borramosFicha: 'Borramos ahora su ficha, con todas sus secciones, y los insumos y las compras anotadas. Nadie los podrá recuperar, tampoco el equipo de MATU.',
+  seCortan: 'Se cortan ahora todos sus enlaces de relevo.',
+  // «Hoy abren {n}.» es `GRUPO_FAMILIAR.hoyAbren` (3.5: se reutiliza).
+  fichaAbierta: 'Quien tenga la ficha abierta deja de verla cuando vuelva a mirarla. No recibe aviso.',
+  saleDeMatu: (pila: string) =>
+    `${pila} sale de MATU. Si después quieren volver a usar MATU para cuidarla, hay que registrarla de nuevo, y todo empieza en blanco.`,
+  guardamos: 'Guardamos, sin nada de lo escrito, el registro de las autorizaciones, de los enlaces y de quién abrió la ficha, por los plazos de la política de privacidad.',
+  respaldo: 'Lo borrado sigue en las copias de respaldo hasta que vencen, y nadie las usa para ver datos.',
+  lista: 'Una lista que ya imprimiste o compartiste no se borra: quedó fuera de MATU.',
+  casilla: 'Entiendo que esto no se puede deshacer.',
+  borrarTodo: 'Borrar todo',
+  noBorrar: 'No borrar',
+  borrando: 'Borrando…',
+  errBorrar: 'No pudimos borrar los datos. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.',
+
+  // 4.3: la nota de una sola vez
+  hecho: (pila: string, n: number) =>
+    `Borramos los datos de ${pila}. ${n === 0 ? 'No había enlaces que abrieran.' : n === 1 ? 'Cortamos 1 enlace.' : `Cortamos ${n} enlaces.`}`,
+  yaBorrada: (pila: string) => `Otra persona de tu grupo ya borró los datos de ${pila}.`,
+}
