@@ -143,7 +143,7 @@ describe('El catálogo', () => {
   })
 
   it('cada comercio con su precio, «Precio de ejemplo», «IVA incluido» y si lo tiene, con palabra e ícono', async () => {
-    const { pantalla } = abrir('admin')
+    abrir('admin')
     const panal = within(await waitFor(() => tarjeta('Pañal adulto M x30')))
     expect(panal.getByText('Paquete de 30 unidades')).toBeVisible()
     const filas = panal.getAllByRole('listitem')
