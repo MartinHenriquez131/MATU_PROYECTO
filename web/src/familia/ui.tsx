@@ -228,7 +228,7 @@ export function AvisoCuidadorDeHecho({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? idError : undefined}
           onChange={(e) => onLeido(e.target.checked)}
-          className="size-5 shrink-0 accent-turquesa"
+          className="size-6 shrink-0 accent-turquesa"
         />
         {AUTORIZACION.leido}
       </label>

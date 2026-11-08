@@ -810,7 +810,7 @@ function Fila({
                 if (ocupado) return
                 onSeguir(e.target.checked)
               }}
-              className="size-5 shrink-0 accent-turquesa"
+              className="size-6 shrink-0 accent-turquesa"
             />
             {ocupado ? INSUMOS.guardando : INSUMOS.seguir}
           </label>
