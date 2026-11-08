@@ -1,5 +1,5 @@
 // MATU-72: borrar los datos de la persona al tiro, desde Grupo familiar (especificación
-// docs/diseno/matu-72-borrar-datos.md v1.0 con A1 y A2; contrato decisiones 149 a 157). El bloque por
+// docs/diseno/matu-72-borrar-datos.md v1.1 con A1, A2 y A3; contrato decisiones 149 a 157). El bloque por
 // rol, la casilla que habilita «Borrar todo», el foco en «No borrar», el envío sin cuerpo, «Borrando…»
 // con Esc bloqueado, red, 409, 404, «No borrar» y lo que se saca de la memoria. Textos de
 // lenguaje.md, sección 24, tal cual. Solo datos sintéticos.
@@ -175,7 +175,7 @@ describe('El bloque «Borrar sus datos», por rol', () => {
     const seccion = await pantalla.findByRole('region', { name: 'Borrar sus datos' })
     expect(within(seccion).getByRole('heading', { level: 3, name: 'Borrar sus datos' })).toBeVisible()
     expect(
-      within(seccion).getByText('Si María o su representante legal lo pide, o si ya no la cuidan con MATU, puedes borrar todo lo guardado de ella. No se puede deshacer.'),
+      within(seccion).getByText('Si María o su representante legal lo pide, o si ya no usan MATU para cuidar a María, puedes borrar todo lo guardado. No se puede deshacer.'),
     ).toBeVisible()
     const boton = within(seccion).getByRole('button', { name: 'Borrar los datos de María' })
     // A1: sin `aria-label`, el nombre accesible es el texto visible.
@@ -202,6 +202,21 @@ describe('El bloque «Borrar sus datos», por rol', () => {
     expect(within(seccion).queryByRole('button')).toBeNull()
     expect(pantalla.queryByText(/puedes borrar/)).toBeNull()
     expect(pantalla.queryByRole('button', { name: /Borrar/ })).toBeNull()
+  })
+
+  it('A3: con Pedro, la explicación y el párrafo 4 no dan por hecho el género de la persona', async () => {
+    apiGrupo({ [PEDRO.id]: VIGENTES }, { personas: [PEDRO] })
+    const pantalla = abrirGrupo('admin', { persona: PEDRO, personaId: PEDRO.id, personas: [PEDRO] })
+    const seccion = await pantalla.findByRole('region', { name: 'Borrar sus datos' })
+    expect(
+      within(seccion).getByText('Si Pedro o su representante legal lo pide, o si ya no usan MATU para cuidar a Pedro, puedes borrar todo lo guardado. No se puede deshacer.'),
+    ).toBeVisible()
+    await abrirConfirmacion(pantalla, 'Pedro')
+    expect(parrafosDialogo()[3]).toHaveTextContent(
+      /^Pedro sale de MATU\. Si después quieren volver a usar MATU, hay que registrar a Pedro de nuevo, y todo empieza en blanco\.$/,
+    )
+    const todo = `${seccion.textContent ?? ''} ${dialogo().textContent ?? ''}`
+    expect(todo).not.toMatch(/\b(ella|cuidarla|registrarla|la cuidan)\b/)
   })
 
   it('se ve también con los permisos retirados, y una vez por persona', async () => {
@@ -233,7 +248,7 @@ describe('La confirmación de borrar', () => {
       'Esto no se puede deshacer.',
       'Borramos ahora su ficha, con todas sus secciones, y los insumos y las compras anotadas. Nadie los podrá recuperar, tampoco el equipo de MATU.',
       'Se cortan ahora todos sus enlaces de relevo. Hoy abren 2. Quien tenga la ficha abierta deja de verla cuando vuelva a mirarla. No recibe aviso.',
-      'María sale de MATU. Si después quieren volver a usar MATU para cuidarla, hay que registrarla de nuevo, y todo empieza en blanco.',
+      'María sale de MATU. Si después quieren volver a usar MATU, hay que registrar a María de nuevo, y todo empieza en blanco.',
       'Guardamos, sin nada de lo escrito, el registro de las autorizaciones, de los enlaces y de quién abrió la ficha, por los plazos de la política de privacidad.',
       'Lo borrado sigue en las copias de respaldo hasta que vencen, y nadie las usa para ver datos.',
       'Una lista que ya imprimiste o compartiste no se borra: quedó fuera de MATU.',

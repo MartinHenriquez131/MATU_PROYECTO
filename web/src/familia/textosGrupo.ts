@@ -90,14 +90,15 @@ export const GRUPO_FAMILIAR = {
 
 /**
  * [lenguaje 24] MATU-72: borrar los datos de la persona al tiro (especificación
- * docs/diseno/matu-72-borrar-datos.md v1.0, con los ajustes A1 y A2). Aprobados por Jorge el 08-11,
- * tal cual. En la interfaz se dice «borrar», nunca «eliminar», «suprimir» ni «revocar».
+ * docs/diseno/matu-72-borrar-datos.md v1.1, con los ajustes A1, A2 y A3). Aprobados por Jorge el 08-11.
+ * A3: sin pronombre para la persona, porque MATU no guarda su género. En la interfaz se dice «borrar»,
+ * nunca «eliminar», «suprimir» ni «revocar».
  */
 export const BORRAR_DATOS = {
   // 2.3: el bloque al final de cada persona
   titulo: 'Borrar sus datos',
   explicacion: (pila: string) =>
-    `Si ${pila} o su representante legal lo pide, o si ya no la cuidan con MATU, puedes borrar todo lo guardado de ella. No se puede deshacer.`,
+    `Si ${pila} o su representante legal lo pide, o si ya no usan MATU para cuidar a ${pila}, puedes borrar todo lo guardado. No se puede deshacer.`,
   boton: (pila: string) => `Borrar los datos de ${pila}`,
   /** A2: pagador y observador ven solo el título y esta línea. */
   quienPuede: (pila: string) => `Puede borrarlos quien administra el grupo o quien cuida a ${pila}.`,
@@ -110,7 +111,7 @@ export const BORRAR_DATOS = {
   // «Hoy abren {n}.» es `GRUPO_FAMILIAR.hoyAbren` (3.5: se reutiliza).
   fichaAbierta: 'Quien tenga la ficha abierta deja de verla cuando vuelva a mirarla. No recibe aviso.',
   saleDeMatu: (pila: string) =>
-    `${pila} sale de MATU. Si después quieren volver a usar MATU para cuidarla, hay que registrarla de nuevo, y todo empieza en blanco.`,
+    `${pila} sale de MATU. Si después quieren volver a usar MATU, hay que registrar a ${pila} de nuevo, y todo empieza en blanco.`,
   guardamos: 'Guardamos, sin nada de lo escrito, el registro de las autorizaciones, de los enlaces y de quién abrió la ficha, por los plazos de la política de privacidad.',
   respaldo: 'Lo borrado sigue en las copias de respaldo hasta que vencen, y nadie las usa para ver datos.',
   lista: 'Una lista que ya imprimiste o compartiste no se borra: quedó fuera de MATU.',
