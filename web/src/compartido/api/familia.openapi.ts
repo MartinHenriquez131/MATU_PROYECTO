@@ -437,6 +437,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/catalogo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver el catálogo
+         * @description El catálogo curado (MATU-59, RF-20, ADR-027): categorías con sus productos y, por producto, cada comercio con su precio exacto en pesos enteros con IVA y si hay stock (disponible), nunca la cantidad (decisión 161), por nombre_fantasia y nunca por precio. Entran solo productos con al menos una oferta publicada de un comercio activo. Del comercio viajan solo comercio_id y nombre_fantasia. precios_de_ejemplo es true mientras no haya convenio. Lo ve cualquier sesión de familia, sin X-Grupo-Id y sin autorización de consumo ni de pedidos; el relevo no (401). Sin parámetros de consulta. No se audita. Cache-Control: private, max-age=60. Es capa 3: existe solo con CAPA3_HABILITADA=true
+         */
+        get: operations["ver_catalogo_v1_catalogo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
         parameters: {
             query?: never;
@@ -2010,6 +2030,93 @@ export interface components {
              * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)
              */
             push: boolean;
+        };
+        /** Catalogo */
+        Catalogo: {
+            /**
+             * Precios De Ejemplo
+             * @description true mientras MATU no tenga convenio con comercios (adaptador simulado): la pantalla rotula los precios
+             */
+            precios_de_ejemplo: boolean;
+            /** Categorias */
+            categorias: components["schemas"]["CategoriaCatalogo"][];
+        };
+        /** CategoriaCatalogo */
+        CategoriaCatalogo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Orden
+             * @description El orden de la categoría; la lista ya viene en este orden
+             */
+            orden: number;
+            /** Productos */
+            productos: components["schemas"]["ProductoCatalogo"][];
+        };
+        /** OfertaCatalogo */
+        OfertaCatalogo: {
+            /**
+             * Oferta Id
+             * Format: uuid
+             */
+            oferta_id: string;
+            /**
+             * Comercio Id
+             * Format: uuid
+             */
+            comercio_id: string;
+            /**
+             * Nombre Fantasia
+             * @description El nombre del comercio que se muestra. La pantalla agrega «(comercio ficticio)»
+             */
+            nombre_fantasia: string;
+            /**
+             * Precio
+             * @description Precio exacto en pesos enteros, con IVA. Nunca neto (ADR-027)
+             */
+            precio: number;
+            /**
+             * Disponible
+             * @description Si el comercio tiene el producto. No promete disponibilidad: se confirma antes de pagar
+             */
+            disponible: boolean;
+        };
+        /** ProductoCatalogo */
+        ProductoCatalogo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Presentacion
+             * @description Cómo viene, por ejemplo «Paquete de 30 unidades». No repite el nombre (N3)
+             */
+            presentacion: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades Por Envase */
+            unidades_por_envase: number;
+            /**
+             * Retracto Pierde Al Abrir
+             * @description true si el derecho a retracto no aplica al abrir el sello (higiene y uso personal, D2)
+             */
+            retracto_pierde_al_abrir: boolean;
+            /**
+             * Comercios
+             * @description Cada comercio con su precio y si hay stock, por nombre_fantasia y comercio_id, nunca por precio
+             */
+            comercios: components["schemas"]["OfertaCatalogo"][];
         };
     };
     responses: never;
@@ -3808,6 +3915,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_catalogo_v1_catalogo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalogo"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido. También la sesión del relevo, que no tiene uno */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };
