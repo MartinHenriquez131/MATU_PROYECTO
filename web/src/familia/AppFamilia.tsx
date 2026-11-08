@@ -6,6 +6,7 @@ import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
+import { Catalogo } from './Catalogo'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
@@ -133,6 +134,8 @@ function Rutas() {
   let pantalla
   if (ruta === '/cuenta') pantalla = <TuCuenta />
   else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
+  // MATU-59 (2.2): el catálogo no depende de la persona ni de su autorización.
+  else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
   else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo || seccion) {
