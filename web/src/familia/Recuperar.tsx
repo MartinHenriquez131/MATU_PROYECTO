@@ -3,6 +3,7 @@
 // el código responde siempre 202 (decisión 84): la pantalla nunca dice si la cuenta existe ni a qué
 // canal fue el código.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { leerFallo } from '../compartido/api/cliente'
 import { cambiarContrasenaConCodigo, pedirCodigoRecuperacion } from '../compartido/api/familia'
 import { Boton } from '../compartido/ui/Boton'
@@ -43,7 +44,9 @@ export function PedirCodigo() {
     } catch (x) {
       const f = leerFallo(x)
       if (f.status === 422) {
-        setError(RECUPERAR.errCorreo)
+        // Tras un `await`, React puede confirmar el estado después del setTimeout de enfocarPrimerError:
+        // flushSync deja el campo con `aria-invalid` antes de buscarlo (como en Crear cuenta).
+        flushSync(() => setError(RECUPERAR.errCorreo))
         enfocarPrimerError(form.current)
       } else setFalla(f.status === 503 ? 'no-disponible' : 'red')
     } finally {
@@ -141,15 +144,17 @@ export function CambiarConCodigo() {
     } catch (x) {
       const f = leerFallo(x)
       if (f.status === 422 && f.tipo === '/errores/codigo-invalido') {
-        // El código se vacía y la contraseña se conserva.
-        setCodigo('')
-        setErrores({ codigo: RECUPERAR.errCodigo })
+        // El código se vacía y la contraseña se conserva. flushSync: el campo ya es inválido al recibir el foco.
+        flushSync(() => {
+          setCodigo('')
+          setErrores({ codigo: RECUPERAR.errCodigo })
+        })
         window.setTimeout(() => campoCodigo.current?.focus(), 0)
       } else if (f.status === 422 && f.campos.length) {
         const e422: Errores = {}
         if (f.campos.includes('codigo')) e422.codigo = RECUPERAR.errCodigoCorto
         if (f.campos.includes('contrasena_nueva')) e422.contrasena = RECUPERAR.errClave422
-        setErrores(e422)
+        flushSync(() => setErrores(e422))
         if (Object.keys(e422).length) enfocarPrimerError(form.current)
         else setFalla('red')
       } else if (f.status === 429) setMinutos(esperar(f.reintentarEnSegundos))
@@ -225,7 +230,7 @@ export function CambiarConCodigo() {
       </form>
       <div className="flex flex-col items-start">
         <p className="text-tenue">{RECUPERAR.noLlego}</p>
-        <Boton variante="texto" className="justify-start! px-0! text-left" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
+        <Boton variante="texto" className="justify-start! text-left" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
           {RECUPERAR.reenviar}
         </Boton>
         {pausa && !esperando && <p className="text-sm text-tenue">{RECUPERAR.enUnMinuto}</p>}

@@ -51,7 +51,7 @@ export const INSUMOS = {
   permisoBoton: 'Acepto y continúo', // [alta]
   permisoEnviando: 'Guardando el permiso…', // [alta]
   permisoGuardado: 'Permiso guardado. Ahora anota el primer insumo.', // [aprobado por Jorge el 03-11]
-  errCalidad: 'Elige en qué calidad das el permiso.', // [alta]
+  errCalidad: 'Elige quién da el permiso.', // [lenguaje 13.2]
   errPermiso: 'No pudimos guardar el permiso. Revisa lo que elegiste y vuelve a intentarlo.', // [aprobado por Jorge el 03-11]
 
   // 3.1.3 y 3.1.4
@@ -90,8 +90,8 @@ export const INSUMOS = {
   quedanHoy: (n: number, unidad: Unidad) => `${n === 1 ? 'Queda' : 'Quedan'} ${cantidad(n, unidad)} hoy.`, // [aprobado por Jorge el 03-11]
 
   // 3.3 Vacío
-  vacioTitulo: (pila: string) => `Aún no sabemos qué usa ${pila}`, // [demo]
-  vacio: 'Cuéntanos de un solo producto, el que más te preocupa. Con eso ya te podemos avisar antes de que se acabe.', // [demo]
+  vacioTitulo: (pila: string) => `Aún no sabemos qué usa ${pila}`, // [lenguaje 18]
+  vacio: 'Cuéntanos de un solo producto, el que más te preocupa. Con eso ya te podemos avisar antes de que se acabe.', // [lenguaje 18]
   vacioLectorTitulo: 'Todavía no hay insumos anotados', // [aprobado por Jorge el 03-11]
   vacioLector: 'Cuando alguien de tu grupo anote uno, aparece aquí.', // [aprobado por Jorge el 03-11]
 

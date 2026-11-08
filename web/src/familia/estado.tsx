@@ -31,12 +31,8 @@ export interface BorradorPersona {
   nombre: string
   pila: string
   apoyo: Apoyo | null
-  calle: string
-  numero: string
-  comuna: string
-  depto: string
 }
-export const BORRADOR_VACIO: BorradorPersona = { nombre: '', pila: '', apoyo: null, calle: '', numero: '', comuna: '', depto: '' }
+export const BORRADOR_VACIO: BorradorPersona = { nombre: '', pila: '', apoyo: null }
 
 interface Estado {
   fase: Fase

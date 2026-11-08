@@ -1,8 +1,6 @@
 // Todos los textos de la app de la familia (especificación MATU-39, versión 1.1). Las marcas dicen
 // de dónde sale cada uno:
 //   [lenguaje X]   docs/lenguaje.md, sección X, tal cual
-//   [demo]         la demo aprobada, con "email" cambiado a "correo" (D1)
-//   [PROPUESTO]    de la especificación, pendiente de entrar a lenguaje.md (sección 8)
 //   [INSTRUCCIÓN]  dictado por decisión de Jorge del 02-11, pendiente de lenguaje.md
 //   [aprobado por Jorge el 03-11]  textos de MATU-57, pendientes de lenguaje.md
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API.
@@ -12,56 +10,56 @@ export const GENERAL = {
   error: 'No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo. Lo que escribiste sigue aquí.',
   /** [lenguaje 8] sin la última frase, al cargar (5.2). */
   errorAlCargar: 'No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo.',
-  volverAIntentar: 'Volver a intentar', // [PROPUESTO]
-  cargando: 'Cargando…', // [PROPUESTO]
-  abriendo: 'Abriendo MATU…', // [PROPUESTO]
+  volverAIntentar: 'Volver a intentar', // [lenguaje 26]
+  cargando: 'Cargando…', // [lenguaje 26]
+  abriendo: 'Abriendo MATU…', // [lenguaje 26]
   /** [lenguaje 8] 404 de la familia. */
   noEncontrado: 'No encontramos lo que buscas. Puede que ya no tengas acceso. Vuelve al inicio.',
 }
 
 export const MARCO = {
   saltar: 'Saltar al contenido',
-  cuidasA: 'Cuidas a', // [demo]
+  cuidasA: 'Cuidas a', // [lenguaje 26]
   salir: 'Salir',
   secciones: 'Secciones',
-  leDicen: (pila: string) => `Le dicen ${pila}`, // [PROPUESTO]
+  leDicen: (pila: string) => `Le dicen ${pila}`, // [lenguaje 26]
   cambiar: (nombre: string) => `${nombre}. Cambiar de persona`,
 }
 
-export const PASOS = ['Tu cuenta', 'Tu grupo', 'A quién cuidas', 'La autorización'] // [PROPUESTO]
-export const pasoDe = (n: number) => `Paso ${n} de 4` // [PROPUESTO]
-export const FRASE = 'Que el cuidado no dependa de una sola persona.' // [demo]
+export const PASOS = ['Tu cuenta', 'Tu grupo', 'A quién cuidas', 'La autorización'] // [lenguaje 25]
+export const pasoDe = (n: number) => `Paso ${n} de 4` // [lenguaje 25]
+export const FRASE = 'Que el cuidado no dependa de una sola persona.' // [lenguaje 25]
 
 export const CUENTA = {
-  titulo: 'Crea tu cuenta', // [demo]
-  bajada: 'Para empezar te pedimos solo esto.', // [demo]
-  nombre: 'Tu nombre', // [demo]
-  nombreAyuda: 'Así te verán en tu grupo.', // [PROPUESTO]
-  correo: 'Tu correo', // [PROPUESTO]
-  celular: 'Tu celular', // [PROPUESTO]
-  celularAyuda: 'Para ayudarte a recuperar tu cuenta si olvidas la contraseña.', // [PROPUESTO]
+  titulo: 'Crea tu cuenta', // [lenguaje 25.1]
+  bajada: 'Para empezar te pedimos solo esto.', // [lenguaje 25.1]
+  nombre: 'Tu nombre', // [lenguaje 25.1]
+  nombreAyuda: 'Así te verán en tu grupo. Quien te reemplace verá tu nombre de pila.', // [lenguaje 25.1]
+  correo: 'Tu correo', // [lenguaje 19]
+  celular: 'Tu celular', // [lenguaje 19]
+  celularAyuda: 'Para ayudarte a recuperar tu cuenta si olvidas la contraseña.', // [lenguaje 25.1]
   celularEjemplo: '+56 9',
-  contrasena: 'Una contraseña', // [demo] // pragma: allowlist secret
-  contrasenaAyuda: 'Al menos 10 caracteres.', // [demo] // pragma: allowlist secret
-  mostrar: 'Mostrar', // [PROPUESTO]
-  ocultar: 'Ocultar', // [PROPUESTO]
+  contrasena: 'Una contraseña', // [lenguaje 25.1] // pragma: allowlist secret
+  contrasenaAyuda: 'Al menos 10 caracteres.', // [lenguaje 25.1] // pragma: allowlist secret
+  mostrar: 'Mostrar', // [lenguaje 25.1]
+  ocultar: 'Ocultar', // [lenguaje 25.1]
   boton: 'Crear cuenta',
-  enviando: 'Creando la cuenta…', // [demo]
-  creada: 'Cuenta creada.', // [demo]
+  enviando: 'Creando la cuenta…', // [lenguaje 25.1]
+  creada: 'Cuenta creada.', // [lenguaje 25.1]
   yaTienes: '¿Ya tienes cuenta?',
   irAEntrar: 'Entrar',
-  errNombre: 'Escribe tu nombre.', // [PROPUESTO]
-  errCorreo: 'Revisa tu correo.', // [PROPUESTO]
+  errNombre: 'Escribe tu nombre.', // [lenguaje 25.1]
+  errCorreo: 'Revisa cómo escribiste tu correo.', // [lenguaje 25.1]
   /** [lenguaje 13.3] 422 `email` con `tipo: dominio_no_permitido`, solo en staging (decisión 105). */
   errDominio: 'En este ambiente de prueba usa un correo terminado en @example.com.',
   errCelular: 'Escribe un celular de Chile, por ejemplo +56 9 5555 0137.', // [lenguaje 8]
-  errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [demo] // pragma: allowlist secret
+  errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [lenguaje 25.1] // pragma: allowlist secret
   // 422 de la API, por `errores[].campo`
-  err422Nombre: 'Escribe tu nombre, de hasta 100 letras.', // [PROPUESTO]
-  err422Contrasena: 'La contraseña necesita entre 10 y 128 caracteres.', // [PROPUESTO] // pragma: allowlist secret
-  registradoTitulo: 'Ese correo ya tiene una cuenta', // [demo]
-  registradoTexto: 'Entra con tu contraseña, o usa otro correo.', // [demo]
-  registradoBoton: 'Entrar con ese correo', // [demo]
+  err422Nombre: 'Escribe tu nombre, de hasta 100 caracteres.', // [lenguaje 25.1]
+  err422Contrasena: 'La contraseña necesita entre 10 y 128 caracteres.', // [lenguaje 25.1] // pragma: allowlist secret
+  registradoTitulo: 'Ese correo ya tiene una cuenta', // [lenguaje 25.1]
+  registradoTexto: 'Entra con tu contraseña, o usa otro correo.', // [lenguaje 25.1]
+  registradoBoton: 'Entrar con ese correo', // [lenguaje 25.1]
 }
 
 /**
@@ -81,68 +79,61 @@ export const ENTRAR = {
   contrasena: 'Tu contraseña', // pragma: allowlist secret
   boton: 'Entrar',
   enviando: 'Entrando…',
-  faltan: 'Escribe tu correo y tu contraseña.', // [PROPUESTO]
+  faltan: 'Escribe tu correo y tu contraseña.', // [lenguaje 13.3]
   noTienes: '¿No tienes cuenta?',
   irACrear: 'Crear cuenta',
   vencida: 'Hace tiempo que no entrabas. Vuelve a entrar con tu correo y tu contraseña.', // [INSTRUCCIÓN]
-  salio: 'Saliste de MATU. Para volver, entra con tu correo y tu contraseña.', // [PROPUESTO]
-  credenciales: 'El correo o la contraseña no coinciden. Revísalos y vuelve a intentarlo.', // [PROPUESTO]
+  salio: 'Saliste de MATU. Para volver, entra con tu correo y tu contraseña.', // [lenguaje 13.3]
+  credenciales: 'El correo o la contraseña no coinciden. Revísalos y vuelve a intentarlo.', // [lenguaje 13.3]
   /** [aprobado por Jorge el 03-11] MATU-57 (especificación 4): reemplaza el de lenguaje 13.3; sigue el enlace a recuperar. */
   espera: (minutos: number) => `Hubo varios intentos de entrar. ${minutos === 1 ? 'Espera 1\u00A0minuto.' : `Espera ${minutos}\u00A0minutos.`}`,
   esperaRecuperar: 'Recupera tu cuenta', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
   olvidaste: '¿Olvidaste tu contraseña?', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
   /** [aprobado por Jorge el 03-11, D2] Tras cambiar la contraseña con el código. */
   claveCambiada: 'Listo. Cambiamos tu contraseña. Por seguridad, tendrás que volver a entrar en tus otros teléfonos y computadores.', // pragma: allowlist secret
-  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO]
+  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [lenguaje 9.1]
 }
 
 export const GRUPO = {
-  titulo: 'Ponle nombre a tu grupo', // [PROPUESTO]
-  bajada: 'Es el grupo de las personas que cuidan contigo.', // [PROPUESTO]
-  campo: 'Nombre del grupo', // [PROPUESTO]
-  /** Política de privacidad, sección 2, tal cual. */
+  titulo: 'Ponle nombre a tu grupo', // [lenguaje 25.2]
+  bajada: 'Es el grupo de las personas que cuidan contigo.', // [lenguaje 25.2]
+  campo: 'Nombre del grupo', // [lenguaje 25.2]
+  /** Política de privacidad, sección 4 («De tu grupo»), tal cual. */
   ayuda: 'Usa un nombre corto, como «Familia Soto». No incluyas el nombre completo de la persona que cuidas ni datos de salud.',
-  boton: 'Crear el grupo', // [PROPUESTO]
-  enviando: 'Creando el grupo…', // [PROPUESTO]
-  errVacio: 'Escribe un nombre para el grupo.', // [PROPUESTO]
+  boton: 'Crear el grupo', // [lenguaje 25.2]
+  enviando: 'Creando el grupo…', // [lenguaje 25.2]
+  errVacio: 'Escribe un nombre para el grupo.', // [lenguaje 25.2]
 }
 
 export const PERSONA = {
   titulo: '¿A quién cuidas?',
-  nombre: '¿Cómo se llama?', // [demo]
-  pila: '¿Cómo le dicen?', // [demo]
-  pilaAyuda: 'Es el nombre que verá quien te reemplace.', // [demo]
-  apoyo: '¿Cuánto apoyo necesita en el día a día?', // [demo]
-  direccion: '¿Dónde vive? Puedes dejarlo para después', // [demo]
-  direccionAyuda: 'La pedimos recién con el primer pedido. La ficha no la usa.', // [demo]
-  calle: 'Calle',
-  numero: 'Número',
-  comuna: 'Comuna',
-  depto: 'Depto (si tiene)', // [PROPUESTO]
-  sinDiagnostico: 'No te preguntamos qué enfermedad tiene. No lo necesitamos y no lo guardamos.', // [demo]
+  nombre: '¿Cómo se llama?', // [lenguaje 25.3]
+  pila: '¿Cómo le dicen?', // [lenguaje 25.3]
+  pilaAyuda: 'Es el nombre que verá quien te reemplace.', // [lenguaje 25.3]
+  apoyo: '¿Cuánto apoyo necesita en el día a día?', // [lenguaje 25.3]
+  sinDiagnostico: 'No te preguntamos qué enfermedad tiene, porque para cuidar no hace falta.', // [lenguaje 25.3]
   boton: 'Continuar',
-  errNombres: 'Escribe su nombre y cómo le dicen para seguir.', // [demo]
-  errDireccion: 'Completa calle, número y comuna, o deja los tres vacíos.', // [demo]
-  errApoyo: 'Elige cuánto apoyo necesita.', // [PROPUESTO]
+  errNombres: 'Escribe su nombre y cómo le dicen para seguir.', // [lenguaje 25.3]
+  errApoyo: 'Elige cuánto apoyo necesita.', // [lenguaje 25.3]
 }
 
 export const AUTORIZACION = {
-  titulo: 'La autorización para guardar su ficha', // [PROPUESTO]
+  titulo: 'Permiso para guardar su ficha', // [lenguaje 22], para el alta desde el 08-11 (Jorge)
   bajada: (pila: string) =>
-    `Lo que anotes sobre el cuidado de ${pila} es información sensible. Para guardarla necesitamos saber en qué calidad das la autorización.`, // [PROPUESTO]
-  leyenda: 'Doy esta autorización porque…', // [PROPUESTO]
-  referencia: 'Referencia del documento', // [demo]
-  referenciaAyuda: 'Por ejemplo: resolución y fecha', // [demo]
-  leido: 'Leí el aviso y lo acepto', // [demo]
-  declaras: 'Lo que declaras', // [demo]
-  boton: (pila: string) => `Acepto y registro a ${pila}`, // [PROPUESTO]
-  enviando: (pila: string) => `Registrando a ${pila}…`, // [PROPUESTO]
-  registrada: (pila: string) => `Listo. Ahora, la ficha de ${pila}.`, // [PROPUESTO, preferida]
-  volverACorregir: (pila: string) => `Volver a corregir los datos de ${pila}`, // [PROPUESTO]
+    `Lo que anotes sobre el cuidado de ${pila} puede decir algo de su salud. Por eso lo protegemos de forma especial y necesitamos una autorización. Puedes retirarla cuando quieras, desde Grupo familiar.`, // [lenguaje 25.4]
+  leyenda: '¿Quién da la autorización?', // [lenguaje 25.4]
+  referencia: 'Referencia del documento', // [lenguaje 25.4]
+  referenciaAyuda: 'Por ejemplo: número de resolución y fecha. Sin el RUT.', // [lenguaje 25.4]
+  leido: 'Leí el aviso y lo acepto', // [lenguaje 25.4]
+  declaras: 'Lo que declaras', // [lenguaje 25.4]
+  boton: (pila: string) => `Acepto y registro a ${pila}`, // [lenguaje 25.4]
+  enviando: (pila: string) => `Registrando a ${pila}…`, // [lenguaje 25.4]
+  registrada: (pila: string) => `Listo. Registramos a ${pila} y la autorización. Ahora puedes completar su ficha.`, // [lenguaje 25.4]
+  volverACorregir: (pila: string) => `Volver a corregir los datos de ${pila}`, // [lenguaje 25.4]
   volver: 'Volver a ¿A quién cuidas?',
-  errCalidad: 'Elige en qué calidad das la autorización.', // [PROPUESTO]
-  errReferencia: 'Escribe la referencia del documento que te nombra representante.', // [demo]
-  errLeido: 'Marca que leíste el aviso para seguir.', // [demo]
+  errCalidad: 'Elige quién da la autorización.', // [lenguaje 25.4]
+  errReferencia: 'Escribe la referencia del documento que te nombra representante.', // [lenguaje 25.4]
+  errLeido: 'Marca que leíste el aviso para seguir.', // [lenguaje 25.4]
 }
 
 export const FICHA = {
@@ -171,12 +162,12 @@ export const FICHA = {
   // Dictado (3.7.1)
   dictar: 'Dictar en vez de escribir', // [lenguaje 5.4]
   escuchando: 'Escuchando…', // [lenguaje 5.4]
-  detener: 'Detener', // [PROPUESTO]
-  sinMicrofono: 'No pudimos usar el micrófono. Puedes escribir el texto.', // [PROPUESTO]
+  detener: 'Detener', // [lenguaje 5.4]
+  sinMicrofono: 'No pudimos usar el micrófono. Puedes escribir el texto.', // [lenguaje 5.4]
   // Salir sin guardar (3.7)
-  sinGuardar: (c: string) => `Lo que escribiste en «${c}» no se guardó. ¿Salir igual?`, // [PROPUESTO]
-  salirSinGuardar: 'Salir sin guardar', // [PROPUESTO]
-  seguirEscribiendo: 'Seguir escribiendo', // [PROPUESTO]
+  sinGuardar: (c: string) => `Lo que escribiste en «${c}» no se guardó. ¿Salir igual?`, // [lenguaje 6.6]
+  salirSinGuardar: 'Salir sin guardar', // [lenguaje 6.6]
+  seguirEscribiendo: 'Seguir escribiendo', // [lenguaje 6.6]
   // Guardado [lenguaje 6.1]
   guardado: (c: string) => `«${c}» guardado`,
   vasEn: (n: number) => `Vas en ${n} de 3. Puedes seguir cuando quieras, no se pierde nada.`,
@@ -200,9 +191,9 @@ export const FICHA = {
   chileAtiende: 'Apoyos del Estado para quienes cuidan',
   chileAtiendeNota: '(se abre en ChileAtiende)',
   chileAtiendeUrl: 'https://www.chileatiende.gob.cl/fichas/112779-persona-cuidadora',
-  loEscrito: 'Lo que escribiste sigue aquí. Cópialo si lo quieres guardar en otra parte.', // [PROPUESTO]
+  loEscrito: 'Lo que escribiste sigue aquí. Cópialo si lo quieres guardar en otra parte.', // [lenguaje 6.6]
   // 5.7
-  vencidaConTexto: 'Tienes que volver a entrar. Copia lo que escribiste antes de seguir: no se guardó.', // [PROPUESTO]
+  vencidaConTexto: 'Tienes que volver a entrar. Copia lo que escribiste antes de seguir: no se guardó.', // [lenguaje 6.6]
 }
 
 /** Secciones complementarias (MATU-50). [lenguaje 14.2 y 14.3], aprobados por Jorge el 03-11. */
@@ -286,12 +277,12 @@ export const CONFLICTO = {
 }
 
 export const ESTADOS = {
-  // 5.4 [PROPUESTO]
+  // 5.4 [lenguaje 25.3]
   sinPersona: (grupo: string) =>
     `Todavía no hay nadie registrado en ${grupo}. Quien administra el grupo puede registrar a la persona que cuidan.`,
   // MATU-48 2.1: la pantalla «Pronto vas a poder compartir…» de MATU-39 5.5 sale.
   compartirTitulo: 'Compartir',
-  // 5.6 [PROPUESTO]
+  // 5.6 [lenguaje 8]
   sinAcceso: (nombre: string) => `No tienes acceso a la ficha de ${nombre}. Si la necesitas, pídeselo a quien administra el grupo.`,
   insumosTitulo: 'Insumos',
 }
@@ -307,7 +298,7 @@ export const RECUPERAR = {
   correo: 'Tu correo',
   boton: 'Enviar código', // [aprobado por Jorge el 03-11]
   enviando: 'Enviando…', // [aprobado por Jorge el 03-11]
-  errCorreo: 'Revisa tu correo.', // [MATU-39]
+  errCorreo: 'Revisa cómo escribiste tu correo.', // [lenguaje 25.1] el mismo que CUENTA.errCorreo
   /** [aprobado por Jorge el 03-11], con «correo» (D1). */
   enviado: 'Si hay una cuenta con ese correo, te enviamos un código. Puede tardar un minuto.',
   // Pantalla del código
@@ -390,8 +381,8 @@ export const QUIEN = {
   seAgregaron: (n: number) => `Se agregaron ${n} ${n === 1 ? 'línea' : 'líneas'}.`, // aprobado por Jorge el 03-11
   noHayMas: 'No hay más.', // aprobado por Jorge el 03-11
   nadieDeMatu: 'La ficha se guarda cifrada.', // aprobado por Jorge el 03-11 (reemplaza «Nadie de MATU puede abrir la ficha.», no verificable en el semestre)
-  ultimas: 'Últimas aperturas', // [demo]
-  verTodo: 'Ver todo en Quién la vio', // [demo]
+  ultimas: 'Últimas aperturas', // [lenguaje 15]
+  verTodo: 'Ver todo en Quién la vio', // [lenguaje 9.1]
 }
 
 export const TITULOS: Record<string, string> = {
@@ -407,8 +398,8 @@ export const TITULOS: Record<string, string> = {
   '/ficha': FICHA.titulo,
   '/ficha/quien-la-vio': QUIEN.titulo,
   '/insumos': ESTADOS.insumosTitulo,
-  '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
-  '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/nuevo': 'Anotar un insumo', // [lenguaje 18] MATU-36, 2.2
+  '/insumos/cambiar': 'Cambiar un insumo', // [lenguaje 18] MATU-36, 2.2
   '/insumos/lista': 'Lista de insumos', // [lenguaje 21] MATU-60, 2.2
   '/compartir': ESTADOS.compartirTitulo,
   // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
@@ -422,11 +413,11 @@ export const TITULOS: Record<string, string> = {
 
 /**
  * Compartir la ficha con un relevo y cortar el acceso (MATU-48, docs/diseno/matu-48-compartir.md).
- * [lenguaje 9] tal cual, [demo] de la demo aprobada; lo demás, aprobado por Jorge el 04-11.
+ * [lenguaje 9] y [lenguaje 9.1] tal cual; lo demás, aprobado por Jorge el 04-11.
  */
 export const COMPARTIR = {
-  titulo: 'Compartir', // [demo]
-  enlaces: 'Enlaces', // [demo]
+  titulo: 'Compartir', // [lenguaje 9.1]
+  enlaces: 'Enlaces', // [lenguaje 9.1]
   vistas: 'Vistas de Compartir',
   // Aprobado por Jorge el 04-11: reemplaza el de lenguaje 9, que decía «por WhatsApp».
   bajada: 'Quien te reemplaza recibe un enlace en un mensaje y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.',
@@ -436,7 +427,7 @@ export const COMPARTIR = {
   nombreAyuda: 'Basta con su nombre de pila.',
   telefono: 'Su teléfono', // [lenguaje 9]
   telefonoAyuda: 'Para enviarle el enlace y poder contactarle.', // [lenguaje 9]
-  /** [demo] «Si se altera y A quién llamar están vacíos: Rosa verá «Sin completar».» */
+  /** [lenguaje 9.1] «Si se altera y A quién llamar están vacíos: Rosa verá «Sin completar».» */
   vacios: (campos: string[], nombre: string) => {
     const lista = campos.length > 1 ? `${campos.slice(0, -1).join(', ')} y ${campos[campos.length - 1]}` : campos[0]
     return `${lista} ${campos.length > 1 ? 'están vacíos' : 'está vacío'}: ${nombre} verá «Sin completar».`
@@ -444,10 +435,10 @@ export const COMPARTIR = {
   recordatorio: (pila: string) =>
     `Comparte solo lo que necesita para cuidar a ${pila}. Quien recibe el enlace puede anotar o fotografiar lo que lee, y MATU no puede impedirlo.`,
   hastaCuando: '¿Hasta cuándo?', // [lenguaje 9]
-  vigencias: { '24h': '24 horas', finde: 'Fin de semana', dias: 'Otra cantidad de días' }, // [demo]
+  vigencias: { '24h': '24 horas', finde: 'Fin de semana', dias: 'Otra cantidad de días' }, // [lenguaje 9.1]
   cuantosDias: '¿Cuántos días?', // [lenguaje 9]
   hasta30: 'Hasta 30 días.', // [lenguaje 9]
-  dias: 'días', // [demo]
+  dias: 'días', // [lenguaje 9.1]
   /** «Vence el {fecha} a las {hora}.», partido para poner la fecha y la hora en `cifras`. */
   vence: ['Vence el ', ' a las ', '.'] as const,
   paraQue: '¿Para qué lo compartes?', // [lenguaje 9]
@@ -464,15 +455,15 @@ export const COMPARTIR = {
   errMaxima: 'El enlace puede durar como máximo 30 días.', // [lenguaje 8]
   errPasada: 'Esa fecha ya pasó. Elige de nuevo hasta cuándo.',
   errSeccion: 'Otra persona quitó una sección mientras compartías. Revisa qué más puede ver y vuelve a crear el enlace.',
-  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO en MATU-39]
-  crear: 'Crear enlace', // [demo]
+  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [lenguaje 9.1]
+  crear: 'Crear enlace', // [lenguaje 9.1]
   creando: 'Creando el enlace…',
-  loQueVera: (nombre: string) => `Lo que verá ${nombre}`, // [demo]
+  loQueVera: (nombre: string) => `Lo que verá ${nombre}`, // [lenguaje 9.1]
 
   // El PIN, una sola vez (4)
-  creadoPara: (nombre: string) => `Enlace creado para ${nombre}`, // [demo]
+  creadoPara: (nombre: string) => `Enlace creado para ${nombre}`, // [lenguaje 9.1]
   creado: 'Enlace creado',
-  pinTitulo: 'PIN para abrir la ficha', // [demo]
+  pinTitulo: 'PIN para abrir la ficha', // [lenguaje 9.1]
   /** [lenguaje 9] La primera oración va en negrita. */
   dictaselo: (nombre: string) => [`Díctaselo a ${nombre} por teléfono.`, ' No lo mandes junto con el enlace. Solo lo verás ahora.'] as const,
   cuentale: (nombre: string) => `Cuéntale a ${nombre} que anotaste su nombre y su teléfono en MATU, y que cada vez que abra el enlace o la ficha queda registrado.`, // [lenguaje 9]
@@ -483,10 +474,10 @@ export const COMPARTIR = {
   copiado: (nombre: string) => `Enlace copiado. Pégalo en tu mensaje a ${nombre}.`,
   noCopiado: 'No pudimos copiar el enlace. Usa «Enviar el enlace».',
   enlacePara: (nombre: string) => `Enlace para ${nombre}`,
-  verEnlaces: 'Ver los enlaces', // [demo]
+  verEnlaces: 'Ver los enlaces', // [lenguaje 9.1]
   pinPerdidoTitulo: 'El PIN ya no se puede ver', // [lenguaje 9]
   pinPerdido: 'Por seguridad se muestra una sola vez. Si se perdió, crea un enlace nuevo y corta el anterior.', // [lenguaje 9]
-  crearNuevo: 'Crear un enlace nuevo', // [demo]
+  crearNuevo: 'Crear un enlace nuevo', // [lenguaje 9.1]
 
   // Enlaces (5)
   enlacesBajada:
@@ -516,7 +507,7 @@ export const COMPARTIR = {
   anteriores: 'Ver enlaces anteriores',
   seAgregaron: (n: number) => (n === 1 ? 'Se agregó 1 enlace.' : `Se agregaron ${n} enlaces.`),
   noHayMas: 'No hay más.', // [lenguaje 15]
-  verCuando: 'Ver cuándo la abrió', // [PROPUESTO en MATU-45]
+  verCuando: 'Ver cuándo la abrió', // [lenguaje 9.1]
   llamar: (nombre: string) => `Llamar a ${nombre}`,
   sinTelefono: 'Ya no guardamos su teléfono.',
 
@@ -524,7 +515,7 @@ export const COMPARTIR = {
   conRelevo: 'Compartir con un relevo', // [lenguaje 6.1]
   laFicha: 'Compartir la ficha',
   puedenVerla: 'Quién puede verla ahora',
-  venceEn: 'vence en', // [demo]
+  venceEn: 'vence en', // [lenguaje 9.1]
   nadieActivo: 'Nadie tiene un enlace activo ahora.',
   verYCortar: 'Ver y cortar enlaces',
   /** [lenguaje 15] «Enlaces» va como enlace en línea. */

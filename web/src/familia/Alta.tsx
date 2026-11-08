@@ -450,9 +450,7 @@ export function CrearGrupo() {
 export function AQuien() {
   const { borrador, fijar } = useFamilia()
   const [b, setB] = useState(borrador)
-  const [error, setError] = useState<'nombres' | 'apoyo' | 'direccion' | null>(null)
-  const algunaDireccion = !!(b.calle.trim() || b.numero.trim() || b.comuna.trim() || b.depto.trim())
-  const direccionCompleta = !!(b.calle.trim() && b.numero.trim() && b.comuna.trim())
+  const [error, setError] = useState<'nombres' | 'apoyo' | null>(null)
   const cambia = (k: keyof typeof b) => (e: { target: { value: string } }) => setB((x) => ({ ...x, [k]: e.target.value }))
   const form = useRef<HTMLFormElement>(null)
 
@@ -460,7 +458,6 @@ export function AQuien() {
     e.preventDefault()
     if (!b.nombre.trim() || !b.pila.trim()) setError('nombres')
     else if (!b.apoyo) setError('apoyo')
-    else if (algunaDireccion && !direccionCompleta) setError('direccion')
     else {
       setError(null)
       fijar({ borrador: b })
@@ -501,17 +498,6 @@ export function AQuien() {
           columnas
           error={error === 'apoyo' ? PERSONA.errApoyo : null}
         />
-        <fieldset className="flex flex-col gap-3">
-          <legend className="font-bold">{PERSONA.direccion}</legend>
-          <p className="-mt-1 text-base text-tenue">{PERSONA.direccionAyuda}</p>
-          <div className="grid gap-4 @2xl/main:grid-cols-[minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.2fr)]">
-            <CampoTexto etiqueta={PERSONA.calle} value={b.calle} onChange={cambia('calle')} autoComplete="off" maxLength={120} aria-invalid={error === 'direccion' && !b.calle.trim() ? true : undefined} />
-            <CampoTexto etiqueta={PERSONA.numero} value={b.numero} onChange={cambia('numero')} autoComplete="off" maxLength={20} aria-invalid={error === 'direccion' && !b.numero.trim() ? true : undefined} />
-            <CampoTexto etiqueta={PERSONA.comuna} value={b.comuna} onChange={cambia('comuna')} autoComplete="off" maxLength={60} aria-invalid={error === 'direccion' && !b.comuna.trim() ? true : undefined} />
-          </div>
-          <CampoTexto etiqueta={PERSONA.depto} value={b.depto} onChange={cambia('depto')} autoComplete="off" maxLength={20} className="max-w-48" />
-          {error === 'direccion' && <MensajeError>{PERSONA.errDireccion}</MensajeError>}
-        </fieldset>
         <p className="flex max-w-prose gap-2 rounded-xl bg-rocio px-4 py-3">
           <ShieldCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />
           <span>{PERSONA.sinDiagnostico}</span>
@@ -526,7 +512,7 @@ export function AQuien() {
 
 // ---------------------------------------------------------------- 3.5.2 La autorización
 
-const CAMPOS_PASO_1 = /^(nombre|nombre_pila|nivel_apoyo|direccion(\..*)?)$/
+const CAMPOS_PASO_1 = /^(nombre|nombre_pila|nivel_apoyo)$/
 
 /** Lo que declara quien autoriza la ficha: el cuerpo de `POST …/personas-cuidadas` y de `POST …/consentimientos`. */
 export interface Otorgamiento {
@@ -633,15 +619,13 @@ export function Autorizacion() {
     const otorgamiento = d.validar()
     if (!otorgamiento) return
     if (!grupoId) return setFalla('no-encontrado')
-    const conDireccion = borrador.calle.trim() && borrador.numero.trim() && borrador.comuna.trim()
+    // La persona y la autorización van en la misma petición: nada se guarda antes de autorizar.
+    // Sin dirección (decisión de Jorge del 08-11, minimización): se pedirá con el primer pedido (MATU-61).
     const cuerpo: SolicitudPersona = {
       nombre: borrador.nombre.trim(),
       nombre_pila: pila,
       nivel_apoyo: borrador.apoyo ?? 'apoyo_parcial',
       ...otorgamiento,
-      direccion: conDireccion
-        ? { calle: borrador.calle.trim(), numero: borrador.numero.trim(), comuna: borrador.comuna.trim(), depto: borrador.depto.trim() || null }
-        : null,
     }
     setOcupado(true)
     try {

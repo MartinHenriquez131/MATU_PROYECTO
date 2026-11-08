@@ -81,10 +81,10 @@ describe('Crear cuenta con un correo de un dominio no permitido (staging)', () =
     expect(correo).toHaveAttribute('aria-invalid', 'true')
     expect(correo).toHaveAccessibleDescription('En este ambiente de prueba usa un correo terminado en @example.com.')
     expect(screen.getByText('En este ambiente de prueba usa un correo terminado en @example.com.')).toBeVisible()
-    expect(screen.queryByText('Revisa tu correo.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Revisa cómo escribiste tu correo.')).not.toBeInTheDocument()
   })
 
-  it('otro 422 del correo sigue diciendo «Revisa tu correo.»', async () => {
+  it('otro 422 del correo sigue diciendo «Revisa cómo escribiste tu correo.»', async () => {
     responderCon(apiFamilia, { status: 422, cuerpo: problema422({ campo: 'email', tipo: 'value_error' }) })
     render(<CrearCuenta />)
 
@@ -92,6 +92,6 @@ describe('Crear cuenta con un correo de un dominio no permitido (staging)', () =
 
     const correo = screen.getByLabelText('Tu correo')
     await waitFor(() => expect(correo).toHaveFocus())
-    expect(correo).toHaveAccessibleDescription('Revisa tu correo.')
+    expect(correo).toHaveAccessibleDescription('Revisa cómo escribiste tu correo.')
   })
 })
