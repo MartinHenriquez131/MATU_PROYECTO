@@ -5,6 +5,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
@@ -407,6 +408,8 @@ function sembrar() {
     const u = cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo)
     insumos(u, 'vigente', true)
   }
+  // MATU-59: el catálogo vacío y con error (los demás roles lo ven con sus cuentas de siempre).
+  for (const modo of ['catalogo-vacio', 'catalogo-falla'] as const) insumos(cuenta(`${modo}@example.com`, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo), 'vigente', true)
   cuenta('enlaces-cortar-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
   cuenta('enlaces-lista-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
   cuenta('compartir-nombre@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
@@ -633,6 +636,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     for (const [id, r] of refrescos) if (r.email === email) refrescos.delete(id)
     console.info(`[doble · envío simulado] aviso → ${email}: cambiaron tu contraseña`)
     return sinCuerpo(res, 204), true
+  }
+
+  // ------------------------------------------------ MATU-59: el catálogo, sin X-Grupo-Id ni persona
+  if (metodo === 'GET' && ruta === '/v1/catalogo') {
+    const u = usuarioDe(req)
+    if (!u) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+    if (u.modo === 'catalogo-falla') return problema(res, 503, '/errores/servicio-no-disponible'), true
+    return json(res, 200, catalogoDoble(u.modo)), true
   }
 
   if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo')) return false
