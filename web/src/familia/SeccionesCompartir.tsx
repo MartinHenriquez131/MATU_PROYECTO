@@ -1,23 +1,22 @@
 // Qué secciones ve el relevo, para el paso de compartir (especificación MATU-49, sección 6).
 //
-// La pantalla de compartir es de MATU-48 (Martín) y todavía no existe en `main`: aquí están solo
-// las piezas, listas para integrar. Cómo se integran en la pantalla de MATU-48:
+// Las piezas que usa el formulario de «Compartir con un relevo» (`Compartir.tsx`, MATU-48):
 //
-//   1. En lugar de los chips de «¿Qué puede ver?» de los tres campos, va <ElegirSecciones>, entre
-//      «Su teléfono» y «¿Hasta cuándo?». Recibe las secciones agregadas de la ficha
-//      (`seccionesAgregadas(ficha)`); los tres campos van siempre y no se eligen.
+//   1. <ElegirSecciones> va entre «Su teléfono» y «¿Hasta cuándo?». Recibe las secciones agregadas
+//      de la ficha (`seccionesAgregadas(ficha)`); los tres campos van siempre y no se eligen.
 //   2. El estado sale de `useEleccionSecciones()`, que parte vacío y con Sus remedios desmarcada
 //      cada vez que se monta la pantalla (6.5), aunque el acceso anterior la haya incluido.
-//   3. Al tocar «Crear enlace»: si `remedios` está marcada, NO se crea todavía. Se muestra
-//      <ConfirmacionRemedios> justo encima del botón, y «Crear enlace» se oculta mientras está
-//      abierta. Solo «Sí, crear el enlace» hace el POST. «No incluir sus remedios» desmarca la
-//      casilla, cierra el bloque y devuelve el foco a la casilla (`idCasillaRemedios`).
-//   4. Si cambia el nombre o el plazo con la confirmación abierta, se cierra (6.3).
+//   3. Al tocar «Crear enlace» con `remedios` marcada, el formulario todavía no crea el enlace:
+//      muestra <ConfirmacionRemedios> en lugar del botón, y solo «Sí, crear el enlace» hace el POST.
+//      «No incluir sus remedios» desmarca la casilla, cierra el bloque y devuelve el foco a la
+//      casilla (`idCasillaRemedios`).
+//   4. Si cambia el nombre o el plazo con la confirmación abierta, el formulario la cierra (6.3).
 //   5. El cuerpo del POST lleva `secciones_adicionales: eleccion.paraEnviar` y no lleva `campos`
-//      (deprecado en docs/api/openapi.json). Un 422 `seccion_no_agregada` significa que otra
-//      persona quitó una sección mientras tanto: hay que volver a leer la ficha.
-//   6. En la pantalla del PIN y en «Enlaces»: `COMPARTIR_SECCIONES.loQueVe(titulos)` y, bajo el
-//      PIN, `COMPARTIR_SECCIONES.despues(nombre)` (6.4).
+//      (deprecado en docs/api/openapi.json). Ante un 422 `seccion_no_agregada` (otra persona quitó
+//      una sección mientras tanto), el formulario vuelve a leer la ficha y deja marcado solo lo que
+//      sigue existiendo.
+//   6. En la pantalla del PIN y en «Enlaces», lo que ve el relevo sale de `loQueVeAcceso` (textos.ts)
+//      y, bajo el PIN, de `COMPARTIR_SECCIONES.despues(nombre)` (6.4).
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, Info } from 'lucide-react'
 import { seccionesDe, type Ficha } from '../compartido/api/familia'
