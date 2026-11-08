@@ -2890,6 +2890,39 @@
         }
       }
     },
+    "/v1/catalogo": {
+      "get": {
+        "tags": [
+          "catálogo"
+        ],
+        "summary": "Ver el catálogo",
+        "description": "El catálogo curado (MATU-59, RF-20, ADR-027): categorías con sus productos y, por producto, cada comercio con su precio exacto en pesos enteros con IVA y si hay stock (disponible), nunca la cantidad (decisión 161), por nombre_fantasia y nunca por precio. Entran solo productos con al menos una oferta publicada de un comercio activo. Del comercio viajan solo comercio_id y nombre_fantasia. precios_de_ejemplo es true mientras no haya convenio. Lo ve cualquier sesión de familia, sin X-Grupo-Id y sin autorización de consumo ni de pedidos; el relevo no (401). Sin parámetros de consulta. No se audita. Cache-Control: private, max-age=60. Es capa 3: existe solo con CAPA3_HABILITADA=true",
+        "operationId": "ver_catalogo_v1_catalogo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido. También la sesión del relevo, que no tiene uno",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
       "get": {
         "tags": [
@@ -8028,6 +8061,161 @@
         ],
         "title": "PreferenciaAvisosVista",
         "description": "Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia\nguardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo."
+      },
+      "Catalogo": {
+        "properties": {
+          "precios_de_ejemplo": {
+            "type": "boolean",
+            "title": "Precios De Ejemplo",
+            "description": "true mientras MATU no tenga convenio con comercios (adaptador simulado): la pantalla rotula los precios"
+          },
+          "categorias": {
+            "items": {
+              "$ref": "#/components/schemas/CategoriaCatalogo"
+            },
+            "type": "array",
+            "title": "Categorias"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "precios_de_ejemplo",
+          "categorias"
+        ],
+        "title": "Catalogo"
+      },
+      "CategoriaCatalogo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "orden": {
+            "type": "integer",
+            "title": "Orden",
+            "description": "El orden de la categoría; la lista ya viene en este orden"
+          },
+          "productos": {
+            "items": {
+              "$ref": "#/components/schemas/ProductoCatalogo"
+            },
+            "type": "array",
+            "title": "Productos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "orden",
+          "productos"
+        ],
+        "title": "CategoriaCatalogo"
+      },
+      "OfertaCatalogo": {
+        "properties": {
+          "oferta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Oferta Id"
+          },
+          "comercio_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Comercio Id"
+          },
+          "nombre_fantasia": {
+            "type": "string",
+            "title": "Nombre Fantasia",
+            "description": "El nombre del comercio que se muestra. La pantalla agrega «(comercio ficticio)»"
+          },
+          "precio": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Precio",
+            "description": "Precio exacto en pesos enteros, con IVA. Nunca neto (ADR-027)"
+          },
+          "disponible": {
+            "type": "boolean",
+            "title": "Disponible",
+            "description": "Si el comercio tiene el producto. No promete disponibilidad: se confirma antes de pagar"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "oferta_id",
+          "comercio_id",
+          "nombre_fantasia",
+          "precio",
+          "disponible"
+        ],
+        "title": "OfertaCatalogo"
+      },
+      "ProductoCatalogo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion",
+            "description": "Cómo viene, por ejemplo «Paquete de 30 unidades». No repite el nombre (N3)"
+          },
+          "unidad": {
+            "type": "string",
+            "enum": [
+              "unidad",
+              "sobre",
+              "ml",
+              "g"
+            ],
+            "title": "Unidad"
+          },
+          "unidades_por_envase": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Unidades Por Envase"
+          },
+          "retracto_pierde_al_abrir": {
+            "type": "boolean",
+            "title": "Retracto Pierde Al Abrir",
+            "description": "true si el derecho a retracto no aplica al abrir el sello (higiene y uso personal, D2)"
+          },
+          "comercios": {
+            "items": {
+              "$ref": "#/components/schemas/OfertaCatalogo"
+            },
+            "type": "array",
+            "title": "Comercios",
+            "description": "Cada comercio con su precio y si hay stock, por nombre_fantasia y comercio_id, nunca por precio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "presentacion",
+          "unidad",
+          "unidades_por_envase",
+          "retracto_pierde_al_abrir",
+          "comercios"
+        ],
+        "title": "ProductoCatalogo"
       }
     },
     "securitySchemes": {

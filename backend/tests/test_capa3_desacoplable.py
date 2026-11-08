@@ -100,6 +100,8 @@ PETICIONES: list[tuple[str, str, Any, int]] = [
     ("POST", f"/v1/personas-cuidadas/{PERSONA}/borrado", None, 401),
     ("POST", "/v1/sesiones", {}, 422),
     ("POST", "/v1/pedidos", {}, 404),
+    # MATU-59: el catálogo existe, pero es capa 3: sin ella, su ruta no está (404 de ruteo, no 401)
+    ("GET", "/v1/catalogo", None, 404),
 ]
 
 # Corre en un intérprete aparte: bloquea la capa 3, arranca la API y deja lo que vio en un archivo JSON
