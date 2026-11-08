@@ -128,6 +128,39 @@ def test_una_tarea_que_falla_no_detiene_a_las_demas_y_el_log_no_lleva_su_mensaje
         assert {"inicio", "fin", "duracion_ms"} <= set(linea)
 
 
+@pytest.mark.rf("RF-12")
+@pytest.mark.parametrize(("fallidos", "resultado", "codigo"), [(1, "fallo", 1), (0, "ok", 0)])
+def test_quiebres_con_un_grupo_fallido_queda_fallo_y_sale_con_uno_pero_procesa_los_demas(
+    fallidos: int, resultado: str, codigo: int, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.modules.consumption.application.conservacion import ResultadoConservacionQuiebres
+    from app.modules.consumption.application.trabajo_diario import ResultadoTrabajo
+    from app.modules.consumption.infrastructure import tarea_quiebres
+
+    grupos = [uuid.uuid4(), uuid.uuid4()]
+    procesados: list[uuid.UUID] = []
+
+    def recalcular(fabrica: Any, grupo_id: uuid.UUID, reloj: Any) -> ResultadoTrabajo:
+        procesados.append(grupo_id)
+        if grupo_id == grupos[0] and fallidos:
+            raise LookupError(str(grupo_id))
+        return ResultadoTrabajo(materializadas=1, descartadas=0)
+
+    monkeypatch.setattr(tarea_quiebres, "grupos_activos", lambda fabrica: grupos)
+    monkeypatch.setattr(tarea_quiebres, "recalcular_grupo", recalcular)
+    monkeypatch.setattr(tarea_quiebres, "conservar_quiebres", lambda **_: ResultadoConservacionQuiebres(0, 0, 0, 0))
+    with caplog.at_level(logging.INFO, logger="matu.tareas"):
+        assert tareas.correr(["quiebres"], _contexto()) == codigo
+    assert procesados == grupos
+    [registro] = _corridas(caplog)
+    assert registro.__dict__["resultado"] == resultado
+    assert registro.levelname == ("ERROR" if fallidos else "INFO")
+    contadores = registro.__dict__["contadores"]
+    assert (contadores["grupos"], contadores["grupos_fallidos"]) == (2, fallidos)
+    assert contadores["materializadas"] == 2 - fallidos
+    assert all(str(g) not in FormateadorJSON().format(r) for r in caplog.records for g in grupos)
+
+
 def test_si_todas_terminan_el_codigo_es_cero(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.setitem(tareas.TAREAS, "avisos", lambda ctx: tareas.Salida(tareas.APAGADA, {}))
     with caplog.at_level(logging.INFO, logger="matu.tareas"):

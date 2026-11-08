@@ -23,7 +23,9 @@ python -m app.tareas <tarea>
 | `todas_diarias` | `borrados` y después `quiebres`, en ese orden | a mano | — |
 
 Cada tarea corre en su propio `try`: una que falla no detiene a las demás. El proceso sale con `0` si
-todas terminaron, `1` si alguna falló y `2` si el nombre no existe. Todas son idempotentes: correrlas dos
+todas terminaron, `1` si alguna falló y `2` si el nombre no existe. En `quiebres`, un grupo que falla no
+detiene a los demás, pero la corrida queda `fallo` (con sus contadores, entre ellos `grupos_fallidos`) y
+sale con `1`, para que Railway la muestre como fallida. Todas son idempotentes: correrlas dos
 veces el mismo día no repite nada.
 
 Cada corrida deja una línea JSON por tarea en stdout, con `tarea`, `resultado` (`ok`, `fallo` o

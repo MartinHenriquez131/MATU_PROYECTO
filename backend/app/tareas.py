@@ -10,7 +10,8 @@ Tareas:
 - conservacion_consumo: perfiles de consumo a los 90 días de terminar la autorización (MATU-36).
 - conservacion_sesiones: sesiones y dispositivos vencidos (iam, MATU-38).
 - quiebres: el trabajo diario de la predicción de quiebre y la conservación de alertas, eventos,
-  notificaciones y compras (MATU-37 y MATU-51).
+  notificaciones y compras (MATU-37 y MATU-51). Si un grupo falla, los demás se procesan igual, pero la
+  corrida queda "fallo" (con sus contadores) y el proceso sale con 1.
 - avisos: el publicador del outbox con el consumidor de avisos (MATU-41). Sin ENVIADOR_AVISOS no toma
   ningún evento y la corrida queda como "apagada".
 - borrados: las tres de borrado (destruccion_fichas, conservacion_consumo y conservacion_sesiones).
@@ -76,7 +77,7 @@ class Contexto:
 
 @dataclass(frozen=True)
 class Salida:
-    """Lo que entrega una tarea: su resultado (ok o apagada) y sus contadores, solo cantidades."""
+    """Lo que entrega una tarea: su resultado (ok, apagada o fallo) y sus contadores, solo cantidades."""
 
     resultado: str
     contadores: dict[str, int]
@@ -99,7 +100,9 @@ def _conservacion_sesiones(ctx: Contexto) -> Salida:
 
 def _quiebres(ctx: Contexto) -> Salida:
     trabajo, conservacion = tarea_quiebres.ejecutar(ctx.fabrica, ctx.reloj)
-    return Salida(OK, {**asdict(trabajo), **asdict(conservacion)})
+    # Un grupo que falla no detiene a los demás, pero la corrida queda fallida para que el cron lo muestre
+    resultado = FALLO if trabajo.grupos_fallidos > 0 else OK
+    return Salida(resultado, {**asdict(trabajo), **asdict(conservacion)})
 
 
 def _avisos(ctx: Contexto) -> Salida:
@@ -140,7 +143,7 @@ def correr_una(nombre: str, tarea: Tarea, ctx: Contexto, corrida: str) -> bool:
         ok = False
     else:
         extra.update(resultado=salida.resultado, contadores=salida.contadores)
-        ok = True
+        ok = salida.resultado != FALLO
     extra.update(fin=_instante(ctx.reloj), duracion_ms=round((time.perf_counter() - t0) * 1000, 1))
     if ok:
         log.info("tarea", extra=extra)
