@@ -2808,6 +2808,88 @@
         }
       }
     },
+    "/v1/personas-cuidadas/{persona_id}/borrado": {
+      "post": {
+        "tags": [
+          "personas cuidadas"
+        ],
+        "summary": "Borrar al tiro todo lo guardado de la persona y sacarla de MATU",
+        "operationId": "borrar_v1_personas_cuidadas__persona_id__borrado_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BorradoPersona"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada sin borrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/ya-borrada: los datos de la persona ya se borraron",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
       "get": {
         "tags": [
@@ -5631,6 +5713,43 @@
         ],
         "title": "AvisoVista",
         "description": "El aviso canónico que se mostró, con su texto completo y su huella."
+      },
+      "BorradoPersona": {
+        "properties": {
+          "persona_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Persona Id"
+          },
+          "borrado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Borrado En",
+            "description": "El instante del borrado, el mismo de toda su auditoría"
+          },
+          "enlaces_cortados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Enlaces Cortados",
+            "description": "Accesos de relevo cortados: vigentes, bloqueados y en pausa"
+          },
+          "autorizaciones_retiradas": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Autorizaciones Retiradas",
+            "description": "Autorizaciones no revocadas que se retiraron"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "persona_id",
+          "borrado_en",
+          "enlaces_cortados",
+          "autorizaciones_retiradas"
+        ],
+        "title": "BorradoPersona",
+        "description": "Respuesta del borrado (decisión 152). Sin el nombre ni nada de la persona: los contadores van solo aquí."
       },
       "CalidadOtorgante": {
         "type": "string",
