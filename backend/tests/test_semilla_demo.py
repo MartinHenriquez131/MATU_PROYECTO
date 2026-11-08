@@ -14,7 +14,7 @@ import uuid
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import psycopg
@@ -226,6 +226,13 @@ def _con_rol(monkeypatch: pytest.MonkeyPatch, resultado: str | Exception) -> lis
         return [], []
 
     monkeypatch.setattr(demo, "sembrar", sembrar)
+
+    def sembrar_catalogo(*_: Any, **__: Any) -> Any:
+        sembro.append("catalogo")
+        return SimpleNamespace(productos={}, ofertas={}, comercios={})
+
+    # MATU-59: el catálogo se siembra al final, con la misma conexión ya verificada
+    monkeypatch.setattr(demo, "sembrar_catalogo_demo", sembrar_catalogo)
     return sembro
 
 
@@ -263,7 +270,7 @@ def test_como_matu_app_siembra(entorno_local: Any, monkeypatch: pytest.MonkeyPat
     sembro = _con_rol(monkeypatch, "matu_app")
 
     assert demo.main() == 0
-    assert sembro == ["sembro"]
+    assert sembro == ["sembro", "catalogo"]
 
 
 @requiere_base
