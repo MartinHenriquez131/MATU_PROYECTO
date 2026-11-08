@@ -48,7 +48,11 @@ interface Estado {
   /** Ruta pedida antes de entrar, para volver a ella (1). */
   destino: Ruta | null
   /** Nota de una sola vez al llegar a una pantalla (guardado, conflicto resuelto). */
-  aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio'; accion?: AccionAviso } | null
+  /**
+   * `enfocar` (MATU-72 4.3): la nota recibe el foco al mostrarse. Solo cuando la pantalla no cambia de
+   * ruta y el control que se tocó ya no existe; si cambia, el foco va al `h1` (regla de ruta).
+   */
+  aviso: { titulo: string; texto?: string; tono?: 'ok' | 'rocio'; accion?: AccionAviso; enfocar?: boolean } | null
   /** 5.7: la entrada venció con texto sin guardar. */
   textoPerdido: string | null
   /**

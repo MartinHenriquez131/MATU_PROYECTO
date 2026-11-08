@@ -12,6 +12,7 @@ import { Boton } from '../compartido/ui/Boton'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
+import { AvisoDeLlegada } from './Ficha'
 import { navegar, type Ruta } from './ruteo'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 import { AUTORIZACION, CUENTA, ENTRAR, ESPERA_CONEXION, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
@@ -469,6 +470,8 @@ export function AQuien() {
   return (
     <MarcoAlta paso={3}>
       <Encabezado paso={3}>{PERSONA.titulo}</Encabezado>
+      {/* MATU-72 4.3: «Borramos los datos de…» al llegar sin personas, después de borrar. */}
+      <AvisoDeLlegada className="" />
       <form ref={form} noValidate className="flex flex-col gap-6" onSubmit={seguir}>
         <div className="grid gap-5 @2xl/main:grid-cols-2">
           <CampoTexto
