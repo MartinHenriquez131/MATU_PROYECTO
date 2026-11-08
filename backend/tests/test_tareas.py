@@ -11,6 +11,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -101,7 +102,7 @@ def test_una_tarea_que_falla_no_detiene_a_las_demas_y_el_log_no_lleva_su_mensaje
 
     for nombre in tareas.DIARIAS:
         monkeypatch.setitem(tareas.TAREAS, nombre, doble(nombre, falla=nombre == "conservacion_consumo"))
-    monkeypatch.setattr(tareas, "fabrica_sesiones", lambda: None)
+    monkeypatch.setattr(tareas, "fabrica_tareas", lambda config: None)
     stream = io.StringIO()
 
     codigo = tareas.main(["todas_diarias"], stream=stream)
@@ -161,6 +162,33 @@ def test_quiebres_con_un_grupo_fallido_queda_fallo_y_sale_con_uno_pero_procesa_l
     assert all(str(g) not in FormateadorJSON().format(r) for r in caplog.records for g in grupos)
 
 
+def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.MonkeyPatch) -> None:
+    recibido: dict[str, Any] = {}
+
+    def crear(url: str, **opciones: Any) -> Any:
+        recibido.update(opciones)
+        return None
+
+    monkeypatch.setattr(tareas, "create_engine", crear)
+    config = obtener_configuracion().model_copy(update={"database_url": "postgresql+psycopg://u@db.invalid/x"})
+    tareas.fabrica_tareas(config)
+    assert recibido["connect_args"] == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
+    assert 0 < tareas.TIEMPO_CONEXION_S <= 10
+
+
+def test_con_la_base_inalcanzable_la_tarea_falla_pronto(caplog: pytest.LogCaptureFixture) -> None:
+    # 10.255.255.1 no se enruta: sin tope, la conexión espera lo que dé el sistema operativo (~130 s)
+    url = "postgresql+psycopg://matu_app@10.255.255.1:5432/matu_inalcanzable"
+    config = obtener_configuracion().model_copy(update={"database_url": url})
+    ctx = tareas.Contexto(config=config, fabrica=tareas.fabrica_tareas(config), reloj=RelojFijo(INICIO))
+    inicio = time.monotonic()
+    with caplog.at_level(logging.INFO, logger="matu.tareas"):
+        assert tareas.correr(["conservacion_sesiones"], ctx) == tareas.SALIDA_FALLO
+    assert time.monotonic() - inicio < 20
+    [registro] = _corridas(caplog)
+    assert registro.__dict__["resultado"] == "fallo"
+
+
 def test_si_todas_terminan_el_codigo_es_cero(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.setitem(tareas.TAREAS, "avisos", lambda ctx: tareas.Salida(tareas.APAGADA, {}))
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
@@ -174,10 +202,10 @@ def test_una_configuracion_invalida_sale_distinto_de_cero_sin_su_mensaje(
 ) -> None:
     url_sintetica = "postgresql://matu_app:" + uuid.uuid4().hex + "@localhost/matu"
 
-    def falla() -> None:
+    def falla(config: Any) -> None:
         raise ValueError(f"Could not parse SQLAlchemy URL from string '{url_sintetica}'")
 
-    monkeypatch.setattr(tareas, "fabrica_sesiones", falla)
+    monkeypatch.setattr(tareas, "fabrica_tareas", falla)
     stream = io.StringIO()
     assert tareas.main(["quiebres"], stream=stream) == tareas.SALIDA_FALLO
     [linea] = _lineas(stream)

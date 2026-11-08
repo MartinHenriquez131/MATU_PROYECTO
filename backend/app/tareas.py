@@ -41,10 +41,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import TextIO
 
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Configuracion, obtener_configuracion
-from app.core.db import fabrica_sesiones
 from app.core.logs import configurar_logs, request_id_actual
 from app.modules.care_plan.infrastructure import tarea_destruccion
 from app.modules.consumption.infrastructure import tarea_conservacion as tarea_conservacion_consumo
@@ -126,6 +126,21 @@ DIARIAS: tuple[str, ...] = (*BORRADOS_DIARIOS, "quiebres")
 GRUPOS: dict[str, tuple[str, ...]] = {BORRADOS: BORRADOS_DIARIOS, TODAS_DIARIAS: DIARIAS}
 
 
+# Tope de espera para abrir una conexión, en segundos (connect_timeout de libpq). Sin él, con la base
+# inalcanzable cada tarea espera lo que dé el sistema operativo (unos 130 s) antes de fallar.
+TIEMPO_CONEXION_S = 10
+
+
+def fabrica_tareas(config: Configuracion) -> sessionmaker[Session]:
+    """La fábrica de sesiones de las tareas: como la de la API (app/core/db.py), con tope de conexión.
+
+    Un engine propio para no cambiar el de la API web. No conecta todavía."""
+    if not config.database_url:
+        raise RuntimeError("Falta DATABASE_URL")
+    engine = create_engine(config.database_url, pool_pre_ping=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S})
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
 def _instante(reloj: Reloj) -> str:
     return reloj.ahora().isoformat(timespec="seconds")
 
@@ -185,7 +200,7 @@ def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> 
     try:
         config = obtener_configuracion()
         # Crea el engine sin conectar: si la base no responde, falla cada tarea en su propio try
-        fabrica = fabrica_sesiones()
+        fabrica = fabrica_tareas(config)
     except Exception as error:  # noqa: BLE001 - una configuración inválida tampoco deja su mensaje (la URL)
         configurar_logs("INFO", stream)
         extra = {"tarea": "arranque", "resultado": FALLO, "tipo_error": type(error).__name__}

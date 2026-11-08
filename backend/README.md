@@ -53,7 +53,9 @@ propuesta:
 `todas_diarias` sirve para correr a mano o con un solo servicio si se acepta perder la ventana de los
 borrados: con `30 7 * * *` corre borrados y quiebres seguidos, a las 04:30 o a las 03:30 de Chile.
 
-Railway no lanza una corrida si la anterior sigue viva, y el proceso termina solo al acabar.
+Railway no lanza una corrida si la anterior sigue viva, y el proceso termina solo al acabar. Si la base no
+responde, cada tarea deja de esperar la conexión a los 10 segundos (`connect_timeout` del engine de las
+tareas, `TIEMPO_CONEXION_S` en `app/tareas.py`) y la corrida falla con código `1`. La API web no cambia.
 
 ### Variables
 
