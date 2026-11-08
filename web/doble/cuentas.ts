@@ -52,6 +52,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'enlaces-muchos@example.com', que: 'Un enlace activo y 25 que ya no abren: «Ver enlaces anteriores» y «No hay más.»' },
   // MATU-59: el catálogo (/insumos/catalogo). Con carmen@, cuidador@, pagador@ y observador@ se ve con la semilla; con lento@, «Cargando…»
   { email: 'catalogo-vacio@example.com', que: 'Catálogo sin productos: «Todavía no hay productos en el catálogo.»' },
+  { email: 'catalogo-apagado@example.com', que: 'Capa 3 apagada, el catálogo responde 404: «El catálogo no está disponible por ahora.», sin reintento' },
   { email: 'catalogo-falla@example.com', que: 'Catálogo responde 503: «No pudimos traer el catálogo…» y «Volver a intentar» falla otra vez' },
   { email: 'enlaces-cortar-falla@example.com', que: 'Cortar responde 500: «No pudimos cortar el enlace… El enlace todavía abre.» y la tarjeta sigue «Activo»' },
   { email: 'enlaces-lista-falla@example.com', que: 'La lista de enlaces responde 500: error en Enlaces y en «Quién puede verla ahora»' },

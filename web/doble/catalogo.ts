@@ -63,5 +63,5 @@ const CATALOGO = {
   ],
 }
 
-/** El catálogo según el modo de la cuenta: `catalogo-vacio` sin productos; cualquier otro, la semilla. */
+/** El catálogo según el modo de la cuenta: `catalogo-vacio` sin productos; cualquier otro, la semilla (`catalogo-apagado` y `catalogo-falla` no llegan aquí). */
 export const catalogoDoble = (modo?: string) => (modo === 'catalogo-vacio' ? { precios_de_ejemplo: true, categorias: [] } : CATALOGO)

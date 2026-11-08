@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react'
 import { CircleCheck, CircleMinus, CloudOff, Info, Store } from 'lucide-react'
 import { verCatalogo, type Catalogo as CatalogoApi, type CategoriaCatalogo, type OfertaCatalogo, type ProductoCatalogo } from '../compartido/api/catalogo'
+import { leerFallo } from '../compartido/api/cliente'
 import { esVencida } from '../compartido/api/sesion'
 import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
@@ -18,7 +19,8 @@ import { GENERAL } from './textos'
 import { CATALOGO, pesos } from './textosCatalogo'
 import { Etiqueta, Nota, Titulo } from './ui'
 
-type Carga = 'cargando' | 'listo' | 'red'
+// 'apagado': la capa 3 está apagada (CAPA3_HABILITADA=false) y la API responde 404 (decisión 167).
+type Carga = 'cargando' | 'listo' | 'red' | 'apagado'
 
 /**
  * 3.1: categorías por `orden` (la API ya las manda así; el orden es estable). Productos y comercios en
@@ -45,7 +47,8 @@ export function Catalogo() {
     } catch (x) {
       // 401: la app renueva la entrada una vez y, si falla, lleva a Entrar.
       if (esVencida(x)) return
-      setCarga('red')
+      // Solo un 404 es «no disponible»; 503, 5xx y la falta de red siguen siendo el error con reintento.
+      setCarga(leerFallo(x).status === 404 ? 'apagado' : 'red')
     }
   }
 
@@ -66,6 +69,17 @@ export function Catalogo() {
             {CATALOGO.errCarga}
           </Anunciado>
           <Boton onClick={() => void cargar()}>{GENERAL.volverAIntentar}</Boton>
+        </div>
+      )
+    // Capa 3 apagada: la misma baldosa neutra del vacío, sin reintento, sin aviso ni notas, y como
+    // texto normal (no es urgente). La pestaña sigue: la app no sabe antes si la capa 3 está encendida.
+    if (carga === 'apagado')
+      return (
+        <div className="mt-2 flex flex-col items-start gap-5">
+          <span className="grid size-16 place-items-center rounded-2xl bg-tinta/7 text-tenue">
+            <Store aria-hidden className="size-9" />
+          </span>
+          <p className="max-w-prose text-lg">{CATALOGO.apagado}</p>
         </div>
       )
     const categorias = catalogo ? visibles(catalogo) : []

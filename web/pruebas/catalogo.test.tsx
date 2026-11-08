@@ -335,6 +335,32 @@ describe('Cargando, vacío y error', () => {
     expect(pantalla.queryByText('No pudimos traer el catálogo. Revisa tu conexión e inténtalo de nuevo.')).toBeNull()
   })
 
+  it('capa 3 apagada (404): «El catálogo no está disponible por ahora.», sin botón, sin región urgente, con las pestañas', async () => {
+    const { pedidas, urgente, pantalla } = abrir('admin', { status: 404, cuerpo: { type: '/errores/no-encontrado', title: 'Texto de la API', status: 404 } })
+    const texto = await pantalla.findByText('El catálogo no está disponible por ahora.')
+    expect(texto).toBeVisible()
+    expect(texto.closest('[role="alert"]')).toBeNull()
+    // La única región con role=alert es la global de RegionesVivas, y queda vacía.
+    expect(pantalla.getAllByRole('alert')).toEqual([urgente])
+    expect(urgente).toHaveTextContent('')
+    expect(pantalla.queryByRole('button')).toBeNull()
+    expect(pantalla.queryByText('No pudimos traer el catálogo. Revisa tu conexión e inténtalo de nuevo.')).toBeNull()
+    expect(pantalla.queryByText('Texto de la API')).toBeNull()
+    expect(pantalla.queryByText('Precios de ejemplo.')).toBeNull()
+    expect(pantalla.queryByText('Lo que hay se confirma antes de pagar.')).toBeNull()
+    expect(pantalla.queryByText('El envío se suma al pedido, una sola vez por pedido.')).toBeNull()
+    expect(pantalla.getByRole('navigation', { name: 'Vistas de Insumos' })).toBeVisible()
+    expect(pantalla.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeVisible()
+    expect(pedidas).toEqual(['GET /v1/catalogo'])
+  })
+
+  it('el 503 no es «no disponible»: sigue el error con «Volver a intentar»', async () => {
+    const { pantalla } = abrir('cuidador', { status: 503, cuerpo: { type: '/errores/servicio-no-disponible', title: 'Texto de la API', status: 503 } })
+    expect(await pantalla.findByText('No pudimos traer el catálogo. Revisa tu conexión e inténtalo de nuevo.')).toBeVisible()
+    expect(pantalla.getByRole('button', { name: 'Volver a intentar' })).toBeVisible()
+    expect(pantalla.queryByText('El catálogo no está disponible por ahora.')).toBeNull()
+  })
+
   it('error de red, sin respuesta: el mismo texto', async () => {
     contexto = familiaFalsa({ persona: PERSONA, personaId: PERSONA.id, rol: 'observador' } as never)
     apiFamilia.defaults.adapter = async () => {

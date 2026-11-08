@@ -21,6 +21,7 @@ export const CATALOGO = {
   retracto: 'tienes 10 días desde que lo recibes.', // [lenguaje 27]
   retractoSello: 'No aplica si abres el sello del producto.', // [lenguaje 27], con retracto_pierde_al_abrir
   vacio: 'Todavía no hay productos en el catálogo.', // [lenguaje 27]
+  apagado: 'El catálogo no está disponible por ahora.', // aprobado por Jorge el 08-11: la capa 3 apagada responde 404
   errCarga: 'No pudimos traer el catálogo. Revisa tu conexión e inténtalo de nuevo.', // [lenguaje 27]
 }
 
