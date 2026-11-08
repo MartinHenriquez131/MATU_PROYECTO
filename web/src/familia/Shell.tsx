@@ -107,7 +107,9 @@ function Persona() {
     setAbierto(false)
     await elegir(grupoId, personaId)
     const seccion = seccionDe(ruta)
-    navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
+    // MATU-59 (2.2): el catálogo no cambia con la persona, así que la ruta se mantiene.
+    if (ruta === '/insumos/catalogo') navegar('/insumos/catalogo', { reemplazar: true })
+    else navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
     window.setTimeout(() => document.getElementById('titulo-pagina')?.focus(), 0)
   }
 
