@@ -1,9 +1,8 @@
 """Tarea de destrucción de las fichas retiradas hace 90 días (MATU-44, D3, decisión 129).
 
-Igual que la conservación del consumo (MATU-36): sin programador de tareas todavía, se invoca a mano o
-desde cron, desde backend/ y con DATABASE_URL de matu_app:
+La corre el programador de tareas (MATU-74), desde backend/ y con DATABASE_URL de matu_app:
 
-    python -m app.modules.care_plan.infrastructure.tarea_destruccion
+    python -m app.tareas destruccion_fichas
 
 Fija app.rol = 'operacion' y llama a plan_destruir_claves (migración 0016), SECURITY DEFINER y acotada,
 que destruye las claves y registra clave.destruir en la misma sentencia. Es idempotente. Operación no lee
