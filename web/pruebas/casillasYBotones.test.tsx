@@ -20,13 +20,17 @@ function elementos(texto: string, etiqueta: string) {
 }
 
 describe('Las casillas de la app de familia', () => {
-  it('«Leí el aviso y lo acepto» mide size-6, sin size-5 ni mt-0.5', () => {
+  it('«Leí el aviso y lo acepto» mide size-6, sin size-5 ni mt-0.5, y en angosto se alinea con la primera línea', () => {
     render(<AvisoCuidadorDeHecho idTitulo="aviso-t" idError="aviso-e" leido={false} error={false} onLeido={() => {}} />)
     const casilla = screen.getByRole('checkbox')
     expect(casilla).toHaveClass('size-6', 'shrink-0', 'accent-turquesa')
     expect(casilla).not.toHaveClass('size-5')
     expect(casilla).not.toHaveClass('mt-0.5')
     expect(casilla.closest('label')).toHaveClass('min-h-12', 'items-center')
+    // Revisión visual de MATU-68 (P3): en 320 px con el texto al 200 % la etiqueta ocupa varias
+    // líneas, y la casilla va con la primera (DISENO.md). Fuera de `angosto` no cambia.
+    expect(casilla).toHaveClass('angosto:mt-0.5')
+    expect(casilla.closest('label')).toHaveClass('angosto:items-start')
   })
 
   it('ninguna casilla nativa visible de web/src/familia lleva size-5', () => {

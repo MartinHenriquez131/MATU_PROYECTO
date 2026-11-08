@@ -221,14 +221,14 @@ export function AvisoCuidadorDeHecho({
           <p key={p.slice(0, 24)}>{p}</p>
         ))}
       </div>
-      <label className="flex min-h-12 cursor-pointer items-center gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
+      <label className="flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 border-t border-linea bg-hoja/60 px-5 angosto:px-2 py-3 font-bold">
         <input
           type="checkbox"
           checked={leido}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? idError : undefined}
           onChange={(e) => onLeido(e.target.checked)}
-          className="size-6 shrink-0 accent-turquesa"
+          className="size-6 shrink-0 accent-turquesa angosto:mt-0.5"
         />
         {AUTORIZACION.leido}
       </label>
