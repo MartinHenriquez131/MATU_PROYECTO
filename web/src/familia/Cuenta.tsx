@@ -2,6 +2,7 @@
 // enmascarado desde `GET /v1/cuenta` y nunca se guarda fuera de la memoria de la pantalla. SMS o
 // WhatsApp se elige una vez, al confirmar (campo `canal`, decisión de Jorge del 03-11).
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { Check, Circle } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import { confirmarCelular, leerCuenta, pedirCodigoCelular, type CanalCelular, type Cuenta } from '../compartido/api/familia'
@@ -200,12 +201,16 @@ export function ConfirmarCelular() {
     } catch (x) {
       if (esVencida(x)) return
       const f = leerFallo(x)
+      // Tras un `await`, React puede confirmar el estado después del setTimeout del foco: flushSync deja
+      // el campo con `aria-invalid` y su mensaje antes de enfocarlo (como en Crear cuenta).
       if (f.status === 422 && f.tipo === '/errores/codigo-invalido') {
-        setCodigo('')
-        setError(CELULAR.errCodigo)
+        flushSync(() => {
+          setCodigo('')
+          setError(CELULAR.errCodigo)
+        })
         window.setTimeout(() => campo.current?.focus(), 0)
       } else if (f.status === 422) {
-        setError(CELULAR.errCodigoCorto)
+        flushSync(() => setError(CELULAR.errCodigoCorto))
         window.setTimeout(() => campo.current?.focus(), 0)
       } else if (f.status === 429) setFalla({ tipo: 'espera', minutos: esperar(f.reintentarEnSegundos) })
       else if (f.status === 503) setFalla({ tipo: 'no-envio' })
