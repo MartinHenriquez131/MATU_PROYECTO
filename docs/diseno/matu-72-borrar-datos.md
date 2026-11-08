@@ -1,6 +1,8 @@
 # MATU-72 · Borrar los datos de la persona al tiro · Especificación de diseño
 
-**Versión 1.0 · 08/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 08/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.1** (después de la revisión visual de la pantalla construida, sección 10): la casilla con la medida única de MATU-68 (3.1, decisión R1) · «Lo borrado» admitido en el párrafo 6 (sección 7, R2) · con la ficha `sin_autorizar`, «Hoy ningún enlace abre.» (3.5, R3) · «No borrar» en curso con `aria-disabled:opacity-60` (3.1 y 3.6, R4) · nuevo punto abierto A3 (el género de los textos aprobados).
 
 **Historia:** Carmen puede borrar, desde Grupo familiar, todo lo guardado de María: su ficha con todas sus secciones, sus insumos y las compras anotadas. Se cortan todos sus enlaces de relevo, María sale de MATU y no se puede deshacer. Volver es registrarla de nuevo, en blanco.
 
@@ -12,12 +14,13 @@
 
 ## 0. Lo que queda abierto para Jorge
 
-Dos puntos de los textos aprobados chocan con una regla de accesibilidad o con la verdad de la pantalla. No los cambio: propongo, y el frontend construye la opción **por defecto** mientras Jorge no diga otra cosa.
+Tres puntos de los textos aprobados chocan con una regla de accesibilidad o con la verdad de la pantalla. No los cambio: propongo, y el frontend construye la opción **por defecto** mientras Jorge no diga otra cosa.
 
 | # | Qué pasa | Propuesta | Por defecto |
 |---|---|---|---|
 | A1 | El nombre accesible aprobado, «Borrar **todos** los datos de `{nombre_pila}`», no contiene el texto visible, «Borrar los datos de `{nombre_pila}`». Rompe WCAG 2.5.3 (etiqueta en el nombre): quien usa control por voz dice lo que ve, «Borrar los datos de María», y el botón no responde. En MATU-44 la regla fue que el `aria-label` **empieza con el texto visible** (3.3) | **Sin `aria-label`.** El texto visible ya lleva el nombre y es único en la página: no hace falta otro. Si Jorge quiere la palabra «todos», que vaya también en el texto visible: «Borrar todos los datos de `{nombre_pila}`» | Sin `aria-label`. Nombre accesible = texto visible |
 | A2 | La explicación del bloque dice «**puedes** borrar todo lo guardado de ella». El pagador y el observador no pueden, y debajo leerían «Puede borrarlos quien administra el grupo…». Las dos frases se contradicen | Para esos dos roles, el bloque lleva el título y la línea de quién puede, **sin** la explicación. No agrega texto: omite uno | Omitida para pagador y observador |
+| A3 | Tres textos aprobados dan por hecho que la persona es mujer: la explicación del bloque («si ya no **la** cuidan…, todo lo guardado de **ella**») y el párrafo 4 («para cuidar**la**, hay que registrar**la**»). En la revisión visual (sección 10), con Juan Soto en el grupo, la pantalla dice «Si Juan o su representante legal lo pide, o si ya no la cuidan con MATU, puedes borrar todo lo guardado de ella». MATU no guarda el género de la persona, así que la pantalla no puede elegir | Redacción sin pronombre, que sirve para cualquiera: explicación «Si `{nombre_pila}` o su representante legal lo pide, o si ya no usan MATU para cuidar a `{nombre_pila}`, puedes borrar todo lo guardado. No se puede deshacer.» · párrafo 4 «`{nombre_pila}` sale de MATU. Si después quieren volver a usar MATU, hay que registrar a `{nombre_pila}` de nuevo, y todo empieza en blanco.» | El texto aprobado, tal cual. La demo solo muestra a María |
 
 ---
 
@@ -164,13 +167,15 @@ Es el diálogo de MATU-44 (4.1) con cuatro cambios: **párrafos en vez de lista*
   - El primero, «Esto no se puede deshacer.», en **`font-bold`**. Es lo único en negrita.
   - Del segundo al cuarto (lo que pasa ahora), en `tinta`.
   - Del quinto al séptimo (lo que se guarda y lo que ya salió), en **`text-tenue`** (7,2:1 sobre `hoja` claro, 8,1:1 oscuro). Sigue siendo legible y relevante, pero se lee después.
-- Casilla: `label flex min-h-12 cursor-pointer items-center gap-3 font-bold` con `input type="checkbox" className="size-5 shrink-0 accent-turquesa"`, el mismo trato que la casilla del aviso del cuidador de hecho (`AvisoCuidadorDeHecho`, `ui.tsx`). Toda la fila es el área táctil. Sin marcar al abrir, siempre.
+- Casilla: `label flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 font-bold` con `input type="checkbox" className="size-6 shrink-0 accent-turquesa angosto:mt-0.5"`, el mismo trato que la casilla del aviso del cuidador de hecho (`AvisoCuidadorDeHecho`, `ui.tsx`). Toda la fila es el área táctil. Sin marcar al abrir, siempre.
+  - **Decisión R1 (1.1):** `size-6` y no `size-5`. MATU-68 fijó `size-6` como la medida única de las casillas de la app, y esta no es la excepción. En modo angosto la casilla va con la primera línea (`items-start` y `mt-0.5`), porque «Entiendo que esto no se puede deshacer.» ocupa cuatro renglones a 320 px con el texto al 200 %, y centrada quedaría lejos del inicio de la frase. Medido: 25,5 px a 360 px, 48 px a 320 px con el texto al 200 %; el borde sin marcar mide 4,5:1 sobre `hoja` claro y 4,3:1 oscuro.
 - Región de error: `div role="alert" className="empty:hidden"`, montada vacía con el diálogo (MATU-44 4.1), dentro del pie, entre la casilla y los botones: el error queda a la vista sin desplazar.
 - Botones con `Acciones` (`flex-wrap`): primero «Borrar todo», después «No borrar».
   - **«Borrar todo»:** `Boton variante="peligroPrincipal"` (`bg-pronto text-papel`), el único macizo del diálogo.
   - **Mientras la casilla no está marcada**, va con `aria-disabled="true"` (no `disabled`: conserva el foco y se anuncia, como el de Entrar en `Boton.tsx`) y **cambia de forma, no solo de color:** `aria-disabled:bg-hoja aria-disabled:text-tenue aria-disabled:ring-2 aria-disabled:ring-inset aria-disabled:ring-borde aria-disabled:cursor-not-allowed`, sin `hover:brightness`. Contorno neutro y texto `tenue` (7,2:1 sobre `hoja`, legible) en vez de macizo rojo. **Nada de `opacity-60`:** sobre `pronto` daría texto de menos de 3:1. Tocarlo así no hace nada.
   - Al marcar la casilla pasa a macizo `pronto`, en el mismo lugar y con el mismo ancho.
   - **«No borrar»:** de texto, igual que «No retirar» (`inline-flex min-h-12 items-center px-2 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa`).
+  - **Decisión R4 (1.1): «No borrar» en curso** lleva `aria-disabled` con `aria-disabled:cursor-not-allowed aria-disabled:opacity-60`, igual que «No retirar» de MATU-44. Aquí sí vale `opacity-60`: es un control inactivo mientras dura la petición (WCAG 1.4.3 no exige contraste a los controles inactivos), la regla vale solo unos segundos y lo que comunica el estado es «Borrando…» en el botón con el foco. Medido: 2,8:1 en claro y 3,9:1 en oscuro. La prohibición de `opacity-60` sigue en pie para «Borrar todo», que es el control que se tiene que poder leer para decidir.
 
 **Recomendación para el frontend:** el estado deshabilitado de `peligroPrincipal` cabe en la variante misma (`aria-disabled:` en `VARIANTES`), así no se repite en el diálogo. Es solo `hoja`, `tenue` y `borde`: ningún token nuevo.
 
@@ -273,6 +278,8 @@ El mismo diálogo, centrado, de 32 rem como máximo (`max-w-lg`). A 1280 px y a 
 | `vigente`, si el conteo falló | Se omite la frase (regla aprobada) |
 | `revision_vencida` | «Hoy ningún enlace abre.» Están en pausa: no abren (decisión 33), y el texto aprobado no tiene la variante «en pausa» |
 | `retirada` o `borrada` | «Hoy ningún enlace abre.» El retiro ya los cortó todos (MATU-44, decisión 124) |
+| `sin_autorizar` | «Hoy ningún enlace abre.» **Decisión R3 (1.1).** Sin la autorización de la ficha nunca se pudo crear un enlace, así que el dato se conoce y es cero. Omitir la frase es lo que se hace cuando no se sabe (conteo fallido), y Carmen lo leería como «no sé cuántos». Decirlo la tranquiliza: nadie pierde el acceso ahora |
+| Sin la vista de la ficha (no llegó) | Se omite la frase, como sin conteo |
 
 `hoyAbren` ya existe en `textosGrupo.ts` con esas tres formas: se reutiliza.
 
@@ -283,7 +290,7 @@ El mismo diálogo, centrado, de 32 rem como máximo (`max-w-lg`). A 1280 px y a 
 | Abierta | El esquema de 3.2. Casilla sin marcar, «Borrar todo» con `aria-disabled` | En **«No borrar»**, la opción segura. El orden del DOM es: título, párrafos, casilla, error, «Borrar todo», «No borrar». Desde «No borrar», `Shift+Tab` va a «Borrar todo» y otra vez a la casilla. El `h2` no está en el orden de `Tab` (`tabIndex={-1}`) |
 | Casilla marcada | «Borrar todo» macizo `pronto`. Si se desmarca, vuelve al contorno neutro | En la casilla |
 | «Borrar todo» sin la casilla | No pasa nada. No se envía | Se queda en el botón |
-| En curso | «Borrar todo» dice «Borrando…», con el mismo ancho y `aria-busy` (`Boton` con `ocupado`). La casilla, «No borrar» y `Esc` no hacen nada: la casilla con `aria-disabled` (y `onChange` ignorado), «No borrar» con `aria-disabled`, `onCancel` con `preventDefault`. **Y el segundo `Esc`:** si el diálogo recibe `close` con la petición en curso, se vuelve a abrir con `showModal()` y el foco vuelve al botón (MATU-44 4.4, el mismo código) | Se queda en el botón |
+| En curso | «Borrar todo» dice «Borrando…», con el mismo ancho y `aria-busy` (`Boton` con `ocupado`). La casilla, «No borrar» y `Esc` no hacen nada: la casilla con `aria-disabled` (y `onChange` ignorado), «No borrar» con `aria-disabled` y `opacity-60` (R4), `onCancel` con `preventDefault`. **Y el segundo `Esc`:** si el diálogo recibe `close` con la petición en curso, se vuelve a abrir con `showModal()` y el foco vuelve al botón (MATU-44 4.4, el mismo código) | Se queda en el botón |
 | Hecho (200) | Se cierra el diálogo y la persona sale de la app (sección 4) | Sección 4 |
 | 409 `ya-borrada` | Se cierra el diálogo y la persona sale igual (sección 4), con la nota del 409 | Sección 4 |
 | Red o 5xx | En la región del pie, `MensajeError`: «No pudimos borrar los datos. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.» El botón vuelve a «Borrar todo», **la casilla sigue marcada** (no hay que volver a decidir). Es verdad que todo sigue igual: el borrado es una sola transacción (C1) | Se queda en el botón |
@@ -419,7 +426,8 @@ Si el contrato nombra el contador distinto, manda el contrato. La pantalla no ne
 - **No poner** el foco inicial en «Borrar todo» ni en la casilla.
 - **No usar** `disabled` ni `opacity-60` en «Borrar todo»: `aria-disabled` con contorno neutro (3.1).
 - **No poner** el botón del bloque macizo, ni el bloque dentro de una tarjeta roja o con fondo `pronto-fondo`. Lo rojo es solo el botón.
-- **No usar** las palabras «eliminar», «borrado», «suprimir», «revocar» ni «consentimiento» en la interfaz. Solo los textos de esta especificación.
+- **No usar** las palabras «eliminar», «borrado» (como sustantivo: «el borrado», «borrado de datos»), «suprimir», «revocar» ni «consentimiento» en la interfaz. Solo los textos de esta especificación.
+  - **Excepción R2 (1.1):** «Lo borrado», en el párrafo 6 («Lo borrado sigue en las copias de respaldo hasta que vencen…»), que aprobó Jorge el 08-11. Ahí no nombra un trámite: es el participio de «borrar», el mismo verbo del botón, y se refiere a lo que Carmen acaba de leer en el párrafo 2. Es el único lugar donde se admite. Lo que la regla evita sigue igual: llamar al acto «el borrado» en un título, un botón o una nota.
 - **No escribir** colores, tamaños ni sombras a mano. Ningún token nuevo. Íconos solo de lucide, y los que ya usan `Nota` y `MensajeError` (`CircleCheck`, `Info`, `CircleAlert`). El bloque y los botones van sin ícono.
 - **No tocar** los bloques de permisos de MATU-44 ni su diálogo.
 
@@ -451,3 +459,23 @@ Mirándola funcionar, con datos sintéticos (María, Carmen, Rodrigo y Rosa). Ca
 - después del 200 con una persona (`/empezar/persona`) y con dos (`/grupo`), y después del 409
 
 Con el teclado: el foco al abrir, con la casilla, al cancelar, en curso con `Esc` dos veces y después del borrado. Con un lector de pantalla: que la nota de hecho se lea una sola vez.
+
+---
+
+## 10. Revisión visual del 08/11/2026 (commits b7bd555 a 0bb67d2)
+
+La pantalla se revisó funcionando contra el doble de desarrollo, con capturas a 320 px con el texto al 200 % y a 360, 1280 y 1920 px, en los dos temas. Se revisaron el bloque (como admin y cuidador, pagador y observador, y con tres personas), el diálogo (abierto, sin marcar, con foco en la casilla, marcado, error de red y en curso con dos `Esc`) y lo que viene después (200 sin personas, 200 con otras y 409).
+
+| Criterio (sección 8) | Resultado |
+|---|---|
+| 1 a 3 (bloque) | Se cumple. Va después de la grilla, con la línea `linea`, sin fondo. Pagador y observador ven solo «Puede borrarlos quien…» (6,4:1 sobre `papel`) |
+| 4 (foco y pregunta) | Se cumple. El foco queda en «No borrar» y con `scrollTop` 0, también a 320 px con el texto al 200 % |
+| 5 (deshabilitado) | Se cumple. Contorno `borde` (3,5:1 claro y 4,0:1 oscuro) con texto `tenue` (7,2:1 y 8,1:1), o macizo `pronto` (6,3:1 y 9,5:1). Tiene el mismo ancho en los tres estados |
+| 6 (pie fijo y reflujo) | Se cumple. Sin desplazamiento horizontal en ningún ancho |
+| 7 (negrita y `tenue`) | Se cumple |
+| 8 (en curso) | Se cumple. Con dos `Esc` y «No borrar», el diálogo sigue abierto con el foco en «Borrando…» |
+| 9 (error) | Se cumple. A 320 px con el texto al 200 % el error queda a la vista y el botón con el foco queda debajo, en la misma caja que se desplaza |
+| 10 y 11 (después) | Se cumple. `/empezar/persona` muestra la nota y el formulario vacío, y `/grupo` muestra la nota con el foco y sin la sección. El nombre aparece solo en la nota |
+| 12 (17 px) | Se cumple |
+
+Decisiones R1 a R4 en 3.1, 3.5 y 7. Punto abierto A3 en la sección 0.
