@@ -1,6 +1,7 @@
 # MATU-59 · Catálogo curado · Especificación de diseño
 
-**Versión 1.0 · 08/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.1 · 08/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.1 (revisión visual del 08-11, APROBADA):** en 4.7, las filas de la tarjeta en ancho (`@3xl/producto:grid-rows-[auto_1fr]`), que el frontend agregó y la revisión confirmó; y en 9.1, los tres P3 aceptados.
 **Historia:** MATU-59, el catálogo curado (RF-20, capa 3). La familia mira los productos que usan las familias que cuidan, ordenados por categoría, con el precio de cada comercio y si lo tiene. **No se pide nada desde esta pantalla** (D4: el botón «Pedir» llega con MATU-61).
 **Dónde se construye:** `web/`, en la app de la familia, React 19, TypeScript y Tailwind CSS v4, mobile first.
 
@@ -317,6 +318,7 @@ Sin imagen. Sin marca. Sin cifra de unidades por envase aparte de lo que diga la
 
 - **La tarjeta en dos columnas desde 48 rem de tarjeta** (`@3xl/producto`, se decide por el ancho de la tarjeta, no del `main`, como aprendimos en MATU-60 4.2): `grid grid-cols-1 @3xl/producto:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-8`. A la izquierda el producto (nombre, presentación, etiqueta y retracto); a la derecha los comercios. Es la regla de DISENO.md 3: a la izquierda qué es, a la derecha dónde y cuánto.
 - **El orden del DOM no cambia:** nombre y presentación, comercios, retracto. En ancho, el retracto se ubica con `@3xl/producto:col-start-1 @3xl/producto:row-start-2` y los comercios con `@3xl/producto:col-start-2 @3xl/producto:row-start-1 @3xl/producto:row-span-2 @3xl/producto:mt-0`. El retracto pierde el `mt-4` y queda con `@3xl/producto:mt-3`. El lector y el Tab siguen el mismo orden que a 360 px.
+- **Las filas en ancho: `@3xl/producto:grid-rows-[auto_1fr]`** (v1.1). Los comercios ocupan las dos filas y casi siempre son más altos que el producto. Con dos filas `auto`, el alto que sobra se reparte entre las dos y el retracto se separa del nombre. Con `auto_1fr`, la fila 1 mide justo el nombre, la presentación y la etiqueta, y la fila 2 se lleva el resto, así que el retracto queda pegado bajo el nombre (`mt-3`). Si la izquierda es más alta, `1fr` crece con su contenido y no recorta nada. Medido a 1280 px en Pañal: fila 1 de 57 px, fila 2 de 145,5 px, y el retracto a 12,75 px del nombre.
 - **Los comercios lado a lado desde 28 rem de columna** (`@md/oferta:grid-cols-2 gap-x-6`). Cada fila conserva su `border-t`: en dos columnas se leen como dos columnas bajo una línea.
 - **Medidas a 1280 px:** el contenido mide unos 906 px (1280 menos la barra lateral de 16,5 rem y el `px-11` del `main`) y la tarjeta por dentro, 872 px. Pasa los 816 px de `@3xl`: dos columnas, la izquierda de unos 280 px y la derecha de unos 560 px. La derecha pasa los 476 px de `@md`: dos comercios de unos 267 px cada uno. «$12.990» más «Precio de ejemplo» miden 206 px: caben en un renglón.
 - **A 1920 px:** el `main` llega a su `max-w-7xl` y la lista se detiene en `max-w-6xl` (72 rem, 1.224 px), para que la cifra no quede lejos de su comercio. La izquierda mide unos 390 px y cada comercio unos 380 px.
@@ -450,3 +452,7 @@ Capturas a 320 px con el texto al 200 %, 360 px, 1280 px y 1920 px, en tema clar
 - `/insumos` en el permiso de Insumos y en «Falta el permiso», con las pestañas «Insumos» y «Catálogo».
 - Las pestañas a 360 px en dos renglones.
 - Los criterios 1 a 14 de la sección 8, uno por uno.
+
+### 9.1 P3 aceptados en la revisión del 08-11 (v1.1)
+
+- Con el 200 %, la `Etiqueta` neutra en `rounded-full` se parte en tres renglones y queda como un óvalo. Se lee y el contraste cumple; `angosto:rounded-xl` en `Etiqueta` queda para una historia de pulido. En `Permiso`, el antetítulo «Insumos» repite la pestaña activa (componente anterior, fuera de MATU-59). A 1920 px, la línea de las pestañas llega más allá que las tarjetas (`max-w-6xl`): es lo que pide 4.7.
