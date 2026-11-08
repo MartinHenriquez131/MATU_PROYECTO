@@ -20,9 +20,14 @@ import { Etiqueta, Nota, Titulo } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'red'
 
-/** 3.1: se esconde un producto sin ofertas y una categoría sin productos, por si llegan. */
+/**
+ * 3.1: categorías por `orden` (la API ya las manda así; el orden es estable). Productos y comercios en
+ * el orden en que llegan, nunca por precio (D6). Se esconde un producto sin ofertas y una categoría
+ * sin productos, por si llegan.
+ */
 function visibles(c: CatalogoApi): CategoriaCatalogo[] {
-  return c.categorias
+  return [...c.categorias]
+    .sort((x, y) => x.orden - y.orden)
     .map((cat) => ({ ...cat, productos: cat.productos.filter((p) => p.comercios.length > 0) }))
     .filter((cat) => cat.productos.length > 0)
 }
