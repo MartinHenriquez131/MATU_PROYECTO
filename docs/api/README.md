@@ -67,6 +67,7 @@ docs/api/
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer` | MATU-51 (RF-10, RF-11) | Implementado («Compré», decisiones 136 a 138 y 140 a 143). En `openapi.json` desde MATU-51 |
 | `POST /v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar` | MATU-51 (RF-10, RF-11) | Implementado («Me quedan N», decisiones 136 y 139 a 143). En `openapi.json` desde MATU-51 |
 | `POST /v1/personas-cuidadas/{persona_id}/borrado` | MATU-72 (RF-01, RF-02, RF-07, RF-10) | Implementado (decisiones 149 a 157). En `openapi.json` desde MATU-72 |
+| `GET /v1/catalogo` | MATU-59 (RF-20, ADR-027) | Implementado (decisiones 158 a 170). Capa 3: existe solo con `CAPA3_HABILITADA=true`. En `openapi.json` desde MATU-59 |
 | `POST /v1/recuperacion/codigo` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57. Siempre 202 (decisión 84) |
 | `POST /v1/recuperacion/contrasena` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57 |
 | `GET /v1/cuenta` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57 |
@@ -1101,3 +1102,61 @@ La numeración sigue en la 149: la última de esta rama es la 148 (MATU-51).
   - `tests/test_aislamiento.py` (como `matu_app`: la barrera por rol de `persona_cuidada`, el trigger, los `CHECK` y el motivo `borrado`), `tests/test_migraciones.py` (la 0018) y la ruta en `tests/test_capa3_desacoplable.py`.
 - **Pruebas que cambiaron:** `test_retiro_dominio.py` (los dobles reciben `motivo` y `borrar`), `test_autorizacion_consumo.py` (el doble recibe `bloquear_persona`) y `tests/shared/test_auditoria.py` (el catálogo).
 - **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`. Lo hace quien tenga `web/`. La pantalla la especifica el diseñador, con los textos del borrador para `lenguaje.md`, sección 24.
+
+## MATU-59 · Catálogo curado con los productos de las entrevistas (RF-20, ADR-027, capa 3)
+
+Contrato escrito el 08-11, **antes de implementar**, con las decisiones D1 a D6 de Jorge del 08-11, las condiciones de la revisión previa del analista normativo (1a, 3 y 4.1 a 4.7) y lo que pidió el diseñador para la pantalla (N3 y N4 de `docs/diseno/matu-59-catalogo.md`). Los textos de la pantalla van a `docs/lenguaje.md`, sección 27; la API no trae textos. La ruta y sus esquemas pasan a `openapi.json` en el mismo PR que los implementa, exportados desde `app.openapi()` con la capa 3 encendida.
+
+La numeración sigue en la 158: la última de esta rama es la 157 (MATU-72).
+
+### Decisiones de MATU-59 (08-11)
+
+158. **Una sola lectura: `GET /v1/catalogo`**, sin parámetros de consulta. Reemplaza para el sprint 4 las tres rutas de la arquitectura 9.4 (`/v1/catalogo/categorias`, `/v1/catalogo/productos?categoria=&q=&cursor=` y `/v1/catalogo/productos/{id}/ofertas?comuna=`): con seis productos la respuesta es chica, y así no viaja texto libre en la URL ni en los logs (condición 3) ni la comuna (condición 4.5). Si algún día hacen falta filtros, son ids opacos (por ejemplo `categoria_id`), nunca texto. Un parámetro de consulta desconocido se ignora. La sección 9.4 de la arquitectura queda por corregir en `docs/` (fuera del perímetro de este contrato).
+159. **Quién: cualquier sesión de familia, con el access token** (`usuario_actual`). Sin `X-Grupo-Id`: el catálogo es general, sin grupo ni persona (condición 3), y `catalog` solo depende de `iam` (`FLECHAS` de `backend/tests/test_arquitectura.py`), así que no verifica membresía. Lo ven `admin`, `cuidador`, `pagador` y `observador`, sin la autorización de consumo ni la de pedidos. Una cuenta sin grupo también lo ve: no hay nada de nadie. **El relevo no entra**: su sesión es la cookie de `/v1/relevo/` y no tiene access token, así que recibe **401**. Orden: 401 y 200. No hay 403 ni 404 propios.
+160. **La respuesta 200 es `Catalogo`**, con todos sus esquemas cerrados (`additionalProperties: false`):
+    - `Catalogo`: `{precios_de_ejemplo, categorias}`.
+    - `CategoriaCatalogo`: `{id, nombre, orden, productos}`.
+    - `ProductoCatalogo`: `{id, nombre, presentacion, unidad, unidades_por_envase, retracto_pierde_al_abrir, comercios}`. `nombre` es el texto de D3 («Pañal adulto M x30») y `presentacion` dice cómo viene («Paquete de 30 unidades»): no se repiten (N3). `unidad` es `unidad`, `sobre`, `ml` o `g`. `retracto_pierde_al_abrir` decide cuál de los dos textos del retracto muestra la pantalla (D2).
+    - `OfertaCatalogo`: `{oferta_id, comercio_id, nombre_fantasia, precio, disponible}`. `oferta_id` y `comercio_id` son claves opacas para la pantalla (la `key` de cada fila) y para el pedido de MATU-61; nunca van a la URL.
+161. **Del stock sale solo `disponible`** (booleano: `stock > 0`), nunca la cantidad. La pantalla solo necesita «Hay en…» o «No hay en… por ahora»; una cifra parecería una promesa («quedan 3») cuando lo que hay se confirma antes de pagar, y además expondría el inventario del comercio a cualquier familia. La cantidad queda en `oferta.stock` para la consulta de stock del pedido (decisión 168).
+162. **Qué entra y en qué orden** (N4). Un producto entra si tiene al menos una oferta publicada (`oferta.disponible`) de un comercio activo, y es activo de una categoría activa. **Un producto sin ofertas no viene, ni una categoría sin productos**: el precio sale siempre de una oferta real (condición 1a). Un producto que tiene ofertas pero sin stock en ninguna sí viene, con todos sus `disponible` en `false` («Por ahora no está disponible»). Orden: categorías por `orden`, `nombre` e `id`; productos por `nombre`, `presentacion` e `id`; **comercios por `nombre_fantasia` y `comercio_id`, nunca por precio**, para no recomendar el más barato (D6). La pantalla muestra cada comercio con su precio, nunca «Desde».
+163. **El precio es exacto, en pesos enteros, con IVA** (ADR-027, condición 1a): `precio`, entero mayor que 0, sale de `oferta.precio`. Nunca neto. El envío no viene: se suma al pedido una sola vez (MATU-61). `precios_de_ejemplo` es `true` mientras el adaptador de `CatalogoComercio` sea el simulado (arquitectura 9.4): la pantalla pone el aviso del piloto y la marca «Precio de ejemplo» (D1).
+164. **Del comercio viajan solo `comercio_id` y `nombre_fantasia`** (condición 3). Nunca `razon_social`, `rut`, `direccion`, `comuna` ni `telefono`, ni la `marca` del producto (D5 y N4). La consulta SQL ni siquiera los selecciona. La pantalla agrega «(comercio ficticio)».
+165. **`Cache-Control: private, max-age=60`** en el 200. El catálogo es igual para todos y no tiene datos de nadie, pero está detrás de una sesión: `private` impide que lo guarde una caché compartida, y 60 segundos acotan cuánto puede quedar viejo el stock mostrado. Si el navegador de un teléfono compartido lo reusa para otra cuenta, muestra lo mismo. Los 401 no llevan la cabecera.
+166. **Lectura pura**: sin auditoría (condición 3), sin eventos y sin cruzarse con el consumo (nada de «ya usas» ni «en tu lista»). La línea de log de la petición lleva la plantilla de la ruta; nada del catálogo va a los logs.
+167. **Es capa 3** (decisión 104). El router va en `ROUTERS_CAPA_3` de `backend/app/main.py` y se monta solo con `CAPA3_HABILITADA=true`. Sin ella, `/v1/catalogo` no existe (404 de ruteo) y la API arranca igual sin el paquete `catalog` (`test_capa3_desacoplable.py`). **Para la demo y staging hay que encender `CAPA3_HABILITADA`.** `openapi.json` se exporta con la capa 3 encendida.
+168. **El puerto `CatalogoComercio` y la consulta de stock** (condiciones 4.1 a 4.7, arquitectura 9.5 y 12.5), en `backend/app/modules/catalog/`:
+    - `ConsultaStock` es un dataclass `frozen` con **exactamente** `lineas` (cada una `LineaConsulta(producto_id, cantidad)`, de 1 a 100 líneas, cantidad de 1 a 10.000, un producto una sola vez) y `referencia`.
+    - `referencia` sale de `secrets.token_urlsafe(16)`: 128 bits aleatorios, nueva en cada consulta (por pedido cuando exista MATU-61). Nunca deriva de `grupo_id` ni de `pedido_id`, no es correlativa y no lleva fecha.
+    - `CatalogoComercio.consultar_stock(comercio_id, consulta)` no recibe la sesión, el grupo, la persona ni la petición: ni JWT, cookies, IP, User-Agent ni el `request_id` de la familia, y tampoco la comuna. La respuesta trae la misma `referencia`; si no, el caso de uso la rechaza.
+    - El catálogo de la pantalla lee el stock de `oferta`, nunca con una consulta en vivo por cada persona que mira (condición 4.6). La consulta de stock la usará la confirmación del pedido (MATU-61).
+    - El único adaptador es `CatalogoComercioSimulado`: sin red, con existencias por (comercio, producto), y sus logs guardan solo `lineas=N`. Su `precios_de_ejemplo` es `true`.
+169. **Migración 0019** (sobre la 0018), reversible, con el SQL en `op.execute`:
+    - `oferta.precio_referencia` pasa a `oferta.precio` (`bigint NOT NULL`, `CHECK oferta_precio_check (precio > 0)`), con un comentario de columna «precio exacto en pesos enteros, con IVA». Sale el «referencial, ADR-011» de la 0001. `pedido_linea` no lee esa columna (guarda su `precio_unitario`, 0002), así que sus triggers no cambian.
+    - `oferta.stock integer NOT NULL DEFAULT 0`, `CHECK oferta_stock_check (stock >= 0)`. Lo escriben operación o el comercio de la oferta, con las políticas de la 0001.
+    - `producto.retracto_pierde_al_abrir boolean NOT NULL DEFAULT false`. Lo pone operación por producto; no se infiere de la categoría (D2).
+    - RLS y permisos no cambian. `downgrade()` quita las dos columnas nuevas con sus valores y devuelve `precio` a `precio_referencia` con su `CHECK` de la 0001.
+170. **Semilla del catálogo** (`infra/semillas/catalogo_demo.py`, también al final de `infra/semillas/demo.py`). Script, no migración de datos. Escribe como `matu_app` con `app.rol = 'operacion'`. Idempotente y reproducible: categoría por nombre, comercio por RUT, producto por un id fijo (uuid5 de nombre y presentación) y oferta por (producto, comercio); otra corrida deja los mismos precios y stock.
+    - Tres categorías («Higiene y cuidado personal», «Cuidado de la piel» y «Alimentación») y los seis productos de D3, sin marca y sin afirmaciones de salud, con `retracto_pierde_al_abrir` según D2 (`false` en el suplemento y las bolsas).
+    - Dos comercios ficticios (D5): «Almacén El Ejemplo» y «Bodega La Muestra», razón social «Comercio de Prueba Uno (ficticio)» y «Dos», dirección «Calle de Prueba», teléfono de la serie 5555 y un RUT con dígito verificador incorrecto a propósito, comentado en la semilla.
+    - Doce ofertas con precios de ejemplo en pesos enteros y stock distinto en cada comercio: productos sin stock en uno y con stock en el otro, y la bolsa colectora sin stock en ninguno. Sin convenio: el catálogo no lo necesita.
+
+### Notas de implementación de MATU-59 (08-11)
+
+- **Dónde vive cada regla.**
+  - `catalog/domain/catalogo.py`: `armar_catalogo` (qué entra, el orden y `disponible`, decisiones 160 a 163).
+  - `catalog/domain/consulta_stock.py`: `ConsultaStock`, `LineaConsulta`, `nueva_consulta` y la referencia (decisión 168).
+  - `catalog/application/ports.py` (`CatalogoComercio` y `RepositorioCatalogo`) y `application/catalogo.py` (`leer_catalogo`, `consultar_stock`).
+  - `catalog/infrastructure/repositorio_catalogo.py` (la consulta SQL, sin los datos privados del comercio) y `catalogo_simulado.py` (el adaptador sin red).
+  - `catalog/api/router.py` y `api/esquemas.py`: la ruta, `Cache-Control` y los esquemas cerrados.
+- **Migración 0019** (`backend/alembic/versions/0019_catalogo_precio_stock_retracto.py`). Se verificó `upgrade head`, `downgrade -1` y `upgrade head`.
+- **Pruebas nuevas.**
+  - `tests/modules/catalog/test_consulta_stock_dominio.py`: el conjunto exacto de campos, nada de la familia en lo serializado, la referencia nueva y opaca, el puerto sin sesión, el simulado sin red y con logs de solo `lineas=N`.
+  - `tests/modules/catalog/test_catalogo_dominio.py`: agrupación, orden por `nombre_fantasia`, `disponible`, retracto y precio inválido.
+  - `tests/modules/catalog/test_catalogo_contrato.py`: la ruta y los esquemas contra `openapi.json`, los campos exactos, la lista de lo que nunca viaja, sin parámetros, 200 y 401.
+  - `tests/modules/catalog/test_catalogo_api.py`: los cuatro roles, lo que entra y lo que no, el orden, sin datos del comercio ni marca, `Cache-Control`, sin auditoría ni contenido en los logs, 401 sin sesión, con token inválido y con la cookie del relevo, y la ruta solo con la capa 3.
+  - `tests/test_semilla_catalogo.py`: los datos de D2, D3 y D5 (RUT que no pasa el módulo 11), la idempotencia y que lo sembrado se lee.
+  - `tests/test_aislamiento.py` (la familia lee pero no cambia precio, stock ni retracto; el comercio solo sus ofertas; los `CHECK`; un comercio suspendido no se ve) y `tests/test_migraciones.py` (la 0019).
+- **Pruebas que cambiaron:** `tests/test_aislamiento.py` (su semilla usa `precio`) y `tests/test_semilla_demo.py` (`main()` siembra también el catálogo).
+- **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`. Lo hace quien tenga `web/`.
+- **Fuera de este perímetro:** `docs/modelo-datos.md` (4.4) todavía dice `precio_referencia` y no tiene `stock` ni `retracto_pierde_al_abrir`, y la arquitectura 9.4 tiene las tres rutas que reemplaza la decisión 158.
