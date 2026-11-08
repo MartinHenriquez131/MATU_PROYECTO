@@ -1,6 +1,6 @@
 # MATU-68 · Ajustes menores de la app de familia · Especificación de diseño
 
-**Versión 1.0 · 08/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 08/11/2026** · Agente 6, UI/UX. Especifica y no construye. La 1.1 agrega la decisión del chip de «¿Qué más puede ver?» (1.2) y la revisión visual (5).
 
 **Historia:** dos ajustes que dejó la revisión de Martín de MATU-51. Las casillas de Insumos se ven chicas al lado de los botones, y «Ya lo resolví» queda casi pegado a los bordes de su botón a 320 px con el texto al 200 %.
 
@@ -48,6 +48,22 @@
 La segunda es la que llamamos «la del diálogo»: no está en un `<dialog>`, sino en la sección de autorización que se abre en Insumos (`Insumos.tsx`, `AvisoCuidadorDeHecho` con `idTitulo="aviso-consumo-t"`). Como el componente es compartido, el cambio también llega al alta (`Alta.tsx`), y es lo que se busca: una sola medida. Las dos etiquetas son de una línea y usan `items-center`, así que la casilla **no** lleva `mt-0.5` (ese margen es para las etiquetas de varias líneas con `items-start`, como las de Compartir).
 
 Nada más cambia en las etiquetas: siguen con `min-h-12`, `gap-3`, `cursor-pointer` y `font-bold`.
+
+**La que no cambia: el chip de «¿Qué más puede ver?»** (`web/src/familia/SeccionesCompartir.tsx`, `ElegirSecciones`, el `<label>` con `input type="checkbox" className="sr-only"`). Su cuadro dibujado se queda como está:
+
+```
+<span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-sm ring-2 ring-inset {ring-turquesa | ring-tenue}">
+  {on && <Check className="size-4 text-turquesa" strokeWidth={3} />}
+</span>
+```
+
+Decisión de la revisión visual (08/11/2026), por tres razones:
+
+1. **No es una casilla, es un chip.** El control es la píldora entera (`min-h-12`, anillo y fondo `rocio` al elegirla), y el cuadro es su indicador de forma: dice «aquí se eligen varias», como el punto redondo dice «aquí se elige una» (DISENO, sección 6, fila «Opción (radio) y chip», decisión del 27/10). El estado se lee en tres señales a la vez (fondo, anillo y check), no solo en el cuadro, así que agrandarlo no mejora la lectura del estado como sí lo hacía en «Seguir».
+2. **Comparte pantalla y medida con los chips de opción única.** En Compartir, «¿Qué más puede ver?» va encima de «¿Hasta cuándo?» y «¿Para qué?», que son chips de `GrupoOpciones forma="chips"` con el indicador redondo en `size-5` (punto `size-2.5`). Medido en pantalla: 21,25 px los tres, a 360, 1280 y 1920 px, y 40 px con el texto al 200 % (raíz de 32 px). Si solo el cuadro pasara a `size-6`, la misma familia de chips tendría dos medidas en la misma pantalla. La regla queda: **casilla nativa `size-6`; indicador de chip `size-5`; indicador de opción de lista (`GrupoOpciones` en columna) `size-6`**, y se anota en `DISENO.md`, sección 6.
+3. **Cumple sin cambiar.** El área que se toca es la píldora (51 px de alto y 136 px o más de ancho; 96 a 136 px de alto con el texto al 200 %). El anillo del cuadro sin elegir es `tenue` sobre `hoja` (7,2:1 en claro y 8,1:1 en oscuro) y el elegido `turquesa` sobre `rocio` (5,6:1 y 6,4:1, con `rocio` aproximado en sRGB).
+
+Si algún día los chips se agrandan, cambian todos juntos (los de `GrupoOpciones` y este): `size-6` con el check en `size-5` (`strokeWidth={3}`) y el punto en `size-3`, igual que la opción de lista. No es parte de MATU-68.
 
 ### 1.3 Confirmación del área táctil
 
@@ -164,6 +180,22 @@ En los dos temas se ve igual: la forma no depende del color. `papel` sobre `turq
 
 - «Seguir» cambia a «Guardando…» y la etiqueta crece, así que «Cambiar» se corre unos 40 px mientras guarda. Se arreglaría con la misma celda doble de `Boton` en la etiqueta. No se toca en MATU-68.
 
-## 5. Revisión visual pendiente
+## 5. Revisión visual (08/11/2026)
 
-Esta especificación se escribió sobre el código y las medidas calculadas con la raíz de 17 px, sin mirar la pantalla funcionando. Después de construirla, el diseñador la revisa con capturas a 320 px con el texto al 200 %, 360, 1280 y 1920 px, en claro y oscuro, y la aprueba o pide cambios. En esa revisión se confirma también el contraste del borde nativo de la casilla sin marcar (3:1 o más) en los dos temas.
+Revisada funcionando sobre los commits `0fbe497` a `880f222`, con el doble de la API (`vite` en modo normal) y Chrome sin ventana, a 320 px con el texto al 200 % (raíz de 32 px), 360, 1280 y 1920 px, en claro y oscuro.
+
+| Criterio | Medido | Resultado |
+|---|---|---|
+| 1. Casillas de 25,5 px (51 al 200 %) | «Seguir» y «Leí el aviso y lo acepto»: 25,5 × 25,5 px a 360, 1280 y 1920; 48 × 48 px con la raíz de 32 px (1,5 rem). Ninguna casilla nativa visible en `size-5` | Cumple |
+| 2. Etiquetas de 48 px o más | «Seguir»: 89,9 × 51 px (169 × 96 al 200 %). «Leí el aviso…»: 322 × 52 px a 360 (284 × 145 al 200 %) | Cumple |
+| 3. Panel en `angosto` | Columna; «Ya lo resolví» y «Volver» de 224 px, el ancho de la fila; 24 px de relleno y 62 px entre el texto y el borde; «Ya lo» / «resolví» parte entre palabras | Cumple |
+| 4. Sin `px-0.5` ni relleno con `!` | `angosto:px-0.5!` ya no está; los botones de texto de Recuperar y Confirma tu celular sin `px-0!` | Cumple |
+| 5. 360 y 1280 sin cambios | Fila, botones al ancho de su texto (147 y 93 px), lado a lado. A 320 px sin zoom (no es `angosto`), «Volver» baja por `flex-wrap`, como antes | Cumple |
+| 6. Sin desplazamiento horizontal | `scrollWidth` igual al ancho de la ventana en las 62 capturas | Cumple |
+| 7. Un solo macizo | Con el panel abierto, solo «Ya lo resolví» en `turquesa` macizo | Cumple |
+
+**Borde de la casilla sin marcar** (píxeles de la captura a escala 8, borde nativo contra el fondo que la rodea): 4,0:1 sobre `papel` claro (#767676), 4,3:1 sobre el fondo del aviso en claro, 4,9:1 sobre `papel` oscuro (#858585) y 4,2:1 sobre el aviso en oscuro. Cumple 3:1 en los dos temas. Marcada: 6,7:1 y 8,2:1.
+
+**Botones de texto sin `px-0!`:** la variante `texto` ya trae `px-0`, así que el `!` sobraba. Medido: relleno 0 px a los dos lados y el texto alineado con el párrafo de arriba (Recuperar) y con el título (Confirma tu celular) en los cuatro anchos y los dos temas. Se ven igual.
+
+Veredicto: **APROBADA**, con dos notas P3 que no bloquean (en el informe de la revisión): la etiqueta «Leí el aviso y lo acepto» pasa a dos líneas con el texto al 200 % y la casilla queda centrada entre ellas, y el borde nativo de la casilla al 200 % no crece con ella (sigue de 1 px).
