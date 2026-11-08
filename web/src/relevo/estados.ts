@@ -42,7 +42,7 @@ export const ESTADOS: Record<EstadoNoAbre, DefinicionEstado> = {
     accion: QUE_HAGO.pedirOtro,
   },
   // D3, decisión de Martín del 28/10: autorización por renovar. No dice el motivo a un tercero.
-  // Texto [PROPUESTO]. Ícono pendiente de confirmar por el diseñador.
+  // Texto de lenguaje 7.3. Ícono pendiente de confirmar por el diseñador.
   pausado: {
     icono: CirclePause,
     titulo: 'Por ahora esta ficha no se puede ver.',

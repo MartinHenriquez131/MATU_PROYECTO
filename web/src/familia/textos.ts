@@ -38,8 +38,8 @@ export const CUENTA = {
   bajada: 'Para empezar te pedimos solo esto.', // [demo]
   nombre: 'Tu nombre', // [demo]
   nombreAyuda: 'Así te verán en tu grupo. Quien te reemplace verá tu nombre de pila.', // [aprobado por Jorge el 08-11]
-  correo: 'Tu correo', // [PROPUESTO]
-  celular: 'Tu celular', // [PROPUESTO]
+  correo: 'Tu correo', // [lenguaje 19]
+  celular: 'Tu celular', // [lenguaje 19]
   celularAyuda: 'Para ayudarte a recuperar tu cuenta si olvidas la contraseña.', // [PROPUESTO]
   celularEjemplo: '+56 9',
   contrasena: 'Una contraseña', // [demo] // pragma: allowlist secret
@@ -94,7 +94,7 @@ export const ENTRAR = {
   olvidaste: '¿Olvidaste tu contraseña?', // [aprobado por Jorge el 03-11] MATU-57 // pragma: allowlist secret
   /** [aprobado por Jorge el 03-11, D2] Tras cambiar la contraseña con el código. */
   claveCambiada: 'Listo. Cambiamos tu contraseña. Por seguridad, tendrás que volver a entrar en tus otros teléfonos y computadores.', // pragma: allowlist secret
-  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO]
+  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [lenguaje 9.1]
 }
 
 export const GRUPO = {
@@ -385,7 +385,7 @@ export const QUIEN = {
   noHayMas: 'No hay más.', // aprobado por Jorge el 03-11
   nadieDeMatu: 'La ficha se guarda cifrada.', // aprobado por Jorge el 03-11 (reemplaza «Nadie de MATU puede abrir la ficha.», no verificable en el semestre)
   ultimas: 'Últimas aperturas', // [demo]
-  verTodo: 'Ver todo en Quién la vio', // [demo]
+  verTodo: 'Ver todo en Quién la vio', // [lenguaje 9.1]
 }
 
 export const TITULOS: Record<string, string> = {
@@ -401,7 +401,7 @@ export const TITULOS: Record<string, string> = {
   '/ficha': FICHA.titulo,
   '/ficha/quien-la-vio': QUIEN.titulo,
   '/insumos': ESTADOS.insumosTitulo,
-  '/insumos/nuevo': 'Anotar un insumo', // [PROPUESTO] MATU-36, 2.2
+  '/insumos/nuevo': 'Anotar un insumo', // [lenguaje 18] MATU-36, 2.2
   '/insumos/cambiar': 'Cambiar un insumo', // [PROPUESTO] MATU-36, 2.2
   '/insumos/lista': 'Lista de insumos', // [lenguaje 21] MATU-60, 2.2
   '/compartir': ESTADOS.compartirTitulo,
@@ -419,8 +419,8 @@ export const TITULOS: Record<string, string> = {
  * [lenguaje 9] tal cual, [demo] de la demo aprobada; lo demás, aprobado por Jorge el 04-11.
  */
 export const COMPARTIR = {
-  titulo: 'Compartir', // [demo]
-  enlaces: 'Enlaces', // [demo]
+  titulo: 'Compartir', // [lenguaje 9.1]
+  enlaces: 'Enlaces', // [lenguaje 9.1]
   vistas: 'Vistas de Compartir',
   // Aprobado por Jorge el 04-11: reemplaza el de lenguaje 9, que decía «por WhatsApp».
   bajada: 'Quien te reemplaza recibe un enlace en un mensaje y el PIN se lo dictas tú. El enlace vence solo y lo puedes cortar antes.',
@@ -438,7 +438,7 @@ export const COMPARTIR = {
   recordatorio: (pila: string) =>
     `Comparte solo lo que necesita para cuidar a ${pila}. Quien recibe el enlace puede anotar o fotografiar lo que lee, y MATU no puede impedirlo.`,
   hastaCuando: '¿Hasta cuándo?', // [lenguaje 9]
-  vigencias: { '24h': '24 horas', finde: 'Fin de semana', dias: 'Otra cantidad de días' }, // [demo]
+  vigencias: { '24h': '24 horas', finde: 'Fin de semana', dias: 'Otra cantidad de días' }, // [lenguaje 9.1]
   cuantosDias: '¿Cuántos días?', // [lenguaje 9]
   hasta30: 'Hasta 30 días.', // [lenguaje 9]
   dias: 'días', // [demo]
@@ -458,15 +458,15 @@ export const COMPARTIR = {
   errMaxima: 'El enlace puede durar como máximo 30 días.', // [lenguaje 8]
   errPasada: 'Esa fecha ya pasó. Elige de nuevo hasta cuándo.',
   errSeccion: 'Otra persona quitó una sección mientras compartías. Revisa qué más puede ver y vuelve a crear el enlace.',
-  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [PROPUESTO en MATU-39]
-  crear: 'Crear enlace', // [demo]
+  noDisponible: 'MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.', // [lenguaje 9.1]
+  crear: 'Crear enlace', // [lenguaje 9.1]
   creando: 'Creando el enlace…',
-  loQueVera: (nombre: string) => `Lo que verá ${nombre}`, // [demo]
+  loQueVera: (nombre: string) => `Lo que verá ${nombre}`, // [lenguaje 9.1]
 
   // El PIN, una sola vez (4)
-  creadoPara: (nombre: string) => `Enlace creado para ${nombre}`, // [demo]
+  creadoPara: (nombre: string) => `Enlace creado para ${nombre}`, // [lenguaje 9.1]
   creado: 'Enlace creado',
-  pinTitulo: 'PIN para abrir la ficha', // [demo]
+  pinTitulo: 'PIN para abrir la ficha', // [lenguaje 9.1]
   /** [lenguaje 9] La primera oración va en negrita. */
   dictaselo: (nombre: string) => [`Díctaselo a ${nombre} por teléfono.`, ' No lo mandes junto con el enlace. Solo lo verás ahora.'] as const,
   cuentale: (nombre: string) => `Cuéntale a ${nombre} que anotaste su nombre y su teléfono en MATU, y que cada vez que abra el enlace o la ficha queda registrado.`, // [lenguaje 9]
@@ -477,10 +477,10 @@ export const COMPARTIR = {
   copiado: (nombre: string) => `Enlace copiado. Pégalo en tu mensaje a ${nombre}.`,
   noCopiado: 'No pudimos copiar el enlace. Usa «Enviar el enlace».',
   enlacePara: (nombre: string) => `Enlace para ${nombre}`,
-  verEnlaces: 'Ver los enlaces', // [demo]
+  verEnlaces: 'Ver los enlaces', // [lenguaje 9.1]
   pinPerdidoTitulo: 'El PIN ya no se puede ver', // [lenguaje 9]
   pinPerdido: 'Por seguridad se muestra una sola vez. Si se perdió, crea un enlace nuevo y corta el anterior.', // [lenguaje 9]
-  crearNuevo: 'Crear un enlace nuevo', // [demo]
+  crearNuevo: 'Crear un enlace nuevo', // [lenguaje 9.1]
 
   // Enlaces (5)
   enlacesBajada:
@@ -510,7 +510,7 @@ export const COMPARTIR = {
   anteriores: 'Ver enlaces anteriores',
   seAgregaron: (n: number) => (n === 1 ? 'Se agregó 1 enlace.' : `Se agregaron ${n} enlaces.`),
   noHayMas: 'No hay más.', // [lenguaje 15]
-  verCuando: 'Ver cuándo la abrió', // [PROPUESTO en MATU-45]
+  verCuando: 'Ver cuándo la abrió', // [lenguaje 9.1]
   llamar: (nombre: string) => `Llamar a ${nombre}`,
   sinTelefono: 'Ya no guardamos su teléfono.',
 

@@ -61,7 +61,7 @@ export const RUTA_POLITICA: string | null = null
 export const QUE_HAGO = {
   titulo: '¿Qué hago?',
   pedirOtro: 'Pídele a quien te envió el enlace uno nuevo.',
-  revisar: 'Pídele a quien te envió el enlace que lo revise.', // [PROPUESTO] D3, decisión de Martín 28/10
+  revisar: 'Pídele a quien te envió el enlace que lo revise.', // lenguaje 7.3 (D3, decisión de Martín 28/10)
 }
 
 // lenguaje 7.4
