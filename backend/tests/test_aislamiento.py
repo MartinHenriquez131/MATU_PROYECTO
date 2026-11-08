@@ -1992,3 +1992,102 @@ def test_operacion_no_lee_ni_borra_reposiciones_como_matu_app(cx):
     assert cx.execute("DELETE FROM reposicion").rowcount == 0
     cx.execute("RESET ROLE")
     assert contar(cx, "reposicion", f"perfil_id = '{perfil}'") == 1
+
+
+# ---- MATU-72 (migración 0018): borrar a la persona, solo admin y cuidador, y la marca durable
+
+_BORRAR_PERSONA_SQL = (
+    "UPDATE persona_cuidada SET eliminado_en = now(), datos_borrados_en = now(), nombre = 'borrada',"
+    " nombre_pila = 'borrada', nivel_apoyo = NULL, direccion_entrega_id = NULL WHERE id = %s"
+)
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("usuario", [U_ADMIN_A, U_CUID_RETIRO_A])
+def test_borran_a_la_persona_admin_y_cuidador(cx, usuario):
+    _cuidador_retiro(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A, U_PAG2_A])
+def test_barrera_por_rol_pagador_y_observador_no_tocan_a_la_persona(cx, usuario):
+    """C2: antes de la 0018 cualquier miembro modificaba la persona por SQL directo. Ahora la ven y no la tocan."""
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert contar(cx, "persona_cuidada", f"id = '{P_A}'") == 1
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 0
+    assert cx.execute("UPDATE persona_cuidada SET nombre = 'x' WHERE id = %s", (P_A,)).rowcount == 0
+    assert cx.execute("DELETE FROM persona_cuidada WHERE id = %s", (P_A,)).rowcount == 0
+    # Tampoco la bloquean: FOR UPDATE exige la política de UPDATE y la fila no aparece
+    assert cx.execute("SELECT id FROM persona_cuidada WHERE id = %s FOR UPDATE", (P_A,)).fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO persona_cuidada (grupo_id, nombre, nombre_pila, nivel_apoyo) VALUES"
+                   " (%s, 'Nueva Persona', 'Nueva', 'apoyo_total')", (G_A,))
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT nombre, eliminado_en FROM persona_cuidada WHERE id = %s", (P_A,)).fetchone() == (
+        "María Soto", None)
+
+
+@pytest.mark.rf("RF-01")
+def test_otro_grupo_no_borra_ni_ve_a_la_persona(cx):
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "persona_cuidada", f"id = '{P_A}'") == 0
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 0
+    # Con el grupo ajeno en contexto, sin membresía allí, tampoco
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A)
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 0
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT datos_borrados_en FROM persona_cuidada WHERE id = %s", (P_A,)).fetchone() == (None,)
+
+
+@pytest.mark.rf("RF-01")
+def test_borrar_a_una_persona_no_toca_a_la_otra(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT nombre, datos_borrados_en FROM persona_cuidada WHERE id = %s", (P_B,)).fetchone() == (
+        "Luis Pérez", None)
+
+
+@pytest.mark.rf("RF-01")
+def test_una_persona_borrada_no_se_vuelve_a_modificar(cx):
+    """Trigger persona_borrada_fija: nadie la revive, ni el admin ni el superusuario."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("UPDATE persona_cuidada SET eliminado_en = NULL, datos_borrados_en = NULL, nivel_apoyo ="
+                   " 'apoyo_total', nombre = 'María Soto' WHERE id = %s", (P_A,))
+    cx.execute("RESET ROLE")
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE persona_cuidada SET nombre = 'María Soto' WHERE id = %s", (P_A,))
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("cambio", [
+    "nivel_apoyo = NULL",  # sin eliminado_en
+    "datos_borrados_en = now()",  # sin eliminado_en ni nivel_apoyo en NULL
+    "datos_borrados_en = now(), eliminado_en = now(), nivel_apoyo = NULL",  # con la dirección todavía
+])
+def test_la_marca_del_borrado_exige_la_fila_sin_datos(cx, cambio):
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(f"UPDATE persona_cuidada SET {cambio} WHERE id = %s", (P_A,))
+
+
+@pytest.mark.rf("RF-01")
+def test_el_motivo_borrado_existe_y_se_fija_una_vez(cx):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'borrado' WHERE id = %s",
+                      (cid,)).rowcount == 1
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE consentimiento SET revocacion_motivo = 'retiro' WHERE id = %s", (cid,))
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A])
+def test_pagador_y_observador_no_revocan_con_motivo_borrado(cx, usuario):
+    cid = _consentimiento(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'borrado' WHERE id = %s",
+                      (cid,)).rowcount == 0
