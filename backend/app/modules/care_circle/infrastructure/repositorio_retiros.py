@@ -17,7 +17,10 @@ from app.modules.care_circle.domain.retiro import MOTIVO_RETIRO, AutorizacionReg
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria
 
-_COLUMNAS = "SELECT id, finalidad, calidad_otorgante, otorgado_en, revision_vence_en, revocado_en FROM consentimiento"
+_COLUMNAS = (
+    "SELECT id, finalidad, calidad_otorgante, otorgado_en, revision_vence_en, revocado_en, revocacion_motivo"
+    " FROM consentimiento"
+)
 _DE_LA_PERSONA = " WHERE grupo_id = :grupo_id AND persona_cuidada_id = :persona_id AND finalidad = :finalidad"
 
 # Condición 7 del analista: el retiro bloquea la fila; compartir la lee con FOR SHARE y espera
@@ -27,7 +30,7 @@ _BLOQUEAR_VIGENTE = text(_COLUMNAS + _DE_LA_PERSONA + " AND revocado_en IS NULL 
 _ULTIMA = text(_COLUMNAS + _DE_LA_PERSONA + " ORDER BY revocado_en DESC NULLS FIRST, otorgado_en DESC LIMIT 1")
 
 _RETIRO_ANTERIOR = text(
-    _COLUMNAS + _DE_LA_PERSONA + " AND revocacion_motivo = 'retiro' AND revocado_en <= :antes_de"
+    _COLUMNAS + _DE_LA_PERSONA + " AND revocacion_motivo IN ('retiro', 'borrado') AND revocado_en <= :antes_de"
     " ORDER BY revocado_en DESC LIMIT 1"
 )
 
@@ -45,7 +48,7 @@ def _utc(instante: datetime | None) -> datetime | None:
     return None if instante is None else instante.astimezone(UTC)
 
 
-def _registrada(fila: Row[Any]) -> AutorizacionRegistrada:
+def registrada_de(fila: Row[Any]) -> AutorizacionRegistrada:
     return AutorizacionRegistrada(
         id=fila.id,
         finalidad=fila.finalidad,
@@ -53,6 +56,7 @@ def _registrada(fila: Row[Any]) -> AutorizacionRegistrada:
         otorgado_en=fila.otorgado_en.astimezone(UTC),
         revision_vence_en=_utc(fila.revision_vence_en),
         revocado_en=_utc(fila.revocado_en),
+        revocacion_motivo=fila.revocacion_motivo,
     )
 
 
@@ -67,11 +71,11 @@ class RepositorioRetirosSQL:
 
     def bloquear_vigente(self, persona_id: uuid.UUID, finalidad: str) -> AutorizacionRegistrada | None:
         fila = self._sesion.execute(_BLOQUEAR_VIGENTE, self._parametros(persona_id, finalidad)).first()
-        return None if fila is None else _registrada(fila)
+        return None if fila is None else registrada_de(fila)
 
     def ultima(self, persona_id: uuid.UUID, finalidad: str) -> AutorizacionRegistrada | None:
         fila = self._sesion.execute(_ULTIMA, self._parametros(persona_id, finalidad)).first()
-        return None if fila is None else _registrada(fila)
+        return None if fila is None else registrada_de(fila)
 
     def retiro_anterior(
         self, persona_id: uuid.UUID, finalidad: str, antes_de: datetime
@@ -79,13 +83,18 @@ class RepositorioRetirosSQL:
         fila = self._sesion.execute(
             _RETIRO_ANTERIOR, {**self._parametros(persona_id, finalidad), "antes_de": antes_de}
         ).first()
-        return None if fila is None else _registrada(fila)
+        return None if fila is None else registrada_de(fila)
 
     def retirar(
-        self, consentimiento_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None
+        self,
+        consentimiento_id: uuid.UUID,
+        ahora: datetime,
+        usuario_id: uuid.UUID,
+        request_id: str | None,
+        motivo: str = MOTIVO_RETIRO,
     ) -> None:
         resultado = self._sesion.execute(
-            _RETIRAR, {"id": consentimiento_id, "grupo_id": self._grupo_id, "ahora": ahora, "motivo": MOTIVO_RETIRO}
+            _RETIRAR, {"id": consentimiento_id, "grupo_id": self._grupo_id, "ahora": ahora, "motivo": motivo}
         )
         if getattr(resultado, "rowcount", 0) != 1:
             raise RetiroNoEscrito("la autorización no se retiró")

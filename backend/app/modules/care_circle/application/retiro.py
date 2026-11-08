@@ -8,6 +8,9 @@ app.main registra al armar la aplicación (care_circle/infrastructure/efectos_re
 
 Todo corre en la transacción de la petición (sesion_de_grupo): si un efecto falla, la excepción sigue y
 sesion_tenant deshace también la revocación y su auditoría (condición 4 del analista).
+
+MATU-72: el mismo efecto sabe borrar lo de su finalidad al tiro (``borrar``), y el borrado de la persona
+(application/borrado.py) lo usa con la misma regla de corte, sin duplicarla.
 """
 
 import uuid
@@ -18,12 +21,13 @@ from typing import Protocol
 
 from app.modules.care_circle.domain.retiro import (
     FINALIDADES_RETIRABLES,
+    MOTIVO_RETIRO,
     AutorizacionRegistrada,
     EstadoDeAutorizacion,
     YaRetirada,
     estado_de,
     exigir_retirable,
-    plazo_cumplido,
+    lo_guardado_ya_no_esta,
     puede_retirar,
 )
 from app.shared.puertos import Reloj
@@ -45,7 +49,8 @@ class EfectoNoDisponible(RuntimeError):
 
 
 class EfectoDelRetiro(Protocol):
-    """Lo que cada módulo hace al retirar una finalidad, en la transacción de la petición."""
+    """Lo que cada módulo hace al retirar una finalidad o al borrar a la persona, en la transacción de la
+    petición."""
 
     def aplicar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
         """Corta lo que depende de la autorización retirada. Devuelve cuántos enlaces cortó (0 si no aplica)."""
@@ -56,6 +61,11 @@ class EfectoDelRetiro(Protocol):
     ) -> None:
         """Antes de una autorización nueva: con ``plazo_cumplido`` borra lo que quedaba (decisión 128), y deja
         lista una ficha en blanco si lo anterior ya no se puede leer (decisión 130)."""
+        ...
+
+    def borrar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
+        """MATU-72 (decisión 150): borra al tiro lo de la finalidad, después de revocar sus autorizaciones.
+        Devuelve cuántos enlaces cortó (0 si no aplica)."""
         ...
 
 
@@ -76,13 +86,19 @@ class RepositorioRetiros(Protocol):
     def retiro_anterior(
         self, persona_id: uuid.UUID, finalidad: str, antes_de: datetime
     ) -> AutorizacionRegistrada | None:
-        """El último retiro (motivo retiro) revocado en ``antes_de`` o antes. None si no hay."""
+        """El último retiro (motivo retiro o borrado) revocado en ``antes_de`` o antes. None si no hay."""
         ...
 
     def retirar(
-        self, consentimiento_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None
+        self,
+        consentimiento_id: uuid.UUID,
+        ahora: datetime,
+        usuario_id: uuid.UUID,
+        request_id: str | None,
+        motivo: str = MOTIVO_RETIRO,
     ) -> None:
-        """Fija revocado_en y revocacion_motivo = 'retiro' y registra consentimiento.revocar."""
+        """Fija revocado_en y revocacion_motivo (``retiro`` o, en el borrado de MATU-72, ``borrado``) y registra
+        consentimiento.revocar."""
         ...
 
 
@@ -156,13 +172,13 @@ def antes_de_otorgar(
     repositorio: RepositorioRetiros,
     efectos: Mapping[str, EfectoDelRetiro],
 ) -> None:
-    """Antes de una autorización nueva. Si la anterior se retiró hace 90 días o más, el efecto borra lo que
-    quedaba aunque la tarea no haya corrido (decisión 128): una autorización tardía no recupera nada. Si
-    nunca hubo una autorización revocada, no hace nada."""
+    """Antes de una autorización nueva. Si la anterior se retiró hace 90 días o más, o se revocó en un borrado
+    (MATU-72, decisión 154), el efecto borra lo que quedaba aunque la tarea no haya corrido (decisión 128): una
+    autorización tardía no recupera nada. Si nunca hubo una autorización revocada, no hace nada."""
     ultima = repositorio.ultima(persona_id, finalidad)
     if ultima is None or ultima.revocado_en is None:
         return
     efecto = efectos.get(finalidad)
     if efecto is None:
         raise EfectoNoDisponible()
-    efecto.antes_de_otorgar(persona_id, ahora, request_id, plazo_cumplido(ultima.revocado_en, ahora))
+    efecto.antes_de_otorgar(persona_id, ahora, request_id, lo_guardado_ya_no_esta(ultima, ahora))
