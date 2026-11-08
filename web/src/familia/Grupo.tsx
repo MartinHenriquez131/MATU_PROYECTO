@@ -724,7 +724,9 @@ function DialogoBorrar({
           </div>
         </div>
         <div className="flex flex-col gap-3 border-t border-linea px-6 pt-4 pb-6 angosto:px-2 angosto:pb-4">
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 font-bold">
+          {/* 3.1: el trato de la casilla del aviso del cuidador de hecho, con la medida única de MATU-68
+              (`size-6`; en angosto va con la primera línea). */}
+          <label className="flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 font-bold">
             <input
               type="checkbox"
               checked={entiendo}
@@ -732,7 +734,7 @@ function DialogoBorrar({
               onChange={(e) => {
                 if (!enCurso.current) setEntiendo(e.target.checked)
               }}
-              className="size-5 shrink-0 accent-turquesa"
+              className="size-6 shrink-0 accent-turquesa angosto:mt-0.5"
             />
             {B.casilla}
           </label>
