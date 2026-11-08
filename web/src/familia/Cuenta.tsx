@@ -294,7 +294,7 @@ export function ConfirmarCelular() {
               </Acciones>
             </form>
             <div className="flex flex-col items-start gap-1">
-              <Boton variante="texto" className="justify-start! px-0! text-left" disabled={reenvioEn || esperando || ocupado} onClick={() => void enviarCodigo()}>
+              <Boton variante="texto" className="justify-start! text-left" disabled={reenvioEn || esperando || ocupado} onClick={() => void enviarCodigo()}>
                 {CELULAR.otro}
               </Boton>
               {reenvioEn && <p className="text-sm text-tenue">{CELULAR.enUnMinuto}</p>}

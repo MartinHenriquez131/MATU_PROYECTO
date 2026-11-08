@@ -230,7 +230,7 @@ export function CambiarConCodigo() {
       </form>
       <div className="flex flex-col items-start">
         <p className="text-tenue">{RECUPERAR.noLlego}</p>
-        <Boton variante="texto" className="justify-start! px-0! text-left" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
+        <Boton variante="texto" className="justify-start! text-left" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
           {RECUPERAR.reenviar}
         </Boton>
         {pausa && !esperando && <p className="text-sm text-tenue">{RECUPERAR.enUnMinuto}</p>}
