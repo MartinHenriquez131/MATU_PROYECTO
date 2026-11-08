@@ -247,7 +247,8 @@ describe('El catálogo', () => {
     const cuerpo = catalogo()
     const ajenos = {
       razon_social: 'Comercio de Prueba Uno (ficticio)',
-      rut: '76.123.456-0',
+      // RUT inválido a propósito (su DV correcto es 7), para no apuntar a una empresa real.
+      rut: '77.777.701-8',
       direccion: 'Calle de Prueba 100',
       comuna: 'Comuna Inventada',
       telefono: '+56 2 5555 0101',
