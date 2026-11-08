@@ -113,16 +113,9 @@ export const PERSONA = {
   pila: '¿Cómo le dicen?', // [demo]
   pilaAyuda: 'Es el nombre que verá quien te reemplace.', // [demo]
   apoyo: '¿Cuánto apoyo necesita en el día a día?', // [demo]
-  direccion: '¿Dónde vive? Puedes dejarlo para después', // [demo]
-  direccionAyuda: 'La pedimos recién con el primer pedido. La ficha no la usa.', // [demo]
-  calle: 'Calle',
-  numero: 'Número',
-  comuna: 'Comuna',
-  depto: 'Depto (si tiene)', // [PROPUESTO]
   sinDiagnostico: 'No te preguntamos qué enfermedad tiene. No lo necesitamos y no lo guardamos.', // [demo]
   boton: 'Continuar',
   errNombres: 'Escribe su nombre y cómo le dicen para seguir.', // [demo]
-  errDireccion: 'Completa calle, número y comuna, o deja los tres vacíos.', // [demo]
   errApoyo: 'Elige cuánto apoyo necesita.', // [PROPUESTO]
 }
 
