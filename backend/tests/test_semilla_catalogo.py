@@ -23,6 +23,7 @@ from app.modules.catalog.application.catalogo import leer_catalogo
 from app.modules.catalog.infrastructure.catalogo_simulado import CatalogoComercioSimulado
 from app.modules.catalog.infrastructure.repositorio_catalogo import RepositorioCatalogoSQL
 from tests.base_datos import DSN, requiere_base
+from tests.rut_ficticio import modulo_11, rut_ficticio
 
 RUTA_SEMILLA = Path(__file__).resolve().parents[2] / "infra" / "semillas" / "catalogo_demo.py"
 
@@ -47,14 +48,6 @@ NOMBRES_D3 = {
 }
 # lenguaje.md 3.2 y D3: sin términos clínicos ni afirmaciones de salud
 PROHIBIDOS = ("escara", "úlcera", "ulcera", "antiescara", "ostom", "incontinencia", "previene", "cura", "diabét")
-
-
-def _modulo_11(numero: str) -> str:
-    suma, factor = 0, 2
-    for digito in reversed(numero):
-        suma += int(digito) * factor
-        factor = 2 if factor == 7 else factor + 1
-    return {11: "0", 10: "K"}.get(11 - suma % 11, str(11 - suma % 11))
 
 
 # --- Los datos, sin base ---------------------------------------------------------------------------------
@@ -89,11 +82,27 @@ def test_retracto_segun_d2() -> None:
     }
 
 
+def test_los_rut_de_prueba_nunca_pasan_el_modulo_11() -> None:
+    # Dos RUT válidos conocidos: el cálculo es el del módulo 11
+    assert modulo_11("76123456") == "0"
+    assert modulo_11("11111111") == "1"
+    # El dígito forzado nunca es el correcto, también cuando el correcto es K o 0
+    correctos = set()
+    for n in range(70_000_000, 70_000_400):
+        numero = str(n)
+        correctos.add(modulo_11(numero))
+        rut = rut_ficticio(numero)
+        cuerpo, dv = rut.split("-")
+        assert cuerpo.replace(".", "") == numero and re.fullmatch(r"\d{2}\.\d{3}\.\d{3}", cuerpo), rut
+        assert dv != modulo_11(numero), rut
+    assert correctos == set("0123456789K")
+
+
 def test_comercios_ficticios_con_rut_que_no_pasa_el_modulo_11() -> None:
     assert len(CATALOGO.comercios) == 2
     for comercio in CATALOGO.comercios:
         numero, dv = comercio.rut.replace(".", "").split("-")
-        assert _modulo_11(numero) != dv, comercio.rut
+        assert modulo_11(numero) != dv, comercio.rut
         assert "(ficticio)" in comercio.razon_social
         assert comercio.direccion.startswith("Calle de Prueba")
         assert comercio.telefono is None or "5555" in comercio.telefono
@@ -126,7 +135,7 @@ def _unica() -> Any:
         replace(p, nombre=f"{p.nombre} {sufijo}", categoria=f"{p.categoria} {sufijo}") for p in CATALOGO.productos
     )
     comercios = tuple(
-        replace(c, nombre_fantasia=f"{c.nombre_fantasia} {sufijo}", rut=f"7{i}.{digitos[:3]}.{digitos[3:]}-1")
+        replace(c, nombre_fantasia=f"{c.nombre_fantasia} {sufijo}", rut=rut_ficticio(f"7{i}{digitos}"))
         for i, c in enumerate(CATALOGO.comercios)
     )
     return replace(CATALOGO, categorias=categorias, productos=productos, comercios=comercios)
