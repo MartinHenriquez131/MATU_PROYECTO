@@ -127,7 +127,7 @@ export const CALIDADES: { valor: Calidad; texto: (pila: string) => string; detal
   {
     valor: 'titular',
     texto: (pila) => `${pila} lo autoriza y yo lo registro`,
-    detalle: (pila) => `${pila} decide por su cuenta y tú anotas su decisión.`,
+    detalle: (pila) => `${pila} decide por su cuenta y tú registras su decisión.`, // [aprobado por Jorge el 08-11]
     declaracion:
       'Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU a guardar su ficha de relevo, incluidas las secciones adicionales y sus remedios si se agregan, y a compartirla con el relevo que elija el grupo, según la política de privacidad vigente. Yo solo registro su decisión.',
   },

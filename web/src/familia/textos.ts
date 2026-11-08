@@ -5,6 +5,7 @@
 //   [PROPUESTO]    de la especificación, pendiente de entrar a lenguaje.md (sección 8)
 //   [INSTRUCCIÓN]  dictado por decisión de Jorge del 02-11, pendiente de lenguaje.md
 //   [aprobado por Jorge el 03-11]  textos de MATU-57, pendientes de lenguaje.md
+//   [aprobado por Jorge el 08-11]  cambios de la revisión del analista (MATU-68), pendientes de lenguaje.md
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 
 export const GENERAL = {
@@ -36,7 +37,7 @@ export const CUENTA = {
   titulo: 'Crea tu cuenta', // [demo]
   bajada: 'Para empezar te pedimos solo esto.', // [demo]
   nombre: 'Tu nombre', // [demo]
-  nombreAyuda: 'Así te verán en tu grupo.', // [PROPUESTO]
+  nombreAyuda: 'Así te verán en tu grupo. Quien te reemplace verá tu nombre de pila.', // [aprobado por Jorge el 08-11]
   correo: 'Tu correo', // [PROPUESTO]
   celular: 'Tu celular', // [PROPUESTO]
   celularAyuda: 'Para ayudarte a recuperar tu cuenta si olvidas la contraseña.', // [PROPUESTO]
@@ -51,13 +52,13 @@ export const CUENTA = {
   yaTienes: '¿Ya tienes cuenta?',
   irAEntrar: 'Entrar',
   errNombre: 'Escribe tu nombre.', // [PROPUESTO]
-  errCorreo: 'Revisa tu correo.', // [PROPUESTO]
+  errCorreo: 'Revisa cómo escribiste tu correo.', // [aprobado por Jorge el 08-11]
   /** [lenguaje 13.3] 422 `email` con `tipo: dominio_no_permitido`, solo en staging (decisión 105). */
   errDominio: 'En este ambiente de prueba usa un correo terminado en @example.com.',
   errCelular: 'Escribe un celular de Chile, por ejemplo +56 9 5555 0137.', // [lenguaje 8]
   errContrasenaCorta: 'La contraseña necesita al menos 10 caracteres.', // [demo] // pragma: allowlist secret
   // 422 de la API, por `errores[].campo`
-  err422Nombre: 'Escribe tu nombre, de hasta 100 letras.', // [PROPUESTO]
+  err422Nombre: 'Escribe tu nombre, de hasta 100 caracteres.', // [aprobado por Jorge el 08-11]
   err422Contrasena: 'La contraseña necesita entre 10 y 128 caracteres.', // [PROPUESTO] // pragma: allowlist secret
   registradoTitulo: 'Ese correo ya tiene una cuenta', // [demo]
   registradoTexto: 'Entra con tu contraseña, o usa otro correo.', // [demo]
@@ -100,7 +101,7 @@ export const GRUPO = {
   titulo: 'Ponle nombre a tu grupo', // [PROPUESTO]
   bajada: 'Es el grupo de las personas que cuidan contigo.', // [PROPUESTO]
   campo: 'Nombre del grupo', // [PROPUESTO]
-  /** Política de privacidad, sección 2, tal cual. */
+  /** Política de privacidad, sección 4 («De tu grupo»), tal cual. */
   ayuda: 'Usa un nombre corto, como «Familia Soto». No incluyas el nombre completo de la persona que cuidas ni datos de salud.',
   boton: 'Crear el grupo', // [PROPUESTO]
   enviando: 'Creando el grupo…', // [PROPUESTO]
@@ -113,27 +114,27 @@ export const PERSONA = {
   pila: '¿Cómo le dicen?', // [demo]
   pilaAyuda: 'Es el nombre que verá quien te reemplace.', // [demo]
   apoyo: '¿Cuánto apoyo necesita en el día a día?', // [demo]
-  sinDiagnostico: 'No te preguntamos qué enfermedad tiene. No lo necesitamos y no lo guardamos.', // [demo]
+  sinDiagnostico: 'No te preguntamos qué enfermedad tiene, porque para cuidar no hace falta.', // [aprobado por Jorge el 08-11]
   boton: 'Continuar',
   errNombres: 'Escribe su nombre y cómo le dicen para seguir.', // [demo]
   errApoyo: 'Elige cuánto apoyo necesita.', // [PROPUESTO]
 }
 
 export const AUTORIZACION = {
-  titulo: 'La autorización para guardar su ficha', // [PROPUESTO]
+  titulo: 'Permiso para guardar su ficha', // [lenguaje 22], para el alta desde el 08-11 (Jorge)
   bajada: (pila: string) =>
-    `Lo que anotes sobre el cuidado de ${pila} es información sensible. Para guardarla necesitamos saber en qué calidad das la autorización.`, // [PROPUESTO]
-  leyenda: 'Doy esta autorización porque…', // [PROPUESTO]
+    `Lo que anotes sobre el cuidado de ${pila} puede decir algo de su salud. Por eso lo protegemos de forma especial y necesitamos una autorización. Puedes retirarla cuando quieras, desde Grupo familiar.`, // [aprobado por Jorge el 08-11]
+  leyenda: '¿Quién da la autorización?', // [aprobado por Jorge el 08-11]
   referencia: 'Referencia del documento', // [demo]
-  referenciaAyuda: 'Por ejemplo: resolución y fecha', // [demo]
+  referenciaAyuda: 'Por ejemplo: número de resolución y fecha. Sin el RUT.', // [aprobado por Jorge el 08-11]
   leido: 'Leí el aviso y lo acepto', // [demo]
   declaras: 'Lo que declaras', // [demo]
   boton: (pila: string) => `Acepto y registro a ${pila}`, // [PROPUESTO]
   enviando: (pila: string) => `Registrando a ${pila}…`, // [PROPUESTO]
-  registrada: (pila: string) => `Listo. Ahora, la ficha de ${pila}.`, // [PROPUESTO, preferida]
+  registrada: (pila: string) => `Listo. Registramos a ${pila} y la autorización. Ahora puedes completar su ficha.`, // [aprobado por Jorge el 08-11]
   volverACorregir: (pila: string) => `Volver a corregir los datos de ${pila}`, // [PROPUESTO]
   volver: 'Volver a ¿A quién cuidas?',
-  errCalidad: 'Elige en qué calidad das la autorización.', // [PROPUESTO]
+  errCalidad: 'Elige quién da la autorización.', // [aprobado por Jorge el 08-11]
   errReferencia: 'Escribe la referencia del documento que te nombra representante.', // [demo]
   errLeido: 'Marca que leíste el aviso para seguir.', // [demo]
 }
@@ -300,7 +301,7 @@ export const RECUPERAR = {
   correo: 'Tu correo',
   boton: 'Enviar código', // [aprobado por Jorge el 03-11]
   enviando: 'Enviando…', // [aprobado por Jorge el 03-11]
-  errCorreo: 'Revisa tu correo.', // [MATU-39]
+  errCorreo: 'Revisa cómo escribiste tu correo.', // [aprobado por Jorge el 08-11] el mismo que CUENTA.errCorreo
   /** [aprobado por Jorge el 03-11], con «correo» (D1). */
   enviado: 'Si hay una cuenta con ese correo, te enviamos un código. Puede tardar un minuto.',
   // Pantalla del código

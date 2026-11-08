@@ -45,7 +45,7 @@ function alInstante() {
 }
 
 describe('Recuperar el acceso: el foco tras un 422', () => {
-  it('pedir el código: el correo recibe el foco ya inválido y con «Revisa tu correo.»', async () => {
+  it('pedir el código: el correo recibe el foco ya inválido y con «Revisa cómo escribiste tu correo.»', async () => {
     responderCon(apiFamilia, { status: 422, cuerpo: problema422({ campo: 'email', tipo: 'value_error' }) })
     render(<PedirCodigo />)
     const u = userEvent.setup({ delay: null })
@@ -56,7 +56,7 @@ describe('Recuperar el acceso: el foco tras un 422', () => {
     await u.click(screen.getByRole('button', { name: 'Enviar código' }))
 
     await waitFor(() => expect(correo).toHaveFocus())
-    expect(vistos.at(-1)).toEqual({ invalido: 'true', descripcion: 'Revisa tu correo.' })
+    expect(vistos.at(-1)).toEqual({ invalido: 'true', descripcion: 'Revisa cómo escribiste tu correo.' })
   })
 
   it('el código y la contraseña: el 422 de `contrasena_nueva` deja el foco en la contraseña ya inválida', async () => {

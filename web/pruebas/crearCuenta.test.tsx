@@ -56,7 +56,7 @@ describe('Crear cuenta', () => {
     const correo = screen.getByLabelText('Tu correo')
     await waitFor(() => expect(correo).toHaveFocus())
     expect(correo).toBeInvalid()
-    expect(correo).toHaveAccessibleDescription('Revisa tu correo.')
+    expect(correo).toHaveAccessibleDescription('Revisa cómo escribiste tu correo.')
     expect(screen.getByLabelText('Una contraseña')).toHaveAccessibleDescription(
       expect.stringContaining('La contraseña necesita entre 10 y 128 caracteres.'),
     )
