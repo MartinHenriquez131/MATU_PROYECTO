@@ -4,6 +4,9 @@ Corre en la sesión del usuario (sesion_de_usuario, solo app.usuario_id): las po
 leer categoria_cuidado, producto y oferta a todos, y comercio solo si está activo. El filtro explícito de estado
 repite esa regla para que no dependa de RLS. Del comercio se selecciona solo nombre_fantasia: razon_social, rut,
 direccion, comuna y telefono nunca salen de la base por esta consulta.
+
+Los productos con requiere_receta quedan fuera (decisión 171), igual que en los perfiles de consumo: si se pueden
+mostrar lo decide la consulta legal.
 """
 
 from sqlalchemy import text
@@ -21,7 +24,7 @@ _OFERTAS = text(
       JOIN producto p ON p.id = o.producto_id
       JOIN categoria_cuidado c ON c.id = p.categoria_id
       JOIN comercio co ON co.id = o.comercio_id
-     WHERE o.disponible AND p.activo AND c.activa AND co.estado = 'activo'
+     WHERE o.disponible AND p.activo AND NOT p.requiere_receta AND c.activa AND co.estado = 'activo'
     """
 )
 

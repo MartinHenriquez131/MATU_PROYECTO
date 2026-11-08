@@ -20,6 +20,7 @@ from app.modules.catalog.api.router import router as router_catalogo
 from tests.base_datos import DSN
 from tests.fabricas import Fabrica, FamiliaCreada, UsuarioCreado
 from tests.modules.conftest import EntornoIam
+from tests.rut_ficticio import rut_ficticio
 
 
 @pytest.fixture
@@ -53,28 +54,30 @@ def _sembrar(cx: psycopg.Connection, catalogo: CatalogoSintetico) -> None:
             (f"Categoría {clave} {s}", orden, activa),
         )
     productos = (
-        # clave, categoría, retracto, activo
-        ("panal", "higiene", True, True),
-        ("bolsa", "higiene", False, True),
-        ("crema", "piel", True, True),
-        ("no_publicado", "higiene", True, True),
-        ("solo_suspendido", "higiene", True, True),
-        ("sin_ofertas", "higiene", True, True),
-        ("inactivo", "higiene", True, False),
-        ("de_inactiva", "inactiva", True, True),
+        # clave, categoría, retracto, activo, requiere receta
+        ("panal", "higiene", True, True, False),
+        ("bolsa", "higiene", False, True, False),
+        ("crema", "piel", True, True, False),
+        ("no_publicado", "higiene", True, True, False),
+        ("solo_suspendido", "higiene", True, True, False),
+        ("sin_ofertas", "higiene", True, True, False),
+        ("inactivo", "higiene", True, False, False),
+        ("de_inactiva", "inactiva", True, True, False),
+        ("con_receta", "higiene", True, True, True),
     )
-    for clave, categoria, retracto, activo in productos:
+    for clave, categoria, retracto, activo, receta in productos:
         catalogo.productos[clave] = _insertar(
             cx,
             "INSERT INTO producto (categoria_id, nombre, marca, presentacion, unidad, unidades_por_envase,"
-            " retracto_pierde_al_abrir, activo) VALUES (%s, %s, 'Marca de ejemplo', %s, 'unidad', 30, %s, %s)"
-            " RETURNING id",
-            (catalogo.categorias[categoria], f"Producto {clave} {s}", "Paquete de 30 unidades", retracto, activo),
+            " retracto_pierde_al_abrir, activo, requiere_receta)"
+            " VALUES (%s, %s, 'Marca de ejemplo', %s, 'unidad', 30, %s, %s, %s) RETURNING id",
+            (catalogo.categorias[categoria], f"Producto {clave} {s}", "Paquete de 30 unidades", retracto, activo,
+             receta),
         )
     comercios = (("uno", "Almacén El Ejemplo", "activo"), ("dos", "Bodega La Muestra", "activo"),
                  ("suspendido", "Comercio Suspendido", "suspendido"))
     for i, (clave, fantasia, estado) in enumerate(comercios):
-        razon, rut = f"Razón social secreta {clave} {s}", f"77.{s[:3]}.{s[3:6]}-{i}"
+        razon, rut = f"Razón social secreta {clave} {s}", rut_ficticio(f"7{5 + i}{s}")
         direccion, telefono = f"Calle de Prueba {i} {s}", f"+56 2 5555 0{s[:3]}"
         catalogo.comercios[clave] = _insertar(
             cx,
@@ -93,6 +96,8 @@ def _sembrar(cx: psycopg.Connection, catalogo: CatalogoSintetico) -> None:
         ("solo_suspendido", "suspendido", 2990, 5, True),
         ("inactivo", "uno", 3990, 5, True),
         ("de_inactiva", "uno", 4990, 5, True),
+        # Publicado, con stock y de un comercio activo, pero requiere receta (decisión 171)
+        ("con_receta", "uno", 5990, 5, True),
     )
     for producto, comercio, precio, stock, disponible in ofertas:
         catalogo.ofertas[(producto, comercio)] = _insertar(

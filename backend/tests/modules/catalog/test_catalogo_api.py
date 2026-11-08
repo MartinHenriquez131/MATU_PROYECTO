@@ -2,6 +2,10 @@
 
 Camino feliz para los cuatro roles, lo que entra y lo que no, el orden, sin datos del comercio, Cache-Control,
 sin auditoría ni logs del contenido, y los caminos de error: sin sesión, token inválido y el relevo (401).
+
+El relevo se prueba dos veces: con una cookie inventada (estructural) y con la sesión de un acceso canjeado de
+verdad, con las fixtures de MATU-19. Por ellas el reloj de este archivo parte de la hora real: las políticas RLS del
+relevo usan now() de la base. Las demás pruebas no dependen de la hora: el mismo reloj emite y valida los tokens.
 """
 
 import io
@@ -14,9 +18,18 @@ from fastapi.testclient import TestClient
 
 from app.modules.care_plan.api.router_relevo_publico import COOKIE as COOKIE_RELEVO
 from tests.base_datos import DSN, requiere_base
+from tests.modules.care_plan import conftest as conftest_ficha
+from tests.modules.care_plan import test_abrir_relevo_api as abrir
+from tests.modules.care_plan.test_abrir_relevo_api import EntornoAbrir
 from tests.modules.catalog.conftest import CatalogoSintetico, EntornoCatalogo
 
 pytestmark = [pytest.mark.rf("RF-20"), requiere_base]
+
+# Las fixtures de MATU-19 para canjear un acceso de relevo de verdad: la ficha, el reloj desde la hora real, el
+# pepper del PIN y las sesiones del relevo en memoria
+entorno_ficha = conftest_ficha.entorno_ficha
+entorno = abrir.entorno
+reloj_fijo = abrir.reloj_fijo
 
 PROHIBIDOS = ("marca", "razon_social", "rut", "direccion", "telefono", "comuna", "stock")
 
@@ -113,13 +126,36 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
             ],
         },
     ]
-    # Ni la oferta no publicada, ni el comercio suspendido, ni el producto sin ofertas, inactivo o de una
-    # categoría inactiva
+    # Ni la oferta no publicada, ni el comercio suspendido, ni el producto sin ofertas, inactivo, con receta o
+    # de una categoría inactiva
     texto = str(cuerpo)
-    for clave in ("no_publicado", "solo_suspendido", "sin_ofertas", "inactivo", "de_inactiva"):
+    for clave in ("no_publicado", "solo_suspendido", "sin_ofertas", "inactivo", "de_inactiva", "con_receta"):
         assert str(c.productos[clave]) not in texto
     assert str(c.categorias["inactiva"]) not in texto
     assert str(c.comercios["suspendido"]) not in texto
+
+
+def test_un_producto_con_receta_no_aparece(
+    entorno_catalogo: EntornoCatalogo, catalogo_sintetico: CatalogoSintetico
+) -> None:
+    # Decisión 171: tiene una oferta publicada, con stock, de un comercio activo y en una categoría activa; solo
+    # requiere_receta lo deja fuera
+    c = catalogo_sintetico
+    with psycopg.connect(DSN) as cx:
+        fila = cx.execute(
+            "SELECT p.requiere_receta, p.activo, o.disponible, o.stock FROM producto p"
+            " JOIN oferta o ON o.producto_id = p.id WHERE p.id = %s",
+            (c.productos["con_receta"],),
+        ).fetchone()
+    assert fila == (True, True, True, 5)
+
+    respuesta = entorno_catalogo.ver(entorno_catalogo.familia().admin)
+
+    assert respuesta.status_code == 200, respuesta.text
+    productos = [p for categoria in _mias(respuesta.json(), c) for p in categoria["productos"]]
+    assert str(c.productos["con_receta"]) not in {p["id"] for p in productos}
+    assert f"Producto con_receta {c.sufijo}" not in respuesta.text
+    assert str(c.ofertas[("con_receta", "uno")]) not in respuesta.text
 
 
 def test_la_respuesta_no_trae_marca_ni_datos_del_comercio(
@@ -192,3 +228,22 @@ def test_solo_existe_con_la_capa_3_habilitada(
         assert cliente.get("/v1/catalogo").status_code == codigo
     finally:
         config.obtener_configuracion.cache_clear()
+
+
+def test_la_sesion_de_un_relevo_canjeado_no_entra(entorno: EntornoAbrir) -> None:
+    # Un acceso de relevo real, canjeado con su PIN: la cookie abre la ficha del relevo, pero no el catálogo
+    familia = entorno.familia_con_ficha()
+    _, token, pin = entorno.compartir(familia)
+    canje = entorno.canjear(token, pin)
+    assert canje.status_code == 204, canje.text
+    sesion = canje.cookies.get(COOKIE_RELEVO)
+    assert sesion
+    assert entorno.leer().status_code == 200  # la sesión sirve donde corresponde
+
+    # La cookie es de Path=/v1/relevo: el navegador no la mandaría aquí, así que se manda a mano, sin Bearer
+    respuesta = entorno.relevo.get("/v1/catalogo", headers={"Cookie": f"{COOKIE_RELEVO}={sesion}"})
+
+    assert respuesta.status_code == 401
+    assert respuesta.headers["content-type"].startswith("application/problem+json")
+    assert respuesta.headers["WWW-Authenticate"] == "Bearer"
+    assert "categorias" not in respuesta.text
