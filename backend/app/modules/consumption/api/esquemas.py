@@ -224,7 +224,7 @@ class _LoComprado(BaseModel):
 class SolicitudResolver(_LoComprado):
     """Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o
     null): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota
-    la reposición y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."""
+    la compra (`reposicion`) y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."""
 
 
 # --- MATU-51: «Compré» y «Me quedan N» ------------------------------------------------------------------

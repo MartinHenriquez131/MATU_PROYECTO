@@ -87,7 +87,8 @@ UPDATE acceso_relevo SET creado_en = now() - interval '3 days', expira_en = now(
  WHERE id = '{ACC_VENCIDO}';
 UPDATE acceso_relevo SET revocado_en = now() WHERE id = '{ACC_REVOCADO}';
 
-INSERT INTO categoria_cuidado (id, nombre) VALUES ('00000000-0000-0000-0000-000000000c01', 'Incontinencia');
+INSERT INTO categoria_cuidado (id, nombre) VALUES
+ ('00000000-0000-0000-0000-000000000c01', 'Higiene y cuidado personal');
 INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
  ('00000000-0000-0000-0000-000000000f01', '00000000-0000-0000-0000-000000000c01',
   'Pañal adulto M', 'x30', 'unidad', 30);
