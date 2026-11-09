@@ -64,7 +64,7 @@ MATU_PROYECTO/
     └── transbank/                 prueba de concepto de captura diferida (incompleta, ver su README)
 ```
 
-A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y TypeScript), según la estructura comprometida en el anexo 19.1 del documento de arquitectura.
+La aplicación de la familia está en `web/` (React y TypeScript, mobile first, ADR-026). No hay aplicación móvil nativa en el semestre: la estructura vigente está en el anexo 19.1 de la arquitectura v1.2.
 
 ## Tecnologías
 
@@ -72,11 +72,10 @@ A medida que avancen los sprints se suman `mobile/` (Flutter) y `web/` (React y 
 |---|---|
 | Backend | Python 3.12, FastAPI, Pydantic v2 |
 | Base de datos | PostgreSQL 16 con Row Level Security |
-| Acceso a datos | SQLAlchemy 2, Alembic |
-| Trabajos asíncronos | ARQ sobre Redis |
-| Aplicación móvil | Flutter |
-| Panel web | React + TypeScript |
-| Pagos | Transbank, Webpay Plus diferido y OneClick |
+| Acceso a datos | SQLAlchemy 2 con psycopg 3, Alembic |
+| Trabajos asíncronos | Tareas de línea de comando por grupo, con *transactional outbox* (el programador de tareas llega con MATU-74) |
+| Aplicación de la familia | Aplicación web mobile first, React + TypeScript (ADR-026) |
+| Pagos | Transbank, Webpay Plus en venta normal: un solo cobro del total confirmado (ADR-027) |
 | Infraestructura | Docker, Docker Compose |
 | Integración continua | GitHub Actions |
 
