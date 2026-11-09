@@ -57,6 +57,7 @@ from tests.dobles.contador_ventana_en_memoria import limite_ip_en_memoria
 from tests.dobles.contadores_en_memoria import demora_en_memoria
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import Fabrica
+from tests.politica import POLITICA_PRUEBAS
 from tests.rut_ficticio import rut_ficticio
 from tests.textos import aparece_como_dato
 
@@ -161,6 +162,7 @@ def sembradora(pepper: bytes, pepper_pin: bytes, custodia: CustodiaKekEntorno) -
         hasher=rapido,
         custodia=custodia,
         pepper_pin=pepper_pin,
+        politica=POLITICA_PRUEBAS,
         pin_relevo=PIN,
     )
 
@@ -806,7 +808,12 @@ def entorno_local(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
 
     monkeypatch.setitem(config.Configuracion.model_config, "env_file", None)
     monkeypatch.setenv("ENTORNO", "local")
-    monkeypatch.setenv("POLITICA_VERSION", "0.9")
+    # MATU-75: la versión con su texto publicado, la fecha y el correo
+    monkeypatch.setenv("POLITICA_VERSION", "0.11")
+    monkeypatch.setenv("POLITICA_ACTUALIZADA_EN", "2026-11-09")
+    monkeypatch.setenv("CORREO_PRIVACIDAD", "privacidad@example.org")
+    monkeypatch.setenv("PROVEEDOR_CORREO_PRIVACIDAD", "Correo de Prueba (correo.example.org)")
+    monkeypatch.setenv("PAIS_PROVEEDOR_CORREO", "País de Prueba")
     monkeypatch.setenv("PEPPER_EMAIL", secrets.token_hex(32))
     monkeypatch.setenv("JWT_CLAVE", secrets.token_hex(32))
     monkeypatch.setenv("PEPPER_PIN", secrets.token_hex(32))

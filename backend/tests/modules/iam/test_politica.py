@@ -1,0 +1,424 @@
+"""MATU-75 · La política de privacidad visible: el texto, su huella, la tabla de versiones y GET /v1/politica.
+
+Sin base de datos. Las pruebas de la aceptación al crear la cuenta están en test_politica_api.py.
+"""
+
+import hashlib
+import importlib.util
+import io
+import json
+import re
+import sys
+from collections.abc import Iterator
+from datetime import UTC, date, datetime
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.core import config
+from app.main import crear_app
+from app.modules.iam.api.router_politica import obtener_politica_vigente
+from app.modules.iam.application.politica import politica_vigente
+from app.modules.iam.domain.politica import (
+    MARCADOR_CORREO,
+    PoliticaCambio,
+    PoliticaNoDisponible,
+    aceptar,
+    armar_politica,
+    huella_de,
+)
+from app.modules.iam.infrastructure import textos_politica
+from app.modules.iam.infrastructure.textos_politica import PUBLICADAS, archivo_de, plantilla_publicada
+from tests.politica import (
+    CORREO_PRUEBAS,
+    ENTORNO_POLITICA,
+    FECHA_PRUEBAS,
+    PAIS_PRUEBAS,
+    POLITICA_PRUEBAS,
+    PROVEEDOR_PRUEBAS,
+)
+
+pytestmark = pytest.mark.rf("RF-37")
+
+BACKEND = Path(__file__).resolve().parents[3]
+DOCS = BACKEND.parent / "docs" / "api"
+AHORA = datetime(2026, 11, 9, 12, tzinfo=UTC)
+
+# Lo que nunca debe llegar a la persona: el encabezado interno y las referencias del equipo
+ENCABEZADO_INTERNO = (
+    "# Política de privacidad de MATU",
+    "**Estado:**",
+    "**Aprobación:**",
+    "Identificador de versión en el sistema",
+    "POLITICA_VERSION",
+)
+_HUELLA_64 = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])")
+
+
+def _generador() -> ModuleType:
+    ruta = BACKEND / "scripts" / "generar_politica.py"
+    especificacion = importlib.util.spec_from_file_location("generar_politica", ruta)
+    assert especificacion is not None and especificacion.loader is not None
+    modulo = importlib.util.module_from_spec(especificacion)
+    sys.modules["generar_politica"] = modulo
+    especificacion.loader.exec_module(modulo)
+    return modulo
+
+
+# --- La tabla de versiones: el archivo no cambia sin una versión nueva ------------------------------------------
+
+
+@pytest.mark.parametrize("version", sorted(PUBLICADAS))
+def test_cada_version_publicada_tiene_su_archivo_con_su_huella(version: str) -> None:
+    """Si el texto de una versión cambia, esta prueba falla: un texto nuevo es una versión nueva (POLITICA_VERSION,
+    otro archivo y otra fila en PUBLICADAS). Nunca se corrige cambiando la huella de una versión ya servida."""
+    contenido = archivo_de(version).read_bytes()
+    assert b"\r" not in contenido, "el archivo va con saltos LF"
+    assert hashlib.sha256(contenido).hexdigest() == PUBLICADAS[version]
+
+
+def test_la_carpeta_no_tiene_textos_sin_version_publicada() -> None:
+    archivos = {p.name for p in textos_politica.CARPETA.glob("politica-*.md")}
+    assert archivos == {f"politica-{v}.md" for v in PUBLICADAS}
+
+
+def test_la_011_es_la_vigente_de_las_publicadas() -> None:
+    # D1: POLITICA_VERSION pasa a 0.11
+    assert "0.11" in PUBLICADAS
+
+
+def test_un_texto_que_cambia_sin_cambiar_su_huella_no_se_sirve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = archivo_de("0.11").read_text(encoding="utf-8")
+    (tmp_path / "politica-0.11.md").write_text(original.replace("piloto académico", "piloto"), encoding="utf-8")
+    monkeypatch.setattr(textos_politica, "CARPETA", tmp_path)
+    plantilla_publicada.cache_clear()
+    try:
+        with pytest.raises(PoliticaNoDisponible):
+            plantilla_publicada("0.11")
+    finally:
+        plantilla_publicada.cache_clear()
+
+
+def test_una_version_sin_texto_publicado_no_se_sirve() -> None:
+    with pytest.raises(PoliticaNoDisponible):
+        plantilla_publicada("0.10")
+
+
+# --- El texto que se muestra ----------------------------------------------------------------------------------
+
+
+def test_el_texto_empieza_en_en_un_minuto_y_no_trae_nada_interno() -> None:
+    texto = POLITICA_PRUEBAS.texto
+    assert texto.startswith("## En un minuto\n")
+    for prohibido in ("ADR-", "MATU-", "[PENDIENTE", *ENCABEZADO_INTERNO):
+        assert prohibido not in texto, prohibido
+    assert MARCADOR_CORREO not in texto
+    assert CORREO_PRUEBAS in texto and PROVEEDOR_PRUEBAS in texto and PAIS_PRUEBAS in texto
+
+
+def test_el_texto_no_tiene_marcadores_ni_comentarios() -> None:
+    texto = POLITICA_PRUEBAS.texto
+    for marcador in ("{", "}", "[PROVEEDOR DEL CORREO]", "[PAÍS]", "<!--", "-->"):
+        assert marcador not in texto, marcador
+    assert re.search(r"\[[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ :]*\]", texto) is None
+
+
+def test_el_texto_versionado_no_trae_los_valores_de_la_configuracion() -> None:
+    plantilla = archivo_de("0.11").read_text(encoding="utf-8")
+    for marcador in ("{correo_privacidad}", "{proveedor_correo}", "{pais_proveedor_correo}"):
+        assert marcador in plantilla
+    for valor in (CORREO_PRUEBAS, PROVEEDOR_PRUEBAS, PAIS_PRUEBAS, "example."):
+        assert valor not in plantilla
+
+
+def test_el_texto_no_muestra_identificadores_internos_ni_huellas() -> None:
+    texto = POLITICA_PRUEBAS.texto
+    assert "declaracion_" not in texto
+    assert "aviso_cuidador_de_hecho" not in texto
+    assert "`" not in texto
+    assert _HUELLA_64.search(texto) is None
+
+
+def test_la_huella_es_el_sha256_del_texto_que_se_sirve() -> None:
+    assert POLITICA_PRUEBAS.huella == hashlib.sha256(POLITICA_PRUEBAS.texto.encode("utf-8")).hexdigest()
+    assert "\r" not in POLITICA_PRUEBAS.texto
+
+
+def test_la_huella_cambia_con_el_correo() -> None:
+    otra = politica_vigente(
+        version="0.11", actualizada_en=FECHA_PRUEBAS, correo="otra@example.org", plantilla_de=plantilla_publicada,
+        proveedor_correo=PROVEEDOR_PRUEBAS, pais_proveedor_correo=PAIS_PRUEBAS,
+    )
+    assert otra.huella != POLITICA_PRUEBAS.huella
+    assert otra.huella == huella_de(otra.texto)
+
+
+# --- Dominio y caso de uso -----------------------------------------------------------------------------------
+
+
+def test_armar_pone_el_correo_y_calcula_la_huella_del_texto_final() -> None:
+    politica = armar_politica(
+        version="9.9", actualizada_en=date(2026, 1, 2), plantilla="Hola\r\nescribe a {correo_privacidad}.\n",
+        correo="a@example.com",
+    )
+    assert politica.texto == "Hola\nescribe a a@example.com.\n"
+    assert politica.huella == hashlib.sha256(b"Hola\nescribe a a@example.com.\n").hexdigest()
+    assert politica.correo_contacto == "a@example.com"
+    assert politica.texto not in repr(politica)
+
+
+def test_sin_correo_y_con_marcador_no_hay_politica() -> None:
+    with pytest.raises(PoliticaNoDisponible):
+        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla="a {correo_privacidad}", correo=None)
+
+
+@pytest.mark.parametrize(
+    "plantilla", ["{proveedor_correo}", "en {pais_proveedor_correo}", "un {marcador_desconocido}"]
+)
+def test_un_marcador_sin_valor_no_se_publica(plantilla: str) -> None:
+    with pytest.raises(PoliticaNoDisponible):
+        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla=plantilla, correo="a@example.org")
+
+
+def test_sin_marcador_se_sirve_sin_correo() -> None:
+    politica = armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla="sin contacto\n", correo=None)
+    assert politica.correo_contacto is None and politica.texto == "sin contacto\n"
+
+
+@pytest.mark.parametrize(
+    ("version", "fecha"), [(None, FECHA_PRUEBAS), ("0.11", None)], ids=["sin-version", "sin-fecha"]
+)
+def test_sin_version_o_fecha_no_hay_politica(version: str | None, fecha: date | None) -> None:
+    with pytest.raises(PoliticaNoDisponible):
+        politica_vigente(
+            version=version, actualizada_en=fecha, correo=CORREO_PRUEBAS, plantilla_de=plantilla_publicada,
+            proveedor_correo=PROVEEDOR_PRUEBAS, pais_proveedor_correo=PAIS_PRUEBAS,
+        )
+
+
+def test_aceptar_estampa_la_version_y_la_huella_vigentes() -> None:
+    aceptacion = aceptar(POLITICA_PRUEBAS, None, AHORA)
+    assert (aceptacion.version, aceptacion.huella, aceptacion.aceptada_en) == ("0.11", POLITICA_PRUEBAS.huella, AHORA)
+    assert aceptar(POLITICA_PRUEBAS, POLITICA_PRUEBAS.huella, AHORA) == aceptacion
+
+
+def test_aceptar_con_otra_huella_falla() -> None:
+    with pytest.raises(PoliticaCambio):
+        aceptar(POLITICA_PRUEBAS, "0" * 64, AHORA)
+
+
+# --- El generador ---------------------------------------------------------------------------------------------
+
+FUENTE_SINTETICA = """# Política de privacidad de MATU
+
+**Versión 9.9 · 1 de enero de 2026** · nota interna (MATU-99)
+**Estado:** borrador.
+**Identificador de versión en el sistema:** `9.9`
+
+---
+
+## En un minuto
+
+- Algo para la persona (MATU-41).
+- Otra cosa (aprobado por Jorge el 28-10, MATU-14).
+
+## 2. Contacto
+
+> ADR-027 (27-10), aprobado por Jorge.
+
+<!-- Nota interna: declaracion_titular, MATU-75 y
+[PENDIENTE: algo] en varias líneas -->
+- **Contacto:** [PENDIENTE: correo de contacto]
+- **Plazo:** [PENDIENTE: plazo legal]
+- **[PROVEEDOR DEL CORREO]**, en [PAÍS], guarda lo que escribes a {correo_privacidad}. <!-- ADR-099 --> Nada más.
+
+Este es el texto exacto. Su identificador en el sistema es `aviso_x`, versión 1.1:
+
+Su huella en el sistema (SHA-256) es `8dfbca33f5c58a2c1f5c43a672b3e0fcd2ed4adcc971dcccd0f8879814b10489`.
+
+Cada declaración tiene un identificador: `declaracion_titular`. Su versión es la de esta política. \
+Las aprobó Jorge el 03-11.
+"""
+
+ESPERADO = """## En un minuto
+
+- Algo para la persona.
+- Otra cosa.
+
+## 2. Contacto
+
+- **Contacto:** {correo_privacidad}
+- **Plazo:** Todavía no lo definimos.
+- **{proveedor_correo}**, en {pais_proveedor_correo}, guarda lo que escribes a {correo_privacidad}. Nada más.
+
+Este es el texto exacto.
+
+Su versión es la de esta política.
+"""
+
+
+def test_el_generador_convierte_la_fuente_siempre_igual() -> None:
+    generador = _generador()
+    assert generador.convertir(FUENTE_SINTETICA) == ESPERADO
+    assert generador.convertir(FUENTE_SINTETICA.replace("\n", "\r\n")) == ESPERADO
+
+
+def test_el_generador_falla_si_queda_algo_interno() -> None:
+    generador = _generador()
+    with pytest.raises(ValueError, match="referencias internas"):
+        generador.convertir("## En un minuto\n\nVer MATU-12 sin paréntesis.\n")
+    with pytest.raises(ValueError, match="referencias internas"):
+        generador.convertir("## En un minuto\n\nEl [RESPONSABLE] responde.\n")
+    with pytest.raises(ValueError, match="la sección"):
+        generador.convertir("# Sin la sección\n")
+
+
+def test_el_generador_avisa_las_frases_rotas() -> None:
+    generador = _generador()
+    texto = generador.convertir("## En un minuto\n\nRespondemos dentro de [PENDIENTE: plazo]. Es gratis.\n")
+    assert generador.frases_rotas(texto) == ["Respondemos dentro de Todavía no lo definimos. Es gratis."]
+
+
+def test_el_generador_escribe_el_archivo_y_su_huella(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    generador = _generador()
+    fuente = tmp_path / "politica-privacidad.md"
+    fuente.write_text(FUENTE_SINTETICA, encoding="utf-8")
+    monkeypatch.setattr(generador, "CARPETA", tmp_path)
+
+    assert generador.main([str(fuente), "9.9"]) == 0
+
+    escrito = (tmp_path / "politica-9.9.md").read_bytes()
+    assert escrito == ESPERADO.encode("utf-8")
+    assert hashlib.sha256(escrito).hexdigest() in capsys.readouterr().out
+    assert generador.main([str(fuente), "nueve"]) == 2
+
+
+# --- GET /v1/politica -----------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cliente() -> Iterator[tuple[TestClient, io.StringIO]]:
+    salida = io.StringIO()
+    app = crear_app(stream_logs=salida)
+    app.dependency_overrides[obtener_politica_vigente] = lambda: POLITICA_PRUEBAS
+    with TestClient(app, raise_server_exceptions=False) as cliente:
+        yield cliente, salida
+
+
+def test_get_politica_sin_sesion_trae_version_fecha_huella_texto_y_correo(
+    cliente: tuple[TestClient, io.StringIO],
+) -> None:
+    http, salida = cliente
+    respuesta = http.get("/v1/politica")
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["cache-control"] == "no-cache"
+    assert "set-cookie" not in respuesta.headers
+    cuerpo = respuesta.json()
+    assert set(cuerpo) == {"version", "actualizada_en", "huella", "texto", "correo_contacto"}
+    assert cuerpo["version"] == "0.11"
+    assert cuerpo["actualizada_en"] == "2026-11-09"
+    assert cuerpo["correo_contacto"] == CORREO_PRUEBAS
+    assert cuerpo["huella"] == hashlib.sha256(cuerpo["texto"].encode("utf-8")).hexdigest()
+    for prohibido in ("ADR-", "MATU-", "[PENDIENTE", "declaracion_", *ENCABEZADO_INTERNO):
+        assert prohibido not in cuerpo["texto"], prohibido
+    # El texto nunca va a un log
+    assert "En un minuto" not in salida.getvalue()
+
+
+def test_get_politica_no_registra_auditoria(cliente: tuple[TestClient, io.StringIO]) -> None:
+    http, salida = cliente
+    http.get("/v1/politica")
+    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines() if linea.strip()]
+    assert all("auditoria" not in str(linea.get("logger", "")) for linea in lineas)
+    assert all("usuario_id" not in linea or linea["usuario_id"] is None for linea in lineas)
+
+
+@pytest.fixture
+def configuracion_politica(configuracion_sin_env: None, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    for variable, valor in ENTORNO_POLITICA.items():
+        monkeypatch.setenv(variable, valor)
+    config.obtener_configuracion.cache_clear()
+    yield
+
+
+def test_la_dependencia_lee_la_configuracion(configuracion_politica: None) -> None:
+    politica = obtener_politica_vigente()
+    assert politica == POLITICA_PRUEBAS
+
+
+@pytest.mark.parametrize(
+    ("variable", "valor"),
+    [
+        ("POLITICA_VERSION", "0.10"),
+        ("POLITICA_ACTUALIZADA_EN", ""),
+        ("CORREO_PRIVACIDAD", ""),
+        ("PROVEEDOR_CORREO_PRIVACIDAD", ""),
+        ("PAIS_PROVEEDOR_CORREO", ""),
+    ],
+)
+def test_sin_politica_completa_get_responde_503_y_el_log_no_trae_valores(
+    configuracion_politica: None, monkeypatch: pytest.MonkeyPatch, variable: str, valor: str
+) -> None:
+    monkeypatch.setenv(variable, valor)
+    config.obtener_configuracion.cache_clear()
+    salida = io.StringIO()
+    with TestClient(crear_app(stream_logs=salida), raise_server_exceptions=False) as http:
+        respuesta = http.get("/v1/politica")
+    assert respuesta.status_code == 503
+    assert respuesta.headers["content-type"].startswith("application/problem+json")
+    assert "politica no disponible" in salida.getvalue()
+    assert CORREO_PRUEBAS not in salida.getvalue() + respuesta.text
+
+
+def test_la_salud_no_depende_de_la_politica(configuracion_politica: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POLITICA_ACTUALIZADA_EN", "")
+    config.obtener_configuracion.cache_clear()
+    with TestClient(crear_app(stream_logs=io.StringIO())) as http:
+        assert http.get("/v1/salud").status_code == 200
+
+
+def test_correo_con_forma_invalida_no_carga_la_configuracion(
+    configuracion_politica: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import ValidationError
+
+    monkeypatch.setenv("CORREO_PRIVACIDAD", "{correo_privacidad}")
+    config.obtener_configuracion.cache_clear()
+    with pytest.raises(ValidationError):
+        config.obtener_configuracion()
+
+
+# --- El contrato ---------------------------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def esquema() -> dict[str, Any]:
+    return crear_app(io.StringIO()).openapi()
+
+
+def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
+    exportado = json.loads((DOCS / "openapi.json").read_text(encoding="utf-8"))
+    for ruta in ("/v1/politica", "/v1/usuarios", "/v1/cuenta"):
+        assert exportado["paths"][ruta] == esquema["paths"][ruta], f"vuelve a exportar {ruta}"
+    for nombre in ("PoliticaVista", "PoliticaAceptadaVista", "CuentaVista", "SolicitudRegistro"):
+        assert exportado["components"]["schemas"][nombre] == esquema["components"]["schemas"][nombre], nombre
+
+
+def test_el_contrato_declara_los_codigos_y_los_campos(esquema: dict[str, Any]) -> None:
+    assert {"200", "503"} <= set(esquema["paths"]["/v1/politica"]["get"]["responses"])
+    assert "security" not in esquema["paths"]["/v1/politica"]["get"]
+    assert {"201", "409", "422", "429", "503"} <= set(esquema["paths"]["/v1/usuarios"]["post"]["responses"])
+    registro = esquema["components"]["schemas"]["SolicitudRegistro"]
+    assert "acepta_politica" in registro["required"] and "huella_politica" not in registro["required"]
+    assert registro["properties"]["acepta_politica"]["const"] is True
+    politica = esquema["components"]["schemas"]["PoliticaVista"]
+    assert set(politica["properties"]) == {"version", "actualizada_en", "huella", "texto", "correo_contacto"}
+    assert "politica_aceptada" in esquema["components"]["schemas"]["CuentaVista"]["properties"]

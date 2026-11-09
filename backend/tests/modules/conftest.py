@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from app.main import crear_app
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_clave_jwt, obtener_reloj, usuario_actual
 from app.modules.iam.api.router import obtener_pepper_email
+from app.modules.iam.api.router_politica import obtener_politica_vigente
 from app.modules.iam.api.router_recuperacion import (
     obtener_almacen_codigos,
     obtener_contadores_envio,
@@ -30,6 +31,7 @@ from tests.dobles.contador_ventana_en_memoria import ContadorVentanaEnMemoria, l
 from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
 from tests.dobles.recuperacion_en_memoria import AlmacenCodigosEnMemoria, ContadoresEnvioEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
+from tests.politica import POLITICA_PRUEBAS
 
 
 @dataclass
@@ -55,6 +57,10 @@ class EntornoIam:
         cuerpo.setdefault("telefono", "+56 9 0000 0001")
         if cuerpo["telefono"] is None:
             del cuerpo["telefono"]
+        # MATU-75: la casilla de la política, obligatoria. acepta_politica=None la omite del cuerpo
+        cuerpo.setdefault("acepta_politica", True)
+        if cuerpo["acepta_politica"] is None:
+            del cuerpo["acepta_politica"]
         respuesta = self.cliente.post("/v1/usuarios", json=cuerpo)
         if respuesta.status_code == 201:
             self.creados.append(uuid.UUID(respuesta.json()["id"]))
@@ -111,6 +117,8 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     app.dependency_overrides[obtener_clave_jwt] = lambda: clave_jwt
     # El mismo reloj emite y valida: la prueba lo hace avanzar para vencer el token
     app.dependency_overrides[obtener_reloj] = lambda: reloj_fijo
+    # MATU-75: la política 0.11 publicada, con un correo sintético, sin depender del .env del equipo
+    app.dependency_overrides[obtener_politica_vigente] = lambda: POLITICA_PRUEBAS
 
     @app.get("/prueba/yo")
     def yo(usuario: Annotated[UsuarioActual, Depends(usuario_actual)]) -> dict[str, str]:
@@ -155,4 +163,6 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
             cx.execute("DELETE FROM dispositivo WHERE usuario_id = ANY(%s)", (entorno.creados,))
             # MATU-41: la preferencia de avisos que la prueba guardó por la API
             cx.execute("DELETE FROM preferencia_notificacion WHERE usuario_id = ANY(%s)", (entorno.creados,))
+            # MATU-75: la aceptación de la política no cae con la cuenta (sin ON DELETE CASCADE)
+            cx.execute("DELETE FROM aceptacion_politica WHERE usuario_id = ANY(%s)", (entorno.creados,))
             cx.execute("DELETE FROM usuario WHERE id = ANY(%s)", (entorno.creados,))

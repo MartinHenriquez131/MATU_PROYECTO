@@ -11,6 +11,7 @@ Las pruebas de la regla y del 422 no tocan la base. Las de 201 corren contra Pos
 import io
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -21,6 +22,7 @@ from app.modules.iam.api.router import obtener_repositorio_usuarios
 from app.modules.iam.application.registro import registrar_usuario
 from app.modules.iam.domain.credenciales import DominioNoPermitido, es_dominio_reservado
 from tests.modules.iam.conftest import EntornoIam, requiere_base
+from tests.politica import POLITICA_PRUEBAS
 
 pytestmark = pytest.mark.rf("RF-37")
 
@@ -99,6 +101,8 @@ def test_el_caso_de_uso_rechaza_antes_de_hashear_y_de_guardar(contrasena_sinteti
             pepper=b"p" * 32,
             hasher=_HasherQueNoSeUsa(),
             repositorio=_RepositorioQueNoSeUsa(),  # type: ignore[arg-type]
+            politica=POLITICA_PRUEBAS,
+            ahora=datetime(2026, 11, 9, 12, tzinfo=UTC),
             solo_dominios_reservados=True,
         )
 

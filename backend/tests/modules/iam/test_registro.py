@@ -122,6 +122,8 @@ def test_duplicado_de_la_base_se_traduce_a_409(entorno_iam: EntornoIam, contrase
             "email": "familiar@ejemplo.cl",
             "contrasena": contrasena_sintetica,
             "telefono": "+56 9 0000 0001",
+            # MATU-75: la casilla de la política, obligatoria
+            "acepta_politica": True,
         },
     )
 

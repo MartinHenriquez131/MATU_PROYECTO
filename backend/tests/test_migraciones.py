@@ -952,3 +952,44 @@ def test_0020_acota_permisos_y_politicas_y_baja_al_esquema_de_0019(base_desechab
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     assert consultar("SELECT count(*) FROM pg_proc WHERE proname IN ('iam_credencial', 'token_vida_fija')") == [(0,)]
     alembic("upgrade", "head")
+
+
+# ---- 0021 (MATU-75): la aceptación de la política al crear la cuenta
+
+
+@pytest.mark.rf("RF-37")
+def test_0021_aceptacion_politica_y_baja_al_esquema_de_0020(base_desechable):
+    alembic("upgrade", "0020")
+    esquema_0020 = catalogo()
+    del_dueno = [p for p in esquema_0020["politicas"] if p[3] == "{matu_owner}"]
+    # Una cuenta anterior a MATU-75 queda sin registro: la migración no rellena nada (D2)
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'a@correo.ejemplo', 'A', 'h')",
+                  (U,))
+
+    alembic("upgrade", "0021")
+    assert consultar("SELECT count(*) FROM aceptacion_politica") == [(0,)]
+    assert consultar("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'aceptacion_politica'"
+                     ) == [(True, True)]
+    politicas = {(n, c, r) for n, c, r in consultar(
+        "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'aceptacion_politica'")}
+    assert politicas == {("aceptacion_propia_leer", "SELECT", "{public}"),
+                         ("aceptacion_propia_crear", "INSERT", "{public}"),
+                         ("aceptacion_operacion_leer", "SELECT", "{public}")}
+    assert _privilegios("aceptacion_politica") == {"SELECT", "INSERT"}
+    # Sin ON DELETE CASCADE: la aceptación no cae con la cuenta (CL-75-2)
+    [(definicion,)] = consultar("SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+                                " WHERE conrelid = 'aceptacion_politica'::regclass AND contype = 'f'")
+    assert "CASCADE" not in definicion
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgrelid = 'aceptacion_politica'::regclass"
+                     " AND NOT tgisinternal") == [("aceptacion_politica_inalterable",)]
+    # Lo que dejó la 0020 no cambia
+    despues = catalogo()
+    assert [p for p in despues["politicas"] if p[3] == "{matu_owner}"] == del_dueno
+    assert [p for p in despues["politicas"] if p[0] != "aceptacion_politica"] == esquema_0020["politicas"]
+
+    alembic("downgrade", "0020")
+    despues = catalogo()
+    for parte, filas in esquema_0020.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
