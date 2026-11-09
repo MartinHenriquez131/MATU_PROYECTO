@@ -65,7 +65,7 @@ class RepositorioUsuarios(Protocol):
         """Resuelve el usuario por indice_credencial y lee su hash y su estado.
 
         Primero busca en indice_credencial (sin RLS) y después fija app.usuario_id para leer la
-        fila de usuario, que la política usuario_propio solo muestra a su dueño. None si el email
+        fila de usuario, que la política usuario_propio_leer solo muestra a su dueño. None si el email
         no tiene cuenta.
         """
         ...
@@ -248,7 +248,9 @@ class DatosCuenta:
 
 
 class RepositorioCuenta(Protocol):
-    """La fila de usuario del contexto (RLS usuario_propio). Implementación: RepositorioCuentaSql."""
+    """La fila de usuario del contexto (RLS usuario_propio_leer y usuario_propio_editar).
+
+    Implementación: RepositorioCuentaSql."""
 
     def datos(self) -> DatosCuenta | None: ...
 

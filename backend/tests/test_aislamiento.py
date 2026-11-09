@@ -513,8 +513,9 @@ def test_relevo_cuenta_intentos_pero_no_borra_ni_cambia_su_acceso(cx):
     cx.execute("UPDATE acceso_relevo SET pin_intentos_fallidos = pin_intentos_fallidos + 1")
     cx.execute("UPDATE acceso_relevo SET usos = usos + 1, ultimo_uso_en = now()")
     assert cx.execute("SELECT pin_intentos_fallidos, usos FROM acceso_relevo").fetchone() == (1, 1)
-    # No borra su acceso: sin política de DELETE, cero filas afectadas
-    assert cx.execute("DELETE FROM acceso_relevo").rowcount == 0
+    # No borra su acceso: matu_app no tiene DELETE sobre acceso_relevo (migración 0020)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("DELETE FROM acceso_relevo")
     assert contar(cx, "acceso_relevo") == 1
     # No amplía los campos, no se alarga el vencimiento, no se des-revoca ni cambia el PIN
     for cambio in ("secciones_permitidas = ARRAY['rutina','manejo_situaciones','red_apoyo']",
@@ -710,9 +711,12 @@ def test_clave_destruida_no_vuelve_a_tener_dek(cx, db_rol, cambio):
                       (P_A,)).fetchone() == (True,)
 
 
-def test_clave_vigente_se_sigue_actualizando(cx):
-    """El trigger solo fija la fila destruida: la vigente se puede volver a envolver (rotación futura)."""
+def test_clave_vigente_se_sigue_reenvolviendo_como_dueno(cx):
+    """El trigger solo fija la fila destruida: la vigente se puede volver a envolver (rotación futura). Desde la
+    0020 (MATU-66) matu_app no la reenvuelve (test_admin_crea_y_destruye_la_clave_pero_no_la_reenvuelve): la
+    rotación irá por una función SECURITY DEFINER. Aquí escribe el superusuario: el trigger no se lo impide."""
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("RESET ROLE")
     cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = '\\x05', kek_version = 2, rotada_en = now()"
                " WHERE persona_cuidada_id = %s", (P_A,))
     assert cx.execute("SELECT kek_version FROM clave_datos WHERE persona_cuidada_id = %s", (P_A,)).fetchone() == (2,)
@@ -2147,3 +2151,343 @@ def test_la_familia_no_ve_un_comercio_que_no_esta_activo(cx):
     cx.execute("UPDATE comercio SET estado = 'suspendido' WHERE id = %s", (COMERCIO,))
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     assert contar(cx, "comercio", f"id = '{COMERCIO}'") == 0
+
+
+# ------------------------------------------------------------------ MATU-47 (migración 0020): indice_token
+
+TOKEN_RELEVO = b"\x47" * 32
+
+
+def _token_de_relevo(cx, revocado="now()"):
+    """Una fila de indice_token del acceso revocado de A, como superusuario dentro de la transacción."""
+    cx.execute("INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, revocado_en)"
+               f" VALUES (%s, 'relevo', %s, %s, now() + interval '1 day', {revocado})",
+               (TOKEN_RELEVO, G_A, ACC_REVOCADO))
+
+
+@pytest.mark.rf("RF-05")
+def test_la_api_no_reabre_una_revocacion_de_indice_token(cx):
+    _token_de_relevo(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE indice_token SET revocado_en = NULL WHERE token_hash = %s", (TOKEN_RELEVO,))
+
+
+@pytest.mark.rf("RF-05")
+@pytest.mark.parametrize("db_rol", ["matu_app", None])   # None: superusuario, el trigger también lo alcanza
+def test_nadie_alarga_el_vencimiento_de_indice_token(cx, db_rol):
+    _token_de_relevo(cx, revocado="NULL")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    # matu_app ni siquiera escribe expira_en; al superusuario lo detiene el trigger
+    error = errors.CheckViolation if db_rol is None else errors.InsufficientPrivilege
+    if db_rol is None:
+        cx.execute("RESET ROLE")
+    with pytest.raises(error):
+        cx.execute("UPDATE indice_token SET expira_en = expira_en + interval '1 day' WHERE token_hash = %s",
+                   (TOKEN_RELEVO,))
+
+
+@pytest.mark.rf("RF-05")
+def test_la_api_no_borra_un_token(cx):
+    _token_de_relevo(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM indice_token WHERE token_hash = %s", (TOKEN_RELEVO,))
+
+
+@pytest.mark.rf("RF-05")
+def test_la_api_sigue_cortando_un_token_y_queda_cortado(cx):
+    """MATU-20: el corte fija revocado_en una vez. Después, ni el superusuario lo mueve."""
+    _token_de_relevo(cx, revocado="NULL")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE indice_token SET revocado_en = now() WHERE token_hash = %s AND revocado_en IS NULL",
+                      (TOKEN_RELEVO,)).rowcount == 1
+    cx.execute("RESET ROLE")
+    # Acortar el vencimiento no lo pide nadie hoy, pero el trigger no lo impide
+    cx.execute("UPDATE indice_token SET expira_en = expira_en - interval '1 hour' WHERE token_hash = %s",
+               (TOKEN_RELEVO,))
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE indice_token SET revocado_en = revocado_en - interval '1 hour' WHERE token_hash = %s",
+                   (TOKEN_RELEVO,))
+
+
+# ------------------------------------------------------------------ MATU-66 (migración 0020): acceso_relevo
+
+
+@pytest.mark.rf("RF-05")
+def test_un_acceso_cortado_no_se_reabre_y_ninguno_se_alarga(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE acceso_relevo SET revocado_en = NULL WHERE id = %s", (ACC_REVOCADO,))
+    for cambio in ("expira_en = expira_en + interval '1 day'", "pin_hash = 'otro'",
+                   "otorgado_a_telefono = '+56900000047'", "secciones_permitidas = ARRAY['rutina']"):
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(f"UPDATE acceso_relevo SET {cambio} WHERE id = %s", (ACC_VIGENTE,))
+
+
+def _insertar_acceso_sql():
+    from sqlalchemy import text
+
+    return text(
+        "INSERT INTO acceso_relevo (grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
+        " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,"
+        " expira_en, relevo_informado_en)"
+        " VALUES (:grupo, :plan, :usuario, 'Relevo', '+56955550147', 'María', 'Pag', ARRAY['rutina'], 'otro',"
+        " sha256('t66'), 'p', now() + interval '1 day', now())"
+    )
+
+
+@pytest.mark.rf("RF-05")
+def test_el_pagador_con_permiso_lee_los_accesos_pero_no_los_crea_ni_los_corta(sesiones_app):
+    """Con sesion_tenant, como matu_app: el pagador con puede_ver_plan ve los tres accesos de A, su UPDATE no
+    alcanza ninguna fila y su INSERT lo rechaza RLS. Con acceso_familia (FOR ALL, antes de la 0020) los cortaba."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    filtro = {"id": ACC_VIGENTE}
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        assert s.execute(text("SELECT count(*) FROM acceso_relevo")).scalar_one() == 3
+        cortado = s.execute(text("UPDATE acceso_relevo SET revocado_en = now() WHERE id = :id"), filtro)
+        anonimizado = s.execute(text("UPDATE acceso_relevo SET nombre_pila_persona = 'x' WHERE id = :id"), filtro)
+        assert (cortado.rowcount, anonimizado.rowcount) == (0, 0)  # type: ignore[attr-defined]
+        raise _Deshacer
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=U_PAG2_A, grupo_id=G_A) as s:
+        s.execute(_insertar_acceso_sql(), {"grupo": G_A, "plan": PLAN_A, "usuario": U_PAG2_A})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+@pytest.mark.rf("RF-05")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A])
+def test_observador_y_pagador_sin_permiso_no_ven_ni_cortan_accesos(sesiones_app, usuario):
+    from sqlalchemy import text
+
+    from app.core.db import sesion_tenant
+
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=usuario, grupo_id=G_A) as s:
+        assert s.execute(text("SELECT count(*) FROM acceso_relevo")).scalar_one() == 0
+        cortado = s.execute(text("UPDATE acceso_relevo SET revocado_en = now() WHERE id = :id"), {"id": ACC_VIGENTE})
+        assert cortado.rowcount == 0  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
+@pytest.mark.rf("RF-05")
+def test_admin_y_cuidador_crean_cortan_y_anonimizan_los_accesos(sesiones_app):
+    """Condición 2: el corte (MATU-20), el retiro (MATU-44) y el borrado (MATU-72) siguen escribiendo."""
+    from sqlalchemy import text
+
+    from app.core.db import sesion_tenant
+
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        s.execute(_insertar_acceso_sql(), {"grupo": G_A, "plan": PLAN_A, "usuario": U_ADMIN_A})
+        cortado = s.execute(
+            text("UPDATE acceso_relevo SET revocado_en = now() WHERE id = :id AND revocado_en IS NULL"),
+            {"id": ACC_VIGENTE})
+        anonimizados = s.execute(
+            text("UPDATE acceso_relevo SET nombre_pila_persona = 'borrada' WHERE plan_id = :p"), {"p": PLAN_A})
+        assert (cortado.rowcount, anonimizados.rowcount) == (1, 4)  # type: ignore[attr-defined]
+        raise _Deshacer
+
+
+@pytest.mark.rf("RF-05")
+@pytest.mark.parametrize("usuario", [U_ADMIN_A, U_PAG2_A])
+def test_nadie_borra_un_acceso_de_relevo(sesiones_app, usuario):
+    """matu_app no tiene DELETE sobre acceso_relevo (migración 0020): ni el admin borra un acceso, se corta."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=usuario, grupo_id=G_A) as s:
+        s.execute(text("DELETE FROM acceso_relevo WHERE id = :id"), {"id": ACC_VIGENTE})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+# ------------------------------------------------------------------ MATU-66 (migración 0020): clave_datos
+
+P_SIN_CLAVE = uuid.UUID("00000000-0000-0000-0000-0000000066a0")
+
+
+@pytest.mark.rf("RF-03")
+def test_el_pagador_con_permiso_lee_la_clave_pero_no_la_crea_ni_la_destruye(cx):
+    cx.execute("INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)"
+               " VALUES (%s, %s, 'Persona 66', 'Persona', 'apoyo_parcial')", (P_SIN_CLAVE, G_A))
+    como(cx, usuario_id=U_PAG2_A, grupo_id=G_A)
+    assert contar(cx, "clave_datos") == 1
+    assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()").rowcount == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                   " VALUES (%s, %s, '\\x66', 1)", (G_A, P_SIN_CLAVE))
+
+
+@pytest.mark.rf("RF-03")
+def test_admin_crea_y_destruye_la_clave_pero_no_la_reenvuelve(cx):
+    """Las escrituras del cifrado son crear y destruir (MATU-66). La rotación, cuando exista, irá por una
+    función SECURITY DEFINER."""
+    cx.execute("INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)"
+               " VALUES (%s, %s, 'Persona 66', 'Persona', 'apoyo_parcial')", (P_SIN_CLAVE, G_A))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+               " VALUES (%s, %s, '\\x66', 1)", (G_A, P_SIN_CLAVE))
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = '\\x05', kek_version = 2, rotada_en = now()"
+                   " WHERE persona_cuidada_id = %s", (P_A,))
+    assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+                      " WHERE persona_cuidada_id = %s", (P_A,)).rowcount == 1
+
+
+# ------------------------------------------------------------------ MATU-66 (migración 0020): consentimiento
+
+_INSERTAR_CONSENTIMIENTO = (
+    "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+    " version_politica, evidencia) VALUES (%s, %s, %s, 'titular', 'plan_cuidado', 'v1', '{\"esquema\": 1}'::jsonb)"
+)
+
+
+@pytest.mark.rf("RF-01")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A, U_PAG2_A])
+def test_pagador_y_observador_no_dan_una_autorizacion(cx, usuario):
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(_INSERTAR_CONSENTIMIENTO, (G_A, P_A, usuario))
+
+
+@pytest.mark.rf("RF-01")
+def test_el_admin_da_la_autorizacion_y_todo_el_grupo_la_lee(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute(_INSERTAR_CONSENTIMIENTO, (G_A, P_A, U_ADMIN_A))
+    for usuario in (U_ADMIN_A, U_OBS_A, U_PAG_A, U_PAG2_A):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        assert contar(cx, "consentimiento") == 1, usuario
+
+
+# ------------------------------------------------------------------ MATU-66 (migración 0020): usuario
+
+
+@pytest.mark.rf("RF-37")
+def test_operacion_lee_email_y_celular_pero_no_cambia_ni_crea_cuentas(sesiones_app):
+    """Condición 5: soporte lee el email y el celular. No inserta, no edita ni borra una cuenta."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, rol="operacion") as s:
+        filas = s.execute(text("SELECT email, telefono FROM usuario WHERE id = :id"), {"id": U_OBS_A}).all()
+        assert [f[0] for f in filas] == ["obs.a@x.cl"]
+        # Ni siquiera una columna que la app sí cambia: operación no alcanza la fila ajena
+        editadas = s.execute(text("UPDATE usuario SET telefono = '+56900000066' WHERE id = :id"), {"id": U_OBS_A})
+        assert editadas.rowcount == 0  # type: ignore[attr-defined]
+        raise _Deshacer
+    for sentencia in ("UPDATE usuario SET estado = 'bloqueado' WHERE id = :id", "DELETE FROM usuario WHERE id = :id"):
+        with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, rol="operacion") as s:
+            s.execute(text(sentencia), {"id": U_OBS_A})
+        assert isinstance(error.value.orig, errors.InsufficientPrivilege), sentencia
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, rol="operacion") as s:
+        s.execute(text("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (:id, 'op66@x.cl', 'Op', 'h')"),
+                  {"id": uuid.uuid4()})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("contexto", [
+    {"rol": "operacion"},                                  # soporte
+    {"usuario_id": U_ADMIN_A, "grupo_id": G_A},            # un comiembro
+    {"usuario_id": U_OBS_A},                               # la propia cuenta, tampoco con SQL directo
+], ids=["operacion", "comiembro", "propia"])
+def test_nadie_lee_password_hash_con_sql_directo(sesiones_app, contexto):
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    for consulta in ("SELECT password_hash FROM usuario WHERE id = :id",
+                     "SELECT * FROM usuario WHERE id = :id",
+                     "SELECT id FROM usuario WHERE id = :id AND password_hash IS NOT NULL",
+                     "UPDATE usuario SET nombre = nombre WHERE id = :id RETURNING password_hash"):
+        with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, **contexto) as s:
+            s.execute(text(consulta), {"id": U_OBS_A})
+        assert isinstance(error.value.orig, errors.InsufficientPrivilege), consulta
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("contexto, devuelve", [
+    ({"usuario_id": U_OBS_A}, True),                       # el login de la propia cuenta
+    ({"usuario_id": U_ADMIN_A, "grupo_id": G_A}, False),   # otra cuenta, aunque sea comiembro
+    ({"usuario_id": U_OBS_A, "rol": "operacion"}, False),  # operación, ni con el id fijado
+    ({"rol": "operacion"}, False),
+    ({}, False),
+], ids=["propia", "comiembro", "operacion-con-id", "operacion", "sin-contexto"])
+def test_iam_credencial_solo_devuelve_la_cuenta_del_contexto(sesiones_app, contexto, devuelve):
+    from sqlalchemy import text
+
+    from app.core.db import sesion_tenant
+
+    with sesion_tenant(sesiones_app, **contexto) as s:
+        filas = [tuple(f) for f in s.execute(text("SELECT password_hash, estado FROM iam_credencial(:id)"),
+                                             {"id": U_OBS_A})]
+    assert filas == ([("h", "activo")] if devuelve else [])
+
+
+# ------------------------------------------------------------------ MATU-66 (migración 0020): la propia cuenta
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("sentencia", [
+    "UPDATE usuario SET es_operacion = true WHERE id = :id",
+    "UPDATE usuario SET estado = 'activo' WHERE id = :id",
+    "UPDATE usuario SET email = 'otro@x.cl' WHERE id = :id",
+    "UPDATE usuario SET eliminado_en = NULL WHERE id = :id",
+    "DELETE FROM usuario WHERE id = :id",
+], ids=["hacerse-operacion", "cambiar-estado", "cambiar-email", "eliminado-en", "borrarse"])
+def test_una_cuenta_no_se_hace_operacion_ni_cambia_su_estado_ni_se_borra(sesiones_app, sentencia):
+    """Con su propio contexto, como matu_app: antes de la 0020 usuario_propio (FOR ALL) y el UPDATE y el DELETE de
+    toda la tabla lo dejaban."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=U_OBS_A) as s:
+        s.execute(text(sentencia), {"id": U_OBS_A})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+@pytest.mark.rf("RF-37")
+def test_el_registro_no_crea_una_cuenta_de_operacion(sesiones_app):
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.db import sesion_tenant
+
+    nuevo = uuid.uuid4()
+    with pytest.raises(DBAPIError) as error, sesion_tenant(sesiones_app, usuario_id=nuevo) as s:
+        s.execute(text("INSERT INTO usuario (id, email, nombre, password_hash, es_operacion)"
+                       " VALUES (:id, 'op.66@x.cl', 'Op', 'h', true)"), {"id": nuevo})
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+@pytest.mark.rf("RF-37")
+def test_la_cuenta_cambia_lo_que_la_app_cambia_y_solo_la_propia(sesiones_app):
+    """Registro (MATU-04), contraseña nueva y celular verificado (MATU-57), y el celular de la semilla (MATU-64)."""
+    from sqlalchemy import text
+
+    from app.core.db import sesion_tenant
+
+    nuevo = uuid.uuid4()
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=nuevo) as s:
+        s.execute(text("INSERT INTO usuario (id, email, nombre, password_hash, telefono)"
+                       " VALUES (:id, 'nueva.66@x.cl', 'Nueva', 'h', '+56900000066')"), {"id": nuevo})
+        raise _Deshacer
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_OBS_A) as s:
+        for sentencia in (
+            "UPDATE usuario SET password_hash = 'h2', actualizado_en = now() WHERE id = app_usuario()",
+            "UPDATE usuario SET telefono = '+56900000067' WHERE id = app_usuario()",
+            "UPDATE usuario SET celular_verificado_en = now(), celular_canal = 'sms' WHERE id = app_usuario()",
+        ):
+            assert s.execute(text(sentencia)).rowcount == 1, sentencia  # type: ignore[attr-defined]
+        # La fila de otra cuenta, aunque sea del mismo grupo, no la alcanza
+        ajena = s.execute(text("UPDATE usuario SET telefono = '+56900000068' WHERE id = :id"), {"id": U_ADMIN_A})
+        assert ajena.rowcount == 0  # type: ignore[attr-defined]
+        raise _Deshacer

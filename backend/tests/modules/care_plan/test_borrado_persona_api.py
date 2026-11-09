@@ -146,6 +146,11 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
               " WHERE id = %s", vencido)
     direccion = familia.persona.direccion_id
     [(clave_id, _, _)] = _clave(familia)
+    # La alerta y la compra del insumo, por su perfil: la cascada de perfil_consumo las borra (MATU-66, condición 2)
+    perfiles = [f[0] for f in _todas("SELECT id FROM perfil_consumo WHERE persona_cuidada_id = %s", familia.persona.id)]
+    hijas = ("SELECT (SELECT count(*) FROM alerta_quiebre WHERE perfil_id = ANY(%s::uuid[])),"
+             " (SELECT count(*) FROM reposicion WHERE perfil_id = ANY(%s::uuid[]))")
+    assert len(perfiles) == 1 and _una(hijas, perfiles, perfiles) == (1, 1)
     entorno.reloj.avanzar(timedelta(minutes=1))
     ahora = entorno.reloj.ahora()
 
@@ -171,8 +176,7 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
     assert _una("SELECT completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id) == (0,)
     # El consumo: perfiles, alertas y compras
     assert _perfiles(familia) == 0
-    assert _contar("SELECT count(*) FROM alerta_quiebre a JOIN perfil_consumo p ON p.id = a.perfil_id"
-                   " WHERE p.persona_cuidada_id = %s", familia.persona.id) == 0
+    assert _una(hijas, perfiles, perfiles) == (0, 0)
     # D5: la persona sale de MATU, la fila queda sin datos y su dirección se borra
     assert _persona(familia) == ("borrada", "borrada", None, None, ahora, ahora, False)
     assert _una("SELECT 1 FROM direccion WHERE id = %s", direccion) is None

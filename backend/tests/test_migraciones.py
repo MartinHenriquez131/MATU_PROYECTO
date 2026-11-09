@@ -889,3 +889,72 @@ def test_0019_precio_stock_y_retracto_y_baja_al_esquema_de_0018(base_desechable)
     # El precio vuelve a precio_referencia con su valor; el stock se pierde
     assert consultar(f"SELECT precio_referencia FROM oferta WHERE id = '{ids['of']}'") == [(13990,)]
     alembic("upgrade", "head")
+
+
+# ---- 0020 (MATU-47 y MATU-66): permisos de matu_app acotados y RLS por operación y por rol
+
+
+def _privilegios(tabla: str) -> set[str]:
+    return {p for (p,) in consultar("SELECT privilege_type FROM information_schema.role_table_grants"
+                                    f" WHERE table_name = '{tabla}' AND grantee = 'matu_app'")}
+
+
+def _columnas_con(tabla: str, privilegio: str) -> set[str]:
+    return {c for (c,) in consultar("SELECT column_name FROM information_schema.column_privileges"
+                                    f" WHERE table_name = '{tabla}' AND grantee = 'matu_app'"
+                                    f" AND privilege_type = '{privilegio}'")}
+
+
+@pytest.mark.rf("RF-05")
+def test_0020_acota_permisos_y_politicas_y_baja_al_esquema_de_0019(base_desechable):
+    alembic("upgrade", "0019")
+    esquema_0019 = catalogo()
+    del_dueno = [p for p in esquema_0019["politicas"] if p[3] == "{matu_owner}"]
+
+    alembic("upgrade", "0020")
+    # MATU-47: indice_token con SELECT e INSERT, UPDATE solo de revocado_en y sin DELETE
+    assert _privilegios("indice_token") == {"SELECT", "INSERT"}
+    assert _columnas_con("indice_token", "UPDATE") == {"revocado_en"}
+    disparadores = {t for (t,) in consultar("SELECT tgname FROM pg_trigger WHERE tgname LIKE '%vida_fija'")}
+    assert disparadores == {"indice_token_vida_fija", "acceso_relevo_vida_fija"}
+    # MATU-66: ninguna política FOR ALL en acceso_relevo, clave_datos ni usuario_operacion
+    politicas = {(t, n): c for t, n, c in consultar(
+        "SELECT tablename, policyname, cmd FROM pg_policies"
+        " WHERE tablename IN ('acceso_relevo', 'clave_datos', 'usuario') AND 'matu_owner' <> ALL (roles)")}
+    assert politicas == {
+        ("acceso_relevo", "acceso_familia_leer"): "SELECT", ("acceso_relevo", "acceso_familia_crear"): "INSERT",
+        ("acceso_relevo", "acceso_familia_cortar"): "UPDATE", ("acceso_relevo", "acceso_relevo_leer"): "SELECT",
+        ("acceso_relevo", "acceso_relevo_contar"): "UPDATE",
+        ("clave_datos", "clave_familia_leer"): "SELECT", ("clave_datos", "clave_familia_crear"): "INSERT",
+        ("clave_datos", "clave_familia_destruir"): "UPDATE", ("clave_datos", "clave_relevo"): "SELECT",
+        ("usuario", "usuario_propio_leer"): "SELECT", ("usuario", "usuario_propio_crear"): "INSERT",
+        ("usuario", "usuario_propio_editar"): "UPDATE", ("usuario", "usuario_comiembro"): "SELECT",
+        ("usuario", "usuario_operacion_leer"): "SELECT",
+    }
+    # Sin DELETE en acceso_relevo ni en usuario, y la cuenta solo cambia lo que la app cambia
+    assert _privilegios("acceso_relevo") == {"SELECT", "INSERT"}
+    assert _privilegios("usuario") == {"INSERT"}
+    assert _columnas_con("usuario", "UPDATE") == {
+        "password_hash", "telefono", "celular_verificado_en", "celular_canal", "actualizado_en"}
+    assert _columnas_con("acceso_relevo", "UPDATE") == {
+        "revocado_en", "nombre_pila_persona", "pin_intentos_fallidos", "usos", "ultimo_uso_en"}
+    [(crear,)] = consultar("SELECT with_check FROM pg_policies WHERE policyname = 'consentimiento_familia_crear'")
+    assert "app_retira_autorizacion" in crear
+    # password_hash y mfa_secreto_cifrado: sin SELECT para matu_app; el login usa iam_credencial
+    legibles = _columnas_con("usuario", "SELECT")
+    assert "password_hash" not in legibles and "mfa_secreto_cifrado" not in legibles
+    assert {"email", "telefono", "estado"} <= legibles
+    [(definer, config, acl)] = consultar(
+        "SELECT prosecdef, proconfig, proacl::text FROM pg_proc WHERE proname = 'iam_credencial'")
+    assert definer and config == ["search_path=pg_catalog, public, pg_temp"]
+    assert "matu_app=X" in acl and "=X/" not in acl.replace("matu_app=X/", "").replace("matu_owner=X/", "")
+    # Condición 4: las políticas TO matu_owner no cambian
+    despues = catalogo()
+    assert [p for p in despues["politicas"] if p[3] == "{matu_owner}"] == del_dueno
+
+    alembic("downgrade", "0019")
+    despues = catalogo()
+    for parte, filas in esquema_0019.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM pg_proc WHERE proname IN ('iam_credencial', 'token_vida_fija')") == [(0,)]
+    alembic("upgrade", "head")
