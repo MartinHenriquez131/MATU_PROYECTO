@@ -36,7 +36,7 @@
 
 Orden fijo en toda la app y en la página del relevo, sin importar en qué orden se agregaron (Rosa encuentra siempre lo mismo en el mismo lugar).
 
-| Tipo | Título | Ruta del editor [PROPUESTO] | Pregunta guía (la `label`) | Tope | Ejemplo |
+| Tipo | Título | Ruta del editor (implementadas en MATU-49, 09/11/2026) | Pregunta guía (la `label`) | Tope | Ejemplo |
 |---|---|---|---|---|---|
 | `quien_es` | Quién es | `/ficha/quien-es` | ¿Qué le gustaría que supiera de esta persona alguien que recién la conoce? | 500 | Le dicen Tito. Fue profesor de música en Talca. Su nieta Sofía le visita los domingos y tiene un gato, el Pelusa. |
 | `preferencias` | Lo que le hace bien | `/ficha/lo-que-le-hace-bien` | ¿Qué le alegra, le entretiene o le calma? | 500 | Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche. |
