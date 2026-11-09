@@ -1187,3 +1187,23 @@ Decisiones D1 a D7 de Jorge del 09-11 y condiciones del analista normativo (revi
 - **Pruebas nuevas.** `tests/modules/iam/test_politica.py` (la tabla de versiones contra el archivo; el texto sin nada interno, sin identificadores `declaracion_`, sin huellas de 64 hexadecimales, sin marcadores ni comentarios; el correo de `.env.example` es el del texto; la huella del texto servido no depende de la configuración; un texto con marcadores no se publica; el generador; `GET /v1/politica`; el 503 por cada variable que falta y por un texto con marcadores; `correo_contacto` en `null`, y el contrato), `tests/modules/iam/test_politica_api.py` (422 sin aceptar, 422 sin huella, la fila con la versión y la huella, 409 `politica-cambio`, 503 después de validar, la cuenta no queda si falla la aceptación, y «Tu cuenta» con y sin registro), `tests/test_aislamiento.py` (la titular, un comiembro, operación, el trigger y los `CHECK`) y `tests/test_migraciones.py` (la 0021).
 - **Pruebas que cambiaron:** `tests/modules/conftest.py` (el alta envía `acepta_politica`, la política de pruebas y la limpieza de `aceptacion_politica`), `tests/fabricas/fabrica.py` (limpieza), `tests/modules/iam/test_registro.py`, `test_registro_celular.py` (el 409 con dos tipos), `test_registro_staging.py` y `tests/test_semilla_demo.py`. La política de pruebas (`tests/politica.py`) es la 0.11 publicada, tal cual, con un correo de prueba (`example.org`) solo en `correo_contacto`.
 - **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia`, porque el CI lo compara con `openapi.json`.
+
+## MATU-74 · Correcciones H2 a H5 de Martín: roles propios de las tareas (09-11)
+
+No cambia ninguna ruta ni esquema del contrato. Se anota aquí porque cambia cómo corren las tareas que el
+contrato menciona (decisiones 59, 77, 106, 112 y 129) y quién puede leer `notificacion`.
+
+183. **Las tareas se corren con `python -m app.tareas <tarea>`.** Los módulos `tarea_*` ya no tienen su propio
+     punto de entrada: donde este documento dice `python -m app.modules.….tarea_…`, vale el programador.
+184. **Cada tarea con su rol (H2, migración 0022).** `matu_scheduler` (`SCHEDULER_DATABASE_URL`) enumera los grupos
+     y ejecuta `plan_destruir_claves`, `consumo_conservar`, `iam_conservar` y `quiebre_conservar`.
+     `matu_publisher` (`PUBLISHER_DATABASE_URL`) ejecuta las cuatro `outbox_*`, y pierde el acceso directo a
+     `evento_outbox` y `evento_consumido`. A `matu_app` se le revoca EXECUTE de las ocho: ninguna ruta las llama.
+     El trabajo de cada grupo y el consumidor de avisos siguen como `matu_app` con `app.rol = 'sistema'`. Ya no
+     aplica lo que dicen la decisión 77 y las notas de MATU-37 sobre enumerar los grupos con `app.rol =
+     'operacion'` (política `grupo_operacion`): la tarea usa `grupo_scheduler`.
+185. **Operación no lee los avisos (C4).** Se borra `notificacion_operacion`. La conservación sigue borrando a los
+     90 días con `notificacion_conservacion` (`SELECT TO matu_owner`, como `alerta_conservacion` de la 0011).
+186. **Avisos cada 5 minutos (H3)** y **registro de avisos (H4):** la tabla `notificacion` es el registro de lo
+     enviado. El archivo `REGISTRO_AVISOS` del envío simulado se escribe solo con `ENTORNO` `local` o `pruebas`.
+187. **Horarios (H5):** borrados `0 6 * * *` y quiebres `0 8 * * *` en UTC (ver `backend/README.md`).
