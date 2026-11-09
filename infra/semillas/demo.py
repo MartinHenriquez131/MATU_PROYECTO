@@ -48,7 +48,7 @@ PIN, el enlace del relevo ni la contraseña aleatoria. Van a infra/semillas/sali
 contrasena-demo.txt), que git ignora, con permisos solo para el dueño si el sistema lo permite, y la salida dice
 solo dónde quedaron. Vale también si la corrida se detiene a la mitad. Con SEMILLA_PIN, el PIN no se escribe en el
 archivo ni se imprime nunca: el archivo dice que es el de SEMILLA_PIN. --mostrar-credenciales las imprime en la
-terminal: para quien corre la semilla desde su computador (railway run), donde la salida queda en su máquina.
+terminal: para una sesión railway ssh o local, donde la salida queda solo en la terminal.
 
 Desde la raíz del repositorio, con el entorno virtual de backend/ activo:
 
@@ -1010,7 +1010,7 @@ def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
         "--mostrar-credenciales",
         action="store_true",
         help="imprime en la terminal el PIN y el enlace del relevo y la contraseña aleatoria, además de guardarlos en"
-        " infra/semillas/salida/. El PIN de SEMILLA_PIN no se imprime nunca. Solo desde tu computador (railway run):"
+        " infra/semillas/salida/. El PIN de SEMILLA_PIN no se imprime nunca. Solo en una sesión railway ssh o local:"
         " nunca donde la salida quede en un log",
     )
     return parser.parse_args(argv)
