@@ -43,6 +43,13 @@ CABECERAS_APP = {
     **SIN_INCRUSTAR,
 }
 
+# El version.json del build (MATU-67, decisión 172): las de la app con no-store en vez de no-cache. La app lo
+# pide cada cierto tiempo para saber si hay una versión nueva, y ni el navegador ni un proxy deben guardarlo
+CABECERAS_VERSION = {
+    **CABECERAS_APP,
+    "Cache-Control": "no-store",
+}
+
 
 class MiddlewareCabecerasPrefijo:
     def __init__(self, app: ASGIApp, prefijo: str, cabeceras: dict[str, str]) -> None:

@@ -20,6 +20,11 @@ registre antes o después; un método no permitido en /v1 sigue en 405 y la redi
 no cambia. Para lo que no es de la app (una ruta /v1 inexistente, /docs fuera de local y pruebas, un POST),
 el respaldo llama al 404 original del enrutador: 404 /errores/no-encontrado en RFC 7807.
 
+El version.json del build (MATU-67, decisión 172). La app lo pide para saber si hay una versión nueva, así
+que se entrega con Cache-Control: no-store (CABECERAS_VERSION) en vez de no-cache, y nunca con el index.html
+de respaldo: si el archivo no está en el build (desarrollo sin build, o el CI), responde 404 RFC 7807 con
+esas cabeceras, aunque el index.html exista. No lleva datos de nadie, no pide sesión y no se audita.
+
 Lo que no es una pantalla responde 404 RFC 7807, no el index.html: una ruta con un segmento oculto
 (que empieza con punto, como .vite/manifest.json, también bajo /assets) y una ruta cuyo último segmento
 tiene extensión (/favicon.ico) sin archivo en el build.
@@ -42,10 +47,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.types import Receive, Scope, Send
 
-from app.core.cabeceras import CABECERAS_APP, CABECERAS_PAGINA_RELEVO
+from app.core.cabeceras import CABECERAS_APP, CABECERAS_PAGINA_RELEVO, CABECERAS_VERSION
 from app.core.errores import respuesta_problema
 
 RUTA_PAGINA_RELEVO = "/r"
+# El identificador del build, en la raíz de la carpeta del build (MATU-67, decisión 172)
+RUTA_VERSION = "/version.json"
 
 # Los tipos de los archivos del build, sin depender del sistema operativo (en Windows, del registro)
 TIPOS_DEL_BUILD: dict[str, str] = {
@@ -156,8 +163,17 @@ def montar_app_familia(app: FastAPI, web_dist: Path) -> None:
     registrar_tipos_del_build()
     no_encontrado = app.router.default
 
+    def version(request: Request) -> Response:
+        # Sin el index.html de respaldo: un 200 con HTML haría creer a la app que hay una versión nueva
+        archivo = archivo_del_build(web_dist, RUTA_VERSION)
+        if archivo is None:
+            return respuesta_problema(request, 404, headers=CABECERAS_VERSION)
+        return FileResponse(archivo, media_type="application/json", headers=CABECERAS_VERSION)
+
     def pagina_app(request: Request, ruta: str) -> Response:
         # Como /r, se revisa en cada petición
+        if (ruta.rstrip("/") or "/") == RUTA_VERSION:
+            return version(request)
         if not indice.is_file():
             return respuesta_problema(
                 request, 404, detalle="La aplicación no está disponible en este servidor", headers=CABECERAS_APP
