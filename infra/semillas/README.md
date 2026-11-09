@@ -53,13 +53,21 @@ python infra/semillas/demo.py --mostrar-credenciales   # además imprime el PIN,
 
 ### En Railway (staging y demostración)
 
-Córrela **desde tu computador** con `railway run`, que toma las variables del servicio y deja la salida en tu máquina:
+Córrela **dentro del contenedor de la API, por `railway ssh`**. Ahí están las dependencias del backend y la base, que en Railway está solo en la red privada. Lo que imprime una sesión `ssh` aparece solo en tu terminal y no queda en los logs del servicio. **`railway run` no sirve:** corre la semilla con el Python de tu computador, sin las dependencias, y desde ahí no se llega a la base (hallazgo H4 de MATU-64, 09-11).
 
 ```
-railway run python infra/semillas/demo.py --restablecer
+railway ssh --service matu-api
+read -rs SEMILLA_CONTRASENA     # se escribe sin que se vea
+read -rs SEMILLA_PIN            # 4 dígitos, sin que se vea
+export SEMILLA_CONTRASENA SEMILLA_PIN
+python /app/infra/semillas/demo.py --restablecer
+unset SEMILLA_CONTRASENA SEMILLA_PIN
+exit
 ```
 
-**Nunca como tarea, job o comando de arranque dentro de Railway:** su salida quedaría en los logs del servicio. Define `SEMILLA_CONTRASENA` y `SEMILLA_PIN` como variables del entorno de la terminal donde corres `railway run`: así el equipo ya conoce los valores y no hace falta mostrarlos. Si de todas formas los necesitas en pantalla, `--mostrar-credenciales` los imprime, y solo en tu terminal. Los archivos de `infra/semillas/salida/` quedan en tu computador.
+**Nunca como tarea, job o comando de arranque dentro de Railway:** su salida quedaría en los logs del servicio. El enlace y el PIN del relevo de ejemplo quedan en `/app/infra/semillas/salida/relevo-demo.txt`, dentro del contenedor, y se pierden en el próximo despliegue: míralos con `cat` en la misma sesión y nunca los pegues en un chat. Si se pegan por error, `--restablecer` con otro `SEMILLA_PIN` los cambia.
+
+La imagen copia `demo.py` y cada archivo que carga, uno por línea (`infra/railway/Dockerfile`), y `backend/tests/test_dockerfile_semillas.py` falla si falta alguno. El instructivo completo de la demo está en `docs/entorno-demo.md` del repositorio MATU.
 
 ### Los recorridos que deja listos
 
