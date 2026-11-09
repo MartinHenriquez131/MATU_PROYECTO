@@ -481,8 +481,8 @@ describe('La nota de «Se acaban pronto» según el rol', () => {
 describe('«Ya lo resolví» en envases', () => {
   // Tercera revisión visual, P3: a 320 px con la raíz a 34 px, «Guardando…» se partía en dos líneas.
   // En `angosto` el botón deja 0.5 de relleno a los lados, siempre. Con `!`: en el CSS compilado
-  // `angosto:px-3` (de Boton) va después de `angosto:px-0.5` y ganaría.
-  it('el botón del panel usa relleno angosto `px-0.5!`, que gana a `angosto:px-3` de Boton', async () => {
+  // `angosto:px-2` (de Boton) va después de `angosto:px-0.5` y ganaría.
+  it('el botón del panel usa relleno angosto `px-0.5!`, que gana a `angosto:px-2` de Boton', async () => {
     const { u } = await abrir(() => ({ status: 200, cuerpo: enBloque(PANAL, false) }))
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
     const panel = screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })

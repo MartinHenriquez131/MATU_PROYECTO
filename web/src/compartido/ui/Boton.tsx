@@ -10,7 +10,9 @@ type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro
 
 const VARIANTES: Record<Variante, string> = {
   principal: 'px-5 angosto:px-3 bg-turquesa text-papel hover:brightness-110 active:brightness-95',
-  secundario: 'px-5 angosto:px-3 bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio active:bg-rocio',
+  // MATU-67, revisión visual del 09-11: anillo al 80 % (3,60:1 sobre `rocio`; al 70 % daba 2,91) y
+  // relleno angosto de 2, para que «Seguir escribiendo» no se corte a 320 px con el texto al 200 %.
+  secundario: 'px-5 angosto:px-2 bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/80 hover:bg-rocio active:bg-rocio',
   // De la demo (Ui.tsx): texto subrayado, sin fondo y sin relleno a los lados: se alinea con el
   // texto de la página. Mide 48 px de alto igual que los otros.
   texto: 'px-0 text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa',
