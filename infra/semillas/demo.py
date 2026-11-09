@@ -1159,7 +1159,7 @@ def main(argv: Sequence[str] = ()) -> int:
             )
     print(
         "\nListo para probar los recorridos 1 a 4: cuenta, persona, autorización y ficha; compartir con un relevo y"
-        " cortar el acceso; insumos y aviso de que se acaba; lista de reposición y anotar una compra."
+        " cortar el acceso; insumos y aviso de que se acaba; lista de insumos y anotar una compra."
         "\nLos recorridos 5 y 6 (pedido, pago y retiro) llegan con MATU-61 a 63."
     )
     return 0

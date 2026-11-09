@@ -74,7 +74,7 @@ La imagen copia `demo.py` y cada archivo que carga, uno por línea (`infra/railw
 1. Crear la cuenta, la persona y la autorización, y llenar la ficha (con una cuenta nueva, o mirando la de María).
 2. Compartir con un relevo con PIN, abrir la ficha en otro teléfono y cortar el acceso (el de Rosa ya está creado).
 3. Anotar los insumos y ver el aviso de que se acaban (el pañal de María y el suplemento de Hernán).
-4. La lista de reposición: exportar, imprimir o compartir, y anotar una compra.
+4. La lista de insumos: exportar, imprimir o compartir, y anotar una compra.
 
 Los recorridos 5 (pedido y pago) y 6 (retiro en el comercio) dependen de MATU-61 a 63. Se agregarán en `Sembradora.capa_3`, que hoy no hace nada.
 

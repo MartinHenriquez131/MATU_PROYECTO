@@ -105,7 +105,7 @@ def _responder(
     description=(
         "Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga"
         " alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El"
-        " stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una reposición declarada con la"
+        " stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una compra (`reposicion`) con la"
         " fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda"
         " resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no"
         " responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o"
