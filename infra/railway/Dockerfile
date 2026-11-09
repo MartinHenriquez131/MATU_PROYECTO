@@ -44,8 +44,11 @@ COPY backend/db ./db
 COPY --from=web /web/dist /app/web/dist
 # Solo para fijar FORWARDED_ALLOW_IPS a mano, por railway ssh (ver infra/railway/README.md)
 COPY infra/railway/pares_tcp.py /app/infra/railway/pares_tcp.py
-# La semilla de demo (decisión 105): se corre a mano por railway ssh, solo con datos sintéticos
+# La semilla de demo (decisión 105): se corre a mano por railway ssh, solo con datos sintéticos.
+# Un archivo por línea, nunca la carpeta: ahí puede quedar salida/relevo-demo.txt de un build local.
+# test_dockerfile_semillas.py falla si falta un archivo que demo.py carga.
 COPY infra/semillas/demo.py /app/infra/semillas/demo.py
+COPY infra/semillas/catalogo_demo.py /app/infra/semillas/catalogo_demo.py
 
 # Usuario sin privilegios y sin shell de inicio de sesión. El código queda de root, solo lectura para él
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin matu
