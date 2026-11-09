@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Cuenta
-         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114). Desde MATU-75 exige acepta_politica = true y guarda, en la misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado.
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114). Desde MATU-75 exige acepta_politica = true y huella_politica (la de GET /v1/politica), y guarda, en la misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178 y 182). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado.
          */
         post: operations["crear_cuenta_v1_usuarios_post"];
         delete?: never;
@@ -1996,9 +1996,9 @@ export interface components {
             acepta_politica: true;
             /**
              * Huella Politica
-             * @description Opcional. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó GET /v1/politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea
+             * @description Obligatoria. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó GET /v1/politica. Sin ella o mal formada, 422 con errores[].campo = huella_politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea
              */
-            huella_politica?: string | null;
+            huella_politica: string;
         };
         /**
          * SolicitudReposicion
@@ -2309,7 +2309,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo = acepta_politica, MATU-75) y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
+            /** @description Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo = acepta_politica, MATU-75), la huella_politica que falta o está mal formada (decisión 182) y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
             422: {
                 headers: {
                     [name: string]: unknown;
