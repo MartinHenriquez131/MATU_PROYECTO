@@ -56,7 +56,7 @@ export interface Seccion {
   alergias: boolean
 }
 
-/** Lenguaje 14.1, en el orden fijo de ADR-028. Rutas: especificación 2 [PROPUESTO]. */
+/** Lenguaje 14.1, en el orden fijo de ADR-028. Rutas: especificación 2. */
 export const SECCIONES: readonly Seccion[] = [
   {
     api: 'quien_es',
