@@ -136,7 +136,7 @@ function CasillaPolitica({
   const id = useId()
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="flex min-h-12 max-w-xl cursor-pointer items-start gap-3 text-base leading-relaxed @2xl/main:items-center">
+      <label className="flex min-h-12 max-w-xl cursor-pointer items-start gap-3 py-3 text-base leading-relaxed">
         <input
           ref={ref}
           type="checkbox"
@@ -144,7 +144,7 @@ function CasillaPolitica({
           onChange={(e) => onCambio(e.target.checked)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-e` : undefined}
-          className="mt-0.5 size-6 shrink-0 accent-turquesa @2xl/main:mt-0"
+          className="mt-0.5 size-6 shrink-0 accent-turquesa"
         />
         <span className="min-w-0">
           {POLITICA.casillaAntes}

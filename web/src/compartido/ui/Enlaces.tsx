@@ -52,7 +52,7 @@ export function EnlacePoliticaSolo() {
       href={RUTA_PRIVACIDAD}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-12 items-start gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
+      className="inline-flex min-h-12 items-start py-3 gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
     >
       {/* Junto al primer renglón cuando el texto se parte (revisión visual v0.2, P3). */}
       <FileText aria-hidden className="mt-0.5 size-5 shrink-0" />

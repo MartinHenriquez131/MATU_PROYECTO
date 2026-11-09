@@ -76,12 +76,15 @@ describe('Crear cuenta: la casilla de la política', () => {
     expect(clases.some((c) => /^py-/.test(c))).toBe(false)
   })
 
-  it('en pantalla ancha la casilla se centra con su frase de un renglón (v0.2, 2.4)', () => {
+  it('la casilla va arriba con py-3 en la etiqueta, sin depender del ancho (v0.3, 2.4)', () => {
     responderPolitica()
     render(<CrearCuenta />)
     const casilla = screen.getByRole('checkbox', CASILLA)
-    expect(casilla).toHaveClass('mt-0.5', '@2xl/main:mt-0')
-    expect(casilla.closest('label')).toHaveClass('items-start', '@2xl/main:items-center')
+    expect(casilla).toHaveClass('mt-0.5')
+    const etiqueta = casilla.closest('label') as HTMLElement
+    expect(etiqueta).toHaveClass('items-start', 'py-3', 'min-h-12')
+    // Sin variantes de ancho: a 1280 px `MarcoAlta` mide 615 px y nunca activaba `@2xl`.
+    expect([...etiqueta.classList, ...casilla.classList].some((c) => c.startsWith('@'))).toBe(false)
   })
 
   it('tocar el enlace no marca la casilla; tocar el texto fuera del enlace sí', async () => {

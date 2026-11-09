@@ -131,7 +131,7 @@ describe('El relevo: el enlace a la política', () => {
     expect(enlace).toHaveAttribute('href', '/privacidad')
     expect(enlace.getAttribute('href')).not.toContain('#')
     // El ícono junto al primer renglón cuando el texto se parte (v0.2, P3).
-    expect(enlace).toHaveClass('items-start', 'min-h-12')
+    expect(enlace).toHaveClass('items-start', 'py-3', 'min-h-12')
     expect(enlace.querySelector('svg')).toHaveClass('mt-0.5')
     expect(enlace).toHaveAttribute('target', '_blank')
     expect(enlace).toHaveAttribute('rel', 'noopener noreferrer')
