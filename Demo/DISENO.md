@@ -82,6 +82,12 @@ Lo que está fuera de la app (la franja y el distintivo del presentador) no tien
 
 **Lo fijo abajo no tapa el foco (28/10/2026).** Bajo 40 rem, la capa base de `src/index.css` le da al `html` un `scroll-padding-bottom` de 10 rem (`--spacing(40)`): la barra de secciones mide unos 69 px y el distintivo flotante va encima. Así, lo que recibe el foco o se desplaza a la vista queda sobre los dos (WCAG 2.4.11). Va en la capa base y no como clase en `index.html`, porque es una regla del documento entero.
 
+**Columnas pegajosas con desplazamiento propio (`web/`, MATU-75, 09/11/2026).** Una columna pegajosa que puede ser más alta que la ventana, como el índice de `/privacidad`, lleva:
+- `max-h-[calc(100dvh-3rem)]` y `overflow-y-auto`;
+- la barra delgada del sistema, `[scrollbar-width:thin]`, sin color propio, para que respete los dos temas.
+
+La barra nativa gruesa queda como una franja gris pesada junto al texto. Con el teclado no hace falta, porque cada enlace que recibe el foco se desplaza a la vista (`docs/diseno/matu-75-privacidad.md`, 1.6).
+
 **Medidas fijas del layout.** Son constantes de composición, una por lugar, y se escriben en rem en el componente: la barra lateral de la familia (16,5 rem), la columna del vencimiento en la página del relevo (17 rem), la cola de la consola (19 rem), la columna de etiquetas de Grupo familiar (12 rem) y el cajón de la guía (24 rem). No son tokens mientras se usen una sola vez. Si una se repite, pasa a `--container-*` en `@theme`.
 
 **Alineación a la izquierda** en todo el contenido. Se centran solo el PIN (se lee en voz alta como un bloque) y la hoja en la página de Rosa (es el único objeto de la página).

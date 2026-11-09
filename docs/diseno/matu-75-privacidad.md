@@ -1,6 +1,10 @@
 # MATU-75 · La política de privacidad, visible · Especificación de diseño
 
-**Versión 0.3 · 09-11-2026 · agente 6 UI/UX.** La v0.3 sale de la segunda revisión visual (09-11): la etiqueta de la casilla pasa a `py-3` en vez de `@2xl/main:items-center` (2.4), y `EnlacePoliticaSolo` lleva `items-start py-3` (5.3). La v0.2 sale de la revisión visual del 09-11: el área táctil del enlace dentro de una frase pasa a un `::after` (sección 7), se saca el salto a un ancla al abrir la página (1.9), y se precisan la nota del 409 (2.5), las tablas apiladas (1.8) y la distancia entre la casilla y su error (2.4). La v0.1 era la especificación previa. Base: `Demo/DISENO.md` (secciones 2, 3, 4 y 6), los tokens de `web/src/index.css`, las decisiones D1 a D7 de Jorge del 09-11 y las condiciones del analista (revisión previa de MATU-75), `docs/lenguaje.md` (solo lectura) y lo ya construido en `web/src/main.tsx`, `web/src/relevo/Marco.tsx`, `web/src/relevo/PantallaPin.tsx` (`AvisoDatos`), `web/src/familia/Alta.tsx` (`MarcoAlta`, `CrearCuenta`, `DeclaracionFicha`), `web/src/familia/Insumos.tsx` (el permiso de insumos), `web/src/familia/Cuenta.tsx` (`TuCuenta`), `web/src/familia/ui.tsx` y `web/src/compartido/ui/`. **Sin tokens nuevos ni colores nuevos.** Lo único que se agrega a DISENO.md es una fila en la sección 6: el enlace dentro de una frase (sección 7 de esta especificación).
+**Versión 0.4 · 09-11-2026 · agente 6 UI/UX.** La v0.4 corrige dos puntos de documentación que encontró QA:
+- se registra la barra delgada del índice, `[scrollbar-width:thin]` (1.6);
+- el correo de contacto se ajusta a las decisiones 173 y 174: el correo viene escrito en el texto, `correo_contacto` solo viene en `null` si no está configurado, y el relevo ya no tiene variante sin correo (G2, 5.3, 5.4, 6, 8 y 9).
+
+**v0.3 (09-11):** La v0.3 sale de la segunda revisión visual (09-11): la etiqueta de la casilla pasa a `py-3` en vez de `@2xl/main:items-center` (2.4), y `EnlacePoliticaSolo` lleva `items-start py-3` (5.3). La v0.2 sale de la revisión visual del 09-11: el área táctil del enlace dentro de una frase pasa a un `::after` (sección 7), se saca el salto a un ancla al abrir la página (1.9), y se precisan la nota del 409 (2.5), las tablas apiladas (1.8) y la distancia entre la casilla y su error (2.4). La v0.1 era la especificación previa. Base: `Demo/DISENO.md` (secciones 2, 3, 4 y 6), los tokens de `web/src/index.css`, las decisiones D1 a D7 de Jorge del 09-11 y las condiciones del analista (revisión previa de MATU-75), `docs/lenguaje.md` (solo lectura) y lo ya construido en `web/src/main.tsx`, `web/src/relevo/Marco.tsx`, `web/src/relevo/PantallaPin.tsx` (`AvisoDatos`), `web/src/familia/Alta.tsx` (`MarcoAlta`, `CrearCuenta`, `DeclaracionFicha`), `web/src/familia/Insumos.tsx` (el permiso de insumos), `web/src/familia/Cuenta.tsx` (`TuCuenta`), `web/src/familia/ui.tsx` y `web/src/compartido/ui/`. **Sin tokens nuevos ni colores nuevos.** Lo único que se agrega a DISENO.md es una fila en la sección 6: el enlace dentro de una frase (sección 7 de esta especificación).
 
 Los textos marcados **[aprobado, D6]** son los de la tabla D6 y van tal cual. Los marcados **[PROPUESTO]** no están en D6 y los decide Jorge (sección 0).
 
@@ -25,7 +29,12 @@ Los textos marcados **[aprobado, D6]** son los de la tabla D6 y van tal cual. Lo
   - `GET /v1/politica`: la versión, la fecha de actualización (para «actualizada el DD/MM/AAAA»), la huella y el texto en markdown.
   - El alta: el campo con la huella que se mostró, y el error (código y `type`) cuando la huella ya no es la vigente (J3).
   - `GET /v1/cuenta`: la versión aceptada y la fecha, o nada si no hay registro (sección 5).
-  - **El correo `{correo_privacidad}`** que va en «Tu cuenta». Propuesta: que `GET /v1/politica` lo traiga junto con la versión, para que haya una sola fuente. Mientras no exista la dirección (D5), el párrafo de «Tu cuenta» **no se muestra**: nunca se ve `{correo_privacidad}` ni una dirección inventada.
+  - **El correo de contacto** que va en «Tu cuenta». **Resuelto (v0.4, decisiones 173 y 174 del contrato):**
+    - `GET /v1/politica` lo trae en `correo_contacto`.
+    - El texto de la política ya llega con el correo escrito.
+    - Un texto que todavía trae un marcador (`{correo_privacidad}` u otro) no se publica: la API responde 503.
+    - `correo_contacto` solo viene en `null` si `CORREO_PRIVACIDAD` no está configurado, y entonces el párrafo de «Tu cuenta» **no se muestra**.
+    - En pantalla nunca se ve un marcador ni una dirección inventada.
 - **G3 · El texto se muestra tal cual llega.** La huella se calcula sobre el texto exacto (D2), así que el cliente **no reemplaza nada**: «Todavía no lo definimos.» ya tiene que venir escrito en el texto que sirve la API. El markdown se convierte a HTML **sin HTML crudo** (ni `dangerouslySetInnerHTML` con lo que traiga el texto) y sin dependencias desde una CDN.
 - **G4 · Contenido que no es de diseño, para el analista.** Al revisar el texto que se va a mostrar (desde «En un minuto»):
   - La sección 5 tiene identificadores del sistema y una huella SHA-256 de 64 caracteres en `code` (`aviso_cuidador_de_hecho`, `declaracion_consumo_representante_legal`…). lenguaje.md 3 prohíbe códigos en la interfaz. Esta especificación los deja legibles y sin desborde (sección 2.5), pero Carmen no los entiende.
@@ -179,6 +188,11 @@ El documento tiene 15 secciones de primer nivel («En un minuto» y de la 1 a la
 - Dos columnas: `grid grid-cols-1 gap-10 @4xl/main:grid-cols-[var(--container-xs)_minmax(0,1fr)] @4xl/main:gap-16`, con `mt-8` bajo el título. La columna del índice mide `--container-xs` (20 rem), un token que ya existe en Tailwind: no es una medida nueva.
 - El índice es un `nav` con `aria-labelledby` y su rótulo «Índice» en un `h2` (`text-base font-bold text-tenue px-3`).
 - Es **pegajoso**: `sticky top-6 self-start`, con `max-h-[calc(100dvh-3rem)]` y `overflow-y-auto`, para que en un proyector de 720 px de alto los 15 renglones se puedan recorrer sin salir de la pantalla. Los `3rem` son el `top-6` arriba y abajo.
+- La barra de desplazamiento del índice es delgada: **`[scrollbar-width:thin]`** (v0.4, P3 de la primera revisión visual).
+  - **Por qué:** con 16 entradas, en una ventana de 800 px de alto el índice desborda. La barra nativa gruesa quedaba como una franja gris pesada entre el índice y el texto.
+  - La barra delgada sigue avisando que hay más abajo, y se arrastra igual con el mouse.
+  - Con el teclado no hace falta: cada enlace que recibe el foco se desplaza a la vista.
+  - No lleva color propio (`scrollbar-color`): queda la del sistema, que respeta el tema claro y el oscuro.
 - Se oculta en el teléfono: `hidden @4xl/main:block`.
 
 **Teléfono y texto al 200 % (bajo `@4xl/main`):**
@@ -479,8 +493,8 @@ Si la nota hoy no lleva `borde` en alguna de las tres pantallas, no se le agrega
 - Con `items-center`, en un enlace de varios renglones el ícono quedaba al medio y no junto al primero.
 - Con `items-start` y sin relleno, el enlace de un renglón quedaba arriba de su caja de 51 px, con 28 px vacíos abajo. El contorno de foco tenía el texto pegado arriba, y en «Tu cuenta» la tarjeta quedaba con más aire abajo que arriba.
 - Con `py-3`, el renglón queda centrado (15 px arriba y 15 abajo, medido), el ícono va junto al primer renglón en cualquier caso, y la caja mide 51 px. Texto «Política de privacidad (se abre en otra pestaña)» **[lenguaje 7.5, J4]**. `/privacidad`, `target="_blank"`, `rel="noopener noreferrer"` |
-| Cómo pedir | Un `p` **fuera del `dl`**, bajo él: `mt-6 max-w-xl text-base leading-relaxed text-tinta`. Texto: «Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a `{correo_privacidad}` desde el correo de tu cuenta.» **[aprobado, D6]**. Va fuera del `dl` porque no es un dato de la cuenta sino cómo pedir algo, y vale para las tres filas |
-| El correo | Enlace dentro de una frase (sección 7), `mailto:{correo_privacidad}`, sin asunto ni cuerpo prellenados (nada de la cuenta en la dirección). Con `[overflow-wrap:anywhere]`, para que la dirección se parta a 320 px con el texto al 200 % en vez de salirse. Sin «(se abre en otra pestaña)»: abre la app de correo, no una pestaña |
+| Cómo pedir | Un `p` **fuera del `dl`**, bajo él: `mt-6 max-w-xl text-base leading-relaxed text-tinta`. Texto: «Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a `{correo_contacto}` desde el correo de tu cuenta.» **[aprobado, D6]**. `{correo_contacto}` es el campo `correo_contacto` de `GET /v1/politica`, no un texto fijo. Va fuera del `dl` porque no es un dato de la cuenta sino cómo pedir algo, y vale para las tres filas |
+| El correo | Enlace dentro de una frase (sección 7), `mailto:{correo_contacto}`, sin asunto ni cuerpo prellenados (nada de la cuenta en la dirección). Con `[overflow-wrap:anywhere]`, para que la dirección se parta a 320 px con el texto al 200 % en vez de salirse. Sin «(se abre en otra pestaña)»: abre la app de correo, no una pestaña |
 
 **Contrastes:** `tinta` sobre `hoja` 15:1 o más en los dos temas; `tenue` sobre `hoja` 7,2:1 y 8,1:1; `turquesa` sobre `hoja` 6,7:1 y 8,2:1; `turquesa` sobre `papel` (el correo) 6,0:1 y 9,4:1.
 
@@ -492,7 +506,7 @@ Si la nota hoy no lleva `borde` en alguna de las tres pantallas, no se le agrega
 | Con registro | El dato con la versión y la fecha |
 | Sin registro | La frase sin registro. Las cuentas creadas antes de la 0.11 quedan así (D2): no se completan |
 | Aceptó una versión anterior a la vigente | El mismo dato, con su versión («Aceptaste la versión 0.11 el …»). **No** se avisa que hay una más nueva: D1 dice que nadie tiene que volver a aceptar |
-| Sin `{correo_privacidad}` configurado | El párrafo de cómo pedir **no se muestra** (G2). La fila de la política sí |
+| `correo_contacto` en `null` (`CORREO_PRIVACIDAD` sin configurar) | El párrafo de cómo pedir **no se muestra** (G2). La fila de la política sí. Es el único caso sin correo: si el texto de la política trajera un marcador, la API responde 503 y la política no se publica (decisión 174) |
 
 ---
 
@@ -512,7 +526,7 @@ Si la nota hoy no lleva `borde` en alguna de las tres pantallas, no se le agrega
 | Lugar | Al final de `AvisoDatos`, bajo el pie del PIN, alineado a la izquierda (`self-start`) en la columna de `max-w-md` | Cumple. El relevo no acepta nada: el enlace solo informa |
 | 320 px con el texto al 200 % | El ícono y el texto van en un `inline-flex` con `self-start`. El texto puede partirse entre palabras dentro del enlace, y la palabra más larga («pestaña)») cabe | **A verificar funcionando** en la revisión visual: que el ícono quede arriba a la izquierda del primer renglón y que el texto no se salga de la columna |
 
-**Lo único que cambia en el relevo** es el texto de los párrafos de `AVISO`, por D7 (lenguaje 7.5 con `{correo_privacidad}`). La apariencia no cambia. Si el correo todavía no existe, rige la variante sin correo de lenguaje 7.5, como hoy.
+**Lo único que cambia en el relevo** es el texto de los párrafos de `AVISO`, por D7: lenguaje 7.5 con el correo de contacto escrito en el texto («… escribiendo a cuidaconmatu@gmail.com.»). La apariencia no cambia. **Ya no hay variante sin correo (v0.4).** La v0.1 decía que, sin correo, regía la variante sin correo de lenguaje 7.5. Desde D7 y la decisión 174 el correo es parte del texto aprobado, igual que en la política, así que el relevo siempre lo muestra.
 
 ---
 
@@ -554,7 +568,7 @@ La casilla del alta, la línea de las autorizaciones y el correo de «Tu cuenta�
 | Tu cuenta, dato | Aceptaste la versión `{version}` el `{DD/MM/AAAA}`. | D6 |
 | Tu cuenta, sin registro | No tenemos registro de qué versión aceptaste. | D6 |
 | Tu cuenta, enlace | Política de privacidad (se abre en otra pestaña) | lenguaje 7.5 (J4) |
-| Tu cuenta, cómo pedir | Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a `{correo_privacidad}` desde el correo de tu cuenta. | D6 |
+| Tu cuenta, cómo pedir | Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a `{correo_contacto}` desde el correo de tu cuenta. | D6, con `correo_contacto` de `GET /v1/politica` |
 | Relevo | Política de privacidad (se abre en otra pestaña) | lenguaje 7.5 |
 
 Revisados contra lenguaje.md 3: en tú, en voz activa, sin términos clínicos ni códigos. «Aceptaste» y «Leí y acepto» usan el mismo verbo. Los propuestos van a lenguaje.md 29 si Jorge los aprueba.
@@ -590,7 +604,7 @@ Revisados contra lenguaje.md 3: en tú, en voz activa, sin términos clínicos n
 **Tu cuenta**
 19. La fila «Política de privacidad» está después de la del celular, con la versión y la fecha en negrita, o con la frase sin registro, sin color de estado.
 20. El enlace de la fila mide 48 px o más y abre `/privacidad` en otra pestaña. El correo del párrafo abre la app de correo, sin asunto ni cuerpo.
-21. Sin `{correo_privacidad}` configurado, el párrafo no aparece y nunca se ve `{correo_privacidad}` en la pantalla.
+21. Con `correo_contacto` en `null`, el párrafo no aparece. Nunca se ven llaves `{…}` en la pantalla.
 
 **Relevo**
 22. Con `RUTA_POLITICA = '/privacidad'`, el enlace aparece al final de «Tus datos en MATU», abre la política en otra pestaña sin el fragmento del token, y a 320 px con el texto al 200 % el texto no se sale de la columna.
@@ -607,7 +621,7 @@ Funcionando, con capturas a 360, 1280 y 1920 px, en tema claro y oscuro, y a 320
 - `/privacidad`: arriba, con el índice cerrado y abierto, en la sección 5 (las citas y la huella) y en el error sin conexión.
 - Crear cuenta: normal, con el error de la casilla y con el error en varios campos.
 - Las tres autorizaciones, con una calidad elegida.
-- «Tu cuenta», con registro, sin registro y sin correo configurado.
+- «Tu cuenta», con registro, sin registro y con `correo_contacto` en `null`.
 - El PIN del relevo, con el enlace.
 
 Si para entonces el texto ya trae una tabla, la reviso en los dos modos. Si no, pido al frontend una página de ejemplo en `/ejemplos` con una tabla de tres columnas.
