@@ -75,7 +75,7 @@
 /*
  * Tema oscuro: sigue al sistema, salvo que un selector futuro fije uno con data-tema.
  * Los valores van repetidos en el selector y en la media query porque CSS no deja compartir un
- * bloque entre los dos. Si cambia uno, cambia el otro. `marca` no cambia.
+ * bloque entre los dos. Los vigila web/pruebas/coloresRepetidos.test.ts. `marca` no cambia.
  */
 :root[data-tema='oscuro'] {
   color-scheme: dark;
@@ -232,6 +232,8 @@
   }
 }
 
+/* Que los colores de abajo sean los de @theme lo vigila web/pruebas/coloresRepetidos.test.ts.
+   El bloque que sigue va tal cual de la especificación (8.4): no se reescribe aquí. */
 /* Al imprimir, siempre el tema claro: el papel es blanco aunque el teléfono esté en oscuro.
    Mismos valores que @theme. Si cambia uno, cambia el otro (MATU-60, 8.4). */
 @media print {

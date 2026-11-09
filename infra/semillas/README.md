@@ -42,7 +42,7 @@ python infra/semillas/demo.py --mostrar-credenciales   # además imprime el PIN,
 
 - **Las credenciales nunca salen en la salida** (regla aprobada por Jorge el 08-11: los logs nunca llevan PIN ni tokens). Por omisión, la semilla no imprime el PIN, el enlace del relevo ni la contraseña aleatoria: los guarda en `infra/semillas/salida/`, que git ignora (`infra/semillas/.gitignore`), con permisos solo para el dueño si el sistema lo permite, y la salida dice solo dónde quedaron. Vale también si la corrida se detiene a la mitad, y los errores nunca muestran el texto del driver. `--mostrar-credenciales` sí los imprime en la terminal: úsalo solo desde tu computador.
 - **Contraseña.** Las cuentas nuevas usan la de la variable de entorno `SEMILLA_CONTRASENA` (10 a 128 caracteres), definida solo en la terminal donde se corre la semilla, y que no se imprime. Si no está, la semilla genera una aleatoria y la guarda en `infra/semillas/salida/contrasena-demo.txt`. Nunca va al repositorio.
-- **El relevo de ejemplo.** Su enlace y su PIN quedan en `infra/semillas/salida/relevo-demo.txt`. La base guarda solo sus huellas: si el archivo se pierde, `--restablecer` crea uno nuevo. Con `SEMILLA_PIN` (4 dígitos) en la terminal, el PIN es ese, para que el equipo lo conozca de antemano; si no, es aleatorio.
+- **El relevo de ejemplo.** Su enlace queda en `infra/semillas/salida/relevo-demo.txt`. La base guarda solo sus huellas: si el archivo se pierde, `--restablecer` crea uno nuevo. Con `SEMILLA_PIN` (4 dígitos) en la terminal, el PIN es ese, para que el equipo lo conozca de antemano, y **no se escribe en el archivo ni se imprime**, tampoco con `--mostrar-credenciales`: el archivo y la salida dicen solo que es el de `SEMILLA_PIN` (informe de Martín del 09-11, MATU-64 H1). Sin `SEMILLA_PIN` el PIN es aleatorio, y el archivo lo guarda, porque es la única forma de conocerlo.
 - **Idempotente.** Se puede correr varias veces: lo que ya existe no se duplica (cuenta por correo, grupo, membresía, persona por nombre, autorización vigente, campo o sección ya escritos, insumo del mismo producto, relevo vigente), y la segunda corrida no deja ni una fila más en la auditoría. Una cuenta que ya existía conserva su contraseña.
 - **Restablecer en menos de 10 minutos** (unos 10 segundos en local). `--restablecer` borra al tiro a cada persona de los dos grupos con el mismo caso de uso de «Borrar sus datos» (MATU-72): corta sus enlaces, destruye su clave y borra su ficha, sus insumos y sus alertas. Después vuelve a sembrar todo y deja el catálogo con sus precios y stock. Las cuentas y los grupos quedan. No toca las cuentas ni los grupos que se crearon durante la demo (el recorrido 1): para repetirlo, usa otro correo de `example.com`.
 - **`--restablecer` no cambia las contraseñas.** Una cuenta que ya existía conserva la suya, aunque `SEMILLA_CONTRASENA` sea otra. Para cambiarlas hay que vaciar la base y volver a sembrar.
@@ -53,20 +53,28 @@ python infra/semillas/demo.py --mostrar-credenciales   # además imprime el PIN,
 
 ### En Railway (staging y demostración)
 
-Córrela **desde tu computador** con `railway run`, que toma las variables del servicio y deja la salida en tu máquina:
+Córrela **dentro del contenedor de la API, por `railway ssh`**. Ahí están las dependencias del backend y la base, que en Railway está solo en la red privada. Lo que imprime una sesión `ssh` aparece solo en tu terminal y no queda en los logs del servicio. **`railway run` no sirve:** corre la semilla con el Python de tu computador, sin las dependencias, y desde ahí no se llega a la base (hallazgo H4 de MATU-64, 09-11).
 
 ```
-railway run python infra/semillas/demo.py --restablecer
+railway ssh --service matu-api
+read -rs SEMILLA_CONTRASENA     # se escribe sin que se vea
+read -rs SEMILLA_PIN            # 4 dígitos, sin que se vea
+export SEMILLA_CONTRASENA SEMILLA_PIN
+python /app/infra/semillas/demo.py --restablecer
+unset SEMILLA_CONTRASENA SEMILLA_PIN
+exit
 ```
 
-**Nunca como tarea, job o comando de arranque dentro de Railway:** su salida quedaría en los logs del servicio. Define `SEMILLA_CONTRASENA` y `SEMILLA_PIN` como variables del entorno de la terminal donde corres `railway run`: así el equipo ya conoce los valores y no hace falta mostrarlos. Si de todas formas los necesitas en pantalla, `--mostrar-credenciales` los imprime, y solo en tu terminal. Los archivos de `infra/semillas/salida/` quedan en tu computador.
+**Nunca como tarea, job o comando de arranque dentro de Railway:** su salida quedaría en los logs del servicio. `SEMILLA_CONTRASENA` y `SEMILLA_PIN` se escriben con `read -rs` en la misma sesión `ssh`: así el equipo ya conoce los valores y no hace falta mostrarlos. Esos dos valores nunca se imprimen ni se escriben en un archivo, tampoco con `--mostrar-credenciales`, que solo muestra lo aleatorio (el enlace, y el PIN o la contraseña si no vienen de esas variables), y solo en tu terminal. El enlace del relevo de ejemplo queda en `/app/infra/semillas/salida/relevo-demo.txt`, dentro del contenedor, junto con el PIN solo si es aleatorio, y se pierde en el próximo despliegue: míralo con `cat` en la misma sesión y nunca lo pegues en un chat. Si se pega por error, `--restablecer` con otro `SEMILLA_PIN` lo cambia.
+
+La imagen copia `demo.py` y cada archivo que carga, uno por línea (`infra/railway/Dockerfile`), y `backend/tests/test_dockerfile_semillas.py` falla si falta alguno. El instructivo completo de la demo está en `docs/entorno-demo.md` del repositorio MATU.
 
 ### Los recorridos que deja listos
 
 1. Crear la cuenta, la persona y la autorización, y llenar la ficha (con una cuenta nueva, o mirando la de María).
 2. Compartir con un relevo con PIN, abrir la ficha en otro teléfono y cortar el acceso (el de Rosa ya está creado).
 3. Anotar los insumos y ver el aviso de que se acaban (el pañal de María y el suplemento de Hernán).
-4. La lista de reposición: exportar, imprimir o compartir, y anotar una compra.
+4. La lista de insumos: exportar, imprimir o compartir, y anotar una compra.
 
 Los recorridos 5 (pedido y pago) y 6 (retiro en el comercio) dependen de MATU-61 a 63. Se agregarán en `Sembradora.capa_3`, que hoy no hace nada.
 

@@ -1,9 +1,8 @@
 """Tarea del publicador del outbox con el consumidor de avisos (MATU-41, decisiones 106 y 112).
 
-Sin programador de tareas todavía (como tarea_quiebres): se invoca a mano o desde cron, por ejemplo cada
-minuto, desde backend/ y con DATABASE_URL de matu_app:
+La corre el programador de tareas (MATU-74) cada 15 minutos, desde backend/ y con DATABASE_URL de matu_app:
 
-    python -m app.modules.notifications.infrastructure.tarea_avisos
+    python -m app.tareas avisos
 
 1. Sin ENVIADOR_AVISOS no hace nada: no toma eventos, así que ninguno se marca publicado sin avisar.
 2. Toma los eventos con app.rol = 'operacion' (funciones outbox_* de la migración 0014) y entrega cada
@@ -55,10 +54,14 @@ def consumidores(
     return {QUIEBRE_PROXIMO: [consumidor]}
 
 
-def ejecutar() -> ResultadoPublicacion | None:
-    config = obtener_configuracion()
-    fabrica = fabrica_sesiones()
-    reloj = RelojSistema()
+def ejecutar(
+    config: Configuracion | None = None,
+    fabrica: sessionmaker[Session] | None = None,
+    reloj: Reloj | None = None,
+) -> ResultadoPublicacion | None:
+    config = config or obtener_configuracion()
+    fabrica = fabrica or fabrica_sesiones()
+    reloj = reloj or RelojSistema()
     mapa = consumidores(config, fabrica, reloj)
     if mapa is None:
         log.warning("avisos apagados: falta ENVIADOR_AVISOS, no se toma ningun evento")

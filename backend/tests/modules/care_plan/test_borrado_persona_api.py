@@ -146,7 +146,8 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
               " WHERE id = %s", vencido)
     direccion = familia.persona.direccion_id
     [(clave_id, _, _)] = _clave(familia)
-    # La alerta y la compra del insumo, por su perfil: la cascada de perfil_consumo las borra (MATU-66, condición 2)
+    # La alerta y la compra anotada (`reposicion`) del insumo, por su perfil: la cascada de perfil_consumo las
+    # borra (MATU-66, condición 2)
     perfiles = [f[0] for f in _todas("SELECT id FROM perfil_consumo WHERE persona_cuidada_id = %s", familia.persona.id)]
     hijas = ("SELECT (SELECT count(*) FROM alerta_quiebre WHERE perfil_id = ANY(%s::uuid[])),"
              " (SELECT count(*) FROM reposicion WHERE perfil_id = ANY(%s::uuid[]))")
