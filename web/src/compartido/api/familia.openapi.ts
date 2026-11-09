@@ -608,7 +608,7 @@ export interface paths {
         post?: never;
         /**
          * Eliminar un insumo
-         * @description Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar
+         * @description Borra el perfil en el acto, activo o desactivado (decisión 69). Sus compras anotadas (`reposicion`) y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar
          */
         delete: operations["eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete"];
         options?: never;
