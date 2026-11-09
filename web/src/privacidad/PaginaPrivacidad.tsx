@@ -99,7 +99,7 @@ function Contenido({ politica }: { politica: Politica }) {
 
       <div className="mt-8 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[var(--container-xs)_minmax(0,1fr)] @4xl/main:gap-16">
         {/* Pantalla ancha: columna fija a la izquierda, que sigue a la vista al desplazarse. */}
-        <nav aria-labelledby="indice-ancho-t" className="sticky top-6 hidden max-h-[calc(100dvh-3rem)] self-start overflow-y-auto @4xl/main:block">
+        <nav aria-labelledby="indice-ancho-t" className="sticky top-6 hidden max-h-[calc(100dvh-3rem)] self-start overflow-y-auto [scrollbar-width:thin] @4xl/main:block">
           <h2 id="indice-ancho-t" className="px-3 text-base font-bold text-tenue">
             {POLITICA.indice}
           </h2>

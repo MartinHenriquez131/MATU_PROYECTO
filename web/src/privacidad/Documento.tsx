@@ -65,7 +65,7 @@ function Tabla({ encabezados, filas }: { encabezados: Linea[][]; filas: Linea[][
         {filas.map((fila, f) => (
           <tr key={f} role="row" className="block border-b border-linea py-3 @xl/main:table-row @xl/main:py-0">
             {fila.map((celda, c) => (
-              <td key={c} role="cell" className="block leading-relaxed @xl/main:table-cell @xl/main:border-b @xl/main:border-linea @xl/main:py-3 @xl/main:pe-4 @xl/main:align-top">
+              <td key={c} role="cell" className="block leading-relaxed not-first:mt-2 @xl/main:mt-0 @xl/main:table-cell @xl/main:border-b @xl/main:border-linea @xl/main:py-3 @xl/main:pe-4 @xl/main:align-top">
                 <span className="block font-bold @xl/main:hidden">
                   <EnLinea partes={encabezados[c]} />
                 </span>
@@ -161,7 +161,7 @@ function VolverAlIndice({ alVolver }: { alVolver: () => void }) {
 /** El documento, una `section` por título de primer nivel, cada una cerrada con «Volver al índice». */
 export function Documento({ secciones, alVolver }: { secciones: Seccion[]; alVolver: () => void }) {
   return (
-    <article className="min-w-0 max-w-prose">
+    <article className="min-w-0 max-w-xl">
       {secciones.map((s, i) => {
         // Un `---` al final de la sección va después de «Volver al índice», que es de la sección.
         const final = s.bloques[s.bloques.length - 1]
