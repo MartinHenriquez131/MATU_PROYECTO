@@ -6,7 +6,7 @@ el mensaje tal cual (app/core/errores.py), y el valor puede ser una contraseña.
 
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -44,6 +44,38 @@ class SolicitudRegistro(BaseModel):
         ),
     ]
 
+    # MATU-75 (decisiones D2 y D3): la casilla «Leí y acepto la política de privacidad.», obligatoria y en true
+    acepta_politica: Annotated[
+        bool,
+        Field(
+            strict=True,
+            json_schema_extra={"const": True},
+            description=(
+                "Obligatorio y en true: la persona marcó «Leí y acepto la política de privacidad.» (MATU-75). Sin él"
+                " o en false, 422 con errores[].campo = acepta_politica. El servidor guarda la versión y la huella"
+                " vigentes, nunca las que diga el cliente"
+            ),
+        ),
+    ]
+    # MATU-75 (P2 de la decisión D2): la huella de la política que la pantalla mostró, la de GET /v1/politica
+    huella_politica: Annotated[
+        str | None,
+        Field(
+            pattern=r"^[0-9a-f]{64}$",
+            description=(
+                "Opcional. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó"
+                " GET /v1/politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea"
+            ),
+        ),
+    ] = None
+
+    @field_validator("acepta_politica")
+    @classmethod
+    def _politica_aceptada(cls, valor: bool) -> bool:
+        if valor is not True:
+            raise PydanticCustomError("politica_no_aceptada", "marca que leíste la política de privacidad")
+        return valor
+
     @field_validator("nombre")
     @classmethod
     def _nombre_no_vacio(cls, valor: str) -> str:
@@ -71,6 +103,17 @@ class ProblemaEmailRegistradoVista(BaseModel):
     """409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."""
 
     type: Literal["/errores/email-registrado"]
+    title: str
+    status: Literal[409]
+    detail: str | None
+    errores: list[dict[str, str]]
+    request_id: str | None
+
+
+class ProblemaPoliticaCambioVista(BaseModel):
+    """409 politica-cambio de POST /v1/usuarios (MATU-75). Solo documenta el OpenAPI."""
+
+    type: Literal["/errores/politica-cambio"]
     title: str
     status: Literal[409]
     detail: str | None
@@ -205,6 +248,16 @@ class SolicitudVerificarCelular(BaseModel):
     ] = "sms"
 
 
+class PoliticaAceptadaVista(BaseModel):
+    """La última política que aceptó la cuenta (MATU-75): «Aceptaste la versión {version} el {DD/MM/AAAA}.»"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Annotated[str, Field(pattern=r"^[0-9]+\.[0-9]+$", examples=["0.11"])]
+    huella: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$", description="SHA-256 del texto que se mostró")]
+    aceptada_en: datetime
+
+
 class CuentaVista(BaseModel):
     """GET /v1/cuenta: la cuenta propia. El celular va enmascarado, nunca completo."""
 
@@ -216,3 +269,51 @@ class CuentaVista(BaseModel):
     celular_enmascarado: Annotated[str | None, Field(examples=["+56 9 •••• ••37"])]
     celular_verificado: bool
     celular_canal: Literal["sms", "whatsapp"]
+    politica_aceptada: Annotated[
+        PoliticaAceptadaVista | None,
+        Field(
+            description=(
+                "MATU-75: la última política que aceptó al crear la cuenta. null si la cuenta es anterior a MATU-75 y"
+                " no tiene registro («No tenemos registro de qué versión aceptaste.»)"
+            )
+        ),
+    ]
+
+
+class PoliticaVista(BaseModel):
+    """GET /v1/politica (MATU-75): la política de privacidad vigente, pública."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Annotated[str, Field(pattern=r"^[0-9]+\.[0-9]+$", examples=["0.11"])]
+    actualizada_en: Annotated[
+        date, Field(description="Fecha de la versión, AAAA-MM-DD. La pantalla la muestra DD/MM/AAAA")
+    ]
+    huella: Annotated[
+        str,
+        Field(
+            pattern=r"^[0-9a-f]{64}$",
+            description=(
+                "SHA-256 en hexadecimal de texto, en UTF-8 con saltos LF. Es la que se envía al crear la cuenta"
+            ),
+        ),
+    ]
+    texto: Annotated[
+        str,
+        Field(
+            description=(
+                "La política en Markdown, desde «En un minuto» hasta el final, ya completa: el correo de contacto ya"
+                " viene puesto. Se muestra tal cual, sin HTML crudo; es exactamente lo que entra en la huella"
+            )
+        ),
+    ]
+    correo_contacto: Annotated[
+        str | None,
+        Field(
+            examples=["privacidad@example.com"],
+            description=(
+                "El correo de contacto para temas de privacidad (CORREO_PRIVACIDAD), para un mailto: en «Tu cuenta»."
+                " null si no está configurado: la pantalla oculta ese párrafo"
+            ),
+        ),
+    ]

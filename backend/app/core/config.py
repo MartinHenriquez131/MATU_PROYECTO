@@ -43,10 +43,16 @@ Cada historia agrega aquí lo suyo:
   (decisión 115). /docs y /openapi.json solo se publican en ENTORNOS_DOCUMENTACION (local y pruebas)
 - MATU-40: CAPA3_HABILITADA, si la API monta los routers de la capa 3, el despacho (ADR-002). Apagada
   por omisión: las capas 1 y 2 no dependen de ella y la API arranca igual. Ver app/main.py
+- MATU-75: POLITICA_ACTUALIZADA_EN, la fecha de la versión vigente de la política (AAAA-MM-DD); CORREO_PRIVACIDAD,
+  el correo de contacto que reemplaza {correo_privacidad} en el texto que sirve GET /v1/politica (decisiones D5 y
+  D7), y PROVEEDOR_CORREO_PRIVACIDAD y PAIS_PROVEEDOR_CORREO, el proveedor de ese buzón y su país. Opcionales para
+  cargar la configuración: sin la fecha, si POLITICA_VERSION no tiene un texto publicado, o sin el valor de un
+  marcador que el texto usa, GET /v1/politica y POST /v1/usuarios responden 503 y el resto de la API funciona igual
 """
 
 import base64
 import binascii
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -110,6 +116,22 @@ class Configuracion(BaseSettings):
     # configuración. Fuera del ambiente de pruebas es obligatoria (MATU-07): cada consentimiento
     # guarda esta versión, y el cliente nunca la envía. Después de validar, nunca es None.
     politica_version: str | None = Field(default=None, pattern=r"^[0-9]+\.[0-9]+$")
+
+    # MATU-75: fecha de la versión vigente de la política, en AAAA-MM-DD. GET /v1/politica la entrega con el texto
+    # («Versión 0.11 · actualizada el DD/MM/AAAA»). Sin ella, esa ruta y crear una cuenta responden 503
+    politica_actualizada_en: date | None = None
+
+    # MATU-75 (decisiones D5 y D7): el correo de contacto para temas de privacidad, una dirección de la función y
+    # nunca personal. Reemplaza {correo_privacidad} en el texto de la política, y GET /v1/politica lo entrega aparte
+    # (correo_contacto). No es un secreto: se publica. Si el texto lo usa y falta, GET /v1/politica y crear una cuenta
+    # responden 503: la política no se muestra con un hueco donde va su contacto
+    correo_privacidad: str | None = Field(default=None, max_length=254, pattern=r"^[^@\s{}]+@[^@\s{}]+\.[^@\s{}]+$")
+
+    # MATU-75: el proveedor del buzón de privacidad y su país (decisión D5), que reemplazan {proveedor_correo} y
+    # {pais_proveedor_correo} en la sección 6 de la política. Los da Jorge. No son secretos: se publican. Si el texto
+    # los usa y faltan, GET /v1/politica y crear una cuenta responden 503
+    proveedor_correo_privacidad: str | None = Field(default=None, max_length=100, pattern=r"^[^{}\[\]<>\n]+$")
+    pais_proveedor_correo: str | None = Field(default=None, max_length=100, pattern=r"^[^{}\[\]<>\n]+$")
 
     # Llave del HMAC-SHA256 del email en indice_credencial (modelo de datos, hallazgo 4). Vive
     # fuera de la base y del repositorio: sin ella, el hash no se revierte con un diccionario de
@@ -197,6 +219,7 @@ class Configuracion(BaseSettings):
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
+        "politica_actualizada_en", "correo_privacidad", "proveedor_correo_privacidad", "pais_proveedor_correo",
         mode="before",
     )
     @classmethod

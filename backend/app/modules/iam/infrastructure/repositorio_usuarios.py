@@ -10,6 +10,13 @@ from app.modules.iam.application.ports import CredencialGuardada, NuevoUsuario
 from app.modules.iam.domain.credenciales import EmailYaRegistrado
 from app.modules.iam.infrastructure.modelos import IndiceCredencialORM, UsuarioORM
 
+# MATU-75: la aceptación de la política, en la transacción de la cuenta. La política aceptacion_propia_crear solo
+# deja insertar la fila de la cuenta del contexto
+_ACEPTAR = text(
+    "INSERT INTO aceptacion_politica (usuario_id, version, huella, aceptada_en)"
+    " VALUES (:usuario_id, :version, :huella, :aceptada_en)"
+)
+
 
 class RepositorioUsuariosSQL:
     def __init__(self, fabrica: sessionmaker[Session]) -> None:
@@ -32,6 +39,16 @@ class RepositorioUsuariosSQL:
                 )
                 sesion.flush()
                 sesion.add(IndiceCredencialORM(email_hash=usuario.email_hash, usuario_id=usuario.id))
+                sesion.flush()
+                sesion.execute(
+                    _ACEPTAR,
+                    {
+                        "usuario_id": usuario.id,
+                        "version": usuario.aceptacion.version,
+                        "huella": usuario.aceptacion.huella,
+                        "aceptada_en": usuario.aceptacion.aceptada_en,
+                    },
+                )
         except IntegrityError as exc:
             # usuario_email_uq o la llave de indice_credencial: el email ya tiene cuenta.
             # Se lanza sin encadenar: el mensaje de la base trae el email.

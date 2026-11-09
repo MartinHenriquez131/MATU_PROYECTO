@@ -26,6 +26,7 @@ from app.modules.iam.application.ports import (
     TransaccionIam,
 )
 from app.modules.iam.domain.dispositivo import NOMBRE_GENERICO, PLATAFORMA_WEB, LimitesConservacion
+from app.modules.iam.domain.politica import AceptacionPolitica
 from app.modules.iam.domain.refresh import EstadoRefresh
 from app.modules.iam.domain.sesion import puede_iniciar_sesion
 from app.shared.auditoria_sql import RegistroAuditoriaSql
@@ -44,6 +45,13 @@ _SESION = text(
     " JOIN usuario u ON u.id = s.usuario_id"
     " WHERE s.id = :id"
     " FOR UPDATE OF s"
+)
+
+# MATU-75: la última aceptación de la política de la cuenta del contexto (RLS aceptacion_propia_leer). El id rompe
+# el empate de dos aceptaciones en el mismo instante
+_ULTIMA_ACEPTACION = text(
+    "SELECT version, huella, aceptada_en FROM aceptacion_politica WHERE usuario_id = app_usuario()"
+    " ORDER BY aceptada_en DESC, id DESC LIMIT 1"
 )
 
 _DISPOSITIVO_COLUMNAS = "id, plataforma, nombre, creado_en, ultimo_uso_en, revocado_en"
@@ -241,6 +249,12 @@ class RepositorioCuentaSql:
             ),
             {"ahora": ahora, "canal": canal},
         )
+
+    def ultima_aceptacion(self) -> AceptacionPolitica | None:
+        fila = self._sesion.execute(_ULTIMA_ACEPTACION).one_or_none()
+        if fila is None:
+            return None
+        return AceptacionPolitica(version=fila.version, huella=fila.huella, aceptada_en=fila.aceptada_en)
 
 
 @dataclass(frozen=True)

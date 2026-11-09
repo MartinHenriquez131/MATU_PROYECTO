@@ -1,7 +1,8 @@
-"""Caso de uso: crear una cuenta (MATU-04, RF-37)."""
+"""Caso de uso: crear una cuenta (MATU-04, RF-37), con la aceptación de la política (MATU-75)."""
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.modules.iam.application.ports import HasherContrasenas, NuevoUsuario, RepositorioUsuarios
 from app.modules.iam.domain.credenciales import (
@@ -10,6 +11,7 @@ from app.modules.iam.domain.credenciales import (
     indice_email,
     normalizar_email,
 )
+from app.modules.iam.domain.politica import PoliticaVigente, aceptar
 
 
 @dataclass(frozen=True)
@@ -28,9 +30,16 @@ def registrar_usuario(
     pepper: bytes,
     hasher: HasherContrasenas,
     repositorio: RepositorioUsuarios,
+    politica: PoliticaVigente,
+    ahora: datetime,
+    huella_mostrada: str | None = None,
     solo_dominios_reservados: bool = False,
 ) -> CuentaCreada:
-    """Crea la cuenta y su fila de indice_credencial.
+    """Crea la cuenta, su fila de indice_credencial y su aceptación de la política vigente.
+
+    La API ya exigió acepta_politica = true. La versión y la huella las estampa el servidor (decisión D2); si el
+    cliente envía la huella que mostró y no es la vigente, lanza PoliticaCambio antes de hashear ni de tocar el
+    repositorio.
 
     El identificador se genera aquí y no en la base: la política RLS de usuario exige que la
     fila nueva sea la del usuario en contexto (id = app.usuario_id), y para fijar ese contexto
@@ -44,6 +53,7 @@ def registrar_usuario(
     email_normalizado = normalizar_email(email)
     if solo_dominios_reservados and not es_dominio_reservado(email_normalizado):
         raise DominioNoPermitido()
+    aceptacion = aceptar(politica, huella_mostrada, ahora)
     nuevo = NuevoUsuario(
         id=uuid.uuid4(),
         nombre=nombre.strip(),
@@ -51,6 +61,7 @@ def registrar_usuario(
         password_hash=hasher.hashear(contrasena),
         email_hash=indice_email(pepper, email_normalizado),
         telefono=telefono,
+        aceptacion=aceptacion,
     )
     repositorio.crear(nuevo)
     return CuentaCreada(id=nuevo.id, nombre=nuevo.nombre, email=nuevo.email)
