@@ -1,6 +1,6 @@
 # MATU-75 · La política de privacidad, visible · Especificación de diseño
 
-**Versión 0.1 · 09-11-2026 · agente 6 UI/UX.** Base: `Demo/DISENO.md` (secciones 2, 3, 4 y 6), los tokens de `web/src/index.css`, las decisiones D1 a D7 de Jorge del 09-11 y las condiciones del analista (revisión previa de MATU-75), `docs/lenguaje.md` (solo lectura) y lo ya construido en `web/src/main.tsx`, `web/src/relevo/Marco.tsx`, `web/src/relevo/PantallaPin.tsx` (`AvisoDatos`), `web/src/familia/Alta.tsx` (`MarcoAlta`, `CrearCuenta`, `DeclaracionFicha`), `web/src/familia/Insumos.tsx` (el permiso de insumos), `web/src/familia/Cuenta.tsx` (`TuCuenta`), `web/src/familia/ui.tsx` y `web/src/compartido/ui/`. **Sin tokens nuevos ni colores nuevos.** Lo único que se agrega a DISENO.md es una fila en la sección 6: el enlace dentro de una frase (sección 7 de esta especificación).
+**Versión 0.2 · 09-11-2026 · agente 6 UI/UX.** La v0.2 sale de la revisión visual del 09-11: el área táctil del enlace dentro de una frase pasa a un `::after` (sección 7), se saca el salto a un ancla al abrir la página (1.9), y se precisan la nota del 409 (2.5), las tablas apiladas (1.8) y la distancia entre la casilla y su error (2.4). La v0.1 era la especificación previa. Base: `Demo/DISENO.md` (secciones 2, 3, 4 y 6), los tokens de `web/src/index.css`, las decisiones D1 a D7 de Jorge del 09-11 y las condiciones del analista (revisión previa de MATU-75), `docs/lenguaje.md` (solo lectura) y lo ya construido en `web/src/main.tsx`, `web/src/relevo/Marco.tsx`, `web/src/relevo/PantallaPin.tsx` (`AvisoDatos`), `web/src/familia/Alta.tsx` (`MarcoAlta`, `CrearCuenta`, `DeclaracionFicha`), `web/src/familia/Insumos.tsx` (el permiso de insumos), `web/src/familia/Cuenta.tsx` (`TuCuenta`), `web/src/familia/ui.tsx` y `web/src/compartido/ui/`. **Sin tokens nuevos ni colores nuevos.** Lo único que se agrega a DISENO.md es una fila en la sección 6: el enlace dentro de una frase (sección 7 de esta especificación).
 
 Los textos marcados **[aprobado, D6]** son los de la tabla D6 y van tal cual. Los marcados **[PROPUESTO]** no están en D6 y los decide Jorge (sección 0).
 
@@ -239,7 +239,7 @@ El texto de la 0.10 no tiene tablas, pero la página tiene que saber mostrarlas 
 **Bajo `@xl/main` (el teléfono y el texto al 200 %), cada fila es un bloque:**
 - `thead` oculto (`hidden @xl/main:table-header-group`).
 - `tr`: `block border-b border-linea py-3`, y `@xl/main:table-row`.
-- `td`: `block`, y `@xl/main:table-cell`. Antes del valor, el encabezado de su columna, en un `span` con `block font-bold @xl/main:hidden`. Ese `span` **no** lleva `aria-hidden`: cuando la tabla está apilada, es lo que dice qué es cada dato.
+- `td`: `block`, y `@xl/main:table-cell`. Entre dos datos de la misma fila, `mt-2` (`not-first:mt-2 @xl/main:mt-0`), para que cada par de encabezado y valor se lea como un grupo (v0.2). Antes del valor, el encabezado de su columna, en un `span` con `block font-bold @xl/main:hidden`. Ese `span` **no** lleva `aria-hidden`: cuando la tabla está apilada, es lo que dice qué es cada dato.
 - Como cambiar el `display` de una tabla le quita su semántica en algunos navegadores, la tabla lleva sus roles explícitos (`role="table"`, `rowgroup`, `row`, `columnheader`, `cell`).
 
 ### 1.9 Estados
@@ -254,7 +254,9 @@ El marco, el título «Política de privacidad» y el distintivo se ven siempre,
 | Vacío | No aplica: la política siempre tiene texto |
 | Conflicto (412) | No aplica: la página no guarda nada |
 
-Al abrir la página, el foco queda donde lo deja el navegador (al principio del documento). Si el enlace trae un ancla (`/privacidad#seccion-10`), la página salta a esa sección **cuando llega el texto**, porque antes el título no existe.
+Al abrir la página, el foco queda donde lo deja el navegador (al principio del documento).
+
+**Sin salto a un ancla al abrir (v0.2).** La v0.1 pedía que `/privacidad#seccion-10` saltara a esa sección cuando llegara el texto. Se saca: para hacerlo, la página tendría que leer el fragmento de la dirección, y la condición del analista dice que `/privacidad` no lo lee. Además, ningún enlace de MATU lleva ancla (sección 4). Los enlaces del índice sí usan `#{id}` dentro de la página. Eso no lee nada: es el salto nativo del navegador.
 
 ---
 
@@ -327,7 +329,7 @@ Es la **casilla nativa de DISENO.md 6**, sin una pieza nueva:
 | Casilla | `input type="checkbox"`, `size-6 shrink-0 accent-turquesa mt-0.5`, sin marcar al llegar. `required` no: la validación es la de MATU, al enviar. Con el error, `aria-invalid` y `aria-describedby` al mensaje |
 | El texto | «Leí y acepto la » + enlace + «.» |
 | El enlace | Enlace dentro de una frase (sección 7): `/privacidad`, `target="_blank"`, `rel="noopener noreferrer"`. Texto «política de privacidad (se abre en otra pestaña)» |
-| El error | `MensajeError` con su `id`, justo bajo la etiqueta. `MensajeError` ya pone el ícono en línea en modo angosto |
+| El error | `MensajeError` con su `id`, justo bajo la etiqueta. `MensajeError` ya pone el ícono en línea en modo angosto. **Cuando la frase cabe en un renglón** (1280 y 1920 px), la etiqueta va con `items-center` y sin el `mt-0.5` de la casilla, como pide DISENO.md 6 para la etiqueta de un renglón. Con `items-start`, el texto queda arriba de los 51 px y el error se ve unos 30 px más abajo, despegado (v0.2). Basta con `@2xl/main:items-center` y `@2xl/main:mt-0` en la casilla, porque desde ese ancho la frase entra en un renglón dentro de `max-w-xl` |
 
 **Por qué el enlace va dentro de la etiqueta y no la marca.** Un enlace es contenido interactivo, y el HTML dice que tocar un elemento interactivo dentro de un `label` no activa el `label`: abre la política y la casilla no cambia. No hace falta código para impedirlo (y no se agrega un `preventDefault` que podría romperlo). El nombre accesible de la casilla queda como la frase entera: «Leí y acepto la política de privacidad (se abre en otra pestaña).»
 
@@ -347,7 +349,7 @@ Es la **casilla nativa de DISENO.md 6**, sin una pieza nueva:
 | Error al enviar sin marcar | «Para crear tu cuenta, marca que leíste la política de privacidad.» **[aprobado, D6]** en `MensajeError`. Se valida junto con los demás campos, al enviar. Si es el único error, **el foco va a la casilla** (`enfocarPrimerError`, que ya busca `aria-invalid`). Si hay otros, el foco va al primero, en el orden de la pantalla, y la casilla es la última |
 | Al marcarla | El error se quita en ese momento, como en el aviso del cuidador de hecho |
 | Creando la cuenta | La casilla no cambia. El botón dice «Creando la cuenta…» |
-| La política cambió mientras la leía (J3) | La casilla se desmarca. Sobre el botón, `Nota tono="atenta" rol="status"` con el texto de J3 **[PROPUESTO]**, en el mismo lugar que las otras notas del formulario. El foco va a la casilla. Lo que escribió sigue en los campos |
+| La política cambió mientras la leía (J3) | La casilla se desmarca. Sobre el botón, `Nota tono="atenta" rol="status" iconoEnLinea` con el texto de J3. Sin `iconoEnLinea`, a 320 px con el texto al 200 % el título se parte dentro de la palabra («Actualizamo / s», v0.2) **[PROPUESTO]**, en el mismo lugar que las otras notas del formulario. El foco va a la casilla. Lo que escribió sigue en los campos |
 | Sin conexión al pedir la huella | El formulario se ve igual. Al enviar, se vuelve a pedir la política. Si tampoco responde, la nota `pronto` de siempre: «No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo. Lo que escribiste sigue aquí.» **[lenguaje 8]** |
 
 ---
@@ -396,7 +398,7 @@ Si la nota hoy no lleva `borde` en alguna de las tres pantallas, no se le agrega
 ## 4. Lo que se repite en las tres pantallas de la familia
 
 - El enlace siempre se abre en otra pestaña: el formulario sigue ahí cuando Carmen vuelve.
-- El destino es `/privacidad`, sin ancla. Si alguna vez una pantalla necesita una sección (por ejemplo, la 5), usa las anclas de 1.6.
+- El destino es siempre `/privacidad`, sin ancla. La página no salta a una sección al abrir (1.9, v0.2).
 - El texto del enlace es siempre «política de privacidad (se abre en otra pestaña)» dentro de una frase, y «Política de privacidad (se abre en otra pestaña)» cuando va solo (relevo y «Tu cuenta»).
 
 ---
@@ -517,11 +519,13 @@ La casilla del alta, la línea de las autorizaciones y el correo de «Tu cuenta�
 
 **La pieza:** un `a` en línea (no `inline-flex`), con:
 - `font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa`;
-- **`py-3.5`**: el relleno vertical de un elemento en línea no mueve los renglones, pero sí agranda lo que se toca. Con la cara de 17 px (unos 21 px de caja) más 2 × 14,9 px, cada renglón del enlace mide unos 51 px de alto, como un botón.
+- **El área táctil va en un `::after`, no en el enlace (v0.2):** `relative after:absolute after:inset-x-0 after:-inset-y-3.5 after:content-['']`, **sin relleno vertical** en el `a`. El seudoelemento agranda lo que se toca hasta unos 51 px de alto y no mueve los renglones.
+
+**Por qué cambió (revisión visual del 09-11, P2).** La v0.1 pedía `py-3.5` en el propio enlace. Agrandaba bien lo que se toca, pero el contorno de foco rodea la caja con relleno: quedaba una caja de 51 px por renglón que, al bajar de renglón, se unía en un bloque y **tachaba el texto del renglón de arriba y del de abajo** («Leí y acepto la», «cuenta, escribe a», «otro sitio se abre en otra»). Se probó llevar el contorno hacia adentro (`outline-offset` negativo): como el enlace no tiene relleno a los lados, el contorno cortaba las letras. Con el `::after`, el contorno sigue el texto (21 px más los 2 px de separación) y no tapa nada. Está verificado en pantalla a 360 px y a 320 px con el texto al 200 %.
 
 **Lo que hay que saber:**
-- El relleno invade un poco el renglón de arriba y el de abajo. En la casilla del alta, ese espacio es de la etiqueta, y tocarlo ahí abre el enlace en vez de marcar la casilla. La casilla en sí nunca queda tapada (está a la izquierda, fuera de la columna del texto).
-- El contorno de foco rodea el relleno: se ve como una caja de 51 px alrededor del texto. Es más alto que el texto, pero es visible y cumple los 3 px y el 3:1.
+- Cuando el enlace baja de renglón, el `::after` se calcula sobre el primer y el último renglón, y el navegador no lo garantiza para un elemento partido. Ahí lo que se toca es el enlace entero, que ya mide dos renglones o más (55 px o más). El `::after` es para el enlace de un solo renglón, que es el caso que medía 21 px.
+- En la casilla del alta, el área de arriba y de abajo del enlace es del enlace y no de la etiqueta: tocar ahí abre la política y no marca la casilla. La casilla en sí nunca queda tapada (está a la izquierda, fuera de la columna del texto).
 - No lleva ícono: el subrayado ya dice que es un enlace, y un ícono en medio de una frase la corta.
 
 ---
@@ -573,7 +577,7 @@ Revisados contra lenguaje.md 3: en tú, en voz activa, sin términos clínicos n
 **Crear cuenta**
 13. La casilla está después de la contraseña y antes de «Crear cuenta», y llega sin marcar.
 14. Tocar el texto de la etiqueta fuera del enlace marca la casilla. Tocar el enlace abre `/privacidad` en otra pestaña y **la casilla no cambia**.
-15. La etiqueta mide 48 px o más de alto, y cada renglón del enlace también (`getClientRects()` de 48 px o más).
+15. La etiqueta mide 48 px o más de alto. El enlace de un renglón mide 48 px o más con su `::after`, y el enlace partido mide 48 px o más en total. Con el teclado, el contorno de foco del enlace no cruza el texto de los renglones vecinos (v0.2).
 16. Al enviar sin marcar, aparece «Para crear tu cuenta, marca que leíste la política de privacidad.» con ícono, en `pronto` negrita, bajo la casilla. Si es el único error, el foco queda en la casilla. Al marcarla, el error se va.
 17. «Crear cuenta» sigue siendo el único botón `turquesa` macizo.
 
