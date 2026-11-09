@@ -97,7 +97,7 @@ export function BotonMostrar({ visible, onCambio }: { visible: boolean; onCambio
       type="button"
       aria-pressed={visible}
       onClick={onCambio}
-      className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 font-bold text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio"
+      className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 font-bold text-turquesa ring-2 ring-inset ring-turquesa/80 hover:bg-rocio"
     >
       {visible ? <EyeOff aria-hidden className="size-5" /> : <Eye aria-hidden className="size-5" />}
       {visible ? CUENTA.ocultar : CUENTA.mostrar}

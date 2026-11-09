@@ -7,7 +7,7 @@
 // - «Recargar» es secundario. Si el formulario a la vista tiene algo sin guardar, no recarga: el
 //   aviso pasa a `atenta`, se anuncia por `alert` y el foco va a «Seguir escribiendo».
 // - «Más tarde» lo retira; vuelve en la próxima revisión, nunca antes de 15 minutos (D4).
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { AVISO_VERSION } from '../textosVersion'
 import { marcarAnunciado, mostrarAviso, navegador, posponerAviso, useFaseVersion, yaAnunciado, type FuenteSinGuardar, type SinGuardar } from '../version'
@@ -37,6 +37,7 @@ export function AvisoVersion({
   esperar = false,
   sinGuardar,
   className = '',
+  interior,
 }: {
   bajada: string
   /** 4.2, casos 2 y 3: la pantalla retiene algo que una recarga borra. */
@@ -44,6 +45,8 @@ export function AvisoVersion({
   /** Solo la familia: lo que el formulario a la vista tiene sin guardar (4.3). */
   sinGuardar?: FuenteSinGuardar
   className?: string
+  /** Un contenedor interior, para alinear la caja con una columna del marco (relevo, ficha). */
+  interior?: string
 }) {
   const fase = useFaseVersion()
   const [, refrescar] = useReducer((n: number) => n + 1, 0)
@@ -126,39 +129,43 @@ export function AvisoVersion({
     enfocar(foco)
   }
 
+  const envolver = (contenido: ReactNode) => (interior ? <div className={interior}>{contenido}</div> : contenido)
+
   return (
     <div ref={caja} data-aviso-version className={className}>
-      {perdible ? (
-        <Nota tono="atenta" borde iconoEnLinea titulo={tituloPerdible}>
-          <p>{AVISO_VERSION.sinGuardarBajada}</p>
-          <div className={ACCIONES}>
-            <Boton ref={seguir} variante="secundario" onClick={seguirEscribiendo}>
-              {AVISO_VERSION.seguirEscribiendo}
-            </Boton>
-            <Boton variante="textoPeligro" ocupado={recargando} textoOcupado={AVISO_VERSION.recargando} onClick={recargar}>
-              {AVISO_VERSION.recargarIgual}
-            </Boton>
-          </div>
-        </Nota>
-      ) : (
-        <Nota
-          tono="rocio"
-          borde
-          iconoEnLinea
-          icono={<RefreshCw aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}
-          titulo={AVISO_VERSION.titulo}
-          className={nuevo ? 'animate-aparecer' : ''}
-        >
-          <p>{bajada}</p>
-          <div className={ACCIONES}>
-            <Boton variante="secundario" ocupado={recargando} textoOcupado={AVISO_VERSION.recargando} onClick={alRecargar}>
-              {AVISO_VERSION.recargar}
-            </Boton>
-            <Boton variante="texto" onClick={masTarde}>
-              {AVISO_VERSION.masTarde}
-            </Boton>
-          </div>
-        </Nota>
+      {envolver(
+        perdible ? (
+          <Nota tono="atenta" borde iconoEnLinea titulo={tituloPerdible}>
+            <p>{AVISO_VERSION.sinGuardarBajada}</p>
+            <div className={ACCIONES}>
+              <Boton ref={seguir} variante="secundario" onClick={seguirEscribiendo}>
+                {AVISO_VERSION.seguirEscribiendo}
+              </Boton>
+              <Boton variante="textoPeligro" ocupado={recargando} textoOcupado={AVISO_VERSION.recargando} onClick={recargar}>
+                {AVISO_VERSION.recargarIgual}
+              </Boton>
+            </div>
+          </Nota>
+        ) : (
+          <Nota
+            tono="rocio"
+            borde
+            iconoEnLinea
+            icono={<RefreshCw aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}
+            titulo={AVISO_VERSION.titulo}
+            className={nuevo ? 'animate-aparecer' : ''}
+          >
+            <p>{bajada}</p>
+            <div className={ACCIONES}>
+              <Boton variante="secundario" ocupado={recargando} textoOcupado={AVISO_VERSION.recargando} onClick={alRecargar}>
+                {AVISO_VERSION.recargar}
+              </Boton>
+              <Boton variante="texto" onClick={masTarde}>
+                {AVISO_VERSION.masTarde}
+              </Boton>
+            </div>
+          </Nota>
+        ),
       )}
     </div>
   )

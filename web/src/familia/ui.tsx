@@ -481,7 +481,7 @@ export function Stepper({
   ayuda?: string
 }) {
   const id = useId()
-  const btn = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio disabled:opacity-40'
+  const btn = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/80 hover:bg-rocio disabled:opacity-40'
   return (
     <div className="flex flex-col gap-2">
       <span id={id} className="font-bold">

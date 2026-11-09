@@ -5,6 +5,9 @@
 // el anuncio por `status` y el relevo. Con temporizadores falsos. Datos sintéticos.
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api as apiRelevo } from '../src/compartido/api/cliente'
@@ -21,6 +24,8 @@ import { MarcoSimple, ShellFamilia } from '../src/familia/Shell'
 import { Marco, Titulo } from '../src/relevo/Marco'
 import { PaginaRelevo } from '../src/relevo/PaginaRelevo'
 import { familiaFalsa } from './familiaFalsa'
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), '../src')
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -743,7 +748,7 @@ describe('En el relevo', () => {
     expect(recargar).toHaveBeenCalledTimes(1)
   })
 
-  it('en la ficha el aviso toma el ancho de la grilla (`max-w-6xl`); en el PIN y los estados, la columna (`max-w-xl`)', async () => {
+  it('en la ficha la caja va en la primera columna de la grilla, al ancho de la tarjeta (`max-w-3xl`); en el PIN y los estados, la columna (`max-w-xl`)', async () => {
     const { rerender } = montar(
       <Marco ocupado={false}>
         <Titulo>Escribe el PIN</Titulo>
@@ -762,10 +767,21 @@ describe('En el relevo', () => {
         </App>
       </>,
     )
-    expect(aviso()).toHaveClass('mx-auto', 'max-w-6xl')
+    // Criterio 14: la misma grilla de PantallaFicha y, en su primera columna, el contenedor de la
+    // tarjeta. Así el borde izquierdo de la caja coincide con el de la tarjeta a 1280 y 1920 px.
+    expect(aviso()).toHaveClass('mx-auto', 'grid', 'max-w-6xl', 'grid-cols-1', 'gap-x-8', '@4xl/main:grid-cols-[minmax(0,1fr)_17rem]', 'mb-6')
     expect(aviso()).not.toHaveClass('max-w-xl')
-    // La caja queda a la izquierda dentro de la grilla: `Nota` no se centra.
-    expect(aviso()!.firstElementChild).not.toHaveClass('mx-auto')
+    const columna = aviso()!.firstElementChild!
+    expect(columna).toHaveClass('mx-auto', 'w-full', 'max-w-3xl')
+    expect(aviso()!.children).toHaveLength(1)
+    // La caja queda a la izquierda de esa columna: `Nota` no se centra.
+    const nota = columna.firstElementChild!
+    expect(nota).toHaveClass('bg-rocio', 'border-l-4')
+    expect(nota).not.toHaveClass('mx-auto')
+    // Las mismas clases de la grilla y de la tarjeta de la ficha (relevo/PantallaFicha.tsx).
+    const ficha = readFileSync(join(SRC, 'relevo/PantallaFicha.tsx'), 'utf-8')
+    expect(ficha).toContain('className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-8 @4xl/main:grid-cols-[minmax(0,1fr)_17rem]"')
+    expect(ficha).toContain('<div className="mx-auto w-full max-w-3xl">')
   })
 
   it('la página del relevo revisa la versión ella misma, y «Más tarde» deja el foco en su título', async () => {
@@ -801,5 +817,17 @@ describe('El botón secundario', () => {
     expect(boton).toHaveClass('ring-turquesa/80', 'angosto:px-2', 'px-5')
     expect(boton).not.toHaveClass('ring-turquesa/70')
     expect(boton).not.toHaveClass('angosto:px-3')
+  })
+
+  it('ningún anillo `turquesa/70` queda escrito a mano: Alta, Dictado y los botones − y + van al 80 %', () => {
+    const conSetenta = ['familia', 'relevo', 'compartido', 'compartido/ui'].flatMap((carpeta) =>
+      readdirSync(join(SRC, carpeta))
+        .filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'))
+        .filter((f) => readFileSync(join(SRC, carpeta, f), 'utf-8').includes('ring-turquesa/70'))
+        .map((f) => `${carpeta}/${f}`),
+    )
+    expect(conSetenta).toEqual([])
+    for (const archivo of ['familia/Alta.tsx', 'familia/Dictado.tsx', 'familia/insumosComun.tsx', 'familia/ui.tsx'])
+      expect(readFileSync(join(SRC, archivo), 'utf-8')).toContain('ring-turquesa/80')
   })
 })

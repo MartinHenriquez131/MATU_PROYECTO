@@ -29,7 +29,17 @@ export function Marco({ ocupado, anchoDelAviso = 'columna', children }: { ocupad
         {/* MATU-67 2.3: primero en `main`, con el texto a la izquierda. En el PIN y los estados, al
             ancho de la columna centrada; en la ficha, al de su grilla, con la caja a la izquierda
             (revisión visual del 09-11). Solo espera con el foco en el campo del PIN (4.2). */}
-        <AvisoVersion bajada={AVISO_VERSION.bajadaRelevo} className={`mx-auto mb-6 ${anchoDelAviso === 'grilla' ? 'max-w-6xl' : 'max-w-xl'}`} />
+        {anchoDelAviso === 'grilla' ? (
+          // La misma grilla de la ficha (PantallaFicha): la caja va en la primera columna, al ancho
+          // de la tarjeta (`mx-auto w-full max-w-3xl`), con su mismo borde izquierdo (criterio 14).
+          <AvisoVersion
+            bajada={AVISO_VERSION.bajadaRelevo}
+            className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-x-8 @4xl/main:grid-cols-[minmax(0,1fr)_17rem]"
+            interior="mx-auto w-full max-w-3xl"
+          />
+        ) : (
+          <AvisoVersion bajada={AVISO_VERSION.bajadaRelevo} className="mx-auto mb-6 max-w-xl" />
+        )}
         {children}
       </main>
     </>
