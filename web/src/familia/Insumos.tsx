@@ -1164,7 +1164,7 @@ export function Permiso({
         />
       )}
       {calidad && (
-        <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
+        <Nota tono="rocio" titulo={AUTORIZACION.declaras} iconoEnLinea>
           <p className="max-w-prose">{DECLARACION_CONSUMO[calidad]}</p>
           <LeePoliticaAntesDeAutorizar />
         </Nota>
