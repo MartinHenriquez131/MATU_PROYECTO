@@ -261,8 +261,8 @@ PROHIBIDOS = (
     "diagnóstico", "diagnostico", "conducta", "incidente", "deterioro", "incontinencia", "paciente", "postrad",
     "demencia", "alzheimer", "crisis", "episodio", "descompensación", "adulto mayor",
 )
-# La serie +56 9 0000 00xx de las cuentas y +56 9 0000 01xx del relevo: no se asignan a nadie
-CELULAR_DE_PRUEBA = re.compile(r"^\+5690000(00|01)\d{2}$")
+# La serie +56 9 0000 00xx, que no se asigna a nadie: todas las cuentas y el relevo de ejemplo
+CELULAR_DE_PRUEBA = re.compile(r"^\+569000000\d{2}$")
 
 
 def _textos_de_la_ficha() -> list[str]:
@@ -685,6 +685,77 @@ def test_restablecer_deja_todo_como_recien_sembrado(
 @MATU_64
 def test_restablecer_sin_semilla_no_borra_nada(sembradora: Any) -> None:
     assert demo.restablecer(sembradora, _familias_unicas()) == 0
+
+
+@MATU_64
+@pytest.mark.usefixtures("configuracion_sin_env")
+def test_en_produccion_con_la_kek_en_el_env_sale_con_2_sin_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Con ENTORNO=produccion y la KEK sintética, la configuración no carga (ValidationError): el mismo mensaje fijo
+    y salida 2, sin el texto de pydantic ni la KEK."""
+    kek = base64.b64encode(secrets.token_bytes(32)).decode()
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("POLITICA_VERSION", "0.9")
+    monkeypatch.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    monkeypatch.setenv("KEK_ENTORNO", kek)
+    obtener_configuracion.cache_clear()
+    try:
+        assert demo.main(["--restablecer"]) == 2
+    finally:
+        obtener_configuracion.cache_clear()
+    salida = capsys.readouterr()
+    assert salida.err.strip() == demo.MENSAJE_PRODUCCION
+    assert kek not in salida.err + salida.out
+    assert "validation" not in (salida.err + salida.out).lower()
+
+
+@MATU_64
+def test_produccion_declarada_solo_en_el_archivo_env(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """ENTORNO=produccion solo en el .env (no en el entorno del proceso): igual sale el mensaje de producción."""
+    from app.core import config
+
+    kek = base64.b64encode(secrets.token_bytes(32)).decode()
+    archivo = tmp_path / ".env"
+    archivo.write_text(
+        f"ENTORNO=produccion\nPOLITICA_VERSION=0.9\nCUSTODIA_KEK=entorno_sintetico\nKEK_ENTORNO={kek}\n",
+        encoding="utf-8",
+    )
+    for campo in config.Configuracion.model_fields:
+        if campo != "database_url":
+            monkeypatch.delenv(campo.upper(), raising=False)
+    monkeypatch.setitem(config.Configuracion.model_config, "env_file", archivo)
+    obtener_configuracion.cache_clear()
+    try:
+        assert demo.main() == 2
+    finally:
+        obtener_configuracion.cache_clear()
+    salida = capsys.readouterr()
+    assert salida.err.strip() == demo.MENSAJE_PRODUCCION
+    assert kek not in salida.err + salida.out
+
+
+@MATU_64
+@pytest.mark.usefixtures("configuracion_sin_env")
+def test_con_una_configuracion_invalida_sale_con_2_sin_mostrar_valores(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    invalida = "no-es-una-kek-" + secrets.token_hex(4)
+    monkeypatch.setenv("ENTORNO", "local")
+    monkeypatch.setenv("POLITICA_VERSION", "0.9")
+    monkeypatch.setenv("CUSTODIA_KEK", "entorno_sintetico")
+    monkeypatch.setenv("KEK_ENTORNO", invalida)
+    obtener_configuracion.cache_clear()
+    try:
+        assert demo.main() == 2
+    finally:
+        obtener_configuracion.cache_clear()
+    salida = capsys.readouterr()
+    assert "no es válida" in salida.err
+    assert invalida not in salida.err + salida.out
+    assert "produccion" not in salida.err
 
 
 @pytest.mark.usefixtures("configuracion_sin_env")

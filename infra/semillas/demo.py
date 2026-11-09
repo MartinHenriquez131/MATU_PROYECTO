@@ -79,11 +79,13 @@ from zoneinfo import ZoneInfo
 # backend/ en la ruta de importación: la semilla usa los casos de uso de la API
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
+from dotenv import dotenv_values  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
-from app.core.config import obtener_configuracion  # noqa: E402
+from app.core.config import Configuracion, obtener_configuracion  # noqa: E402
 from app.core.db import fabrica_sesiones, sesion_tenant  # noqa: E402
 from app.modules.care_circle.application.autorizaciones import (  # noqa: E402
     SolicitudAutorizacion,
@@ -168,6 +170,8 @@ ARCHIVO_CONTRASENA = CARPETA_SALIDA / "contrasena-demo.txt"
 VIGENCIA_RELEVO = timedelta(days=7)
 
 HORA_CHILE = ZoneInfo("America/Santiago")
+
+MENSAJE_PRODUCCION = "La semilla de demostración no corre con ENTORNO=produccion."
 
 # --- Los datos, todos sintéticos ----------------------------------------------------------------------
 
@@ -321,7 +325,7 @@ FAMILIAS: tuple[FamiliaDemo, ...] = (
         ),
         relevo=RelevoDemo(
             nombre="Rosa",
-            telefono="+56900000101",
+            telefono="+56900000099",
             motivo=MotivoAcceso.FIN_DE_SEMANA_FUERA,
             secciones=(SeccionComplementaria.QUIEN_ES, SeccionComplementaria.PREFERENCIAS),
         ),
@@ -982,12 +986,36 @@ def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _entorno_declarado() -> str | None:
+    """ENTORNO como lo declara el entorno o el .env, sin validar el resto de la configuración. Lee solo esa clave y
+    nunca la muestra: sirve para responder con el mensaje de siempre cuando la configuración no carga."""
+    if valor := os.environ.get("ENTORNO"):
+        return valor
+    archivo = Configuracion.model_config.get("env_file")
+    if not isinstance(archivo, (str, Path)) or not Path(archivo).is_file():
+        return None
+    return dotenv_values(archivo).get("ENTORNO")
+
+
 def main(argv: Sequence[str] = ()) -> int:
     argumentos = _argumentos(argv)
     mostrar = bool(argumentos.mostrar_credenciales)
-    configuracion = obtener_configuracion()
+    try:
+        configuracion = obtener_configuracion()
+    except ValidationError:
+        # Sin el texto del error: pydantic incluye los valores que rechaza. Con ENTORNO=produccion, por ejemplo, la
+        # KEK en variable de entorno no se admite y la configuración no carga: es el mismo «no corre en producción»
+        if _entorno_declarado() == "produccion":
+            print(MENSAJE_PRODUCCION, file=sys.stderr)
+        else:
+            print(
+                "La configuración del .env no es válida y la semilla no corre. Revísala como para la API: este mensaje"
+                " no muestra sus valores.",
+                file=sys.stderr,
+            )
+        return 2
     if configuracion.entorno == "produccion":
-        print("La semilla de demostración no corre con ENTORNO=produccion.", file=sys.stderr)
+        print(MENSAJE_PRODUCCION, file=sys.stderr)
         return 2
     if configuracion.pepper_email is None:
         print("Falta PEPPER_EMAIL en el .env: sin él las cuentas no sirven para iniciar sesión.", file=sys.stderr)
