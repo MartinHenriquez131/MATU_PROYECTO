@@ -194,9 +194,8 @@ def test_sin_version_o_fecha_no_hay_politica(version: str | None, fecha: date | 
 
 
 def test_aceptar_estampa_la_version_y_la_huella_vigentes() -> None:
-    aceptacion = aceptar(POLITICA_PRUEBAS, None, AHORA)
+    aceptacion = aceptar(POLITICA_PRUEBAS, POLITICA_PRUEBAS.huella, AHORA)
     assert (aceptacion.version, aceptacion.huella, aceptacion.aceptada_en) == ("0.11", POLITICA_PRUEBAS.huella, AHORA)
-    assert aceptar(POLITICA_PRUEBAS, POLITICA_PRUEBAS.huella, AHORA) == aceptacion
 
 
 def test_aceptar_con_otra_huella_falla() -> None:
@@ -453,7 +452,7 @@ def test_el_contrato_declara_los_codigos_y_los_campos(esquema: dict[str, Any]) -
     assert "security" not in esquema["paths"]["/v1/politica"]["get"]
     assert {"201", "409", "422", "429", "503"} <= set(esquema["paths"]["/v1/usuarios"]["post"]["responses"])
     registro = esquema["components"]["schemas"]["SolicitudRegistro"]
-    assert "acepta_politica" in registro["required"] and "huella_politica" not in registro["required"]
+    assert {"acepta_politica", "huella_politica"} <= set(registro["required"])
     assert registro["properties"]["acepta_politica"]["const"] is True
     politica = esquema["components"]["schemas"]["PoliticaVista"]
     assert set(politica["properties"]) == {"version", "actualizada_en", "huella", "texto", "correo_contacto"}

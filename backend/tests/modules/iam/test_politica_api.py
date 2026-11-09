@@ -85,6 +85,17 @@ def test_con_una_huella_vencida_responde_409_politica_cambio_y_no_crea_nada(
     assert contar_usuarios_con_email(email_sintetico) == 0
 
 
+@pytest.mark.rf("RF-37")
+def test_sin_huella_no_se_crea_la_cuenta(
+    entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str
+) -> None:
+    """Decisión 182: huella_politica es obligatoria. Sin ella, 422 junto al campo y no se crea nada."""
+    respuesta = _registrar(entorno_iam, email_sintetico, contrasena_sintetica, huella_politica=None)
+    assert respuesta.status_code == 422
+    assert [e["campo"] for e in respuesta.json()["errores"]] == ["huella_politica"]
+    assert contar_usuarios_con_email(email_sintetico) == 0
+
+
 def test_una_huella_mal_formada_es_422(
     entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str
 ) -> None:
@@ -107,10 +118,11 @@ def test_sin_politica_disponible_responde_503_despues_de_validar(
 def test_si_la_aceptacion_falla_no_queda_la_cuenta(
     entorno_iam: EntornoIam, email_sintetico: str, contrasena_sintetica: str
 ) -> None:
-    """La cuenta y su aceptación van en la misma transacción: una huella que la base rechaza no deja la cuenta."""
+    """La cuenta y su aceptación van en la misma transacción: si la base rechaza la aceptación (CHECK de la
+    versión), no queda la cuenta."""
     from dataclasses import replace
 
-    rota = replace(POLITICA_PRUEBAS, huella="no-es-hex")
+    rota = replace(POLITICA_PRUEBAS, version="v0.11")
     entorno_iam.cliente.app.dependency_overrides[obtener_politica_vigente] = lambda: rota  # type: ignore[attr-defined]
 
     assert _registrar(entorno_iam, email_sintetico, contrasena_sintetica).status_code == 500

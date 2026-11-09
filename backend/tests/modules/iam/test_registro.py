@@ -18,8 +18,9 @@ from tests.modules.iam.conftest import (
     filas_indice,
     requiere_base,
 )
+from tests.politica import POLITICA_PRUEBAS
 
-PROBLEMA = "application/problem+json"
+PROBLEMA ="application/problem+json"
 
 
 # --- Camino feliz --------------------------------------------------------------------------
@@ -124,6 +125,7 @@ def test_duplicado_de_la_base_se_traduce_a_409(entorno_iam: EntornoIam, contrase
             "telefono": "+56 9 0000 0001",
             # MATU-75: la casilla de la política, obligatoria
             "acepta_politica": True,
+            "huella_politica": POLITICA_PRUEBAS.huella,
         },
     )
 

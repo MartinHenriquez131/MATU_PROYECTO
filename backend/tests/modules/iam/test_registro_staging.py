@@ -103,6 +103,7 @@ def test_el_caso_de_uso_rechaza_antes_de_hashear_y_de_guardar(contrasena_sinteti
             repositorio=_RepositorioQueNoSeUsa(),  # type: ignore[arg-type]
             politica=POLITICA_PRUEBAS,
             ahora=datetime(2026, 11, 9, 12, tzinfo=UTC),
+            huella_mostrada=POLITICA_PRUEBAS.huella,
             solo_dominios_reservados=True,
         )
 

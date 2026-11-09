@@ -61,6 +61,10 @@ class EntornoIam:
         cuerpo.setdefault("acepta_politica", True)
         if cuerpo["acepta_politica"] is None:
             del cuerpo["acepta_politica"]
+        # Decisión 182: la huella de la política que se mostró, obligatoria. huella_politica=None la omite
+        cuerpo.setdefault("huella_politica", POLITICA_PRUEBAS.huella)
+        if cuerpo["huella_politica"] is None:
+            del cuerpo["huella_politica"]
         respuesta = self.cliente.post("/v1/usuarios", json=cuerpo)
         if respuesta.status_code == 201:
             self.creados.append(uuid.UUID(respuesta.json()["id"]))
