@@ -91,4 +91,4 @@ web/
     └── desarrollo/        lista de ejemplos (solo en desarrollo)
 ```
 
-Los textos que ve quien abre el enlace están todos en `src/relevo/textos.ts`. Los ejemplos de cada campo (decisión D2) se apagan con `MOSTRAR_EJEMPLO`, y la ruta de la política de privacidad (D5) se fija en `RUTA_POLITICA`.
+Los textos que ve quien abre el enlace están todos en `src/relevo/textos.ts`. Los ejemplos de cada campo (decisión D2) se controlan con `MOSTRAR_EJEMPLO`, que está apagado desde el 09-11: en «A quién llamar» el teléfono de ejemplo quedaba bajo el teléfono real y, en una crisis, se podía llamar al número equivocado. El relevo ve solo la pregunta guía; el editor de la familia sigue mostrando los ejemplos, y la ruta de la política de privacidad (D5) se fija en `RUTA_POLITICA`.
