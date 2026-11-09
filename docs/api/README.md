@@ -969,6 +969,8 @@ Contrato escrito el 07-11, **antes de implementar**, con las decisiones de Jorge
 
 La numeración sigue en la 136: la última de esta rama es la 135 (MATU-44).
 
+**Vocabulario** (hallazgo H3 de Martín del 09-11, MATU-72): lo que la app llama **«compras anotadas»** (lo que se anota con «Compré», `lenguaje.md`, sección 23) es la tabla y la entidad **`reposicion`** del modelo de datos (`docs/modelo-datos.md`), con `origen = 'declarada'`. El código, la base, la auditoría (`reposicion.declarar`) y este contrato conservan `reposicion`: cambiarlo exigiría una migración. Los textos al usuario nunca dicen «reposición».
+
 ### Decisiones de MATU-51 (07-11)
 
 136. **Dos rutas por insumo, en el espacio de consumo de la persona** (decisión 54), con `X-Grupo-Id` y sin rutas fijas nuevas (no chocan con `{perfil_id}`):
@@ -1050,7 +1052,7 @@ La numeración sigue en la 149: la última de esta rama es la 148 (MATU-51).
     - **Las autorizaciones** (D2): cada una no revocada, de cualquier finalidad, queda con `revocado_en = ahora` y `revocacion_motivo = 'borrado'`, con un `consentimiento.revocar`. Las ya retiradas conservan su motivo y su fecha.
     - **Los enlaces** (C9): se cortan todos los no vencidos ni cortados, también los bloqueados y los en pausa (la regla `debe_revocar` del retiro, sin duplicarla), con `acceso_relevo.revocado_en` e `indice_token.revocado_en` y un `relevo.revocar` por acceso. En todos los accesos del plan de la persona, cortados o no, `nombre_pila_persona` se reemplaza por el valor fijo `borrada` (D5).
     - **La ficha:** la clave de datos se destruye en una sentencia (`dek_cifrada_con_kek = NULL` y `destruida_en = ahora`, con `clave.destruir`), y **después, en otra sentencia**, se borran todas las filas de `plan_seccion` de la persona (texto cifrado, tipo, autor y fechas) y su plan queda en 0 de 3 (C6). `plan_cuidado` se conserva: borrarlo arrastraría los accesos por `ON DELETE CASCADE`.
-    - **El consumo:** se borran los perfiles de la persona; sus `reposicion` y `alerta_quiebre` caen por `ON DELETE CASCADE`.
+    - **El consumo:** se borran los perfiles de la persona; sus compras anotadas (`reposicion`, ver el vocabulario de MATU-51) y sus `alerta_quiebre` caen por `ON DELETE CASCADE`.
     - **La persona** (D5): `eliminado_en = ahora` y `datos_borrados_en = ahora`; `nombre` y `nombre_pila` pasan al valor fijo `borrada`; `nivel_apoyo` y `direccion_entrega_id` quedan en `NULL`, y la fila de `direccion` se borra si ninguna otra persona la usa. Registra `persona.borrar`.
     - **Se conservan** (D4, C12), sin texto de la ficha: la auditoría, las filas de `consentimiento`, las de `acceso_relevo` y las aperturas del relevo, por sus plazos, y `notificacion` y el outbox, que llevan solo identificadores. No lee ni toca `pedido` (la capa 3 se puede quitar): si existiera uno, se conserva.
     - **Si algo falla, nada queda escrito** (C13): ni la marca, ni una revocación, ni un corte, ni la clave destruida, ni la auditoría.
