@@ -46,7 +46,8 @@ aleatoria. --restablecer no cambia las contraseñas.
 Credenciales (regla de Jorge del 08-11: los logs nunca llevan PIN ni tokens): por omisión la salida NUNCA trae el
 PIN, el enlace del relevo ni la contraseña aleatoria. Van a infra/semillas/salida/ (relevo-demo.txt y
 contrasena-demo.txt), que git ignora, con permisos solo para el dueño si el sistema lo permite, y la salida dice
-solo dónde quedaron. Vale también si la corrida se detiene a la mitad. --mostrar-credenciales las imprime en la
+solo dónde quedaron. Vale también si la corrida se detiene a la mitad. Con SEMILLA_PIN, el PIN no se escribe en el
+archivo ni se imprime nunca: el archivo dice que es el de SEMILLA_PIN. --mostrar-credenciales las imprime en la
 terminal: para quien corre la semilla desde su computador (railway run), donde la salida queda en su máquina.
 
 Desde la raíz del repositorio, con el entorno virtual de backend/ activo:
@@ -927,10 +928,20 @@ def enlace_relevo(relevo: RelevoSembrado, origen_web: str) -> str:
     return f"{origen_web}/r#{relevo.entregado.token}"
 
 
-def guardar_relevo(relevo: RelevoSembrado, origen_web: str, archivo: Path = ARCHIVO_RELEVO) -> str:
-    """Escribe el enlace y el PIN del relevo recién creado en ``archivo`` (ignorado por git). Devuelve el enlace."""
+def guardar_relevo(
+    relevo: RelevoSembrado, origen_web: str, archivo: Path = ARCHIVO_RELEVO, *, pin_de_entorno: bool = False
+) -> str:
+    """Escribe el enlace del relevo recién creado en ``archivo`` (ignorado por git). Devuelve el enlace.
+
+    El PIN se escribe solo si es aleatorio, porque el archivo es la única forma de conocerlo. Si viene de
+    SEMILLA_PIN (``pin_de_entorno``), el equipo ya lo conoce: el archivo dice que es ese, sin escribirlo."""
     assert relevo.entregado is not None
     enlace = enlace_relevo(relevo, origen_web)
+    linea_pin = (
+        f"pin: el de la variable {VARIABLE_PIN} (no se escribe aquí)\n"
+        if pin_de_entorno
+        else f"pin: {relevo.entregado.pin}\n"
+    )
     _escribir_privado(
         archivo,
         "Relevo de ejemplo de la demo de MATU. Datos sintéticos. No subir a git ni compartir fuera del equipo.\n"
@@ -938,8 +949,7 @@ def guardar_relevo(relevo: RelevoSembrado, origen_web: str, archivo: Path = ARCH
         f"grupo: {relevo.grupo}\n"
         f"relevo: {relevo.nombre_relevo}\n"
         f"vence: {relevo.expira_en.isoformat()}\n"
-        f"enlace: {enlace}\n"
-        f"pin: {relevo.entregado.pin}\n",
+        f"enlace: {enlace}\n" + linea_pin,
     )
     return enlace
 
@@ -970,17 +980,22 @@ def _contrasena_de_las_creadas(creadas: int, contrasena: str, desde_entorno: boo
         print()
 
 
-def _relevo_creado(relevo: RelevoSembrado, origen_web: str, mostrar: bool) -> None:
-    """Guarda el relevo recién creado y dice dónde quedó. Solo con --mostrar-credenciales salen el enlace y el PIN."""
-    enlace = guardar_relevo(relevo, origen_web, ARCHIVO_RELEVO)
+def _relevo_creado(relevo: RelevoSembrado, origen_web: str, mostrar: bool, pin_de_entorno: bool = False) -> None:
+    """Guarda el relevo recién creado y dice dónde quedó. Solo con --mostrar-credenciales salen el enlace y, si es
+    aleatorio, el PIN. El PIN de SEMILLA_PIN nunca se imprime ni se escribe: el equipo ya lo conoce."""
+    enlace = guardar_relevo(relevo, origen_web, ARCHIVO_RELEVO, pin_de_entorno=pin_de_entorno)
     assert relevo.entregado is not None
-    print(
+    vence = (
         f"Relevo de ejemplo ({relevo.grupo}, para {relevo.nombre_relevo}), vence el "
-        f"{relevo.expira_en.astimezone(HORA_CHILE):%d/%m/%Y %H:%M} (hora de Chile). Su enlace y su PIN: en "
-        f"{ARCHIVO_RELEVO}."
+        f"{relevo.expira_en.astimezone(HORA_CHILE):%d/%m/%Y %H:%M} (hora de Chile)."
     )
+    if pin_de_entorno:
+        print(f"{vence} Su enlace: en {ARCHIVO_RELEVO}. Su PIN: el de {VARIABLE_PIN}.")
+    else:
+        print(f"{vence} Su enlace y su PIN: en {ARCHIVO_RELEVO}.")
     if mostrar:
-        print(f"  enlace: {enlace}\n  PIN: {relevo.entregado.pin}")
+        print(f"  enlace: {enlace}")
+        print(f"  PIN: el de {VARIABLE_PIN}" if pin_de_entorno else f"  PIN: {relevo.entregado.pin}")
 
 
 def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
@@ -995,7 +1010,8 @@ def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
         "--mostrar-credenciales",
         action="store_true",
         help="imprime en la terminal el PIN y el enlace del relevo y la contraseña aleatoria, además de guardarlos en"
-        " infra/semillas/salida/. Solo desde tu computador (railway run): nunca donde la salida quede en un log",
+        " infra/semillas/salida/. El PIN de SEMILLA_PIN no se imprime nunca. Solo desde tu computador (railway run):"
+        " nunca donde la salida quede en un log",
     )
     return parser.parse_args(argv)
 
@@ -1077,6 +1093,7 @@ def main(argv: Sequence[str] = ()) -> int:
         return 2
 
     contrasena, desde_entorno = _contrasena()
+    pin_relevo = _pin()
     sembradora = Sembradora(
         fabrica=fabrica,
         pepper=configuracion.pepper_email.get_secret_value().encode("utf-8"),
@@ -1086,8 +1103,10 @@ def main(argv: Sequence[str] = ()) -> int:
         custodia=custodia,
         pepper_pin=configuracion.pepper_pin.get_secret_value().encode("utf-8"),
         politica=politica,
-        pin_relevo=_pin(),
-        al_crear_relevo=lambda relevo: _relevo_creado(relevo, configuracion.origen_web, mostrar),
+        pin_relevo=pin_relevo,
+        al_crear_relevo=lambda relevo: _relevo_creado(
+            relevo, configuracion.origen_web, mostrar, pin_de_entorno=pin_relevo is not None
+        ),
     )
     print(f"Semilla de demostración (ENTORNO={configuracion.entorno}).\n")
     try:
