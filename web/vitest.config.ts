@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react'
 // index.html, así que nunca entran a web/dist. Sin el doble ni Tailwind: no hace falta servidor.
 export default defineConfig({
   plugins: [react()],
+  // MATU-67: la versión que corre en las pruebas. El `version.json` falso de cada prueba la compara.
+  define: { __MATU_VERSION__: JSON.stringify('prueba') },
   test: {
     environment: 'jsdom',
     include: ['pruebas/**/*.test.{ts,tsx}'],
