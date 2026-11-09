@@ -37,16 +37,29 @@ Con la base levantada, migrada (`alembic upgrade head`) y el `.env` completo: `D
 ```
 python infra/semillas/demo.py                 # siembra lo que falta
 python infra/semillas/demo.py --restablecer   # deja las dos familias como recién sembradas
+python infra/semillas/demo.py --mostrar-credenciales   # además imprime el PIN, el enlace y la contraseña
 ```
 
-- **Contraseña.** Las cuentas nuevas usan la de la variable de entorno `SEMILLA_CONTRASENA` (10 a 128 caracteres), definida solo en la terminal donde se corre la semilla, y que no se imprime. Si no está, la semilla genera una aleatoria y la imprime **una sola vez**, también si la siembra se corta a medias: anótala. Nunca se guarda en un archivo ni en el repositorio.
-- **El relevo de ejemplo.** Su enlace y su PIN salen **una sola vez** en la salida y quedan en `infra/semillas/salida/relevo-demo.txt`, que git ignora (`infra/semillas/.gitignore`). La base guarda solo sus huellas: si el archivo se pierde, `--restablecer` crea uno nuevo. Con `SEMILLA_PIN` (4 dígitos) en la terminal, el PIN es ese, para que el equipo lo conozca de antemano; si no, es aleatorio. No corras la semilla donde su salida quede en un log compartido.
+- **Las credenciales nunca salen en la salida** (regla aprobada por Jorge el 08-11: los logs nunca llevan PIN ni tokens). Por omisión, la semilla no imprime el PIN, el enlace del relevo ni la contraseña aleatoria: los guarda en `infra/semillas/salida/`, que git ignora (`infra/semillas/.gitignore`), con permisos solo para el dueño si el sistema lo permite, y la salida dice solo dónde quedaron. Vale también si la corrida se detiene a la mitad, y los errores nunca muestran el texto del driver. `--mostrar-credenciales` sí los imprime en la terminal: úsalo solo desde tu computador.
+- **Contraseña.** Las cuentas nuevas usan la de la variable de entorno `SEMILLA_CONTRASENA` (10 a 128 caracteres), definida solo en la terminal donde se corre la semilla, y que no se imprime. Si no está, la semilla genera una aleatoria y la guarda en `infra/semillas/salida/contrasena-demo.txt`. Nunca va al repositorio.
+- **El relevo de ejemplo.** Su enlace y su PIN quedan en `infra/semillas/salida/relevo-demo.txt`. La base guarda solo sus huellas: si el archivo se pierde, `--restablecer` crea uno nuevo. Con `SEMILLA_PIN` (4 dígitos) en la terminal, el PIN es ese, para que el equipo lo conozca de antemano; si no, es aleatorio.
 - **Idempotente.** Se puede correr varias veces: lo que ya existe no se duplica (cuenta por correo, grupo, membresía, persona por nombre, autorización vigente, campo o sección ya escritos, insumo del mismo producto, relevo vigente), y la segunda corrida no deja ni una fila más en la auditoría. Una cuenta que ya existía conserva su contraseña.
-- **Restablecer en menos de 10 minutos** (unos 10 segundos en local). `--restablecer` borra al tiro a cada persona de los dos grupos con el mismo caso de uso de «Borrar sus datos» (MATU-72): corta sus enlaces, destruye su clave y borra su ficha, sus insumos y sus alertas. Después vuelve a sembrar todo y deja el catálogo con sus precios y stock. Las cuentas y los grupos quedan, con su contraseña. No toca las cuentas ni los grupos que se crearon durante la demo (el recorrido 1): para repetirlo, usa otro correo de `example.com`.
+- **Restablecer en menos de 10 minutos** (unos 10 segundos en local). `--restablecer` borra al tiro a cada persona de los dos grupos con el mismo caso de uso de «Borrar sus datos» (MATU-72): corta sus enlaces, destruye su clave y borra su ficha, sus insumos y sus alertas. Después vuelve a sembrar todo y deja el catálogo con sus precios y stock. Las cuentas y los grupos quedan. No toca las cuentas ni los grupos que se crearon durante la demo (el recorrido 1): para repetirlo, usa otro correo de `example.com`.
+- **`--restablecer` no cambia las contraseñas.** Una cuenta que ya existía conserva la suya, aunque `SEMILLA_CONTRASENA` sea otra. Para cambiarlas hay que vaciar la base y volver a sembrar.
 - **Nunca en producción.** Con `ENTORNO=produccion` se niega a correr.
 - **Solo como `matu_app`.** Al conectarse comprueba `SELECT current_user`. Si `DATABASE_URL` entra con otro rol (el dueño de la base o un superusuario), se detiene con salida 2 antes de escribir nada, sin mostrar la URL.
 
 > **Las pruebas del backend vacían la base local** (`test_aislamiento.py` hace `TRUNCATE` al empezar), y con ella esta semilla. Después de correr `pytest`, vuelve a sembrar. No guardes datos de trabajo en la base local.
+
+### En Railway (staging y demostración)
+
+Córrela **desde tu computador** con `railway run`, que toma las variables del servicio y deja la salida en tu máquina:
+
+```
+railway run python infra/semillas/demo.py --restablecer
+```
+
+**Nunca como tarea, job o comando de arranque dentro de Railway:** su salida quedaría en los logs del servicio. Define `SEMILLA_CONTRASENA` y `SEMILLA_PIN` como variables del entorno de la terminal donde corres `railway run`: así el equipo ya conoce los valores y no hace falta mostrarlos. Si de todas formas los necesitas en pantalla, `--mostrar-credenciales` los imprime, y solo en tu terminal. Los archivos de `infra/semillas/salida/` quedan en tu computador.
 
 ### Los recorridos que deja listos
 

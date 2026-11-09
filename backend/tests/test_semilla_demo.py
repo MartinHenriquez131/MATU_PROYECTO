@@ -581,9 +581,13 @@ def test_el_relevo_de_ejemplo_abre_la_ficha_con_su_pin(
     pepper_pin: bytes,
 ) -> None:
     familias = _familias_unicas()
+    entregados: list[Any] = []
+    sembradora.al_crear_relevo = entregados.append
     sembrado = _sembrar(fabrica, sembradora, familias, catalogo)
     relevo = sembrado.familias[0].relevo
     assert relevo is not None and relevo.entregado is not None
+    # main lo recibe apenas se confirma, para guardarlo aunque la corrida se detenga después
+    assert entregados == [relevo]
     token, pin = relevo.entregado.token, relevo.entregado.pin
     assert pin == PIN
     # Vale 7 días, dentro del máximo de 30
@@ -739,6 +743,9 @@ def entorno_local(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
     monkeypatch.setenv("KEK_ENTORNO", base64.b64encode(secrets.token_bytes(32)).decode())
     monkeypatch.setenv("DATABASE_URL", URL_SINTETICA)
     monkeypatch.setattr(demo, "ARCHIVO_RELEVO", tmp_path / "relevo-demo.txt")
+    monkeypatch.setattr(demo, "ARCHIVO_CONTRASENA", tmp_path / "contrasena-demo.txt")
+    monkeypatch.delenv(demo.VARIABLE_CONTRASENA, raising=False)
+    monkeypatch.delenv(demo.VARIABLE_PIN, raising=False)
     obtener_configuracion.cache_clear()
     yield
     obtener_configuracion.cache_clear()
@@ -834,6 +841,126 @@ def test_sin_custodia_ni_pepper_pin_no_siembra(
 
     assert sembro == []
     assert falta in capsys.readouterr().err
+
+
+# --- Las credenciales nunca salen sin --mostrar-credenciales (regla de Jorge del 08-11) --------------------------
+
+TOKEN_FALSO = "Tk" + "x9" * 20 + "Q"  # 43 caracteres, como un token base64url
+PIN_FALSO = "7319"
+
+
+def _sembrar_con_credenciales(monkeypatch: pytest.MonkeyPatch, falla: Exception | None = None) -> list[str]:
+    """La semilla crea dos cuentas con la contraseña aleatoria y el relevo de ejemplo y, si ``falla``, se detiene
+    justo después, como lo haría con la segunda familia."""
+    sembro = _con_rol(monkeypatch, "matu_app")
+
+    def sembrar(sembradora: Any, contrasena: str, productos: Any, *_: Any, **__: Any) -> Any:
+        sembradora.cuentas_creadas += 2
+        relevo = demo.RelevoSembrado(
+            acceso_id=uuid.uuid4(), grupo="Familia Soto", nombre_relevo="Rosa",
+            expira_en=RelojSistema().ahora() + timedelta(days=7),
+            entregado=SimpleNamespace(token=TOKEN_FALSO, pin=PIN_FALSO),
+        )
+        sembradora.al_crear_relevo(relevo)
+        if falla is not None:
+            raise falla
+        familia = demo.FamiliaSembrada(
+            grupo_id=uuid.uuid4(), usuarios=(), persona_id=uuid.uuid4(), persona_creada=True, relevo=relevo
+        )
+        return demo.SemillaSembrada(familias=[familia], cuentas=[])
+
+    monkeypatch.setattr(demo, "sembrar", sembrar)
+    return sembro
+
+
+def _contrasena_guardada() -> str:
+    linea = next(x for x in demo.ARCHIVO_CONTRASENA.read_text(encoding="utf-8").splitlines() if x.startswith("contr"))
+    return linea.split(": ", 1)[1]
+
+
+def _credenciales_en(salida: str) -> list[str]:
+    """Cuáles de las tres credenciales aparecen en la salida."""
+    encontradas = []
+    if TOKEN_FALSO in salida:
+        encontradas.append("token")
+    if aparece_como_dato(PIN_FALSO, salida):
+        encontradas.append("pin")
+    if _contrasena_guardada() in salida:
+        encontradas.append("contrasena")
+    return encontradas
+
+
+def _archivos_completos() -> None:
+    relevo = demo.ARCHIVO_RELEVO.read_text(encoding="utf-8")
+    assert TOKEN_FALSO in relevo and f"pin: {PIN_FALSO}" in relevo
+    assert len(_contrasena_guardada()) >= 10
+
+
+@MATU_64
+def test_sin_la_opcion_la_salida_no_trae_credenciales(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _sembrar_con_credenciales(monkeypatch)
+
+    assert demo.main([]) == 0
+
+    capturada = capsys.readouterr()
+    salida = capturada.out + capturada.err
+    _archivos_completos()
+    assert _credenciales_en(salida) == []
+    # Solo dice dónde quedaron
+    assert str(demo.ARCHIVO_RELEVO) in salida and str(demo.ARCHIVO_CONTRASENA) in salida
+
+
+@MATU_64
+def test_con_la_opcion_la_salida_trae_las_credenciales(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _sembrar_con_credenciales(monkeypatch)
+
+    assert demo.main(["--mostrar-credenciales"]) == 0
+
+    capturada = capsys.readouterr()
+    _archivos_completos()
+    assert _credenciales_en(capturada.out + capturada.err) == ["token", "pin", "contrasena"]
+
+
+@MATU_64
+@pytest.mark.parametrize("falla", ["semilla", "base"])
+def test_si_se_detiene_a_la_mitad_tampoco_salen(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], falla: str
+) -> None:
+    from sqlalchemy.exc import OperationalError
+
+    # El error de la base trae el token en su texto: la semilla no lo muestra
+    error = (
+        demo.SemillaInconsistente("Un miembro de la semilla ya está en el grupo con otro rol")
+        if falla == "semilla"
+        else OperationalError("INSERT", {"token": TOKEN_FALSO}, Exception(TOKEN_FALSO))
+    )
+    _sembrar_con_credenciales(monkeypatch, error)
+
+    assert demo.main([]) == 1
+
+    capturada = capsys.readouterr()
+    salida = capturada.out + capturada.err
+    # El enlace, el PIN y la contraseña quedaron guardados, y la salida dice dónde, sin mostrarlos
+    _archivos_completos()
+    assert _credenciales_en(salida) == []
+    assert str(demo.ARCHIVO_RELEVO) in salida and str(demo.ARCHIVO_CONTRASENA) in salida
+
+
+@MATU_64
+def test_los_archivos_de_credenciales_son_solo_del_dueno(tmp_path: Path) -> None:
+    archivo = tmp_path / "salida" / "contrasena-demo.txt"
+    demo.guardar_contrasena("clave-sintetica-123", 3, archivo)
+    assert "contrasena: clave-sintetica-123" in archivo.read_text(encoding="utf-8")
+    if sys.platform != "win32":
+        assert archivo.stat().st_mode & 0o077 == 0
+    # Las dos van a la carpeta que git ignora
+    for ruta in (demo.ARCHIVO_RELEVO, demo.ARCHIVO_CONTRASENA):
+        ignorado = subprocess.run(["git", "check-ignore", "-q", str(ruta)], cwd=RAIZ, check=False)
+        assert ignorado.returncode == 0, ruta.name
 
 
 @requiere_base

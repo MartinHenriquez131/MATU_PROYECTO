@@ -15,8 +15,7 @@ Cada persona trae, todo por los casos de uso de la API y conectada como matu_app
 3. Sus insumos (MATU-36), hechos para que uno se acabe pronto: el trabajo diario (MATU-37) corre al final, solo
    para los grupos de la semilla, y deja la alerta abierta sin esperar a las 04:00.
 4. Familia Soto: un acceso de relevo de ejemplo vigente por 7 días (MATU-18), con las secciones «quién es» y
-   «lo que le gusta». El enlace y el PIN salen una sola vez en la salida y en salida/relevo-demo.txt, que git
-   ignora. Nunca en el repositorio. Con SEMILLA_PIN (4 dígitos) el PIN es ese; si no, uno aleatorio.
+   «lo que le gusta». Con SEMILLA_PIN (4 dígitos) el PIN es ese; si no, uno aleatorio.
 
 Antes de las familias siembra el catálogo curado de MATU-59 (infra/semillas/catalogo_demo.py): los insumos se
 anotan con sus productos. Cada cuenta tiene su propio correo (example.com o example.org, dominios reservados) y su
@@ -38,12 +37,19 @@ y vuelve a sembrar. Las cuentas y los grupos quedan, con su contraseña. No toca
 la demo fuera de las dos familias.
 
 Contraseña de las cuentas nuevas: la de la variable SEMILLA_CONTRASENA (10 a 128 caracteres) o, si no está, una
-aleatoria que se imprime una sola vez. Nunca se escribe en el repositorio.
+aleatoria. --restablecer no cambia las contraseñas.
+
+Credenciales (regla de Jorge del 08-11: los logs nunca llevan PIN ni tokens): por omisión la salida NUNCA trae el
+PIN, el enlace del relevo ni la contraseña aleatoria. Van a infra/semillas/salida/ (relevo-demo.txt y
+contrasena-demo.txt), que git ignora, con permisos solo para el dueño si el sistema lo permite, y la salida dice
+solo dónde quedaron. Vale también si la corrida se detiene a la mitad. --mostrar-credenciales las imprime en la
+terminal: para quien corre la semilla desde su computador (railway run), donde la salida queda en su máquina.
 
 Desde la raíz del repositorio, con el entorno virtual de backend/ activo:
 
-    python infra/semillas/demo.py                 siembra lo que falta
-    python infra/semillas/demo.py --restablecer   borra lo de las dos familias y vuelve a sembrar
+    python infra/semillas/demo.py                          siembra lo que falta
+    python infra/semillas/demo.py --restablecer            borra lo de las dos familias y vuelve a sembrar
+    python infra/semillas/demo.py --mostrar-credenciales   además imprime el PIN, el enlace y la contraseña
 
 Se niega a correr con ENTORNO=produccion, y si DATABASE_URL no entra como matu_app (SELECT current_user), sin
 mostrar la URL. Necesita CUSTODIA_KEK=entorno_sintetico con KEK_ENTORNO (la ficha) y PEPPER_PIN (el relevo). Ojo:
@@ -61,7 +67,7 @@ import re
 import secrets
 import sys
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -152,8 +158,11 @@ VARIABLE_PIN = "SEMILLA_PIN"
 # El único rol con el que la semilla escribe: RLS se aplica a matu_app, no al dueño ni a un superusuario
 ROL_ESPERADO = "matu_app"
 
-# Donde queda el enlace y el PIN del relevo de ejemplo. infra/semillas/.gitignore ignora la carpeta
-ARCHIVO_RELEVO = Path(__file__).resolve().parent / "salida" / "relevo-demo.txt"
+# Donde quedan el enlace y el PIN del relevo de ejemplo y la contraseña aleatoria. infra/semillas/.gitignore
+# ignora la carpeta
+CARPETA_SALIDA = Path(__file__).resolve().parent / "salida"
+ARCHIVO_RELEVO = CARPETA_SALIDA / "relevo-demo.txt"
+ARCHIVO_CONTRASENA = CARPETA_SALIDA / "contrasena-demo.txt"
 
 # Cuánto vale el relevo de ejemplo: alcanza para preparar y dar la demo (el máximo de MATU-18 es 30 días)
 VIGENCIA_RELEVO = timedelta(days=7)
@@ -443,6 +452,9 @@ class Sembradora:
     pin_relevo: str | None = field(default=None, repr=False)
     # Cuántas cuentas creó: si la siembra se corta a medias, main igual muestra su contraseña
     cuentas_creadas: int = 0
+    # Recibe el relevo recién creado apenas se confirma su transacción: main lo guarda en el archivo, así el enlace
+    # y el PIN quedan aunque la corrida se detenga después
+    al_crear_relevo: Callable[["RelevoSembrado"], None] | None = field(default=None, repr=False)
 
     # --- Cuentas, grupo, membresías y persona (MATU-30) ---------------------------------------------------
 
@@ -684,13 +696,17 @@ class Sembradora:
                 HuellasHmac(self.pepper_pin),
                 self.reloj,
             )
-            return RelevoSembrado(
-                acceso_id=entregado.id,
-                grupo=grupo,
-                nombre_relevo=relevo.nombre,
-                expira_en=entregado.expira_en,
-                entregado=entregado,
-            )
+        # Fuera del with: la transacción ya se confirmó
+        creado = RelevoSembrado(
+            acceso_id=entregado.id,
+            grupo=grupo,
+            nombre_relevo=relevo.nombre,
+            expira_en=entregado.expira_en,
+            entregado=entregado,
+        )
+        if self.al_crear_relevo is not None:
+            self.al_crear_relevo(creado)
+        return creado
 
     def alertas(self, grupo_id: uuid.UUID) -> int:
         """El trabajo diario de MATU-37 para este grupo, ahora: deja la alerta abierta sin esperar a las 04:00.
@@ -875,12 +891,30 @@ def _custodia() -> CustodiaClaves | None:
     return CustodiaKekEntorno(config.kek_entorno, kek_version=config.kek_version, entorno=config.entorno)
 
 
+def _escribir_privado(archivo: Path, contenido: str) -> None:
+    """Escribe ``contenido`` en ``archivo`` (de infra/semillas/salida/, que git ignora) con permisos solo para el
+    dueño si el sistema lo permite. En Windows chmod solo cambia el atributo de solo lectura."""
+    archivo.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(archivo, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as salida:
+        salida.write(contenido)
+    try:
+        archivo.chmod(0o600)
+    except OSError:  # pragma: no cover - depende del sistema de archivos
+        pass
+
+
+def enlace_relevo(relevo: RelevoSembrado, origen_web: str) -> str:
+    assert relevo.entregado is not None
+    return f"{origen_web}/r#{relevo.entregado.token}"
+
+
 def guardar_relevo(relevo: RelevoSembrado, origen_web: str, archivo: Path = ARCHIVO_RELEVO) -> str:
     """Escribe el enlace y el PIN del relevo recién creado en ``archivo`` (ignorado por git). Devuelve el enlace."""
     assert relevo.entregado is not None
-    enlace = f"{origen_web}/r#{relevo.entregado.token}"
-    archivo.parent.mkdir(parents=True, exist_ok=True)
-    archivo.write_text(
+    enlace = enlace_relevo(relevo, origen_web)
+    _escribir_privado(
+        archivo,
         "Relevo de ejemplo de la demo de MATU. Datos sintéticos. No subir a git ni compartir fuera del equipo.\n"
         f"acceso: {relevo.acceso_id}\n"
         f"grupo: {relevo.grupo}\n"
@@ -888,24 +922,47 @@ def guardar_relevo(relevo: RelevoSembrado, origen_web: str, archivo: Path = ARCH
         f"vence: {relevo.expira_en.isoformat()}\n"
         f"enlace: {enlace}\n"
         f"pin: {relevo.entregado.pin}\n",
-        encoding="utf-8",
     )
-    try:
-        archivo.chmod(0o600)
-    except OSError:  # pragma: no cover - en Windows chmod solo cambia el atributo de solo lectura
-        pass
     return enlace
 
 
-def _contrasena_de_las_creadas(creadas: int, contrasena: str, desde_entorno: bool) -> None:
-    """La contraseña de las cuentas creadas en esta corrida, también si la siembra se cortó a medias."""
+def guardar_contrasena(contrasena: str, creadas: int, archivo: Path = ARCHIVO_CONTRASENA) -> None:
+    """Escribe la contraseña aleatoria de las cuentas creadas en ``archivo`` (ignorado por git)."""
+    _escribir_privado(
+        archivo,
+        "Contraseña de las cuentas de la demo de MATU creadas en la última corrida que creó cuentas. Datos"
+        " sintéticos. No subir a git ni compartir fuera del equipo.\n"
+        f"cuentas creadas: {creadas}\n"
+        f"contrasena: {contrasena}\n",
+    )
+
+
+def _contrasena_de_las_creadas(creadas: int, contrasena: str, desde_entorno: bool, mostrar: bool) -> None:
+    """Dónde quedó la contraseña de las cuentas creadas en esta corrida, también si la siembra se cortó a medias.
+    Solo con --mostrar-credenciales sale el valor."""
     if creadas == 0:
         print("No se creó ninguna cuenta.\n")
     elif desde_entorno:
         print(f"Contraseña de las {creadas} cuentas creadas: la de {VARIABLE_CONTRASENA}.\n")
     else:
-        # Única vez que se muestra. No se guarda en ningún archivo
-        print(f"Contraseña de las {creadas} cuentas creadas (anótala, no se vuelve a mostrar): {contrasena}\n")
+        guardar_contrasena(contrasena, creadas, ARCHIVO_CONTRASENA)
+        print(f"Contraseña aleatoria de las {creadas} cuentas creadas: en {ARCHIVO_CONTRASENA}.")
+        if mostrar:
+            print(f"  contraseña: {contrasena}")
+        print()
+
+
+def _relevo_creado(relevo: RelevoSembrado, origen_web: str, mostrar: bool) -> None:
+    """Guarda el relevo recién creado y dice dónde quedó. Solo con --mostrar-credenciales salen el enlace y el PIN."""
+    enlace = guardar_relevo(relevo, origen_web, ARCHIVO_RELEVO)
+    assert relevo.entregado is not None
+    print(
+        f"Relevo de ejemplo ({relevo.grupo}, para {relevo.nombre_relevo}), vence el "
+        f"{relevo.expira_en.astimezone(HORA_CHILE):%d/%m/%Y %H:%M} (hora de Chile). Su enlace y su PIN: en "
+        f"{ARCHIVO_RELEVO}."
+    )
+    if mostrar:
+        print(f"  enlace: {enlace}\n  PIN: {relevo.entregado.pin}")
 
 
 def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
@@ -914,13 +971,20 @@ def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
         "--restablecer",
         action="store_true",
         help="borra lo de las dos familias de la semilla (personas, fichas, insumos, alertas y relevos) y vuelve a"
-        " sembrar. Las cuentas y los grupos quedan, con su contraseña",
+        " sembrar. Las cuentas y los grupos quedan, con su contraseña: no la cambia",
+    )
+    parser.add_argument(
+        "--mostrar-credenciales",
+        action="store_true",
+        help="imprime en la terminal el PIN y el enlace del relevo y la contraseña aleatoria, además de guardarlos en"
+        " infra/semillas/salida/. Solo desde tu computador (railway run): nunca donde la salida quede en un log",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] = ()) -> int:
     argumentos = _argumentos(argv)
+    mostrar = bool(argumentos.mostrar_credenciales)
     configuracion = obtener_configuracion()
     if configuracion.entorno == "produccion":
         print("La semilla de demostración no corre con ENTORNO=produccion.", file=sys.stderr)
@@ -969,6 +1033,7 @@ def main(argv: Sequence[str] = ()) -> int:
         custodia=custodia,
         pepper_pin=configuracion.pepper_pin.get_secret_value().encode("utf-8"),
         pin_relevo=_pin(),
+        al_crear_relevo=lambda relevo: _relevo_creado(relevo, configuracion.origen_web, mostrar),
     )
     print(f"Semilla de demostración (ENTORNO={configuracion.entorno}).\n")
     try:
@@ -990,7 +1055,7 @@ def main(argv: Sequence[str] = ()) -> int:
         )
         return 1
     finally:
-        _contrasena_de_las_creadas(sembradora.cuentas_creadas, contrasena, desde_entorno)
+        _contrasena_de_las_creadas(sembradora.cuentas_creadas, contrasena, desde_entorno, mostrar)
 
     for c in resultado.cuentas:
         permiso = ", ve el plan" if c.puede_ver_plan else ""
@@ -1014,15 +1079,7 @@ def main(argv: Sequence[str] = ()) -> int:
     for f in familias:
         if f.relevo is None:
             continue
-        if f.relevo.entregado is not None:
-            enlace = guardar_relevo(f.relevo, configuracion.origen_web)
-            # Única vez que se muestran. Quedan también en el archivo, que git ignora
-            print(
-                f"\nRelevo de ejemplo ({f.relevo.grupo}, para {f.relevo.nombre_relevo}), vence el "
-                f"{f.relevo.expira_en.astimezone(HORA_CHILE):%d/%m/%Y %H:%M} (hora de Chile):\n"
-                f"  enlace: {enlace}\n  PIN: {f.relevo.entregado.pin}\n  Guardados en {ARCHIVO_RELEVO}."
-            )
-        else:
+        if f.relevo.entregado is None:
             print(
                 f"\nRelevo de ejemplo ({f.relevo.grupo}): ya existía y sigue vigente. Su enlace y su PIN están en "
                 f"{ARCHIVO_RELEVO} si se creó en este equipo; si no, --restablecer crea uno nuevo."
