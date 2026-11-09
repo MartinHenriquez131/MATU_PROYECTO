@@ -20,7 +20,7 @@ const CUENTA: Cuenta = {
   id: '3c9d4e20-0000-4000-8000-0000000000c2',
   nombre: 'Carmen',
   email: 'carmen@example.org',
-  celular_enmascarado: '+56 9 •••• 0137',
+  celular_enmascarado: '+56 9 •••• ••37',
   celular_verificado: true,
   celular_canal: 'sms',
   politica_aceptada: { version: '0.11', huella: 'a'.repeat(64), aceptada_en: '2026-11-09T15:00:00Z' },
@@ -46,7 +46,7 @@ describe('«Tu cuenta» en modo angosto (MATU-57)', () => {
     responderPolitica()
     render(<TuCuenta />)
 
-    const numero = await screen.findByText('+56 9 •••• 0137')
+    const numero = await screen.findByText('+56 9 •••• ••37')
     expect(numero).toHaveClass('angosto:whitespace-normal')
     expect(numero).not.toHaveClass('whitespace-nowrap')
     expect(numero.closest('dl')).toHaveClass('px-4', 'angosto:px-2')
