@@ -32,7 +32,7 @@ Todo pasa por los casos de uso de la API, conectada como `matu_app`: registro co
 
 ### Cómo correrla
 
-Con la base levantada, migrada (`alembic upgrade head`) y el `.env` completo: `DATABASE_URL`, `PEPPER_EMAIL`, `POLITICA_VERSION`, `PEPPER_PIN`, `CUSTODIA_KEK=entorno_sintetico` con `KEK_ENTORNO`, y `ORIGEN_WEB` para el enlace del relevo. Desde la **raíz del repositorio**, con el entorno virtual de `backend/` activo:
+Con la base levantada, migrada (`alembic upgrade head`) y el `.env` completo: `DATABASE_URL`, `PEPPER_EMAIL`, `POLITICA_VERSION` con `POLITICA_ACTUALIZADA_EN` (MATU-75: cada cuenta nueva acepta la política vigente), `PEPPER_PIN`, `CUSTODIA_KEK=entorno_sintetico` con `KEK_ENTORNO`, y `ORIGEN_WEB` para el enlace del relevo. Desde la **raíz del repositorio**, con el entorno virtual de `backend/` activo:
 
 ```
 python infra/semillas/demo.py                 # siembra lo que falta

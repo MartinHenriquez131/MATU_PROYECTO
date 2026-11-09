@@ -1,7 +1,7 @@
 """Adaptador SQL del puerto RepositorioAperturas (MATU-45, RF-08).
 
 Con la sesión del contexto de grupo (sesion_de_grupo). RLS: auditoria_aperturas_relevo (0010) muestra
-las filas de los relevos del grupo a quien puede ver el plan, y acceso_familia los accesos del grupo. El
+las filas de los relevos del grupo a quien puede ver el plan, y acceso_familia_leer los accesos del grupo. El
 filtro por grupo es explícito además de RLS.
 
 Lee solo el id, el instante y la acción de auditoria, y el id y el nombre del acceso. Nunca la IP, el

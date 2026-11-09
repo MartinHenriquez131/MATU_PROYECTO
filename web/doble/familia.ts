@@ -7,7 +7,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaLista, perfil, type ConsumoDoble } from './consumo'
-import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
+import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, DOMINIO_NO_PERMITIDO } from './cuentas'
+import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -85,6 +86,8 @@ interface Usuario {
   telefono: string | null
   celularVerificado: boolean
   canal: 'sms' | 'whatsapp'
+  /** MATU-75: la última política que aceptó, o `null` si la cuenta no tiene registro (decisión 179). */
+  politica: { version: string; huella: string; aceptada_en: string } | null
 }
 
 
@@ -227,6 +230,11 @@ function conSecciones(p: Persona, autor: { id: string; nombre: string }, lista: 
 
 const usuarios = new Map<string, Usuario>()
 
+/** MATU-75: cuándo aceptaron la política las cuentas de ejemplo (09/11/2026, 12:00 de Chile). */
+const ACEPTADA_EN_EJEMPLO = '2026-11-09T15:00:00Z'
+/** Los correos que ya vieron su 409 `politica-cambio`: el segundo intento crea la cuenta. */
+const politicaCambiada = new Set<string>()
+
 /** `Retry-After` del 429 por IP al crear la cuenta, por correo; `null` = sin la cabecera. */
 const ESPERA_IP_CREAR_CUENTA: Record<string, string | null> = {
   'espera-ip@example.com': '61',
@@ -235,7 +243,9 @@ const ESPERA_IP_CREAR_CUENTA: Record<string, string | null> = {
 }
 
 function cuenta(email: string, nombre: string, grupos: Grupo[], modo?: string): Usuario {
-  const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms' }
+  // Como la semilla de la demo (decisión 181), las cuentas de ejemplo aceptaron la política vigente.
+  const politica = aceptacionVigente(ACEPTADA_EN_EJEMPLO)
+  const u: Usuario = { id: randomUUID(), nombre, email, contrasena: CONTRASENA_DE_EJEMPLO, grupos, modo, telefono: '+56955550137', celularVerificado: false, canal: 'sms', politica }
   usuarios.set(email, u)
   return u
 }
@@ -430,7 +440,12 @@ function sembrar() {
   cuenta('celular-verificado@example.com', 'Carmen', soto()).celularVerificado = true
   cuenta('celular-sin-verificar@example.com', 'Carmen', soto())
   cuenta('celular-espera@example.com', 'Carmen', soto(), 'celular-espera')
-  cuenta('sin-celular@example.com', 'Carmen', soto()).telefono = null
+  const anterior = cuenta('sin-celular@example.com', 'Carmen', soto())
+  anterior.telefono = null
+  anterior.politica = null
+  // MATU-75: «Tu cuenta» con y sin la política aceptada.
+  cuenta('politica-aceptada@example.com', 'Carmen', soto())
+  cuenta('politica-sin-registro@example.com', 'Carmen', soto()).politica = null
   cuenta('recuperar-espera@example.com', 'Carmen', soto(), 'recuperar-espera')
   cuenta('codigo-invalido@example.com', 'Carmen', soto(), 'codigo-invalido')
 }
@@ -564,13 +579,26 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!email.includes('@')) errores.push({ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (typeof telefono !== 'string' || !/^(\+?56 ?)?9( ?[0-9]){8}$/.test(telefono.trim())) errores.push({ campo: 'telefono', mensaje: 'MENSAJE DEL DOBLE', tipo: 'celular_invalido' })
     if (typeof contrasena !== 'string' || contrasena.length < 10 || contrasena.length > 128) errores.push({ campo: 'contrasena', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_too_short' }) // pragma: allowlist secret
+    // MATU-75 (decisiones 176, 177 y 182): `acepta_politica` estricto en `true`, y la huella obligatoria y bien formada.
+    if (cuerpo?.acepta_politica !== true)
+      errores.push({ campo: 'acepta_politica', mensaje: 'MENSAJE DEL DOBLE', tipo: cuerpo?.acepta_politica === false ? 'politica_no_aceptada' : 'missing' })
+    const huellaPolitica = cuerpo?.huella_politica
+    // Decisión 182: la huella es obligatoria; sin ella o mal formada, 422 junto al campo.
+    if (typeof huellaPolitica !== 'string' || !/^[0-9a-f]{64}$/.test(huellaPolitica))
+      errores.push({ campo: 'huella_politica', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_pattern_mismatch' })
     if (errores.length) return problema(res, 422, '/errores/validacion', { errores }), true
+    if (!politicaPublicada()) return problema(res, 503, '/errores/servicio-no-disponible'), true
+    // `politica-cambio@example.com`: la primera vez, la política cambió mientras se creaba la cuenta.
+    const cambioDeEjemplo = email === CORREO_POLITICA_CAMBIO && !politicaCambiada.has(email)
+    if (cambioDeEjemplo) politicaCambiada.add(email)
+    if (cambioDeEjemplo || huellaPolitica !== HUELLA) return problema(res, 409, '/errores/politica-cambio'), true
     // Decisión 105: en staging, después del cuerpo y antes del 409. El doble acepta cualquier dominio salvo este.
     if (email.endsWith(`@${DOMINIO_NO_PERMITIDO}`))
       return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'dominio_no_permitido' }] }), true
     if (usuarios.has(email)) return problema(res, 409, '/errores/email-registrado'), true
     const u = cuenta(email, String(nombre).trim(), [])
     u.contrasena = String(contrasena)
+    u.politica = aceptacionVigente(new Date().toISOString())
     return json(res, 201, { id: u.id, nombre: u.nombre, email: u.email }), true
   }
 
@@ -656,7 +684,15 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   // ------------------------------------------------ MATU-57: la cuenta y el celular
   if (metodo === 'GET' && ruta === '/v1/cuenta') {
     res.setHeader('Cache-Control', 'no-store')
-    const vista = { id: u.id, nombre: u.nombre, email: u.email, celular_enmascarado: enmascarar(u.telefono), celular_verificado: u.celularVerificado, celular_canal: u.canal }
+    const vista = {
+      id: u.id,
+      nombre: u.nombre,
+      email: u.email,
+      celular_enmascarado: enmascarar(u.telefono),
+      celular_verificado: u.celularVerificado,
+      celular_canal: u.canal,
+      politica_aceptada: u.politica,
+    }
     return json(res, 200, vista), true
   }
   if (metodo === 'POST' && ruta === '/v1/cuenta/celular/codigo') {

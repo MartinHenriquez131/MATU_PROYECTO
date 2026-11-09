@@ -10,6 +10,13 @@ from app.modules.iam.application.ports import CredencialGuardada, NuevoUsuario
 from app.modules.iam.domain.credenciales import EmailYaRegistrado
 from app.modules.iam.infrastructure.modelos import IndiceCredencialORM, UsuarioORM
 
+# MATU-75: la aceptación de la política, en la transacción de la cuenta. La política aceptacion_propia_crear solo
+# deja insertar la fila de la cuenta del contexto
+_ACEPTAR = text(
+    "INSERT INTO aceptacion_politica (usuario_id, version, huella, aceptada_en)"
+    " VALUES (:usuario_id, :version, :huella, :aceptada_en)"
+)
+
 
 class RepositorioUsuariosSQL:
     def __init__(self, fabrica: sessionmaker[Session]) -> None:
@@ -17,7 +24,7 @@ class RepositorioUsuariosSQL:
 
     def crear(self, usuario: NuevoUsuario) -> None:
         try:
-            # La política usuario_propio solo deja insertar la fila del usuario en contexto.
+            # La política usuario_propio_crear solo deja insertar la fila del usuario en contexto.
             # El registro es el único caso en que la API fija app.usuario_id sin un token:
             # el usuario aún no existe.
             with sesion_tenant(self._fabrica, usuario_id=usuario.id) as sesion:
@@ -32,6 +39,16 @@ class RepositorioUsuariosSQL:
                 )
                 sesion.flush()
                 sesion.add(IndiceCredencialORM(email_hash=usuario.email_hash, usuario_id=usuario.id))
+                sesion.flush()
+                sesion.execute(
+                    _ACEPTAR,
+                    {
+                        "usuario_id": usuario.id,
+                        "version": usuario.aceptacion.version,
+                        "huella": usuario.aceptacion.huella,
+                        "aceptada_en": usuario.aceptacion.aceptada_en,
+                    },
+                )
         except IntegrityError as exc:
             # usuario_email_uq o la llave de indice_credencial: el email ya tiene cuenta.
             # Se lanza sin encadenar: el mensaje de la base trae el email.
@@ -48,13 +65,13 @@ class RepositorioUsuariosSQL:
             ).scalar_one_or_none()
         if usuario_id is None:
             return None
-        # Paso 2. La fila de usuario sí tiene RLS (usuario_propio: id = app_usuario()). Se lee con
+        # Paso 2. La fila de usuario sí tiene RLS (usuario_propio_leer: id = app_usuario()). Se lee con
         # el contexto del usuario recién resuelto, en su propia transacción.
         with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
-            # Con SQL explícito y no con UsuarioORM: mapear estado en el ORM cambiaría el INSERT
-            # del registro, que hoy deja ese valor a la base.
+            # matu_app no lee usuario.password_hash (migración 0020, MATU-66): iam_credencial, SECURITY
+            # DEFINER, devuelve el hash y el estado solo de la cuenta del contexto, y nunca a operación.
             fila = sesion.execute(
-                text("SELECT password_hash, estado FROM usuario WHERE id = :id"), {"id": usuario_id}
+                text("SELECT password_hash, estado FROM iam_credencial(:id)"), {"id": usuario_id}
             ).one_or_none()
             if fila is None:
                 return None

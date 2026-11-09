@@ -637,6 +637,8 @@ class Fabrica:
                 # MATU-41: sus avisos y su preferencia de avisos
                 cx.execute("DELETE FROM notificacion WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM preferencia_notificacion WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
+                # MATU-75: la aceptación de la política no cae con la cuenta (sin ON DELETE CASCADE)
+                cx.execute("DELETE FROM aceptacion_politica WHERE usuario_id = ANY(%s::uuid[])", (usuarios,))
                 cx.execute("DELETE FROM usuario WHERE id = ANY(%s::uuid[])", (usuarios,))
         self.creados.clear()
 

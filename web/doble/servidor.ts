@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { ESCENARIOS, PIN_DE_EJEMPLO } from './escenarios'
 import { atenderFamilia, esLento } from './familia'
+import { atenderPolitica } from './politica'
 
 const COOKIE = 'matu-relevo-doble'
 const MAX_INTENTOS = 5
@@ -256,6 +257,8 @@ async function atender(req: IncomingMessage, res: ServerResponse, siguiente: () 
   if (ruta === 'POST /v1/relevo/presentacion') return presentacion(cuerpo, res)
   if (ruta === 'POST /v1/relevo/canje') return canje(cuerpo, res)
   if (ruta === 'GET /v1/relevo/ficha') return ficha(id, res)
+  // MATU-75: la política de privacidad, pública, sin mirar cookies ni token.
+  if (await atenderPolitica(req.method ?? 'GET', (req.url ?? '').split('?')[0], res)) return
   // La app de la familia (MATU-39): cuentas, entrada, grupos, personas y ficha.
   if (await atenderFamilia(req, res, cuerpo, { json, problema })) return
   problema(res, 404, '/errores/no-encontrado')

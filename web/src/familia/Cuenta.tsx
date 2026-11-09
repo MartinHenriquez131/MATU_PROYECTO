@@ -6,8 +6,12 @@ import { flushSync } from 'react-dom'
 import { Check, Circle } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import { confirmarCelular, leerCuenta, pedirCodigoCelular, type CanalCelular, type Cuenta } from '../compartido/api/familia'
+import { leerPolitica, type PoliticaAceptada } from '../compartido/api/politica'
 import { esVencida } from '../compartido/api/sesion'
+import { fechaYHoraDeChile } from '../compartido/fechas'
+import { POLITICA } from '../compartido/textosPolitica'
 import { Boton } from '../compartido/ui/Boton'
+import { EnlaceEnFrase, EnlacePoliticaSolo } from '../compartido/ui/Enlaces'
 import { CampoCodigo, useEspera } from './Codigo'
 import { useDemora } from './Estados'
 import { useFamilia } from './estado'
@@ -70,46 +74,107 @@ function EstadoCelular({ verificado }: { verificado: boolean }) {
   )
 }
 
+// ---------------------------------------------------------------- MATU-75: la política aceptada
+
+/**
+ * El correo de contacto (`correo_contacto` de `GET /v1/politica`, pública y sin cookies). `null`
+ * mientras no llega, si no está configurado o si la petición falla: el párrafo no se muestra.
+ */
+function useCorreoPrivacidad() {
+  const [correo, setCorreo] = useState<string | null>(null)
+  useEffect(() => {
+    let vigente = true
+    leerPolitica()
+      .then((p) => vigente && setCorreo(p.correo_contacto ?? null))
+      .catch(() => {})
+    return () => {
+      vigente = false
+    }
+  }, [])
+  return correo
+}
+
+/** La fila «Política de privacidad» (especificación 5.3), con o sin registro, y el enlace. */
+function FilaPolitica({ aceptada }: { aceptada: PoliticaAceptada | null | undefined }) {
+  const instante = aceptada ? new Date(aceptada.aceptada_en) : null
+  const fecha = instante && !Number.isNaN(instante.getTime()) ? fechaYHoraDeChile(instante).fecha : null
+  return (
+    <div className="flex flex-col gap-2 py-4">
+      <dt className="text-sm text-tenue">{POLITICA.fila}</dt>
+      <dd className="flex flex-col items-start gap-2 text-base">
+        {aceptada && fecha ? (
+          <p>
+            {POLITICA.aceptasteAntes} <span className="cifras font-bold">{aceptada.version}</span> {POLITICA.aceptasteEl}{' '}
+            <span className="cifras font-bold">{fecha}</span>.
+          </p>
+        ) : (
+          <p className="text-tinta">{POLITICA.sinRegistro}</p>
+        )}
+        <EnlacePoliticaSolo />
+      </dd>
+    </div>
+  )
+}
+
+/** Cómo pedir (5.3): fuera del `dl`, con el correo en `mailto:` sin asunto ni cuerpo. */
+function ComoPedir({ correo }: { correo: string | null }) {
+  if (!correo) return null
+  return (
+    <p className="mt-6 max-w-xl text-base leading-relaxed text-tinta">
+      {POLITICA.comoPedirAntes}
+      <EnlaceEnFrase href={`mailto:${correo}`} className="[overflow-wrap:anywhere]">
+        {correo}
+      </EnlaceEnFrase>
+      {POLITICA.comoPedirDespues}
+    </p>
+  )
+}
+
 // ---------------------------------------------------------------- 5.2 Tu cuenta (D5)
 
 export function TuCuenta() {
   const { fijar } = useFamilia()
   const { carga, cargar } = useCuenta()
+  const correo = useCorreoPrivacidad()
   return (
     <Pagina titulo={CUENTA_PROPIA.titulo} bajada={CUENTA_PROPIA.bajada}>
       {carga.estado === 'cargando' && <Cargando />}
       {carga.estado === 'error' && <ErrorCarga reintentar={() => void cargar()} />}
       {carga.estado === 'lista' && (
-        <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 ring-1 ring-linea">
-          <div className="flex flex-col gap-0.5 py-4">
-            <dt className="text-sm text-tenue">{CUENTA_PROPIA.correo}</dt>
-            <dd className="font-bold break-words">{carga.cuenta.email}</dd>
-          </div>
-          <div className="flex flex-col gap-2 py-4">
-            <dt className="text-sm text-tenue">{CUENTA_PROPIA.celular}</dt>
-            {carga.cuenta.celular_enmascarado ? (
-              <dd className="flex flex-col items-start gap-3">
-                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="cifras text-lg font-bold whitespace-nowrap">{carga.cuenta.celular_enmascarado}</span>
-                  <EstadoCelular verificado={carga.cuenta.celular_verificado} />
-                </span>
-                {!carga.cuenta.celular_verificado && (
-                  <Boton
-                    variante="secundario"
-                    onClick={() => {
-                      fijar({ celularDesde: 'cuenta' })
-                      navegar('/cuenta/celular')
-                    }}
-                  >
-                    {CUENTA_PROPIA.confirmar}
-                  </Boton>
-                )}
-              </dd>
-            ) : (
-              <dd className="text-tenue">{CUENTA_PROPIA.sinCelular}</dd>
-            )}
-          </div>
-        </dl>
+        <>
+          <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 ring-1 ring-linea">
+            <div className="flex flex-col gap-0.5 py-4">
+              <dt className="text-sm text-tenue">{CUENTA_PROPIA.correo}</dt>
+              <dd className="font-bold break-words">{carga.cuenta.email}</dd>
+            </div>
+            <div className="flex flex-col gap-2 py-4">
+              <dt className="text-sm text-tenue">{CUENTA_PROPIA.celular}</dt>
+              {carga.cuenta.celular_enmascarado ? (
+                <dd className="flex flex-col items-start gap-3">
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="cifras text-lg font-bold whitespace-nowrap">{carga.cuenta.celular_enmascarado}</span>
+                    <EstadoCelular verificado={carga.cuenta.celular_verificado} />
+                  </span>
+                  {!carga.cuenta.celular_verificado && (
+                    <Boton
+                      variante="secundario"
+                      onClick={() => {
+                        fijar({ celularDesde: 'cuenta' })
+                        navegar('/cuenta/celular')
+                      }}
+                    >
+                      {CUENTA_PROPIA.confirmar}
+                    </Boton>
+                  )}
+                </dd>
+              ) : (
+                <dd className="text-tenue">{CUENTA_PROPIA.sinCelular}</dd>
+              )}
+            </div>
+            <FilaPolitica aceptada={carga.cuenta.politica_aceptada} />
+          </dl>
+          <ComoPedir correo={correo} />
+        </>
       )}
     </Pagina>
   )
