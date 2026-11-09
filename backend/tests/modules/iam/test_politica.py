@@ -16,6 +16,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from dotenv import dotenv_values
 from fastapi.testclient import TestClient
 
 from app.core import config
@@ -23,23 +24,14 @@ from app.main import crear_app
 from app.modules.iam.api.router_politica import obtener_politica_vigente
 from app.modules.iam.application.politica import politica_vigente
 from app.modules.iam.domain.politica import (
-    MARCADOR_CORREO,
     PoliticaCambio,
     PoliticaNoDisponible,
     aceptar,
     armar_politica,
-    huella_de,
 )
 from app.modules.iam.infrastructure import textos_politica
-from app.modules.iam.infrastructure.textos_politica import PUBLICADAS, archivo_de, plantilla_publicada
-from tests.politica import (
-    CORREO_PRUEBAS,
-    ENTORNO_POLITICA,
-    FECHA_PRUEBAS,
-    PAIS_PRUEBAS,
-    POLITICA_PRUEBAS,
-    PROVEEDOR_PRUEBAS,
-)
+from app.modules.iam.infrastructure.textos_politica import PUBLICADAS, archivo_de, texto_publicado
+from tests.politica import CORREO_PRUEBAS, ENTORNO_POLITICA, FECHA_PRUEBAS, POLITICA_PRUEBAS
 
 pytestmark = pytest.mark.rf("RF-37")
 
@@ -96,17 +88,17 @@ def test_un_texto_que_cambia_sin_cambiar_su_huella_no_se_sirve(
     original = archivo_de("0.11").read_text(encoding="utf-8")
     (tmp_path / "politica-0.11.md").write_text(original.replace("piloto académico", "piloto"), encoding="utf-8")
     monkeypatch.setattr(textos_politica, "CARPETA", tmp_path)
-    plantilla_publicada.cache_clear()
+    texto_publicado.cache_clear()
     try:
         with pytest.raises(PoliticaNoDisponible):
-            plantilla_publicada("0.11")
+            texto_publicado("0.11")
     finally:
-        plantilla_publicada.cache_clear()
+        texto_publicado.cache_clear()
 
 
 def test_una_version_sin_texto_publicado_no_se_sirve() -> None:
     with pytest.raises(PoliticaNoDisponible):
-        plantilla_publicada("0.10")
+        texto_publicado("0.10")
 
 
 # --- El texto que se muestra ----------------------------------------------------------------------------------
@@ -117,23 +109,13 @@ def test_el_texto_empieza_en_en_un_minuto_y_no_trae_nada_interno() -> None:
     assert texto.startswith("## En un minuto\n")
     for prohibido in ("ADR-", "MATU-", "[PENDIENTE", *ENCABEZADO_INTERNO):
         assert prohibido not in texto, prohibido
-    assert MARCADOR_CORREO not in texto
-    assert CORREO_PRUEBAS in texto and PROVEEDOR_PRUEBAS in texto and PAIS_PRUEBAS in texto
 
 
 def test_el_texto_no_tiene_marcadores_ni_comentarios() -> None:
     texto = POLITICA_PRUEBAS.texto
-    for marcador in ("{", "}", "[PROVEEDOR DEL CORREO]", "[PAÍS]", "<!--", "-->"):
+    for marcador in ("{", "}", "[PROVEEDOR", "[PAÍS]", "<!--", "-->"):
         assert marcador not in texto, marcador
     assert re.search(r"\[[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ :]*\]", texto) is None
-
-
-def test_el_texto_versionado_no_trae_los_valores_de_la_configuracion() -> None:
-    plantilla = archivo_de("0.11").read_text(encoding="utf-8")
-    for marcador in ("{correo_privacidad}", "{proveedor_correo}", "{pais_proveedor_correo}"):
-        assert marcador in plantilla
-    for valor in (CORREO_PRUEBAS, PROVEEDOR_PRUEBAS, PAIS_PRUEBAS, "example."):
-        assert valor not in plantilla
 
 
 def test_el_texto_no_muestra_identificadores_internos_ni_huellas() -> None:
@@ -144,50 +126,63 @@ def test_el_texto_no_muestra_identificadores_internos_ni_huellas() -> None:
     assert _HUELLA_64.search(texto) is None
 
 
+def test_el_correo_de_la_configuracion_es_el_del_texto() -> None:
+    """La prueba de coincidencia, con el valor real: CORREO_PRIVACIDAD de .env.example (el que se despliega) aparece
+    en el texto de la política. Así «Tu cuenta» (correo_contacto) y la política no se desalinean."""
+    correo = dotenv_values(BACKEND.parent / ".env.example")["CORREO_PRIVACIDAD"]
+    assert correo == "cuidaconmatu@gmail.com"
+    texto = texto_publicado("0.11")
+    assert correo in texto
+    # Ningún otro correo en el texto
+    assert set(re.findall(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", texto)) == {correo}
+
+
 def test_la_huella_es_el_sha256_del_texto_que_se_sirve() -> None:
     assert POLITICA_PRUEBAS.huella == hashlib.sha256(POLITICA_PRUEBAS.texto.encode("utf-8")).hexdigest()
+    assert POLITICA_PRUEBAS.huella == PUBLICADAS["0.11"]
     assert "\r" not in POLITICA_PRUEBAS.texto
 
 
-def test_la_huella_cambia_con_el_correo() -> None:
+def test_la_huella_no_depende_de_la_configuracion() -> None:
+    """El texto se sirve tal cual: otro correo en la configuración no cambia el texto ni la huella."""
     otra = politica_vigente(
-        version="0.11", actualizada_en=FECHA_PRUEBAS, correo="otra@example.org", plantilla_de=plantilla_publicada,
-        proveedor_correo=PROVEEDOR_PRUEBAS, pais_proveedor_correo=PAIS_PRUEBAS,
+        version="0.11", actualizada_en=FECHA_PRUEBAS, correo="otra@example.org", texto_de=texto_publicado
     )
-    assert otra.huella != POLITICA_PRUEBAS.huella
-    assert otra.huella == huella_de(otra.texto)
+    assert (otra.texto, otra.huella) == (POLITICA_PRUEBAS.texto, POLITICA_PRUEBAS.huella)
+    assert otra.correo_contacto == "otra@example.org"
 
 
 # --- Dominio y caso de uso -----------------------------------------------------------------------------------
 
 
-def test_armar_pone_el_correo_y_calcula_la_huella_del_texto_final() -> None:
+def test_armar_sirve_el_texto_tal_cual_con_su_huella() -> None:
     politica = armar_politica(
-        version="9.9", actualizada_en=date(2026, 1, 2), plantilla="Hola\r\nescribe a {correo_privacidad}.\n",
-        correo="a@example.com",
+        version="9.9", actualizada_en=date(2026, 1, 2), texto="Hola\r\nescribe a a@example.org.\n",
+        correo="a@example.org",
     )
-    assert politica.texto == "Hola\nescribe a a@example.com.\n"
-    assert politica.huella == hashlib.sha256(b"Hola\nescribe a a@example.com.\n").hexdigest()
-    assert politica.correo_contacto == "a@example.com"
+    assert politica.texto == "Hola\nescribe a a@example.org.\n"
+    assert politica.huella == hashlib.sha256(b"Hola\nescribe a a@example.org.\n").hexdigest()
+    assert politica.correo_contacto == "a@example.org"
     assert politica.texto not in repr(politica)
 
 
-def test_sin_correo_y_con_marcador_no_hay_politica() -> None:
-    with pytest.raises(PoliticaNoDisponible):
-        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla="a {correo_privacidad}", correo=None)
-
-
 @pytest.mark.parametrize(
-    "plantilla", ["{proveedor_correo}", "en {pais_proveedor_correo}", "un {marcador_desconocido}"]
+    "texto",
+    [
+        "escribe a {correo_privacidad}.",
+        "**[PROVEEDOR DEL CORREO]**, en Chile.",
+        "Gmail, en [PAÍS].",
+        "un {marcador_desconocido}",
+    ],
 )
-def test_un_marcador_sin_valor_no_se_publica(plantilla: str) -> None:
+def test_un_texto_con_marcadores_no_se_publica(texto: str) -> None:
     with pytest.raises(PoliticaNoDisponible):
-        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla=plantilla, correo="a@example.org")
+        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), texto=texto, correo="a@example.org")
 
 
-def test_sin_marcador_se_sirve_sin_correo() -> None:
-    politica = armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), plantilla="sin contacto\n", correo=None)
-    assert politica.correo_contacto is None and politica.texto == "sin contacto\n"
+def test_sin_correo_se_publica_con_correo_contacto_null() -> None:
+    politica = armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), texto="completo\n", correo=None)
+    assert politica.correo_contacto is None and politica.texto == "completo\n"
 
 
 @pytest.mark.parametrize(
@@ -195,10 +190,7 @@ def test_sin_marcador_se_sirve_sin_correo() -> None:
 )
 def test_sin_version_o_fecha_no_hay_politica(version: str | None, fecha: date | None) -> None:
     with pytest.raises(PoliticaNoDisponible):
-        politica_vigente(
-            version=version, actualizada_en=fecha, correo=CORREO_PRUEBAS, plantilla_de=plantilla_publicada,
-            proveedor_correo=PROVEEDOR_PRUEBAS, pais_proveedor_correo=PAIS_PRUEBAS,
-        )
+        politica_vigente(version=version, actualizada_en=fecha, correo=CORREO_PRUEBAS, texto_de=texto_publicado)
 
 
 def test_aceptar_estampa_la_version_y_la_huella_vigentes() -> None:
@@ -254,12 +246,20 @@ ESPERADO = """## En un minuto
 
 - **Contacto:** {correo_privacidad}
 - **Plazo:** Todavía no lo definimos.
-- **{proveedor_correo}**, en {pais_proveedor_correo}, guarda lo que escribes a {correo_privacidad}. Nada más.
+- **[PROVEEDOR DEL CORREO]**, en [PAÍS], guarda lo que escribes a {correo_privacidad}. Nada más.
 
 Este es el texto exacto.
 
 Su versión es la de esta política.
 """
+
+
+def test_un_texto_generado_con_marcadores_no_se_publica() -> None:
+    """Si la fuente todavía trae el correo, el proveedor o el país sin completar, el archivo se genera, pero la API
+    no lo publica: nunca se acepta un texto con marcadores."""
+    texto = _generador().convertir(FUENTE_SINTETICA)
+    with pytest.raises(PoliticaNoDisponible):
+        armar_politica(version="9.9", actualizada_en=date(2026, 1, 2), texto=texto, correo=CORREO_PRUEBAS)
 
 
 def test_el_generador_convierte_la_fuente_siempre_igual() -> None:
@@ -356,13 +356,7 @@ def test_la_dependencia_lee_la_configuracion(configuracion_politica: None) -> No
 
 @pytest.mark.parametrize(
     ("variable", "valor"),
-    [
-        ("POLITICA_VERSION", "0.10"),
-        ("POLITICA_ACTUALIZADA_EN", ""),
-        ("CORREO_PRIVACIDAD", ""),
-        ("PROVEEDOR_CORREO_PRIVACIDAD", ""),
-        ("PAIS_PROVEEDOR_CORREO", ""),
-    ],
+    [("POLITICA_VERSION", "0.10"), ("POLITICA_ACTUALIZADA_EN", "")],
 )
 def test_sin_politica_completa_get_responde_503_y_el_log_no_trae_valores(
     configuracion_politica: None, monkeypatch: pytest.MonkeyPatch, variable: str, valor: str
@@ -376,6 +370,48 @@ def test_sin_politica_completa_get_responde_503_y_el_log_no_trae_valores(
     assert respuesta.headers["content-type"].startswith("application/problem+json")
     assert "politica no disponible" in salida.getvalue()
     assert CORREO_PRUEBAS not in salida.getvalue() + respuesta.text
+
+
+def test_un_texto_publicado_con_marcadores_responde_503(
+    configuracion_politica: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Si el texto de la versión todavía trae [PROVEEDOR DEL CORREO], [PAÍS] o {correo_privacidad}, la API no lo
+    publica, aunque esté en PUBLICADAS con su huella."""
+    texto = "## En un minuto\n\n- **[PROVEEDOR DEL CORREO]**, en [PAÍS], escribe a {correo_privacidad}.\n"
+    (tmp_path / "politica-0.11.md").write_text(texto, encoding="utf-8")
+    monkeypatch.setattr(textos_politica, "CARPETA", tmp_path)
+    monkeypatch.setitem(PUBLICADAS, "0.11", hashlib.sha256(texto.encode("utf-8")).hexdigest())
+    texto_publicado.cache_clear()
+    salida = io.StringIO()
+    try:
+        with TestClient(crear_app(stream_logs=salida), raise_server_exceptions=False) as http:
+            respuesta = http.get("/v1/politica")
+    finally:
+        texto_publicado.cache_clear()
+    assert respuesta.status_code == 503
+    assert "marcador" in salida.getvalue()
+
+
+def test_sin_correo_configurado_se_publica_con_correo_contacto_null(
+    configuracion_politica: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CORREO_PRIVACIDAD", "")
+    config.obtener_configuracion.cache_clear()
+    with TestClient(crear_app(stream_logs=io.StringIO())) as http:
+        respuesta = http.get("/v1/politica")
+    assert respuesta.status_code == 200
+    assert respuesta.json()["correo_contacto"] is None
+    assert respuesta.json()["huella"] == PUBLICADAS["0.11"]
+
+
+def test_un_correo_configurado_que_no_es_el_del_texto_deja_un_aviso_sin_el_valor(
+    configuracion_politica: None,
+) -> None:
+    salida = io.StringIO()
+    with TestClient(crear_app(stream_logs=salida)) as http:
+        assert http.get("/v1/politica").status_code == 200
+    assert "CORREO_PRIVACIDAD no aparece en el texto" in salida.getvalue()
+    assert CORREO_PRUEBAS not in salida.getvalue()
 
 
 def test_la_salud_no_depende_de_la_politica(configuracion_politica: None, monkeypatch: pytest.MonkeyPatch) -> None:
