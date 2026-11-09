@@ -65,6 +65,25 @@ describe('Crear cuenta: la casilla de la política', () => {
     expect(casilla.closest('label')).toContainElement(enlace)
   })
 
+  it('el enlace de la frase lleva el área táctil en un ::after, sin relleno vertical (v0.2, sección 7)', () => {
+    responderPolitica()
+    render(<CrearCuenta />)
+    const enlace = screen.getByRole('link', { name: 'política de privacidad (se abre en otra pestaña)' })
+    const clases = enlace.className.split(/\s+/)
+    // −0,875 rem arriba y abajo más la línea de 17 px: unos 51 px de alto, como un botón.
+    expect(clases).toEqual(expect.arrayContaining(['relative', 'after:absolute', 'after:inset-x-0', 'after:-inset-y-3.5', "after:content-['']"]))
+    // Sin `py-*`: el contorno del foco sigue al texto y no tacha los renglones vecinos.
+    expect(clases.some((c) => /^py-/.test(c))).toBe(false)
+  })
+
+  it('en pantalla ancha la casilla se centra con su frase de un renglón (v0.2, 2.4)', () => {
+    responderPolitica()
+    render(<CrearCuenta />)
+    const casilla = screen.getByRole('checkbox', CASILLA)
+    expect(casilla).toHaveClass('mt-0.5', '@2xl/main:mt-0')
+    expect(casilla.closest('label')).toHaveClass('items-start', '@2xl/main:items-center')
+  })
+
   it('tocar el enlace no marca la casilla; tocar el texto fuera del enlace sí', async () => {
     responderPolitica()
     render(<CrearCuenta />)
@@ -142,7 +161,11 @@ describe('Crear cuenta: la casilla de la política', () => {
 
     await enviar(u)
 
-    expect(await screen.findByText('Actualizamos la política de privacidad.')).toBeInTheDocument()
+    const titulo = await screen.findByText('Actualizamos la política de privacidad.')
+    // P2 de la revisión visual (v0.2, 2.5): en modo angosto el ícono va en la línea del título, así
+    // «Actualizamos» usa todo el ancho y no se parte por dentro a 320 px con el texto al 200 %.
+    const enLinea = [...titulo.querySelectorAll('span')].find((e) => e.classList.contains('angosto:inline-flex'))
+    expect(enLinea?.querySelector('svg')).not.toBeNull()
     expect(screen.getByText('Cambió mientras creabas tu cuenta. Léela de nuevo y vuelve a marcar la casilla.')).toBeInTheDocument()
     const casilla = screen.getByRole('checkbox', CASILLA)
     expect(casilla).not.toBeChecked()

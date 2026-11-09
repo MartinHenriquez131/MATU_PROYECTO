@@ -67,8 +67,9 @@ describe('El renderizador de la política', () => {
     expect(container.querySelectorAll('hr')).toHaveLength(1)
   })
 
-  it('cada sección termina con «Volver al índice»', () => {
-    dibujar('## En un minuto\n\nUno.\n\n## 1. Otra\n\nDos.\n')
+  it('cada sección termina con «Volver al índice», y la columna mide max-w-xl (unos 72 caracteres)', () => {
+    const { container } = dibujar('## En un minuto\n\nUno.\n\n## 1. Otra\n\nDos.\n')
+    expect(container.querySelector('article')).toHaveClass('max-w-xl')
     expect(screen.getAllByRole('link', { name: 'Volver al índice' })).toHaveLength(2)
   })
 
@@ -81,6 +82,8 @@ describe('El renderizador de la política', () => {
     expect(filas).toHaveLength(3)
     // La celda dice qué dato es aunque la tabla esté apilada.
     expect(within(filas[1]).getAllByRole('cell').map((c) => c.textContent)).toEqual(['DatoFicha', 'Plazo90 días'])
+    // Apilada, cada par de encabezado y dato se separa del siguiente (v0.2, 1.8).
+    expect(within(filas[1]).getAllByRole('cell')[1]).toHaveClass('not-first:mt-2', '@xl/main:mt-0')
   })
 
   it('un enlace mailto: es enlace; uno a otro sitio va en otra pestaña; uno javascript: queda solo como texto', () => {
