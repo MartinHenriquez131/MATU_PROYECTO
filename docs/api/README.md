@@ -1145,6 +1145,7 @@ La numeración sigue en la 158: la última de esta rama es la 157 (MATU-72).
 
 ### Notas de implementación de MATU-59 (08-11)
 
+- **Dónde va la bolsa colectora** (decisión D3 de Jorge, 08-11; hallazgo H1 de Martín del 09-11). Va en «Higiene y cuidado personal», con los pañales, las toallitas y los protectores, **sin categoría propia**: una categoría para ella nombraría una condición de salud, y ese término está prohibido (`docs/lenguaje.md`, sección 3.1, «ostomía»). Así la siembran `infra/semillas/catalogo_demo.py` (`HIGIENE`) y, con él, `infra/semillas/demo.py`, y lo verifica `tests/test_semilla_catalogo.py`. Ninguna categoría del catálogo nombra el producto ni para qué se usa.
 - **Dónde vive cada regla.**
   - `catalog/domain/catalogo.py`: `armar_catalogo` (qué entra, el orden y `disponible`, decisiones 160 a 163).
   - `catalog/domain/consulta_stock.py`: `ConsultaStock`, `LineaConsulta`, `nueva_consulta` y la referencia (decisión 168).

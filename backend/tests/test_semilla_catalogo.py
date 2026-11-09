@@ -64,6 +64,10 @@ def test_los_seis_productos_de_d3_en_sus_categorias() -> None:
     assert {n for n, c in categoria.items() if c == "Higiene y cuidado personal"} == {
         "Pañal adulto M x30", "Toallitas húmedas x80", "Protectores diarios x20", "Bolsa colectora x10",
     }
+    # D3 de Jorge (08-11): la bolsa colectora va en «Higiene y cuidado personal», sin categoría propia, porque esa
+    # categoría nombraría una condición de salud (lenguaje.md, sección 3.1)
+    assert categoria["Bolsa colectora x10"] == "Higiene y cuidado personal"
+    assert not any("colectora" in c.nombre.lower() or "ostom" in c.nombre.lower() for c in CATALOGO.categorias)
 
 
 def test_nombre_y_presentacion_no_se_repiten_ni_usan_terminos_prohibidos() -> None:

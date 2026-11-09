@@ -2,7 +2,9 @@
 
 Siembra en la base LOCAL el catálogo de la demo, todo sintético:
 
-- Tres categorías: «Higiene y cuidado personal», «Cuidado de la piel» y «Alimentación» (D3 de Jorge).
+- Tres categorías: «Higiene y cuidado personal», «Cuidado de la piel» y «Alimentación» (D3 de Jorge). La bolsa
+  colectora va en «Higiene y cuidado personal», sin categoría propia: una para ella nombraría una condición de
+  salud (lenguaje.md, sección 3.1).
 - Los seis productos de las entrevistas, con los nombres de D3. nombre es el texto de D3 y presentacion dice cómo
   viene (N3 del diseñador), para que la tarjeta no repita lo mismo. Sin marca (D5: ninguna marca real) y sin
   afirmaciones de salud. retracto_pierde_al_abrir según D2: true en pañales, toallitas, protectores y crema;
