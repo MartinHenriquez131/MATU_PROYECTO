@@ -16,9 +16,10 @@ from app.modules.iam.domain.politica import PoliticaNoDisponible, huella_de, nor
 
 CARPETA = Path(__file__).resolve().parents[1] / "politica"
 
-# Versión → huella del archivo. Una fila por versión publicada; nunca se cambia la de una versión que ya se sirvió
+# Versión → huella del archivo. Una fila por versión publicada; nunca se cambia la de una versión que ya se sirvió.
+# La huella es pública, no un secreto: por eso el pragma de detect-secrets
 PUBLICADAS: dict[str, str] = {
-    "0.11": "941efe228ad04aa14078e55a3640d44d4538f65e3d92eefe78b0f017e6e7c467",
+    "0.11": "941efe228ad04aa14078e55a3640d44d4538f65e3d92eefe78b0f017e6e7c467",  # pragma: allowlist secret
 }
 
 
