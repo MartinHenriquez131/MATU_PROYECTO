@@ -15,6 +15,9 @@ versión de la política es POLITICA_VERSION.
 invitaciones aún no existen. Va como matu_app, dentro del contexto del admin y de su grupo
 (política membresia_familia), nunca como superusuario.
 
+Al final siembra también el catálogo curado de MATU-59 (infra/semillas/catalogo_demo.py): seis productos, dos
+comercios ficticios y sus ofertas con precios de ejemplo, como matu_app con app.rol = 'operacion'.
+
 Es idempotente: lo que ya existe (cuenta por email, grupo por nombre entre los del admin, membresía,
 persona por nombre) no se duplica. Una cuenta que ya existía conserva su contraseña.
 
@@ -30,6 +33,7 @@ current_user), sin mostrar la URL. Ojo: las pruebas del backend vacían la base 
 (test_aislamiento.py), y con ella esta semilla. Después de correrlas, se vuelve a sembrar.
 """
 
+import importlib.util
 import os
 import secrets
 import sys
@@ -37,6 +41,8 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 # backend/ en la ruta de importación: la semilla usa los casos de uso de la API
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
@@ -317,6 +323,23 @@ def rol_de_la_conexion(fabrica: sessionmaker[Session]) -> str:
 # --- Línea de comandos -----------------------------------------------------------------------------------
 
 
+def cargar_catalogo_demo() -> ModuleType:
+    """La semilla del catálogo (MATU-59), hermana de este archivo. Se carga por ruta: infra/ no es un paquete."""
+    ruta = Path(__file__).resolve().parent / "catalogo_demo.py"
+    spec = importlib.util.spec_from_file_location("semilla_catalogo_demo", ruta)
+    assert spec is not None and spec.loader is not None
+    modulo = importlib.util.module_from_spec(spec)
+    # Registrado antes de ejecutarlo: dataclasses busca el módulo de cada clase en sys.modules
+    sys.modules[spec.name] = modulo
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
+def sembrar_catalogo_demo(fabrica: sessionmaker[Session]) -> Any:
+    """Siembra el catálogo de MATU-59 y devuelve lo sembrado (CatalogoSembrado de catalogo_demo.py)."""
+    return cargar_catalogo_demo().sembrar_catalogo(fabrica)
+
+
 def _contrasena() -> tuple[str, bool]:
     """La contraseña de las cuentas nuevas y si vino de SEMILLA_CONTRASENA."""
     desde_entorno = os.environ.get(VARIABLE_CONTRASENA, "")
@@ -385,6 +408,13 @@ def main() -> int:
     else:
         # Única vez que se muestra. No se guarda en ningún archivo
         print(f"Contraseña de las cuentas creadas (anótala, no se vuelve a mostrar): {contrasena}")
+
+    # MATU-59: el catálogo curado, con dos comercios ficticios y precios de ejemplo
+    sembrado = sembrar_catalogo_demo(fabrica)
+    print(
+        f"Catálogo: {len(sembrado.productos)} productos y {len(sembrado.ofertas)} ofertas de "
+        f"{len(sembrado.comercios)} comercios ficticios, con precios de ejemplo."
+    )
     return 0
 
 

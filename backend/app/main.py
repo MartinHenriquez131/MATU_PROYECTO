@@ -51,9 +51,9 @@ log = logging.getLogger("matu.api.arranque")
 router_salud = APIRouter(tags=["salud"])
 
 # Routers de la capa 3 (MATU-40, ADR-002), como "paquete.del.router:atributo". Se importan al armar la
-# app y solo con CAPA3_HABILITADA: nunca en el nivel superior de este archivo. Hoy está vacío porque la
-# capa 3 todavía no tiene routers. Ejemplo: "app.modules.ordering.api.router:router"
-ROUTERS_CAPA_3: tuple[str, ...] = ()
+# app y solo con CAPA3_HABILITADA: nunca en el nivel superior de este archivo. MATU-59 agrega el catálogo
+# (GET /v1/catalogo, decisión 167)
+ROUTERS_CAPA_3: tuple[str, ...] = ("app.modules.catalog.api.router:router",)
 
 
 @router_salud.get("/salud")

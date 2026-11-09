@@ -94,7 +94,7 @@ INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_p
 INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna) VALUES
  ('{COMERCIO}', 'Farmacia Uno SpA', 'Farmacia Uno', '76.000.000-1', 'Av. Larraín 1', 'La Reina');
 INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES ('{U_ENC}', '{COMERCIO}');
-INSERT INTO oferta (id, producto_id, comercio_id, precio_referencia) VALUES
+INSERT INTO oferta (id, producto_id, comercio_id, precio) VALUES
  ('00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', '{COMERCIO}', 12990);
 INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, producto_id, tasa_unidades, stock_unidades,
                             stock_medido_en, fecha_quiebre_estimada) VALUES
@@ -854,7 +854,7 @@ def test_reasignacion_solo_al_mismo_producto_nunca_otra_marca(cx):
          ('{otro_comercio}', 'Farmacia Dos SpA', 'Farmacia Dos', '76.000.000-2', 'Av. Ossa 2', 'La Reina');
         INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
          ('{otra_marca}', '00000000-0000-0000-0000-000000000c01', 'Pañal adulto M otra marca', 'x30', 'unidad', 30);
-        INSERT INTO oferta (id, producto_id, comercio_id, precio_referencia) VALUES
+        INSERT INTO oferta (id, producto_id, comercio_id, precio) VALUES
          ('{misma}', '{PRODUCTO}', '{otro_comercio}', 13990), ('{distinta}', '{otra_marca}', '{otro_comercio}', 9990);
     """)
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
@@ -2091,3 +2091,59 @@ def test_pagador_y_observador_no_revocan_con_motivo_borrado(cx, usuario):
     como(cx, usuario_id=usuario, grupo_id=G_A)
     assert cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'borrado' WHERE id = %s",
                       (cid,)).rowcount == 0
+
+
+# ------------------------------------------------------------------ catálogo (MATU-59, decisión 169)
+
+
+@pytest.mark.rf("RF-20")
+@pytest.mark.parametrize("usuario, grupo", [(U_ADMIN_A, G_A), (U_OBS_A, G_A), (U_ADMIN_B, G_B), (U_NUEVO, None)])
+def test_la_familia_lee_el_catalogo_pero_no_cambia_precio_stock_ni_retracto(cx, usuario, grupo):
+    como(cx, usuario_id=usuario, grupo_id=grupo)
+    assert contar(cx, "oferta", f"id = '{OFERTA}'") == 1
+    assert contar(cx, "producto", f"id = '{PRODUCTO}'") == 1
+    # La familia no es operación ni el comercio de la oferta: el UPDATE no alcanza ninguna fila
+    assert cx.execute("UPDATE oferta SET precio = 1, stock = 999 WHERE id = %s", (OFERTA,)).rowcount == 0
+    assert cx.execute("UPDATE producto SET retracto_pierde_al_abrir = NOT retracto_pierde_al_abrir"
+                      " WHERE id = %s", (PRODUCTO,)).rowcount == 0
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO oferta (producto_id, comercio_id, precio, stock) VALUES (%s, %s, 990, 1)",
+                   (PRODUCTO, uuid.uuid4()))
+
+
+@pytest.mark.rf("RF-20")
+def test_el_comercio_cambia_el_stock_solo_de_sus_ofertas(cx):
+    otro = "00000000-0000-0000-0000-0000000004c9"
+    oferta_ajena = "00000000-0000-0000-0000-000000000f19"
+    cx.execute(f"""
+        INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna) VALUES
+         ('{otro}', 'Comercio Nueve (ficticio)', 'Comercio Nueve', '76.000.000-9', 'Calle de Prueba 9', 'La Reina');
+        INSERT INTO oferta (id, producto_id, comercio_id, precio, stock) VALUES ('{oferta_ajena}', '{PRODUCTO}',
+         '{otro}', 11990, 3);
+    """)
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    assert cx.execute("UPDATE oferta SET stock = 7 WHERE id = %s", (OFERTA,)).rowcount == 1
+    assert cx.execute("UPDATE oferta SET stock = 0 WHERE id = %s", (oferta_ajena,)).rowcount == 0
+
+
+@pytest.mark.rf("RF-20")
+@pytest.mark.parametrize("cambio", ["precio = 0", "precio = -1", "stock = -1"])
+def test_precio_positivo_y_stock_no_negativo(cx, cambio):
+    como(cx, rol="operacion")
+    with pytest.raises(errors.CheckViolation):
+        cx.execute(f"UPDATE oferta SET {cambio} WHERE id = %s", (OFERTA,))
+
+
+@pytest.mark.rf("RF-20")
+def test_operacion_mantiene_el_catalogo_y_el_retracto_parte_en_false(cx):
+    como(cx, rol="operacion")
+    assert cx.execute("UPDATE oferta SET stock = 0 WHERE id = %s", (OFERTA,)).rowcount == 1
+    assert cx.execute("SELECT retracto_pierde_al_abrir FROM producto WHERE id = %s", (PRODUCTO,)).fetchone() == (False,)
+    assert cx.execute("UPDATE producto SET retracto_pierde_al_abrir = true WHERE id = %s", (PRODUCTO,)).rowcount == 1
+
+
+@pytest.mark.rf("RF-20")
+def test_la_familia_no_ve_un_comercio_que_no_esta_activo(cx):
+    cx.execute("UPDATE comercio SET estado = 'suspendido' WHERE id = %s", (COMERCIO,))
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "comercio", f"id = '{COMERCIO}'") == 0
