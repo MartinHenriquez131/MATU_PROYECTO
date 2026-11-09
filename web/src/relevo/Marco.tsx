@@ -2,7 +2,9 @@
 // el distintivo del piloto, y el `main` donde va la pantalla del momento. Sin pie ni navegación.
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { AvisoVersion } from '../compartido/ui/AvisoVersion'
 import { DistintivoPiloto, Logo } from '../compartido/ui/Marca'
+import { AVISO_VERSION } from '../compartido/textosVersion'
 import { CABECERA } from './textos'
 
 export function Marco({ ocupado, children }: { ocupado: boolean; children: ReactNode }) {
@@ -24,6 +26,9 @@ export function Marco({ ocupado, children }: { ocupado: boolean; children: React
         aria-busy={ocupado || undefined}
         className="@container/main px-4 angosto:px-2 @3xl/app:px-10 pt-6 @3xl/app:pt-14 pb-16 outline-none"
       >
+        {/* MATU-67 2.3: primero en `main`, al ancho de la columna del PIN, con el texto a la
+            izquierda. Solo espera con el foco en el campo del PIN (4.2). */}
+        <AvisoVersion bajada={AVISO_VERSION.bajadaRelevo} className="mx-auto mb-6 max-w-xl" />
         {children}
       </main>
     </>

@@ -6,6 +6,7 @@ import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
+import { useRevisarVersion } from '../compartido/version'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
@@ -19,6 +20,8 @@ import { MarcoSimple, ShellFamilia } from './Shell'
 import { FICHA, TITULOS } from './textos'
 
 export function AppFamilia() {
+  // MATU-67: revisa si hay una versión nueva al volver a la pestaña y cada 15 minutos.
+  useRevisarVersion()
   return (
     <ProveedorFamilia>
       <Rutas />

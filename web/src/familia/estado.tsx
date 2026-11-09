@@ -13,6 +13,7 @@ import {
   type Rol,
 } from '../compartido/api/familia'
 import { anunciar as anunciarEnRegion } from '../compartido/ui/Anuncios'
+import type { FuenteSinGuardar } from '../compartido/version'
 import { escucharSesion, fijarGrupo, renovar, salir as cerrarSesion } from '../compartido/api/sesion'
 import type { Apoyo } from './datos'
 import { navegar, type Ruta } from './ruteo'
@@ -83,8 +84,12 @@ interface Contexto extends Estado {
   elegir: (grupoId: string, personaId: string | null) => Promise<void>
   fijar: (cambios: Partial<Estado>) => void
   anunciar: (texto: string) => void
-  /** El editor registra aquí lo que tiene sin guardar (5.7). */
-  sinGuardar: React.RefObject<(() => string | null) | null>
+  /**
+   * Los formularios registran aquí lo que tienen sin guardar, con `registrarSinGuardar`: el editor de
+   * la ficha (5.7) y, desde MATU-67, los de Insumos. Lo consultan el vencimiento de la entrada (que
+   * muestra `texto`, si es de la ficha) y «Recargar» del aviso de versión nueva.
+   */
+  sinGuardar: React.RefObject<FuenteSinGuardar | null>
 }
 
 const Ctx = createContext<Contexto | null>(null)
@@ -115,7 +120,7 @@ const INICIAL: Estado = {
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
   const [s, setS] = useState<Estado>(INICIAL)
-  const sinGuardar = useRef<(() => string | null) | null>(null)
+  const sinGuardar = useRef<FuenteSinGuardar | null>(null)
 
   const fijar = useCallback((cambios: Partial<Estado>) => setS((x) => ({ ...x, ...cambios })), [])
 
@@ -173,7 +178,7 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
           return
         }
         // Venció: si el editor tiene texto sin guardar, se muestra antes de ir a entrar (5.7).
-        const texto = sinGuardar.current?.() ?? null
+        const texto = sinGuardar.current?.()?.texto ?? null
         olvidar('vencida', texto && texto.trim() ? texto : null)
         if (!texto || !texto.trim()) navegar('/entrar')
       }),

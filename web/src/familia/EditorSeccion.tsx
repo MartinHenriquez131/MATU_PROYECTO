@@ -19,6 +19,7 @@ import {
 } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { AVISO_REMEDIOS, avisoDe, topeDe } from '../compartido/secciones'
+import { registrarSinGuardar } from '../compartido/version'
 import { Boton } from '../compartido/ui/Boton'
 import type { Seccion } from './datos'
 import { BotonDictar, useDictado } from './Dictado'
@@ -73,12 +74,14 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
   const d = useDictado({ texto, onTexto: setTexto, tope })
 
   // 5.7 de MATU-39: si la entrada vence con texto sin guardar, se muestra antes de ir a entrar.
-  useEffect(() => {
-    sinGuardar.current = () => (textoRef.current !== (original?.texto ?? '') ? textoRef.current : null)
-    return () => {
-      sinGuardar.current = null
-    }
-  }, [sinGuardar, original?.texto])
+  // MATU-67 4.3: «Recargar» del aviso de versión nueva también lo pregunta, con el nombre de la sección.
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () =>
+        textoRef.current !== (original?.texto ?? '') ? { texto: textoRef.current, donde: seccion.titulo, foco: 'seccion-texto' } : null,
+      ),
+    [sinGuardar, original?.texto, seccion.titulo],
+  )
 
   // El contador se anuncia solo al cruzar el 90 % y el tope (4.3).
   const previo = useRef(texto.length)

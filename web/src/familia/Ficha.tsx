@@ -9,6 +9,7 @@ import { leerFallo } from '../compartido/api/cliente'
 import { guardarCampo, leerConflicto, leerFicha, nombrePilaDe, type CampoApi, type Conflicto as DatosConflicto, type EstadoCampo, type Ficha } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { Boton } from '../compartido/ui/Boton'
+import { registrarSinGuardar } from '../compartido/version'
 import { AVISO_CONTADOR, CAMPOS, MAX_CARACTERES, type Campo } from './datos'
 import { BotonDictar, useDictado } from './Dictado'
 import { puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
@@ -370,12 +371,13 @@ function EditorCampo({
   const d = useDictado({ texto, onTexto: setTexto, tope: MAX_CARACTERES })
 
   // 5.7: si la entrada vence con texto sin guardar, la app lo muestra antes de ir a entrar.
-  useEffect(() => {
-    sinGuardar.current = () => (textoRef.current !== (original.texto ?? '') ? textoRef.current : null)
-    return () => {
-      sinGuardar.current = null
-    }
-  }, [sinGuardar, original.texto])
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () =>
+        textoRef.current !== (original.texto ?? '') ? { texto: textoRef.current, donde: campo.titulo, foco: 'campo-texto' } : null,
+      ),
+    [sinGuardar, original.texto, campo.titulo],
+  )
 
   // El contador se anuncia solo al cruzar 450 y 500.
   const previo = useRef(texto.length)
