@@ -568,7 +568,7 @@ export interface paths {
         put?: never;
         /**
          * Ya lo resolví
-         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76, 79 y 147). Sin envases ni cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido
+         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76, 79 y 147). Sin envases ni cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una compra (`reposicion`) y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido
          */
         post: operations["resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post"];
         delete?: never;
@@ -668,7 +668,7 @@ export interface paths {
         put?: never;
         /**
          * Compré
-         * @description Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una reposición declarada con la fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o alerta.descartar), sin la cantidad. Solo admin y cuidador. Nunca crea un pedido
+         * @description Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una compra (`reposicion`) con la fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o alerta.descartar), sin la cantidad. Solo admin y cuidador. Nunca crea un pedido
          */
         post: operations["reponer_v1_personas_cuidadas__persona_id__consumo__perfil_id__reponer_post"];
         delete?: never;
@@ -688,7 +688,7 @@ export interface paths {
         put?: never;
         /**
          * Me quedan
-         * @description Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una reposición. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador
+         * @description Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una compra. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador
          */
         post: operations["recontar_v1_personas_cuidadas__persona_id__consumo__perfil_id__recontar_post"];
         delete?: never;
@@ -2021,7 +2021,7 @@ export interface components {
          * SolicitudResolver
          * @description Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o
          *     null): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota
-         *     la reposición y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad.
+         *     la compra (`reposicion`) y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad.
          */
         SolicitudResolver: {
             /**
@@ -4997,7 +4997,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta */
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5107,7 +5107,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta */
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos */
             409: {
                 headers: {
                     [name: string]: unknown;
