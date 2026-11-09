@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { AppFamilia } from './familia/AppFamilia'
 import { PaginaRelevo } from './relevo/PaginaRelevo'
+import { PaginaPrivacidad } from './privacidad/PaginaPrivacidad'
 import { RegionesVivas } from './compartido/ui/Anuncios'
 
 const raiz = createRoot(document.getElementById('raiz')!)
@@ -12,11 +13,20 @@ const ruta = window.location.pathname
 // la familia (MATU-39). /ejemplos solo existe en desarrollo con el doble y no entra al build.
 // Las regiones vivas van antes que la app, vacías desde el primer render: por ellas se anuncian
 // los avisos de las dos (compartido/ui/Anuncios).
+// /privacidad es la política de privacidad, pública (MATU-75): su propia rama, sin `ProveedorFamilia`
+// ni sesión, y sin leer el fragmento. No lleva el aviso de versión nueva de la app.
 if (/^\/r\/?$/.test(ruta)) {
   raiz.render(
     <StrictMode>
       <RegionesVivas />
       <PaginaRelevo />
+    </StrictMode>,
+  )
+} else if (/^\/privacidad\/?$/.test(ruta)) {
+  raiz.render(
+    <StrictMode>
+      <RegionesVivas />
+      <PaginaPrivacidad />
     </StrictMode>,
   )
 } else if (import.meta.env.DEV && import.meta.env.MODE !== 'api' && /^\/ejemplos\/?$/.test(ruta)) {
