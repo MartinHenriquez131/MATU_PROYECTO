@@ -579,18 +579,19 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!email.includes('@')) errores.push({ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'value_error' })
     if (typeof telefono !== 'string' || !/^(\+?56 ?)?9( ?[0-9]){8}$/.test(telefono.trim())) errores.push({ campo: 'telefono', mensaje: 'MENSAJE DEL DOBLE', tipo: 'celular_invalido' })
     if (typeof contrasena !== 'string' || contrasena.length < 10 || contrasena.length > 128) errores.push({ campo: 'contrasena', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_too_short' }) // pragma: allowlist secret
-    // MATU-75 (decisiones 176 y 177): `acepta_politica` estricto en `true`, y la huella, si viene, bien formada.
+    // MATU-75 (decisiones 176, 177 y 182): `acepta_politica` estricto en `true`, y la huella obligatoria y bien formada.
     if (cuerpo?.acepta_politica !== true)
       errores.push({ campo: 'acepta_politica', mensaje: 'MENSAJE DEL DOBLE', tipo: cuerpo?.acepta_politica === false ? 'politica_no_aceptada' : 'missing' })
     const huellaPolitica = cuerpo?.huella_politica
-    if (huellaPolitica != null && (typeof huellaPolitica !== 'string' || !/^[0-9a-f]{64}$/.test(huellaPolitica)))
+    // Decisión 182: la huella es obligatoria; sin ella o mal formada, 422 junto al campo.
+    if (typeof huellaPolitica !== 'string' || !/^[0-9a-f]{64}$/.test(huellaPolitica))
       errores.push({ campo: 'huella_politica', mensaje: 'MENSAJE DEL DOBLE', tipo: 'string_pattern_mismatch' })
     if (errores.length) return problema(res, 422, '/errores/validacion', { errores }), true
     if (!politicaPublicada()) return problema(res, 503, '/errores/servicio-no-disponible'), true
     // `politica-cambio@example.com`: la primera vez, la política cambió mientras se creaba la cuenta.
     const cambioDeEjemplo = email === CORREO_POLITICA_CAMBIO && !politicaCambiada.has(email)
     if (cambioDeEjemplo) politicaCambiada.add(email)
-    if (cambioDeEjemplo || (typeof huellaPolitica === 'string' && huellaPolitica !== HUELLA)) return problema(res, 409, '/errores/politica-cambio'), true
+    if (cambioDeEjemplo || huellaPolitica !== HUELLA) return problema(res, 409, '/errores/politica-cambio'), true
     // Decisión 105: en staging, después del cuerpo y antes del 409. El doble acepta cualquier dominio salvo este.
     if (email.endsWith(`@${DOMINIO_NO_PERMITIDO}`))
       return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'email', mensaje: 'MENSAJE DEL DOBLE', tipo: 'dominio_no_permitido' }] }), true
