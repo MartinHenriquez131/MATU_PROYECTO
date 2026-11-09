@@ -145,17 +145,15 @@ function AvisoDatos() {
           {p}
         </p>
       ))}
-      {RUTA_POLITICA && (
-        <a
-          href={RUTA_POLITICA}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-12 items-center gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
-        >
-          <FileText aria-hidden className="size-5 shrink-0" />
-          {AVISO.politica}
-        </a>
-      )}
+      <a
+        href={RUTA_POLITICA}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-12 items-center gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
+      >
+        <FileText aria-hidden className="size-5 shrink-0" />
+        {AVISO.politica}
+      </a>
     </section>
   )
 }
