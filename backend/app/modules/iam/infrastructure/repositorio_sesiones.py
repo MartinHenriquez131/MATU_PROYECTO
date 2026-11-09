@@ -2,7 +2,7 @@
 
 - resolver_refresh lee indice_token (sin RLS) antes de tener contexto, como el relevo (arquitectura
   7.7, excepción b). Después, cada transacción fija app.usuario_id con sesion_tenant y RLS
-  (sesion_propia, dispositivo_propio, usuario_propio) acota todo al usuario.
+  (sesion_propia, dispositivo_propio, usuario_propio_*) acota todo al usuario.
 - Nunca se lee push_token ni token_hash para devolverlos: solo se escriben.
 - conservar fija app.rol = 'operacion' y llama a iam_conservar (migración 0008), que solo borra.
 """
@@ -208,7 +208,8 @@ _DATOS_CUENTA = text(
 
 
 class RepositorioCuentaSql:
-    """La fila de usuario del contexto (MATU-57). RLS usuario_propio la acota al usuario."""
+    """La fila de usuario del contexto (MATU-57). RLS usuario_propio_leer y usuario_propio_editar la acotan al
+    usuario."""
 
     def __init__(self, sesion: Session) -> None:
         self._sesion = sesion

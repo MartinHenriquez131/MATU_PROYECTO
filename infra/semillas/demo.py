@@ -23,7 +23,7 @@ propio celular de la serie +56 9 0000 00xx, que no se asigna a nadie.
 
 Solo dos escrituras no tienen caso de uso, y van como matu_app, nunca como superusuario:
 - la membresía del resto de los miembros, porque las invitaciones aún no existen (contexto del admin y su grupo);
-- el celular de una cuenta que ya existía con otro (contexto de la propia cuenta, política usuario_propio): las
+- el celular de una cuenta que ya existía con otro (contexto de la propia cuenta, política usuario_propio_editar): las
   semillas anteriores a MATU-64 daban a todas el mismo.
 La ficha, los insumos, la alerta, el relevo y el restablecer pasan por los casos de uso.
 

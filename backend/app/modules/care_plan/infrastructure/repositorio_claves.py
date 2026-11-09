@@ -1,8 +1,9 @@
 """Adaptador SQL del puerto RepositorioClaves: la fila de clave_datos de cada persona (MATU-11).
 
 Trabaja con la sesión de la petición (sesion_tenant), con el contexto ya fijado: RLS acota cada
-consulta al grupo en contexto (política clave_familia) o al acceso de relevo vigente
-(clave_relevo). Nunca abre su propia sesión ni fija contexto.
+consulta al grupo en contexto (clave_familia_leer, y clave_familia_crear y clave_familia_destruir para admin
+y cuidador, migración 0020) o al acceso de relevo vigente (clave_relevo). Nunca abre su propia sesión ni fija
+contexto.
 
 No borra claves: matu_app no tiene DELETE sobre clave_datos, y una clave destruida no vuelve a tener DEK
 (trigger clave_datos_destruida_fija, migración 0003). Puede tener una clave nueva para contenido nuevo

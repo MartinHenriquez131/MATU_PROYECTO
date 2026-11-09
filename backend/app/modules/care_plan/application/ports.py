@@ -360,8 +360,9 @@ class Posicion:
 class RepositorioAccesos(Protocol):
     """Persistencia de acceso_relevo e indice_token, en la transacción de la petición.
 
-    Trabaja con la sesión del contexto de grupo: la política acceso_familia acota acceso_relevo al
-    grupo y a quien puede ver el plan. Nunca recibe el token ni el PIN en claro.
+    Trabaja con la sesión del contexto de grupo: acceso_familia_leer acota la lectura de acceso_relevo al
+    grupo y a quien puede ver el plan, y acceso_familia_crear y acceso_familia_cortar la escritura a admin y
+    cuidador (migración 0020). Nunca recibe el token ni el PIN en claro.
 
     Implementación: RepositorioAccesosSQL (infrastructure/repositorio_accesos.py).
     """
@@ -548,7 +549,7 @@ class RepositorioAperturas(Protocol):
     """Lectura de auditoria y acceso_relevo con la sesión del contexto de grupo.
 
     RLS acota: auditoria_aperturas_relevo (0010) muestra las filas del relevo a quien puede ver el plan,
-    y acceso_familia los accesos del grupo. Implementación: RepositorioAperturasSQL.
+    y acceso_familia_leer (0020) los accesos del grupo. Implementación: RepositorioAperturasSQL.
     """
 
     def listar(

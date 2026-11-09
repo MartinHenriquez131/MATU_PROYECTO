@@ -262,7 +262,7 @@ def guardar_campo(
     repositorio.actualizar_plan(plan.id, pct, peticion.usuario_id, ahora)
     autor = repositorio.autor(peticion.usuario_id)
     if autor is None:
-        # La cuenta de quien escribe siempre es visible para ella misma (política usuario_propio)
+        # La cuenta de quien escribe siempre es visible para ella misma (política usuario_propio_leer)
         raise PlanNoDisponible()
 
     auditoria.registrar_edicion(_evento(peticion, plan.id, campo, ahora))
