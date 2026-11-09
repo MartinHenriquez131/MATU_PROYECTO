@@ -18,8 +18,9 @@ c) acceso_relevo: acceso_familia (ALL) se divide en acceso_familia_leer (SELECT:
    UPDATE solo de revocado_en (cortar), nombre_pila_persona (anonimizar al retirar o borrar, MATU-44 y
    MATU-72) y los contadores del relevo (pin_intentos_fallidos, usos, ultimo_uso_en; acceso_relevo_contar y el
    trigger de la 0007 no cambian). Así nadie alarga un acceso ni le cambia el PIN, los campos o el teléfono
-   desde la aplicación. El borrado futuro del teléfono a los 30 días va por una función SECURITY DEFINER con
-   una política TO matu_owner, sin volver a FOR ALL.
+   desde la aplicación. matu_app pierde además el DELETE de la tabla (defensa en profundidad, como
+   indice_token). El borrado futuro del teléfono a los 30 días va por una función SECURITY DEFINER con una
+   política TO matu_owner, sin volver a FOR ALL.
 d) clave_datos: clave_familia (ALL) se divide en clave_familia_leer (SELECT: quien ve el plan), clave_familia_crear
    (INSERT) y clave_familia_destruir (UPDATE, y la fila nueva debe quedar sin DEK). Las dos escrituras exigen
    app_escribe_plan(). El DELETE sigue revocado (0003). La rotación de la KEK, cuando exista, va por una función
@@ -32,11 +33,35 @@ g) usuario.password_hash y usuario.mfa_secreto_cifrado: matu_app pierde el SELEC
    por columna de las demás). RLS es por fila y no las puede ocultar. El login lee el hash con
    iam_credencial(usuario_id), SECURITY DEFINER, que devuelve una fila solo si el id es el de app.usuario_id y
    app.rol no es 'operacion'. Ningún rol de la aplicación, ni operación ni un comiembro, lee el hash de otra
-   cuenta. El UPDATE de la contraseña propia (MATU-38) no cambia: SET password_hash no exige leerla.
+   cuenta. El UPDATE de la contraseña propia (MATU-57) no cambia: SET password_hash no exige leerla.
+   iam_credencial confía en el contexto que fija la propia aplicación (app.usuario_id y app.rol), como el resto
+   de RLS: quien controle matu_app y fije otro app.usuario_id lee esa fila, igual que con usuario_propio.
+h) usuario_propio (ALL) se separa en usuario_propio_leer (SELECT), usuario_propio_crear (INSERT, el registro de
+   MATU-04, y nunca con es_operacion) y usuario_propio_editar (UPDATE), sobre la propia fila. Sin política de
+   DELETE, y matu_app pierde el DELETE de usuario. matu_app pasa a UPDATE solo de las columnas que la
+   aplicación cambia hoy: password_hash (recuperación, MATU-57), telefono (la semilla de MATU-64; el trigger
+   de la 0012 deja el celular sin verificar), celular_verificado_en y celular_canal (verificación, MATU-57) y
+   actualizado_en. Nunca
+   es_operacion, estado, email, nombre ni eliminado_en: ningún flujo los cambia, y una cuenta no se hace
+   operación, no se desbloquea ni se borra desde su propio contexto.
 
 Lo que no cambia: las políticas TO matu_owner (*_conservacion, *_destruccion, *_conservacion_borrar), las
 funciones SECURITY DEFINER de MATU-74 y anteriores, grupo_operacion, y las tablas de consumo y del plan, que ya
 estaban por operación y por rol (0009, 0011, 0013, 0016 y 0017).
+
+Las políticas FOR ALL que quedan en tablas de negocio, con su destino:
+- Capa 3 (pedido, entrega y cargo, con sus hijas: pedido_familia, pedido_operacion, entrega_familia,
+  entrega_operacion, linea_hereda, regla_hereda, transicion_hereda, cargo_familia, cargo_operacion,
+  participacion_hereda, transaccion_hereda e idempotencia_familia): MATU-61, MATU-62 y MATU-63.
+- care_circle (membresia_familia, membresia_operacion, invitacion_familia, direccion_familia,
+  direccion_operacion y grupo_familia): MATU-42. grupo_operacion queda igual (condición 4 del analista).
+- Notificaciones (notificacion_sistema): MATU-79.
+- Catálogo (categoria_operacion, producto_operacion, comercio_operacion, convenio_operacion, oferta_operacion,
+  usuario_comercio_operacion) y Product Backlog (asignacion_*, oferta_asig_*, evidencia_hereda,
+  repartidor_operacion, consumo_comercio_*, liquidacion_operacion, plan_repo_familia, plan_repo_linea_hereda,
+  ocurrencia_hereda, medio_pago_propio): se quedan.
+- Datos propios: dispositivo_propio, sesion_propia y preferencia_propia se quedan, acotados a app_usuario().
+  usuario_propio queda separado aquí (h).
 
 backend/db/*.sql no se tocan: son el esquema de 0001.
 
@@ -75,6 +100,9 @@ COLUMNAS_USUARIO = (
     " eliminado_en, celular_verificado_en, celular_canal"
 )
 COLUMNAS_ACCESO = "revocado_en, nombre_pila_persona, pin_intentos_fallidos, usos, ultimo_uso_en"
+# Lo que la aplicación cambia de una cuenta. Nunca es_operacion, estado, email, nombre ni eliminado_en
+COLUMNAS_USUARIO_EDITABLES = "password_hash, telefono, celular_verificado_en, celular_canal, actualizado_en"
+PROPIA = "id = app_usuario()"
 
 UPGRADE = f"""
 -- (a) indice_token: SELECT, INSERT y UPDATE de revocado_en. Sin DELETE
@@ -104,7 +132,7 @@ DROP POLICY acceso_familia ON acceso_relevo;
 CREATE POLICY acceso_familia_leer ON acceso_relevo FOR SELECT USING ({VE_PLAN});
 CREATE POLICY acceso_familia_crear ON acceso_relevo FOR INSERT WITH CHECK ({ESCRIBE_PLAN});
 CREATE POLICY acceso_familia_cortar ON acceso_relevo FOR UPDATE USING ({ESCRIBE_PLAN}) WITH CHECK ({ESCRIBE_PLAN});
-REVOKE UPDATE ON acceso_relevo FROM matu_app;
+REVOKE UPDATE, DELETE ON acceso_relevo FROM matu_app;
 GRANT UPDATE ({COLUMNAS_ACCESO}) ON acceso_relevo TO matu_app;
 
 -- (d) clave_datos: leen quienes ven el plan; crean y destruyen admin y cuidador
@@ -136,9 +164,24 @@ $$
 $$;
 REVOKE ALL ON FUNCTION iam_credencial(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION iam_credencial(uuid) TO matu_app;
+
+-- (h) usuario: la propia fila se lee, se crea y se edita, nunca se borra; solo las columnas que cambia la app
+DROP POLICY usuario_propio ON usuario;
+CREATE POLICY usuario_propio_leer ON usuario FOR SELECT USING ({PROPIA});
+CREATE POLICY usuario_propio_crear ON usuario FOR INSERT WITH CHECK ({PROPIA} AND NOT es_operacion);
+CREATE POLICY usuario_propio_editar ON usuario FOR UPDATE USING ({PROPIA}) WITH CHECK ({PROPIA});
+REVOKE UPDATE, DELETE ON usuario FROM matu_app;
+GRANT UPDATE ({COLUMNAS_USUARIO_EDITABLES}) ON usuario TO matu_app;
 """
 
 DOWNGRADE = f"""
+REVOKE UPDATE ({COLUMNAS_USUARIO_EDITABLES}) ON usuario FROM matu_app;
+GRANT UPDATE, DELETE ON usuario TO matu_app;
+DROP POLICY usuario_propio_editar ON usuario;
+DROP POLICY usuario_propio_crear ON usuario;
+DROP POLICY usuario_propio_leer ON usuario;
+CREATE POLICY usuario_propio ON usuario FOR ALL USING (id = app_usuario());
+
 DROP FUNCTION iam_credencial(uuid);
 REVOKE SELECT ({COLUMNAS_USUARIO}) ON usuario FROM matu_app;
 GRANT SELECT ON usuario TO matu_app;
@@ -155,7 +198,7 @@ DROP POLICY clave_familia_leer ON clave_datos;
 CREATE POLICY clave_familia ON clave_datos FOR ALL USING ({VE_PLAN});
 
 REVOKE UPDATE ({COLUMNAS_ACCESO}) ON acceso_relevo FROM matu_app;
-GRANT UPDATE ON acceso_relevo TO matu_app;
+GRANT UPDATE, DELETE ON acceso_relevo TO matu_app;
 DROP POLICY acceso_familia_cortar ON acceso_relevo;
 DROP POLICY acceso_familia_crear ON acceso_relevo;
 DROP POLICY acceso_familia_leer ON acceso_relevo;
