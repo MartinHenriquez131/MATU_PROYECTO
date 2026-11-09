@@ -810,7 +810,7 @@ function Fila({
                 if (ocupado) return
                 onSeguir(e.target.checked)
               }}
-              className="size-5 shrink-0 accent-turquesa"
+              className="size-6 shrink-0 accent-turquesa"
             />
             {ocupado ? INSUMOS.guardando : INSUMOS.seguir}
           </label>
@@ -2060,11 +2060,11 @@ function PanelResolver({
           error={falla?.tipo === 'campo' ? falla.texto : null}
           soloLectura={ocupado}
         />
-        <div className="flex flex-wrap gap-3">
-          <Boton id={`confirmar-${a.id}`} className="angosto:px-0.5!" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
+        <div className="flex flex-wrap gap-3 angosto:flex-col angosto:items-stretch">
+          <Boton id={`confirmar-${a.id}`} className="angosto:w-full" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
             {ALERTAS.boton}
           </Boton>
-          <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
+          <Boton variante="secundario" className="angosto:w-full" disabled={ocupado} onClick={onCerrar}>
             {ALERTAS.volver}
           </Boton>
         </div>
