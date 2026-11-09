@@ -30,6 +30,7 @@ import { nombrePilaDe, type Calidad } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { fechaCorta, hoyEnChile, sumarDias } from '../compartido/fechas'
 import { Anunciado } from '../compartido/ui/Anuncios'
+import { AVISO_VERSION } from '../compartido/textosVersion'
 import { registrarSinGuardar } from '../compartido/version'
 import { Boton } from '../compartido/ui/Boton'
 import { AVISO_CUIDADOR, CALIDADES } from './datos'
@@ -902,9 +903,9 @@ function PanelRegistro({
   useEffect(
     () =>
       registrarSinGuardar(sinGuardar, () =>
-        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', donde: compre ? REGISTRO.compreDe(nombre) : REGISTRO.meQuedanDe(nombre), foco: campo } : null,
+        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: campo } : null,
       ),
-    [sinGuardar, conEnvase, compre, nombre, campo],
+    [sinGuardar, conEnvase, nombre, campo],
   )
 
   // 4: con envase el foco va al panel (no se abre el teclado); si hay que escribir, al campo.
@@ -1276,7 +1277,9 @@ function Formulario({
         const cambiados = (Object.keys(a) as (keyof typeof a)[]).filter((k) => a[k] !== i[k])
         if (!cambiados.length) return null
         const campo = (nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR).find((k) => cambiados.includes(k))
-        return { texto: '', donde: nuevo ? INSUMOS.anotar : perfil ? nombreDe(perfil) : null, foco: campo ? ids[campo] : null }
+        // «Anotar un insumo» sin nombre todavía: el título genérico.
+        const cual = nuevo ? unaLinea(a.nombre).trim() : perfil ? nombreDe(perfil) : ''
+        return { texto: '', titulo: cual ? AVISO_VERSION.sinGuardarInsumo(cual) : null, foco: campo ? ids[campo] : null }
       }),
     // `ids` sale de `uid`, que no cambia.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2001,6 +2004,18 @@ function PanelResolver({
   const [valor, setValor] = useState(conEnvase ? '1' : '')
   const [ocupado, setOcupado] = useState(false)
   const [falla, setFalla] = useState<ErrorAviso | null>(null)
+
+  // MATU-67 (revisión visual del 09-11): «Recargar» del aviso de versión nueva pregunta antes.
+  const { sinGuardar } = useFamilia()
+  const valorRef = useRef(valor)
+  valorRef.current = valor
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () =>
+        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: campo } : null,
+      ),
+    [sinGuardar, conEnvase, nombre, campo],
+  )
   const errCantidad = conEnvase ? ALERTAS.errCantidadEnvases : ALERTAS.errCantidad
 
   useEffect(() => {
