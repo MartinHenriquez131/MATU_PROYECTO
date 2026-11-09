@@ -28,6 +28,11 @@ info:
     (68 a 73: reactivar, eliminar, conservación, lectura y escritura por rol, filtro `activo=todos` y
     quién guardó en el 412) están en el README.
 
+    **Qué se acaba pronto, alertas y lista (MATU-37, MATU-51 y MATU-60): implementados.**
+    `…/consumo/por-acabarse`, `…/consumo/alertas`, `…/alertas/{alerta_id}/descartar`, `…/consumo/lista`,
+    `…/reponer`, `…/recontar` y `…/resolver` ya están en `docs/api/openapi.json`. Este archivo ya no
+    tiene rutas propias (`paths: {}`): queda como registro de las decisiones del contrato (08-11, MATU-43).
+
     **Se acaban pronto y alertas (MATU-37, RF-12): implementados.** `GET …/consumo/por-acabarse`,
     `GET …/consumo/alertas`, `POST …/consumo/alertas/{alerta_id}/descartar` y la ruta nueva
     `POST …/consumo/{perfil_id}/resolver` («Ya lo resolví», decisión 76) pasaron a
