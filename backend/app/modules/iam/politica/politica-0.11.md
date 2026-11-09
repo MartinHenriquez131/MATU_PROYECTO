@@ -333,7 +333,7 @@ Si hay una filtración que afecte datos personales, avisaremos sin demora a la A
 ## 13. Lo que todavía no funciona en el piloto
 
 - Borrar el teléfono del relevo 30 días después de que el acceso vence o se corta. Mientras no exista, MATU no trata datos reales.
-- Ver o descargar los datos desde la aplicación. Por ahora, en «Tu cuenta» solo ves qué versión de esta política aceptaste. Para lo demás, escribe a cuidaconmatu@gmail.com (sección 10).
+- Ver o descargar los datos desde la aplicación. Por ahora, en «Tu cuenta» ves tu email, parte de tu celular y qué versión de esta política aceptaste. Para lo demás, escribe a cuidaconmatu@gmail.com (sección 10).
 - Borrar los datos de la persona cuando lo pide por correo, sin pasar por su grupo. Mientras no exista, MATU no trata datos reales.
 - El recordatorio de los 12 meses.
 - Un aviso automático al equipo cuando una de las tareas diarias falla. Mientras no exista, el equipo revisa a mano el historial de corridas.

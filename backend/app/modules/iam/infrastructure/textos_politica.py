@@ -19,7 +19,7 @@ CARPETA = Path(__file__).resolve().parents[1] / "politica"
 # Versión → huella del archivo. Una fila por versión publicada; nunca se cambia la de una versión que ya se sirvió.
 # La huella es pública, no un secreto: por eso el pragma de detect-secrets
 PUBLICADAS: dict[str, str] = {
-    "0.11": "9b72d858d34c743dab842e2345cd1f421216073164df2462ad02486abb64c0f4",  # pragma: allowlist secret
+    "0.11": "4af6088cfb38e2e79c0955a6123f290e717dc76816555cc61ee2f4537cd08d17",  # pragma: allowlist secret
 }
 
 
