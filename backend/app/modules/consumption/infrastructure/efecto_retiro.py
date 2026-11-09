@@ -3,9 +3,9 @@
 Con la sesión de la petición: RLS de 0009 y 0011 deja cerrar alertas y borrar perfiles solo a admin y
 cuidador, los mismos que retiran. No lee nombre_libre ni cantidades, y nada se registra en los logs.
 
-MATU-72 (decisión 150): al borrar a la persona, borra sus perfiles al tiro; sus reposiciones y alertas caen por
-ON DELETE CASCADE. Corre después de bloquear la autorización de consumo: un perfil que se confirmó mientras el
-borrado esperaba también se borra (C7).
+MATU-72 (decisión 150): al borrar a la persona, borra sus perfiles al tiro; sus compras anotadas (``reposicion``) y
+sus alertas caen por ON DELETE CASCADE. Corre después de bloquear la autorización de consumo: un perfil que se
+confirmó mientras el borrado esperaba también se borra (C7).
 """
 
 import uuid
