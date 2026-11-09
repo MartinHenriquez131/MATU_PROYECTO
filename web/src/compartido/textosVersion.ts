@@ -11,6 +11,8 @@ export const AVISO_VERSION = {
   masTarde: 'Más tarde',
   sinGuardarEn: (donde: string) => `Lo que escribiste en «${donde}» no se guardó.`,
   sinGuardar: 'Hay algo que escribiste y no se guardó.',
+  /** Insumos (revisión visual del 09-11, aprobado por Jorge): solo el nombre del insumo. */
+  sinGuardarInsumo: (nombre: string) => `Lo que anotaste de «${nombre}» no se guardó.`,
   sinGuardarBajada: 'Si recargas ahora, se pierde.',
   seguirEscribiendo: 'Seguir escribiendo',
   recargarIgual: 'Recargar igual',

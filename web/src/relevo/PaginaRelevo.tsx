@@ -216,7 +216,7 @@ export function PaginaRelevo() {
   }, [momento])
 
   return (
-    <Marco ocupado={momento.tipo === 'cargando'}>
+    <Marco ocupado={momento.tipo === 'cargando'} anchoDelAviso={momento.tipo === 'ficha' ? 'grilla' : 'columna'}>
       {momento.tipo === 'cargando' && <Cargando key={momento.que} texto={CARGANDO[momento.que]} />}
       {momento.tipo === 'pin' && <PantallaPin presentacion={momento.presentacion} onCanjear={onCanjear} />}
       {momento.tipo === 'ficha' && <PantallaFicha ficha={momento.ficha} onActualizar={() => revalidar(false)} />}

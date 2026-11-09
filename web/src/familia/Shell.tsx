@@ -210,9 +210,9 @@ function Encabezado() {
 
 /**
  * MATU-67 (especificación 2.1, 2.2, 4.2 y 4.3): el aviso de versión nueva de la familia. Espera en
- * `/compartir/listo`, donde el PIN se muestra una sola vez. «Recargar» pregunta antes lo que el
- * formulario a la vista tiene sin guardar, y el texto que la pantalla «no se guardó» muestra tras
- * vencer la entrada, que una recarga también borra.
+ * `/compartir/listo`, donde el PIN se muestra una sola vez, y en «Lo que escribiste no se guardó»
+ * (`textoPerdido`), que una recarga también borra (revisión visual del 09-11). «Recargar» pregunta
+ * antes lo que el formulario a la vista tiene sin guardar.
  */
 function AvisoVersionFamilia({ className }: { className?: string }) {
   const { sinGuardar, textoPerdido } = useFamilia()
@@ -220,8 +220,8 @@ function AvisoVersionFamilia({ className }: { className?: string }) {
   return (
     <AvisoVersion
       bajada={AVISO_VERSION.bajadaFamilia}
-      esperar={ruta === '/compartir/listo'}
-      sinGuardar={() => (textoPerdido ? { texto: textoPerdido } : (sinGuardar?.current?.() ?? null))}
+      esperar={ruta === '/compartir/listo' || !!textoPerdido}
+      sinGuardar={() => sinGuardar?.current?.() ?? null}
       className={className}
     />
   )

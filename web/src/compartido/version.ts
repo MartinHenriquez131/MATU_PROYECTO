@@ -129,6 +129,8 @@ export interface SinGuardar {
   texto: string
   /** Dónde está, para el título del aviso. Sin nombre, el título genérico. */
   donde?: string | null
+  /** El título completo, cuando el de «Lo que escribiste en…» no calza (Insumos). Manda sobre `donde`. */
+  titulo?: string | null
   /** El id del campo que recibe el foco con «Seguir escribiendo». */
   foco?: string | null
 }

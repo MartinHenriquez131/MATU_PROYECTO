@@ -50,11 +50,12 @@ export function AvisoVersion({
   const [perdible, setPerdible] = useState<SinGuardar | null>(null)
   const [recargando, setRecargando] = useState(false)
   const seguir = useRef<HTMLButtonElement>(null)
+  const caja = useRef<HTMLDivElement>(null)
   // Solo se funde al aparecer por primera vez: al cambiar de pantalla, ya estaba.
   const [nuevo] = useState(() => !yaAnunciado())
 
   const texto = `${AVISO_VERSION.titulo} ${bajada}`
-  const tituloPerdible = perdible?.donde ? AVISO_VERSION.sinGuardarEn(perdible.donde) : AVISO_VERSION.sinGuardar
+  const tituloPerdible = perdible?.titulo || (perdible?.donde ? AVISO_VERSION.sinGuardarEn(perdible.donde) : AVISO_VERSION.sinGuardar)
   const textoPerdible = `${tituloPerdible} ${AVISO_VERSION.sinGuardarBajada}`
   const aLaVista = fase === 'visible' && !esperar
 
@@ -88,11 +89,15 @@ export function AvisoVersion({
     anunciar(texto, 'status')
   }, [aLaVista, texto])
 
-  // 4.3: el estado «sin guardar» se anuncia como urgente y el foco va a «Seguir escribiendo».
+  // 4.3: el estado «sin guardar» se anuncia como urgente. La pantalla baja hasta el borde de arriba
+  // de la caja (inmediato con movimiento reducido) y después el foco va a «Seguir escribiendo», sin
+  // volver a desplazar (revisión visual del 09-11).
   useEffect(() => {
     if (!perdible) return
     anunciar(textoPerdible, 'alert')
-    seguir.current?.focus()
+    const reducido = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    caja.current?.scrollIntoView?.({ block: 'start', behavior: reducido ? 'instant' : 'smooth' })
+    seguir.current?.focus({ preventScroll: true })
     return () => retirar(textoPerdible)
   }, [perdible, textoPerdible])
 
@@ -122,7 +127,7 @@ export function AvisoVersion({
   }
 
   return (
-    <div data-aviso-version className={className}>
+    <div ref={caja} data-aviso-version className={className}>
       {perdible ? (
         <Nota tono="atenta" borde iconoEnLinea titulo={tituloPerdible}>
           <p>{AVISO_VERSION.sinGuardarBajada}</p>
