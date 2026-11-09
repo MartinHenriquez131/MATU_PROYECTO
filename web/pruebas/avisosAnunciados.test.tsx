@@ -13,6 +13,7 @@ import { AvisoDeLlegada } from '../src/familia/Ficha'
 import { PantallaPin } from '../src/relevo/PantallaPin'
 import { responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { responderPolitica } from './politicaFalsa'
 import { conRegiones } from './regiones'
 
 let contexto = familiaFalsa()
@@ -23,12 +24,14 @@ vi.mock('../src/familia/estado', async (original) => ({
 
 async function crearCuentaCon(respuesta: Parameters<typeof responderCon>[1]) {
   responderCon(apiFamilia, respuesta)
+  responderPolitica()
   const regiones = conRegiones(<CrearCuenta />)
   const u = userEvent.setup()
   await u.type(screen.getByLabelText('Tu nombre'), 'Ana Prueba')
   await u.type(screen.getByLabelText('Tu correo'), 'ana.prueba@example.com')
   await u.type(screen.getByLabelText('Tu celular'), '+56 9 5555 0137')
   await u.type(screen.getByLabelText('Una contraseña'), 'contrasena-ejemplo') // pragma: allowlist secret
+  await u.click(screen.getByRole('checkbox', { name: /Leí y acepto la política de privacidad/ }))
   await u.click(screen.getByRole('button', { name: 'Crear cuenta' }))
   return regiones
 }

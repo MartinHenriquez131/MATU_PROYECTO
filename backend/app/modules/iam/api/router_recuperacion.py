@@ -21,12 +21,14 @@ from app.core.errores import ErrorMATU
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_reloj, usuario_actual
 from app.modules.iam.api.esquemas import (
     CuentaVista,
+    PoliticaAceptadaVista,
     SolicitudCambioContrasena,
     SolicitudCodigoRecuperacion,
     SolicitudVerificarCelular,
 )
 from app.modules.iam.api.router import obtener_hasher, obtener_pepper_email, obtener_repositorio_usuarios
 from app.modules.iam.api.sesion_web import PROBLEMA, ContadoresDep, PepperLimitesDep, UnidadDep, request_id
+from app.modules.iam.application.politica import leer_cuenta_y_aceptacion
 from app.modules.iam.application.ports import (
     AlmacenCodigos,
     ContadoresEnvio,
@@ -41,7 +43,6 @@ from app.modules.iam.application.recuperacion import (
     Peppers,
     SinCelular,
     cambiar_contrasena_con_codigo,
-    leer_cuenta,
     pedir_codigo_celular,
     solicitar_recuperacion,
     verificar_celular,
@@ -272,11 +273,15 @@ def cambiar_contrasena(
     "/cuenta",
     response_model=CuentaVista,
     tags=["cuenta"],
-    description="La cuenta propia, con el celular enmascarado y si está verificado (MATU-57).",
+    description=(
+        "La cuenta propia, con el celular enmascarado y si está verificado (MATU-57). Desde MATU-75, también la"
+        " última política de privacidad que aceptó (politica_aceptada), o null si la cuenta no tiene registro"
+        " (decisión 179)."
+    ),
     responses={200: {"headers": _NO_STORE}, **_401},
 )
 def ver_cuenta(respuesta: Response, usuario: Usuario, unidad: UnidadDep) -> CuentaVista:
-    datos = leer_cuenta(usuario_id=usuario.id, unidad=unidad)
+    datos, aceptacion = leer_cuenta_y_aceptacion(usuario_id=usuario.id, unidad=unidad)
     respuesta.headers["Cache-Control"] = "no-store"
     return CuentaVista(
         id=datos.id,
@@ -285,6 +290,11 @@ def ver_cuenta(respuesta: Response, usuario: Usuario, unidad: UnidadDep) -> Cuen
         celular_enmascarado=enmascarar_celular(datos.telefono),
         celular_verificado=datos.telefono is not None and datos.celular_verificado_en is not None,
         celular_canal=datos.celular_canal,  # type: ignore[arg-type]
+        politica_aceptada=None
+        if aceptacion is None
+        else PoliticaAceptadaVista(
+            version=aceptacion.version, huella=aceptacion.huella, aceptada_en=aceptacion.aceptada_en
+        ),
     )
 
 

@@ -7,6 +7,10 @@ Deja la base LOCAL o la de la demo lista para probar los recorridos críticos, c
   hecho. Están los cuatro roles. Coincide con la demo web.
 - Familia Riquelme: Patricia (admin) y Tomás (observador). Hernán, con autorización del titular.
 
+Cada cuenta nueva acepta la política de privacidad vigente al crearse, por el mismo caso de uso que POST /v1/usuarios
+(MATU-75): queda su fila en aceptacion_politica con la versión y la huella. Una cuenta que ya existía no se completa.
+Sin POLITICA_VERSION con su texto publicado y POLITICA_ACTUALIZADA_EN la semilla no corre.
+
 Cada persona trae, todo por los casos de uso de la API y conectada como matu_app:
 
 1. Su alta con la autorización para la ficha (MATU-07) y la autorización para calcular sus insumos (MATU-36).
@@ -137,6 +141,7 @@ from app.modules.consumption.application.perfiles import DatosPerfil, PeticionCo
 from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo  # noqa: E402
 from app.modules.consumption.infrastructure.repositorio_perfiles import RepositorioPerfilesSQL  # noqa: E402
 from app.modules.consumption.infrastructure.tarea_quiebres import recalcular_grupo  # noqa: E402
+from app.modules.iam.application.politica import politica_vigente  # noqa: E402
 from app.modules.iam.application.ports import HasherContrasenas  # noqa: E402
 from app.modules.iam.application.registro import registrar_usuario  # noqa: E402
 from app.modules.iam.domain.credenciales import (  # noqa: E402
@@ -146,8 +151,10 @@ from app.modules.iam.domain.credenciales import (  # noqa: E402
     indice_email,
     normalizar_email,
 )
+from app.modules.iam.domain.politica import PoliticaNoDisponible, PoliticaVigente  # noqa: E402
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id  # noqa: E402
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL  # noqa: E402
+from app.modules.iam.infrastructure.textos_politica import texto_publicado  # noqa: E402
 from app.shared.auditoria_sql import RegistroAuditoriaSql  # noqa: E402
 from app.shared.celular import normalizar_celular  # noqa: E402
 from app.shared.puertos import Reloj  # noqa: E402
@@ -452,6 +459,8 @@ class Sembradora:
     custodia: CustodiaClaves
     # PEPPER_PIN: el HMAC del PIN del relevo, el mismo de la API
     pepper_pin: bytes
+    # MATU-75: la política vigente, que cada cuenta nueva acepta al crearse
+    politica: PoliticaVigente
     # SEMILLA_PIN, o None para uno aleatorio
     pin_relevo: str | None = field(default=None, repr=False)
     # Cuántas cuentas creó: si la siembra se corta a medias, main igual muestra su contraseña
@@ -475,6 +484,11 @@ class Sembradora:
                 pepper=self.pepper,
                 hasher=self.hasher,
                 repositorio=repositorio,
+                # MATU-75: acepta la política vigente por el camino normal, como la casilla de «Crear cuenta»
+                politica=self.politica,
+                ahora=self.reloj.ahora(),
+                # La huella que la casilla mostró, como la envía la web (decisión 182)
+                huella_mostrada=self.politica.huella,
                 # Los correos de la semilla son de dominios reservados: así también sirve en staging, que
                 # rechaza los demás (decisión 105)
                 solo_dominios_reservados=True,
@@ -1034,6 +1048,17 @@ def main(argv: Sequence[str] = ()) -> int:
         )
         return 2
     assert configuracion.politica_version is not None  # la configuración la exige fuera de pruebas
+    try:
+        politica = politica_vigente(
+            version=configuracion.politica_version,
+            actualizada_en=configuracion.politica_actualizada_en,
+            correo=configuracion.correo_privacidad,
+            texto_de=texto_publicado,
+        )
+    except PoliticaNoDisponible as error:
+        # El motivo nombra la variable que falta, nunca un valor
+        print(f"Las cuentas aceptan la política de privacidad, y no está disponible: {error.motivo}.", file=sys.stderr)
+        return 2
 
     # Antes de escribir nada: la semilla solo corre como matu_app, para que RLS se aplique igual que
     # en la API. Los mensajes nunca muestran DATABASE_URL ni el texto del error del driver.
@@ -1060,6 +1085,7 @@ def main(argv: Sequence[str] = ()) -> int:
         hasher=HasherArgon2id(),
         custodia=custodia,
         pepper_pin=configuracion.pepper_pin.get_secret_value().encode("utf-8"),
+        politica=politica,
         pin_relevo=_pin(),
         al_crear_relevo=lambda relevo: _relevo_creado(relevo, configuracion.origen_web, mostrar),
     )

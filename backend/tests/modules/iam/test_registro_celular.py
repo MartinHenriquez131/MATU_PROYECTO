@@ -112,11 +112,15 @@ def _operacion(esquema: dict[str, Any]) -> dict[str, Any]:
 
 
 def test_contrato_declara_el_409_con_esquema_y_ejemplo(esquema: dict[str, Any]) -> None:
+    # Desde MATU-75 el 409 tiene dos tipos, email-registrado y politica-cambio, cada uno con su esquema y su ejemplo
     contenido = _operacion(esquema)["responses"]["409"]["content"]["application/problem+json"]
-    assert contenido["schema"]["properties"]["type"]["const"] == "/errores/email-registrado"
-    assert contenido["schema"]["properties"]["status"]["const"] == 409
-    assert contenido["example"]["type"] == "/errores/email-registrado"
-    assert contenido["example"]["status"] == 409
+    tipos = {opcion["properties"]["type"]["const"] for opcion in contenido["schema"]["oneOf"]}
+    assert tipos == {"/errores/email-registrado", "/errores/politica-cambio"}
+    assert all(opcion["properties"]["status"]["const"] == 409 for opcion in contenido["schema"]["oneOf"])
+    ejemplo = contenido["examples"]["email-registrado"]["value"]
+    assert (ejemplo["type"], ejemplo["status"]) == ("/errores/email-registrado", 409)
+    ejemplo = contenido["examples"]["politica-cambio"]["value"]
+    assert (ejemplo["type"], ejemplo["status"]) == ("/errores/politica-cambio", 409)
 
 
 def test_contrato_pide_el_celular(esquema: dict[str, Any]) -> None:
@@ -139,7 +143,8 @@ def test_el_409_real_calza_con_el_ejemplo_declarado(
 
     assert respuesta.status_code == 409
     cuerpo = respuesta.json()
-    ejemplo = _operacion(esquema)["responses"]["409"]["content"]["application/problem+json"]["example"]
+    ejemplos = _operacion(esquema)["responses"]["409"]["content"]["application/problem+json"]["examples"]
+    ejemplo = ejemplos["email-registrado"]["value"]
     assert set(cuerpo) == set(ejemplo)
     campos = ("type", "title", "status", "detail")
     assert {k: cuerpo[k] for k in campos} == {k: ejemplo[k] for k in campos}

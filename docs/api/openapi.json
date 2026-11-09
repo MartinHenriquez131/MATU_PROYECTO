@@ -36,7 +36,7 @@
           "usuarios"
         ],
         "summary": "Crear Cuenta",
-        "description": "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114).",
+        "description": "Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114). Desde MATU-75 exige acepta_politica = true y huella_politica (la de GET /v1/politica), y guarda, en la misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178 y 182). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado.",
         "operationId": "crear_cuenta_v1_usuarios_post",
         "requestBody": {
           "content": {
@@ -60,83 +60,168 @@
             }
           },
           "409": {
-            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
+            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email. Desde MATU-75, también politica-cambio: huella_politica no es la de la política vigente, y no se crea nada",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "const": "/errores/email-registrado",
-                      "title": "Type"
-                    },
-                    "title": {
-                      "type": "string",
-                      "title": "Title"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "const": 409,
-                      "title": "Status"
-                    },
-                    "detail": {
-                      "anyOf": [
-                        {
-                          "type": "string"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "/errores/email-registrado",
+                          "title": "Type"
                         },
-                        {
-                          "type": "null"
+                        "title": {
+                          "type": "string",
+                          "title": "Title"
+                        },
+                        "status": {
+                          "type": "integer",
+                          "const": 409,
+                          "title": "Status"
+                        },
+                        "detail": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Detail"
+                        },
+                        "errores": {
+                          "items": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "title": "Errores"
+                        },
+                        "request_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Request Id"
                         }
-                      ],
-                      "title": "Detail"
-                    },
-                    "errores": {
-                      "items": {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object"
                       },
-                      "type": "array",
-                      "title": "Errores"
-                    },
-                    "request_id": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "title",
+                        "status",
+                        "detail",
+                        "errores",
+                        "request_id"
                       ],
-                      "title": "Request Id"
+                      "title": "ProblemaEmailRegistradoVista",
+                      "description": "409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "/errores/politica-cambio",
+                          "title": "Type"
+                        },
+                        "title": {
+                          "type": "string",
+                          "title": "Title"
+                        },
+                        "status": {
+                          "type": "integer",
+                          "const": 409,
+                          "title": "Status"
+                        },
+                        "detail": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Detail"
+                        },
+                        "errores": {
+                          "items": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "title": "Errores"
+                        },
+                        "request_id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Request Id"
+                        }
+                      },
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "title",
+                        "status",
+                        "detail",
+                        "errores",
+                        "request_id"
+                      ],
+                      "title": "ProblemaPoliticaCambioVista",
+                      "description": "409 politica-cambio de POST /v1/usuarios (MATU-75). Solo documenta el OpenAPI."
+                    }
+                  ]
+                },
+                "examples": {
+                  "email-registrado": {
+                    "value": {
+                      "type": "/errores/email-registrado",
+                      "title": "Conflicto",
+                      "status": 409,
+                      "detail": "Ese email ya tiene una cuenta. Inicia sesión",
+                      "errores": [],
+                      "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
                     }
                   },
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "detail",
-                    "errores",
-                    "request_id"
-                  ],
-                  "title": "ProblemaEmailRegistradoVista",
-                  "description": "409 de POST /v1/usuarios. Solo documenta el OpenAPI: la respuesta la arma app/core/errores.py."
-                },
-                "example": {
-                  "type": "/errores/email-registrado",
-                  "title": "Conflicto",
-                  "status": 409,
-                  "detail": "Ese email ya tiene una cuenta. Inicia sesión",
-                  "errores": [],
-                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
+                  "politica-cambio": {
+                    "value": {
+                      "type": "/errores/politica-cambio",
+                      "title": "Conflicto",
+                      "status": 409,
+                      "detail": "La política de privacidad cambió mientras la leías. Vuelve a leerla",
+                      "errores": [],
+                      "request_id": "9b2f4c1e-0000-4000-8000-0000000000aa"
+                    }
+                  }
                 }
               }
             }
           },
           "422": {
-            "description": "Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor",
+            "description": "Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo = acepta_politica, MATU-75), la huella_politica que falta o está mal formada (decisión 182) y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
             "content": {
               "application/problem+json": {}
             }
@@ -151,12 +236,6 @@
                 }
               }
             },
-            "content": {
-              "application/problem+json": {}
-            }
-          },
-          "503": {
-            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
             "content": {
               "application/problem+json": {}
             }
@@ -230,6 +309,42 @@
           },
           "503": {
             "description": "Redis no responde o falta PEPPER_LIMITES: la entrada falla cerrada",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/politica": {
+      "get": {
+        "tags": [
+          "politica"
+        ],
+        "summary": "Ver Politica",
+        "description": "La política de privacidad vigente (MATU-75): versión, fecha, huella y texto en Markdown. Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, y es la que POST /v1/usuarios acepta en huella_politica. correo_contacto es CORREO_PRIVACIDAD, o null. Cache-Control: no-cache (decisión 175). 503 si falta POLITICA_VERSION o POLITICA_ACTUALIZADA_EN, si la versión no tiene un texto publicado con su huella, o si el texto todavía tiene un marcador (decisión 174).",
+        "operationId": "ver_politica_v1_politica_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-cache: se revalida cada vez",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliticaVista"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La política no se puede servir. El motivo va al log, nunca a la respuesta",
             "content": {
               "application/problem+json": {}
             }
@@ -4819,7 +4934,7 @@
           "cuenta"
         ],
         "summary": "Ver Cuenta",
-        "description": "La cuenta propia, con el celular enmascarado y si está verificado (MATU-57).",
+        "description": "La cuenta propia, con el celular enmascarado y si está verificado (MATU-57). Desde MATU-75, también la última política de privacidad que aceptó (politica_aceptada), o null si la cuenta no tiene registro (decisión 179).",
         "operationId": "ver_cuenta_v1_cuenta_get",
         "responses": {
           "200": {
@@ -6015,6 +6130,17 @@
               "whatsapp"
             ],
             "title": "Celular Canal"
+          },
+          "politica_aceptada": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PoliticaAceptadaVista"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "MATU-75: la última política que aceptó al crear la cuenta. null si la cuenta es anterior a MATU-75 y no tiene registro («No tenemos registro de qué versión aceptaste.»)"
           }
         },
         "additionalProperties": false,
@@ -6025,7 +6151,8 @@
           "email",
           "celular_enmascarado",
           "celular_verificado",
-          "celular_canal"
+          "celular_canal",
+          "politica_aceptada"
         ],
         "title": "CuentaVista",
         "description": "GET /v1/cuenta: la cuenta propia. El celular va enmascarado, nunca completo."
@@ -7172,6 +7299,93 @@
         "title": "PersonaVistaPagador",
         "description": "Lo que ve el pagador: nombre y dirección."
       },
+      "PoliticaAceptadaVista": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "title": "Version",
+            "examples": [
+              "0.11"
+            ]
+          },
+          "huella": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Huella",
+            "description": "SHA-256 del texto que se mostró"
+          },
+          "aceptada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Aceptada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "huella",
+          "aceptada_en"
+        ],
+        "title": "PoliticaAceptadaVista",
+        "description": "La última política que aceptó la cuenta (MATU-75): «Aceptaste la versión {version} el {DD/MM/AAAA}.»"
+      },
+      "PoliticaVista": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "title": "Version",
+            "examples": [
+              "0.11"
+            ]
+          },
+          "actualizada_en": {
+            "type": "string",
+            "format": "date",
+            "title": "Actualizada En",
+            "description": "Fecha de la versión, AAAA-MM-DD. La pantalla la muestra DD/MM/AAAA"
+          },
+          "huella": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Huella",
+            "description": "SHA-256 en hexadecimal de texto, en UTF-8 con saltos LF. Es la que se envía al crear la cuenta"
+          },
+          "texto": {
+            "type": "string",
+            "title": "Texto",
+            "description": "La política en Markdown, desde «En un minuto» hasta el final, ya completa: el correo de contacto ya viene puesto. Se muestra tal cual, sin HTML crudo; es exactamente lo que entra en la huella"
+          },
+          "correo_contacto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correo Contacto",
+            "description": "El correo de contacto para temas de privacidad (CORREO_PRIVACIDAD), para un mailto: en «Tu cuenta». null si no está configurado: la pantalla oculta ese párrafo",
+            "examples": [
+              "privacidad@example.com"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "actualizada_en",
+          "huella",
+          "texto",
+          "correo_contacto"
+        ],
+        "title": "PoliticaVista",
+        "description": "GET /v1/politica (MATU-75): la política de privacidad vigente, pública."
+      },
       "ProductoResumen": {
         "properties": {
           "id": {
@@ -7826,6 +8040,18 @@
             "examples": [
               "+56 9 1234 5678"
             ]
+          },
+          "acepta_politica": {
+            "type": "boolean",
+            "const": true,
+            "title": "Acepta Politica",
+            "description": "Obligatorio y en true: la persona marcó «Leí y acepto la política de privacidad.» (MATU-75). Sin él o en false, 422 con errores[].campo = acepta_politica. El servidor guarda la versión y la huella vigentes, nunca las que diga el cliente"
+          },
+          "huella_politica": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Huella Politica",
+            "description": "Obligatoria. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó GET /v1/politica. Sin ella o mal formada, 422 con errores[].campo = huella_politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea"
           }
         },
         "additionalProperties": false,
@@ -7834,7 +8060,9 @@
           "nombre",
           "email",
           "contrasena",
-          "telefono"
+          "telefono",
+          "acepta_politica",
+          "huella_politica"
         ],
         "title": "SolicitudRegistro"
       },
