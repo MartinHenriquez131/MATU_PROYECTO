@@ -6,7 +6,7 @@ import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { CrearCuenta } from '../src/familia/Alta'
-import { responderCon, type RespuestaFalsa } from './apiFalsa'
+import type { RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 import { HUELLA_DE_PRUEBA, HUELLA_NUEVA, POLITICA_DE_PRUEBA, responderPolitica } from './politicaFalsa'
 
@@ -199,16 +199,27 @@ describe('Crear cuenta: la casilla de la política', () => {
     expect(screen.getByRole('checkbox', CASILLA)).toBeChecked()
   })
 
-  it('sin la política (sin conexión o 503), al enviar se vuelve a pedir y, si tampoco llega, el error general sin enviar la cuenta', async () => {
-    const politica = responderPolitica({ status: 503, cuerpo: { type: '/errores/servicio-no-disponible', status: 503 } })
-    const familia = responderCon(apiFamilia, { status: 201 })
+  it('sin la política al abrir ni al enviar, la cuenta no se envía sin huella (decisión 182): error general, la casilla como estaba, y al reintentar va la huella', async () => {
+    const caida = { status: 503, cuerpo: { type: '/errores/servicio-no-disponible', status: 503 } }
+    // Al abrir: 503. Justo antes de enviar: 503. Al reintentar: la política llega.
+    const politica = responderPolitica(caida, caida, { status: 200, cuerpo: POLITICA_DE_PRUEBA })
+    const cuerpos = responderAlta({ status: 201, cuerpo: { id: 'x', nombre: 'Ana Prueba', email: 'ana.prueba@example.org' } })
     render(<CrearCuenta />)
     const u = await llenar()
 
     await enviar(u)
 
     expect(await screen.findByText(/Lo que escribiste sigue aquí/)).toBeInTheDocument()
-    expect(politica.length).toBeGreaterThanOrEqual(2)
-    expect(familia).toEqual([])
+    expect(politica).toEqual(['GET /v1/politica', 'GET /v1/politica'])
+    expect(cuerpos).toEqual([])
+    expect(screen.getByRole('checkbox', CASILLA)).toBeChecked()
+    expect(screen.getByLabelText('Tu correo')).toHaveValue('ana.prueba@example.org')
+
+    // El reintento es el mismo botón: vuelve a pedir la política y, con ella, envía la huella.
+    await enviar(u)
+
+    await waitFor(() => expect(cuerpos).toHaveLength(1))
+    expect(politica).toHaveLength(3)
+    expect(cuerpos[0]).toMatchObject({ acepta_politica: true, huella_politica: HUELLA_DE_PRUEBA })
   })
 })
