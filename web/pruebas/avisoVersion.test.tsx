@@ -819,15 +819,17 @@ describe('El botón secundario', () => {
     expect(boton).not.toHaveClass('angosto:px-3')
   })
 
-  it('ningún anillo `turquesa/70` queda escrito a mano: Alta, Dictado y los botones − y + van al 80 %', () => {
-    const conSetenta = ['familia', 'relevo', 'compartido', 'compartido/ui'].flatMap((carpeta) =>
+  it('ningún anillo `turquesa/70` ni `pronto/60` queda escrito a mano: Alta, Dictado, − y + y «Eliminar» van al 80 %', () => {
+    const debiles = ['familia', 'relevo', 'compartido', 'compartido/ui'].flatMap((carpeta) =>
       readdirSync(join(SRC, carpeta))
         .filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'))
-        .filter((f) => readFileSync(join(SRC, carpeta, f), 'utf-8').includes('ring-turquesa/70'))
+        .filter((f) => /ring-turquesa\/70|ring-pronto\/60/.test(readFileSync(join(SRC, carpeta, f), 'utf-8')))
         .map((f) => `${carpeta}/${f}`),
     )
-    expect(conSetenta).toEqual([])
+    expect(debiles).toEqual([])
     for (const archivo of ['familia/Alta.tsx', 'familia/Dictado.tsx', 'familia/insumosComun.tsx', 'familia/ui.tsx'])
       expect(readFileSync(join(SRC, archivo), 'utf-8')).toContain('ring-turquesa/80')
+    // El «Eliminar» de ícono de Insumos: al 60 % daba 3,12:1 contra `hoja` y 2,77:1 en algunas filas.
+    expect(readFileSync(join(SRC, 'familia/Insumos.tsx'), 'utf-8')).toContain('ring-2 ring-inset ring-pronto/80')
   })
 })

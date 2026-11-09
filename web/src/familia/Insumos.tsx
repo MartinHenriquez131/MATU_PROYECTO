@@ -847,7 +847,7 @@ function Fila({
             type="button"
             aria-label={INSUMOS.eliminarDe(nombre)}
             onClick={onEliminar}
-            className="ms-auto grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pronto ring-2 ring-inset ring-pronto/60 hover:bg-pronto-fondo active:bg-pronto-fondo"
+            className="ms-auto grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pronto ring-2 ring-inset ring-pronto/80 hover:bg-pronto-fondo active:bg-pronto-fondo"
           >
             <Trash2 aria-hidden className="size-5" />
           </button>
