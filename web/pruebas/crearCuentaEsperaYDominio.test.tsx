@@ -10,6 +10,7 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { CrearCuenta } from '../src/familia/Alta'
 import { problema422, responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { responderPolitica } from './politicaFalsa'
 import { conRegiones } from './regiones'
 
 vi.mock('../src/familia/estado', async (original) => ({
@@ -17,12 +18,18 @@ vi.mock('../src/familia/estado', async (original) => ({
   useFamilia: () => familiaFalsa(),
 }))
 
+// MATU-75: la pantalla pide la huella de la política al abrir.
+beforeEach(() => {
+  responderPolitica()
+})
+
 async function llenarYEnviar() {
   const u = userEvent.setup()
   await u.type(screen.getByLabelText('Tu nombre'), 'Ana Prueba')
   await u.type(screen.getByLabelText('Tu correo'), 'ana.prueba@example.org')
   await u.type(screen.getByLabelText('Tu celular'), '+56 9 5555 0137')
   await u.type(screen.getByLabelText('Una contraseña'), 'contrasena-ejemplo') // pragma: allowlist secret
+  await u.click(screen.getByRole('checkbox', { name: /Leí y acepto la política de privacidad/ }))
   await u.click(screen.getByRole('button', { name: 'Crear cuenta' }))
 }
 
