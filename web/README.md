@@ -69,6 +69,8 @@ La entrada en el cliente (`src/compartido/api/sesion.ts`): el access token solo 
 
 Compartir y cortar (MATU-48): `POST` y `GET …/plan/accesos-relevo` y `DELETE /v1/accesos-relevo/{id}`, con un enlace con token y PIN al azar, el teléfono solo para admin y cuidador, y una cuenta por estado (`enlaces-…` y `compartir-…` en `/ejemplos`).
 
+La política de privacidad (MATU-75): `doble/politica.ts` responde `GET /v1/politica` sin mirar cookies, con el texto 0.11 que sirve la API (`backend/app/modules/iam/politica/politica-0.11.md`, si está a mano) más una sección 15 de ejemplo que no es de la política: una tabla, una huella en `code`, un enlace `mailto:`, uno a otro sitio y un `<script>` que se tiene que ver como texto. La huella es el SHA-256 de ese texto. El alta exige `acepta_politica: true` y compara la huella; `politica-cambio@example.com` responde 409 `politica-cambio` la primera vez y crea la cuenta la segunda. `GET /v1/cuenta` trae `politica_aceptada`: las cuentas de ejemplo la aceptaron el 09/11/2026, y `politica-sin-registro@example.com` y `sin-celular@example.com` no tienen registro. `MATU_DOBLE_POLITICA` cambia la respuesta al arrancar: `no-publicada` (503 en la política y en el alta), `sin-correo` (`correo_contacto` en `null`) o `lenta` (2 s). Por ejemplo, `MATU_DOBLE_POLITICA=no-publicada npm run dev`.
+
 `npm run contrato:familia` regenera `src/compartido/api/familia.openapi.ts` desde `docs/api/openapi.json`.
 
 ## El aviso de versión nueva (MATU-67)
@@ -86,7 +88,7 @@ Para verlo con el doble (`doble/version.ts`), con `npm run dev` o `npm run previ
 
 ## Para servirlo desde la API
 
-Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`, `/compartir/listo`, `/compartir/enlaces`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
+Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r`, en `/privacidad` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`, `/compartir/listo`, `/compartir/enlaces`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.
 
 ## Estructura
 
@@ -101,7 +103,8 @@ web/
     │   └── fechas.ts      DD/MM/AAAA y HH:MM en la hora de Chile
     ├── familia/           la app de la familia: ruteo, estado, marco, alta, ficha, dictado
     ├── relevo/            la página /r: textos, estados, pantallas
+    ├── privacidad/        la página pública /privacidad y su lector de markdown, sin HTML crudo
     └── desarrollo/        lista de ejemplos (solo en desarrollo)
 ```
 
-Los textos que ve quien abre el enlace están todos en `src/relevo/textos.ts`. Los ejemplos de cada campo (decisión D2) se apagan con `MOSTRAR_EJEMPLO`, y la ruta de la política de privacidad (D5) se fija en `RUTA_POLITICA`.
+Los textos que ve quien abre el enlace están todos en `src/relevo/textos.ts`. Los ejemplos de cada campo (decisión D2) se apagan con `MOSTRAR_EJEMPLO`, y la ruta de la política de privacidad es `RUTA_POLITICA`, `/privacidad` desde MATU-75. Los textos de la política (lenguaje.md, sección 29) están en `src/compartido/textosPolitica.ts`.

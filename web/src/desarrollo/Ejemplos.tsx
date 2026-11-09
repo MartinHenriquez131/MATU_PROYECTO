@@ -36,6 +36,15 @@ export function Ejemplos() {
           </li>
         ))}
       </ul>
+      <h2 className="text-xl font-bold">Política de privacidad (MATU-75)</h2>
+      <p className="text-tenue">
+        <a className="font-bold text-turquesa underline" href="/privacidad" target="_blank" rel="noopener noreferrer">
+          /privacidad
+        </a>{' '}
+        trae el texto 0.11 y una sección 15 de ejemplo con una tabla. Para ver el error, el texto lento o «Tu cuenta» sin el correo, arranca el
+        doble con <code className="wrap-anywhere">MATU_DOBLE_POLITICA=no-publicada</code>, <code className="wrap-anywhere">=lenta</code> o{' '}
+        <code className="wrap-anywhere">=sin-correo</code>.
+      </p>
       <h2 className="text-xl font-bold">Página del relevo (MATU-23)</h2>
       <p className="text-tenue">
         PIN correcto en todos los ejemplos: <b className="digitos">{PIN_DE_EJEMPLO}</b>. Los intentos y las sesiones viven en la memoria

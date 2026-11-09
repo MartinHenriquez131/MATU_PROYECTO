@@ -1,7 +1,8 @@
 """Adaptador SQL del puerto RepositorioAccesos: acceso_relevo e indice_token (MATU-18, RF-05).
 
-Trabaja con la sesión del contexto de grupo (sesion_de_grupo): la política acceso_familia acota
-acceso_relevo al grupo y a quien puede ver el plan, y el filtro por grupo es explícito además de RLS.
+Trabaja con la sesión del contexto de grupo (sesion_de_grupo): acceso_familia_leer acota acceso_relevo al
+grupo y a quien puede ver el plan, acceso_familia_crear y acceso_familia_cortar dejan escribir solo a admin y
+cuidador (migración 0020), y el filtro por grupo es explícito además de RLS.
 indice_token no tiene RLS (02_rls.sql, excepciones declaradas) y no guarda nada sensible: la huella del
 token, el grupo, el acceso y su vencimiento.
 

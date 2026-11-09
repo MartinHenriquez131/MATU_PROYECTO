@@ -8,6 +8,7 @@ from typing import Protocol
 
 from app.modules.iam.domain.demora import ContadorFallos
 from app.modules.iam.domain.dispositivo import LimitesConservacion
+from app.modules.iam.domain.politica import AceptacionPolitica
 from app.modules.iam.domain.recuperacion import Canal, CodigoGuardado, EnviosRecientes
 from app.modules.iam.domain.refresh import EstadoRefresh
 from app.shared.puertos import RegistroAuditoria
@@ -37,6 +38,8 @@ class NuevoUsuario:
     email_hash: bytes
     # Celular en E.164 (+569XXXXXXXX), ya validado por la API
     telefono: str
+    # MATU-75: la política que aceptó al crear la cuenta. Se guarda en la misma transacción que la cuenta
+    aceptacion: AceptacionPolitica
 
 
 @dataclass(frozen=True)
@@ -55,7 +58,8 @@ class RepositorioUsuarios(Protocol):
     """
 
     def crear(self, usuario: NuevoUsuario) -> None:
-        """Guarda el usuario y su fila de indice_credencial en una sola transacción.
+        """Guarda el usuario, su fila de indice_credencial y su aceptación de la política (MATU-75) en una sola
+        transacción.
 
         Lanza EmailYaRegistrado si el email ya tiene una cuenta. En ese caso no queda nada guardado.
         """
@@ -65,7 +69,7 @@ class RepositorioUsuarios(Protocol):
         """Resuelve el usuario por indice_credencial y lee su hash y su estado.
 
         Primero busca en indice_credencial (sin RLS) y después fija app.usuario_id para leer la
-        fila de usuario, que la política usuario_propio solo muestra a su dueño. None si el email
+        fila de usuario, que la política usuario_propio_leer solo muestra a su dueño. None si el email
         no tiene cuenta.
         """
         ...
@@ -248,13 +252,20 @@ class DatosCuenta:
 
 
 class RepositorioCuenta(Protocol):
-    """La fila de usuario del contexto (RLS usuario_propio). Implementación: RepositorioCuentaSql."""
+    """La fila de usuario del contexto (RLS usuario_propio_leer y usuario_propio_editar).
+
+    Implementación: RepositorioCuentaSql."""
 
     def datos(self) -> DatosCuenta | None: ...
 
     def cambiar_contrasena(self, password_hash: str, ahora: datetime) -> None: ...
 
     def marcar_celular_verificado(self, ahora: datetime, canal: str) -> None: ...
+
+    def ultima_aceptacion(self) -> AceptacionPolitica | None:
+        """MATU-75: la última aceptación de la política de la cuenta del contexto (RLS aceptacion_propia_leer).
+        None si la cuenta no tiene registro."""
+        ...
 
 
 class EnviadorCodigos(Protocol):

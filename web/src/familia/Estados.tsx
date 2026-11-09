@@ -1,21 +1,14 @@
 // Estados transversales (especificación 3.1 y 5).
-import { useEffect, useState } from 'react'
 import { UserRound, WifiOff } from 'lucide-react'
 import { Boton } from '../compartido/ui/Boton'
+import { useDemora } from '../compartido/useDemora'
 import { useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Nota, Pagina, Titulo } from './ui'
 import { ENTRAR, ESTADOS, FICHA, GENERAL } from './textos'
 
-/** `true` pasados 400 ms: lo que carga rápido no muestra nada (3.1 y 5.1). */
-export function useDemora(ms = 400) {
-  const [ver, setVer] = useState(false)
-  useEffect(() => {
-    const t = window.setTimeout(() => setVer(true), ms)
-    return () => window.clearTimeout(t)
-  }, [ms])
-  return ver
-}
+/** `true` pasados 400 ms (3.1 y 5.1). Desde MATU-75 vive en compartido/, para la página pública. */
+export { useDemora }
 
 /** 3.1: al abrir la app, mientras renueva. */
 export function Abriendo() {

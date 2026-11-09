@@ -1,4 +1,5 @@
-"""Rutas de iam: crear una cuenta (MATU-04) e iniciar sesión (MATU-05a, con el cambio de MATU-38).
+"""Rutas de iam: crear una cuenta (MATU-04, con la aceptación de la política de MATU-75) e iniciar sesión (MATU-05a,
+con el cambio de MATU-38).
 
 La renovación, el cierre y los dispositivos están en router_sesiones.py.
 """
@@ -16,10 +17,12 @@ from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_relo
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
     ProblemaEmailRegistradoVista,
+    ProblemaPoliticaCambioVista,
     SesionRespuesta,
     SolicitudRegistro,
     SolicitudSesion,
 )
+from app.modules.iam.api.router_politica import DETALLE_NO_DISPONIBLE, PoliticaDep, politica_o_503
 from app.modules.iam.api.sesion_web import (
     PROBLEMA,
     ContadoresDep,
@@ -38,6 +41,7 @@ from app.modules.iam.application.ports import (
 from app.modules.iam.application.registro import registrar_usuario
 from app.modules.iam.application.sesiones import DemoraActiva, entrar
 from app.modules.iam.domain.credenciales import DominioNoPermitido, EmailYaRegistrado
+from app.modules.iam.domain.politica import PoliticaCambio
 from app.modules.iam.domain.sesion import CredencialesInvalidas
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL
@@ -89,6 +93,15 @@ _EJEMPLO_409: dict[str, Any] = {
     "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9",
 }
 
+_EJEMPLO_409_POLITICA: dict[str, Any] = {
+    "type": "/errores/politica-cambio",
+    "title": TITULOS[409],
+    "status": 409,
+    "detail": "La política de privacidad cambió mientras la leías. Vuelve a leerla",
+    "errores": [],
+    "request_id": "9b2f4c1e-0000-4000-8000-0000000000aa",
+}
+
 
 @router.post(
     "/usuarios",
@@ -102,24 +115,45 @@ _EJEMPLO_409: dict[str, Any] = {
         " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105)."
         " Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409."
         " Desde MATU-25, 5 cuentas por hora por IP (decisión 114)."
+        " Desde MATU-75 exige acepta_politica = true y huella_politica (la de GET /v1/politica), y guarda, en la"
+        " misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178 y 182). Orden"
+        " desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible,"
+        " 409 politica-cambio y 409 email-registrado."
     ),
     # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
     dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
     responses={
         409: {
-            "description": "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email",
+            "description": (
+                "email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email. Desde MATU-75,"
+                " también politica-cambio: huella_politica no es la de la política vigente, y no se crea nada"
+            ),
             "content": {
                 "application/problem+json": {
-                    "schema": ProblemaEmailRegistradoVista.model_json_schema(mode="serialization"),
-                    "example": _EJEMPLO_409,
+                    "schema": {
+                        "oneOf": [
+                            ProblemaEmailRegistradoVista.model_json_schema(mode="serialization"),
+                            ProblemaPoliticaCambioVista.model_json_schema(mode="serialization"),
+                        ]
+                    },
+                    "examples": {
+                        "email-registrado": {"value": _EJEMPLO_409},
+                        "politica-cambio": {"value": _EJEMPLO_409_POLITICA},
+                    },
                 }
             },
         },
         422: {
             "description": (
-                "Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido"
-                " (errores[].campo = email). Nunca repite el valor"
+                "Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo ="
+                " acepta_politica, MATU-75), la huella_politica que falta o está mal formada (decisión 182) y, solo"
+                " en staging, dominio_no_permitido (errores[].campo = email)."
+                " Nunca repite el valor"
             ),
+            **PROBLEMA,
+        },
+        503: {
+            "description": f"La política de privacidad no está disponible (MATU-75): {DETALLE_NO_DISPONIBLE}",
             **PROBLEMA,
         },
         **RESPUESTAS_LIMITE,
@@ -131,7 +165,11 @@ def crear_cuenta(
     hasher: Annotated[HasherContrasenas, Depends(obtener_hasher)],
     repositorio: Annotated[RepositorioUsuarios, Depends(obtener_repositorio_usuarios)],
     solo_dominios_reservados: Annotated[bool, Depends(registro_solo_dominios_reservados)],
+    politica: PoliticaDep,
+    reloj: Annotated[Reloj, Depends(obtener_reloj)],
 ) -> CuentaCreadaRespuesta:
+    # Después de validar el cuerpo: un 422 de campos va antes que el 503 de la política
+    vigente = politica_o_503(politica)
     try:
         cuenta = registrar_usuario(
             nombre=solicitud.nombre,
@@ -141,11 +179,19 @@ def crear_cuenta(
             pepper=pepper,
             hasher=hasher,
             repositorio=repositorio,
+            politica=vigente,
+            ahora=reloj.ahora(),
+            huella_mostrada=solicitud.huella_politica,
             solo_dominios_reservados=solo_dominios_reservados,
         )
     except DominioNoPermitido:
         # Staging tiene solo datos sintéticos (decisión 105, (i)). El detalle nunca repite el email
         raise ErrorMATU(422, detalle="Revisa los campos indicados", errores=[dict(_ERROR_DOMINIO)]) from None
+    except PoliticaCambio:
+        # Hubo un despliegue mientras la persona leía (P2 de la decisión D2): vuelve a mostrar la política vigente
+        raise ErrorMATU(
+            409, tipo="politica-cambio", detalle="La política de privacidad cambió mientras la leías. Vuelve a leerla"
+        ) from None
     except EmailYaRegistrado:
         # Riesgo aceptado en el backlog: el 409 revela que el email existe. Se mitiga con el
         # límite por IP de MATU-25. El detalle nunca repite el email.

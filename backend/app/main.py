@@ -42,6 +42,7 @@ from app.modules.consumption.api.router_lista import router as router_lista
 from app.modules.consumption.api.router_reposicion import router as router_reposicion
 from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
 from app.modules.iam.api.router import router as router_iam
+from app.modules.iam.api.router_politica import router as router_politica
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
 from app.modules.notifications.api.router import router as router_avisos
@@ -108,6 +109,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # Routers por historia (una línea cada uno)
     app.include_router(router_salud, prefix="/v1")
     app.include_router(router_iam, prefix="/v1")
+    # MATU-75: la política de privacidad vigente, pública y sin sesión
+    app.include_router(router_politica, prefix="/v1")
     app.include_router(router_sesiones, prefix="/v1")
     app.include_router(router_recuperacion, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")

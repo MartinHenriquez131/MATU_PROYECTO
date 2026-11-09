@@ -2,13 +2,16 @@
 // `Cuenta`, `Entrar`, `AQuien` y `Permiso` de la demo (Demo/src/familia/Alta.tsx). Cambios: los
 // campos empiezan vacíos, el panel es `hoja` con borde (no `pino` macizo), cuatro pasos, el
 // celular obligatorio, «correo» en vez de «email» y «autorización» en vez de «permiso».
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type Ref } from 'react'
 import { flushSync } from 'react-dom'
 import { Check, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { esperaDe, leerFallo } from '../compartido/api/cliente'
 import { crearCuenta, crearGrupo, nombrePilaDe, registrarPersona, type Calidad, type SolicitudPersona } from '../compartido/api/familia'
+import { leerPolitica } from '../compartido/api/politica'
 import { entrar, esVencida, fijarGrupo } from '../compartido/api/sesion'
+import { POLITICA } from '../compartido/textosPolitica'
 import { Boton } from '../compartido/ui/Boton'
+import { EnlacePoliticaEnFrase, LeePoliticaAntesDeAutorizar } from '../compartido/ui/Enlaces'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
@@ -112,7 +115,47 @@ export function enfocarPrimerError(form: HTMLFormElement | null) {
 
 // ---------------------------------------------------------------- 3.2 Crear cuenta
 
-type ErroresCuenta = Partial<Record<'nombre' | 'email' | 'celular' | 'contrasena', string>>
+type ErroresCuenta = Partial<Record<'nombre' | 'email' | 'celular' | 'contrasena' | 'politica', string>>
+
+/**
+ * MATU-75 (especificación 2.4): la casilla nativa de la política, sin marcar al llegar. El enlace va
+ * dentro de la etiqueta: tocarlo abre la política en otra pestaña y no marca la casilla, porque es
+ * contenido interactivo. El nombre accesible de la casilla es la frase entera.
+ */
+function CasillaPolitica({
+  marcada,
+  onCambio,
+  error,
+  ref,
+}: {
+  marcada: boolean
+  onCambio: (v: boolean) => void
+  error?: string
+  ref: Ref<HTMLInputElement>
+}) {
+  const id = useId()
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex min-h-12 max-w-xl cursor-pointer items-start gap-3 py-3 text-base leading-relaxed">
+        <input
+          ref={ref}
+          type="checkbox"
+          checked={marcada}
+          onChange={(e) => onCambio(e.target.checked)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-e` : undefined}
+          className="mt-0.5 size-6 shrink-0 accent-turquesa"
+        />
+        <span className="min-w-0">
+          {POLITICA.casillaAntes}
+          <EnlacePoliticaEnFrase />
+          {POLITICA.casillaDespues}
+        </span>
+      </label>
+      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+    </div>
+  )
+}
 
 export function CrearCuenta() {
   const { alEntrar, fijar, anunciar } = useFamilia()
@@ -121,13 +164,33 @@ export function CrearCuenta() {
   const [celular, setCelular] = useState('')
   const [clave, setClave] = useState('')
   const [ver, setVer] = useState(false)
+  const [acepta, setAcepta] = useState(false)
   const [errores, setErrores] = useState<ErroresCuenta>({})
-  const [falla, setFalla] = useState<'registrado' | 'red' | null>(null)
+  // 'politica-cambio': el 409 de una huella que ya no es la vigente (J3).
+  const [falla, setFalla] = useState<'registrado' | 'politica-cambio' | 'red' | null>(null)
   // 429 del límite por IP (lenguaje 13.3). El botón sigue habilitado (la especificación solo deshabilita
   // el de «Entrar») y el foco no se pierde; otro intento antes de tiempo vuelve a traer los minutos.
   const [minutos, setMinutos] = useState<number | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const form = useRef<HTMLFormElement>(null)
+  const casilla = useRef<HTMLInputElement>(null)
+  // La huella de la política que se mostró (decisión 177): se pide al abrir la pantalla, sin cookies.
+  // Vive solo en la memoria de la pantalla.
+  const huella = useRef<string | null>(null)
+
+  const pedirHuella = useCallback(async (): Promise<string | null> => {
+    huella.current = null
+    try {
+      huella.current = (await leerPolitica()).huella
+    } catch {
+      // Sin conexión al pedir la huella: el formulario se ve igual y se vuelve a pedir al enviar.
+    }
+    return huella.current
+  }, [])
+
+  useEffect(() => {
+    void pedirHuella()
+  }, [pedirHuella])
 
   const enviar = async (e: FormEvent) => {
     e.preventDefault()
@@ -137,13 +200,26 @@ export function CrearCuenta() {
     if (!email.includes('@')) err.email = CUENTA.errCorreo
     if (!PATRON_CELULAR.test(celular.trim())) err.celular = CUENTA.errCelular
     if (clave.length < 10) err.contrasena = CUENTA.errContrasenaCorta
+    if (!acepta) err.politica = POLITICA.errCasilla
     setErrores(err)
     setFalla(null)
     setMinutos(null)
     if (Object.keys(err).length) return enfocarPrimerError(form.current)
     setOcupado(true)
     try {
-      await crearCuenta({ nombre: nombre.trim(), email: email.trim(), telefono: celular.trim(), contrasena: clave })
+      const huellaPolitica = huella.current ?? (await pedirHuella())
+      if (!huellaPolitica) {
+        setFalla('red')
+        return
+      }
+      await crearCuenta({
+        nombre: nombre.trim(),
+        email: email.trim(),
+        telefono: celular.trim(),
+        contrasena: clave,
+        acepta_politica: true,
+        huella_politica: huellaPolitica,
+      })
       // La API no entra sola: se entra con lo mismo.
       await entrar(email.trim(), clave)
       await alEntrar()
@@ -153,7 +229,16 @@ export function CrearCuenta() {
       const f = leerFallo(x)
       const espera = esperaDe(f)
       if (espera) setMinutos(espera.minutos)
-      else if (f.status === 409) setFalla('registrado')
+      else if (f.status === 409 && f.tipo === '/errores/politica-cambio') {
+        // J3: la política cambió mientras se creaba la cuenta. La casilla se desmarca, se vuelve a
+        // pedir la huella y el foco va a la casilla. Lo escrito sigue en los campos.
+        flushSync(() => {
+          setAcepta(false)
+          setFalla('politica-cambio')
+        })
+        void pedirHuella()
+        window.setTimeout(() => casilla.current?.focus(), 0)
+      } else if (f.status === 409) setFalla('registrado')
       else if (f.status === 422 && f.errores.length) {
         const e422: ErroresCuenta = {}
         for (const { campo, tipo } of f.errores) {
@@ -161,6 +246,9 @@ export function CrearCuenta() {
           else if (campo === 'email') e422.email = tipo === 'dominio_no_permitido' ? CUENTA.errDominio : CUENTA.errCorreo
           else if (campo === 'telefono') e422.celular = CUENTA.errCelular
           else if (campo === 'contrasena') e422.contrasena = CUENTA.err422Contrasena
+          else if (campo === 'acepta_politica') e422.politica = POLITICA.errCasilla
+          // Una huella mal formada no la escribió nadie: se vuelve a pedir y queda el error general.
+          else if (campo === 'huella_politica') void pedirHuella()
         }
         // Tras un `await`, React puede confirmar el estado después del setTimeout de enfocarPrimerError:
         // flushSync deja el campo con `aria-invalid` antes de buscarlo.
@@ -217,6 +305,21 @@ export function CrearCuenta() {
           className="max-w-md"
           junto={<BotonMostrar visible={ver} onCambio={() => setVer((v) => !v)} />}
         />
+        <CasillaPolitica
+          ref={casilla}
+          marcada={acepta}
+          error={errores.politica}
+          onCambio={(v) => {
+            setAcepta(v)
+            // Al marcarla, el error se quita en ese momento.
+            if (v) setErrores((x) => ({ ...x, politica: undefined }))
+          }}
+        />
+        {falla === 'politica-cambio' && (
+          <Nota tono="atenta" titulo={POLITICA.cambioTitulo} rol="status" iconoEnLinea>
+            {POLITICA.cambioTexto}
+          </Nota>
+        )}
         {falla === 'registrado' && (
           <Nota tono="atenta" titulo={CUENTA.registradoTitulo} rol="status">
             <div className="flex flex-col items-start gap-2">
@@ -598,6 +701,7 @@ export function DeclaracionFicha({ pila, d }: { pila: string; d: ReturnType<type
       {elegida && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
           <p className="max-w-prose">{elegida.declaracion}</p>
+          <LeePoliticaAntesDeAutorizar />
         </Nota>
       )}
     </>

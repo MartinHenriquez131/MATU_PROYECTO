@@ -33,6 +33,7 @@ import { Anunciado } from '../compartido/ui/Anuncios'
 import { AVISO_VERSION } from '../compartido/textosVersion'
 import { registrarSinGuardar } from '../compartido/version'
 import { Boton } from '../compartido/ui/Boton'
+import { LeePoliticaAntesDeAutorizar } from '../compartido/ui/Enlaces'
 import { AVISO_CUIDADOR, CALIDADES } from './datos'
 import { useDemora } from './Estados'
 import { puedeEditar, useFamilia } from './estado'
@@ -1180,6 +1181,7 @@ export function Permiso({
       {calidad && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
           <p className="max-w-prose">{DECLARACION_CONSUMO[calidad]}</p>
+          <LeePoliticaAntesDeAutorizar />
         </Nota>
       )}
       {falla && (
