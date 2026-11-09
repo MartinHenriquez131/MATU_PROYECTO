@@ -3,6 +3,7 @@
 // lenguaje.md de donde sale: no se cambian por otros.
 // Nunca: "relevo", "token", "sesión", "canje", "revocado", "inválido", ni un código de error.
 import type { CampoFicha } from '../compartido/api/relevo'
+import { RUTA_PRIVACIDAD } from '../compartido/textosPolitica'
 
 export const TITULO_DOCUMENTO = 'Ficha de cuidado compartida · MATU' // [lenguaje 7.1] 2.5
 export const tituloDocumentoDeEstado = (titulo: string) => `${titulo.replace(/\.$/, '')} · MATU` // [lenguaje 7.1] 2.5
@@ -56,7 +57,7 @@ export const AVISO = {
  * MATU-75: la política de privacidad, pública, en otra pestaña. Sin fragmento: el `#<token>` del
  * relevo nunca viaja a /privacidad, y esa página no lee el fragmento.
  */
-export const RUTA_POLITICA = '/privacidad'
+export const RUTA_POLITICA = RUTA_PRIVACIDAD
 
 // lenguaje 7.2
 export const QUE_HAGO = {

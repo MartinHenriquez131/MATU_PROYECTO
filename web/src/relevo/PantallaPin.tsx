@@ -1,12 +1,13 @@
 // Quién te la mandó y el PIN (3.2), con sus mensajes (3.3) y el aviso «Tus datos en MATU» (3.2.1).
 // Sin interfaz optimista: la pantalla espera la respuesta del canje antes de cambiar.
 import { useRef, useState, type ClipboardEvent, type FormEvent } from 'react'
-import { CircleAlert, FileText, KeyRound, ShieldCheck } from 'lucide-react'
+import { CircleAlert, KeyRound, ShieldCheck } from 'lucide-react'
 import type { Presentacion } from '../compartido/api/relevo'
 import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
+import { EnlacePoliticaSolo } from '../compartido/ui/Enlaces'
 import { Baldosa, Columna, Titulo } from './Marco'
-import { AVISO, ERROR, PIN, RUTA_POLITICA } from './textos'
+import { AVISO, ERROR, PIN } from './textos'
 
 /** Lo que devuelve el canje a esta pantalla. `salio` = la página ya pasó a otro momento. */
 export type ResultadoCanje = { tipo: 'salio' } | { tipo: 'incorrecto'; intentos: number } | { tipo: 'incompleto' } | { tipo: 'conexion' }
@@ -145,15 +146,8 @@ function AvisoDatos() {
           {p}
         </p>
       ))}
-      <a
-        href={RUTA_POLITICA}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex min-h-12 items-center gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
-      >
-        <FileText aria-hidden className="size-5 shrink-0" />
-        {AVISO.politica}
-      </a>
+      {/* El mismo enlace de «Tu cuenta», a RUTA_POLITICA (/privacidad), sin fragmento. */}
+      <EnlacePoliticaSolo />
     </section>
   )
 }

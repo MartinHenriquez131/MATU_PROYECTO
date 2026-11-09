@@ -6,8 +6,9 @@ import { POLITICA, RUTA_PRIVACIDAD } from '../textosPolitica'
 
 /**
  * Un enlace en medio de una frase: en línea (no `inline-flex`), para que baje de renglón con la
- * frase. `py-3.5` no mueve los renglones pero agranda lo que se toca: cada renglón mide unos 51 px.
- * Sin ícono. Si abre otra pestaña, su texto ya termina en «(se abre en otra pestaña)».
+ * frase. El área táctil va en un `::after` (especificación v0.2, sección 7): agranda lo que se toca
+ * hasta unos 51 px sin mover los renglones, y el contorno del foco sigue al texto sin tachar los
+ * renglones vecinos. Sin ícono. Si abre otra pestaña, su texto ya termina en «(se abre en otra pestaña)».
  */
 export function EnlaceEnFrase({
   href,
@@ -25,7 +26,7 @@ export function EnlaceEnFrase({
       href={href}
       target={otraPestana ? '_blank' : undefined}
       rel={otraPestana ? 'noopener noreferrer' : undefined}
-      className={`py-3.5 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa ${className}`}
+      className={`relative font-bold text-turquesa after:absolute after:inset-x-0 after:-inset-y-3.5 after:content-['']  underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa ${className}`}
     >
       {children}
     </a>
@@ -51,9 +52,10 @@ export function EnlacePoliticaSolo() {
       href={RUTA_PRIVACIDAD}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-h-12 items-center gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
+      className="inline-flex min-h-12 items-start gap-2 self-start font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa active:decoration-turquesa"
     >
-      <FileText aria-hidden className="size-5 shrink-0" />
+      {/* Junto al primer renglón cuando el texto se parte (revisión visual v0.2, P3). */}
+      <FileText aria-hidden className="mt-0.5 size-5 shrink-0" />
       {POLITICA.enlaceSolo}
     </a>
   )
