@@ -43,10 +43,15 @@ def test_app_se_conecta_como_matu_app_sin_privilegios() -> None:
         "UPDATE indice_token SET token_hash = token_hash WHERE false",
         "SELECT password_hash FROM usuario WHERE false",
         "SELECT mfa_secreto_cifrado FROM usuario WHERE false",
+        "UPDATE usuario SET es_operacion = es_operacion WHERE false",
+        "UPDATE usuario SET estado = estado WHERE false",
+        "DELETE FROM usuario WHERE false",
+        "DELETE FROM acceso_relevo WHERE false",
     ],
-    ids=["borrar-token", "alargar-token", "mover-token", "cambiar-huella", "password-hash", "mfa"],
+    ids=["borrar-token", "alargar-token", "mover-token", "cambiar-huella", "password-hash", "mfa",
+         "hacerse-operacion", "cambiar-estado", "borrar-cuenta", "borrar-acceso"],
 )
-def test_la_app_no_borra_tokens_ni_lee_la_contrasena(sentencia: str) -> None:
+def test_la_app_no_borra_tokens_ni_cuentas_ni_lee_la_contrasena(sentencia: str) -> None:
     with pytest.raises(DBAPIError) as error, obtener_engine().connect() as cx:
         cx.execute(text(sentencia))
     assert isinstance(error.value.orig, errors.InsufficientPrivilege)
@@ -64,6 +69,9 @@ def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
                 " has_column_privilege('usuario', 'email', 'SELECT'),"
                 " has_column_privilege('usuario', 'telefono', 'SELECT'),"
                 " has_column_privilege('usuario', 'password_hash', 'UPDATE'),"
+                " has_column_privilege('usuario', 'telefono', 'UPDATE'),"
+                " has_column_privilege('usuario', 'celular_verificado_en', 'UPDATE'),"
+                " has_column_privilege('usuario', 'celular_canal', 'UPDATE'),"
                 " has_function_privilege('iam_credencial(uuid)', 'EXECUTE')"
             )
         ).one()

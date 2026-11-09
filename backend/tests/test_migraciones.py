@@ -927,9 +927,15 @@ def test_0020_acota_permisos_y_politicas_y_baja_al_esquema_de_0019(base_desechab
         ("acceso_relevo", "acceso_relevo_contar"): "UPDATE",
         ("clave_datos", "clave_familia_leer"): "SELECT", ("clave_datos", "clave_familia_crear"): "INSERT",
         ("clave_datos", "clave_familia_destruir"): "UPDATE", ("clave_datos", "clave_relevo"): "SELECT",
-        ("usuario", "usuario_propio"): "ALL", ("usuario", "usuario_comiembro"): "SELECT",
+        ("usuario", "usuario_propio_leer"): "SELECT", ("usuario", "usuario_propio_crear"): "INSERT",
+        ("usuario", "usuario_propio_editar"): "UPDATE", ("usuario", "usuario_comiembro"): "SELECT",
         ("usuario", "usuario_operacion_leer"): "SELECT",
     }
+    # Sin DELETE en acceso_relevo ni en usuario, y la cuenta solo cambia lo que la app cambia
+    assert _privilegios("acceso_relevo") == {"SELECT", "INSERT"}
+    assert _privilegios("usuario") == {"INSERT"}
+    assert _columnas_con("usuario", "UPDATE") == {
+        "password_hash", "telefono", "celular_verificado_en", "celular_canal", "actualizado_en"}
     assert _columnas_con("acceso_relevo", "UPDATE") == {
         "revocado_en", "nombre_pila_persona", "pin_intentos_fallidos", "usos", "ultimo_uso_en"}
     [(crear,)] = consultar("SELECT with_check FROM pg_policies WHERE policyname = 'consentimiento_familia_crear'")
