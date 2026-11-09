@@ -82,7 +82,7 @@ El aviso es el **primer elemento de `main`**, con `mb-6`, antes del momento que 
 | Momento | Contenedor del aviso | La caja |
 |---|---|---|
 | PIN, estados y errores | `mx-auto max-w-xl`, el ancho de la columna del PIN | Centrada, como la columna |
-| Ficha | `mx-auto max-w-6xl`, el ancho de la grilla de la ficha | **A la izquierda**, alineada con el borde izquierdo de la grilla. La `max-w-prose` de `Nota` la limita |
+| Ficha | `mx-auto max-w-6xl`, el ancho de la grilla de la ficha | **A la izquierda**, alineada con el borde izquierdo de **la tarjeta de la ficha**. La tarjeta va `mx-auto max-w-3xl` dentro de la primera columna, así que queda de 28 a 43 px más adentro que la grilla. La `max-w-prose` de `Nota` limita la caja |
 
 En la v0.1 el aviso iba `max-w-xl` centrado en todos los momentos. En la ficha, a 1280 y 1920 px, quedaba flotando desalineado de la tarjeta y de la columna lateral. Cómo se entera el contenedor del momento (una prop de `Marco` o el aviso dentro de cada momento) lo decide el frontend.
 
@@ -179,7 +179,7 @@ La apariencia es la de **`Nota` con `tono="rocio"` y `borde`**, con el ícono en
 | Bajada | `text-base leading-relaxed text-tinta` (el cuerpo de `Nota`) |
 | Acciones | `Acciones` (`flex flex-wrap items-center gap-x-5 gap-y-3`), con `mt-3` |
 | «Recargar» | `Boton variante="secundario"`, sin ícono, `textoOcupado="Recargando…"` |
-| Variante `secundario` de `Boton` (v1.1, **para toda la app**) | Anillo **`ring-2 ring-inset ring-turquesa/80`** (antes `/70`) y relleno **`px-5 angosto:px-2`** (antes `angosto:px-3`). El resto no cambia |
+| Variante `secundario` de `Boton` (v1.1, **para toda la app**) | Anillo **`ring-2 ring-inset ring-turquesa/80`** (antes `/70`) y relleno **`px-5 angosto:px-2`** (antes `angosto:px-3`). El resto no cambia. Los controles con la misma apariencia escritos fuera de `Boton` (el enlace de `Alta.tsx`, `Dictado.tsx` y los `Stepper` de `insumosComun.tsx` y `ui.tsx`) pasan también a `ring-turquesa/80`, para que un stepper no se vea más claro que el «Volver» de al lado |
 | «Más tarde» | `Boton variante="texto"` |
 | Entrada | `animate-aparecer` (180 ms). Con `prefers-reduced-motion` es inmediata, por la regla global de `index.css` |
 
@@ -251,7 +251,7 @@ Si al tocar «Recargar» `sinGuardar` devuelve texto, **no se recarga**. El mism
 
 **Al cambiar de estado, primero se ve y después se enfoca (v1.1).** La caja `atenta` es más alta que la normal. A 320 px con texto al 200% mide unos 750 px. Si solo se enfoca «Seguir escribiendo», el navegador desplaza lo mínimo para mostrar el botón, y el título («… no se guardó.») queda fuera de la pantalla. Por eso, en este orden:
 
-1. La pantalla baja hasta **el borde de arriba de la caja**: `scrollIntoView({ block: 'start' })`. Siempre es inmediato (`behavior: 'auto'`, sin `smooth`). Con `prefers-reduced-motion`, además, la regla global de `index.css` (`scroll-behavior: auto !important`) lo asegura.
+1. La pantalla baja hasta **el borde de arriba de la caja**: `scrollIntoView({ block: 'start' })`. Con `behavior: 'smooth'`, porque responde al toque de Carmen y le muestra hacia dónde se movió la pantalla (DISENO.md, principio 5, «movimiento solo como respuesta»). Con `prefers-reduced-motion` es `behavior: 'instant'`.
 2. El foco va a «Seguir escribiendo» con `focus({ preventScroll: true })`, para que el navegador no vuelva a mover la pantalla.
 
 **Qué protege `sinGuardar`** (v1.1, aprobado por Jorge el 09-11). Lo que tiene sin guardar cada formulario a la vista:
@@ -332,5 +332,5 @@ Revisados contra lenguaje.md 3: en tú, en voz activa, sin «sesión», «token�
 11. Con «Texto al 200%» a 320 px, en tema claro y oscuro, no hay desplazamiento horizontal, ninguna palabra se sale de la caja y ningún botón parte una palabra por dentro («Seguir escribiendo» incluido).
 12. Con `prefers-reduced-motion`, el aviso aparece sin fundido.
 13. Ningún texto del aviso es `text-sm`: todo va en 1 rem o más, también en el proyector.
-14. En el relevo, el aviso va primero en `main`, con el texto alineado a la izquierda. En el PIN y los estados va centrado en `max-w-xl`. En la ficha, a 1280 y 1920 px, su borde izquierdo coincide con el de la grilla de la ficha (`max-w-6xl`).
+14. En el relevo, el aviso va primero en `main`, con el texto alineado a la izquierda. En el PIN y los estados va centrado en `max-w-xl`. En la ficha, a 1280 y 1920 px, su borde izquierdo coincide con el de la tarjeta de la ficha, con 2 px de tolerancia.
 15. El anillo de «Recargar» y de «Seguir escribiendo» mide 3:1 o más contra el fondo del aviso (`rocio` o `atenta-fondo`) y contra la `hoja` de adentro, en los dos temas.
