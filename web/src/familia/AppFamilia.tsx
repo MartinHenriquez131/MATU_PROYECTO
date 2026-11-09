@@ -11,7 +11,7 @@ import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
 import { ListaDeInsumos } from './ListaInsumos'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
-import { Editor, SinAcceso, TuFicha } from './Ficha'
+import { Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
 import { CambiarConCodigo, PedirCodigo } from './Recuperar'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
@@ -80,13 +80,14 @@ function Rutas() {
     navegar(destino, { reemplazar: true })
   }, [destino, ruta, s])
 
-  // 2.5 y 2.6: título del documento y foco en el h1 al cambiar de pantalla.
+  // 2.5 y 2.6: título del documento y foco en el h1 al cambiar de pantalla. MATU-72 4.3: si la pantalla
+  // trae una nota de llegada que pide el foco (la persona elegida se borró y quedan otras), va a ella.
   useLayoutEffect(() => {
     document.title = `${tituloDe(ruta)} · MATU`
   }, [ruta])
   useEffect(() => {
     if (s.fase === 'cargando') return
-    const t = window.setTimeout(() => document.getElementById('titulo-pagina')?.focus({ preventScroll: false }), 0)
+    const t = window.setTimeout(() => (document.getElementById(ID_AVISO_LLEGADA) ?? document.getElementById('titulo-pagina'))?.focus({ preventScroll: false }), 0)
     return () => window.clearTimeout(t)
   }, [ruta, s.fase, s.personaId])
 

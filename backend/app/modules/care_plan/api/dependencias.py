@@ -17,6 +17,8 @@ contrato (docs/api/propuestos/ficha.openapi.yaml, "Orden de evaluación"):
    anterior a la destrucción), 404, como una persona eliminada. Después de una autorización nueva la
    ficha empieza en blanco con una clave nueva. Va después del 403: sin autorización no se lee nada del
    plan, tampoco su clave. No aplica a la lista de enlaces ni a las aperturas.
+   Al escribir y al compartir, la autorización se lee con FOR SHARE (MATU-44, decisión 133, y MATU-72, C7,
+   decisión 155): un retiro o un borrado simultáneo espera, o hace esperar, hasta el commit.
 7. La custodia de la KEK está configurada. Si no, 503: la ficha falla cerrada (decisión D-A).
 
 Recién después FastAPI valida el cuerpo (422) y corre la ruta. Así, sin consentimiento no se lee
@@ -165,8 +167,8 @@ def _uuid_o_404(valor: str) -> uuid.UUID:
 def _autorizar(
     contexto: ContextoGrupo, persona_id: uuid.UUID, reloj: Reloj, *, bloquear: bool = False
 ) -> FichaAutorizada:
-    """``bloquear`` (MATU-44, condición 7): compartir lee la autorización con FOR SHARE, para no cruzarse
-    con un retiro simultáneo."""
+    """``bloquear`` (MATU-44, condición 7, y MATU-72, C7): compartir y escribir leen la autorización con FOR
+    SHARE, para no cruzarse con un retiro o un borrado simultáneo."""
     persona = persona_con_autorizacion(contexto.sesion, contexto.grupo_id, persona_id, bloquear=bloquear)
     if persona is None:
         raise ErrorMATU(404)
@@ -205,7 +207,7 @@ def campo_para_escribir(
     campo_valido = campo_de(campo)
     if campo_valido is None:
         raise ErrorMATU(404)
-    return CampoAutorizado(ficha=_autorizar(contexto, persona, reloj), campo=campo_valido)
+    return CampoAutorizado(ficha=_autorizar(contexto, persona, reloj, bloquear=True), campo=campo_valido)
 
 
 def seccion_para_escribir(
@@ -217,13 +219,13 @@ def seccion_para_escribir(
     """Agregar, editar o quitar una sección complementaria (MATU-50): los mismos pasos que escribir un campo.
 
     Escriben admin y cuidador (si no, 404); persona del grupo y una de las seis secciones (si no, 404);
-    consentimiento vigente y revisión al día (403).
+    consentimiento vigente y revisión al día (403), leída con FOR SHARE (MATU-72, C7).
     """
     persona = _uuid_o_404(persona_id)
     seccion_valida = seccion_de(seccion)
     if seccion_valida is None:
         raise ErrorMATU(404)
-    return SeccionAutorizada(ficha=_autorizar(contexto, persona, reloj), seccion=seccion_valida)
+    return SeccionAutorizada(ficha=_autorizar(contexto, persona, reloj, bloquear=True), seccion=seccion_valida)
 
 
 # --- Cifrador y repositorio de la petición ---------------------------------------------------------------

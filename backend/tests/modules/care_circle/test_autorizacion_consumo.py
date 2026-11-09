@@ -31,6 +31,9 @@ class Repo:
         self.vigente = vigente
         self.guardadas: list[NuevaAutorizacion] = []
 
+    def bloquear_persona(self, persona_id: uuid.UUID) -> bool:
+        return True
+
     def hay_vigente(self, persona_id: uuid.UUID, finalidad: str) -> bool:
         assert finalidad == FINALIDAD_CONSUMO
         return self.vigente

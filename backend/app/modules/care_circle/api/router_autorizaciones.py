@@ -35,6 +35,7 @@ from app.modules.care_circle.api.esquemas_personas import (
 from app.modules.care_circle.api.router_personas import obtener_politica_version
 from app.modules.care_circle.application.autorizaciones import (
     AutorizacionVigente,
+    PersonaNoDisponible,
     RepositorioAutorizaciones,
     RolSinPermisoAutorizacion,
     SolicitudAutorizacion,
@@ -214,7 +215,7 @@ def otorgar(
             repositorio,
             preparar,
         )
-    except RolSinPermisoAutorizacion:  # pragma: no cover - la dependencia ya lo verificó
+    except (RolSinPermisoAutorizacion, PersonaNoDisponible):
         raise ErrorMATU(404) from None
     except OtorgamientoInvalido as error:
         raise ErrorMATU(

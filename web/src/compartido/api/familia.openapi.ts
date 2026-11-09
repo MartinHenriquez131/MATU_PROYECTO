@@ -420,6 +420,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/borrado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Borrar al tiro todo lo guardado de la persona y sacarla de MATU */
+        post: operations["borrar_v1_personas_cuidadas__persona_id__borrado_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
         parameters: {
             query?: never;
@@ -1023,6 +1040,33 @@ export interface components {
             parrafos: string[];
             /** Sha256 */
             sha256: string;
+        };
+        /**
+         * BorradoPersona
+         * @description Respuesta del borrado (decisión 152). Sin el nombre ni nada de la persona: los contadores van solo aquí.
+         */
+        BorradoPersona: {
+            /**
+             * Persona Id
+             * Format: uuid
+             */
+            persona_id: string;
+            /**
+             * Borrado En
+             * Format: date-time
+             * @description El instante del borrado, el mismo de toda su auditoría
+             */
+            borrado_en: string;
+            /**
+             * Enlaces Cortados
+             * @description Accesos de relevo cortados: vigentes, bloqueados y en pausa
+             */
+            enlaces_cortados: number;
+            /**
+             * Autorizaciones Retiradas
+             * @description Autorizaciones no revocadas que se retiraron
+             */
+            autorizaciones_retiradas: number;
         };
         /**
          * CalidadOtorgante
@@ -3689,6 +3733,66 @@ export interface operations {
                 };
             };
             /** @description /errores/ya-retirada: la autorización ya estaba retirada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    borrar_v1_personas_cuidadas__persona_id__borrado_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorradoPersona"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada sin borrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/ya-borrada: los datos de la persona ya se borraron */
             409: {
                 headers: {
                     [name: string]: unknown;

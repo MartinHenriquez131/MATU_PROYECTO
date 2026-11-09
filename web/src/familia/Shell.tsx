@@ -163,7 +163,8 @@ function Persona() {
             ? grupos.map((g) => (
                 <fieldset key={g.id} className="flex flex-col gap-2">
                   <legend className="mb-1 font-bold">{g.nombre}</legend>
-                  {opciones(g.id, listas[g.id] ?? (g.id === grupo?.id ? personas : []), g.rol)}
+                  {/* MATU-72 4.1: el grupo elegido, siempre desde la memoria: una persona borrada no queda en la lista pedida al abrir. */}
+                  {opciones(g.id, g.id === grupo?.id ? personas : (listas[g.id] ?? []), g.rol)}
                 </fieldset>
               ))
             : opciones(grupo!.id, personas, rol)}

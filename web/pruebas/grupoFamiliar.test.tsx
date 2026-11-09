@@ -172,8 +172,10 @@ describe('Grupo familiar, por rol y por estado', () => {
     expect(pantalla.getByRole('button', { name: 'Retirar la autorización de los insumos de María' })).toBeVisible()
     // 6.2: ningún elemento en turquesa macizo en Grupo familiar.
     expect(document.querySelector('.bg-turquesa')).toBeNull()
-    // P2: la calidad de quien autorizó nunca se muestra, aunque la API la mande al admin.
-    expect(pantalla.queryByText(/titular|representante|de hecho/i)).toBeNull()
+    // P2: la calidad de quien autorizó nunca se muestra, aunque la API la mande al admin. (MATU-72: la
+    // explicación de «Borrar sus datos» dice «su representante legal», que no es la calidad.)
+    for (const permiso of ['Permiso para guardar su ficha', 'Permiso para calcular sus insumos'])
+      expect(within(bloque(permiso)).queryByText(/titular|representante|de hecho/i)).toBeNull()
 
     expect(pedidas.map((p) => p.linea)).toEqual([
       `GET /v1/grupos/${GRUPO_ID}/personas-cuidadas`,
