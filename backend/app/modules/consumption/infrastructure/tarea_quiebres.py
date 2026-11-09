@@ -1,9 +1,9 @@
 """Trabajo diario de la predicción de quiebre y conservación de alertas (MATU-37, arquitectura 8.5).
 
-Sin programador de tareas todavía (como tarea_conservacion de MATU-36): se invoca a mano o desde cron
-a las 04:00, desde backend/ y con DATABASE_URL de matu_app:
+La corre el programador de tareas (MATU-74) una vez al día, entre las 03:00 y las 05:00 de Chile y después de
+los borrados (backend/README.md), desde backend/ y con DATABASE_URL de matu_app:
 
-    python -m app.modules.consumption.infrastructure.tarea_quiebres
+    python -m app.tareas quiebres
 
 1. Enumera los grupos activos con app.rol = 'operacion' (política grupo_operacion: solo los ids).
 2. Por cada grupo abre su propia transacción con app.grupo_id y app.rol = 'sistema', y corre
@@ -172,8 +172,10 @@ def recalcular_todos(fabrica: sessionmaker[Session], reloj: Reloj) -> ResultadoT
     for grupo_id in grupos:
         try:
             resultado = recalcular_grupo(fabrica, grupo_id, reloj)
-        except Exception:  # noqa: BLE001 - un grupo no detiene a los demás; el error puede traer datos
+        except Exception as error:  # noqa: BLE001 - un grupo no detiene a los demás
             fallidos += 1
+            # Solo el tipo (MATU-74, R2): el mensaje y la traza pueden traer el grupo_id o valores de las filas
+            log.warning("quiebres: fallo un grupo", extra={"tipo_error": type(error).__name__})
             continue
         materializadas += resultado.materializadas
         descartadas += resultado.descartadas
@@ -182,9 +184,11 @@ def recalcular_todos(fabrica: sessionmaker[Session], reloj: Reloj) -> ResultadoT
     )
 
 
-def ejecutar() -> tuple[ResultadoTarea, ResultadoConservacionQuiebres]:
-    fabrica = fabrica_sesiones()
-    reloj = RelojSistema()
+def ejecutar(
+    fabrica: sessionmaker[Session] | None = None, reloj: Reloj | None = None
+) -> tuple[ResultadoTarea, ResultadoConservacionQuiebres]:
+    fabrica = fabrica or fabrica_sesiones()
+    reloj = reloj or RelojSistema()
     tarea = recalcular_todos(fabrica, reloj)
     log.info(
         "quiebres: %d grupos, %d fallidos, %d alertas creadas, %d descartadas",
