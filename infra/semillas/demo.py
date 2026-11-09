@@ -9,8 +9,7 @@ Deja la base LOCAL o la de la demo lista para probar los recorridos críticos, c
 
 Cada cuenta nueva acepta la política de privacidad vigente al crearse, por el mismo caso de uso que POST /v1/usuarios
 (MATU-75): queda su fila en aceptacion_politica con la versión y la huella. Una cuenta que ya existía no se completa.
-Sin POLITICA_VERSION con su texto publicado, POLITICA_ACTUALIZADA_EN, CORREO_PRIVACIDAD, PROVEEDOR_CORREO_PRIVACIDAD y
-PAIS_PROVEEDOR_CORREO la semilla no corre.
+Sin POLITICA_VERSION con su texto publicado y POLITICA_ACTUALIZADA_EN la semilla no corre.
 
 Cada persona trae, todo por los casos de uso de la API y conectada como matu_app:
 
@@ -155,7 +154,7 @@ from app.modules.iam.domain.credenciales import (  # noqa: E402
 from app.modules.iam.domain.politica import PoliticaNoDisponible, PoliticaVigente  # noqa: E402
 from app.modules.iam.infrastructure.hasher_argon2 import HasherArgon2id  # noqa: E402
 from app.modules.iam.infrastructure.repositorio_usuarios import RepositorioUsuariosSQL  # noqa: E402
-from app.modules.iam.infrastructure.textos_politica import plantilla_publicada  # noqa: E402
+from app.modules.iam.infrastructure.textos_politica import texto_publicado  # noqa: E402
 from app.shared.auditoria_sql import RegistroAuditoriaSql  # noqa: E402
 from app.shared.celular import normalizar_celular  # noqa: E402
 from app.shared.puertos import Reloj  # noqa: E402
@@ -1052,9 +1051,7 @@ def main(argv: Sequence[str] = ()) -> int:
             version=configuracion.politica_version,
             actualizada_en=configuracion.politica_actualizada_en,
             correo=configuracion.correo_privacidad,
-            plantilla_de=plantilla_publicada,
-            proveedor_correo=configuracion.proveedor_correo_privacidad,
-            pais_proveedor_correo=configuracion.pais_proveedor_correo,
+            texto_de=texto_publicado,
         )
     except PoliticaNoDisponible as error:
         # El motivo nombra la variable que falta, nunca un valor

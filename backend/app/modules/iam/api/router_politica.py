@@ -15,7 +15,7 @@ from app.modules.iam.api.esquemas import PoliticaVista
 from app.modules.iam.api.sesion_web import PROBLEMA
 from app.modules.iam.application.politica import politica_vigente
 from app.modules.iam.domain.politica import PoliticaNoDisponible, PoliticaVigente
-from app.modules.iam.infrastructure.textos_politica import plantilla_publicada
+from app.modules.iam.infrastructure.textos_politica import texto_publicado
 
 log = logging.getLogger("matu.iam")
 
@@ -34,17 +34,21 @@ def obtener_politica_vigente() -> PoliticaVigente | None:
     """
     configuracion = obtener_configuracion()
     try:
-        return politica_vigente(
+        politica = politica_vigente(
             version=configuracion.politica_version,
             actualizada_en=configuracion.politica_actualizada_en,
             correo=configuracion.correo_privacidad,
-            plantilla_de=plantilla_publicada,
-            proveedor_correo=configuracion.proveedor_correo_privacidad,
-            pais_proveedor_correo=configuracion.pais_proveedor_correo,
+            texto_de=texto_publicado,
         )
     except PoliticaNoDisponible as error:
         log.error("politica no disponible: %s", error.motivo)
         return None
+    if politica.correo_contacto is not None and politica.correo_contacto not in politica.texto:
+        # La pantalla mostraría un correo en «Tu cuenta» y otro en la política. Se publica igual (el texto está
+        # completo), y el aviso queda en el log sin el valor. tests/modules/iam/test_politica.py lo verifica con el
+        # valor de .env.example
+        log.warning("CORREO_PRIVACIDAD no aparece en el texto de la política")
+    return politica
 
 
 PoliticaDep = Annotated[PoliticaVigente | None, Depends(obtener_politica_vigente)]
@@ -64,8 +68,7 @@ def politica_o_503(politica: PoliticaVigente | None) -> PoliticaVigente:
         " sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, y es la que"
         " POST /v1/usuarios acepta en huella_politica. correo_contacto es CORREO_PRIVACIDAD, o null. Cache-Control:"
         " no-cache (decisión 175). 503 si falta POLITICA_VERSION o POLITICA_ACTUALIZADA_EN, si la versión no tiene un"
-        " texto publicado con su huella, o si el texto usa un marcador sin valor: CORREO_PRIVACIDAD,"
-        " PROVEEDOR_CORREO_PRIVACIDAD o PAIS_PROVEEDOR_CORREO (decisión 174)."
+        " texto publicado con su huella, o si el texto todavía tiene un marcador (decisión 174)."
     ),
     responses={
         200: {

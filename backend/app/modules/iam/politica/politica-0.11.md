@@ -6,7 +6,7 @@
 - La ficha se guarda cifrada. La ven solo las personas de tu grupo que tienen permiso y el relevo al que tú se la compartes, por el tiempo que tú elijas.
 - MATU no usa publicidad ni analítica de terceros, y no vende datos.
 - MATU nunca ve ni guarda los datos completos de tu tarjeta.
-- Puedes pedir ver, corregir o borrar los datos escribiendo a {correo_privacidad}. La sección 10 explica cómo.
+- Puedes pedir ver, corregir o borrar los datos escribiendo a cuidaconmatu@gmail.com. La sección 10 explica cómo.
 
 ---
 
@@ -22,7 +22,7 @@
 ## 2. Quién es responsable de los datos
 
 - **Responsable durante el piloto académico:** el equipo del proyecto, Jorge Espinoza y Martín Henríquez, como personas naturales. MATU todavía no tiene persona jurídica. Eso cambia en la versión 1.0, antes de tratar datos reales.
-- **Contacto para temas de privacidad:** {correo_privacidad}. Es una dirección del proyecto, no personal, y la leen solo Jorge Espinoza y Martín Henríquez.
+- **Contacto para temas de privacidad:** cuidaconmatu@gmail.com. Es una dirección del proyecto, no personal, y la leen solo Jorge Espinoza y Martín Henríquez.
 
 ## 3. Para qué usamos los datos
 
@@ -212,7 +212,7 @@ Es aparte de la de la ficha y se da en la misma calidad. Se pide la primera vez 
 
 **Proveedores de tecnología** que guardan o procesan datos por encargo de MATU:
 - **Railway**, en California, Estados Unidos, aloja el ambiente de prueba, que tiene solo datos inventados (sección 7).
-- **{proveedor_correo}**, en {pais_proveedor_correo}, recibe y guarda los correos que nos escribes a {correo_privacidad}.
+- **Gmail, de Google LLC**, en Estados Unidos, recibe y guarda los correos que nos escribes a cuidaconmatu@gmail.com.
 
 Antes de usar MATU con datos reales, diremos aquí los demás: dónde se guardan los datos, y los servicios de avisos, mensajes de texto, WhatsApp, correo y registro de errores, con qué datos recibe cada uno.
 
@@ -311,7 +311,7 @@ Un abogado revisará, antes de usar MATU con datos reales, cómo confirmar la id
 - Sobre tus datos, tú.
 - Sobre los datos de la persona cuidada, ella misma o su representante legal. Todavía no definimos si quien la cuida sin ser su representante legal puede pedirlo en su nombre. Un abogado lo revisará antes de usar MATU con datos reales.
 
-**Cómo:** escribe a {correo_privacidad}. Si tienes cuenta en MATU, escríbenos desde el correo de tu cuenta. Si lo pides por la persona que cuidas, cuéntanos en qué calidad lo pides. No incluyas en tu correo datos de salud ni el texto de la ficha: no los necesitamos para responderte. Puede que te pidamos confirmar tu identidad. Te avisamos que recibimos tu correo dentro de 2 días hábiles y te respondemos a más tardar en 30 días corridos. Es gratis.
+**Cómo:** escribe a cuidaconmatu@gmail.com. Si tienes cuenta en MATU, escríbenos desde el correo de tu cuenta. Si lo pides por la persona que cuidas, cuéntanos en qué calidad lo pides. No incluyas en tu correo datos de salud ni el texto de la ficha: no los necesitamos para responderte. Puede que te pidamos confirmar tu identidad. Te avisamos que recibimos tu correo dentro de 2 días hábiles y te respondemos a más tardar en 30 días corridos. Es gratis.
 
 En «Tu cuenta» puedes ver qué versión de esta política aceptaste y cuándo.
 
@@ -333,7 +333,7 @@ Si hay una filtración que afecte datos personales, avisaremos sin demora a la A
 ## 13. Lo que todavía no funciona en el piloto
 
 - Borrar el teléfono del relevo 30 días después de que el acceso vence o se corta. Mientras no exista, MATU no trata datos reales.
-- Ver o descargar los datos desde la aplicación. Por ahora, en «Tu cuenta» solo ves qué versión de esta política aceptaste. Para lo demás, escribe a {correo_privacidad} (sección 10).
+- Ver o descargar los datos desde la aplicación. Por ahora, en «Tu cuenta» solo ves qué versión de esta política aceptaste. Para lo demás, escribe a cuidaconmatu@gmail.com (sección 10).
 - Borrar los datos de la persona cuando lo pide por correo, sin pasar por su grupo. Mientras no exista, MATU no trata datos reales.
 - El recordatorio de los 12 meses.
 - Un aviso automático al equipo cuando una de las tareas diarias falla. Mientras no exista, el equipo revisa a mano el historial de corridas.
@@ -342,7 +342,7 @@ Si hay una filtración que afecte datos personales, avisaremos sin demora a la A
 - Enviar correos solo a direcciones verificadas.
 - Invitaciones, pedidos y pagos.
 - Verificar tu email al crear la cuenta. Mientras no exista, si intentas registrarte con un email que ya tiene cuenta, MATU te lo dirá, y alguien podría registrar un email que no es suyo.
-- Eliminar tu cuenta o cambiar tu nombre o tu correo desde la aplicación. Mientras tanto, pídelo a {correo_privacidad} desde el correo de tu cuenta.
+- Eliminar tu cuenta o cambiar tu nombre o tu correo desde la aplicación. Mientras tanto, pídelo a cuidaconmatu@gmail.com desde el correo de tu cuenta.
 
 ## 14. Leyes que aplican
 

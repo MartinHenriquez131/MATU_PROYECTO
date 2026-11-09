@@ -18,29 +18,19 @@ def politica_vigente(
     version: str | None,
     actualizada_en: date | None,
     correo: str | None,
-    plantilla_de: Callable[[str], str],
-    proveedor_correo: str | None = None,
-    pais_proveedor_correo: str | None = None,
+    texto_de: Callable[[str], str],
 ) -> PoliticaVigente:
-    """La política que se muestra y se acepta: la versión configurada, su fecha y su texto con el correo puesto.
+    """La política que se muestra y se acepta: la versión configurada, su fecha, su texto tal cual y el correo de
+    contacto (CORREO_PRIVACIDAD, o None).
 
-    Lanza PoliticaNoDisponible si falta la versión o la fecha, si la versión no tiene un texto publicado
-    (plantilla_de), o si falta el valor de un marcador que el texto usa (el correo, su proveedor o su país). Así no
-    se muestra una política incompleta ni se crea una cuenta con ella.
+    Lanza PoliticaNoDisponible si falta la versión o la fecha, si la versión no tiene un texto publicado (texto_de),
+    o si el texto todavía tiene un marcador. Así no se muestra una política incompleta ni se crea una cuenta con ella.
     """
     if version is None:
         raise PoliticaNoDisponible("falta POLITICA_VERSION")
     if actualizada_en is None:
         raise PoliticaNoDisponible("falta POLITICA_ACTUALIZADA_EN")
-    plantilla = plantilla_de(version)
-    return armar_politica(
-        version=version,
-        actualizada_en=actualizada_en,
-        plantilla=plantilla,
-        correo=correo,
-        proveedor_correo=proveedor_correo,
-        pais_proveedor_correo=pais_proveedor_correo,
-    )
+    return armar_politica(version=version, actualizada_en=actualizada_en, texto=texto_de(version), correo=correo)
 
 
 def leer_cuenta_y_aceptacion(

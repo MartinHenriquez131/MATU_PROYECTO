@@ -2,10 +2,11 @@
 
 Reglas puras, sin I/O ni reloj:
 
-- El texto que se muestra es exactamente el que entra en la huella: SHA-256 del texto en UTF-8 con saltos LF,
-  después de reemplazar sus marcadores ({correo_privacidad}, {proveedor_correo} y {pais_proveedor_correo}) con la
-  configuración. Si el texto usa un marcador sin valor, o queda uno sin reemplazar, la política no se publica.
-  Nunca se acepta un texto con marcadores.
+- El texto que se muestra es exactamente el que entra en la huella: SHA-256 del texto en UTF-8 con saltos LF, tal
+  como está publicado. La API no reemplaza nada: el correo de contacto, su proveedor y su país vienen escritos en el
+  texto desde docs/legal/politica-privacidad.md.
+- Si el texto todavía trae un marcador ({correo_privacidad} o cualquier {algo}, [PROVEEDOR…] o [PAÍS]), la política
+  no se publica. Nunca se muestra ni se acepta un texto con marcadores.
 - Al crear la cuenta, el servidor estampa la versión y la huella vigentes. Si el cliente envía la huella que mostró
   y no es la vigente (hubo un despliegue mientras la persona leía), la cuenta no se crea.
 """
@@ -15,16 +16,15 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 
-MARCADOR_CORREO = "{correo_privacidad}"
-MARCADOR_PROVEEDOR = "{proveedor_correo}"
-MARCADOR_PAIS = "{pais_proveedor_correo}"
-# Cualquier marcador {minúsculas_y_guiones_bajos} que quede en el texto final, también uno que este código no conoce
-_MARCADOR = re.compile(r"\{[a-z_]+\}")
+# Marcadores que impiden publicar: {minúsculas_y_guiones_bajos}, como {correo_privacidad}, y los de la fuente que
+# Jorge completa a mano, [PROVEEDOR DEL CORREO] y [PAÍS]
+_MARCADORES = re.compile(r"\{[a-z_]+\}|\[PROVEEDOR|\[PAÍS\]")
 FORMA_HUELLA = re.compile(r"^[0-9a-f]{64}$")
 
 
 class PoliticaNoDisponible(Exception):
-    """No hay una política que servir: falta la versión, la fecha o el correo, o la versión no tiene texto.
+    """No hay una política que servir: falta la versión o la fecha, la versión no tiene texto, o el texto todavía
+    tiene un marcador.
 
     El motivo nombra lo que falta, nunca un valor de la configuración.
     """
@@ -69,32 +69,18 @@ def huella_de(texto: str) -> str:
     return hashlib.sha256(normalizar_saltos(texto).encode("utf-8")).hexdigest()
 
 
-def armar_politica(
-    *,
-    version: str,
-    actualizada_en: date,
-    plantilla: str,
-    correo: str | None,
-    proveedor_correo: str | None = None,
-    pais_proveedor_correo: str | None = None,
-) -> PoliticaVigente:
-    """La política que se sirve, ya completa: la plantilla con sus marcadores reemplazados, y la huella de ese texto.
+def tiene_marcadores(texto: str) -> bool:
+    return _MARCADORES.search(texto) is not None
 
-    Lanza PoliticaNoDisponible si el texto usa un marcador y falta su valor (el motivo nombra la variable), o si queda
-    un marcador sin reemplazar. Un texto sin un marcador no necesita su valor.
+
+def armar_politica(*, version: str, actualizada_en: date, texto: str, correo: str | None) -> PoliticaVigente:
+    """La política que se sirve: el texto tal cual, su huella y el correo de contacto aparte.
+
+    Lanza PoliticaNoDisponible si el texto todavía tiene un marcador.
     """
-    texto = normalizar_saltos(plantilla)
-    for marcador, valor, variable in (
-        (MARCADOR_CORREO, correo, "CORREO_PRIVACIDAD"),
-        (MARCADOR_PROVEEDOR, proveedor_correo, "PROVEEDOR_CORREO_PRIVACIDAD"),
-        (MARCADOR_PAIS, pais_proveedor_correo, "PAIS_PROVEEDOR_CORREO"),
-    ):
-        if marcador in texto:
-            if valor is None:
-                raise PoliticaNoDisponible(f"falta {variable} y el texto lo usa")
-            texto = texto.replace(marcador, valor)
-    if _MARCADOR.search(texto):
-        raise PoliticaNoDisponible("el texto tiene un marcador sin reemplazar")
+    texto = normalizar_saltos(texto)
+    if tiene_marcadores(texto):
+        raise PoliticaNoDisponible("el texto todavía tiene un marcador sin completar")
     return PoliticaVigente(
         version=version, actualizada_en=actualizada_en, huella=huella_de(texto), texto=texto, correo_contacto=correo
     )

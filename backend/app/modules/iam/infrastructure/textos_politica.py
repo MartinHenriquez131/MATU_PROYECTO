@@ -2,7 +2,7 @@
 
 Cada archivo politica-<versión>.md lo genera backend/scripts/generar_politica.py desde
 docs/legal/politica-privacidad.md del repositorio MATU. PUBLICADAS fija, por versión, la huella SHA-256 del archivo
-tal como está en el repositorio (con el marcador {correo_privacidad}, saltos LF).
+tal como está en el repositorio (saltos LF). Es el texto que se sirve, sin reemplazar nada.
 
 Si el archivo cambia y su huella no, la versión no se sirve: GET /v1/politica y POST /v1/usuarios responden 503.
 Así un texto nuevo no sale con el número de una versión anterior. Un texto nuevo es una versión nueva: otro archivo,
@@ -19,7 +19,7 @@ CARPETA = Path(__file__).resolve().parents[1] / "politica"
 # Versión → huella del archivo. Una fila por versión publicada; nunca se cambia la de una versión que ya se sirvió.
 # La huella es pública, no un secreto: por eso el pragma de detect-secrets
 PUBLICADAS: dict[str, str] = {
-    "0.11": "941efe228ad04aa14078e55a3640d44d4538f65e3d92eefe78b0f017e6e7c467",  # pragma: allowlist secret
+    "0.11": "9b72d858d34c743dab842e2345cd1f421216073164df2462ad02486abb64c0f4",  # pragma: allowlist secret
 }
 
 
@@ -28,9 +28,9 @@ def archivo_de(version: str) -> Path:
 
 
 @lru_cache
-def plantilla_publicada(version: str) -> str:
-    """El texto de la versión, con el marcador del correo. Lanza PoliticaNoDisponible si no está publicada, si el
-    archivo no está o si su huella no es la de PUBLICADAS."""
+def texto_publicado(version: str) -> str:
+    """El texto de la versión, tal cual. Lanza PoliticaNoDisponible si no está publicada, si el archivo no está o
+    si su huella no es la de PUBLICADAS."""
     esperada = PUBLICADAS.get(version)
     if esperada is None:
         raise PoliticaNoDisponible("la versión configurada no tiene un texto publicado")

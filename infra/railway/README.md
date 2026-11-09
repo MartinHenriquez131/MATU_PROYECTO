@@ -48,10 +48,9 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 |---|---|
 | `ENTORNO` | `staging`, siempre explícito (decisión 105). La imagen trae `produccion` por omisión; si el log de arranque no dice `entorno=staging`, el despliegue no se da por bueno |
 | `LOG_NIVEL` | `INFO` |
-| `POLITICA_VERSION` | La versión vigente de `docs/legal/politica-privacidad.md` del repositorio MATU: `0.11` desde MATU-75. Debe tener su texto en `backend/app/modules/iam/politica/`; si no, `GET /v1/politica` y crear una cuenta responden 503 |
+| `POLITICA_VERSION` | La versión vigente de `docs/legal/politica-privacidad.md` del repositorio MATU: `0.11` desde MATU-75. Debe tener su texto en `backend/app/modules/iam/politica/`, sin marcadores; si no, `GET /v1/politica` y crear una cuenta responden 503 |
 | `POLITICA_ACTUALIZADA_EN` | MATU-75: la fecha de esa versión, `AAAA-MM-DD` (la 0.11, `2026-11-09`). Sin ella, `GET /v1/politica` y crear una cuenta responden 503 |
-| `CORREO_PRIVACIDAD` | MATU-75: el correo de contacto de privacidad que da Jorge, una dirección de la función y nunca personal (D5). Sin él, `GET /v1/politica` y crear una cuenta responden 503 |
-| `PROVEEDOR_CORREO_PRIVACIDAD` y `PAIS_PROVEEDOR_CORREO` | MATU-75: el proveedor de ese buzón y su país, que da Jorge (D5). Sin ellos, `GET /v1/politica` y crear una cuenta responden 503 |
+| `CORREO_PRIVACIDAD` | MATU-75: `cuidaconmatu@gmail.com`, el mismo que trae escrito el texto de la política. `GET /v1/politica` lo entrega aparte para el `mailto:` de «Tu cuenta»; sin él sale `null` |
 | `PEPPER_EMAIL` | Secreto nuevo de staging, `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_CLAVE` | Secreto nuevo de staging, distinto de los demás |
 | `PEPPER_PIN` | Secreto nuevo de staging, distinto de los demás |
