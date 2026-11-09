@@ -51,10 +51,10 @@ class RepositorioUsuariosSQL:
         # Paso 2. La fila de usuario sí tiene RLS (usuario_propio: id = app_usuario()). Se lee con
         # el contexto del usuario recién resuelto, en su propia transacción.
         with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
-            # Con SQL explícito y no con UsuarioORM: mapear estado en el ORM cambiaría el INSERT
-            # del registro, que hoy deja ese valor a la base.
+            # matu_app no lee usuario.password_hash (migración 0020, MATU-66): iam_credencial, SECURITY
+            # DEFINER, devuelve el hash y el estado solo de la cuenta del contexto, y nunca a operación.
             fila = sesion.execute(
-                text("SELECT password_hash, estado FROM usuario WHERE id = :id"), {"id": usuario_id}
+                text("SELECT password_hash, estado FROM iam_credencial(:id)"), {"id": usuario_id}
             ).one_or_none()
             if fila is None:
                 return None
