@@ -2430,6 +2430,72 @@ def test_iam_credencial_solo_devuelve_la_cuenta_del_contexto(sesiones_app, conte
     assert filas == ([("h", "activo")] if devuelve else [])
 
 
+# ------------------------------------------------------------------ MATU-75: aceptación de la política
+
+HUELLA_A, HUELLA_B = "a" * 64, "b" * 64
+
+
+def _sembrar_aceptaciones(cx):
+    """Una aceptación de U_OBS_A y otra de U_ADMIN_B, como superusuario, dentro de la transacción de la prueba."""
+    cx.execute("INSERT INTO aceptacion_politica (usuario_id, version, huella)"
+               " VALUES (%s, '0.11', %s), (%s, '0.11', %s)", (U_OBS_A, HUELLA_A, U_ADMIN_B, HUELLA_B))
+
+
+def _falla_por_permiso(cx, sql, *parametros):
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(sql, parametros)
+
+
+@pytest.mark.rf("RF-37")
+def test_la_titular_lee_y_agrega_solo_sus_aceptaciones(cx):
+    _sembrar_aceptaciones(cx)
+    como(cx, usuario_id=U_OBS_A)
+    assert cx.execute("SELECT usuario_id, huella FROM aceptacion_politica").fetchall() == [(U_OBS_A, HUELLA_A)]
+    cx.execute("INSERT INTO aceptacion_politica (usuario_id, version, huella) VALUES (%s, '0.11', %s)",
+               (U_OBS_A, HUELLA_B))
+    assert contar(cx, "aceptacion_politica") == 2
+    # No agrega una a nombre de otra cuenta (WITH CHECK de aceptacion_propia_crear)
+    _falla_por_permiso(cx, "INSERT INTO aceptacion_politica (usuario_id, version, huella) VALUES (%s, '0.11', %s)",
+                       U_ADMIN_B, HUELLA_A)
+    # Ni cambia ni borra las suyas: matu_app no tiene UPDATE ni DELETE
+    _falla_por_permiso(cx, "UPDATE aceptacion_politica SET version = '0.10' WHERE usuario_id = %s", U_OBS_A)
+    _falla_por_permiso(cx, "DELETE FROM aceptacion_politica WHERE usuario_id = %s", U_OBS_A)
+
+
+@pytest.mark.rf("RF-37")
+def test_un_comiembro_no_ve_la_aceptacion_de_otra_cuenta(cx):
+    _sembrar_aceptaciones(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "aceptacion_politica") == 0
+
+
+@pytest.mark.rf("RF-37")
+def test_operacion_lee_las_aceptaciones_y_no_las_cambia(cx):
+    _sembrar_aceptaciones(cx)
+    como(cx, rol="operacion")
+    assert sorted(r[0] for r in cx.execute("SELECT huella FROM aceptacion_politica").fetchall()) == [
+        HUELLA_A, HUELLA_B]
+    _falla_por_permiso(cx, "INSERT INTO aceptacion_politica (usuario_id, version, huella) VALUES (%s, '0.11', %s)",
+                       U_OBS_A, HUELLA_A)
+    _falla_por_permiso(cx, "UPDATE aceptacion_politica SET version = '0.10'")
+    _falla_por_permiso(cx, "DELETE FROM aceptacion_politica")
+
+
+@pytest.mark.rf("RF-37")
+def test_una_aceptacion_no_se_cambia_ni_como_superusuario(cx):
+    """El trigger aceptacion_politica_inalterable alcanza también a quien se salta RLS."""
+    _sembrar_aceptaciones(cx)
+    _falla_por_permiso(cx, "UPDATE aceptacion_politica SET version = '0.10' WHERE usuario_id = %s", U_OBS_A)
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("version, huella", [("0.11", "A" * 64), ("0.11", "a" * 63), ("v0.11", "a" * 64)])
+def test_la_version_y_la_huella_tienen_su_forma(cx, version, huella):
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("INSERT INTO aceptacion_politica (usuario_id, version, huella) VALUES (%s, %s, %s)",
+                   (U_OBS_A, version, huella))
+
+
 # ------------------------------------------------------------------ MATU-66 (migración 0020): la propia cuenta
 
 

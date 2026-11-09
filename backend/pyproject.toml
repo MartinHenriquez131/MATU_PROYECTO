@@ -36,6 +36,10 @@ diagramas = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+# MATU-75: los textos de la política que sirve GET /v1/politica viajan con el paquete (pip install . del Dockerfile)
+[tool.setuptools.package-data]
+"app.modules.iam" = ["politica/politica-*.md"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
