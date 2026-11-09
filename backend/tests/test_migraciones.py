@@ -999,3 +999,58 @@ def test_0021_aceptacion_politica_y_baja_al_esquema_de_0020(base_desechable):
     for parte, filas in esquema_0020.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0022 (MATU-74, H2 y C4): las funciones de las tareas con sus roles y operación sin los avisos
+
+FUNCIONES_0022 = {
+    "plan_destruir_claves": "matu_scheduler", "consumo_conservar": "matu_scheduler",
+    "iam_conservar": "matu_scheduler", "quiebre_conservar": "matu_scheduler",
+    "outbox_tomar": "matu_publisher", "outbox_publicado": "matu_publisher",
+    "outbox_reintentar": "matu_publisher", "outbox_posponer": "matu_publisher",
+}
+
+
+def _acl_funciones() -> dict[str, set[str]]:
+    nombres = ", ".join(f"'{f}'" for f in FUNCIONES_0022)
+    filas = consultar(f"SELECT proname, proacl::text FROM pg_proc WHERE proname IN ({nombres})")
+    return {nombre: set(acl.strip("{}").split(",")) for nombre, acl in filas}
+
+
+def _tablas_de(rol: str) -> set[tuple[str, str]]:
+    return {(t, p) for t, p in consultar("SELECT table_name, privilege_type FROM information_schema.role_table_grants"
+                                         f" WHERE table_schema = 'public' AND grantee = '{rol}'")}
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.rf("RF-39")
+def test_0022_roles_de_las_tareas_y_baja_al_esquema_de_0021(base_desechable):
+    alembic("upgrade", "0021")
+    esquema_0021, acl_0021 = catalogo(), _acl_funciones()
+    assert _tablas_de("matu_publisher") == {("evento_outbox", "SELECT"), ("evento_outbox", "UPDATE"),
+                                            ("evento_consumido", "SELECT"), ("evento_consumido", "INSERT")}
+
+    alembic("upgrade", "0022")
+    politicas = {n: (c, r) for n, c, r in consultar(
+        "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'notificacion'")}
+    assert "notificacion_operacion" not in politicas
+    assert politicas["notificacion_conservacion"] == ("SELECT", "{matu_owner}")
+    assert politicas["notificacion_conservacion_borrar"] == ("DELETE", "{matu_owner}")
+    for nombre, entradas in _acl_funciones().items():
+        rol = FUNCIONES_0022[nombre]
+        assert f"{rol}=X/matu_owner" in entradas, nombre
+        assert not any(e.startswith(("matu_app=", "=")) for e in entradas), (nombre, entradas)
+        assert len(entradas) == 2, (nombre, entradas)  # el dueño y el rol de la tarea
+    assert _tablas_de("matu_publisher") == set()
+    # Lo demás no cambia: ni el resto de las políticas ni los permisos de matu_app sobre tablas
+    despues = catalogo()
+    assert [p for p in despues["politicas"] if p[0] != "notificacion"] == [
+        p for p in esquema_0021["politicas"] if p[0] != "notificacion"]
+    assert despues["permisos"] == [g for g in esquema_0021["permisos"] if g[1] != "matu_publisher"]
+
+    alembic("downgrade", "0021")
+    despues = catalogo()
+    for parte, filas in esquema_0021.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert _acl_funciones() == acl_0021
+    alembic("upgrade", "head")

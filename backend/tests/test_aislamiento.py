@@ -655,8 +655,9 @@ def test_la_api_no_lee_el_outbox(cx):
 
 
 def test_publicador_no_alcanza_tablas_de_negocio(cx):
-    cx.execute("SET LOCAL ROLE matu_publisher")
-    assert cx.execute("SELECT count(*) FROM evento_outbox").fetchone()[0] >= 0
+    # Desde la 0022 (MATU-74) el publicador llega al outbox solo por las funciones outbox_*
+    como(cx, "matu_publisher", rol="operacion")
+    assert cx.execute("SELECT count(*) FROM outbox_tomar(1, now() - interval '1 day')").fetchone()[0] >= 0
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("SELECT count(*) FROM pedido")
 
@@ -1073,7 +1074,7 @@ def test_operacion_no_lee_push_token_ni_token_hash(cx):
 @pytest.mark.rf("RF-37")
 def test_conservacion_de_operacion_solo_devuelve_contadores(cx):
     _sembrar_sesiones(cx)
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute(
         "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())").fetchone()
     assert fila == (0, 0)
@@ -1125,7 +1126,7 @@ def test_usuario_no_crea_un_dispositivo_a_nombre_de_otro(cx):
 @pytest.mark.rf("RF-37")
 def test_conservacion_con_ahora_futuro_falla(cx):
     _sembrar_sesiones(cx)
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT * FROM iam_conservar(now() + interval '400 days', now() + interval '400 days',"
                    " now() + interval '430 days')")
@@ -1236,11 +1237,11 @@ def test_conservacion_del_consumo_solo_con_operacion_y_tras_90_dias(cx):
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())")
     cx.rollback()
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT consumo_conservar(now() - interval '89 days', now())")
     cx.rollback()
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     # Sin consentimientos de consumo en la semilla: no borra nada y devuelve solo un contador
     assert cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())").fetchone() == (0,)
 
@@ -1255,7 +1256,7 @@ def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
             " 'retiro')",
             (G_A, P_A, U_ADMIN_A),
         )
-        como(cx, rol="operacion")
+        como(cx, "matu_scheduler", rol="operacion")
         cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())")
         cx.execute("RESET ROLE")  # superusuario: cuenta sin RLS
         assert contar(cx, "perfil_consumo", f"grupo_id = '{G_A}'") == queda
@@ -1482,7 +1483,7 @@ def test_conservacion_de_alertas_solo_con_operacion_y_con_sus_plazos(cx):
     cx.rollback()
     for limites in ("now() - interval '89 days', now() - interval '30 days'",
                     "now() - interval '90 days', now() - interval '29 days'"):
-        como(cx, rol="operacion")
+        como(cx, "matu_scheduler", rol="operacion")
         with pytest.raises(errors.InvalidParameterValue):
             cx.execute(f"SELECT * FROM quiebre_conservar({limites}, now())")
         cx.rollback()
@@ -1513,7 +1514,7 @@ def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
         " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days')",
         {"u": U_ADMIN_A, "g": G_A},
     )
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
     assert fila == (1, 1, 1, 0)  # MATU-51: el cuarto contador, las compras declaradas
@@ -1638,10 +1639,12 @@ def test_el_outbox_solo_lo_publica_operacion(cx, llamada, contexto):
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute(llamada)
     cx.rollback()
-    # Ni con operación lee la tabla directamente
-    como(cx, rol="operacion")
-    with pytest.raises(errors.InsufficientPrivilege):
-        cx.execute("SELECT id FROM evento_outbox")
+    # Ni con operación lee la tabla directamente: tampoco el publicador desde la 0022 (un solo camino, las funciones)
+    for db_rol in ("matu_app", "matu_publisher"):
+        como(cx, db_rol, rol="operacion")
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute("SELECT id FROM evento_outbox")
+        cx.rollback()
 
 
 def _evento(cx, grupo=G_A, **columnas):
@@ -1660,7 +1663,7 @@ def test_operacion_toma_arrienda_reintenta_y_falla_al_octavo(cx):
     a = _evento(cx)
     b = _evento(cx, grupo=G_B)
     _evento(cx, disponible_en="2100-01-01T00:00:00Z")  # todavía no disponible
-    como(cx, rol="operacion")
+    como(cx, "matu_publisher", rol="operacion")
     assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now(), %s)", (G_A,)).fetchall()] == [a]
     # Arrendado: otro publicador no lo vuelve a tomar
     assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now())").fetchall()] == [b]
@@ -1680,7 +1683,7 @@ def test_operacion_toma_arrienda_reintenta_y_falla_al_octavo(cx):
 def test_posponer_no_suma_un_intento_y_tiene_limite(cx):
     cx.execute("DELETE FROM evento_outbox")
     a = _evento(cx)
-    como(cx, rol="operacion")
+    como(cx, "matu_publisher", rol="operacion")
     assert cx.execute("SELECT outbox_posponer(%s, now() + interval '5 hours', now())", (a,)).fetchone() == (True,)
     assert cx.execute("SELECT * FROM outbox_tomar(10, now())").fetchall() == []
     cx.execute("SAVEPOINT antes")
@@ -1705,7 +1708,7 @@ def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(c
     for evento in (viejo, reciente, publicado, pendiente):
         cx.execute("INSERT INTO evento_consumido (evento_id, consumidor) VALUES (%s, 'notifications.quiebre_proximo')",
                    (evento,))
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
     assert fila[1] == 2  # el fallido viejo y el publicado viejo
@@ -1852,15 +1855,15 @@ def test_destruir_claves_exige_operacion_y_los_90_dias(cx):
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())")
     cx.rollback()
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT plan_destruir_claves(now() - interval '89 days', now())")
     cx.rollback()
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT plan_destruir_claves(now(), now() + interval '91 days')")
     cx.rollback()
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     # Sin retiros en la semilla: no destruye nada y devuelve solo un contador
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
 
@@ -1869,7 +1872,7 @@ def test_destruir_claves_exige_operacion_y_los_90_dias(cx):
 @pytest.mark.parametrize(("hace", "destruye"), [("91 days", True), ("89 days", False)])
 def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye):
     _retiro_de_plan(cx, hace)
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (int(destruye),)
     assert _clave_destruida(cx, P_A) == (destruye, destruye)
     # CL-6: con la clave se van las filas cifradas con ella (secciones y campos base) y el plan queda en 0
@@ -1888,7 +1891,7 @@ def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye
 @pytest.mark.rf("RF-02")
 def test_destruir_claves_es_idempotente(cx):
     _retiro_de_plan(cx, "100 days")
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (1,)
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
     cx.execute("RESET ROLE")
@@ -1899,7 +1902,7 @@ def test_destruir_claves_es_idempotente(cx):
 def test_destruir_claves_no_toca_a_quien_volvio_a_autorizar(cx):
     _retiro_de_plan(cx, "100 days")
     _consentimiento(cx)  # una autorización nueva de plan_cuidado, no revocada
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
 
 
@@ -1975,7 +1978,7 @@ def test_conservacion_borra_las_compras_declaradas_a_los_90_dias(cx):
         " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days')",
         {"p": perfil},
     )
-    como(cx, rol="operacion")
+    como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT reposiciones FROM quiebre_conservar(now() - interval '90 days',"
                       " now() - interval '30 days', now())").fetchone()
     assert fila == (1,)
@@ -2557,3 +2560,139 @@ def test_la_cuenta_cambia_lo_que_la_app_cambia_y_solo_la_propia(sesiones_app):
         ajena = s.execute(text("UPDATE usuario SET telefono = '+56900000068' WHERE id = :id"), {"id": U_ADMIN_A})
         assert ajena.rowcount == 0  # type: ignore[attr-defined]
         raise _Deshacer
+
+
+# ---- MATU-74 (migración 0022, hallazgos H2 y C4 de Martín): las tareas con sus roles, operación sin avisos
+
+FUNCIONES_SCHEDULER = {
+    "plan_destruir_claves": "SELECT plan_destruir_claves(now() - interval '90 days', now())",
+    "consumo_conservar": "SELECT consumo_conservar(now() - interval '90 days', now())",
+    "iam_conservar": "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())",
+    "quiebre_conservar": "SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
+                         " now())",
+}
+FUNCIONES_PUBLISHER = {
+    "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
+    "outbox_publicado": "SELECT outbox_publicado(0, now())",
+    "outbox_reintentar": "SELECT outbox_reintentar(0, now() + interval '1 minute', now())",
+    "outbox_posponer": "SELECT outbox_posponer(0, now() + interval '1 hour', now())",
+}
+FUNCION_Y_ROL = [(f, s, "matu_scheduler") for f, s in FUNCIONES_SCHEDULER.items()] + [
+    (f, s, "matu_publisher") for f, s in FUNCIONES_PUBLISHER.items()]
+ROLES_TAREAS = ("matu_scheduler", "matu_publisher")
+
+
+def _notificacion(cx, usuario, grupo, evento, dias):
+    cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en)"
+               " VALUES (%s, %s, %s, 'correo', 'quiebre_proximo', now() - make_interval(days => %s))",
+               (usuario, grupo, evento, dias))
+
+
+@pytest.mark.rf("RF-39")
+def test_operacion_no_lee_los_avisos_de_ningun_grupo(cx):
+    """C4: sin notificacion_operacion, matu_app con app.rol = 'operacion' no ve ninguna notificación."""
+    cx.execute("DELETE FROM notificacion")
+    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
+    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    # Con una cuenta sin avisos propios y un grupo en el contexto, tampoco (la propia sigue viendo los suyos)
+    for contexto in ({"rol": "operacion"}, {"rol": "operacion", "usuario_id": U_ENC, "grupo_id": G_A}):
+        como(cx, **contexto)
+        assert contar(cx, "notificacion") == 0, contexto
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-39")
+def test_cada_usuario_ve_solo_sus_avisos(cx):
+    cx.execute("DELETE FROM notificacion")
+    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
+    _notificacion(cx, U_OBS_A, G_A, 1, 1)
+    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert [r[0] for r in cx.execute("SELECT usuario_id FROM notificacion").fetchall()] == [U_ADMIN_A]
+
+
+@pytest.mark.rf("RF-39")
+def test_la_conservacion_sigue_borrando_los_avisos_a_los_90_dias(cx):
+    """La trampa de C4: quiebre_conservar ve las filas como matu_owner por notificacion_conservacion."""
+    cx.execute("DELETE FROM notificacion")
+    _notificacion(cx, U_ADMIN_A, G_A, 1, 91)
+    _notificacion(cx, U_ADMIN_A, G_A, 2, 89)
+    como(cx, "matu_scheduler", rol="operacion")
+    [notificaciones] = cx.execute("SELECT notificaciones FROM quiebre_conservar(now() - interval '90 days',"
+                                  " now() - interval '30 days', now())").fetchone()
+    assert notificaciones == 1
+    cx.execute("RESET ROLE")
+    assert [r[0] for r in cx.execute("SELECT evento_id FROM notificacion").fetchall()] == [2]
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize(("funcion", "sentencia", "rol"), FUNCION_Y_ROL, ids=[f for f, _, _ in FUNCION_Y_ROL])
+def test_solo_el_rol_de_la_tarea_ejecuta_su_funcion(cx, funcion, sentencia, rol):
+    """H2: matu_app, ni con operación, ejecuta las funciones de las tareas. El rol de la tarea sí, y el otro no."""
+    otro = next(r for r in ROLES_TAREAS if r != rol)
+    for db_rol in ("matu_app", otro):
+        como(cx, db_rol, rol="operacion")
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(sentencia)
+        cx.rollback()
+    como(cx, rol, rol="operacion")
+    cx.execute(sentencia)
+    # Y sin app.rol = 'operacion', ni el rol de la tarea pasa el chequeo de la función
+    cx.rollback()
+    como(cx, rol)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(sentencia)
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("rol", ROLES_TAREAS)
+def test_los_roles_de_las_tareas_ejecutan_solo_sus_funciones_definer(cx, rol):
+    esperadas = set(FUNCIONES_SCHEDULER if rol == "matu_scheduler" else FUNCIONES_PUBLISHER)
+    ejecuta = {f for (f,) in cx.execute(
+        "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef"
+        " AND has_function_privilege(%s, oid, 'EXECUTE')", (rol,)).fetchall()}
+    assert ejecuta == esperadas
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("rol", ROLES_TAREAS)
+def test_los_roles_de_las_tareas_no_tocan_credenciales_ni_la_ficha(cx, rol):
+    """C8: ni password_hash ni mfa_secreto_cifrado, ni las tablas de la ficha, el relevo, los tokens o las sesiones."""
+    for columna in ("password_hash", "mfa_secreto_cifrado"):
+        for privilegio in ("SELECT", "INSERT", "UPDATE", "REFERENCES"):
+            assert cx.execute("SELECT has_column_privilege(%s, 'usuario', %s, %s)",
+                              (rol, columna, privilegio)).fetchone() == (False,), (columna, privilegio)
+    for tabla in ("clave_datos", "plan_cuidado", "plan_seccion", "acceso_relevo", "indice_token", "sesion_refresh",
+                  "usuario", "evento_outbox", "evento_consumido"):
+        for privilegio in ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"):
+            assert cx.execute("SELECT has_table_privilege(%s, %s, %s)",
+                              (rol, tabla, privilegio)).fetchone() == (False,), (tabla, privilegio)
+    # Lo único que tienen sobre tablas: el scheduler, leer id y estado de grupo_familiar
+    tablas = cx.execute("SELECT table_name, privilege_type FROM information_schema.role_table_grants"
+                        " WHERE grantee = %s AND table_schema = 'public'", (rol,)).fetchall()
+    columnas = set(cx.execute("SELECT table_name, column_name, privilege_type FROM information_schema.column_privileges"
+                              " WHERE grantee = %s AND table_schema = 'public'", (rol,)).fetchall())
+    assert tablas == []
+    assert columnas == ({("grupo_familiar", "id", "SELECT"), ("grupo_familiar", "estado", "SELECT")}
+                        if rol == "matu_scheduler" else set())
+
+
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("rol", ROLES_TAREAS)
+def test_los_roles_de_las_tareas_no_tienen_atributos_ni_membresias(cx, rol):
+    """C7: sin SUPERUSER, BYPASSRLS, CREATEROLE ni CREATEDB, y sin ser miembros de matu_owner ni de matu_app."""
+    assert cx.execute("SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolreplication"
+                      " FROM pg_roles WHERE rolname = %s", (rol,)).fetchone() == (True, False, False, False, False,
+                                                                                   False)
+    for otro in ("matu_owner", "matu_app", *(r for r in ROLES_TAREAS if r != rol)):
+        assert cx.execute("SELECT pg_has_role(%s, %s, 'USAGE')", (rol, otro)).fetchone() == (False,), otro
+    assert cx.execute("SELECT count(*) FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member"
+                      " WHERE r.rolname = %s", (rol,)).fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-02")
+def test_los_privilegios_por_omision_no_dan_nada_a_los_roles_de_las_tareas(cx):
+    """C12: ALTER DEFAULT PRIVILEGES solo nombra a matu_app."""
+    beneficiarios = {r for (r,) in cx.execute(
+        "SELECT DISTINCT a.grantee::regrole::text FROM pg_default_acl d, aclexplode(d.defaclacl) a").fetchall()}
+    assert beneficiarios & set(ROLES_TAREAS) == set()

@@ -77,3 +77,43 @@ def test_la_app_conserva_lo_que_usa_de_indice_token_y_usuario() -> None:
         ).one()
         cx.rollback()
     assert all(permisos), permisos
+
+
+# MATU-74 (migración 0022, H2): las funciones de las tareas son de matu_scheduler y matu_publisher. La API, con
+# app.rol = 'operacion' o sin él, recibe InsufficientPrivilege antes de que la función haga nada
+FUNCIONES_DE_LAS_TAREAS = {
+    "plan_destruir_claves": "SELECT plan_destruir_claves(now() - interval '90 days', now())",
+    "consumo_conservar": "SELECT consumo_conservar(now() - interval '90 days', now())",
+    "iam_conservar": "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())",
+    "quiebre_conservar": "SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
+    " now())",
+    "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
+    "outbox_publicado": "SELECT outbox_publicado(0, now())",
+    "outbox_reintentar": "SELECT outbox_reintentar(0, now() + interval '1 minute', now())",
+    "outbox_posponer": "SELECT outbox_posponer(0, now() + interval '1 hour', now())",
+}
+
+
+@requiere_base
+@pytest.mark.rf("RF-02")
+@pytest.mark.parametrize("sentencia", FUNCIONES_DE_LAS_TAREAS.values(), ids=FUNCIONES_DE_LAS_TAREAS.keys())
+def test_la_app_no_ejecuta_las_funciones_de_las_tareas(sentencia: str) -> None:
+    with pytest.raises(DBAPIError) as error, obtener_engine().connect() as cx:
+        cx.execute(text("SELECT set_config('app.rol', 'operacion', true)"))
+        cx.execute(text(sentencia))
+    assert isinstance(error.value.orig, errors.InsufficientPrivilege)
+
+
+def test_la_api_nunca_usa_las_conexiones_de_las_tareas() -> None:
+    """SCHEDULER_DATABASE_URL y PUBLISHER_DATABASE_URL solo las lee app/tareas.py: la API (app/core/db.py y los
+    módulos) se conecta siempre con DATABASE_URL."""
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parents[1] / "app"
+    usan = sorted(
+        str(p.relative_to(raiz)).replace("\\", "/")
+        for p in raiz.rglob("*.py")
+        if "scheduler_database_url" in p.read_text(encoding="utf-8")
+        or "publisher_database_url" in p.read_text(encoding="utf-8")
+    )
+    assert usan == ["core/config.py", "tareas.py"]

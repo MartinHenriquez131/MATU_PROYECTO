@@ -11,10 +11,9 @@ import psycopg
 import pytest
 from sqlalchemy.exc import DBAPIError
 
-from app.core.db import fabrica_sesiones
 from app.modules.consumption.application.conservacion import conservar
 from app.modules.consumption.infrastructure.tarea_conservacion import ConservacionConsumoSql
-from tests.base_datos import DSN, requiere_base
+from tests.base_datos import DSN, fabrica_scheduler, requiere_base
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import Fabrica
 
@@ -52,7 +51,7 @@ def test_borra_a_los_90_dias_de_terminar_la_autorizacion(fabrica: Fabrica) -> No
     fabrica.autorizacion_consumo(renovada.persona, otorgante=renovada.admin, otorgado_en=ahora - timedelta(days=100))
     con_autorizacion_vigente = fabrica.perfil_consumo(renovada.persona)
 
-    resultado = conservar(unidad=ConservacionConsumoSql(fabrica_sesiones()), reloj=reloj)
+    resultado = conservar(unidad=ConservacionConsumoSql(fabrica_scheduler()), reloj=reloj)
 
     assert resultado.perfiles_borrados >= 2
     assert not any(_existe(p) for p in borrables)
@@ -62,6 +61,6 @@ def test_borra_a_los_90_dias_de_terminar_la_autorizacion(fabrica: Fabrica) -> No
 
 def test_la_funcion_no_borra_antes_de_90_dias(fabrica: Fabrica) -> None:
     ahora = datetime.now(UTC)
-    unidad = ConservacionConsumoSql(fabrica_sesiones())
+    unidad = ConservacionConsumoSql(fabrica_scheduler())
     with pytest.raises(DBAPIError):
         unidad.conservar(ahora - timedelta(days=89), ahora)

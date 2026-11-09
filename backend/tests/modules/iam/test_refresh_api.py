@@ -22,6 +22,7 @@ from app.modules.iam.domain.dispositivo import LimitesConservacion, limites_cons
 from app.modules.iam.domain.refresh import NOMBRE_COOKIE
 from app.modules.iam.infrastructure.repositorio_sesiones import UnidadIamSql
 from app.modules.iam.infrastructure.tokens_jwt import EmisorJWT
+from tests.base_datos import fabrica_scheduler
 from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
 from tests.modules.iam.conftest import DSN, EntornoIam, requiere_base
 
@@ -541,7 +542,6 @@ def _dispositivo_ajeno(entorno: EntornoIam, ultimo_uso_en: datetime) -> uuid.UUI
 def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
     entorno_iam: EntornoIam, cuenta: uuid.UUID, email_sintetico: str, contrasena_sintetica: str, con_ajeno: bool
 ) -> None:
-    from app.core.db import fabrica_sesiones
     from app.modules.iam.api.dependencias import obtener_reloj
     from tests.dobles.reloj_fijo import RelojFijo
 
@@ -568,7 +568,7 @@ def test_conservacion_borra_sesiones_y_dispositivos_vencidos(
 
     # A los 89 días del viejo: su sesión venció hace 59 días (se borra), pero el dispositivo se conserva
     entorno_iam.reloj.avanzar(timedelta(days=9))
-    unidad = UnidadIamSql(fabrica_sesiones(), entorno_iam.reloj)
+    unidad = UnidadIamSql(fabrica_scheduler(), entorno_iam.reloj)
     esperado = _por_borrar(limites_conservacion(entorno_iam.reloj.ahora()))
     resultado = conservar(unidad=unidad, reloj=entorno_iam.reloj)
     assert (resultado.sesiones_borradas, resultado.dispositivos_borrados) == esperado
@@ -650,13 +650,12 @@ def test_conservacion_con_ahora_futuro_falla_y_no_borra_nada(
 ) -> None:
     from sqlalchemy.exc import DataError
 
-    from app.core.db import fabrica_sesiones
     from tests.dobles.reloj_fijo import RelojFijo
 
     # El fixture reloj_fijo está en 2026-10-20: la sesión creada vence el 19-11
     _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     futuro = RelojFijo(datetime.now(UTC) + timedelta(days=400))
     with pytest.raises(DataError):
-        conservar(unidad=UnidadIamSql(fabrica_sesiones(), futuro), reloj=futuro)
+        conservar(unidad=UnidadIamSql(fabrica_scheduler(), futuro), reloj=futuro)
     assert _filas("SELECT count(*) FROM sesion_refresh WHERE usuario_id = %s", cuenta) == [(1,)]
     assert _filas("SELECT count(*) FROM dispositivo WHERE usuario_id = %s", cuenta) == [(1,)]

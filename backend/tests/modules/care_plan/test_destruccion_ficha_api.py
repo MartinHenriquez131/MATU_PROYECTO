@@ -13,10 +13,9 @@ from typing import Any
 import psycopg
 import pytest
 
-from app.core.db import fabrica_sesiones
 from app.modules.care_plan.api.dependencias import obtener_pepper_pin
 from app.modules.care_plan.infrastructure.tarea_destruccion import ejecutar
-from tests.base_datos import DSN, requiere_base
+from tests.base_datos import DSN, fabrica_scheduler, requiere_base
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
@@ -85,7 +84,7 @@ def _destrucciones(familia: FamiliaCreada) -> list[tuple[Any, ...]]:
 
 
 def _tarea(instante: datetime) -> int:
-    return ejecutar(fabrica_sesiones(), RelojFijo(instante)).claves_destruidas
+    return ejecutar(fabrica_scheduler(), RelojFijo(instante)).claves_destruidas
 
 
 def test_a_los_89_dias_no_y_a_los_90_si_y_es_idempotente(entorno_ficha: EntornoFicha) -> None:

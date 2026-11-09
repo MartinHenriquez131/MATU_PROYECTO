@@ -460,10 +460,10 @@ def test_el_borrado_usa_un_solo_instante_en_todo(entorno: EntornoAbrir) -> None:
 def test_las_tareas_son_idempotentes_sobre_una_persona_borrada(entorno: EntornoAbrir) -> None:
     from datetime import UTC, datetime
 
-    from app.core.db import fabrica_sesiones
     from app.modules.care_plan.infrastructure.tarea_destruccion import DestruccionClavesSql
     from app.modules.consumption.application.conservacion import conservar
     from app.modules.consumption.infrastructure.tarea_conservacion import ConservacionConsumoSql
+    from tests.base_datos import fabrica_scheduler
     from tests.dobles.reloj_fijo import RelojFijo
 
     familia = _completa(entorno)
@@ -471,8 +471,8 @@ def test_las_tareas_son_idempotentes_sobre_una_persona_borrada(entorno: EntornoA
     clave, antes = _clave(familia), _acciones(familia.grupo.id)
     reloj = RelojFijo(datetime.now(UTC))
 
-    destruccion.destruir_fichas_retiradas(unidad=DestruccionClavesSql(fabrica_sesiones()), reloj=reloj)
-    conservar(unidad=ConservacionConsumoSql(fabrica_sesiones()), reloj=reloj)
+    destruccion.destruir_fichas_retiradas(unidad=DestruccionClavesSql(fabrica_scheduler()), reloj=reloj)
+    conservar(unidad=ConservacionConsumoSql(fabrica_scheduler()), reloj=reloj)
 
     assert _clave(familia) == clave and _acciones(familia.grupo.id) == antes
     assert _persona(familia)[5] is not None and _secciones(familia) == 0 and _perfiles(familia) == 0
