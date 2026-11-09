@@ -82,12 +82,14 @@ export const ORDEN_CAMPOS: CampoFicha[] = ['rutina', 'manejo_situaciones', 'red_
 
 /**
  * D2 · Lo que acompaña a cada campo en la hoja del relevo. Decisión de Martín del 28/10: pregunta
- * guía y ejemplo (lenguaje 5.1 a 5.3), con la mitigación de la especificación 3.11.3: el ejemplo va
- * después del contenido, separado por un borde, en gris y nunca como enlace.
+ * guía y ejemplo (lenguaje 5.1 a 5.3), con la mitigación de la especificación 3.11.3.
  *
- * Si se decide mostrar solo la pregunta guía, basta con poner `MOSTRAR_EJEMPLO = false`.
+ * Cambiada por Jorge el 09/11: el relevo ve solo la pregunta guía. En «A quién llamar» el ejemplo
+ * «+56 9 5555 0102» quedaba justo debajo del teléfono real, y en una crisis se podía llamar al
+ * número de ejemplo. El ejemplo es para quien escribe la ficha (el editor de la familia lo sigue
+ * mostrando), no para quien la lee.
  */
-export const MOSTRAR_EJEMPLO = true
+export const MOSTRAR_EJEMPLO: boolean = false
 
 export const CAMPOS: Record<CampoFicha, { etiqueta: string; pregunta: (pila: string) => string; ejemplo: string }> = {
   rutina: {
