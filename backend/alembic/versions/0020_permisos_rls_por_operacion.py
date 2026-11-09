@@ -56,6 +56,8 @@ Las políticas FOR ALL que quedan en tablas de negocio, con su destino:
 - care_circle (membresia_familia, membresia_operacion, invitacion_familia, direccion_familia,
   direccion_operacion y grupo_familia): MATU-42. grupo_operacion queda igual (condición 4 del analista).
 - Notificaciones (notificacion_sistema): MATU-79.
+- Incidencias (incidencia_operacion, tabla incidencia): MATU-81, el backoffice mínimo, que lleva las incidencias
+  (RF-40).
 - Catálogo (categoria_operacion, producto_operacion, comercio_operacion, convenio_operacion, oferta_operacion,
   usuario_comercio_operacion) y Product Backlog (asignacion_*, oferta_asig_*, evidencia_hereda,
   repartidor_operacion, consumo_comercio_*, liquidacion_operacion, plan_repo_familia, plan_repo_linea_hereda,
