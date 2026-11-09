@@ -105,7 +105,10 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'celular-verificado@example.com', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
   { email: 'celular-sin-verificar@example.com', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },
   { email: 'celular-espera@example.com', que: 'Pedir el código del celular responde 429 con Retry-After: 120' },
-  { email: 'sin-celular@example.com', que: 'Cuenta anterior a MATU-39, sin celular: «Tu cuenta» lo dice' },
+  { email: 'sin-celular@example.com', que: 'Cuenta anterior a MATU-39, sin celular: «Tu cuenta» lo dice, y tampoco tiene registro de la política' },
+  // MATU-75: la política de privacidad en «Tu cuenta». Las demás cuentas también la aceptaron, el 09/11/2026.
+  { email: 'politica-aceptada@example.com', que: '«Tu cuenta»: «Aceptaste la versión 0.11 el 09/11/2026.», el enlace a la política y cómo pedir con el correo' },
+  { email: 'politica-sin-registro@example.com', que: '«Tu cuenta»: «No tenemos registro de qué versión aceptaste.» (una cuenta anterior a MATU-75)' },
   { email: 'recuperar-espera@example.com', que: 'Cambiar la contraseña con el código responde 429 con Retry-After: 120' },
   { email: 'codigo-invalido@example.com', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
 ]
@@ -118,10 +121,14 @@ export const CUENTAS: CuentaDeEjemplo[] = [
  */
 export const DOMINIO_NO_PERMITIDO = 'dominio-no-permitido.internal'
 
+/** MATU-75: el primer alta con este correo responde 409 `politica-cambio`; el segundo crea la cuenta. */
+export const CORREO_POLITICA_CAMBIO = 'politica-cambio@example.com'
+
 /** Correos para «Crear cuenta» que provocan una respuesta: no son cuentas, no entran. */
 export const CORREOS_CREAR_CUENTA: CuentaDeEjemplo[] = [
   { email: 'espera-ip@example.com', que: 'Crear cuenta responde 429 del límite por IP con Retry-After: 61 («Vuelve a intentarlo en 2 minutos.»)' },
   { email: 'espera-ip-60@example.com', que: 'Crear cuenta responde 429 con Retry-After: 60 («Vuelve a intentarlo en 1 minuto.»)' },
   { email: 'espera-ip-sin-cabecera@example.com', que: 'Crear cuenta responde 429 sin Retry-After (se espera 1 minuto, el mínimo)' },
+  { email: CORREO_POLITICA_CAMBIO, que: 'Crear cuenta responde 409 politica-cambio la primera vez: «Actualizamos la política de privacidad.», la casilla se desmarca y la huella se vuelve a pedir. La segunda vez crea la cuenta' },
   { email: `persona@${DOMINIO_NO_PERMITIDO}`, que: 'Crear cuenta responde 422 dominio_no_permitido, como staging: «En este ambiente de prueba usa un correo terminado en @example.com.»' },
 ]
