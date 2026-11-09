@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Cuenta
-         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114).
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114). Desde MATU-75 exige acepta_politica = true y guarda, en la misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado.
          */
         post: operations["crear_cuenta_v1_usuarios_post"];
         delete?: never;
@@ -55,6 +55,26 @@ export interface paths {
          * @description Inicia sesión (MATU-05a). MATU-38 agrega la cookie `__Secure-matu-refresh` (HttpOnly, Secure, SameSite=Strict, Path=/v1/sesiones, Max-Age de 30 días), el dispositivo, el claim `did` del access token y la demora progresiva (429 con Retry-After; sin Redis, 503). Orden: 422, 429 o 503, 401 y 200. Ver docs/api/propuestos/app-familia.openapi.yaml y las decisiones 47 a 49 y 57.
          */
         post: operations["crear_sesion_v1_sesiones_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/politica": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Politica
+         * @description La política de privacidad vigente (MATU-75): versión, fecha, huella y texto en Markdown. Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, y es la que POST /v1/usuarios acepta en huella_politica. correo_contacto es CORREO_PRIVACIDAD, o null. Cache-Control: no-cache (decisión 175). 503 si falta POLITICA_VERSION o POLITICA_ACTUALIZADA_EN, si la versión no tiene un texto publicado con su huella, o si el texto todavía tiene un marcador (decisión 174).
+         */
+        get: operations["ver_politica_v1_politica_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -726,7 +746,7 @@ export interface paths {
         };
         /**
          * Ver Cuenta
-         * @description La cuenta propia, con el celular enmascarado y si está verificado (MATU-57).
+         * @description La cuenta propia, con el celular enmascarado y si está verificado (MATU-57). Desde MATU-75, también la última política de privacidad que aceptó (politica_aceptada), o null si la cuenta no tiene registro (decisión 179).
          */
         get: operations["ver_cuenta_v1_cuenta_get"];
         put?: never;
@@ -1196,6 +1216,8 @@ export interface components {
              * @enum {string}
              */
             celular_canal: "sms" | "whatsapp";
+            /** @description MATU-75: la última política que aceptó al crear la cuenta. null si la cuenta es anterior a MATU-75 y no tiene registro («No tenemos registro de qué versión aceptaste.») */
+            politica_aceptada: components["schemas"]["PoliticaAceptadaVista"] | null;
         };
         /**
          * DireccionNueva
@@ -1660,6 +1682,60 @@ export interface components {
             nombre: string;
             direccion: components["schemas"]["DireccionVista"] | null;
         };
+        /**
+         * PoliticaAceptadaVista
+         * @description La última política que aceptó la cuenta (MATU-75): «Aceptaste la versión {version} el {DD/MM/AAAA}.»
+         */
+        PoliticaAceptadaVista: {
+            /**
+             * Version
+             * @example 0.11
+             */
+            version: string;
+            /**
+             * Huella
+             * @description SHA-256 del texto que se mostró
+             */
+            huella: string;
+            /**
+             * Aceptada En
+             * Format: date-time
+             */
+            aceptada_en: string;
+        };
+        /**
+         * PoliticaVista
+         * @description GET /v1/politica (MATU-75): la política de privacidad vigente, pública.
+         */
+        PoliticaVista: {
+            /**
+             * Version
+             * @example 0.11
+             */
+            version: string;
+            /**
+             * Actualizada En
+             * Format: date
+             * @description Fecha de la versión, AAAA-MM-DD. La pantalla la muestra DD/MM/AAAA
+             */
+            actualizada_en: string;
+            /**
+             * Huella
+             * @description SHA-256 en hexadecimal de texto, en UTF-8 con saltos LF. Es la que se envía al crear la cuenta
+             */
+            huella: string;
+            /**
+             * Texto
+             * @description La política en Markdown, desde «En un minuto» hasta el final, ya completa: el correo de contacto ya viene puesto. Se muestra tal cual, sin HTML crudo; es exactamente lo que entra en la huella
+             */
+            texto: string;
+            /**
+             * Correo Contacto
+             * @description El correo de contacto para temas de privacidad (CORREO_PRIVACIDAD), para un mailto: en «Tu cuenta». null si no está configurado: la pantalla oculta ese párrafo
+             * @example privacidad@example.com
+             */
+            correo_contacto: string | null;
+        };
         /** ProductoResumen */
         ProductoResumen: {
             /**
@@ -1912,6 +1988,17 @@ export interface components {
              * @example +56 9 1234 5678
              */
             telefono: string;
+            /**
+             * Acepta Politica
+             * @description Obligatorio y en true: la persona marcó «Leí y acepto la política de privacidad.» (MATU-75). Sin él o en false, 422 con errores[].campo = acepta_politica. El servidor guarda la versión y la huella vigentes, nunca las que diga el cliente
+             * @constant
+             */
+            acepta_politica: true;
+            /**
+             * Huella Politica
+             * @description Opcional. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó GET /v1/politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea
+             */
+            huella_politica?: string | null;
         };
         /**
          * SolicitudReposicion
@@ -2171,22 +2258,12 @@ export interface operations {
                     "application/json": components["schemas"]["CuentaCreadaRespuesta"];
                 };
             };
-            /** @description email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email */
+            /** @description email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email. Desde MATU-75, también politica-cambio: huella_politica no es la de la política vigente, y no se crea nada */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "type": "/errores/email-registrado",
-                     *       "title": "Conflicto",
-                     *       "status": 409,
-                     *       "detail": "Ese email ya tiene una cuenta. Inicia sesión",
-                     *       "errores": [],
-                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000a9"
-                     *     }
-                     */
                     "application/problem+json": {
                         /**
                          * Type
@@ -2208,10 +2285,31 @@ export interface operations {
                         }[];
                         /** Request Id */
                         request_id: string | null;
+                    } | {
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/politica-cambio";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 409;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
                     };
                 };
             };
-            /** @description Cuerpo inválido, incluidos celular_invalido y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
+            /** @description Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo = acepta_politica, MATU-75) y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2296,6 +2394,37 @@ export interface operations {
                 };
             };
             /** @description Redis no responde o falta PEPPER_LIMITES: la entrada falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_politica_v1_politica_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-cache: se revalida cada vez */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoliticaVista"];
+                };
+            };
+            /** @description La política no se puede servir. El motivo va al log, nunca a la respuesta */
             503: {
                 headers: {
                     [name: string]: unknown;
