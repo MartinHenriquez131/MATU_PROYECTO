@@ -4535,7 +4535,7 @@
             }
           },
           "409": {
-            "description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
             "content": {
               "application/problem+json": {}
             }
@@ -4631,7 +4631,7 @@
           "consumo"
         ],
         "summary": "Me quedan",
-        "description": "Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una reposición. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador",
+        "description": "Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una compra. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador",
         "operationId": "recontar_v1_personas_cuidadas__persona_id__consumo__perfil_id__recontar_post",
         "security": [
           {
@@ -4734,7 +4734,7 @@
             }
           },
           "409": {
-            "description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+            "description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
             "content": {
               "application/problem+json": {}
             }
@@ -8136,7 +8136,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SolicitudResolver",
-        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o\nnull): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota\nla reposición y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."
+        "description": "Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o\nnull): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota\nla compra (`reposicion`) y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad."
       },
       "SolicitudSeccion": {
         "properties": {

@@ -59,7 +59,7 @@ def _respuestas(descripcion_422: str) -> dict[int | str, dict[str, Any]]:
         401: _ERRORES_LECTURA[401],
         403: _403,
         404: _404_ESCRIBIR,
-        409: {"description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+        409: {"description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
               **_PROBLEMA},
         412: {
             "description": (
@@ -168,7 +168,7 @@ def reponer(
     summary="Me quedan",
     description=(
         "Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139):"
-        " medido hoy, con la fecha recalculada y un ETag nuevo. No anota una reposición. Las alertas abiertas que"
+        " medido hoy, con la fecha recalculada y un ETag nuevo. No anota una compra. Las alertas abiertas que"
         " con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar"
         " (y alerta.descartar), sin el stock. Solo admin y cuidador"
     ),
