@@ -24,7 +24,7 @@ class RepositorioUsuariosSQL:
 
     def crear(self, usuario: NuevoUsuario) -> None:
         try:
-            # La política usuario_propio solo deja insertar la fila del usuario en contexto.
+            # La política usuario_propio_crear solo deja insertar la fila del usuario en contexto.
             # El registro es el único caso en que la API fija app.usuario_id sin un token:
             # el usuario aún no existe.
             with sesion_tenant(self._fabrica, usuario_id=usuario.id) as sesion:
@@ -65,7 +65,7 @@ class RepositorioUsuariosSQL:
             ).scalar_one_or_none()
         if usuario_id is None:
             return None
-        # Paso 2. La fila de usuario sí tiene RLS (usuario_propio: id = app_usuario()). Se lee con
+        # Paso 2. La fila de usuario sí tiene RLS (usuario_propio_leer: id = app_usuario()). Se lee con
         # el contexto del usuario recién resuelto, en su propia transacción.
         with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
             # matu_app no lee usuario.password_hash (migración 0020, MATU-66): iam_credencial, SECURITY

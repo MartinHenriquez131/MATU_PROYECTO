@@ -330,8 +330,9 @@ class AccesoARevocar:
 
 
 def acceso_para_revocar(contexto: SesionDeGrupo, acceso_id: AccesoIdRuta) -> AccesoARevocar:
-    """Revocan admin y cuidador (MATU-20). Otro rol, incluido el pagador con puede_ver_plan que la RLS
-    acceso_familia deja pasar, o un id que no es UUID: 404. No exige consentimiento (decisión 18)."""
+    """Revocan admin y cuidador (MATU-20). Otro rol, incluido el pagador con puede_ver_plan, que lee los accesos
+    (acceso_familia_leer) pero no los corta (acceso_familia_cortar, migración 0020), o un id que no es UUID: 404.
+    No exige consentimiento (decisión 18)."""
     if not puede_revocar(contexto.rol):
         raise ErrorMATU(404)
     return AccesoARevocar(contexto=contexto, acceso_id=_uuid_o_404(acceso_id))
