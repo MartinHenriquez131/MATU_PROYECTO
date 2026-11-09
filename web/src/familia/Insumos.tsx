@@ -36,10 +36,11 @@ import { Boton } from '../compartido/ui/Boton'
 import { AVISO_CUIDADOR, CALIDADES } from './datos'
 import { useDemora } from './Estados'
 import { puedeEditar, useFamilia } from './estado'
-import { navegar, useRuta } from './ruteo'
+import { navegar, useRuta, type Ruta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
+import { CATALOGO } from './textosCatalogo'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
@@ -50,19 +51,16 @@ const porFecha = (a: Perfil, b: Perfil) => a.fecha_quiebre_estimada.localeCompar
 
 /**
  * MATU-60 (2.1): las vistas de la sección, antes del título. En `/insumos` con la lista cargada y en
- * `/insumos/lista` en todos sus estados. No en el permiso, en «Falta el permiso», en «Hay que
- * renovar» ni en el formulario a 360 px.
+ * `/insumos/lista` en todos sus estados. No en el formulario a 360 px.
+ * MATU-59 (2.2, N1): «Catálogo» al final, en `/insumos/catalogo` en todos sus estados. En `/insumos`,
+ * en el permiso, en «Falta el permiso» y en «Hay que renovar» van solo «Insumos» y «Catálogo»
+ * (`sinLista`): «Lista de insumos» llevaría de vuelta a la misma pantalla.
  */
-export function PestanasInsumos({ activa }: { activa: '/insumos' | '/insumos/lista' }) {
-  return (
-    <Pestanas
-      etiqueta={LISTA.vistas}
-      items={[
-        { texto: INSUMOS.titulo, ruta: '/insumos', activa: activa === '/insumos' },
-        { texto: LISTA.titulo, ruta: '/insumos/lista', activa: activa === '/insumos/lista' },
-      ]}
-    />
-  )
+export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumos' | '/insumos/lista' | '/insumos/catalogo'; sinLista?: boolean }) {
+  const items: { texto: string; ruta: Ruta; activa: boolean }[] = [{ texto: INSUMOS.titulo, ruta: '/insumos', activa: activa === '/insumos' }]
+  if (!sinLista) items.push({ texto: LISTA.titulo, ruta: '/insumos/lista', activa: activa === '/insumos/lista' })
+  items.push({ texto: CATALOGO.titulo, ruta: '/insumos/catalogo', activa: activa === '/insumos/catalogo' })
+  return <Pestanas etiqueta={LISTA.vistas} items={items} />
 }
 
 /**
@@ -316,6 +314,9 @@ export function Insumos() {
     enfocar('titulo-pagina')
   }
 
+  // MATU-59 (2.2): el catálogo no depende del permiso de los insumos; sin estas pestañas no se llegaría a él.
+  const pestanasPermiso = ruta === '/insumos' ? <PestanasInsumos activa="/insumos" sinLista /> : undefined
+
   const contenido = () => {
     if (carga === 'cargando') return <Cargando />
     if (carga === 'sin-consentimiento')
@@ -323,6 +324,7 @@ export function Insumos() {
         <Permiso
           pila={pila}
           personaId={personaId}
+          antes={pestanasPermiso}
           onListo={(vigente) => {
             if (vigente) return void cargar()
             setItems([])
@@ -334,7 +336,7 @@ export function Insumos() {
           onNoEncontrado={() => setCarga('no-encontrado')}
         />
       ) : (
-        <UnaColumna titulo={INSUMOS.titulo} baldosa={<Lock aria-hidden className="size-9" />} tono="neutro">
+        <UnaColumna titulo={INSUMOS.titulo} baldosa={<Lock aria-hidden className="size-9" />} tono="neutro" antes={pestanasPermiso}>
           <p className="max-w-prose text-lg">
             <strong>{INSUMOS.faltaPermisoTitulo(pila)}</strong> {INSUMOS.faltaPermiso(pila)}
           </p>
@@ -342,7 +344,7 @@ export function Insumos() {
       )
     if (carga === 'revision-vencida')
       return (
-        <UnaColumna titulo={INSUMOS.titulo} baldosa={<Hourglass aria-hidden className="size-9" />} tono="atenta">
+        <UnaColumna titulo={INSUMOS.titulo} baldosa={<Hourglass aria-hidden className="size-9" />} tono="atenta" antes={pestanasPermiso}>
           <div className="flex max-w-prose flex-col gap-3 text-lg">
             <p>
               <strong>{INSUMOS.renovarTitulo(pila)}</strong> {INSUMOS.renovar}
@@ -602,11 +604,31 @@ function Cargando() {
   )
 }
 
-function UnaColumna({ titulo, baldosa, tono, children }: { titulo: string; baldosa: ReactNode; tono: 'neutro' | 'atenta' | 'rocio'; children: ReactNode }) {
+function UnaColumna({
+  titulo,
+  baldosa,
+  tono,
+  antes,
+  children,
+}: {
+  titulo: string
+  baldosa: ReactNode
+  tono: 'neutro' | 'atenta' | 'rocio'
+  antes?: ReactNode
+  children: ReactNode
+}) {
   const fondo = { neutro: 'bg-tinta/7 text-tenue', atenta: 'bg-atenta-fondo text-atenta', rocio: 'bg-rocio text-turquesa' }[tono]
+  const titular = <Titulo className="text-3xl @2xl/main:text-5xl">{titulo}</Titulo>
   return (
     <div className="flex flex-col items-start gap-5">
-      <Titulo className="text-3xl @2xl/main:text-5xl">{titulo}</Titulo>
+      {antes ? (
+        <div className="flex flex-col gap-3 self-stretch">
+          {antes}
+          {titular}
+        </div>
+      ) : (
+        titular
+      )}
       <span className={`grid size-16 place-items-center rounded-2xl ${fondo}`}>{baldosa}</span>
       {children}
     </div>
@@ -812,7 +834,7 @@ function Fila({
                 if (ocupado) return
                 onSeguir(e.target.checked)
               }}
-              className="size-5 shrink-0 accent-turquesa"
+              className="size-6 shrink-0 accent-turquesa"
             />
             {ocupado ? INSUMOS.guardando : INSUMOS.seguir}
           </label>
@@ -2111,11 +2133,11 @@ function PanelResolver({
           error={falla?.tipo === 'campo' ? falla.texto : null}
           soloLectura={ocupado}
         />
-        <div className="flex flex-wrap gap-3">
-          <Boton id={`confirmar-${a.id}`} className="angosto:px-0.5!" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
+        <div className="flex flex-wrap gap-3 angosto:flex-col angosto:items-stretch">
+          <Boton id={`confirmar-${a.id}`} className="angosto:w-full" aria-label={ALERTAS.botonDe(nombre)} ocupado={ocupado} textoOcupado={ALERTAS.guardando} onClick={() => void confirmar()}>
             {ALERTAS.boton}
           </Boton>
-          <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
+          <Boton variante="secundario" className="angosto:w-full" disabled={ocupado} onClick={onCerrar}>
             {ALERTAS.volver}
           </Boton>
         </div>

@@ -258,3 +258,16 @@ export async function retirarAutorizacion(personaId: string, finalidad: Finalida
 export async function autorizar(personaId: string, cuerpo: SolicitudAutorizacion): Promise<void> {
   await apiFamilia.post(rutaConsentimientos(personaId), cuerpo)
 }
+
+// ---------------------------------------------------------------- MATU-72: borrar los datos de la persona
+
+/** El 200 del borrado (decisión 152): sin el nombre ni nada de la persona, solo los contadores. */
+export type BorradoPersona = S['BorradoPersona']
+
+/**
+ * `POST /v1/personas-cuidadas/{persona_id}/borrado`, sin cuerpo, con `X-Grupo-Id` (decisión 149):
+ * 200, 404 (otro rol, otro grupo o ya no está) o 409 `ya-borrada` (decisión 151).
+ */
+export async function borrarPersona(personaId: string): Promise<BorradoPersona> {
+  return (await apiFamilia.post<BorradoPersona>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/borrado`)).data
+}

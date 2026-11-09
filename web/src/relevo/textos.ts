@@ -1,17 +1,17 @@
 // Todos los textos que ve quien abre el enlace. Salen de docs/lenguaje.md (secciones 5, 7, 8 y 11)
-// y de docs/diseno/matu-23-pagina-relevo.md. Los marcados [PROPUESTO] esperan la aprobación de
-// Jorge para entrar a lenguaje.md (especificación, sección 7): no se cambian por otros.
+// y de docs/diseno/matu-23-pagina-relevo.md. Desde MATU-68 cada texto lleva la sección de
+// lenguaje.md de donde sale: no se cambian por otros.
 // Nunca: "relevo", "token", "sesión", "canje", "revocado", "inválido", ni un código de error.
 import type { CampoFicha } from '../compartido/api/relevo'
 
-export const TITULO_DOCUMENTO = 'Ficha de cuidado compartida · MATU' // [PROPUESTO] 2.5
-export const tituloDocumentoDeEstado = (titulo: string) => `${titulo.replace(/\.$/, '')} · MATU` // [PROPUESTO] 2.5
+export const TITULO_DOCUMENTO = 'Ficha de cuidado compartida · MATU' // [lenguaje 7.1] 2.5
+export const tituloDocumentoDeEstado = (titulo: string) => `${titulo.replace(/\.$/, '')} · MATU` // [lenguaje 7.1] 2.5
 
 export const CABECERA = { marca: 'MATU', pagina: 'Ficha de cuidado compartida' } // lenguaje 7.1
 
 export const CARGANDO = {
-  enlace: 'Abriendo el enlace…', // [PROPUESTO]
-  ficha: 'Abriendo la ficha…', // [PROPUESTO]
+  enlace: 'Abriendo el enlace…', // [lenguaje 7.1]
+  ficha: 'Abriendo la ficha…', // [lenguaje 7.1]
 }
 
 // lenguaje 7.1
@@ -20,7 +20,7 @@ export const PIN = {
   bajada: 'Escribe el PIN de cuatro números que te dictaron por teléfono.',
   etiqueta: 'PIN',
   boton: 'Ver la ficha',
-  botonOcupado: 'Abriendo la ficha…', // [PROPUESTO]
+  botonOcupado: 'Abriendo la ficha…', // [lenguaje 7.1]
   pie: 'No necesitas cuenta ni instalar nada. Al entrar, el enlace se borra de la barra de direcciones.',
   // lenguaje 7.3 y 8
   incompleto: 'El PIN tiene 4 números. Revisa que estén todos.',
@@ -34,21 +34,21 @@ export const PIN = {
 
 // lenguaje 8, "Cualquier otro". Sin "Lo que escribiste sigue aquí" donde Rosa no escribió nada.
 export const ERROR = {
-  titulo: 'No pudimos completar esto.', // [PROPUESTO como título]
-  conexion: 'Revisa tu conexión y vuelve a intentarlo.', // [PROPUESTO sin la última frase]
+  titulo: 'No pudimos completar esto.', // [lenguaje 8]
+  conexion: 'Revisa tu conexión y vuelve a intentarlo.', // [lenguaje 8]
   escrito: 'Lo que escribiste sigue aquí.',
-  reintentar: 'Volver a intentar', // [PROPUESTO]
+  reintentar: 'Volver a intentar', // [lenguaje 26]
 }
 
 // lenguaje 7.5, variante sin correo (D4). Se corta en tres párrafos solo para presentarlo.
 export const AVISO = {
-  titulo: 'Tus datos en MATU', // [PROPUESTO]
+  titulo: 'Tus datos en MATU', // [lenguaje 7.5]
   parrafos: [
     'MATU guarda tu nombre y tu teléfono, que anotó quien te compartió la ficha, para enviarte el enlace y poder contactarte. Tu teléfono se borra 30 días después de que el enlace vence o se corta.',
     'También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, con la fecha y la hora. La familia que te compartió la ficha puede ver ese registro con tu nombre. Lo guardamos 3 años.',
     'Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos.',
   ],
-  politica: 'Política de privacidad (se abre en otra pestaña)', // [PROPUESTO]
+  politica: 'Política de privacidad (se abre en otra pestaña)', // [lenguaje 7.5]
 }
 
 /**
@@ -61,7 +61,7 @@ export const RUTA_POLITICA: string | null = null
 export const QUE_HAGO = {
   titulo: '¿Qué hago?',
   pedirOtro: 'Pídele a quien te envió el enlace uno nuevo.',
-  revisar: 'Pídele a quien te envió el enlace que lo revise.', // [PROPUESTO] D3, decisión de Martín 28/10
+  revisar: 'Pídele a quien te envió el enlace que lo revise.', // lenguaje 7.3 (D3, decisión de Martín 28/10)
 }
 
 // lenguaje 7.4
@@ -70,11 +70,11 @@ export const FICHA = {
   vigenciaInicio: 'Puedes verla hasta el',
   vigenciaMedio: 'a las',
   actualizar: 'Actualizar',
-  actualizando: 'Actualizando…', // [PROPUESTO]
-  actualizada: (hora: string) => `Ficha actualizada a las ${hora}.`, // [PROPUESTO]
+  actualizando: 'Actualizando…', // [lenguaje 7.4]
+  actualizada: (hora: string) => `Ficha actualizada a las ${hora}.`, // [lenguaje 7.4]
   soloPuede: (comparte: string) => `Solo ${comparte} puede cambiar esta ficha.`,
   sinCompletar: 'Sin completar', // lenguaje 5.4
-  columna: 'Sobre esta ficha', // [PROPUESTO] aria-label
+  columna: 'Sobre esta ficha', // [lenguaje 7.4] aria-label
 }
 
 /** Orden fijo de los campos en la hoja (lenguaje 5). */
@@ -111,8 +111,8 @@ export const CAMPOS: Record<CampoFicha, { etiqueta: string; pregunta: (pila: str
 export const ESPERA = {
   minutos: (m: number | null) =>
     m === null
-      ? 'Vuelve a intentarlo en unos minutos.' // [PROPUESTO]
+      ? 'Vuelve a intentarlo en unos minutos.' // [lenguaje 7.3]
       : m === 1
-        ? 'Vuelve a intentarlo en 1\u00A0minuto.' // [PROPUESTO]
+        ? 'Vuelve a intentarlo en 1\u00A0minuto.' // [lenguaje 7.3]
         : `Vuelve a intentarlo en ${m}\u00A0minutos.`,
 }

@@ -1,9 +1,8 @@
 """Tarea de conservación del consumo (MATU-36, decisión 70).
 
-Igual que la de iam (MATU-38): sin programador de tareas todavía, se invoca a mano o desde cron, desde
-backend/ y con DATABASE_URL de matu_app:
+La corre el programador de tareas (MATU-74), desde backend/ y con DATABASE_URL de matu_app:
 
-    python -m app.modules.consumption.infrastructure.tarea_conservacion
+    python -m app.tareas conservacion_consumo
 
 Fija app.rol = 'operacion' y llama a consumo_conservar (migración 0009), que borra los perfiles de
 consumo de las personas cuya autorización para ``consumo`` terminó hace 90 días o más. Operación no ve
@@ -21,6 +20,7 @@ from app.core.config import obtener_configuracion
 from app.core.db import fabrica_sesiones, sesion_tenant
 from app.core.logs import configurar_logs
 from app.modules.consumption.application.conservacion import ResultadoConservacionConsumo, conservar
+from app.shared.puertos import Reloj
 from app.shared.reloj_sistema import RelojSistema
 
 log = logging.getLogger("matu.consumption.conservacion")
@@ -37,8 +37,8 @@ class ConservacionConsumoSql:
             return int(sesion.execute(_CONSERVAR, {"limite": limite, "ahora": ahora}).scalar_one())
 
 
-def ejecutar() -> ResultadoConservacionConsumo:
-    resultado = conservar(unidad=ConservacionConsumoSql(fabrica_sesiones()), reloj=RelojSistema())
+def ejecutar(fabrica: sessionmaker[Session] | None = None, reloj: Reloj | None = None) -> ResultadoConservacionConsumo:
+    resultado = conservar(unidad=ConservacionConsumoSql(fabrica or fabrica_sesiones()), reloj=reloj or RelojSistema())
     log.info("conservacion del consumo: %d perfiles borrados", resultado.perfiles_borrados)
     return resultado
 

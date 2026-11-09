@@ -3,6 +3,9 @@
 Con la sesión del contexto de grupo: RLS (consentimiento_familia_*) acota todo al grupo. El INSERT
 no usa RETURNING. Un choque con consentimiento_vigente_uq (dos peticiones a la vez) se traduce a
 AutorizacionVigente dentro de un SAVEPOINT; el mensaje de la base no se registra.
+
+MATU-72 (C8): antes de guardar toma la fila de la persona con FOR SHARE y exige eliminado_en nulo, para que una
+autorización nunca se cuele en un borrado simultáneo, que la bloquea con FOR UPDATE.
 """
 
 import json
@@ -15,6 +18,11 @@ from sqlalchemy.orm import Session
 from app.modules.care_circle.application.autorizaciones import AutorizacionVigente, NuevaAutorizacion
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria
+
+_BLOQUEAR_PERSONA = text(
+    "SELECT 1 FROM persona_cuidada WHERE id = :persona_id AND grupo_id = :grupo_id AND eliminado_en IS NULL"
+    " FOR SHARE"
+)
 
 _HAY_VIGENTE = text(
     "SELECT 1 FROM consentimiento WHERE grupo_id = :grupo_id AND persona_cuidada_id = :persona_id"
@@ -34,6 +42,10 @@ class RepositorioAutorizacionesSQL:
         self._sesion = sesion
         self._grupo_id = grupo_id
         self._auditoria = auditoria
+
+    def bloquear_persona(self, persona_id: uuid.UUID) -> bool:
+        fila = self._sesion.execute(_BLOQUEAR_PERSONA, {"persona_id": persona_id, "grupo_id": self._grupo_id}).first()
+        return fila is not None
 
     def hay_vigente(self, persona_id: uuid.UUID, finalidad: str) -> bool:
         fila = self._sesion.execute(

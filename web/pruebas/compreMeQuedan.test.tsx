@@ -478,17 +478,37 @@ describe('La nota de «Se acaban pronto» según el rol', () => {
 
 // ---------------------------------------------------------------- «Ya lo resolví» (3.8)
 
+// MATU-68 (docs/diseno/matu-68-ajustes.md, 1.2): una sola medida de casilla en toda la app, `size-6`
+// (1,5 rem), como las de Compartir. La etiqueta de una línea va con `items-center`: sin `mt-0.5`.
+describe('La casilla «Seguir»', () => {
+  it('mide size-6, sin size-5 ni mt-0.5, dentro de su etiqueta de 48 px', async () => {
+    await abrir()
+    const seguir = document.getElementById(`seguir-${PANAL.id}`)!
+    expect(seguir).toHaveAttribute('type', 'checkbox')
+    expect(seguir).toHaveClass('size-6', 'shrink-0', 'accent-turquesa')
+    expect(seguir).not.toHaveClass('size-5')
+    expect(seguir).not.toHaveClass('mt-0.5')
+    expect(seguir.closest('label')).toHaveClass('min-h-12', 'items-center', 'gap-3')
+  })
+})
+
 describe('«Ya lo resolví» en envases', () => {
-  // Tercera revisión visual, P3: a 320 px con la raíz a 34 px, «Guardando…» se partía en dos líneas.
-  // En `angosto` el botón deja 0.5 de relleno a los lados, siempre. Con `!`: en el CSS compilado
-  // `angosto:px-2` (de Boton) va después de `angosto:px-0.5` y ganaría.
-  it('el botón del panel usa relleno angosto `px-0.5!`, que gana a `angosto:px-2` de Boton', async () => {
+  // MATU-68 (docs/diseno/matu-68-ajustes.md, 2.3): en `angosto` los dos botones del panel van uno bajo
+  // otro y a todo el ancho, con el relleno de su variante (`angosto:px-3` del principal y `angosto:px-2` del secundario, desde la revisión visual de MATU-67). Antes «Ya lo
+  // resolví» llevaba `angosto:px-0.5!`, que dejaba 4 px entre el texto y el borde. jsdom no mide: la
+  // prueba comprueba las clases.
+  it('en angosto la fila va en columna y los dos botones a todo el ancho, sin achicar el relleno', async () => {
     const { u } = await abrir(() => ({ status: 200, cuerpo: enBloque(PANAL, false) }))
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
     const panel = screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })
     const boton = within(panel).getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' })
-    expect(boton).toHaveClass('angosto:px-0.5!')
-    expect(within(panel).getByRole('button', { name: 'Volver' })).not.toHaveClass('angosto:px-0.5!')
+    const volver = within(panel).getByRole('button', { name: 'Volver' })
+    expect(boton.parentElement).toBe(volver.parentElement)
+    expect(boton.parentElement).toHaveClass('flex', 'flex-wrap', 'gap-3', 'angosto:flex-col', 'angosto:items-stretch')
+    // Cada uno con el relleno angosto de su variante: el principal `px-3`, el secundario `px-2`.
+    expect(boton).toHaveClass('angosto:w-full', 'angosto:px-3')
+    expect(volver).toHaveClass('angosto:w-full', 'angosto:px-2')
+    for (const b of [boton, volver]) expect(b.className).not.toMatch(/px-0\.5|\bp[xse]?-[\d.]+!/)
   })
 
   it('con envase: abre en 1 con el foco en el panel y envía `envases`', async () => {

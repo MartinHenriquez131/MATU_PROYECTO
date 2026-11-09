@@ -127,6 +127,7 @@ class Repo:
     def __init__(self, filas: dict[str, list[AutorizacionRegistrada]]) -> None:
         self.filas = filas
         self.retiradas: list[tuple[uuid.UUID, datetime]] = []
+        self.motivos: list[str] = []
 
     def bloquear_vigente(self, persona_id: uuid.UUID, finalidad: str) -> AutorizacionRegistrada | None:
         return next((a for a in self.filas.get(finalidad, []) if a.revocado_en is None), None)
@@ -145,8 +146,9 @@ class Repo:
         return max(revocadas, key=lambda a: a.revocado_en or AHORA) if revocadas else None
 
     def retirar(self, consentimiento_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID,
-                request_id: str | None) -> None:
+                request_id: str | None, motivo: str = "retiro") -> None:
         self.retiradas.append((consentimiento_id, ahora))
+        self.motivos.append(motivo)
 
 
 class Efecto:
@@ -155,6 +157,7 @@ class Efecto:
         self.falla = falla
         self.aplicados: list[datetime] = []
         self.preparados: list[tuple[datetime, bool]] = []
+        self.borrados: list[datetime] = []
 
     def aplicar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
         if self.falla:
@@ -166,6 +169,12 @@ class Efecto:
         self, persona_id: uuid.UUID, ahora: datetime, request_id: str | None, plazo_cumplido: bool
     ) -> None:
         self.preparados.append((ahora, plazo_cumplido))
+
+    def borrar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
+        if self.falla:
+            raise RuntimeError("falla sintética")
+        self.borrados.append(ahora)
+        return self.cortados
 
 
 def _solicitud(rol: str = "cuidador", finalidad: str = "plan_cuidado") -> SolicitudRetiro:

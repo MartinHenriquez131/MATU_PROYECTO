@@ -36,10 +36,13 @@ request_id_actual: ContextVar[str | None] = ContextVar("request_id", default=Non
 # notificación. Nunca el email, el push_token, el texto ni la respuesta del proveedor.
 # xff_cabeceras, xff_elementos, xff_clases, proxy_saltos e ip_contada: el diagnóstico temporal del proxy
 # (MATU-25, app/core/proxy.py), solo cantidades y clases fijas, nunca una IP.
+# tarea, resultado, corrida, inicio, fin y contadores: la línea de cada corrida del programador de tareas
+# (MATU-74, app/tareas.py). contadores lleva solo cantidades, nunca un identificador ni un nombre.
 CAMPOS_PERMITIDOS = (
     "metodo", "ruta", "estado", "duracion_ms", "tipo_error", "usuario_id", "grupo_id", "evento", "familia_id",
     "notificacion_id", "evento_id", "canal", "codigo",
     "xff_cabeceras", "xff_elementos", "xff_clases", "proxy_saltos", "ip_contada",
+    "tarea", "resultado", "corrida", "inicio", "fin", "contadores",
 )
 
 # Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)

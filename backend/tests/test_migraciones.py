@@ -785,3 +785,107 @@ def test_0017_conservar_compras_y_baja_al_esquema_de_0016(base_desechable):
     for parte, filas in esquema_0016.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     alembic("upgrade", "head")
+
+
+# ---- 0018 (MATU-72): el borrado de la persona, con su marca, su motivo y la barrera por rol
+
+
+@pytest.mark.rf("RF-01")
+def test_0018_borrar_persona_y_baja_al_esquema_de_0017(base_desechable):
+    alembic("upgrade", "0017")
+    esquema_0017 = catalogo()
+
+    alembic("upgrade", "0018")
+    [(motivo,)] = consultar("SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+                            " WHERE conname = 'consentimiento_revocacion_motivo'")
+    assert "'borrado'" in motivo and "'retiro'" in motivo and "'renovacion'" in motivo
+    columnas = dict(consultar("SELECT column_name, is_nullable FROM information_schema.columns"
+                              " WHERE table_name = 'persona_cuidada'"))
+    assert columnas["datos_borrados_en"] == "YES" and columnas["nivel_apoyo"] == "YES"
+    restricciones = {r[0] for r in consultar("SELECT conname FROM pg_constraint"
+                                            " WHERE conrelid = 'persona_cuidada'::regclass")}
+    assert {"persona_cuidada_nivel_apoyo_presente", "persona_cuidada_borrada"} <= restricciones
+    disparadores = consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'persona_borrada_fija'")
+    assert disparadores == [("persona_borrada_fija",)]
+    politicas = dict(consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'persona_cuidada'"))
+    assert politicas == {"persona_familia_leer": "SELECT", "persona_familia_crear": "INSERT",
+                         "persona_familia_editar": "UPDATE", "persona_familia_borrar": "DELETE",
+                         "persona_operacion": "SELECT"}
+    escritura = consultar("SELECT qual, with_check FROM pg_policies WHERE policyname = 'persona_familia_editar'")
+    assert all("app_retira_autorizacion" in (parte or "") for parte in escritura[0])
+
+    # Con una persona borrada, el downgrade se detiene en vez de perder la marca
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U}', 'a@correo.ejemplo',"
+                  " 'Persona A', 'h')")
+        c.execute(f"INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G}', 'Familia A', '{U}')")
+        c.execute(f"INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo, eliminado_en,"
+                  f" datos_borrados_en) VALUES ('{P}', '{G}', 'borrada', 'borrada', NULL, now(), now())")
+    with pytest.raises(AssertionError, match="persona"):
+        alembic("downgrade", "0017")
+    assert consultar("SELECT count(*) FROM persona_cuidada WHERE datos_borrados_en IS NOT NULL") == [(1,)]
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"DELETE FROM persona_cuidada WHERE id = '{P}'")
+
+    alembic("downgrade", "0017")
+    despues = catalogo()
+    for parte, filas in esquema_0017.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    alembic("upgrade", "head")
+
+
+# ---- 0019 (MATU-59): el precio exacto con IVA, el stock por oferta y el retracto por producto
+
+
+@pytest.mark.rf("RF-20")
+def test_0019_precio_stock_y_retracto_y_baja_al_esquema_de_0018(base_desechable):
+    alembic("upgrade", "0018")
+    esquema_0018 = catalogo()
+    ids = {"cat": "00000000-0000-0000-0000-0000000019c1", "prod": "00000000-0000-0000-0000-0000000019f1",
+           "com": "00000000-0000-0000-0000-0000000019a1", "of": "00000000-0000-0000-0000-0000000019b1"}
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        c.execute(f"""
+            INSERT INTO categoria_cuidado (id, nombre) VALUES ('{ids['cat']}', 'Categoría 19');
+            INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase)
+                VALUES ('{ids['prod']}', '{ids['cat']}', 'Producto 19', 'Caja de 30 unidades', 'unidad', 30);
+            INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna)
+                VALUES ('{ids['com']}', 'Comercio 19 (ficticio)', 'Comercio 19', '77.777.719-0', 'Calle 19', 'Ñuñoa');
+            INSERT INTO oferta (id, producto_id, comercio_id, precio_referencia)
+                VALUES ('{ids['of']}', '{ids['prod']}', '{ids['com']}', 12990);
+        """)
+
+    alembic("upgrade", "0019")
+    columnas = {(t, c): (tipo, nulo, defecto) for t, c, tipo, nulo, defecto in consultar(
+        "SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns"
+        " WHERE table_name IN ('oferta', 'producto')")}
+    assert ("oferta", "precio_referencia") not in columnas
+    assert columnas[("oferta", "precio")] == ("bigint", "NO", None)
+    assert columnas[("oferta", "stock")] == ("integer", "NO", "0")
+    assert columnas[("producto", "retracto_pierde_al_abrir")] == ("boolean", "NO", "false")
+    restricciones = dict(consultar("SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint"
+                                   " WHERE conrelid = 'oferta'::regclass AND contype = 'c'"))
+    assert restricciones == {"oferta_precio_check": "CHECK ((precio > 0))",
+                             "oferta_stock_check": "CHECK ((stock >= 0))"}
+    [(comentario,)] = consultar("SELECT col_description('oferta'::regclass, attnum) FROM pg_attribute"
+                                " WHERE attrelid = 'oferta'::regclass AND attname = 'precio'")
+    assert comentario.startswith("Precio exacto en pesos enteros, con IVA") and "ADR-011" not in comentario
+    # La fila de antes conserva su precio, sin stock, y el producto sin pérdida del retracto
+    assert consultar(f"SELECT precio, stock FROM oferta WHERE id = '{ids['of']}'") == [(12990, 0)]
+    assert consultar(f"SELECT retracto_pierde_al_abrir FROM producto WHERE id = '{ids['prod']}'") == [(False,)]
+    despues = catalogo()
+    # RLS y permisos de tabla no cambian (los de columna son los de la tabla, también para las columnas nuevas)
+    for parte in ("politicas", "rls", "permisos", "triggers", "funciones"):
+        assert despues[parte] == esquema_0018[parte], parte
+    with psycopg.connect(_dsn(BASE), autocommit=True) as c:
+        for cambio in ("precio = 0", "stock = -1"):
+            with pytest.raises(psycopg.errors.CheckViolation):
+                c.execute(f"UPDATE oferta SET {cambio} WHERE id = '{ids['of']}'")
+        c.execute(f"UPDATE oferta SET stock = 5, precio = 13990 WHERE id = '{ids['of']}'")
+
+    alembic("downgrade", "0018")
+    despues = catalogo()
+    for parte, filas in esquema_0018.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    # El precio vuelve a precio_referencia con su valor; el stock se pierde
+    assert consultar(f"SELECT precio_referencia FROM oferta WHERE id = '{ids['of']}'") == [(13990,)]
+    alembic("upgrade", "head")

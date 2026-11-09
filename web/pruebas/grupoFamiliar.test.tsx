@@ -172,8 +172,10 @@ describe('Grupo familiar, por rol y por estado', () => {
     expect(pantalla.getByRole('button', { name: 'Retirar la autorización de los insumos de María' })).toBeVisible()
     // 6.2: ningún elemento en turquesa macizo en Grupo familiar.
     expect(document.querySelector('.bg-turquesa')).toBeNull()
-    // P2: la calidad de quien autorizó nunca se muestra, aunque la API la mande al admin.
-    expect(pantalla.queryByText(/titular|representante|de hecho/i)).toBeNull()
+    // P2: la calidad de quien autorizó nunca se muestra, aunque la API la mande al admin. (MATU-72: la
+    // explicación de «Borrar sus datos» dice «su representante legal», que no es la calidad.)
+    for (const permiso of ['Permiso para guardar su ficha', 'Permiso para calcular sus insumos'])
+      expect(within(bloque(permiso)).queryByText(/titular|representante|de hecho/i)).toBeNull()
 
     expect(pedidas.map((p) => p.linea)).toEqual([
       `GET /v1/grupos/${GRUPO_ID}/personas-cuidadas`,
@@ -522,7 +524,7 @@ describe('Volver a autorizar', () => {
 
   it('la ficha dentro de los 90 días: lo escrito vuelve, ninguna calidad elegida y el POST con plan_cuidado', async () => {
     const pedidas = abrirAutorizar('ficha', vista('plan_cuidado', 'retirada', RETIRADA), () => ({ status: 201, cuerpo: {} }))
-    expect(screen.getByRole('heading', { level: 1, name: 'La autorización para guardar su ficha' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: 'Permiso para guardar su ficha' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Volver a Grupo familiar' })).toBeVisible()
     expect(screen.getByText('Al autorizar de nuevo, vuelve lo que estaba escrito. Los enlaces que se cortaron no vuelven a abrir.')).toBeVisible()
     expect(screen.getAllByRole('radio').every((r) => !(r as HTMLInputElement).checked)).toBe(true)
@@ -531,7 +533,7 @@ describe('Volver a autorizar', () => {
 
     const boton = screen.getByRole('button', { name: 'Acepto y vuelvo a autorizar' })
     await userEvent.click(boton)
-    expect(await screen.findByText('Elige en qué calidad das la autorización.')).toBeVisible()
+    expect(await screen.findByText('Elige quién da la autorización.')).toBeVisible()
     await userEvent.click(screen.getByRole('radio', { name: /María lo autoriza y yo lo registro/ }))
     await userEvent.click(boton)
     await waitFor(() => expect(window.location.pathname).toBe('/grupo'))
@@ -580,7 +582,7 @@ describe('Volver a autorizar', () => {
   })
 
   it.each([
-    ['ficha', 'La autorización para guardar su ficha', 'plan_cuidado'],
+    ['ficha', 'Permiso para guardar su ficha', 'plan_cuidado'],
     ['insumos', 'Antes de calcular, un permiso', 'consumo'],
   ] as const)('desde el aviso, la %s carga con su propio h1, que conserva el foco al llegar la vista (revisión P2)', async (pantalla, titulo, finalidad) => {
     const respuesta = diferida()

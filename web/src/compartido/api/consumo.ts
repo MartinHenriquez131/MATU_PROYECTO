@@ -59,16 +59,10 @@ export const nombreDe = (p: Perfil) => p.nombre_libre ?? p.producto?.nombre ?? '
 // ---------------------------------------------------------------- MATU-37: lo que se acaba pronto
 
 export type PorAcabarse = S['InsumoPorAcabarseVista']
-export type Alerta = S['AlertaVista']
 
 /** Los insumos dentro de su ventana de aviso, con `avisando` y `alerta_id` (decisión 74). */
 export async function listarPorAcabarse(personaId: string): Promise<PorAcabarse[]> {
   return (await apiFamilia.get<S['ListaPorAcabarse']>(`${base(personaId)}/por-acabarse`)).data.items
-}
-
-/** Las alertas abiertas. La pantalla no las usa: el bloque sale de `por-acabarse`. */
-export async function listarAlertas(personaId: string): Promise<S['ListaAlertas']> {
-  return (await apiFamilia.get<S['ListaAlertas']>(`${base(personaId)}/alertas`)).data
 }
 
 /** Lo comprado: exactamente uno de `envases` (1 a 99) o `cantidad` (1 a 10.000), decisiones 137 y 147. */
@@ -84,11 +78,6 @@ export async function resolverAviso(personaId: string, perfilId: string, etag: s
   const cuerpo = comprado ?? undefined
   // Siempre condicional (decisión 80): el `etag` del ítem de `por-acabarse`, tal cual. Un 412 no suma nada.
   return (await apiFamilia.post<PorAcabarse>(`${base(personaId)}/${encodeURIComponent(perfilId)}/resolver`, cuerpo, { headers: { 'If-Match': etag } })).data
-}
-
-/** Descartar una alerta por su id. La pantalla usa `resolverAviso`, que no depende del trabajo diario. */
-export async function descartarAlerta(personaId: string, alertaId: string): Promise<Alerta> {
-  return (await apiFamilia.post<Alerta>(`${base(personaId)}/alertas/${encodeURIComponent(alertaId)}/descartar`)).data
 }
 
 // ---------------------------------------------------------------- MATU-60: la lista de insumos

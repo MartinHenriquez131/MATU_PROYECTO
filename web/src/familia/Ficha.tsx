@@ -230,16 +230,33 @@ function VistaPrevia({
 }
 
 /** Aviso de una sola vez al llegar (guardado o conflicto resuelto). */
-export function AvisoDeLlegada() {
+/** La nota de llegada que recibe el foco: la regla de ruta de AppFamilia la prefiere al `h1`. */
+export const ID_AVISO_LLEGADA = 'aviso-llegada'
+
+/** `className`: el margen de abajo, para el marco que ya separa con `gap` (el paso «Persona» del alta). */
+export function AvisoDeLlegada({ className = 'mb-6' }: { className?: string } = {}) {
   const { aviso, fijar } = useFamilia()
   const [visto] = useState(aviso)
   useEffect(() => {
     if (aviso) fijar({ aviso: null })
   }, [aviso, fijar])
+  // MATU-72 4.3: la nota con `enfocar` recibe el foco cuando ya está en la pantalla.
+  useEffect(() => {
+    if (!visto?.enfocar) return
+    const t = window.setTimeout(() => document.getElementById(ID_AVISO_LLEGADA)?.focus(), 0)
+    return () => window.clearTimeout(t)
+  }, [visto])
   if (!visto) return null
   const accion = visto.accion
   return (
-    <Nota tono={visto.tono ?? 'ok'} titulo={visto.titulo} rol="status" className="mb-6">
+    <Nota
+      id={visto.enfocar ? ID_AVISO_LLEGADA : undefined}
+      enfocable={visto.enfocar}
+      tono={visto.tono ?? 'ok'}
+      titulo={visto.titulo}
+      rol="status"
+      className={className}
+    >
       {visto.texto}
       {accion && (
         <Acciones className={visto.texto ? 'mt-2' : ''}>

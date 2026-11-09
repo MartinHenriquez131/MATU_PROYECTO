@@ -76,6 +76,8 @@ class AccionAuditoria(StrEnum):
     # MATU-44 (D3, decisión 129): la clave de datos de la ficha se destruye 90 días después del retiro.
     # Actor sistema, sin detalle
     CLAVE_DESTRUIR = "clave.destruir"
+    # MATU-72 (decisión 157): borrar los datos de la persona al tiro, a pedido. Actor el usuario, sin detalle
+    PERSONA_BORRAR = "persona.borrar"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -149,6 +151,8 @@ class EntidadAuditoria(StrEnum):
     REPOSICION = "reposicion"
     # MATU-44
     CLAVE_DATOS = "clave_datos"
+    # MATU-72
+    PERSONA_CUIDADA = "persona_cuidada"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:

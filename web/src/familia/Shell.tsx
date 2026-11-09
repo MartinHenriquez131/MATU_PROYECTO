@@ -109,7 +109,9 @@ function Persona() {
     setAbierto(false)
     await elegir(grupoId, personaId)
     const seccion = seccionDe(ruta)
-    navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
+    // MATU-59 (2.2): el catálogo no cambia con la persona, así que la ruta se mantiene.
+    if (ruta === '/insumos/catalogo') navegar('/insumos/catalogo', { reemplazar: true })
+    else navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
     window.setTimeout(() => document.getElementById('titulo-pagina')?.focus(), 0)
   }
 
@@ -165,7 +167,8 @@ function Persona() {
             ? grupos.map((g) => (
                 <fieldset key={g.id} className="flex flex-col gap-2">
                   <legend className="mb-1 font-bold">{g.nombre}</legend>
-                  {opciones(g.id, listas[g.id] ?? (g.id === grupo?.id ? personas : []), g.rol)}
+                  {/* MATU-72 4.1: el grupo elegido, siempre desde la memoria: una persona borrada no queda en la lista pedida al abrir. */}
+                  {opciones(g.id, g.id === grupo?.id ? personas : (listas[g.id] ?? []), g.rol)}
                 </fieldset>
               ))
             : opciones(grupo!.id, personas, rol)}

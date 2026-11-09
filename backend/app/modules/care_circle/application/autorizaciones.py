@@ -39,6 +39,11 @@ class AutorizacionVigente(Exception):
     """La persona ya tiene una autorización no revocada para esa finalidad. La API responde 409."""
 
 
+class PersonaNoDisponible(Exception):
+    """La persona ya no está en el grupo: un borrado simultáneo terminó primero (MATU-72, C8). La API responde
+    404."""
+
+
 @dataclass(frozen=True)
 class NuevaAutorizacion:
     """Lo que se escribe: el consentimiento y su fila de auditoría (consentimiento.otorgar)."""
@@ -62,6 +67,11 @@ class RepositorioAutorizaciones(Protocol):
 
     Implementación: RepositorioAutorizacionesSQL (infrastructure/repositorio_autorizaciones.py).
     """
+
+    def bloquear_persona(self, persona_id: uuid.UUID) -> bool:
+        """Toma la fila de la persona con FOR SHARE hasta el fin de la transacción (MATU-72, C8). False si ya no
+        está en el grupo o tiene eliminado_en: un borrado que la tenía bloqueada terminó primero."""
+        ...
 
     def hay_vigente(self, persona_id: uuid.UUID, finalidad: str) -> bool:
         """Si hay un consentimiento no revocado de la persona para la finalidad."""
@@ -103,13 +113,17 @@ def otorgar_autorizacion(
     preparar: Callable[[], None] | None = None,
 ) -> AutorizacionOtorgada:
     """Registra el consentimiento para ``solicitud.finalidad``. Orden: rol (404), reglas de la calidad (422),
-    autorización ya vigente (409). ``preparar`` corre justo antes de guardar (MATU-44: borra lo que quedaba
-    de una autorización retirada hace 90 días o más, decisión 128). Nada queda escrito si algo falla."""
+    persona borrada mientras tanto (404, MATU-72), autorización ya vigente (409). ``preparar`` corre justo antes
+    de guardar (MATU-44: borra lo que quedaba de una autorización retirada hace 90 días o más, decisión 128).
+    Nada queda escrito si algo falla."""
     if solicitud.finalidad not in FINALIDADES_QUE_SE_OTORGAN:
         raise ValueError("finalidad sin autorización propia")
     if not puede_dar_de_alta(solicitud.rol):
         raise RolSinPermisoAutorizacion()
     validar_otorgamiento(solicitud.calidad_otorgante, solicitud.referencia_documento, solicitud.aviso)
+    # C8: la fila de la persona con FOR SHARE. Un borrado la tiene con FOR UPDATE: se espera y, si terminó, 404
+    if not repositorio.bloquear_persona(solicitud.persona_id):
+        raise PersonaNoDisponible()
     if repositorio.hay_vigente(solicitud.persona_id, solicitud.finalidad):
         raise AutorizacionVigente()
     if preparar is not None:

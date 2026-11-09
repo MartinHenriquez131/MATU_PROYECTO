@@ -5,6 +5,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
+import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, DOMINIO_NO_PERMITIDO } from './cuentas'
 
@@ -407,6 +408,8 @@ function sembrar() {
     const u = cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo)
     insumos(u, 'vigente', true)
   }
+  // MATU-59: el catálogo vacío, con error y con la capa 3 apagada (los demás roles lo ven con sus cuentas de siempre).
+  for (const modo of ['catalogo-vacio', 'catalogo-falla', 'catalogo-apagado'] as const) insumos(cuenta(`${modo}@example.com`, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo), 'vigente', true)
   cuenta('enlaces-cortar-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
   cuenta('enlaces-lista-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
   cuenta('compartir-nombre@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
@@ -537,6 +540,9 @@ function vistaPersona(p: Persona, rol: Rol) {
 const conflictosHechos = new Set<string>()
 
 /** Atiende /v1 de la familia. `false` si la ruta no es suya. */
+/** MATU-72: las personas borradas, `grupo:persona`, para el 409 `ya-borrada`. Solo en memoria del doble. */
+const borradas = new Set<string>()
+
 export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, cuerpo: Record<string, unknown> | null, r: Responder): Promise<boolean> {
   const metodo = req.method ?? 'GET'
   const ruta = (req.url ?? '').split('?')[0]
@@ -632,6 +638,16 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return sinCuerpo(res, 204), true
   }
 
+  // ------------------------------------------------ MATU-59: el catálogo, sin X-Grupo-Id ni persona
+  if (metodo === 'GET' && ruta === '/v1/catalogo') {
+    const u = usuarioDe(req)
+    if (!u) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+    if (u.modo === 'catalogo-falla') return problema(res, 503, '/errores/servicio-no-disponible'), true
+    // CAPA3_HABILITADA=false: la ruta no existe (decisión 167).
+    if (u.modo === 'catalogo-apagado') return problema(res, 404, '/errores/no-encontrado'), true
+    return json(res, 200, catalogoDoble(u.modo)), true
+  }
+
   if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo')) return false
 
   const u = usuarioDe(req)
@@ -688,6 +704,28 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     p.direccion = b.direccion ? { etiqueta: 'Casa', region: 'Metropolitana', referencia: null, depto: null, ...(b.direccion as object) } : null
     g.personas.push(p)
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
+  }
+
+  // MATU-72: `POST …/borrado` (decisiones 149 a 153). La persona sale del grupo y sus enlaces quedan
+  // cortados; un segundo borrado responde 409. Cuentas: «retiro-falla» responde 500, «retiro-otra»
+  // borra como si fuera otra persona y responde 409, y «retiro-lento» tarda 2 s.
+  const mBorrado = /^\/v1\/personas-cuidadas\/([^/]+)\/borrado$/.exec(ruta)
+  if (mBorrado && metodo === 'POST') {
+    const id = decodeURIComponent(mBorrado[1])
+    res.setHeader('Cache-Control', 'no-store')
+    if (!g || (g.rol !== 'admin' && g.rol !== 'cuidador')) return problema(res, 404, '/errores/no-encontrado'), true
+    if (borradas.has(`${g.id}:${id}`)) return problema(res, 409, '/errores/ya-borrada'), true
+    const pc = g.personas.find((x) => x.id === id)
+    if (!pc) return problema(res, 404, '/errores/no-encontrado'), true
+    if (u.modo === 'retiro-falla') return problema(res, 500, '/errores/error-interno'), true
+    const ahora = new Date().toISOString()
+    const cortados = pc.accesos.filter((x) => estadoDe(x) !== 'vencido' && !x.revocado_en)
+    for (const x of cortados) x.revocado_en = ahora
+    const retiradas = (['plan_cuidado', 'consumo'] as const).filter((f) => !pc.autorizaciones[f].retiro).length
+    g.personas = g.personas.filter((x) => x.id !== id)
+    borradas.add(`${g.id}:${id}`)
+    if (u.modo === 'retiro-otra') return problema(res, 409, '/errores/ya-borrada'), true
+    return json(res, 200, { persona_id: id, borrado_en: ahora, enlaces_cortados: cortados.length, autorizaciones_retiradas: retiradas }), true
   }
 
   // MATU-44: el estado de las autorizaciones, retirar y volver a autorizar la ficha.

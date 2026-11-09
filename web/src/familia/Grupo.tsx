@@ -13,6 +13,7 @@ import { CloudOff, Hourglass, Lock, ShieldCheck, ShieldOff, ShieldQuestion } fro
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizar,
+  borrarPersona,
   leerAutorizaciones,
   listarAccesos,
   listarPersonas,
@@ -27,13 +28,13 @@ import { fechaYHoraDeChile } from '../compartido/fechas'
 import { Boton } from '../compartido/ui/Boton'
 import { DeclaracionFicha, useDeclaracionFicha } from './Alta'
 import { useDemora } from './Estados'
-import { puedeEditar, useFamilia } from './estado'
+import { BORRADOR_VACIO, puedeEditar, useFamilia, type BorradorPersona } from './estado'
 import { AvisoDeLlegada, ErrorAlCargar, SinAcceso } from './Ficha'
 import { esTipo } from './insumosComun'
 import { Permiso } from './Insumos'
 import { navegar } from './ruteo'
 import { AUTORIZACION, GENERAL } from './textos'
-import { GRUPO_FAMILIAR as T } from './textosGrupo'
+import { BORRAR_DATOS as B, GRUPO_FAMILIAR as T } from './textosGrupo'
 import { Acciones, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 
 /** Con la autorización vigente o por renovar: hay algo que retirar. */
@@ -81,13 +82,23 @@ interface DatosPersona {
 type AvisoBloque = { tono: 'ok' | 'rocio'; texto: string }
 const claveDe = (personaId: string, finalidad: Finalidad) => `${personaId}-${finalidad}`
 
+/** MATU-72 4.1: el borrador del alta tiene el nombre de la persona borrada. */
+function borradorDe(b: BorradorPersona, p: PersonaListada) {
+  const igual = (a: string, x: string | null | undefined) => !!a.trim() && !!x && a.trim().toLocaleLowerCase('es-CL') === x.trim().toLocaleLowerCase('es-CL')
+  const pila = 'nombre_pila' in p ? p.nombre_pila : null
+  return igual(b.nombre, p.nombre) || igual(b.pila, pila) || igual(b.pila, p.nombre) || igual(b.nombre, pila)
+}
+
 export function GrupoFamiliar() {
-  const { grupo, rol, personaId: elegidaId, fijar, reautorizar } = useFamilia()
+  const { grupo, rol, personaId: elegidaId, personas: enMemoria, borrador, fijar, reautorizar } = useFamilia()
   const editor = puedeEditar(rol)
   const [carga, setCarga] = useState<'cargando' | 'lista' | 'red'>('cargando')
   const [datos, setDatos] = useState<DatosPersona[]>([])
   const [avisos, setAvisos] = useState<Record<string, AvisoBloque>>({})
   const [retirando, setRetirando] = useState<{ datos: DatosPersona; finalidad: Finalidad } | null>(null)
+  const [borrando, setBorrando] = useState<DatosPersona | null>(null)
+  // MATU-72 4.3: la nota de llegada se vuelve a montar para mostrar la del borrado sin cambiar de ruta.
+  const [llegada, setLlegada] = useState(0)
   const enfocarAviso = useRef<string | null>(null)
 
   // 2.1: la intención de volver a autorizar dura solo hasta volver aquí.
@@ -170,7 +181,32 @@ export function GrupoFamiliar() {
 
   const alNoEncontrado = () => {
     setRetirando(null)
+    setBorrando(null)
     void cargar().then(() => document.getElementById('titulo-pagina')?.focus())
+  }
+
+  /**
+   * MATU-72 4.1 y 4.2: con el 200 o el 409 la persona sale de toda la memoria en una sola llamada a
+   * `fijar`. Si no queda nadie, la regla de MATU-39 5.4 lleva a `/empezar/persona`; si quedan otras,
+   * Grupo familiar sigue sin su sección y el foco va a la nota. Su nombre solo sigue en la nota.
+   */
+  const sacarDeLaApp = (d: DatosPersona, aviso: AvisoBloque) => {
+    const id = d.persona.id
+    const quedan = enMemoria.filter((p) => p.id !== id)
+    const era = id === elegidaId
+    flushSync(() => {
+      setBorrando(null)
+      setDatos((xs) => xs.filter((x) => x.persona.id !== id))
+      setAvisos((xs) => Object.fromEntries(Object.entries(xs).filter(([clave]) => !clave.startsWith(`${id}-`))))
+      setLlegada((n) => n + 1)
+      fijar({
+        personas: quedan,
+        ...(era ? { personaId: quedan[0]?.id ?? null, ficha: null, autorizacion: null } : {}),
+        ...(reautorizar?.personaId === id ? { reautorizar: null } : {}),
+        ...(borradorDe(borrador, d.persona) ? { borrador: BORRADOR_VACIO } : {}),
+        aviso: { titulo: aviso.texto, tono: aviso.tono, enfocar: quedan.length > 0 },
+      })
+    })
   }
 
   const volverAAutorizar = (d: DatosPersona, finalidad: Finalidad, vista: AutorizacionVista) => {
@@ -225,6 +261,7 @@ export function GrupoFamiliar() {
                 />
               ))}
             </div>
+            <BloqueBorrar persona={d.persona} editor={editor} onBorrar={() => setBorrando(d)} />
           </section>
         ))}
       </div>
@@ -233,9 +270,22 @@ export function GrupoFamiliar() {
   return (
     <Pagina titulo={T.titulo} bajada={grupo ? T.bajada(grupo.nombre) : undefined}>
       <div className="max-w-5xl">
-        <AvisoDeLlegada />
+        <AvisoDeLlegada key={llegada} />
         {cuerpo}
       </div>
+      {borrando && (
+        <DialogoBorrar
+          datos={borrando}
+          onCancelar={() => {
+            const id = `borrar-${borrando.persona.id}`
+            setBorrando(null)
+            window.setTimeout(() => document.getElementById(id)?.focus(), 0)
+          }}
+          onBorrada={(r) => sacarDeLaApp(borrando, { tono: 'ok', texto: B.hecho(nombrePilaDe(borrando.persona), r.enlaces_cortados) })}
+          onYaBorrada={() => sacarDeLaApp(borrando, { tono: 'rocio', texto: B.yaBorrada(nombrePilaDe(borrando.persona)) })}
+          onNoEncontrado={alNoEncontrado}
+        />
+      )}
       {retirando && (
         <DialogoRetirar
           datos={retirando.datos}
@@ -509,6 +559,220 @@ function DialogoRetirar({
             {T.noRetirar}
           </button>
         </Acciones>
+      </div>
+    </dialog>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-72: borrar sus datos
+
+/**
+ * 2.3: al final de la sección de la persona, detrás de una línea, sin fondo ni anillo. Se ve en todo
+ * estado de los permisos. A1: el botón sin `aria-label` (su nombre es el texto visible). A2: pagador y
+ * observador ven solo el título y quién puede.
+ */
+function BloqueBorrar({ persona, editor, onBorrar }: { persona: PersonaListada; editor: boolean; onBorrar: () => void }) {
+  const pila = nombrePilaDe(persona)
+  const id = `borrar-titulo-${persona.id}`
+  return (
+    <section aria-labelledby={id} className="mt-4 flex flex-col gap-3 border-t border-linea pt-6">
+      <h3 id={id} className="text-lg font-bold break-words">
+        {B.titulo}
+      </h3>
+      {editor ? (
+        <>
+          <p className="max-w-prose text-base">{B.explicacion(pila)}</p>
+          <Boton id={`borrar-${persona.id}`} variante="peligro" className="self-start" onClick={onBorrar}>
+            {B.boton(pila)}
+          </Boton>
+        </>
+      ) : (
+        <p className="text-base text-tenue">{B.quienPuede(pila)}</p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * 3.5: «Hoy abren {n}.» con la ficha vigente y el conteo de Grupo familiar; sin conteo se omite. Por
+ * renovar, retirada o borrada, ningún enlace abre (en pausa o ya cortados). Sin autorizar (R3, 1.1)
+ * nunca se pudo crear un enlace: el dato se conoce y es cero. Solo se omite cuando no se sabe: falta
+ * el conteo o la vista de la ficha.
+ */
+function hoyAbrenAlBorrar(d: DatosPersona): string {
+  const estado = d.vistas.find((v) => v.finalidad === 'plan_cuidado')?.estado
+  if (estado === undefined) return ''
+  if (estado === 'vigente') return d.enlaces === null ? '' : T.hoyAbren(d.enlaces)
+  return T.hoyAbren(0)
+}
+
+function DialogoBorrar({
+  datos,
+  onCancelar,
+  onBorrada,
+  onYaBorrada,
+  onNoEncontrado,
+}: {
+  datos: DatosPersona
+  onCancelar: () => void
+  onBorrada: (r: { enlaces_cortados: number }) => void
+  onYaBorrada: () => void
+  onNoEncontrado: () => void
+}) {
+  const ref = useRef<HTMLDialogElement>(null)
+  const cuerpo = useRef<HTMLDivElement>(null)
+  const confirmar = useRef<HTMLButtonElement>(null)
+  const noBorrar = useRef<HTMLButtonElement>(null)
+  const regionError = useRef<HTMLDivElement>(null)
+  const uid = useId()
+  // 3.6: sin marcar al abrir, siempre; no se recuerda entre aperturas (el diálogo se monta de nuevo).
+  const [entiendo, setEntiendo] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState(false)
+  // La petición ya salió: «No borrar», la casilla y Esc no hacen nada (3.6, MATU-44 4.4).
+  const enCurso = useRef(false)
+  const pila = nombrePilaDe(datos.persona)
+
+  useEffect(() => {
+    const d = ref.current
+    if (d && !d.open) d.showModal()
+    // 3.3: el foco en «No borrar», sin desplazar: lo primero que se ve es la pregunta.
+    noBorrar.current?.focus({ preventScroll: true })
+    if (d) d.scrollTop = 0
+    if (cuerpo.current) cuerpo.current.scrollTop = 0
+  }, [])
+
+  // P3 (revisión del 08-11): en modo angosto el pie se desplaza con el cuerpo, y el error puede quedar
+  // cortado. Se trae entero a la vista; el foco sigue en «Borrar todo». Fuera de ese modo el pie es
+  // fijo y el error ya se ve: con `nearest` no se mueve nada.
+  useEffect(() => {
+    if (error) regionError.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [error])
+
+  const cerrar = () => {
+    enCurso.current = false
+    if (ref.current?.open) ref.current.close()
+  }
+
+  const borrar = async () => {
+    if (enCurso.current || !entiendo) return
+    enCurso.current = true
+    setOcupado(true)
+    setError(false)
+    try {
+      const r = await borrarPersona(datos.persona.id)
+      cerrar()
+      onBorrada(r)
+    } catch (x) {
+      if (esVencida(x)) return
+      const f = leerFallo(x)
+      if (f.status === 409 && esTipo(f.tipo, 'ya-borrada')) {
+        cerrar()
+        return onYaBorrada()
+      }
+      if (f.status === 404) {
+        cerrar()
+        return onNoEncontrado()
+      }
+      // Red o 5xx: el borrado es una sola transacción, todo sigue como estaba. La casilla sigue marcada.
+      setError(true)
+    } finally {
+      enCurso.current = false
+      setOcupado(false)
+    }
+  }
+
+  const cancelar = () => {
+    if (enCurso.current) return
+    cerrar()
+    onCancelar()
+  }
+
+  const parrafos: { texto: string; tono?: 'fuerte' | 'tenue' }[] = [
+    { texto: B.noSeDeshace, tono: 'fuerte' },
+    { texto: B.borramosFicha },
+    { texto: [B.seCortan, hoyAbrenAlBorrar(datos), B.fichaAbierta].filter(Boolean).join(' ') },
+    { texto: B.saleDeMatu(pila) },
+    { texto: B.guardamos, tono: 'tenue' },
+    { texto: B.respaldo, tono: 'tenue' },
+    { texto: B.lista, tono: 'tenue' },
+  ]
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={`${uid}-t`}
+      aria-describedby={`${uid}-d`}
+      onCancel={(e) => {
+        e.preventDefault()
+        cancelar()
+      }}
+      // MATU-44 4.4: un segundo Esc cierra el diálogo aunque el primero se anuló. Con la petición en
+      // curso se vuelve a abrir y el foco vuelve al botón.
+      onClose={() => {
+        if (!enCurso.current || !ref.current || ref.current.open) return
+        ref.current.showModal()
+        confirmar.current?.focus()
+      }}
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja text-tinta backdrop:bg-tinta/40"
+    >
+      {/* 3.1: el cuerpo se desplaza y el pie queda fijo. El `flex` va en este envoltorio y no en el
+          `<dialog>`: en el diálogo pisaría el `display: none` de cerrado. En modo angosto el pie deja
+          de ser fijo y se desplaza todo junto, en la caja. */}
+      <div className="flex max-h-[calc(100dvh-2rem)] flex-col angosto:block angosto:max-h-none">
+        <div ref={cuerpo} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto angosto:overflow-visible px-6 pt-6 pb-4 angosto:px-2 angosto:pt-4">
+          <h2 id={`${uid}-t`} tabIndex={-1} className="text-xl font-bold break-words outline-none">
+            {B.pregunta(pila)}
+          </h2>
+          <div id={`${uid}-d`} className="flex max-w-prose flex-col gap-3 text-base leading-relaxed">
+            {parrafos.map((p) => (
+              <p key={p.texto} className={p.tono === 'fuerte' ? 'font-bold' : p.tono === 'tenue' ? 'text-tenue' : undefined}>
+                {p.texto}
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-linea px-6 pt-4 pb-6 angosto:px-2 angosto:pb-4">
+          {/* 3.1: el trato de la casilla del aviso del cuidador de hecho, con la medida única de MATU-68
+              (`size-6`; en angosto va con la primera línea). */}
+          <label className="flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 font-bold">
+            <input
+              type="checkbox"
+              checked={entiendo}
+              aria-disabled={ocupado || undefined}
+              onChange={(e) => {
+                if (!enCurso.current) setEntiendo(e.target.checked)
+              }}
+              className="size-6 shrink-0 accent-turquesa angosto:mt-0.5"
+            />
+            {B.casilla}
+          </label>
+          {/* Con `showModal` lo de fuera queda inerte: el error usa su propia región, montada vacía. */}
+          <div ref={regionError} role="alert" className="empty:hidden">
+            {error && <MensajeError>{B.errBorrar}</MensajeError>}
+          </div>
+          <Acciones>
+            <Boton
+              ref={confirmar}
+              variante="peligroPrincipal"
+              aria-disabled={!entiendo || undefined}
+              ocupado={ocupado}
+              textoOcupado={B.borrando}
+              onClick={() => void borrar()}
+            >
+              {B.borrarTodo}
+            </Boton>
+            <button
+              ref={noBorrar}
+              type="button"
+              aria-disabled={ocupado || undefined}
+              onClick={cancelar}
+              className="inline-flex min-h-12 items-center px-2 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            >
+              {B.noBorrar}
+            </button>
+          </Acciones>
+        </div>
       </div>
     </dialog>
   )

@@ -23,7 +23,11 @@ const VARIANTES: Record<Variante, string> = {
   textoPeligro: 'px-0 text-pronto underline underline-offset-4 decoration-pronto/40 hover:decoration-pronto focus-visible:outline-pronto',
   // MATU-44 4.1: la confirmación de lo que no se deshace, dentro de un diálogo. Macizo `pronto`, con
   // la forma del principal y el foco base `turquesa` sobre `hoja` (el botón de eliminar de MATU-36).
-  peligroPrincipal: 'px-5 angosto:px-3 bg-pronto text-papel hover:brightness-110 active:brightness-95',
+  // MATU-72 3.1: con `aria-disabled` (hasta marcar la casilla) cambia de forma, no solo de color:
+  // contorno `borde` y texto `tenue` sobre `hoja`, sin el brillo al pasar. Sin `opacity-60`: sobre
+  // `pronto` el texto quedaría bajo 3:1.
+  peligroPrincipal:
+    'px-5 angosto:px-3 bg-pronto text-papel hover:brightness-110 active:brightness-95 aria-disabled:cursor-not-allowed aria-disabled:bg-hoja aria-disabled:text-tenue aria-disabled:ring-2 aria-disabled:ring-inset aria-disabled:ring-borde aria-disabled:hover:brightness-100 aria-disabled:active:brightness-100',
 }
 
 const BASE = 'inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl py-2.5 font-bold leading-tight'
