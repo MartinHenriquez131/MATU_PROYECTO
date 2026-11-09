@@ -7,8 +7,8 @@ Reglas puras, sin I/O ni reloj:
   texto desde docs/legal/politica-privacidad.md.
 - Si el texto todavía trae un marcador ({correo_privacidad} o cualquier {algo}, [PROVEEDOR…] o [PAÍS]), la política
   no se publica. Nunca se muestra ni se acepta un texto con marcadores.
-- Al crear la cuenta, el servidor estampa la versión y la huella vigentes. Si el cliente envía la huella que mostró
-  y no es la vigente (hubo un despliegue mientras la persona leía), la cuenta no se crea.
+- Al crear la cuenta, el cliente envía la huella que mostró, y el servidor estampa la versión y la huella vigentes. Si
+  la huella mostrada no es la vigente (hubo un despliegue mientras la persona leía), la cuenta no se crea.
 """
 
 import hashlib
@@ -86,8 +86,8 @@ def armar_politica(*, version: str, actualizada_en: date, texto: str, correo: st
     )
 
 
-def aceptar(politica: PoliticaVigente, huella_mostrada: str | None, ahora: datetime) -> AceptacionPolitica:
+def aceptar(politica: PoliticaVigente, huella_mostrada: str, ahora: datetime) -> AceptacionPolitica:
     """La aceptación que se guarda con la cuenta. Lanza PoliticaCambio si la huella mostrada no es la vigente."""
-    if huella_mostrada is not None and huella_mostrada != politica.huella:
+    if huella_mostrada != politica.huella:
         raise PoliticaCambio()
     return AceptacionPolitica(version=politica.version, huella=politica.huella, aceptada_en=ahora)

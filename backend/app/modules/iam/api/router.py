@@ -115,9 +115,10 @@ _EJEMPLO_409_POLITICA: dict[str, Any] = {
         " errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105)."
         " Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409."
         " Desde MATU-25, 5 cuentas por hora por IP (decisión 114)."
-        " Desde MATU-75 exige acepta_politica = true y guarda, en la misma transacción, la versión y la huella de"
-        " la política vigente (decisiones 176 a 178). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429,"
-        " 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado."
+        " Desde MATU-75 exige acepta_politica = true y huella_politica (la de GET /v1/politica), y guarda, en la"
+        " misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178 y 182). Orden"
+        " desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible,"
+        " 409 politica-cambio y 409 email-registrado."
     ),
     # MATU-25: 5 cuentas por hora por IP, antes de validar los campos. Mitiga que el 409 revela el email
     dependencies=[Depends(limite_por_ip(LIMITE_REGISTRO))],
@@ -145,7 +146,8 @@ _EJEMPLO_409_POLITICA: dict[str, Any] = {
         422: {
             "description": (
                 "Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo ="
-                " acepta_politica, MATU-75) y, solo en staging, dominio_no_permitido (errores[].campo = email)."
+                " acepta_politica, MATU-75), la huella_politica que falta o está mal formada (decisión 182) y, solo"
+                " en staging, dominio_no_permitido (errores[].campo = email)."
                 " Nunca repite el valor"
             ),
             **PROBLEMA,

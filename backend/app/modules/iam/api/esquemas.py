@@ -57,17 +57,19 @@ class SolicitudRegistro(BaseModel):
             ),
         ),
     ]
-    # MATU-75 (P2 de la decisión D2): la huella de la política que la pantalla mostró, la de GET /v1/politica
+    # MATU-75 (P2 de la decisión D2, obligatoria desde el cierre del analista, decisión 182): la huella de la política
+    # que la pantalla mostró, la de GET /v1/politica
     huella_politica: Annotated[
-        str | None,
+        str,
         Field(
             pattern=r"^[0-9a-f]{64}$",
             description=(
-                "Opcional. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó"
-                " GET /v1/politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea"
+                "Obligatoria. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó"
+                " GET /v1/politica. Sin ella o mal formada, 422 con errores[].campo = huella_politica. Si no es la"
+                " vigente, 409 politica-cambio y la cuenta no se crea"
             ),
         ),
-    ] = None
+    ]
 
     @field_validator("acepta_politica")
     @classmethod

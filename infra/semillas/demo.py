@@ -487,6 +487,8 @@ class Sembradora:
                 # MATU-75: acepta la política vigente por el camino normal, como la casilla de «Crear cuenta»
                 politica=self.politica,
                 ahora=self.reloj.ahora(),
+                # La huella que la casilla mostró, como la envía la web (decisión 182)
+                huella_mostrada=self.politica.huella,
                 # Los correos de la semilla son de dominios reservados: así también sirve en staging, que
                 # rechaza los demás (decisión 105)
                 solo_dominios_reservados=True,

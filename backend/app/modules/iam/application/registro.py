@@ -32,14 +32,14 @@ def registrar_usuario(
     repositorio: RepositorioUsuarios,
     politica: PoliticaVigente,
     ahora: datetime,
-    huella_mostrada: str | None = None,
+    huella_mostrada: str,
     solo_dominios_reservados: bool = False,
 ) -> CuentaCreada:
     """Crea la cuenta, su fila de indice_credencial y su aceptación de la política vigente.
 
-    La API ya exigió acepta_politica = true. La versión y la huella las estampa el servidor (decisión D2); si el
-    cliente envía la huella que mostró y no es la vigente, lanza PoliticaCambio antes de hashear ni de tocar el
-    repositorio.
+    La API ya exigió acepta_politica = true y la huella que se mostró (decisión 182). La versión y la huella las estampa
+    el servidor (decisión D2); si la huella mostrada no es la vigente, lanza PoliticaCambio antes de hashear ni de
+    tocar el repositorio.
 
     El identificador se genera aquí y no en la base: la política RLS de usuario exige que la
     fila nueva sea la del usuario en contexto (id = app.usuario_id), y para fijar ese contexto
