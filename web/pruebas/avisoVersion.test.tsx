@@ -10,11 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api as apiRelevo } from '../src/compartido/api/cliente'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
+import { Boton } from '../src/compartido/ui/Boton'
 import { CADA_MS, navegador, olvidarVersion, useRevisarVersion } from '../src/compartido/version'
 import { MarcoAlta } from '../src/familia/Alta'
 import { SECCIONES } from '../src/familia/datos'
 import { EditorDeSeccion } from '../src/familia/EditorSeccion'
 import { Insumos } from '../src/familia/Insumos'
+import { Compartir } from '../src/familia/Compartir'
 import { MarcoSimple, ShellFamilia } from '../src/familia/Shell'
 import { Marco, Titulo } from '../src/relevo/Marco'
 import { PaginaRelevo } from '../src/relevo/PaginaRelevo'
@@ -164,7 +166,7 @@ describe('Cuándo revisa', () => {
     expect(nota).toHaveClass('bg-rocio', 'border-l-4', 'border-turquesa', 'rounded-xl')
     expect(caja.outerHTML).not.toMatch(/\b(fixed|absolute|sticky|shadow)/)
     // «Recargar» secundario y «Más tarde» de texto; ninguno es macizo.
-    expect(within(caja).getByRole('button', { name: 'Recargar' })).toHaveClass('ring-turquesa/70')
+    expect(within(caja).getByRole('button', { name: 'Recargar' })).toHaveClass('ring-turquesa/80')
     expect(within(caja).getByRole('button', { name: 'Recargar' })).not.toHaveClass('bg-turquesa')
     expect(within(caja).getByRole('button', { name: 'Más tarde' })).toHaveClass('underline')
     // No toma el foco.
@@ -411,6 +413,49 @@ function apiDeFamilia(responder: Adaptador) {
   }
 }
 
+const hoyIso = new Date().toISOString().slice(0, 10)
+const perfilFalso = (id: string, nombre: string, cambios: Record<string, unknown> = {}) => ({
+  id: `3c9d4e20-0000-4000-8000-0000000000${id}`,
+  producto: null,
+  nombre_libre: nombre,
+  unidad: 'unidad',
+  tasa_unidades: 3,
+  tasa_dias: 1,
+  stock_unidades: 30,
+  stock_medido_en: hoyIso,
+  dias_aviso: 7,
+  fecha_quiebre_estimada: hoyIso,
+  dias_restantes: 10,
+  activo: true,
+  actualizado_por: { id: 'u1', nombre: 'Carmen' },
+  unidades_por_envase: null,
+  etag: '"v1"',
+  ...cambios,
+})
+const TOALLITAS = perfilFalso('c2', 'Toallitas húmedas')
+const PANAL = perfilFalso('c1', 'Pañal adulto talla M', { unidades_por_envase: 20, stock_unidades: 6, dias_restantes: 2 })
+
+/** Insumos dentro de la barra, con la lista y «Se acaban pronto» (el pañal, avisando). */
+async function insumos(perfiles = [TOALLITAS, PANAL]) {
+  window.history.replaceState(null, '', '/insumos')
+  const bloque = perfiles.filter((p) => p === PANAL).map((p) => ({ ...p, avisando: true, alerta_id: '3c9d4e20-0000-4000-8000-00000000a001' }))
+  apiDeFamilia((config) => {
+    if (config.url?.endsWith('/consumo/por-acabarse')) return { status: 200, cuerpo: { items: bloque } }
+    if (config.url?.endsWith('/consumo')) return { status: 200, cuerpo: { items: perfiles, siguiente_cursor: null } }
+    return { status: 500 }
+  })
+  enShell(<Insumos />)
+  if (perfiles.length) await screen.findByRole('button', { name: `Compré: ${perfiles[0].nombre_libre}` })
+}
+
+/** Toca «Recargar» y deja pasar el anuncio. */
+async function tocarRecargar() {
+  fireEvent.click(within(aviso()!).getByRole('button', { name: 'Recargar' }))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60)
+  })
+}
+
 describe('«Recargar» con algo sin guardar', () => {
   it('en una sección de la ficha: no recarga, pasa a `atenta` con el nombre de la sección y el foco en «Seguir escribiendo»', async () => {
     const seccion = SECCIONES.find((s) => s.api === 'quien_es')!
@@ -445,7 +490,7 @@ describe('«Recargar» con algo sin guardar', () => {
     expect(caja).not.toHaveTextContent(TITULO)
     const seguir = within(caja).getByRole('button', { name: 'Seguir escribiendo' })
     expect(seguir).toHaveFocus()
-    expect(seguir).toHaveClass('ring-turquesa/70')
+    expect(seguir).toHaveClass('ring-turquesa/80')
     expect(within(caja).getByRole('button', { name: 'Recargar igual' })).toHaveClass('text-pronto')
     expect(urgente()).toHaveTextContent(`Lo que escribiste en «${seccion.titulo}» no se guardó. Si recargas ahora, se pierde.`)
 
@@ -468,49 +513,22 @@ describe('«Recargar» con algo sin guardar', () => {
     expect(within(aviso()!).getByRole('button', { name: /Recargar igual|Recargando…/ })).toHaveAttribute('aria-busy', 'true')
   })
 
-  it('en «Compré» de un insumo: no recarga y nombra el formulario; sin cambios, recarga', async () => {
-    window.history.replaceState(null, '', '/insumos')
-    const hoy = new Date().toISOString().slice(0, 10)
-    const toallitas = {
-      id: '3c9d4e20-0000-4000-8000-0000000000c2',
-      producto: null,
-      nombre_libre: 'Toallitas húmedas',
-      unidad: 'unidad',
-      tasa_unidades: 3,
-      tasa_dias: 1,
-      stock_unidades: 30,
-      stock_medido_en: hoy,
-      dias_aviso: 7,
-      fecha_quiebre_estimada: hoy,
-      dias_restantes: 10,
-      activo: true,
-      actualizado_por: { id: 'u1', nombre: 'Carmen' },
-      unidades_por_envase: null,
-      etag: '"v1"',
-    }
-    apiDeFamilia((config) => {
-      if (config.url?.endsWith('/consumo/por-acabarse')) return { status: 200, cuerpo: { items: [] } }
-      if (config.url?.endsWith('/consumo')) return { status: 200, cuerpo: { items: [toallitas], siguiente_cursor: null } }
-      return { status: 500 }
-    })
-    enShell(<Insumos />)
-    await screen.findByRole('button', { name: 'Compré: Toallitas húmedas' })
+  it('en «Compré» de un insumo: no recarga y nombra solo el insumo; sin cambios, recarga', async () => {
+    await insumos()
     await volverALaPestana()
     expect(aviso()).not.toBeNull()
 
     // Abrir el panel sin escribir nada no es «sin guardar».
     fireEvent.click(screen.getByRole('button', { name: 'Compré: Toallitas húmedas' }))
-    const panel = await screen.findByRole('group', { name: /¿Cuántas unidades compraste\?|compraste/ })
+    const panel = await screen.findByRole('group', { name: /compraste/ })
     const campo = within(panel).getByRole('textbox')
     // El panel lleva el foco a su campo a los 40 ms (MATU-51, 4).
     await waitFor(() => expect(campo).toHaveFocus())
+    expect(contexto.sinGuardar.current?.()).toBeNull()
     fireEvent.change(campo, { target: { value: '12' } })
-    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Recargar' }))
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60)
-    })
+    await tocarRecargar()
     expect(recargar).not.toHaveBeenCalled()
-    expect(aviso()).toHaveTextContent('Lo que escribiste en «Compré: Toallitas húmedas» no se guardó.')
+    expect(aviso()).toHaveTextContent('Lo que anotaste de «Toallitas húmedas» no se guardó.')
     expect(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' })).toHaveFocus()
 
     fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
@@ -523,38 +541,163 @@ describe('«Recargar» con algo sin guardar', () => {
     expect(recargar).toHaveBeenCalledTimes(1)
   })
 
-  it('en «Anotar un insumo»: no recarga y nombra el formulario', async () => {
-    window.history.replaceState(null, '', '/insumos')
-    apiDeFamilia((config) => {
-      if (config.url?.endsWith('/consumo/por-acabarse')) return { status: 200, cuerpo: { items: [] } }
-      if (config.url?.endsWith('/consumo')) return { status: 200, cuerpo: { items: [], siguiente_cursor: null } }
-      return { status: 500 }
+  it('en «Me quedan» de un insumo: el mismo título, con solo el nombre', async () => {
+    await insumos()
+    await volverALaPestana()
+    fireEvent.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
+    const panel = await screen.findByRole('group', { name: /quedan/i })
+    const campo = within(panel).getByRole('textbox')
+    await waitFor(() => expect(campo).toHaveFocus())
+    fireEvent.change(campo, { target: { value: '4' } })
+    await tocarRecargar()
+    expect(recargar).not.toHaveBeenCalled()
+    expect(aviso()).toHaveTextContent('Lo que anotaste de «Toallitas húmedas» no se guardó.')
+  })
+
+  it('en «Ya lo resolví»: no recarga y nombra solo el insumo', async () => {
+    await insumos()
+    await volverALaPestana()
+    fireEvent.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+    const campo = await screen.findByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60)
     })
-    enShell(<Insumos />)
+    expect(campo).toHaveValue('1')
+    // Solo abrirlo, con el 1 de partida, no es «sin guardar».
+    expect(contexto.sinGuardar.current?.()).toBeNull()
+    fireEvent.change(campo, { target: { value: '2' } })
+    await tocarRecargar()
+    expect(recargar).not.toHaveBeenCalled()
+    expect(aviso()).toHaveTextContent('Lo que anotaste de «Pañal adulto talla M» no se guardó.')
+    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
+    expect(campo).toHaveFocus()
+  })
+
+  it('en el editor de un insumo: no recarga y nombra solo el insumo', async () => {
+    await insumos()
+    await volverALaPestana()
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar Toallitas húmedas' }))
+    const envase = await screen.findByRole('textbox', { name: '¿Cuántas unidades trae cada envase?' })
+    expect(contexto.sinGuardar.current?.()).toBeNull()
+    fireEvent.change(envase, { target: { value: '10' } })
+    await tocarRecargar()
+    expect(recargar).not.toHaveBeenCalled()
+    expect(aviso()).toHaveTextContent('Lo que anotaste de «Toallitas húmedas» no se guardó.')
+    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
+    expect(envase).toHaveFocus()
+  })
+
+  it('en «Anotar un insumo»: sin nombre, el título genérico; con nombre, el del insumo', async () => {
+    await insumos([])
     const anotar = await screen.findAllByRole('button', { name: 'Anotar un insumo' })
     await volverALaPestana()
     fireEvent.click(anotar[0])
     const nombre = await screen.findByRole('textbox', { name: '¿Qué insumo es?' })
-    fireEvent.change(nombre, { target: { value: 'Gasas' } })
-    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Recargar' }))
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60)
-    })
+    const envase = screen.getByRole('textbox', { name: '¿Cuántas unidades trae cada envase?' })
+    fireEvent.change(envase, { target: { value: '10' } })
+    await tocarRecargar()
     expect(recargar).not.toHaveBeenCalled()
-    expect(aviso()).toHaveTextContent('Lo que escribiste en «Anotar un insumo» no se guardó.')
+    expect(aviso()).toHaveTextContent('Hay algo que escribiste y no se guardó.')
+    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
+    expect(envase).toHaveFocus()
+
+    fireEvent.change(nombre, { target: { value: 'Gasas' } })
+    await tocarRecargar()
+    expect(recargar).not.toHaveBeenCalled()
+    expect(aviso()).toHaveTextContent('Lo que anotaste de «Gasas» no se guardó.')
     fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
     expect(nombre).toHaveFocus()
   })
 
-  it('sin nombre del lugar, el título genérico; el texto que «no se guardó» tras vencer la entrada también cuenta', async () => {
+  it('en el formulario de Compartir (nombre, teléfono o días): no recarga, con el título genérico', async () => {
+    window.history.replaceState(null, '', '/compartir')
+    const campo = (texto: string) => ({ texto, etag: '"v1"', actualizado_en: null, actualizado_por: null })
+    const ficha = { persona_id: PERSONA.id, campos: { rutina: campo('8:00 Desayuno.'), manejo_situaciones: campo('Hablarle despacio.'), red_apoyo: campo('Carmen.') }, secciones: {}, completitud: 100 }
+    contexto = familiaFalsa({ ...contexto, ficha } as never)
+    apiDeFamilia(() => ({ status: 500 }))
+    enShell(<Compartir />)
+    const nombre = await screen.findByRole('textbox', { name: '¿Quién te va a reemplazar?' })
+    await volverALaPestana()
+    expect(contexto.sinGuardar.current?.()).toBeNull()
+
+    fireEvent.change(nombre, { target: { value: 'Rosa' } })
+    await tocarRecargar()
+    expect(recargar).not.toHaveBeenCalled()
+    expect(aviso()).toHaveTextContent('Hay algo que escribiste y no se guardó.')
+    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
+    expect(nombre).toHaveFocus()
+
+    fireEvent.change(nombre, { target: { value: '' } })
+    const telefono = screen.getByRole('textbox', { name: /Su teléfono/ })
+    fireEvent.change(telefono, { target: { value: '+56 9 5555 0141' } })
+    expect(contexto.sinGuardar.current?.()).not.toBeNull()
+    fireEvent.change(telefono, { target: { value: '' } })
+    expect(contexto.sinGuardar.current?.()).toBeNull()
+  })
+
+  it('al pasar a «sin guardar», la pantalla baja hasta la caja y después el foco va a «Seguir escribiendo» sin desplazar', async () => {
+    const pasos: string[] = []
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: function (this: Element, opciones?: ScrollIntoViewOptions) {
+        if (this.hasAttribute('data-aviso-version')) pasos.push(`desplazar ${JSON.stringify(opciones)}`)
+      },
+    })
+    const enfocar = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, opciones?: FocusOptions) {
+      if (this.textContent === 'Seguir escribiendo') pasos.push(`foco ${JSON.stringify(opciones)}`)
+    })
+    contexto.sinGuardar.current = () => ({ texto: 'algo', donde: 'Quién es' })
+    enShell()
+    await volverALaPestana()
+    await tocarRecargar()
+    expect(pasos).toEqual(['desplazar {"block":"start","behavior":"smooth"}', 'foco {"preventScroll":true}'])
+    enfocar.mockRestore()
+
+    // Con movimiento reducido, inmediato.
+    pasos.length = 0
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }))
+    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Seguir escribiendo' }))
+    await tocarRecargar()
+    expect(pasos[0]).toBe('desplazar {"block":"start","behavior":"instant"}')
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('en «Lo que escribiste no se guardó» (`textoPerdido`) el aviso espera; aparece en la pantalla siguiente', async () => {
     contexto = familiaFalsa({ ...contexto, textoPerdido: 'Le dicen Tito.' } as never)
-    montar(
+    const { rerender } = montar(
       <MarcoSimple>
         <Titulo>Lo que escribiste no se guardó</Titulo>
       </MarcoSimple>,
     )
     await volverALaPestana()
-    fireEvent.click(within(aviso()!).getByRole('button', { name: 'Recargar' }))
+    expect(fetchFalso).toHaveBeenCalled()
+    expect(aviso()).toBeNull()
+    expect(amable()).toBeEmptyDOMElement()
+
+    contexto = familiaFalsa({ ...contexto, textoPerdido: null } as never)
+    rerender(
+      <>
+        <RegionesVivas />
+        <App>
+          <MarcoSimple>
+            <Titulo>Entrar</Titulo>
+          </MarcoSimple>
+        </App>
+      </>,
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60)
+    })
+    expect(aviso()).not.toBeNull()
+    expect(amable()).toHaveTextContent(ANUNCIO_FAMILIA)
+  })
+
+  it('sin saber dónde, el título genérico', async () => {
+    contexto.sinGuardar.current = () => ({ texto: 'algo' })
+    enShell()
+    await volverALaPestana()
+    await tocarRecargar()
     expect(recargar).not.toHaveBeenCalled()
     expect(aviso()).toHaveTextContent('Hay algo que escribiste y no se guardó.')
   })
@@ -600,6 +743,31 @@ describe('En el relevo', () => {
     expect(recargar).toHaveBeenCalledTimes(1)
   })
 
+  it('en la ficha el aviso toma el ancho de la grilla (`max-w-6xl`); en el PIN y los estados, la columna (`max-w-xl`)', async () => {
+    const { rerender } = montar(
+      <Marco ocupado={false}>
+        <Titulo>Escribe el PIN</Titulo>
+      </Marco>,
+    )
+    await volverALaPestana()
+    expect(aviso()).toHaveClass('mx-auto', 'max-w-xl')
+    expect(aviso()).not.toHaveClass('max-w-6xl')
+    rerender(
+      <>
+        <RegionesVivas />
+        <App>
+          <Marco ocupado={false} anchoDelAviso="grilla">
+            <Titulo>Ficha de María</Titulo>
+          </Marco>
+        </App>
+      </>,
+    )
+    expect(aviso()).toHaveClass('mx-auto', 'max-w-6xl')
+    expect(aviso()).not.toHaveClass('max-w-xl')
+    // La caja queda a la izquierda dentro de la grilla: `Nota` no se centra.
+    expect(aviso()!.firstElementChild).not.toHaveClass('mx-auto')
+  })
+
   it('la página del relevo revisa la versión ella misma, y «Más tarde» deja el foco en su título', async () => {
     window.history.replaceState(null, '', '/r')
     apiRelevo.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
@@ -621,5 +789,17 @@ describe('En el relevo', () => {
     expect(aviso()).toBeNull()
     expect(document.getElementById('titulo-pagina')).toHaveFocus()
     expect(recargar).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------- Boton secundario (revisión visual del 09-11)
+
+describe('El botón secundario', () => {
+  it('lleva el anillo `turquesa/80` y el relleno angosto `px-2` en toda la app', () => {
+    render(<Boton variante="secundario">Seguir escribiendo</Boton>)
+    const boton = screen.getByRole('button', { name: 'Seguir escribiendo' })
+    expect(boton).toHaveClass('ring-turquesa/80', 'angosto:px-2', 'px-5')
+    expect(boton).not.toHaveClass('ring-turquesa/70')
+    expect(boton).not.toHaveClass('angosto:px-3')
   })
 })
