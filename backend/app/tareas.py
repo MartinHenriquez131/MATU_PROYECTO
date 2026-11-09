@@ -1,6 +1,6 @@
 """Programador de tareas de MATU (MATU-74): un punto de entrada para que las tareas corran solas.
 
-Ejecutar desde backend/, con DATABASE_URL de matu_app (el cron del servicio lo invoca igual):
+Ejecutar desde backend/ (el cron del servicio lo invoca igual):
 
     python -m app.tareas <tarea>
 
@@ -17,10 +17,16 @@ Tareas:
 - borrados: las tres de borrado (destruccion_fichas, conservacion_consumo y conservacion_sesiones).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
 
-Cada tarea reutiliza el ``ejecutar`` de su módulo y se conecta como matu_app con el app.rol que ya usa
-(operacion, y sistema por grupo en los quiebres y los avisos). matu_scheduler y matu_publisher no alcanzan:
-no tienen credenciales en la infraestructura del semestre y las funciones SECURITY DEFINER dan EXECUTE
-solo a matu_app (migraciones 0008, 0009, 0011, 0014 y 0016).
+Conexiones (hallazgo H2 de Martín, migración 0022). Cada tarea reutiliza el ``ejecutar`` de su módulo:
+
+- SCHEDULER_DATABASE_URL, como matu_scheduler: enumera los grupos activos y llama a plan_destruir_claves,
+  consumo_conservar, iam_conservar y quiebre_conservar, con app.rol = 'operacion'.
+- PUBLISHER_DATABASE_URL, como matu_publisher: llama a las funciones outbox_* con app.rol = 'operacion'.
+- DATABASE_URL, como matu_app: el trabajo de cada grupo (los quiebres y el consumidor de avisos), con
+  app.rol = 'sistema' y app.grupo_id, que necesita RLS.
+
+Si falta la URL que la tarea necesita, o es de otro usuario, la tarea falla con FaltaConexion y la línea de la
+corrida nombra la variable (``falta``). Nunca cae a matu_app: desde la 0022, matu_app ya no ejecuta esas funciones.
 
 Condiciones del analista normativo (MATU-74):
 
@@ -42,6 +48,7 @@ from dataclasses import asdict, dataclass
 from typing import TextIO
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Configuracion, obtener_configuracion
@@ -68,11 +75,40 @@ TODAS_DIARIAS = "todas_diarias"
 BORRADOS = "borrados"
 
 
+# Los roles de las tareas (backend/db/00_roles.sql) y la variable con su conexión
+ROL_SCHEDULER = "matu_scheduler"
+ROL_PUBLISHER = "matu_publisher"
+VARIABLE_DE: dict[str, str] = {ROL_SCHEDULER: "SCHEDULER_DATABASE_URL", ROL_PUBLISHER: "PUBLISHER_DATABASE_URL"}
+
+
+class FaltaConexion(RuntimeError):
+    """La tarea necesita la conexión de un rol que no está configurada. Lleva solo el nombre de la variable."""
+
+    def __init__(self, variable: str) -> None:
+        super().__init__(f"Falta {variable}, o no es una conexión de su rol")
+        self.variable = variable
+
+
 @dataclass(frozen=True)
 class Contexto:
+    """Lo que reciben las tareas. fabrica es la de matu_app (DATABASE_URL). Las de los roles de las tareas son
+    opcionales para construir el contexto: la tarea que pide una que falta falla con FaltaConexion."""
+
     config: Configuracion
     fabrica: sessionmaker[Session]
     reloj: Reloj
+    fabrica_scheduler: sessionmaker[Session] | None = None
+    fabrica_publisher: sessionmaker[Session] | None = None
+
+    def scheduler(self) -> sessionmaker[Session]:
+        if self.fabrica_scheduler is None:
+            raise FaltaConexion(VARIABLE_DE[ROL_SCHEDULER])
+        return self.fabrica_scheduler
+
+    def publisher(self) -> sessionmaker[Session]:
+        if self.fabrica_publisher is None:
+            raise FaltaConexion(VARIABLE_DE[ROL_PUBLISHER])
+        return self.fabrica_publisher
 
 
 @dataclass(frozen=True)
@@ -87,26 +123,30 @@ Tarea = Callable[[Contexto], Salida]
 
 
 def _destruccion_fichas(ctx: Contexto) -> Salida:
-    return Salida(OK, asdict(tarea_destruccion.ejecutar(ctx.fabrica, ctx.reloj)))
+    return Salida(OK, asdict(tarea_destruccion.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
 def _conservacion_consumo(ctx: Contexto) -> Salida:
-    return Salida(OK, asdict(tarea_conservacion_consumo.ejecutar(ctx.fabrica, ctx.reloj)))
+    return Salida(OK, asdict(tarea_conservacion_consumo.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
 def _conservacion_sesiones(ctx: Contexto) -> Salida:
-    return Salida(OK, asdict(tarea_conservacion_sesiones.ejecutar(ctx.fabrica, ctx.reloj)))
+    return Salida(OK, asdict(tarea_conservacion_sesiones.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
 def _quiebres(ctx: Contexto) -> Salida:
-    trabajo, conservacion = tarea_quiebres.ejecutar(ctx.fabrica, ctx.reloj)
+    trabajo, conservacion = tarea_quiebres.ejecutar(ctx.fabrica, ctx.scheduler(), ctx.reloj)
     # Un grupo que falla no detiene a los demás, pero la corrida queda fallida para que el cron lo muestre
     resultado = FALLO if trabajo.grupos_fallidos > 0 else OK
     return Salida(resultado, {**asdict(trabajo), **asdict(conservacion)})
 
 
 def _avisos(ctx: Contexto) -> Salida:
-    resultado = tarea_avisos.ejecutar(ctx.config, ctx.fabrica, ctx.reloj)
+    # Con los avisos apagados no se abre ninguna conexión: no hace falta PUBLISHER_DATABASE_URL
+    if not tarea_avisos.encendidos(ctx.config):
+        tarea_avisos.avisar_apagados()
+        return Salida(APAGADA, {})
+    resultado = tarea_avisos.ejecutar(ctx.config, ctx.fabrica, ctx.publisher(), ctx.reloj)
     return Salida(APAGADA, {}) if resultado is None else Salida(OK, asdict(resultado))
 
 
@@ -126,19 +166,49 @@ DIARIAS: tuple[str, ...] = (*BORRADOS_DIARIOS, "quiebres")
 GRUPOS: dict[str, tuple[str, ...]] = {BORRADOS: BORRADOS_DIARIOS, TODAS_DIARIAS: DIARIAS}
 
 
+# Los horarios de los cron, en UTC: el cron de Railway no sabe de zonas horarias. Hallazgos H3 y H5 de Martín:
+# - avisos cada 5 minutos, el mínimo de Railway;
+# - borrados a las 06:00 UTC: 03:00 de Chile en horario de verano (UTC-3) y 02:00 en invierno (UTC-4);
+# - quiebres a las 08:00 UTC: 05:00 en verano y 04:00 en invierno. Dos horas después de los borrados, aunque estos
+#   tarden, y con dos horas (verano) o tres (invierno) para terminar antes de las 07:00 de Chile.
+# backend/README.md e infra/railway/README.md los repiten, y tests/test_tareas.py verifica las dos temporadas.
+HORARIOS: dict[str, str] = {
+    BORRADOS: "0 6 * * *",
+    "quiebres": "0 8 * * *",
+    "avisos": "*/5 * * * *",
+}
+
 # Tope de espera para abrir una conexión, en segundos (connect_timeout de libpq). Sin él, con la base
 # inalcanzable cada tarea espera lo que dé el sistema operativo (unos 130 s) antes de fallar.
 TIEMPO_CONEXION_S = 10
 
 
+def _fabrica(url: str) -> sessionmaker[Session]:
+    engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S})
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
 def fabrica_tareas(config: Configuracion) -> sessionmaker[Session]:
-    """La fábrica de sesiones de las tareas: como la de la API (app/core/db.py), con tope de conexión.
+    """La fábrica de sesiones de matu_app para las tareas: como la de la API (app/core/db.py), con tope de conexión.
 
     Un engine propio para no cambiar el de la API web. No conecta todavía."""
     if not config.database_url:
         raise RuntimeError("Falta DATABASE_URL")
-    engine = create_engine(config.database_url, pool_pre_ping=True, connect_args={"connect_timeout": TIEMPO_CONEXION_S})
-    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    return _fabrica(config.database_url)
+
+
+def fabrica_de_rol(url: str, rol: str) -> sessionmaker[Session] | None:
+    """La fábrica de un rol de las tareas, o None si su variable está vacía o la URL es de otro usuario.
+
+    Con None, la tarea que la pide falla con FaltaConexion: una URL de matu_app copiada en SCHEDULER_DATABASE_URL
+    no sirve de atajo. No conecta todavía y nunca registra la URL."""
+    if not url:
+        return None
+    try:
+        usuario = make_url(url).username
+    except Exception:  # noqa: BLE001 - una URL que no se lee cuenta como ausente, sin dejar su texto
+        return None
+    return _fabrica(url) if usuario == rol else None
 
 
 def _instante(reloj: Reloj) -> str:
@@ -155,6 +225,9 @@ def correr_una(nombre: str, tarea: Tarea, ctx: Contexto, corrida: str) -> bool:
     except Exception as error:  # noqa: BLE001 - una tarea que falla no detiene a las demás (condición a)
         # R1: solo el tipo, sin exc_info ni str(error): el mensaje puede traer parámetros de la base
         extra.update(resultado=FALLO, tipo_error=type(error).__name__)
+        if isinstance(error, FaltaConexion):
+            # El nombre de la variable que falta, nunca un valor
+            extra.update(falta=error.variable)
         ok = False
     else:
         extra.update(resultado=salida.resultado, contadores=salida.contadores)
@@ -207,7 +280,14 @@ def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> 
         log.error("tarea", extra={**extra, "corrida": str(uuid.uuid4())})
         return SALIDA_FALLO
     configurar_logs(config.log_nivel, stream)
-    return correr(nombres, Contexto(config=config, fabrica=fabrica, reloj=RelojSistema()))
+    contexto = Contexto(
+        config=config,
+        fabrica=fabrica,
+        reloj=RelojSistema(),
+        fabrica_scheduler=fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER),
+        fabrica_publisher=fabrica_de_rol(config.publisher_database_url, ROL_PUBLISHER),
+    )
+    return correr(nombres, contexto)
 
 
 if __name__ == "__main__":  # pragma: no cover
