@@ -99,8 +99,8 @@ unset ADMIN_DATABASE_URL MATU_OWNER_PASSWORD MATU_APP_PASSWORD MATU_SCHEDULER_PA
 
 Crea los cuatro roles de `backend/db/00_roles.sql` si no existen (si existen solo algunos, se detiene),
 fija las cuatro contraseñas, crea la base `matu` con `matu_owner` como dueño y habilita `btree_gist`. Se
-detiene si un rol de MATU es `SUPERUSER`, `BYPASSRLS`, `CREATEROLE` o `CREATEDB`, o si `matu_scheduler` o
-`matu_publisher` es miembro de otro rol. Las tablas las crea Alembic al desplegar.
+detiene si un rol de MATU es `SUPERUSER`, `BYPASSRLS`, `CREATEROLE`, `CREATEDB` o `REPLICATION`, o si
+`matu_scheduler` o `matu_publisher` es miembro de otro rol. Las tablas las crea Alembic al desplegar.
 
 **Si la base ya estaba preparada antes de MATU-74**, vuelve a correr el script con las cinco variables: deja
 los roles y la base como estaban y solo fija las contraseñas. Hazlo **antes** de desplegar la migración 0022:

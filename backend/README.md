@@ -87,8 +87,8 @@ Cada tarea usa el rol mínimo para lo que hace, y la API nunca usa estos roles:
 
 Desde la 0022, `matu_app` ya no ejecuta esas ocho funciones. Las funciones siguen exigiendo `app.rol =
 'operacion'`, que la tarea fija: con él, `matu_owner`, el dueño de la función, ve y borra las filas por sus
-políticas de conservación. Los dos roles no son `SUPERUSER`, `BYPASSRLS`, `CREATEROLE` ni `CREATEDB`, no son
-miembros de otro rol y no tocan la ficha, el relevo, los tokens, las sesiones ni las credenciales
+políticas de conservación. Los dos roles no son `SUPERUSER`, `BYPASSRLS`, `CREATEROLE`, `CREATEDB` ni
+`REPLICATION`, no son miembros de otro rol y no tocan la ficha, el relevo, los tokens, las sesiones ni las credenciales
 (`tests/test_aislamiento.py`).
 
 Si falta `SCHEDULER_DATABASE_URL` o `PUBLISHER_DATABASE_URL`, o su usuario no es el del rol, la tarea que la

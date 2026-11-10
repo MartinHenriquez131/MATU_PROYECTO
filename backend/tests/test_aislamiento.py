@@ -2680,7 +2680,8 @@ def test_los_roles_de_las_tareas_no_tocan_credenciales_ni_la_ficha(cx, rol):
 @pytest.mark.rf("RF-02")
 @pytest.mark.parametrize("rol", ROLES_TAREAS)
 def test_los_roles_de_las_tareas_no_tienen_atributos_ni_membresias(cx, rol):
-    """C7: sin SUPERUSER, BYPASSRLS, CREATEROLE ni CREATEDB, y sin ser miembros de matu_owner ni de matu_app."""
+    """C7: sin SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB ni REPLICATION, y sin ser miembros de matu_owner ni de
+    matu_app."""
     assert cx.execute("SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolreplication"
                       " FROM pg_roles WHERE rolname = %s", (rol,)).fetchone() == (True, False, False, False, False,
                                                                                    False)
