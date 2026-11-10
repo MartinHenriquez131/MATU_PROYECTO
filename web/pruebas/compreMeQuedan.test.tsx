@@ -494,7 +494,7 @@ describe('La casilla «Seguir»', () => {
 
 describe('«Ya lo resolví» en envases', () => {
   // MATU-68 (docs/diseno/matu-68-ajustes.md, 2.3): en `angosto` los dos botones del panel van uno bajo
-  // otro y a todo el ancho, con el relleno de su variante (`angosto:px-3` de Boton). Antes «Ya lo
+  // otro y a todo el ancho, con el relleno de su variante (`angosto:px-3` del principal y `angosto:px-2` del secundario, desde la revisión visual de MATU-67). Antes «Ya lo
   // resolví» llevaba `angosto:px-0.5!`, que dejaba 4 px entre el texto y el borde. jsdom no mide: la
   // prueba comprueba las clases.
   it('en angosto la fila va en columna y los dos botones a todo el ancho, sin achicar el relleno', async () => {
@@ -505,10 +505,10 @@ describe('«Ya lo resolví» en envases', () => {
     const volver = within(panel).getByRole('button', { name: 'Volver' })
     expect(boton.parentElement).toBe(volver.parentElement)
     expect(boton.parentElement).toHaveClass('flex', 'flex-wrap', 'gap-3', 'angosto:flex-col', 'angosto:items-stretch')
-    for (const b of [boton, volver]) {
-      expect(b).toHaveClass('angosto:w-full', 'angosto:px-3')
-      expect(b.className).not.toMatch(/px-0\.5|\bp[xse]?-[\d.]+!/)
-    }
+    // Cada uno con el relleno angosto de su variante: el principal `px-3`, el secundario `px-2`.
+    expect(boton).toHaveClass('angosto:w-full', 'angosto:px-3')
+    expect(volver).toHaveClass('angosto:w-full', 'angosto:px-2')
+    for (const b of [boton, volver]) expect(b.className).not.toMatch(/px-0\.5|\bp[xse]?-[\d.]+!/)
   })
 
   it('con envase: abre en 1 con el foco en el panel y envía `envases`', async () => {

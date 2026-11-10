@@ -77,7 +77,7 @@ docs/api/
 | `GET /v1/yo/avisos` | MATU-41 (RF-39, decisión 111) | Implementado. En `openapi.json` desde MATU-41. Sin pantalla: la pantalla es de MATU-55 |
 | `PUT /v1/yo/avisos` | MATU-41 (RF-39, decisión 111) | Implementado. En `openapi.json` desde MATU-41. Sin pantalla: la pantalla es de MATU-55 |
 
-Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
+Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). Desde MATU-67, `/version.json` entrega el identificador del build con `Cache-Control: no-store`, y 404 RFC 7807 si no está en el build, nunca el `index.html` (decisión 172). `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
 Las filas del relevo decían "Propuesto" aunque MATU-18, MATU-19 y MATU-20 ya se fusionaron: se corrigieron en MATU-32 con lo que hay en `backend/app/modules/care_plan/api/` (31-10). Sus contratos siguen en `relevo.openapi.yaml` hasta que la historia que los cierre los exporte a `openapi.json`. MATU-50 exportó `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha`, y los quitó de `relevo.openapi.yaml` (decisión 99). MATU-48 exportó `DELETE /v1/accesos-relevo/{acceso_id}` y lo quitó de ahí; la presentación y el canje siguen en `relevo.openapi.yaml`.
 
@@ -1165,6 +1165,20 @@ La numeración sigue en la 158: la última de esta rama es la 157 (MATU-72).
 - **Pruebas que cambiaron:** `tests/test_aislamiento.py` (su semilla usa `precio`) y `tests/test_semilla_demo.py` (`main()` siembra también el catálogo).
 - **Para el frontend.** `web/src/compartido/api/familia.openapi.ts` se vuelve a generar con `npm run contrato:familia` en el mismo PR, porque el CI lo compara con `openapi.json`. Lo hace quien tenga `web/`.
 - **Documentos del repositorio MATU:** `docs/modelo-datos.md` (4.4, `precio`, `stock` y `retracto_pierde_al_abrir` en vez de `precio_referencia`) y la arquitectura 9.4 (la ruta única de la decisión 158 en vez de las tres anteriores) ya están corregidos, en la rama `docs/matu-59-catalogo` del repositorio MATU, aprobada por Jorge el 08-11.
+
+## MATU-67 · Aviso de versión nueva (decisión 172)
+
+**Implementado el 09-11** con la decisión G3 de Jorge (09-11): el `version.json` del build se sirve con `Cache-Control: no-store`. No es una ruta de la API JSON y no entra en `openapi.json`, igual que lo demás que entrega `backend/app/core/web.py` (decisión 115): por eso no hay contrato propuesto, y su línea es el párrafo de las rutas fuera de `/v1`, al comienzo de este archivo.
+
+La numeración sigue en la 172: la última de `main` es la 171 (MATU-59).
+
+172. **La API entrega `/version.json` con `Cache-Control: no-store`, y nunca el `index.html` en su lugar** (MATU-67, G3 aprobada por Jorge el 09-11). El build de `web/` deja un `version.json` en la raíz de `WEB_DIST` con un identificador de la versión, y la app lo pide cada cierto tiempo para saber si hay una versión nueva.
+    - **Dónde.** Dentro del respaldo de la app (`pagina_app` en `backend/app/core/web.py`), antes que el `index.html`: no es una ruta registrada, así que atiende `GET` y `HEAD` como las demás rutas de la app, la barra final no cambia la respuesta y `openapi.json` no cambia. El archivo se busca con `archivo_del_build`, con sus mismas protecciones (no sale de la carpeta).
+    - **Cabeceras:** `CABECERAS_VERSION` en `backend/app/core/cabeceras.py`, las de la app (`Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` y `Content-Security-Policy: frame-ancestors 'none'`) con `Cache-Control: no-store` en vez de `no-cache`, también en el 404. Con `no-cache` un proxy o el navegador podrían guardarlo y revalidarlo; con `no-store` cada revisión llega al servidor. `Content-Type: application/json`.
+    - **Sin el archivo**, por ejemplo en desarrollo sin build o en el CI, responde **404 RFC 7807** `/errores/no-encontrado`, aunque el `index.html` exista. Nunca el `index.html` de respaldo: un 200 con HTML haría creer a la app que hay una versión nueva. Un `version.json` fuera de la raíz (`/ficha/version.json`) sigue la regla de la decisión 115 para los archivos que no están en el build.
+    - **No lleva datos de nadie, no pide sesión y no se audita.** No pasa por ninguna dependencia de sesión ni de grupo, ni escribe en `auditoria`. Es un archivo estático del build.
+    - **Lo demás no cambia:** el `index.html` y los archivos de la raíz del build siguen con `no-cache`, `/assets` con su caché (ETag y Last-Modified) y `/r` con `no-store`.
+    - Lo prueba `backend/tests/core/test_app_familia_web.py`: `/version.json` (y con barra final, y con `HEAD`) responde 200 con `no-store` cuando el archivo existe; responde igual sin cookie ni access token y con uno inválido; responde 404 RFC 7807 con `no-store` y sin el `index.html` cuando el build no lo trae y cuando no hay build; y con el archivo presente, el `index.html`, el manifiesto, `/assets` y `/r` mantienen su caché.
 
 ## MATU-75 · La política visible y su aceptación al crear la cuenta (RF-37, Ley 21.719)
 

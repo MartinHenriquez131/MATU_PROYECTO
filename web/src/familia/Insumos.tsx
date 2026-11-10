@@ -30,6 +30,8 @@ import { nombrePilaDe, type Calidad } from '../compartido/api/familia'
 import { esVencida } from '../compartido/api/sesion'
 import { fechaCorta, hoyEnChile, sumarDias } from '../compartido/fechas'
 import { Anunciado } from '../compartido/ui/Anuncios'
+import { AVISO_VERSION } from '../compartido/textosVersion'
+import { registrarSinGuardar } from '../compartido/version'
 import { Boton } from '../compartido/ui/Boton'
 import { LeePoliticaAntesDeAutorizar } from '../compartido/ui/Enlaces'
 import { AVISO_CUIDADOR, CALIDADES } from './datos'
@@ -846,7 +848,7 @@ function Fila({
             type="button"
             aria-label={INSUMOS.eliminarDe(nombre)}
             onClick={onEliminar}
-            className="ms-auto grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pronto ring-2 ring-inset ring-pronto/60 hover:bg-pronto-fondo active:bg-pronto-fondo"
+            className="ms-auto grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-pronto ring-2 ring-inset ring-pronto/80 hover:bg-pronto-fondo active:bg-pronto-fondo"
           >
             <Trash2 aria-hidden className="size-5" />
           </button>
@@ -915,6 +917,19 @@ function PanelRegistro({
   const [errorCampo, setErrorCampo] = useState<string | null>(null)
   const [falla, setFalla] = useState<FallaPanel | null>(null)
   const [ocupado, setOcupado] = useState(false)
+
+  // MATU-67 (G1): con una cantidad distinta de la inicial, «Recargar» del aviso de versión nueva
+  // pregunta antes. Sin `texto`: si la entrada vence, no hay nada de la ficha que mostrar.
+  const { sinGuardar } = useFamilia()
+  const valorRef = useRef(valor)
+  valorRef.current = valor
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () =>
+        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: campo } : null,
+      ),
+    [sinGuardar, conEnvase, nombre, campo],
+  )
 
   // 4: con envase el foco va al panel (no se abre el teclado); si hay que escribir, al campo.
   useEffect(() => {
@@ -1270,6 +1285,30 @@ function Formulario({
   const [conflicto, setConflicto] = useState<Perfil | null>(null)
   const [inactivo, setInactivo] = useState(false)
   const ids: Record<CampoForm, string> = { nombre: `${uid}-nombre`, uso: `${uid}-uso`, cada: `${uid}-cada`, stock: `${uid}-stock`, aviso: `${uid}-aviso`, envase: `${uid}-envase` }
+
+  // MATU-67 (G1): lo que cambió desde que se abrió el formulario. «Recargar» del aviso de versión
+  // nueva pregunta antes, y «Seguir escribiendo» lleva al primer campo que cambió.
+  const { sinGuardar } = useFamilia()
+  const valores = { nombre, unidad, frecuencia, cada, uso, stock, aviso, envase }
+  const iniciales = useRef(valores)
+  const actuales = useRef(valores)
+  actuales.current = valores
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () => {
+        const a = actuales.current
+        const i = iniciales.current
+        const cambiados = (Object.keys(a) as (keyof typeof a)[]).filter((k) => a[k] !== i[k])
+        if (!cambiados.length) return null
+        const campo = (nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR).find((k) => cambiados.includes(k))
+        // «Anotar un insumo» sin nombre todavía: el título genérico.
+        const cual = nuevo ? unaLinea(a.nombre).trim() : perfil ? nombreDe(perfil) : ''
+        return { texto: '', titulo: cual ? AVISO_VERSION.sinGuardarInsumo(cual) : null, foco: campo ? ids[campo] : null }
+      }),
+    // `ids` sale de `uid`, que no cambia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sinGuardar, nuevo, perfil, uid],
+  )
 
   const tasaDias = frecuencia === 'diario' ? 1 : (entero(cada) ?? 0)
   const nombreLimpio = unaLinea(nombre).trim()
@@ -1989,6 +2028,18 @@ function PanelResolver({
   const [valor, setValor] = useState(conEnvase ? '1' : '')
   const [ocupado, setOcupado] = useState(false)
   const [falla, setFalla] = useState<ErrorAviso | null>(null)
+
+  // MATU-67 (revisión visual del 09-11): «Recargar» del aviso de versión nueva pregunta antes.
+  const { sinGuardar } = useFamilia()
+  const valorRef = useRef(valor)
+  valorRef.current = valor
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () =>
+        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: campo } : null,
+      ),
+    [sinGuardar, conEnvase, nombre, campo],
+  )
   const errCantidad = conEnvase ? ALERTAS.errCantidadEnvases : ALERTAS.errCantidad
 
   useEffect(() => {

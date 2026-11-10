@@ -109,7 +109,7 @@ export function BotonDictar({ d, deshabilitado }: { d: ReturnType<typeof useDict
         disabled={deshabilitado}
         onClick={() => (d.escuchando ? d.detener() : d.empezar())}
         className={`inline-flex min-h-12 min-w-12 max-w-full items-center justify-center gap-2 rounded-xl px-5 angosto:px-3 py-2.5 font-bold leading-tight text-turquesa disabled:cursor-not-allowed disabled:opacity-60 ${
-          d.escuchando ? 'bg-rocio ring-2 ring-inset ring-turquesa' : 'bg-hoja ring-2 ring-inset ring-turquesa/70 hover:bg-rocio'
+          d.escuchando ? 'bg-rocio ring-2 ring-inset ring-turquesa' : 'bg-hoja ring-2 ring-inset ring-turquesa/80 hover:bg-rocio'
         }`}
       >
         {d.escuchando ? (

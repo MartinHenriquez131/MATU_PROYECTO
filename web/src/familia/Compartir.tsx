@@ -31,6 +31,7 @@ import { esVencida } from '../compartido/api/sesion'
 import { fechaYHoraDeChile, finDeSemanaDeChile, restante } from '../compartido/fechas'
 import { ordenar, TITULO_SECCION } from '../compartido/secciones'
 import { Boton, claseBoton } from '../compartido/ui/Boton'
+import { registrarSinGuardar } from '../compartido/version'
 import { CAMPOS, PATRON_CELULAR } from './datos'
 import { useDemora } from './Estados'
 import { puedeCompartir, useFamilia } from './estado'
@@ -128,13 +129,15 @@ const ID_NOMBRE = 'compartir-nombre'
 const ID_TELEFONO = 'compartir-telefono'
 const ID_AVISE = 'compartir-avise'
 
+const DIAS_INICIALES = 3
+
 function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
-  const { ficha, fijar } = useFamilia()
+  const { ficha, fijar, sinGuardar } = useFamilia()
   const eleccion = useEleccionSecciones()
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
   const [vigencia, setVigencia] = useState<Vigencia>('24h')
-  const [dias, setDias] = useState(3)
+  const [dias, setDias] = useState(DIAS_INICIALES)
   const [motivo, setMotivo] = useState<MotivoAcceso>('salgo_unas_horas')
   const [avise, setAvise] = useState(false)
   const [errores, setErrores] = useState<Errores>({})
@@ -142,6 +145,22 @@ function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
   const [ocupado, setOcupado] = useState(false)
   const [falla, setFalla] = useState<Falla>(null)
   const [bloqueo, setBloqueo] = useState<'sin-consentimiento' | 'revision-vencida' | 'sin-acceso' | null>(null)
+
+  // MATU-67 (revisión visual del 09-11): con el nombre, el teléfono o los días cambiados, «Recargar»
+  // del aviso de versión nueva pregunta antes, con el título genérico.
+  const datos = useRef({ nombre, telefono, dias })
+  datos.current = { nombre, telefono, dias }
+  useEffect(
+    () =>
+      registrarSinGuardar(sinGuardar, () => {
+        const d = datos.current
+        if (!d.nombre && !d.telefono && d.dias === DIAS_INICIALES) return null
+        // Los campos se ubican por su `name`; «Seguir escribiendo» pide el id del que cambió.
+        const nombreDelCampo = d.nombre ? ID_NOMBRE : d.telefono ? ID_TELEFONO : null
+        return { texto: '', foco: nombreDelCampo ? (document.querySelector(`[name="${nombreDelCampo}"]`)?.id ?? null) : null }
+      }),
+    [sinGuardar],
+  )
 
   const quien = nombre.trim() || T.quienTeReemplaza
   const vence = venceDe(vigencia, dias, new Date())

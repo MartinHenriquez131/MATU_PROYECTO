@@ -637,7 +637,7 @@ describe('Después de retirar la ficha', () => {
     expect(screen.getByText('Falta la autorización para usar la ficha de María.')).toBeVisible()
     expect(screen.getByText(/^Sin ella no podemos/)).toHaveTextContent('Sin ella no podemos guardar ni mostrar la ficha. La puedes volver a autorizar desde Grupo familiar.')
     const boton = screen.getByRole('button', { name: 'Volver a autorizar' })
-    expect(boton).toHaveClass('ring-turquesa/70')
+    expect(boton).toHaveClass('ring-turquesa/80')
     await userEvent.click(boton)
     expect(contexto.fijar).toHaveBeenCalledWith({ reautorizar: { personaId: MARIA.id, finalidad: 'plan_cuidado', vista: null } })
     expect(window.location.pathname).toBe('/grupo/autorizar-ficha')

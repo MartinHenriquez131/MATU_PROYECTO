@@ -73,6 +73,19 @@ La política de privacidad (MATU-75): `doble/politica.ts` responde `GET /v1/poli
 
 `npm run contrato:familia` regenera `src/compartido/api/familia.openapi.ts` desde `docs/api/openapi.json`.
 
+## El aviso de versión nueva (MATU-67)
+
+`npm run build` deja `dist/version.json`, `{"version": "…"}`, con un identificador de 16 caracteres: el hash de los nombres de los archivos del build, que ya traen el hash de su contenido. El mismo identificador va dentro del bundle (`__MATU_VERSION__`), así que volver a construir el mismo código da el mismo identificador y no muestra el aviso. No lleva datos de nadie. La API lo sirve con `Cache-Control: no-store` (decisión 172).
+
+La app de la familia y el relevo piden `/version.json` con `cache: 'no-store'` al volver a la pestaña y cada 15 minutos mientras está visible (`src/compartido/version.ts`). Si el identificador es otro, aparece el aviso (`src/compartido/ui/AvisoVersion.tsx`). Si la revisión falla, no pasa nada. Nunca recarga sola, y «Más tarde» se recuerda solo en memoria.
+
+Para verlo con el doble (`doble/version.ts`), con `npm run dev` o `npm run preview`:
+
+1. Abre la app, por ejemplo `http://localhost:5173/ficha` o `/r#ejemplo-tres-campos`.
+2. En otra pestaña, abre `http://localhost:5173/__doble/version-nueva`. Desde ahí, `/version.json` responde otra versión.
+3. Vuelve a la pestaña de MATU: aparece el aviso. Con el foco en un campo de texto, aparece al salir del campo.
+4. `http://localhost:5173/__doble/version-igual` vuelve a la versión que corre. «Recargar» recarga la página, y como el doble sigue respondiendo otra versión, el aviso vuelve en la próxima revisión hasta que se vuelve a la igual.
+
 ## Para servirlo desde la API
 
 Lo hace el backend: servir `web/dist` con `StaticFiles` en el mismo origen, y responder `index.html` en `/r`, en `/privacidad` y en las rutas de la familia (`/`, `/entrar`, `/crear-cuenta`, `/empezar/*`, `/ficha*`, `/insumos`, `/compartir`, `/compartir/listo`, `/compartir/enlaces`). La especificación (D6) recomienda que esa respuesta lleve `Cache-Control: no-store`, `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`. El HTML del build ya trae una política de contenido (`Content-Security-Policy`) sin terceros.

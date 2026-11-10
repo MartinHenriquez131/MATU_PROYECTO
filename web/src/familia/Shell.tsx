@@ -4,9 +4,11 @@
 // suma Grupo familiar, la cuarta sección, visible para todos los roles.
 import { useId, useState, type ReactNode } from 'react'
 import { ChevronDown, ClipboardList, LogOut, Package, Share2, UserRound, Users } from 'lucide-react'
+import { AvisoVersion } from '../compartido/ui/AvisoVersion'
 import { Boton } from '../compartido/ui/Boton'
 import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { listarPersonas, nombrePilaDe } from '../compartido/api/familia'
+import { AVISO_VERSION } from '../compartido/textosVersion'
 import { camposListos } from './ui'
 import { puedeCompartir, puedeVerFicha, useFamilia } from './estado'
 import { navegar, useRuta, type Ruta } from './ruteo'
@@ -209,6 +211,25 @@ function Encabezado() {
   )
 }
 
+/**
+ * MATU-67 (especificación 2.1, 2.2, 4.2 y 4.3): el aviso de versión nueva de la familia. Espera en
+ * `/compartir/listo`, donde el PIN se muestra una sola vez, y en «Lo que escribiste no se guardó»
+ * (`textoPerdido`), que una recarga también borra (revisión visual del 09-11). «Recargar» pregunta
+ * antes lo que el formulario a la vista tiene sin guardar.
+ */
+function AvisoVersionFamilia({ className }: { className?: string }) {
+  const { sinGuardar, textoPerdido } = useFamilia()
+  const ruta = useRuta()
+  return (
+    <AvisoVersion
+      bajada={AVISO_VERSION.bajadaFamilia}
+      esperar={ruta === '/compartir/listo' || !!textoPerdido}
+      sinGuardar={() => sinGuardar?.current?.() ?? null}
+      className={className}
+    />
+  )
+}
+
 export function ShellFamilia({ children }: { children: ReactNode }) {
   return (
     <div className="grid flex-1 @4xl/app:grid-cols-[16.5rem_minmax(0,1fr)]">
@@ -222,6 +243,9 @@ export function ShellFamilia({ children }: { children: ReactNode }) {
             <DistintivoPiloto className="@4xl/app:hidden" />
           </span>
           <Navegacion />
+          {/* 2.1: en el flujo, bajo las secciones en la barra lateral; en el teléfono, en la fila de
+              arriba, bajo la marca y sobre el encabezado. Nunca fijo ni encima de nada. */}
+          <AvisoVersionFamilia className="basis-full @4xl/app:basis-auto" />
         </div>
       </aside>
       <div className="flex min-w-0 flex-col">
@@ -243,7 +267,11 @@ export function MarcoSimple({ children }: { children: ReactNode }) {
         <DistintivoPiloto className="ms-auto" />
       </header>
       <main id="contenido" tabIndex={-1} className="@container/main flex-1 px-4 angosto:px-2 @3xl/app:px-11 pt-6 pb-16 outline-none">
-        <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="mx-auto max-w-7xl">
+          {/* 2.2: el primer elemento de `main`, antes del título. */}
+          <AvisoVersionFamilia className="mb-6" />
+          {children}
+        </div>
       </main>
     </>
   )

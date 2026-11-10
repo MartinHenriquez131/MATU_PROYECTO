@@ -84,7 +84,7 @@ export function Stepper({
     const base = n === null ? (d > 0 ? min - 1 : min + 1) : n
     onCambio(String(Math.max(min, Math.min(max, base + d))))
   }
-  const claseBoton = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/70 hover:bg-rocio active:bg-rocio'
+  const claseBoton = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/80 hover:bg-rocio active:bg-rocio'
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <label id={`${id}-l`} htmlFor={id} className="font-bold">

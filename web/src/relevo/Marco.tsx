@@ -2,10 +2,12 @@
 // el distintivo del piloto, y el `main` donde va la pantalla del momento. Sin pie ni navegación.
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { AvisoVersion } from '../compartido/ui/AvisoVersion'
 import { DistintivoPiloto, Logo } from '../compartido/ui/Marca'
+import { AVISO_VERSION } from '../compartido/textosVersion'
 import { CABECERA } from './textos'
 
-export function Marco({ ocupado, children }: { ocupado: boolean; children: ReactNode }) {
+export function Marco({ ocupado, anchoDelAviso = 'columna', children }: { ocupado: boolean; anchoDelAviso?: 'columna' | 'grilla'; children: ReactNode }) {
   return (
     <>
       <header className="border-b border-linea bg-hoja">
@@ -24,6 +26,20 @@ export function Marco({ ocupado, children }: { ocupado: boolean; children: React
         aria-busy={ocupado || undefined}
         className="@container/main px-4 angosto:px-2 @3xl/app:px-10 pt-6 @3xl/app:pt-14 pb-16 outline-none"
       >
+        {/* MATU-67 2.3: primero en `main`, con el texto a la izquierda. En el PIN y los estados, al
+            ancho de la columna centrada; en la ficha, al de su grilla, con la caja a la izquierda
+            (revisión visual del 09-11). Solo espera con el foco en el campo del PIN (4.2). */}
+        {anchoDelAviso === 'grilla' ? (
+          // La misma grilla de la ficha (PantallaFicha): la caja va en la primera columna, al ancho
+          // de la tarjeta (`mx-auto w-full max-w-3xl`), con su mismo borde izquierdo (criterio 14).
+          <AvisoVersion
+            bajada={AVISO_VERSION.bajadaRelevo}
+            className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-x-8 @4xl/main:grid-cols-[minmax(0,1fr)_17rem]"
+            interior="mx-auto w-full max-w-3xl"
+          />
+        ) : (
+          <AvisoVersion bajada={AVISO_VERSION.bajadaRelevo} className="mx-auto mb-6 max-w-xl" />
+        )}
         {children}
       </main>
     </>

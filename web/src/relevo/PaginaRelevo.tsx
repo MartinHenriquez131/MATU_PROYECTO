@@ -9,6 +9,7 @@ import { leerFallo } from '../compartido/api/cliente'
 import { canjear, leerFicha, presentar, type FichaRelevo, type Presentacion } from '../compartido/api/relevo'
 import { clasificar, ESTADOS, type EstadoNoAbre } from './estados'
 import { Marco } from './Marco'
+import { useRevisarVersion } from '../compartido/version'
 import { PantallaFicha, type ResultadoActualizar } from './PantallaFicha'
 import { PantallaPin, type ResultadoCanje } from './PantallaPin'
 import { Cargando, PantallaError, PantallaEstado } from './PantallasSimples'
@@ -38,6 +39,8 @@ function limpiarDireccion() {
 const ESPERA_MAXIMA_MS = 2_147_483_647
 
 export function PaginaRelevo() {
+  // MATU-67: revisa si hay una versión nueva al volver a la pestaña y cada 15 minutos.
+  useRevisarVersion()
   const token = useRef<string | null>(tokenDelFragmento())
   const [momento, setMomento] = useState<Momento>(() => ({ tipo: 'cargando', que: token.current ? 'enlace' : 'ficha' }))
   // Cada petición lleva un número: una respuesta que llega tarde no pisa a la más nueva.
@@ -213,7 +216,7 @@ export function PaginaRelevo() {
   }, [momento])
 
   return (
-    <Marco ocupado={momento.tipo === 'cargando'}>
+    <Marco ocupado={momento.tipo === 'cargando'} anchoDelAviso={momento.tipo === 'ficha' ? 'grilla' : 'columna'}>
       {momento.tipo === 'cargando' && <Cargando key={momento.que} texto={CARGANDO[momento.que]} />}
       {momento.tipo === 'pin' && <PantallaPin presentacion={momento.presentacion} onCanjear={onCanjear} />}
       {momento.tipo === 'ficha' && <PantallaFicha ficha={momento.ficha} onActualizar={() => revalidar(false)} />}

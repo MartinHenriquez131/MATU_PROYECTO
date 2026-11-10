@@ -376,3 +376,75 @@ def test_la_documentacion_responde_200_en_local_y_pruebas(fabricar: Fabricar, di
     assert "/v1/salud" in esquema.json()["paths"]
     # El respaldo no aparece en el contrato
     assert "/{ruta}" not in esquema.json()["paths"]
+
+
+# --- El version.json del build (MATU-67, decisión 172) -----------------------------------------------
+
+VERSION = '{"version": "sintetica-abc123"}'
+CABECERAS_VERSION = {**CABECERAS_APP, "cache-control": "no-store"}
+
+
+@pytest.fixture
+def dist_con_version(dist: Path) -> Path:
+    (dist / "version.json").write_text(VERSION, encoding="utf-8")
+    return dist
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("ruta", ["/version.json", "/version.json/"])
+def test_version_json_se_entrega_con_no_store(fabricar: Fabricar, dist_con_version: Path, ruta: str) -> None:
+    # Esta prueba falla sin MATU-67: se entregaba con no-cache, como cualquier archivo de la raíz del build
+    cliente = fabricar(dist_con_version)
+    respuesta = cliente.get(ruta)
+    assert respuesta.status_code == 200
+    assert respuesta.text == VERSION
+    assert respuesta.headers["content-type"].split(";")[0] == "application/json"
+    _cabeceras(respuesta, CABECERAS_VERSION)
+    cabeza = cliente.head(ruta)
+    assert cabeza.status_code == 200
+    assert cabeza.content == b""
+    _cabeceras(cabeza, CABECERAS_VERSION)
+
+
+@pytest.mark.rf("RF-37")
+def test_version_json_no_pide_sesion(fabricar: Fabricar, dist_con_version: Path) -> None:
+    # Sin cookie ni access token, y con uno inválido, responde igual: no pasa por ninguna dependencia de sesión
+    cliente = fabricar(dist_con_version)
+    cliente.cookies.clear()
+    assert cliente.get("/version.json").text == VERSION
+    respuesta = cliente.get("/version.json", headers={"Authorization": "Bearer no-es-un-token"})
+    assert respuesta.status_code == 200
+    assert respuesta.text == VERSION
+
+
+@pytest.mark.rf("RF-37")
+def test_sin_version_json_responde_404_y_no_el_index(con_dist: TestClient) -> None:
+    # El build existe con su index.html, pero sin version.json (desarrollo sin build nuevo)
+    for respuesta in (con_dist.get("/version.json"), con_dist.head("/version.json")):
+        _problema_404(respuesta)
+        _cabeceras(respuesta, CABECERAS_VERSION)
+        assert HTML not in respuesta.text
+
+
+@pytest.mark.rf("RF-37")
+def test_sin_build_version_json_responde_404(sin_dist: TestClient) -> None:
+    respuesta = sin_dist.get("/version.json")
+    _problema_404(respuesta)
+    _cabeceras(respuesta, CABECERAS_VERSION)
+
+
+@pytest.mark.rf("RF-37")
+def test_con_version_json_los_demas_archivos_no_cambian_su_cache(fabricar: Fabricar, dist_con_version: Path) -> None:
+    cliente = fabricar(dist_con_version)
+    for ruta in ["/", "/insumos", "/index.html"]:
+        indice = cliente.get(ruta)
+        assert indice.text == HTML
+        _cabeceras(indice, CABECERAS_APP)
+    _cabeceras(cliente.get("/manifest.webmanifest"), CABECERAS_APP)
+    asset = cliente.get("/assets/index-abc123.js")
+    assert asset.status_code == 200
+    assert "etag" in asset.headers
+    assert asset.headers.get("cache-control") not in ("no-store", "no-cache")
+    _cabeceras(cliente.get("/r"), CABECERAS_RELEVO)
+    # Un version.json fuera de la raíz no es el del build: sigue la regla de los archivos que no están
+    _problema_404(cliente.get("/ficha/version.json"))
