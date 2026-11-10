@@ -96,14 +96,12 @@ def test_sin_enviador_avisos_la_tarea_no_arma_consumidores(monkeypatch: pytest.M
 
 
 def test_sin_enviador_avisos_ejecutar_no_toma_eventos(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tarea_avisos, "obtener_configuracion", lambda: _config(enviador_avisos=None))
-    monkeypatch.setattr(tarea_avisos, "fabrica_sesiones", lambda: None)
-
     def no_publicar(*_: object, **__: object) -> None:
         raise AssertionError("sin ENVIADOR_AVISOS no se toma ningún evento")
 
     monkeypatch.setattr(tarea_avisos, "publicar_pendientes", no_publicar)
-    assert tarea_avisos.ejecutar() is None
+    config = _config(enviador_avisos=None)
+    assert tarea_avisos.ejecutar(config, None, None, RelojFijo(datetime.now(UTC))) is None  # type: ignore[arg-type]
 
 
 def test_con_simulado_la_tarea_consume_quiebre_proximo(tmp_path: Path) -> None:

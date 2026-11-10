@@ -351,6 +351,24 @@ def test_el_enlace_y_el_pin_van_a_un_archivo_que_git_ignora(tmp_path: Path) -> N
     assert "0137" not in repr(relevo) and "t" * 43 not in repr(relevo)
 
 
+@MATU_64
+def test_con_semilla_pin_el_archivo_guarda_solo_el_enlace(tmp_path: Path) -> None:
+    # MATU-64 H1: el PIN de SEMILLA_PIN no se escribe; el archivo dice que es ese
+    entregado = SimpleNamespace(token="t" * 43, pin="0137")
+    relevo = demo.RelevoSembrado(
+        acceso_id=uuid.uuid4(), grupo="Familia Soto", nombre_relevo="Rosa",
+        expira_en=RelojSistema().ahora() + timedelta(days=7), entregado=entregado,
+    )
+    archivo = tmp_path / "salida" / "relevo-demo.txt"
+
+    enlace = demo.guardar_relevo(relevo, "https://demo.example.org", archivo, pin_de_entorno=True)
+
+    contenido = archivo.read_text(encoding="utf-8")
+    assert f"enlace: {enlace}" in contenido
+    assert not aparece_como_dato("0137", contenido)
+    assert f"pin: el de la variable {demo.VARIABLE_PIN} (no se escribe aquí)" in contenido
+
+
 # --- En la base ----------------------------------------------------------------------------------------------
 
 
@@ -999,6 +1017,29 @@ def test_con_la_opcion_la_salida_trae_las_credenciales(
     capturada = capsys.readouterr()
     _archivos_completos()
     assert _credenciales_en(capturada.out + capturada.err) == ["token", "pin", "contrasena"]
+
+
+@MATU_64
+@pytest.mark.parametrize("opciones", [[], ["--mostrar-credenciales"]])
+def test_el_pin_de_semilla_pin_no_se_escribe_ni_se_imprime(
+    entorno_local: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], opciones: list[str]
+) -> None:
+    # MATU-64 H1 (informe de Martín del 09-11): con SEMILLA_PIN el equipo ya conoce el PIN, así que ni el archivo
+    # ni la terminal lo llevan, tampoco con --mostrar-credenciales. El enlace sí queda en el archivo.
+    monkeypatch.setenv(demo.VARIABLE_PIN, PIN_FALSO)
+    _sembrar_con_credenciales(monkeypatch)
+
+    assert demo.main(opciones) == 0
+
+    capturada = capsys.readouterr()
+    salida = capturada.out + capturada.err
+    relevo = demo.ARCHIVO_RELEVO.read_text(encoding="utf-8")
+    assert TOKEN_FALSO in relevo and not aparece_como_dato(PIN_FALSO, relevo)
+    assert f"pin: el de la variable {demo.VARIABLE_PIN}" in relevo
+    assert not aparece_como_dato(PIN_FALSO, salida)
+    assert f"PIN: el de {demo.VARIABLE_PIN}" in salida
+    # El enlace sale solo con la opción
+    assert (TOKEN_FALSO in salida) == bool(opciones)
 
 
 @MATU_64

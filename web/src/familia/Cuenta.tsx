@@ -63,12 +63,12 @@ function EstadoCelular({ verificado }: { verificado: boolean }) {
   // El estado va con palabra, nunca solo con color.
   return verificado ? (
     <Etiqueta tono="ok">
-      <Check aria-hidden className="size-4" strokeWidth={3} />
+      <Check aria-hidden className="size-4 angosto:hidden" strokeWidth={3} />
       {CUENTA_PROPIA.confirmado}
     </Etiqueta>
   ) : (
     <Etiqueta>
-      <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />
+      <Circle aria-hidden className="size-3.5 angosto:hidden" strokeWidth={2.5} />
       {CUENTA_PROPIA.sinConfirmar}
     </Etiqueta>
   )
@@ -142,7 +142,7 @@ export function TuCuenta() {
       {carga.estado === 'error' && <ErrorCarga reintentar={() => void cargar()} />}
       {carga.estado === 'lista' && (
         <>
-          <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 ring-1 ring-linea">
+          <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 angosto:px-2 ring-1 ring-linea">
             <div className="flex flex-col gap-0.5 py-4">
               <dt className="text-sm text-tenue">{CUENTA_PROPIA.correo}</dt>
               <dd className="font-bold break-words">{carga.cuenta.email}</dd>
@@ -152,7 +152,7 @@ export function TuCuenta() {
               {carga.cuenta.celular_enmascarado ? (
                 <dd className="flex flex-col items-start gap-3">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="cifras text-lg font-bold whitespace-nowrap">{carga.cuenta.celular_enmascarado}</span>
+                    <span className="cifras text-lg font-bold angosto:whitespace-normal">{carga.cuenta.celular_enmascarado}</span>
                     <EstadoCelular verificado={carga.cuenta.celular_verificado} />
                   </span>
                   {!carga.cuenta.celular_verificado && (
@@ -322,7 +322,7 @@ export function ConfirmarCelular() {
           <>
             <div className="flex flex-col gap-0.5">
               <p className="font-bold">{CELULAR.tuCelular}</p>
-              <p className="cifras text-lg whitespace-nowrap">{cuenta.celular_enmascarado}</p>
+              <p className="cifras text-lg angosto:whitespace-normal">{cuenta.celular_enmascarado}</p>
             </div>
             <GrupoOpciones
               leyenda={CELULAR.canal}
@@ -347,7 +347,7 @@ export function ConfirmarCelular() {
         {cuenta?.celular_enmascarado && paso === 'confirmar' && (
           <>
             <Nota tono="rocio" rol="status">
-              {CELULAR.enviado}<span className="whitespace-nowrap">{cuenta.celular_enmascarado}</span>.
+              {CELULAR.enviado}<span className="whitespace-nowrap angosto:whitespace-normal">{cuenta.celular_enmascarado}</span>.
             </Nota>
             <form noValidate className="flex flex-col gap-5" onSubmit={(e) => void confirmar(e)}>
               <CampoCodigo ref={campo} etiqueta={RECUPERAR.codigo} valor={codigo} onCambio={setCodigo} error={error} />

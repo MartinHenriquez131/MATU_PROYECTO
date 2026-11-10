@@ -255,7 +255,7 @@ _422_RESOLVER: dict[str, Any] = {
         " descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o"
         " cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy"
         " (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una"
-        " reposición declarada y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la"
+        " compra (`reposicion`) y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la"
         " cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido"
     ),
 )

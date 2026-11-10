@@ -15,7 +15,7 @@ import pytest
 
 from app.core.db import fabrica_sesiones
 from app.modules.consumption.infrastructure.tarea_quiebres import grupos_activos, recalcular_grupo
-from tests.base_datos import DSN, requiere_base
+from tests.base_datos import DSN, fabrica_scheduler, requiere_base
 from tests.modules.consumption.conftest import EntornoConsumo
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-12")]
@@ -273,7 +273,7 @@ def test_el_trabajo_diario_materializa_publica_y_no_duplica(entorno_consumo: Ent
     familia = e.familia()
     perfil = e.fabrica.perfil_consumo(familia.persona)
     fabrica = fabrica_sesiones()
-    assert familia.grupo.id in grupos_activos(fabrica)
+    assert familia.grupo.id in grupos_activos(fabrica_scheduler())
     resultado = recalcular_grupo(fabrica, familia.grupo.id, e.iam.reloj)
     assert resultado.materializadas == 1
     [(alerta_id, estado)] = _filas("SELECT id, estado FROM alerta_quiebre WHERE perfil_id = %s", perfil)
@@ -331,7 +331,7 @@ def test_la_conservacion_de_alertas_corre_como_operacion(entorno_consumo: Entorn
             {"p": perfil},
         )
     resultado = conservar_quiebres(
-        unidad=ConservacionQuiebresSql(fabrica_sesiones()), reloj=RelojFijo(datetime.now(UTC))
+        unidad=ConservacionQuiebresSql(fabrica_scheduler()), reloj=RelojFijo(datetime.now(UTC))
     )
     assert resultado.alertas_borradas >= 1
     assert _filas("SELECT fecha_prevista::text FROM alerta_quiebre WHERE perfil_id = %s", perfil) == [("2026-10-26",)]

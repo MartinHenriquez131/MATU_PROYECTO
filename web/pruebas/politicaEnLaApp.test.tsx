@@ -23,7 +23,7 @@ const CUENTA: Cuenta = {
   id: '3c9d4e20-0000-4000-8000-0000000000c1',
   nombre: 'Carmen',
   email: 'carmen@example.org',
-  celular_enmascarado: '+56 9 •••• 0137',
+  celular_enmascarado: '+56 9 •••• ••37',
   celular_verificado: true,
   celular_canal: 'sms',
   // 23:30 del 09/11 en Chile (UTC−3): en UTC ya es el 10/11.

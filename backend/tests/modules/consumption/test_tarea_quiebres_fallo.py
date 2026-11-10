@@ -33,7 +33,7 @@ def test_un_grupo_que_falla_se_registra_solo_con_su_tipo_y_los_demas_siguen(
     monkeypatch.setattr(tarea_quiebres, "recalcular_grupo", recalcular)
 
     with caplog.at_level(logging.INFO, logger="matu.consumption.quiebres"):
-        resultado = tarea_quiebres.recalcular_todos(None, reloj_fijo)  # type: ignore[arg-type]
+        resultado = tarea_quiebres.recalcular_todos(None, None, reloj_fijo)  # type: ignore[arg-type]
 
     assert resultado == tarea_quiebres.ResultadoTarea(grupos=2, grupos_fallidos=1, materializadas=1, descartadas=0)
     [registro] = [r for r in caplog.records if r.name == "matu.consumption.quiebres"]

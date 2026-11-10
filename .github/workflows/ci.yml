@@ -48,6 +48,12 @@ jobs:
       MATU_APP_PASSWORD: app_ci
       MIGRATIONS_DATABASE_URL: postgresql+psycopg://matu_owner:owner_ci@localhost:5432/matu
       DATABASE_URL: postgresql+psycopg://matu_app:app_ci@localhost:5432/matu
+      # MATU-74 (H2): los roles de las tareas. 10_matu.sh les fija estas contraseñas, y con las dos URL
+      # test_cada_tarea_se_conecta_con_su_rol no se salta
+      MATU_SCHEDULER_PASSWORD: scheduler_ci
+      MATU_PUBLISHER_PASSWORD: publisher_ci
+      SCHEDULER_DATABASE_URL: postgresql+psycopg://matu_scheduler:scheduler_ci@localhost:5432/matu
+      PUBLISHER_DATABASE_URL: postgresql+psycopg://matu_publisher:publisher_ci@localhost:5432/matu
       MATU_TEST_DSN: host=localhost port=5432 user=postgres password=postgres_ci dbname=matu
       REDIS_URL: redis://localhost:6379/0
 

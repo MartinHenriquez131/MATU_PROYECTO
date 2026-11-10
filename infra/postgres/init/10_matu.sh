@@ -7,8 +7,9 @@
 # En Docker lo corre la imagen de PostgreSQL la primera vez que se crea el volumen.
 # En el pipeline se corre a mano contra el servicio de PostgreSQL.
 #
-# Variables: MATU_OWNER_PASSWORD y MATU_APP_PASSWORD (obligatorias),
-# ROLES_SQL (ruta de 00_roles.sql). La conexión usa las variables estándar de psql
+# Variables: MATU_OWNER_PASSWORD y MATU_APP_PASSWORD (obligatorias), MATU_SCHEDULER_PASSWORD y
+# MATU_PUBLISHER_PASSWORD (opcionales, MATU-74: las conexiones de las tareas; sin ellas esos roles quedan sin
+# contraseña y las tareas que los usan fallan con FaltaConexion), ROLES_SQL (ruta de 00_roles.sql). La conexión usa las variables estándar de psql
 # (PGHOST, PGUSER, PGPASSWORD).
 set -eu
 
@@ -26,6 +27,16 @@ ALTER ROLE matu_owner PASSWORD :'owner_pw';
 ALTER ROLE matu_app   PASSWORD :'app_pw';
 CREATE DATABASE matu OWNER matu_owner;
 SQL
+if [ -n "${MATU_SCHEDULER_PASSWORD:-}" ]; then
+  $PSQL --dbname postgres -v pw="$MATU_SCHEDULER_PASSWORD" <<'SQL'
+ALTER ROLE matu_scheduler PASSWORD :'pw';
+SQL
+fi
+if [ -n "${MATU_PUBLISHER_PASSWORD:-}" ]; then
+  $PSQL --dbname postgres -v pw="$MATU_PUBLISHER_PASSWORD" <<'SQL'
+ALTER ROLE matu_publisher PASSWORD :'pw';
+SQL
+fi
 $PSQL --dbname matu <<'SQL'
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 ALTER SCHEMA public OWNER TO matu_owner;

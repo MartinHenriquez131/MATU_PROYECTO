@@ -1,6 +1,7 @@
 # MATU-23 · Página web del relevo · Especificación de diseño
 
-**Versión 1.0 · 28/10/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Versión 1.1 · 09/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Cambios en 1.1 (09/11/2026):** D2 decidida por Jorge. La página del relevo ya no muestra el ejemplo de cada campo y mantiene la pregunta guía (D2, 3.11, 3.11.1 y 3.11.3). La versión 1.0 es del 28/10/2026.
 **Historia:** "Como persona que reemplaza a la cuidadora, quiero leer la ficha desde el celular sin instalar nada, para saber qué hacer desde el primer minuto". RF-06.
 **Dónde se construye:** `web/`, con React 19, TypeScript, Vite y Tailwind CSS v4 (decisión de Martín del 28/10, ADR-026). Es la primera ruta del cliente web: `/r`.
 
@@ -17,10 +18,11 @@ No lo decido yo. Va al orquestador antes de construir:
 | # | Qué | Por qué importa | Lo que hace la especificación mientras tanto |
 |---|---|---|---|
 | D1 | **El backlog dice otra cosa.** MATU-23 dice "HTML y JavaScript sin framework en `web/relevo/`". La decisión de Martín del 28/10 dice React en `web/` | Contradicción entre un documento de `docs/` y una instrucción. El backlog se corrige | Sigue la decisión del 28/10 y el ADR-026 |
-| D2 | **Los ejemplos de la ficha en la página del relevo.** El criterio de Jorge del 28/10 pide mostrar la pregunta guía y el ejemplo de cada campo (lenguaje 5.1 a 5.3). Pero esos textos están escritos para quien **escribe** la ficha, no para quien la lee: | **Riesgo P1 de seguridad.** Con «A quién llamar» sin completar, Rosa ve "Rodrigo, su hijo: +56 9 5555 0102" y en un apuro puede llamar a un número de ejemplo | Muestra la pregunta y el ejemplo tal cual, con la mitigación de la sección 3.9. **Recomiendo** que en el relevo se muestre solo la pregunta guía y no el ejemplo. Lo decide Jorge |
+| D2 | **Los ejemplos de la ficha en la página del relevo.** El criterio de Jorge del 28/10 pide mostrar la pregunta guía y el ejemplo de cada campo (lenguaje 5.1 a 5.3). Pero esos textos están escritos para quien **escribe** la ficha, no para quien la lee: | **Riesgo P1 de seguridad.** Con «A quién llamar» sin completar, Rosa ve "Rodrigo, su hijo: +56 9 5555 0102" y en un apuro puede llamar a un número de ejemplo. **Se confirmó con el campo lleno:** Martín, en el teléfono con la demo, vio el «+56 9 5555 0102» del ejemplo justo debajo del teléfono real | **DECIDIDA por Jorge el 09/11/2026:** en el relevo se muestra **solo la pregunta guía, sin el ejemplo**, en los tres campos, estén llenos o vacíos (era la recomendación de esta especificación). Motivo: el teléfono del ejemplo queda pegado al real y Rosa, apurada, puede marcar el equivocado. Ver 3.11.1 y 3.11.3. Hasta el 09/11 la especificación mostraba el ejemplo con una mitigación (versión 1.0) |
 | | · el ejemplo de «A quién llamar» trae un teléfono que parece real | | |
 | | · el ejemplo de «Su día» termina en "Si empiezas con la hora, lo mostramos como línea de tiempo", que le habla a Carmen | | |
-| | · "¿A quién llamar si algo pasa y no te ubican?" dice "te": a Rosa nadie la busca | | |
+| | · "¿A quién llamar si algo pasa y no te ubican?" dice "te": a Rosa nadie la busca | | La pregunta guía se mantiene tal cual (lenguaje 5.3). Lo del "te" queda como observación P3 para `lenguaje.md`, fuera de esta decisión |
+| | Con la decisión, los dos primeros puntos desaparecen de la página del relevo. Los ejemplos siguen en la ficha que escribe Carmen, que es para quien están escritos | | |
 | D3 | **Autorización vencida en el relevo.** Lenguaje 6.4b dice que con la autorización por renovar "un relevo con un enlace anterior tampoco abre la ficha". El contrato del relevo no tiene un 403 en `/presentacion`, `/canje` ni `/ficha`, y `lenguaje.md` no tiene texto para Rosa en ese caso | Si la API responde un 403 al relevo, la página no sabe qué decir | Un `type` no previsto cae en el error general (sección 3.12). Falta: el código de respuesta en el contrato y el texto para Rosa en lenguaje 7.3. Propuesta: usar el estado "Este enlace no está disponible", porque para Rosa el efecto es el mismo y no conviene contarle a un tercero que falta una autorización |
 | D4 | **El aviso 7.5 tiene un hueco.** El texto final trae "[PENDIENTE: correo de contacto]" | No se puede mostrar un texto con un marcador | Usa la variante sin el correo, la misma de la demo (lenguaje 7.5, "En la demo"), hasta la política 1.0 |
 | D5 | **La política de privacidad no tiene ruta en `web/`** | El aviso enlaza a ella | El enlace apunta a la ruta que fije el orquestador. Si no existe al construir, el enlace no se pone y se anota como pendiente. Nunca un `href="#"` |
@@ -448,14 +450,11 @@ Mismo patrón 3.4, sin la nota. Sin botones: después del canje el token ya no e
 │ │ 08:00 ● Se levanta y toma      │ │  línea de tiempo, text-lg
 │ │         desayuno en la cocina  │ │
 │ │ 13:00 ● Almuerza               │ │
-│ │ │ Por ejemplo: «08:00 Despierta│ │  ejemplo, text-base tenue, borde izq.
-│ │ │ …»                           │ │
-│ │                                │ │
+│ │                                │ │  sin ejemplo (D2, 09/11)
 │ │ Si se altera                   │ │
 │ │ ¿Qué calma a María cuando se   │ │
 │ │ angustia?                      │ │
-│ │ (◌ Sin completar)              │ │  etiqueta neutra
-│ │ │ Por ejemplo: «Le hace bien…» │ │
+│ │ (◌ Sin completar)              │ │  etiqueta neutra, sin ejemplo
 │ └────────────────────────────────┘ │
 └────────────────────────────────────┘
 ```
@@ -474,7 +473,6 @@ Mismo patrón 3.4, sin la nota. Sin botones: después del canje el token ya no e
 │        │ ¿Cómo es un día normal para María? …     │                               │
 │        │ 08:00 ● Se levanta y toma desayuno…      │                               │
 │        │ 13:00 ● Almuerza                         │                               │
-│        │ │ Por ejemplo: «08:00 Despierta…»        │                               │
 │        │ Si se altera                             │                               │
 │        │ …                                        │                               │
 │        └──────────────────────────────────────────┘                               │
@@ -528,15 +526,16 @@ Construcción de un campo, de arriba abajo (`section aria-labelledby`, `mt-6` en
 | Etiqueta | «Su día» · «Si se altera» · «A quién llamar» (lenguaje 5) | `h2`, `text-xl font-bold text-turquesa` |
 | Pregunta guía | lenguaje 5.1, 5.2 y 5.3, con `{nombre_pila}` reemplazado | `p`, `text-base text-tenue`, `mt-1` |
 | Contenido | El `texto` de la API | Sección 3.11.2, `mt-3` |
-| Ejemplo | lenguaje 5.1, 5.2 y 5.3, tal cual, con las comillas «» | Sección 3.11.3, `mt-3` |
 
-Textos exactos de la pregunta guía y del ejemplo (D2 pide confirmarlos para Rosa):
+**Sin ejemplo** (D2, decidida por Jorge el 09/11/2026). El campo termina en el contenido o en «Sin completar». Ver 3.11.3.
 
-| Campo (`clave`) | Pregunta guía | Ejemplo |
-|---|---|---|
-| Su día (`rutina`) | «¿Cómo es un día normal para `{nombre_pila}`? Puedes contar un día bueno o uno difícil.» | «Por ejemplo: «08:00 Despierta. Le gusta que abran la cortina primero». Si empiezas con la hora, lo mostramos como línea de tiempo.» |
-| Si se altera (`manejo_situaciones`) | «¿Qué calma a `{nombre_pila}` cuando se angustia?» | «Por ejemplo: «Le hace bien que le tomen la mano y le hablen de su pueblo».» |
-| A quién llamar (`red_apoyo`) | «¿A quién llamar si algo pasa y no te ubican?» | «Por ejemplo: «Rodrigo, su hijo: +56 9 5555 0102».» |
+Textos exactos de la pregunta guía:
+
+| Campo (`clave`) | Pregunta guía |
+|---|---|
+| Su día (`rutina`) | «¿Cómo es un día normal para `{nombre_pila}`? Puedes contar un día bueno o uno difícil.» |
+| Si se altera (`manejo_situaciones`) | «¿Qué calma a `{nombre_pila}` cuando se angustia?» |
+| A quién llamar (`red_apoyo`) | «¿A quién llamar si algo pasa y no te ubican?» |
 
 #### 3.11.2 El contenido
 
@@ -546,13 +545,19 @@ Textos exactos de la pregunta guía y del ejemplo (D2 pide confirmarlos para Ros
 - **Vacío** (`texto: null`, o solo espacios): la etiqueta «Sin completar» (lenguaje 5.4 y 7.4), una píldora `inline-flex items-center gap-1.5 rounded-full bg-tinta/7 px-2.5 py-0.5 text-base font-bold text-tenue` con el ícono `CircleDashed` (`size-4`, `aria-hidden`). Lleva figura y palabra, no solo un tono gris ni cursiva: Rosa tiene que entender que el campo está vacío, no que no cargó.
 - **Los teléfonos no se vuelven enlaces.** Detectar un número dentro de un texto libre puede equivocarse, y un `tel:` mal armado en una urgencia es peor que ninguno. Queda como propuesta para después del piloto.
 
-#### 3.11.3 El ejemplo
+#### 3.11.3 El ejemplo: no se muestra
 
-Mitigación del riesgo D2, mientras Jorge decide:
-- Va **después** del contenido, nunca antes: Rosa lee primero lo que escribió Carmen.
-- `p` con `border-s-2 border-linea ps-3 text-base text-tenue`. El borde y el gris lo separan del contenido, y el «Por ejemplo:» lo dice con palabras.
-- **Nunca es un enlace**, tampoco el teléfono del ejemplo.
-- Lleva `aria-describedby` hacia él desde la sección, no `aria-labelledby`: el lector de pantalla lo lee como descripción, después del contenido.
+**Decisión de Jorge del 09/11/2026 (D2):** la página del relevo no muestra el ejemplo de ningún campo, ni con el campo lleno ni con el campo vacío. Mantiene la pregunta guía.
+
+**Motivo:** Martín lo probó en el teléfono con la demo y el «+56 9 5555 0102» del ejemplo de «A quién llamar» aparecía justo debajo del teléfono real. El borde y el gris de la mitigación de la versión 1.0 no bastaron: en un apuro, Rosa puede marcar el número equivocado. Además, los ejemplos le hablan a quien escribe la ficha («Si empiezas con la hora…»), no a quien la lee.
+
+**Criterios verificables:**
+- En la página del relevo no aparece «Por ejemplo» en ningún estado, tampoco en el árbol de accesibilidad.
+- Ningún número de teléfono aparece en la página salvo los que escribió Carmen.
+- La sección de cada campo no lleva `aria-describedby` hacia un ejemplo.
+- Un campo vacío muestra la pregunta guía y «Sin completar», y nada más.
+
+La mitigación de la versión 1.0 (el ejemplo después del contenido, con `border-s-2 border-linea`, sin enlace y con `aria-describedby`) queda sin efecto. Los ejemplos siguen en la pantalla donde Carmen escribe la ficha (lenguaje 5.1 a 5.3).
 
 ---
 
@@ -595,6 +600,7 @@ Se usa cuando falla la **primera** petición de una pantalla (la presentación a
 | El PIN fuera del campo, y el PIN en el campo después de un canje correcto | Se dicta una vez. Después del 204, el campo se vacía y la pantalla se desmonta |
 | El nombre de la persona o de quien compartió en el `<title>` | Queda en el historial y en la lista de pestañas (2.5) |
 | La palabra «relevo» en cualquier texto que vea Rosa, también en el `<title>` y en los `aria-label` | Al relevo nunca se le dice "relevo": lee "ficha de cuidado" (lenguaje 4) |
+| El ejemplo de cada campo («Por ejemplo: …»), y en especial el teléfono del ejemplo de «A quién llamar» | Rosa puede confundirlo con el número real. D2, decidida por Jorge el 09/11/2026 (3.11.3) |
 | Los campos que no se compartieron, o un conteo como "2 de 3" | El contrato no los devuelve y la página no los insinúa (3.11) |
 | El vencimiento, los campos o el nombre de Rosa **antes** del PIN | `/presentacion` devuelve solo los dos nombres de pila (contrato, decisión 28) |
 | Quién escribió cada campo, cuándo, el apellido, la dirección o cualquier dato del grupo | El contrato no lo devuelve. La página no pide nada más |

@@ -699,7 +699,7 @@ export function DeclaracionFicha({ pila, d }: { pila: string; d: ReturnType<type
       )}
 
       {elegida && (
-        <Nota tono="rocio" titulo={AUTORIZACION.declaras}>
+        <Nota tono="rocio" titulo={AUTORIZACION.declaras} iconoEnLinea>
           <p className="max-w-prose">{elegida.declaracion}</p>
           <LeePoliticaAntesDeAutorizar />
         </Nota>

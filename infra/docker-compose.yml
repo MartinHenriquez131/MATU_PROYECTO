@@ -13,6 +13,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
       MATU_OWNER_PASSWORD: ${MATU_OWNER_PASSWORD:?Falta MATU_OWNER_PASSWORD en .env}
       MATU_APP_PASSWORD: ${MATU_APP_PASSWORD:?Falta MATU_APP_PASSWORD en .env}
+      # MATU-74: los roles de las tareas. Opcionales: solo se usan al crear el volumen
+      MATU_SCHEDULER_PASSWORD: ${MATU_SCHEDULER_PASSWORD:-}
+      MATU_PUBLISHER_PASSWORD: ${MATU_PUBLISHER_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
