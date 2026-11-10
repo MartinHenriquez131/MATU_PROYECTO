@@ -44,11 +44,11 @@ case "$EXISTENTES" in
   *) echo "MATU: hay $EXISTENTES de los 4 roles. Revisa a mano antes de seguir" >&2; exit 1 ;;
 esac
 
-# Ningún rol de MATU puede saltarse RLS (política 2), ni crear roles o bases. Si alguien lo cambió a mano, se detiene
+# Ningún rol de MATU puede saltarse RLS (política 2), ni crear roles o bases, ni replicar. Si alguien lo cambió a mano, se detiene
 PELIGROSOS=$($PSQL -At -c "SELECT count(*) FROM pg_roles
-  WHERE rolname LIKE 'matu\_%' AND (rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb)")
+  WHERE rolname LIKE 'matu\_%' AND (rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication)")
 if [ "$PELIGROSOS" != "0" ]; then
-  echo "MATU: un rol de MATU es SUPERUSER, BYPASSRLS, CREATEROLE o CREATEDB. Corrígelo antes de seguir" >&2
+  echo "MATU: un rol de MATU es SUPERUSER, BYPASSRLS, CREATEROLE, CREATEDB o REPLICATION. Corrígelo antes de seguir" >&2
   exit 1
 fi
 

@@ -71,8 +71,8 @@ Las tareas leen la misma configuración que la API (`app/core/config.py`). Solo 
 - Todas: `DATABASE_URL` (como `matu_app`, nunca el dueño ni un superusuario), `ENTORNO`,
   `POLITICA_VERSION` (obligatoria fuera de pruebas) y, opcional, `LOG_NIVEL`.
 - `borrados` (las tres) y `quiebres`, además: `SCHEDULER_DATABASE_URL`, como `matu_scheduler`.
-- `avisos`, además: `PUBLISHER_DATABASE_URL` (como `matu_publisher`), `ENVIADOR_AVISOS`, `REGISTRO_AVISOS` y
-  `ORIGEN_WEB`. Sin `ENVIADOR_AVISOS` la tarea no toma ningún evento, no abre ninguna conexión y su corrida
+- `avisos`, además: `PUBLISHER_DATABASE_URL` (como `matu_publisher`), `ENVIADOR_AVISOS`, `ORIGEN_WEB` y,
+  solo en local y en pruebas, `REGISTRO_AVISOS` (en staging y en la demo no se carga: ver `infra/railway/README.md`). Sin `ENVIADOR_AVISOS` la tarea no toma ningún evento, no abre ninguna conexión y su corrida
   queda `apagada`, con código `0`.
 
 ### Roles de las tareas (hallazgo H2, migración 0022)
