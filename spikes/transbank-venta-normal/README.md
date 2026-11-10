@@ -11,7 +11,7 @@ Código de prueba, no del producto. Sirve para correr a mano, **antes de constru
 
 | Tipo | Número | Datos |
 |---|---|---|
-| Crédito VISA | `4051 8856 0044 6623` | CVV `123`, cualquier vencimiento futuro |
+| Crédito AMEX | `3700 0000 0002 032` | CVV `1234`, cualquier vencimiento futuro. En este comercio, la VISA (`4051 8856 0044 6623`) y la Mastercard (`5186 0595 5959 0568`) de crédito de prueba se rechazan con «Intenta pagar con otra tarjeta» (10-11) |
 | Débito Redcompra | `4051 8842 3993 7763` | Sin CVV |
 
 En el banco simulado: RUT `11.111.111-1` y clave `123`, y aceptar.
@@ -37,10 +37,10 @@ Si la ventana A dice **ANULADO**, el pago se canceló en Webpay. Empieza el caso
 
 | # | Pasos | Esperado |
 |---|---|---|
-| 1 · Crédito | `crear vn-101 57460`, pagar con crédito y `confirmar` | `AUTHORIZED` por $57.460, `payment_type_code` VN |
-| 2 · Débito | `crear vn-102 57460`, pagar con débito y `confirmar` | `AUTHORIZED` por $57.460, `payment_type_code` VD |
-| 3a · Anulación parcial con crédito | `anular TOKEN_101 8990` y `estado TOKEN_101` | `type: NULLIFIED`, se devuelven $8.990 y el saldo baja a $48.470 |
-| 3b · Anulación parcial con débito | `anular TOKEN_102 8990` y `estado TOKEN_102` | Lo mismo que 3a. **Si falla, es el riesgo del ADR-027** |
-| 4 · Retorno duplicado | `confirmar TOKEN_101` por segunda vez | Un solo cobro. Se registra si falla o si repite la respuesta |
+| 1 · Crédito | `crear vn-102 57460`, pagar con crédito y `confirmar` | `AUTHORIZED` por $57.460, `payment_type_code` VN |
+| 2 · Débito | `crear vn-101 57460`, pagar con débito y `confirmar` | `AUTHORIZED` por $57.460, `payment_type_code` VD |
+| 3a · Anulación parcial con crédito | `anular TOKEN_102 8990` y `estado TOKEN_102` | `type: NULLIFIED`, se devuelven $8.990 y el saldo baja a $48.470 |
+| 3b · Anulación parcial con débito | `anular TOKEN_101 8990` y `estado TOKEN_101` | Lo mismo que 3a. **Si falla, es el riesgo del ADR-027** |
+| 4 · Retorno duplicado | `confirmar TOKEN_102` por segunda vez | Un solo cobro. Se registra si falla o si repite la respuesta |
 
 Guarda la salida de la consola de cada paso. Es la evidencia, y no lleva datos personales.
