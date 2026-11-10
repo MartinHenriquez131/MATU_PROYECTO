@@ -25,7 +25,7 @@ from app.modules.consumption.infrastructure.repositorio_alertas import Repositor
 from app.modules.consumption.infrastructure.tarea_conservacion import ConservacionConsumoSql
 from app.modules.consumption.infrastructure.tarea_quiebres import ConservacionQuiebresSql
 from app.shared.auditoria_sql import RegistroAuditoriaSql
-from tests.base_datos import DSN, requiere_base
+from tests.base_datos import DSN, fabrica_scheduler, requiere_base
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.consumption.conftest import EntornoConsumo
@@ -679,7 +679,7 @@ def test_las_compras_declaradas_se_borran_a_los_90_dias(entorno_consumo: Entorno
     vieja, reciente = _reposicion_hace(perfil, 91), _reposicion_hace(perfil, 89)
     de_pedido = _reposicion_hace(perfil, 200, origen="pedido_matu")
     resultado = conservar_quiebres(
-        unidad=ConservacionQuiebresSql(fabrica_sesiones()), reloj=RelojFijo(datetime.now(UTC))
+        unidad=ConservacionQuiebresSql(fabrica_scheduler()), reloj=RelojFijo(datetime.now(UTC))
     )
     assert resultado.reposiciones_borradas >= 1
     quedan = {f[0] for f in _filas("SELECT id FROM reposicion WHERE perfil_id = %s", perfil)}
@@ -698,7 +698,7 @@ def test_tras_90_dias_del_retiro_consumo_conservar_borra_las_compras(entorno_con
         cx.execute("UPDATE consentimiento SET revocado_en = %s, revocacion_motivo = 'retiro'"
                    " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'", (ahora - timedelta(days=91),
                                                                                familia.persona.id))
-    conservar(unidad=ConservacionConsumoSql(fabrica_sesiones()), reloj=RelojFijo(ahora))
+    conservar(unidad=ConservacionConsumoSql(fabrica_scheduler()), reloj=RelojFijo(ahora))
     assert _filas("SELECT 1 FROM perfil_consumo WHERE id = %s", perfil) == []
     assert _filas("SELECT 1 FROM reposicion WHERE perfil_id = %s", perfil) == []
 

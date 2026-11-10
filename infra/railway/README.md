@@ -8,7 +8,7 @@ gestionados por Railway (ADR-019, plataforma decidida por Martín). **Solo datos
 |---|---|
 | `Dockerfile` | Imagen de la API: Python 3.12, usuario sin privilegios, la página del relevo (`web/`) ya construida. Arranca con `python -m app.servidor` |
 | `railway.json` | **Referencia** de la configuración del servicio (build con el Dockerfile, `alembic upgrade head` antes de cada despliegue, revisión de salud en `/v1/salud`). Railway **no lo lee**: los valores se cargan a mano en el panel (paso 1). Si cambias uno, cámbialo en los dos lugares |
-| `preparar_base.sh` | Crea en la base gestionada los roles de MATU, la base `matu` y `btree_gist`. Se puede correr más de una vez |
+| `preparar_base.sh` | Crea en la base gestionada los roles de MATU, fija sus contraseñas (también las de `matu_scheduler` y `matu_publisher`, MATU-74), la base `matu` y `btree_gist`. Se puede correr más de una vez |
 | `pares_tcp.py` | Muestra desde qué direcciones conecta el proxy de Railway, para fijar `FORWARDED_ALLOW_IPS` |
 
 ## 1. Servicios
@@ -78,7 +78,8 @@ la D-A del 28-10 (desvío del ADR-016): staging opera **solo con datos sintétic
 correos de dominios reservados y el staging se cierra al terminar el semestre.
 
 La API se conecta siempre como `matu_app` (`DATABASE_URL`), que no es dueño ni superusuario: RLS la
-alcanza siempre. `matu_owner` solo lo usa Alembic, en el `preDeployCommand`.
+alcanza siempre. `matu_owner` solo lo usa Alembic, en el `preDeployCommand`. **`matu-api` no lleva**
+`SCHEDULER_DATABASE_URL` ni `PUBLISHER_DATABASE_URL`: son solo de los cron de las tareas (paso 6).
 
 ## 3. Preparar la base (una vez)
 
@@ -89,14 +90,21 @@ En el servicio `Postgres`, activa temporalmente el **TCP Proxy** (*Settings → 
 read -rs ADMIN_DATABASE_URL     # pega DATABASE_PUBLIC_URL del servicio Postgres
 read -rs MATU_OWNER_PASSWORD    # la misma de las variables de matu-api
 read -rs MATU_APP_PASSWORD
-export ADMIN_DATABASE_URL MATU_OWNER_PASSWORD MATU_APP_PASSWORD
+read -rs MATU_SCHEDULER_PASSWORD   # la de SCHEDULER_DATABASE_URL de los cron (paso 6)
+read -rs MATU_PUBLISHER_PASSWORD   # la de PUBLISHER_DATABASE_URL del cron de avisos
+export ADMIN_DATABASE_URL MATU_OWNER_PASSWORD MATU_APP_PASSWORD MATU_SCHEDULER_PASSWORD MATU_PUBLISHER_PASSWORD
 sh infra/railway/preparar_base.sh
-unset ADMIN_DATABASE_URL MATU_OWNER_PASSWORD MATU_APP_PASSWORD
+unset ADMIN_DATABASE_URL MATU_OWNER_PASSWORD MATU_APP_PASSWORD MATU_SCHEDULER_PASSWORD MATU_PUBLISHER_PASSWORD
 ```
 
 Crea los cuatro roles de `backend/db/00_roles.sql` si no existen (si existen solo algunos, se detiene),
-fija las contraseñas, crea la base `matu` con `matu_owner` como dueño y habilita `btree_gist`. Se
-detiene si un rol de MATU es `SUPERUSER` o `BYPASSRLS`. Las tablas las crea Alembic al desplegar.
+fija las cuatro contraseñas, crea la base `matu` con `matu_owner` como dueño y habilita `btree_gist`. Se
+detiene si un rol de MATU es `SUPERUSER`, `BYPASSRLS`, `CREATEROLE`, `CREATEDB` o `REPLICATION`, o si
+`matu_scheduler` o `matu_publisher` es miembro de otro rol. Las tablas las crea Alembic al desplegar.
+
+**Si la base ya estaba preparada antes de MATU-74**, vuelve a correr el script con las cinco variables: deja
+los roles y la base como estaban y solo fija las contraseñas. Hazlo **antes** de desplegar la migración 0022:
+desde ella, los cron de las tareas ya no pueden usar `matu_app`.
 Después, desactiva el TCP Proxy de `Postgres`: la API llega a la base por la red privada.
 
 ## 4. Desplegar: un comando
@@ -220,6 +228,45 @@ BASE=https://matu-api-production.up.railway.app
 6. **Apaga el diagnóstico:** borra `DIAGNOSTICO_PROXY` de las *Variables* y despliega. El log de arranque
    dice `diagnostico_proxy=apagado`. Anota la fecha y hora de apagado y el valor final de `PROXY_SALTOS`
    en la tabla del paso 1.
+
+## 6. Cron de las tareas (MATU-74)
+
+Tres servicios de cron, desde el mismo repositorio y la misma imagen (`infra/railway/Dockerfile`), con
+`restartPolicyType=NEVER` y sin healthcheck ni pre-deploy. El cron de Railway se evalúa en **UTC**; los horarios
+y su porqué están en `backend/README.md` (hallazgos H3 y H5):
+
+| Servicio | Comando | Cron (UTC) | Chile en verano / invierno |
+|---|---|---|---|
+| `matu-cron-borrados` | `python -m app.tareas borrados` | `0 6 * * *` | 03:00 / 02:00 |
+| `matu-cron-quiebres` | `python -m app.tareas quiebres` | `0 8 * * *` | 05:00 / 04:00 |
+| `matu-cron-avisos` | `python -m app.tareas avisos` | `*/5 * * * *` | cada 5 minutos, el mínimo de Railway |
+
+Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van como referencia a `matu-api`
+(`${{matu-api.DATABASE_URL}}`), sin copiar valores:
+
+| Variable | `borrados` | `quiebres` | `avisos` |
+|---|---|---|---|
+| `ENTORNO` | `staging` | `staging` | `staging` |
+| `DATABASE_URL` | referencia | referencia | referencia |
+| `POLITICA_VERSION` | referencia | referencia | referencia |
+| `MATU_SCHEDULER_PASSWORD` | secreto nuevo, solo letras, números y guiones | el mismo | — |
+| `SCHEDULER_DATABASE_URL` | `postgresql+psycopg://matu_scheduler:${{MATU_SCHEDULER_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/matu` | la misma | — |
+| `MATU_PUBLISHER_PASSWORD` | — | — | secreto nuevo, distinto |
+| `PUBLISHER_DATABASE_URL` | — | — | `postgresql+psycopg://matu_publisher:${{MATU_PUBLISHER_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/matu` |
+| `ENVIADOR_AVISOS` | — | — | `simulado` |
+| `ORIGEN_WEB` | — | — | referencia |
+
+`REGISTRO_AVISOS` **ya no se carga** en el cron de avisos: con `ENTORNO=staging` el envío simulado no escribe el
+archivo, que se perdía con cada contenedor (hallazgo H4). Lo enviado queda en la tabla `notificacion`, con su
+estado y `enviada_en`. Si quedó cargada, se puede borrar: no cambia nada.
+
+Cada contraseña debe ser la misma que se fijó con `preparar_base.sh` (paso 3). Si falta la URL de su rol, o
+es de otro usuario, la tarea falla con `"tipo_error": "FaltaConexion"` y `"falta": "SCHEDULER_DATABASE_URL"`
+(o `PUBLISHER_DATABASE_URL`) en su línea de log, y la corrida sale con `1`: nunca usa `matu_app` en su lugar.
+
+**Verificar:** en `railway logs` de cada cron, después de su primera corrida, la línea `"mensaje": "tarea"`
+con `"resultado": "ok"` (o `"apagada"` en avisos, sin `ENVIADOR_AVISOS`). Con `railway ssh --service
+matu-cron-borrados`, `python -m app.tareas borrados` corre a mano igual.
 
 ## Escalado y pendientes
 

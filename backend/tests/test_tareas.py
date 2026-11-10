@@ -2,8 +2,11 @@
 
 Las primeras pruebas no tocan la base: cambian las tareas por dobles y verifican el orden, que una tarea
 que falla no detiene a las demás, el código de salida y que el log no lleve el mensaje de la excepción
-(condiciones a y R1 del analista). Las de integración corren las tareas reales contra PostgreSQL como
-matu_app, con un reloj fijo y solo datos sintéticos, y verifican que una segunda corrida no repite nada.
+(condiciones a y R1 del analista). Las de integración corren las tareas reales contra PostgreSQL, con un
+reloj fijo y solo datos sintéticos, y verifican que una segunda corrida no repite nada: el trabajo de cada grupo
+como matu_app y las funciones como matu_scheduler y matu_publisher (migración 0022, H2), con las sesiones de
+tests/base_datos.py. La conexión propia de cada rol (SCHEDULER_DATABASE_URL y PUBLISHER_DATABASE_URL) la prueba
+test_cada_tarea_se_conecta_con_su_rol, que se salta sin esas variables.
 """
 
 import io
@@ -25,7 +28,7 @@ from app import tareas
 from app.core.config import obtener_configuracion
 from app.core.db import fabrica_sesiones
 from app.core.logs import FormateadorJSON
-from tests.base_datos import DSN, requiere_base
+from tests.base_datos import DSN, fabrica_publisher, fabrica_scheduler, requiere_base
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import Fabrica
 
@@ -43,8 +46,14 @@ def logs_restaurados() -> Iterator[None]:
     raiz.handlers, raiz.level = manejadores, nivel
 
 
-def _contexto(fabrica: Any = None) -> tareas.Contexto:
-    return tareas.Contexto(config=obtener_configuracion(), fabrica=fabrica, reloj=RelojFijo(INICIO))
+def _contexto(fabrica: Any = None, scheduler: Any = None, publisher: Any = None, config: Any = None) -> tareas.Contexto:
+    return tareas.Contexto(
+        config=config or obtener_configuracion(),
+        fabrica=fabrica,
+        reloj=RelojFijo(INICIO),
+        fabrica_scheduler=scheduler,
+        fabrica_publisher=publisher,
+    )
 
 
 def _lineas(stream: io.StringIO) -> list[dict[str, Any]]:
@@ -151,7 +160,7 @@ def test_quiebres_con_un_grupo_fallido_queda_fallo_y_sale_con_uno_pero_procesa_l
     monkeypatch.setattr(tarea_quiebres, "recalcular_grupo", recalcular)
     monkeypatch.setattr(tarea_quiebres, "conservar_quiebres", lambda **_: ResultadoConservacionQuiebres(0, 0, 0, 0))
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
-        assert tareas.correr(["quiebres"], _contexto()) == codigo
+        assert tareas.correr(["quiebres"], _contexto(scheduler=object())) == codigo
     assert procesados == grupos
     [registro] = _corridas(caplog)
     assert registro.__dict__["resultado"] == resultado
@@ -172,15 +181,20 @@ def test_el_engine_de_las_tareas_lleva_un_tope_de_conexion(monkeypatch: pytest.M
     monkeypatch.setattr(tareas, "create_engine", crear)
     config = obtener_configuracion().model_copy(update={"database_url": "postgresql+psycopg://u@db.invalid/x"})
     tareas.fabrica_tareas(config)
-    assert recibido["connect_args"] == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
+    assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
     assert 0 < tareas.TIEMPO_CONEXION_S <= 10
+    # Las conexiones de los roles de las tareas llevan el mismo tope
+    for rol in (tareas.ROL_SCHEDULER, tareas.ROL_PUBLISHER):
+        assert tareas.fabrica_de_rol(f"postgresql+psycopg://{rol}@db.invalid/x", rol) is not None
+        assert recibido.pop("connect_args") == {"connect_timeout": tareas.TIEMPO_CONEXION_S}
 
 
 def test_con_la_base_inalcanzable_la_tarea_falla_pronto(caplog: pytest.LogCaptureFixture) -> None:
     # 10.255.255.1 no se enruta: sin tope, la conexión espera lo que dé el sistema operativo (~130 s)
     url = "postgresql+psycopg://matu_app@10.255.255.1:5432/matu_inalcanzable"
     config = obtener_configuracion().model_copy(update={"database_url": url})
-    ctx = tareas.Contexto(config=config, fabrica=tareas.fabrica_tareas(config), reloj=RelojFijo(INICIO))
+    scheduler = tareas.fabrica_de_rol(url.replace("matu_app@", "matu_scheduler@"), tareas.ROL_SCHEDULER)
+    ctx = _contexto(tareas.fabrica_tareas(config), scheduler=scheduler, config=config)
     inicio = time.monotonic()
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr(["conservacion_sesiones"], ctx) == tareas.SALIDA_FALLO
@@ -265,7 +279,7 @@ def test_todas_diarias_corre_cada_tarea_y_una_segunda_corrida_no_repite_nada(
     familia = fabrica.familia()
     fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin, otorgado_en=INICIO)
     perfil = fabrica.perfil_consumo(familia.persona)
-    ctx = _contexto(fabrica_sesiones())
+    ctx = _contexto(fabrica_sesiones(), scheduler=fabrica_scheduler())
 
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr(tareas.nombres_de("todas_diarias") or (), ctx) == tareas.SALIDA_OK
@@ -302,7 +316,7 @@ def test_avisos_publica_al_archivo_simulado_nunca_a_stdout_y_no_repite(
     fabrica.perfil_consumo(familia.persona)
     registro = tmp_path / "avisos.jsonl"
     config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado", "registro_avisos": registro})
-    ctx = tareas.Contexto(config=config, fabrica=fabrica_sesiones(), reloj=RelojFijo(INICIO))
+    ctx = _contexto(fabrica_sesiones(), fabrica_scheduler(), fabrica_publisher(), config)
 
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr(["quiebres"], ctx) == tareas.SALIDA_OK
@@ -326,8 +340,220 @@ def test_avisos_publica_al_archivo_simulado_nunca_a_stdout_y_no_repite(
 @requiere_base
 def test_avisos_sin_enviador_queda_apagada_y_no_toma_eventos(caplog: pytest.LogCaptureFixture) -> None:
     config = obtener_configuracion().model_copy(update={"enviador_avisos": None})
-    ctx = tareas.Contexto(config=config, fabrica=fabrica_sesiones(), reloj=RelojFijo(INICIO))
+    ctx = _contexto(fabrica_sesiones(), config=config)
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr(["avisos"], ctx) == tareas.SALIDA_OK
     [registro] = _corridas(caplog)
     assert registro.__dict__["resultado"] == "apagada"
+
+
+# --- MATU-74, hallazgo H2: cada tarea con la conexión de su rol --------------------------------------------------
+
+
+class _Prohibida:
+    """Una fábrica de matu_app que la tarea no debe usar: falla si se abre una sesión."""
+
+    def __call__(self, **_: Any) -> Any:
+        raise AssertionError("la tarea abrió una sesión que no le corresponde")
+
+
+@pytest.mark.parametrize(
+    ("tarea", "variable"),
+    [
+        ("destruccion_fichas", "SCHEDULER_DATABASE_URL"),
+        ("conservacion_consumo", "SCHEDULER_DATABASE_URL"),
+        ("conservacion_sesiones", "SCHEDULER_DATABASE_URL"),
+        ("quiebres", "SCHEDULER_DATABASE_URL"),
+        ("avisos", "PUBLISHER_DATABASE_URL"),
+    ],
+)
+def test_sin_la_conexion_de_su_rol_la_tarea_falla_y_nombra_la_variable(
+    tarea: str, variable: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Nunca cae a matu_app: la fábrica de matu_app ni se abre, y la línea nombra la variable, sin su valor."""
+    config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado"})
+    with caplog.at_level(logging.INFO, logger="matu.tareas"):
+        assert tareas.correr([tarea], _contexto(_Prohibida(), config=config)) == tareas.SALIDA_FALLO
+    [registro] = _corridas(caplog)
+    linea = json.loads(FormateadorJSON().format(registro))
+    assert (linea["resultado"], linea["tipo_error"], linea["falta"]) == ("fallo", "FaltaConexion", variable)
+
+
+def test_la_conexion_de_un_rol_no_acepta_la_url_de_otro_usuario(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tareas, "create_engine", lambda url, **_: None)
+    rol = tareas.ROL_SCHEDULER
+    assert tareas.fabrica_de_rol("", rol) is None
+    assert tareas.fabrica_de_rol("postgresql+psycopg://matu_app@db.invalid/matu", rol) is None  # DATABASE_URL copiada
+    assert tareas.fabrica_de_rol("postgresql+psycopg://matu_publisher@db.invalid/matu", rol) is None
+    assert tareas.fabrica_de_rol("esto no es una url", rol) is None
+    assert tareas.fabrica_de_rol("postgresql+psycopg://matu_scheduler@db.invalid/matu", rol) is not None
+
+
+def test_main_arma_cada_conexion_con_su_variable(monkeypatch: pytest.MonkeyPatch, logs_restaurados: None) -> None:
+    vistos: list[tareas.Contexto] = []
+
+    def espia(ctx: tareas.Contexto) -> tareas.Salida:
+        vistos.append(ctx)
+        return tareas.Salida(tareas.OK, {})
+
+    roles = ("matu_app", "matu_scheduler", "matu_publisher")
+    urls = {rol: f"postgresql+psycopg://{rol}@db.invalid/matu" for rol in roles}
+    config = obtener_configuracion().model_copy(update={
+        "database_url": urls["matu_app"],
+        "scheduler_database_url": urls["matu_scheduler"],
+        "publisher_database_url": urls["matu_publisher"],
+    })
+    monkeypatch.setattr(tareas, "obtener_configuracion", lambda: config)
+    monkeypatch.setattr(tareas, "create_engine", lambda url, **_: url)
+    monkeypatch.setitem(tareas.TAREAS, "avisos", espia)
+
+    assert tareas.main(["avisos"], stream=io.StringIO()) == tareas.SALIDA_OK
+
+    [ctx] = vistos
+    assert ctx.fabrica.kw["bind"] == urls["matu_app"]
+    assert ctx.scheduler().kw["bind"] == urls["matu_scheduler"]
+    assert ctx.publisher().kw["bind"] == urls["matu_publisher"]
+
+
+class _Espia:
+    """Cuenta las sesiones que la tarea abre con una fábrica."""
+
+    def __init__(self, fabrica: Any) -> None:
+        self._fabrica = fabrica
+        self.sesiones = 0
+
+    def __call__(self, **opciones: Any) -> Any:
+        self.sesiones += 1
+        return self._fabrica(**opciones)
+
+
+_CONFIG = obtener_configuracion()
+requiere_roles = pytest.mark.skipif(
+    not (_CONFIG.scheduler_database_url and _CONFIG.publisher_database_url),
+    reason="SCHEDULER_DATABASE_URL o PUBLISHER_DATABASE_URL no están definidas",
+)
+
+
+@requiere_base
+@requiere_roles
+@pytest.mark.rf("RF-02")
+@pytest.mark.rf("RF-39")
+def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> None:
+    """Con las URL de .env, como el cron: cada conexión es de su rol (current_user), y cada tarea abre sesiones
+    solo con las que le tocan."""
+    from sqlalchemy import text
+
+    config = _CONFIG.model_copy(update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"})
+    conexiones = {
+        "matu_app": tareas.fabrica_tareas(config),
+        "matu_scheduler": tareas.fabrica_de_rol(config.scheduler_database_url, tareas.ROL_SCHEDULER),
+        "matu_publisher": tareas.fabrica_de_rol(config.publisher_database_url, tareas.ROL_PUBLISHER),
+    }
+    for rol, fabrica_rol in conexiones.items():
+        assert fabrica_rol is not None, rol
+        with fabrica_rol() as sesion:
+            assert sesion.execute(text("SELECT current_user")).scalar_one() == rol
+    familia = fabrica.familia()
+    fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin, otorgado_en=INICIO)
+    fabrica.perfil_consumo(familia.persona)
+
+    usa = {
+        "destruccion_fichas": {"matu_scheduler"},
+        "conservacion_consumo": {"matu_scheduler"},
+        "conservacion_sesiones": {"matu_scheduler"},
+        "quiebres": {"matu_app", "matu_scheduler"},
+        "avisos": {"matu_app", "matu_publisher"},
+    }
+    for tarea, esperadas in usa.items():
+        espias = {rol: _Espia(f) for rol, f in conexiones.items()}
+        ctx = tareas.Contexto(
+            config=config,
+            fabrica=espias["matu_app"],  # type: ignore[arg-type]
+            reloj=RelojFijo(INICIO),
+            fabrica_scheduler=espias["matu_scheduler"],  # type: ignore[arg-type]
+            fabrica_publisher=espias["matu_publisher"],  # type: ignore[arg-type]
+        )
+        assert tareas.correr([tarea], ctx) == tareas.SALIDA_OK, tarea
+        assert {rol for rol, e in espias.items() if e.sesiones} == esperadas, tarea
+
+
+# --- MATU-74, hallazgo H4: en staging el registro de los avisos es la tabla notificacion ---------------------------
+
+
+@requiere_base
+@pytest.mark.rf("RF-39")
+def test_en_staging_los_avisos_no_escriben_el_archivo_y_quedan_en_notificacion(
+    fabrica: Fabrica, tmp_path: Path
+) -> None:
+    familia = fabrica.familia()
+    fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin, otorgado_en=INICIO)
+    fabrica.perfil_consumo(familia.persona)
+    registro = tmp_path / "avisos.jsonl"
+    config = obtener_configuracion().model_copy(
+        update={"entorno": "staging", "enviador_avisos": "simulado", "registro_avisos": registro}
+    )
+    ctx = _contexto(fabrica_sesiones(), fabrica_scheduler(), fabrica_publisher(), config)
+
+    assert tareas.correr(["quiebres"], ctx) == tareas.SALIDA_OK
+    assert tareas.correr(["avisos"], ctx) == tareas.SALIDA_OK
+
+    assert not registro.exists() and list(tmp_path.iterdir()) == []
+    enviadas = _filas(
+        "SELECT usuario_id, canal FROM notificacion WHERE grupo_id = %s AND estado = 'enviada'"
+        " AND enviada_en IS NOT NULL",
+        familia.grupo.id,
+    )
+    assert (familia.admin.id, "correo") in enviadas
+
+
+@pytest.mark.parametrize(("entorno", "escribe"), [("local", True), ("pruebas", True), ("staging", False)])
+def test_el_archivo_del_registro_de_avisos_es_solo_local_y_de_pruebas(
+    entorno: str, escribe: bool, tmp_path: Path
+) -> None:
+    from app.modules.notifications.infrastructure import tarea_avisos
+
+    archivo = tmp_path / "avisos.jsonl"
+    config = obtener_configuracion().model_copy(update={"entorno": entorno, "registro_avisos": archivo})
+    assert tarea_avisos.archivo_del_registro(config) == (archivo if escribe else None)
+
+
+# --- MATU-74, hallazgos H3 y H5 (condición C17): los horarios, en verano y en invierno -----------------------------
+
+
+def _hora_minuto(cron: str) -> tuple[int, int]:
+    minuto, hora, *resto = cron.split()
+    assert resto == ["*", "*", "*"], cron
+    return int(hora), int(minuto)
+
+
+def test_los_horarios_caen_de_madrugada_y_separados_en_verano_y_en_invierno() -> None:
+    """Cada día de un año, con los cambios de hora de Chile: los borrados entre las 00:00 y las 06:59, los quiebres
+    al menos 60 minutos después y con una hora para terminar antes de las 07:00, y los avisos cada 5 minutos."""
+    from datetime import date, time, timedelta
+    from zoneinfo import ZoneInfo
+
+    chile = ZoneInfo("America/Santiago")
+    assert tareas.HORARIOS["avisos"] == "*/5 * * * *"
+    borrados, quiebres = _hora_minuto(tareas.HORARIOS["borrados"]), _hora_minuto(tareas.HORARIOS["quiebres"])
+    desfases: set[timedelta] = set()
+    dia = date(2026, 11, 1)
+    while dia < date(2027, 11, 1):
+        b = datetime(dia.year, dia.month, dia.day, *borrados, tzinfo=UTC).astimezone(chile)
+        q = datetime(dia.year, dia.month, dia.day, *quiebres, tzinfo=UTC).astimezone(chile)
+        assert time(0, 0) <= b.time() <= time(6, 59), (dia, b)
+        assert q - b >= timedelta(minutes=60), (dia, b, q)
+        assert b.date() == q.date() and q.time() <= time(6, 0), (dia, q)
+        desfases.add(b.utcoffset() or timedelta(0))
+        dia += timedelta(days=1)
+    # El año cubre las dos temporadas: verano (UTC-3) e invierno (UTC-4)
+    assert desfases == {timedelta(hours=-3), timedelta(hours=-4)}
+
+
+def test_los_readme_dicen_los_mismos_horarios() -> None:
+    raiz = BACKEND.parent
+    for readme in (BACKEND / "README.md", raiz / "infra" / "railway" / "README.md"):
+        texto = readme.read_text(encoding="utf-8")
+        for tarea, cron in tareas.HORARIOS.items():
+            assert f"`{cron}`" in texto, (readme.name, tarea)
+        for viejo in ("`10 6,7 * * *`", "`30 7 * * *`", "`*/15 * * * *`"):
+            assert viejo not in texto, (readme.name, viejo)

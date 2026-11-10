@@ -47,6 +47,11 @@ Cada historia agrega aquí lo suyo:
   el correo de contacto que GET /v1/politica entrega aparte del texto (decisiones D5 y D7). Opcionales para cargar
   la configuración: sin la fecha, o si POLITICA_VERSION no tiene un texto publicado sin marcadores, GET /v1/politica
   y POST /v1/usuarios responden 503 y el resto de la API funciona igual
+- MATU-74 (hallazgos H2 y H4): SCHEDULER_DATABASE_URL y PUBLISHER_DATABASE_URL, las conexiones de las tareas como
+  matu_scheduler y matu_publisher (app/tareas.py). La API nunca las usa. Vacías, la configuración carga igual y la
+  tarea que las necesita falla con un error que nombra la variable, sin caer a matu_app. El envío simulado de avisos
+  escribe REGISTRO_AVISOS solo con ENTORNO en ENTORNOS_REGISTRO_AVISOS (local y pruebas): en staging el registro de
+  los avisos es la tabla notificacion
 """
 
 import base64
@@ -87,6 +92,10 @@ ENTORNOS_DOCUMENTACION: frozenset[str] = frozenset({"local", "pruebas"})
 # staging tiene solo datos sintéticos
 ENTORNOS_SOLO_DOMINIOS_RESERVADOS: frozenset[str] = frozenset({"staging"})
 
+# Entornos donde el envío simulado de avisos escribe REGISTRO_AVISOS (MATU-74, hallazgo H4). En staging el archivo
+# se perdía con cada contenedor del cron, y el registro de lo enviado ya es la tabla notificacion (estado y enviada_en)
+ENTORNOS_REGISTRO_AVISOS: frozenset[str] = frozenset({"local", "pruebas"})
+
 # Entornos donde se admite DIAGNOSTICO_PROXY encendido (MATU-25, decisión 114, punto 7). Otra lista más:
 # produccion, o un valor nuevo, quedan fuera
 ENTORNOS_DIAGNOSTICO_PROXY: frozenset[str] = frozenset({"local", "pruebas", "staging"})
@@ -109,6 +118,12 @@ class Configuracion(BaseSettings):
 
     # Conexión de la API como matu_app. Vacía solo en pruebas que no tocan la base.
     database_url: str = ""
+
+    # MATU-74 (H2): las conexiones de las tareas, nunca de la API. SCHEDULER_DATABASE_URL como matu_scheduler, para
+    # enumerar los grupos y llamar a las funciones de borrado y conservación; PUBLISHER_DATABASE_URL como
+    # matu_publisher, para las funciones del outbox. El trabajo por grupo sigue con DATABASE_URL (matu_app y RLS)
+    scheduler_database_url: str = ""
+    publisher_database_url: str = ""
 
     # Versión vigente de la política de privacidad (docs/legal/politica-privacidad.md del
     # repositorio MATU), en formato MAYOR.MENOR. Un valor con otro formato impide cargar la

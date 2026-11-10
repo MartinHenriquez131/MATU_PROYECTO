@@ -133,3 +133,37 @@ def test_estado_tras_el_retiro_y_los_logs_sin_nombre_libre(entorno_consumo: Ento
     assert plan["estado"] == "vigente"
     assert consumo["estado"] == "retirada" and consumo["borrada"] is False
     assert NOMBRE not in e.iam.texto_log() and familia.persona.nombre not in e.iam.texto_log()
+
+
+# --- MATU-74, condición C9 del analista: los quiebres no esperan a los borrados -----------------------------------
+
+
+@pytest.mark.parametrize("estado", ["persona_borrada", "autorizacion_retirada"])
+def test_los_quiebres_no_crean_alerta_ni_evento_aunque_el_borrado_no_haya_corrido(
+    entorno_consumo: EntornoConsumo, estado: str
+) -> None:
+    """Las tareas de borrado corren dos horas antes que los quiebres (H5), pero si no corrieron, o el borrado de la
+    persona quedó a medias, el trabajo diario igual no crea nada: el perfil sigue en la base, activo y en su
+    ventana de aviso, y la persona está borrada o su autorización retirada. Se fija con SQL directo, sin las rutas,
+    que además descartarían las alertas y borrarían los perfiles."""
+    e = entorno_consumo
+    familia, testigo = e.familia(), e.familia()
+    perfil = e.fabrica.perfil_consumo(familia.persona)
+    e.fabrica.perfil_consumo(testigo.persona)
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        if estado == "persona_borrada":
+            cx.execute("UPDATE persona_cuidada SET eliminado_en = now(), nivel_apoyo = NULL,"
+                       " direccion_entrega_id = NULL WHERE id = %s", (familia.persona.id,))
+        else:
+            cx.execute("UPDATE consentimiento SET revocado_en = now(), revocacion_motivo = 'retiro'"
+                       " WHERE persona_cuidada_id = %s AND finalidad = 'consumo'", (familia.persona.id,))
+    assert _filas("SELECT activo FROM perfil_consumo WHERE id = %s", perfil) == [(True,)]
+
+    resultado = recalcular_grupo(fabrica_sesiones(), familia.grupo.id, e.iam.reloj)
+
+    assert resultado.materializadas == 0
+    assert _filas("SELECT 1 FROM alerta_quiebre WHERE perfil_id = %s", perfil) == []
+    assert _filas("SELECT 1 FROM evento_outbox WHERE grupo_id = %s", familia.grupo.id) == []
+    # El testigo, con la misma fábrica y el mismo reloj, sí tiene su alerta y su evento
+    assert recalcular_grupo(fabrica_sesiones(), testigo.grupo.id, e.iam.reloj).materializadas == 1
+    assert len(_filas("SELECT 1 FROM evento_outbox WHERE grupo_id = %s", testigo.grupo.id)) == 1

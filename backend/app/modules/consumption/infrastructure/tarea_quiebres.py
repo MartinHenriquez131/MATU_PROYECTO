@@ -1,15 +1,19 @@
 """Trabajo diario de la predicción de quiebre y conservación de alertas (MATU-37, arquitectura 8.5).
 
-La corre el programador de tareas (MATU-74) una vez al día, entre las 03:00 y las 05:00 de Chile y después de
-los borrados (backend/README.md), desde backend/ y con DATABASE_URL de matu_app:
+La corre el programador de tareas (MATU-74) una vez al día, a las 05:00 de Chile en verano y a las 04:00 en
+invierno, dos horas después de los borrados (backend/README.md), desde backend/. Usa dos conexiones (H2,
+migración 0022): SCHEDULER_DATABASE_URL de matu_scheduler para enumerar los grupos y conservar, y
+DATABASE_URL de matu_app para el trabajo de cada grupo, que necesita RLS:
 
     python -m app.tareas quiebres
 
-1. Enumera los grupos activos con app.rol = 'operacion' (política grupo_operacion: solo los ids).
-2. Por cada grupo abre su propia transacción con app.grupo_id y app.rol = 'sistema', y corre
-   recalcular_quiebres. Si un grupo falla, se deshace solo ese grupo y sigue con el siguiente.
-3. Llama a quiebre_conservar (migraciones 0011, 0014 y 0017) con app.rol = 'operacion'. Desde la 0017
-   (MATU-51, decisión 145) borra también las compras declaradas a los 90 días de registrada_en.
+1. Enumera los grupos activos como matu_scheduler (SELECT (id, estado) y la política grupo_scheduler).
+2. Por cada grupo abre su propia transacción como matu_app, con app.grupo_id y app.rol = 'sistema', y corre
+   recalcular_quiebres. Si un grupo falla, se deshace solo ese grupo y sigue con el siguiente. Solo ve las
+   personas no borradas y las autorizaciones no revocadas (_INSUMOS): una persona borrada o con la autorización
+   retirada no tiene alerta ni evento, aunque el borrado no haya corrido (C9).
+3. Llama a quiebre_conservar (migraciones 0011, 0014 y 0017) como matu_scheduler, con app.rol = 'operacion'.
+   Desde la 0017 (MATU-51, decisión 145) borra también las compras declaradas a los 90 días de registrada_en.
 
 El log lleva solo contadores, nunca un identificador, un nombre ni una cantidad.
 """
@@ -23,9 +27,7 @@ from datetime import date, datetime
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import obtener_configuracion
-from app.core.db import fabrica_sesiones, sesion_tenant
-from app.core.logs import configurar_logs
+from app.core.db import sesion_tenant
 from app.modules.care_circle.domain.personas import AutorizacionGuardada
 from app.modules.consumption.application.conservacion import ResultadoConservacionQuiebres, conservar_quiebres
 from app.modules.consumption.application.ports import AlertaLeida, InsumoDelTrabajo
@@ -133,6 +135,8 @@ class RepositorioQuiebresSQL:
 
 
 class ConservacionQuiebresSql:
+    """Con la fábrica de matu_scheduler: desde la 0022 matu_app ya no ejecuta quiebre_conservar."""
+
     def __init__(self, fabrica: sessionmaker[Session]) -> None:
         self._fabrica = fabrica
 
@@ -155,7 +159,8 @@ class ResultadoTarea:
 
 
 def grupos_activos(fabrica: sessionmaker[Session]) -> list[uuid.UUID]:
-    with sesion_tenant(fabrica, rol="operacion") as sesion:
+    """Los ids de los grupos activos, con la fábrica de matu_scheduler (política grupo_scheduler, sin contexto)."""
+    with sesion_tenant(fabrica) as sesion:
         return [f.id for f in sesion.execute(_GRUPOS).all()]
 
 
@@ -166,8 +171,11 @@ def recalcular_grupo(fabrica: sessionmaker[Session], grupo_id: uuid.UUID, reloj:
         )
 
 
-def recalcular_todos(fabrica: sessionmaker[Session], reloj: Reloj) -> ResultadoTarea:
-    grupos = grupos_activos(fabrica)
+def recalcular_todos(
+    fabrica: sessionmaker[Session], scheduler: sessionmaker[Session], reloj: Reloj
+) -> ResultadoTarea:
+    """fabrica es la de matu_app (el trabajo de cada grupo) y scheduler la de matu_scheduler (la lista)."""
+    grupos = grupos_activos(scheduler)
     fallidos = materializadas = descartadas = 0
     for grupo_id in grupos:
         try:
@@ -185,11 +193,11 @@ def recalcular_todos(fabrica: sessionmaker[Session], reloj: Reloj) -> ResultadoT
 
 
 def ejecutar(
-    fabrica: sessionmaker[Session] | None = None, reloj: Reloj | None = None
+    fabrica: sessionmaker[Session], scheduler: sessionmaker[Session], reloj: Reloj | None = None
 ) -> tuple[ResultadoTarea, ResultadoConservacionQuiebres]:
-    fabrica = fabrica or fabrica_sesiones()
+    """fabrica es la de matu_app y scheduler la de matu_scheduler (app/tareas.py)."""
     reloj = reloj or RelojSistema()
-    tarea = recalcular_todos(fabrica, reloj)
+    tarea = recalcular_todos(fabrica, scheduler, reloj)
     log.info(
         "quiebres: %d grupos, %d fallidos, %d alertas creadas, %d descartadas",
         tarea.grupos,
@@ -197,7 +205,7 @@ def ejecutar(
         tarea.materializadas,
         tarea.descartadas,
     )
-    conservacion = conservar_quiebres(unidad=ConservacionQuiebresSql(fabrica), reloj=reloj)
+    conservacion = conservar_quiebres(unidad=ConservacionQuiebresSql(scheduler), reloj=reloj)
     log.info(
         "conservacion de alertas: %d alertas, %d eventos, %d notificaciones y %d compras borrados",
         conservacion.alertas_borradas,
@@ -206,8 +214,3 @@ def ejecutar(
         conservacion.reposiciones_borradas,
     )
     return tarea, conservacion
-
-
-if __name__ == "__main__":  # pragma: no cover
-    configurar_logs(obtener_configuracion().log_nivel)
-    ejecutar()
