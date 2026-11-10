@@ -47,6 +47,8 @@ describe('«Tu cuenta» en modo angosto (MATU-57)', () => {
     render(<TuCuenta />)
 
     const numero = await screen.findByText('+56 9 •••• ••37')
+    // H3 del 09-11: cada bloque junto, con espacio duro; solo se corta entre «+56 9» y «•••• ••37».
+    expect(numero.textContent).toBe('+56 9 •••• ••37')
     expect(numero).toHaveClass('angosto:whitespace-normal')
     expect(numero).not.toHaveClass('whitespace-nowrap')
     expect(numero.closest('dl')).toHaveClass('px-4', 'angosto:px-2')
