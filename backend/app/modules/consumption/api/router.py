@@ -400,8 +400,8 @@ def editar(
     responses=_ERRORES_LECTURA,
     summary="Eliminar un insumo",
     description=(
-        "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus reposiciones y alertas se borran"
-        " con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar"
+        "Borra el perfil en el acto, activo o desactivado (decisión 69). Sus compras anotadas (`reposicion`) y"
+        " alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar"
     ),
 )
 def eliminar(

@@ -169,7 +169,7 @@ export function GrupoOpciones<T extends string>({
           return (
             <label
               key={o.valor}
-              className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-xl px-4 py-3 ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+              className={`flex min-h-12 cursor-pointer items-start gap-3 angosto:flex-col angosto:gap-2 rounded-xl px-4 angosto:px-3 py-3 ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
                 on ? 'bg-rocio ring-turquesa' : error ? 'bg-hoja ring-pronto' : 'bg-hoja ring-borde hover:ring-turquesa/40'
               }`}
             >

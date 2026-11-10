@@ -59,7 +59,7 @@ def _respuestas(descripcion_422: str) -> dict[int | str, dict[str, Any]]:
         401: _ERRORES_LECTURA[401],
         403: _403,
         404: _404_ESCRIBIR,
-        409: {"description": "/errores/perfil-inactivo: un insumo que no se sigue no se repone ni se cuenta",
+        409: {"description": "/errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos",
               **_PROBLEMA},
         412: {
             "description": (
@@ -105,7 +105,7 @@ def _responder(
     description=(
         "Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga"
         " alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El"
-        " stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una reposición declarada con la"
+        " stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una compra (`reposicion`) con la"
         " fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda"
         " resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no"
         " responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o"
@@ -168,7 +168,7 @@ def reponer(
     summary="Me quedan",
     description=(
         "Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139):"
-        " medido hoy, con la fecha recalculada y un ETag nuevo. No anota una reposición. Las alertas abiertas que"
+        " medido hoy, con la fecha recalculada y un ETag nuevo. No anota una compra. Las alertas abiertas que"
         " con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar"
         " (y alerta.descartar), sin el stock. Solo admin y cuidador"
     ),
