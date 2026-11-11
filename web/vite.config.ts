@@ -17,7 +17,10 @@ function politicaDeContenido(): Plugin {
     // Solo la propia API, en el mismo origen.
     "connect-src 'self'",
     "base-uri 'none'",
-    "form-action 'none'",
+    // MATU-62 (4.5): el único formulario que se envía es el de «Pagar», a Webpay (integración y
+    // producción, las URL de backend/app/modules/payments/infrastructure/pasarela_transbank.py).
+    // Con 'none' el navegador bloqueaba la navegación a Transbank.
+    'form-action https://webpay3gint.transbank.cl https://webpay3g.transbank.cl',
     "object-src 'none'",
   ].join('; ')
   return {
