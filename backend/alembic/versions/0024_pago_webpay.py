@@ -46,6 +46,10 @@ i) La conservación (D-62-13, (c), separar por dinero): pedido_conservar se reem
    y CL-64, D-62-10), y las líneas, reglas, partes por comercio, entrega, línea de tiempo y claves se borran a los 30
    días. El trigger transaccion_sin_borrado y transicion_solo_insercion dejan borrar solo dentro de pedido_conservar
    (current_user matu_owner y app.conservacion = 'pedidos', que la función fija y limpia).
+   Cierre del analista: una venta autorizando también cuenta como dinero (observación 6: el commit pudo cobrar), y
+   no se borra; y un pedido con dinero que sigue abierto (borrador, total confirmado o vencido) y queda sin líneas
+   pasa a cancelado (observación 5: no deja a la persona con un pedido sin pagar vacío). Solo ese cambio de estado,
+   dentro de pedido_conservar, lo admite pedido_escritura_del_pago.
 j) pagos_por_conciliar(limite, cantidad), SECURITY DEFINER, solo para matu_scheduler y con app.rol = 'operacion'
    (D-62-5): las ventas autorizando, las iniciadas antes de limite y las anulaciones sin terminar, solo con su id y el
    grupo.
@@ -160,7 +164,7 @@ VIEJO = (
 )
 CON_DINERO = (
     "EXISTS (SELECT 1 FROM public.cargo c JOIN public.transaccion_pasarela t ON t.cargo_id = c.id"
-    " WHERE c.pedido_id = p.id AND t.tipo = 'venta' AND t.estado = 'aprobada')"
+    " WHERE c.pedido_id = p.id AND t.tipo = 'venta' AND t.estado IN ('aprobada', 'autorizando'))"
 )
 
 UPGRADE = f"""
@@ -323,6 +327,19 @@ DECLARE
     resto public.pedido%ROWTYPE;
     acotado boolean := app_rol() IN ('sistema', 'operacion') AND app_usuario() IS NULL;
 BEGIN
+    -- Observación 5: dentro de pedido_conservar, un pedido abierto con dinero que quedó sin líneas pasa a cancelado,
+    -- y nada más cambia
+    IF current_user = 'matu_owner' AND current_setting('app.conservacion', true) = 'pedidos'
+       AND OLD.pagado_en IS NULL AND OLD.estado IN ('borrador', 'total_confirmado', 'vencido')
+       AND NEW.estado = 'cancelado' THEN
+        resto := NEW;
+        resto.estado := OLD.estado;
+        resto.actualizado_en := OLD.actualizado_en;
+        IF resto IS DISTINCT FROM OLD THEN
+            RAISE EXCEPTION 'la conservación solo cancela el pedido vacío' USING ERRCODE = 'check_violation';
+        END IF;
+        RETURN NEW;
+    END IF;
     -- R5: con el pago, lo aceptado y la referencia quedan fijos
     IF OLD.pagado_en IS NOT NULL AND (NEW.condiciones_version, NEW.condiciones_aceptadas_en, NEW.condiciones_huella,
         NEW.condiciones_aceptadas_por, NEW.referencia) IS DISTINCT FROM (OLD.condiciones_version,
@@ -463,7 +480,7 @@ CREATE POLICY transaccion_operacion_editar ON transaccion_pasarela FOR UPDATE
 CREATE POLICY transaccion_resolver_pago ON transaccion_pasarela FOR SELECT TO matu_owner
     USING (app_rol() = 'sistema' AND app_grupo() IS NULL);
 CREATE POLICY transaccion_conservacion_borrar ON transaccion_pasarela FOR DELETE TO matu_owner
-    USING (app_rol() = 'operacion' AND estado <> 'aprobada');
+    USING (app_rol() = 'operacion' AND estado NOT IN ('aprobada', 'autorizando'));
 
 REVOKE DELETE ON cargo, participacion FROM matu_app;
 
@@ -471,7 +488,7 @@ REVOKE DELETE ON cargo, participacion FROM matu_app;
 CREATE FUNCTION transaccion_borrado_acotado() RETURNS trigger LANGUAGE plpgsql AS
 $$ BEGIN
     IF current_user = 'matu_owner' AND current_setting('app.conservacion', true) = 'pedidos'
-       AND OLD.estado <> 'aprobada' THEN
+       AND OLD.estado NOT IN ('aprobada', 'autorizando') THEN
         RETURN OLD;
     END IF;
     RAISE EXCEPTION 'el registro contable de la pasarela no se borra' USING ERRCODE = 'insufficient_privilege';
@@ -537,6 +554,10 @@ BEGIN
     DELETE FROM public.pedido_comercio pc USING public.pedido p
      WHERE pc.pedido_id = p.id AND {VIEJO} AND {CON_DINERO};
     DELETE FROM public.pedido_entrega e USING public.pedido p WHERE e.pedido_id = p.id AND {VIEJO} AND {CON_DINERO};
+    -- Observación 5: el pedido abierto que quedó sin líneas no sigue como el pedido sin pagar de la persona (C4)
+    UPDATE public.pedido p SET estado = 'cancelado'
+     WHERE {VIEJO} AND {CON_DINERO} AND p.estado IN ('borrador', 'total_confirmado', 'vencido')
+       AND NOT EXISTS (SELECT 1 FROM public.pedido_linea l WHERE l.pedido_id = p.id);
     DELETE FROM public.idempotencia i USING public.pedido p WHERE i.pedido_id = p.id AND {VIEJO} AND {CON_DINERO};
     DELETE FROM public.idempotencia WHERE expira_en <= ahora;
     GET DIAGNOSTICS idempotencias = ROW_COUNT;

@@ -3269,3 +3269,63 @@ def test_pedido_conservar_separa_por_dinero(cx):
     # Fuera de pedido_conservar, el registro contable sigue sin borrarse
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("DELETE FROM transaccion_pasarela WHERE cargo_id = %s", (cargo_con,))
+
+
+def _pedido_viejo(cx):
+    """Como superusuario: un pedido de otra persona de A con el total confirmado hace 40 días, con una línea."""
+    persona = cx.execute("INSERT INTO persona_cuidada (grupo_id, nombre, nombre_pila, nivel_apoyo)"
+                         " VALUES (%s, 'Eva Soto', 'Eva', 'apoyo_parcial') RETURNING id", (G_A,)).fetchone()[0]
+    pedido, confirmado_en = cx.execute(
+        "INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+        " total_confirmado_en, total_vence_en, creado_por) VALUES (%s, %s, 'total_confirmado', 12990, 2990, 15980,"
+        " now() - interval '40 days', now() - interval '40 days' + interval '15 minutes', %s)"
+        " RETURNING id, total_confirmado_en", (G_A, persona, U_ADMIN_A)).fetchone()
+    cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)"
+               " VALUES (%s, %s, %s, 1, 12990)", (pedido, OFERTA, PRODUCTO))
+    return pedido, confirmado_en
+
+
+def _conservar_a_40_dias(cx, *pedidos):
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = ANY(%s)", (list(pedidos),))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())")
+    cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-25")
+def test_pedido_conservar_cancela_el_pedido_abierto_con_dinero_que_queda_sin_lineas(cx):
+    """Observación 5 del cierre del analista: un pago tardío anulado de un pedido que siguió abierto (total confirmado)
+    deja, a los 30 días, el pedido sin líneas: pasa a cancelado y no queda como el pedido sin pagar de la persona."""
+    pedido, confirmado_en = _pedido_viejo(cx)
+    cargo, participacion, venta = _venta(cx, pedido, confirmado_en)
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', anulacion_total = true WHERE id = %s", (venta,))
+    cx.execute("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+               " estado, idempotency_key, venta_id, motivo_anulacion) VALUES (%s, %s, 'webpay_plus', 'anulacion', %s,"
+               " 15980, 'aprobada', %s, %s, 'pago_tardio')", (participacion, cargo, "y" * 26, "k-y", venta))
+
+    _conservar_a_40_dias(cx, pedido)
+
+    assert cx.execute("SELECT estado, pagado_en FROM pedido WHERE id = %s", (pedido,)).fetchone() == ("cancelado", None)
+    assert contar(cx, "pedido_linea", f"pedido_id = '{pedido}'") == 0
+    assert contar(cx, "transaccion_pasarela", f"cargo_id = '{cargo}'") == 2
+    # Fuera de pedido_conservar, operación no cancela un pedido así
+    pedido_2, _ = _pedido_viejo(cx)
+    como(cx, rol="operacion")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (pedido_2,))
+
+
+@pytest.mark.rf("RF-25")
+def test_una_venta_autorizando_cuenta_como_dinero_y_no_se_borra(cx):
+    """Observación 6: el commit de una venta autorizando pudo cobrar; su pedido y su venta se conservan."""
+    pedido, confirmado_en = _pedido_viejo(cx)
+    cargo, _, venta = _venta(cx, pedido, confirmado_en, estado="autorizando")
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (pedido,))
+
+    _conservar_a_40_dias(cx, pedido)
+
+    assert contar(cx, "pedido", f"id = '{pedido}'") == 1
+    assert contar(cx, "transaccion_pasarela", f"id = '{venta}'") == 1
+    assert contar(cx, "cargo", f"id = '{cargo}'") == 1
