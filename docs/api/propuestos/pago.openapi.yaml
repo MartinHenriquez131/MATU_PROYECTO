@@ -1,9 +1,12 @@
 openapi: 3.1.0
 info:
   title: MATU API · Pago (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.1.0-implementado
   summary: Cobrar el total exacto confirmado con Webpay Plus en venta normal, la vuelta de Webpay, el estado del pago y su comprobante (MATU-62, ADR-027).
   description: |
+    **Implementado en MATU-62 (11-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `pedido.openapi.yaml`.
+
     Contrato **propuesto** de MATU-62, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con:
     - las decisiones **D-62-1 a D-62-17** de la segunda revisión previa del analista normativo
