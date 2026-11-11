@@ -20,8 +20,10 @@ from typing import Annotated, Any
 from urllib.parse import parse_qs, urlencode
 
 from fastapi import APIRouter, Depends, Request, Response
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.routing import Match
+from starlette.types import Scope
 
 from app.core.config import obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
@@ -41,13 +43,28 @@ from app.modules.payments.infrastructure.sistema import AbrirGrupoSQL, ResolverV
 from app.shared.puertos import Reloj
 
 router = APIRouter(tags=["retorno"])
-router_formulario = APIRouter()
+
+
+class _SoloPost(APIRoute):
+    """Una ruta que calza solo con POST. Con otro método no calza ni a medias (sin 405): el GET de la misma dirección,
+    la return_url de Webpay, sigue a la app de familia, que entrega el index.html (decisiones 115 y 231)."""
+
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        coincide, hijo = super().matches(scope)
+        if coincide is Match.PARTIAL:
+            return Match.NONE, {}
+        return coincide, hijo
+
+
+router_formulario = APIRouter(route_class=_SoloPost)
 
 ROLES_CON_CONTEXTO = frozenset({"admin", "cuidador", "pagador"})
 
 _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
 
-_bearer_opcional = HTTPBearer(auto_error=False)
+# La sesión es opcional (decisión 234): la cabecera se lee a mano, sin HTTPBearer, para que el OpenAPI declare una sola
+# vez security: [{}, {HTTPBearer: []}] (openapi_extra), sin el HTTPBearer que FastAPI agregaría por la dependencia
+_ESQUEMA = "bearer "
 
 
 def obtener_resolver(fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)]) -> ResolverVenta:
@@ -62,15 +79,16 @@ def obtener_abrir_grupo(
 
 
 def usuario_opcional(
-    credenciales: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_opcional)],
+    request: Request,
     emisor: Annotated[EmisorTokens, Depends(obtener_emisor_tokens)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
 ) -> uuid.UUID | None:
     """La cuenta de la sesión, o None. Un token inválido o vencido cuenta como sin sesión: la vuelta no responde 401."""
-    if credenciales is None:
+    cabecera = request.headers.get("Authorization", "")
+    if not cabecera.lower().startswith(_ESQUEMA) or not cabecera[len(_ESQUEMA) :].strip():
         return None
     try:
-        return leer_acceso(credenciales.credentials, emisor, reloj).sub
+        return leer_acceso(cabecera[len(_ESQUEMA) :].strip(), emisor, reloj).sub
     except TokenInvalido:
         return None
 

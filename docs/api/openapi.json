@@ -6825,9 +6825,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {},
           {
             "HTTPBearer": []

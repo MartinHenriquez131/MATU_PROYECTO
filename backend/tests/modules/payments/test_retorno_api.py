@@ -8,6 +8,7 @@
 
 import io
 import json
+import logging
 import secrets
 from collections.abc import Iterator
 from typing import Any
@@ -212,3 +213,53 @@ def test_el_post_de_transbank_no_llama_a_transbank_ni_esta_en_openapi(
     _formulario(cliente, f"token_ws={venta.token}")
     assert escena.pasarela.llamadas == llamadas and escena.ventas()[0].estado.value == "iniciada"
     assert "/insumos/pedido/pago" not in cliente.get("/openapi.json").json()["paths"]
+
+
+# --- Decisión 235: la vuelta por la dirección no deja el token en los logs ------------------------------------------
+
+TOKEN_SINTETICO = "abcdef0123456789" * 4
+
+
+@pytest.fixture
+def app_con_dist(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, io.StringIO]]:
+    """La app de familia con un build sintético: GET /insumos/pedido/pago entrega su index.html."""
+    from app.core import config
+
+    (tmp_path / "index.html").write_text("<!doctype html><title>MATU</title>", encoding="utf-8")
+    monkeypatch.setenv("WEB_DIST", str(tmp_path))
+    config.obtener_configuracion.cache_clear()
+    salida = io.StringIO()
+    try:
+        app = crear_app(stream_logs=salida)
+    finally:
+        config.obtener_configuracion.cache_clear()
+    with TestClient(app, raise_server_exceptions=False) as cliente:
+        yield cliente, salida
+
+
+def test_el_get_de_la_pantalla_con_token_ws_no_lo_deja_en_los_logs(
+    app_con_dist: tuple[TestClient, io.StringIO], caplog: pytest.LogCaptureFixture
+) -> None:
+    cliente, salida = app_con_dist
+    with caplog.at_level(logging.DEBUG):
+        respuesta = cliente.get(f"/insumos/pedido/pago?token_ws={TOKEN_SINTETICO}")
+    assert respuesta.status_code == 200 and "MATU" in respuesta.text
+    assert TOKEN_SINTETICO not in salida.getvalue()
+    assert all(TOKEN_SINTETICO not in r.getMessage() and TOKEN_SINTETICO not in str(r.__dict__) for r in caplog.records)
+    lineas = [x for x in _lineas(salida) if x.get("mensaje") == "peticion"]
+    assert lineas and all("?" not in str(x.get("ruta")) for x in lineas)
+
+
+def test_el_post_de_transbank_con_tbk_no_deja_los_valores_en_los_logs(
+    api: tuple[TestClient, io.StringIO], caplog: pytest.LogCaptureFixture
+) -> None:
+    cliente, salida = api
+    orden, sesion = "orden" + TOKEN_SINTETICO[:20], "sesion" + TOKEN_SINTETICO[:30]
+    with caplog.at_level(logging.DEBUG):
+        respuesta = _formulario(
+            cliente, f"TBK_TOKEN={TOKEN_SINTETICO}&TBK_ORDEN_COMPRA={orden}&TBK_ID_SESION={sesion}"
+        )
+    assert respuesta.status_code == 303 and TOKEN_SINTETICO in respuesta.headers["location"]
+    for valor in (TOKEN_SINTETICO, orden, sesion):
+        assert valor not in salida.getvalue()
+        assert all(valor not in r.getMessage() and valor not in str(r.__dict__) for r in caplog.records)
