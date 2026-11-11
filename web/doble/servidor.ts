@@ -53,7 +53,7 @@ const TELEFONOS: Campos = {
   manejo_situaciones: { texto: 'Le hace bien que la llame su hermana al 9 5555 0177 a las 18:00' },
   red_apoyo: {
     texto:
-      'Rodrigo, su hijo: +56 9 5555 0141\nAna, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123\nConsultorio: +56955550199',
+      'Rodrigo, su hijo: +56 9 5555 0141\nAna, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123\nConsultorio: +56955550199\nSu hermana: +56-9-5555-0177',
   },
 }
 

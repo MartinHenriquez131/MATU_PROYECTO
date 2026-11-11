@@ -13,7 +13,7 @@ export const ESCENARIOS: Escenario[] = [
   { token: 'ejemplo-tres-campos', que: 'PIN 4821: ficha con los tres campos (Su día con horas, Si se altera corrido, A quién llamar sin completar). Cada PIN incorrecto descuenta un intento; el quinto bloquea' },
   { token: 'ejemplo-con-secciones', que: 'PIN 4821: los tres campos y dos secciones compartidas (Quién es y Cómo hablarle), sin Sus remedios (MATU-50)' },
   { token: 'ejemplo-con-remedios', que: 'PIN 4821: los tres campos y las seis secciones, con Sus remedios y su aviso antes del texto (MATU-50)' },
-  { token: 'ejemplo-telefonos', que: 'PIN 4821: teléfonos dentro del texto (3.11.4): junto a una hora, sin separadores, con guion, dentro de la línea de tiempo y en una sección; un monto y una fecha que no son teléfonos' },
+  { token: 'ejemplo-telefonos', que: 'PIN 4821: teléfonos dentro del texto (3.11.4): junto a una hora, sin separadores, con guion entre el prefijo y el resto («+56-9-5555-0177»), dentro de la línea de tiempo y en una sección con paréntesis; un monto y una fecha que no son teléfonos' },
   { token: 'ejemplo-un-campo', que: 'PIN 4821: ficha con un solo campo (A quién llamar)' },
   { token: 'ejemplo-quedan-3', que: 'Cualquier PIN distinto de 4821: «Te quedan 3 intentos»' },
   { token: 'ejemplo-quedan-1', que: 'Cualquier PIN distinto de 4821: «Te queda 1 intento». 4821 abre la ficha' },
