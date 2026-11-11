@@ -1,0 +1,1576 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Pago (propuesto)
+  version: 0.1.0-propuesto
+  summary: Cobrar el total exacto confirmado con Webpay Plus en venta normal, la vuelta de Webpay, el estado del pago y su comprobante (MATU-62, ADR-027).
+  description: |
+    Contrato **propuesto** de MATU-62, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
+    regla 1), con:
+    - las decisiones **D-62-1 a D-62-17** de la segunda revisión previa del analista normativo
+      (`docs/legal/revision-previa-matu-62-segunda.md` del repositorio MATU, sección 7, tomadas por el
+      orquestador el 11-11 por delegación de Jorge) y sus textos (sección 5.4);
+    - lo que pide la especificación del diseñador (`docs/diseno/matu-62-pago.md`, sección 3);
+    - las respuestas del orquestador, por delegación de Jorge, a los puntos abiertos **P1 a P5** del
+      diseñador (README, decisiones 231, 234, 237, 238 y 240).
+
+    Las decisiones de este contrato son las **223 a 247** de `docs/api/README.md`, sección "MATU-62". Se
+    apila sobre MATU-61 (`pedido.openapi.yaml`, decisiones 188 a 222, ya en `openapi.json`).
+
+    **Qué cubre:**
+    - `POST /v1/pedidos/{pedido_id}/pagar`: acepta las condiciones, crea o reutiliza el cargo, abre la venta
+      en Webpay Plus y devuelve la `url` y el `token` (D-62-8, D-62-11, D-62-12, D-62-15, D-62-16).
+    - **La vuelta de Webpay** (P1): la `return_url` es la pantalla de la app `/insumos/pedido/pago`, que lee
+      lo que trajo la dirección, lo borra con `history.replaceState` y lo manda a `POST /v1/pagos/retorno`,
+      público e idempotente por token, que hace el `commit` y responde el `resultado`. Si Transbank vuelve
+      por POST, `POST /insumos/pedido/pago` (fuera de `/v1`) lo convierte en un 303 a la misma pantalla.
+    - `GET /v1/pedidos/{pedido_id}/pago` y `GET /v1/personas-cuidadas/{persona_id}/pedido-pagado` (P2): el
+      estado del pago, las devoluciones y el comprobante (R4, D-62-2, D-62-7).
+    - Cambios a rutas de `openapi.json`: el 409 **`pago-en-curso`** en las rutas de MATU-61 que cambian el
+      pedido (D-62-4, regla 1), `pago_en_curso` en `PedidoVista`, la devolución en cada línea y `GET
+      /v1/condiciones-pedido?version=` (P4).
+
+    **Reglas de ADR-027 que este contrato sostiene:** se cobra **una sola vez** el total confirmado
+    (productos a precio exacto con IVA más un envío único), que vale 15 minutos. Crédito, débito y prepago
+    funcionan igual: **ningún cálculo distingue el medio**, y las cuotas son del banco, no de MATU (P5). La
+    única devolución es la **anulación** (total o parcial) a la misma tarjeta. **Nunca se cobra más de lo
+    que la familia vio** (`If-Match` en `pagar`, decisión 226) ni se cambia un producto por otra marca.
+
+    **Capa 3** (decisión 104): `pagar`, `…/pago` y `…/pedido-pagado` van en `ROUTERS_CAPA_3`. **La vuelta
+    (`POST /v1/pagos/retorno` y `POST /insumos/pedido/pago`) y la conciliación no se apagan** con la capa
+    (D-62-17, decisión 241): un pago que el banco ya aprobó se registra o se anula aunque la capa 3 se
+    apague con la venta en curso.
+
+    **Contexto de la familia.** Las rutas con sesión usan `bearerAuth` y `X-Grupo-Id` con
+    `sesion_de_grupo`. Un pedido o una persona de otro grupo, un rol que no alcanza o un id que no es UUID
+    responden **404**, nunca 403 (CLAUDE.md, agente 2, punto 4). El único 403 es la autorización
+    `despacho` no vigente, en `pagar`.
+
+    **`Cache-Control: no-store` en todas las respuestas**, 2xx, 3xx y errores (verificado con un script
+    sobre este archivo: 0 respuestas sin la cabecera).
+
+    **Lo que nunca sale ni se registra** (decisión 247): `token_ws`, `TBK_TOKEN`, el `buy_order`, el
+    `session_id`, la respuesta de Transbank (`payload_respuesta`, siempre nulo, D-62-9), el código de
+    autorización, los últimos 4, las cuotas, el tipo de tarjeta y el correo de quien paga nunca van a logs,
+    errores, auditoría, eventos ni a la URL final de la app. **MATU nunca recibe ni guarda datos de
+    tarjeta**: solo lo que Transbank devuelve en el `commit`. Ninguna respuesta lleva el `buy_order`, el
+    `session_id` ni el número de tarjeta.
+
+    Los componentes comunes (`ErrorCampo`, `Problema`, `ProblemaValidacion`, `XGrupoId`, `PersonaId`,
+    `PedidoId`, `IdempotencyKey`, `IfMatchPedido`, `bearerAuth`, `XRequestId`, `CacheControlNoStore`,
+    `WWWAuthenticateBearer`, `ETagPedido` y `ProductoPedido`) son copias idénticas de
+    `pedido.openapi.yaml`. La descripción de `CacheControlNoStore` habla de la ficha y del relevo, y aquí
+    vale igual para el pago.
+
+    Todos los datos de los ejemplos son sintéticos. Los tokens de los ejemplos no son de Transbank.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: pago
+    description: Cobro único del total confirmado con Webpay Plus, venta normal (capa 3, MATU-62)
+  - name: retorno
+    description: La vuelta de Webpay, sin sesión obligatoria (MATU-62)
+
+paths:
+  /v1/pedidos/{pedido_id}/pagar:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [pago]
+      operationId: pagarPedido
+      summary: Aceptar las condiciones y abrir el pago del total confirmado en Webpay
+      description: |
+        Decisiones 224 a 230 (D-62-8, D-62-11, D-62-12, D-62-15 y D-62-16; arquitectura 8.4).
+
+        **Quién:** `admin` y `pagador` (D-62-8, arquitectura 11.2). `cuidador`, `observador`, otro grupo,
+        un pedido inexistente o de una persona eliminada: **404**. Pide la autorización `despacho` vigente:
+        sin ella, **403** `sin-autorizacion-pedidos`, o `revision-vencida`, con `finalidad: despacho`.
+
+        **El total tiene que estar vigente** según el `Reloj`: `total_confirmado` con `total_vence_en >
+        ahora`. Con el total vencido (aunque la fila diga `total_confirmado`), **409** `estado-pedido` con
+        `estado: vencido`: **no se llama a la pasarela, no se crea la venta y el pedido no cambia**
+        (D-62-15). `pagar` no guarda `total_confirmado → vencido`: la guarda la siguiente escritura de admin o
+        cuidador (decisión 204). En `borrador`, `pagado`, `cancelado` u otro estado, **409** `estado-pedido`
+        con ese estado.
+
+        **Lo que la familia vio es lo que se cobra** (decisión 226). `If-Match` con el `etag` del pedido que
+        la pantalla mostró es **obligatorio**: si otra persona volvió a confirmar el total, cambió el teléfono
+        o una regla desde que se leyó, **412** `version-desactualizada` con el pedido vigente en `actual`, y no
+        se cobra nada. Sin `If-Match`, vacío o `*`: **428** `falta-version`.
+
+        **Las condiciones** (R5, D6, D-62-16, decisión 227). El cuerpo trae `acepta_condiciones: true` (la
+        casilla que marca quien paga) y la `version` y la `huella` de las condiciones que la pantalla mostró
+        (`PedidoVista.resumen.condiciones`). Si no son las publicadas en `GET /v1/condiciones-pedido`,
+        **409** `condiciones-cambiaron`, con la versión vigente: la pantalla desmarca la casilla y vuelve a
+        leer el resumen. Si son, guarda en el pedido `condiciones_version`, `condiciones_huella`,
+        `condiciones_aceptadas_en` (el instante del `Reloj`) y `condiciones_aceptadas_por` (quien toca
+        «Pagar»). Un intento nuevo las vuelve a escribir; con el pedido pagado quedan fijas.
+
+        **Qué hace** (decisión 228):
+        1. En una transacción, con el pedido bloqueado y un solo instante del `Reloj`: verifica todo lo
+           anterior y que no haya un pago en curso; guarda la aceptación; crea el **cargo** del pedido, o
+           reutiliza el que hay si está `pendiente` o `rechazado` (un cargo por pedido, D-62-11); crea o
+           reutiliza la **participación** de quien paga por el total (un solo pagador); y crea la **venta**
+           (`transaccion_pasarela`, `tipo = venta`, `estado = iniciada`) con `monto = total` y el mismo
+           `total_confirmado_en` del pedido (D-62-4: la venta queda atada al total que se aceptó), un
+           `buy_order` y un `session_id` aleatorios, que no derivan de ningún id ni dato de nadie.
+        2. Llama a `create(buy_order, session_id, monto, return_url)` de Webpay Plus, **venta normal**.
+           `return_url` es la URL absoluta de la pantalla `/insumos/pedido/pago` (P1, decisión 231).
+           Transbank recibe solo el monto y esos dos valores.
+        3. Guarda el `token` de la venta (único) y responde **201** con la `url` y el `token`.
+
+        Si Webpay no responde o falla el `create`: **503** `pasarela-no-disponible`, la venta queda en
+        `error` (no es un pago en curso), el cargo queda `pendiente` y **no se cobró nada**.
+
+        **Un solo pago en curso por pedido** (D-62-4, regla 1, decisión 230): con una venta `iniciada`
+        vigente o `autorizando`, **409** `pago-en-curso`. No se crea otra venta.
+
+        **`Idempotency-Key` obligatoria** (D-62-12, decisión 229), con las reglas de MATU-61 (decisión 195):
+        sin ella, **428** `falta-idempotencia`; la misma clave con otro cuerpo o de otra cuenta, **422**
+        `idempotencia-reutilizada`; mientras la primera no termina, **409** `idempotencia-en-curso`. La misma
+        clave con el mismo cuerpo responde **201** con la venta de esa clave **tal como está ahora**: mientras
+        siga `iniciada` y vigente, la misma `url` y el mismo `token` (un doble toque no abre dos ventas); si
+        ya terminó, `url` y `token` en `null`. Un 503 no se guarda en la clave.
+
+        No sube la versión del pedido (`etag`). Registra `pago.iniciar` en la auditoría, sin montos ni datos
+        de la pasarela (decisión 244).
+
+        Orden: 401, 404, 403, 428, 422 (forma), idempotencia, 409 `estado-pedido`, 409 `pago-en-curso`, 412,
+        409 `condiciones-cambiaron`, 503 y 201.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatchPedido'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPago'
+            example:
+              acepta_condiciones: true
+              condiciones:
+                version: '0.2'
+                huella: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      responses:
+        '201':
+          description: |
+            La venta quedó abierta en Webpay. La pantalla arma un formulario oculto `method="post"`,
+            `action={url}`, con el campo `token_ws` = `token`, y lo envía en la misma pestaña (diseño 4.5).
+            **El token nunca va en la URL de la app**, ni a `localStorage`, `sessionStorage` o
+            `history.state`: vive solo en la memoria de ese toque.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Location:
+              description: '`/v1/pedidos/{pedido_id}/pago`, el estado del pago.'
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InicioPago'
+              examples:
+                abierta:
+                  summary: Venta abierta, lista para ir a Webpay
+                  value:
+                    intento_id: 4c3b2a10-0000-4000-8000-0000000000f1
+                    estado: iniciada
+                    monto: 57460
+                    total_confirmado_en: '2026-11-12T14:02:11Z'
+                    url: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+                    token: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+                repetidaTerminada:
+                  summary: La misma clave, con la venta ya terminada
+                  value:
+                    intento_id: 4c3b2a10-0000-4000-8000-0000000000f1
+                    estado: aprobada
+                    monto: 57460
+                    total_confirmado_en: '2026-11-12T14:02:11Z'
+                    url: null
+                    token: null
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPago'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPago'
+        '409':
+          description: |
+            `/errores/estado-pedido` (con `estado`; con el total vencido, `vencido`),
+            `/errores/pago-en-curso`, `/errores/condiciones-cambiaron` (con `version_vigente`) o
+            `/errores/idempotencia-en-curso`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProblemaEstadoPedido'
+                  - $ref: '#/components/schemas/ProblemaPagoEnCurso'
+                  - $ref: '#/components/schemas/ProblemaCondicionesCambiaron'
+                  - $ref: '#/components/schemas/ProblemaIdempotenciaEnCurso'
+              examples:
+                vencido:
+                  summary: El total venció (D-62-15)
+                  value:
+                    type: /errores/estado-pedido
+                    title: El pedido no permite esta acción
+                    status: 409
+                    detail: El total de este pedido ya no está vigente
+                    errores: []
+                    request_id: 9b2f4c1e-0000-4000-8000-0000000000e5
+                    estado: vencido
+                enCurso:
+                  summary: Ya hay una venta en curso para este pedido
+                  value:
+                    type: /errores/pago-en-curso
+                    title: Hay un pago en curso
+                    status: 409
+                    detail: Ya hay un pago en curso para este pedido
+                    errores: []
+                    request_id: 9b2f4c1e-0000-4000-8000-0000000000e6
+                condiciones:
+                  summary: Se publicó otra versión de las condiciones
+                  value:
+                    type: /errores/condiciones-cambiaron
+                    title: Las condiciones cambiaron
+                    status: 409
+                    detail: Las condiciones del pedido cambiaron
+                    errores: []
+                    request_id: 9b2f4c1e-0000-4000-8000-0000000000e7
+                    version_vigente: '0.3'
+        '412':
+          $ref: '#/components/responses/VersionPedido'
+        '422':
+          $ref: '#/components/responses/ValidacionPago'
+        '428':
+          $ref: '#/components/responses/FaltaPrecondicion'
+        '503':
+          $ref: '#/components/responses/PasarelaNoDisponible'
+
+  /v1/pagos/retorno:
+    post:
+      tags: [retorno]
+      operationId: retornoWebpay
+      security:
+        - {}
+        - bearerAuth: []
+      summary: La vuelta de Webpay que manda la app; hace el commit y responde el resultado
+      description: |
+        Decisiones 231 a 235. **La llama la app** desde `/insumos/pedido/pago` (la `return_url`, P1), con lo
+        que trajo la dirección, **después de borrarlo** con `history.replaceState`. Es pública: la sesión es
+        **opcional** (P3, decisión 234), sin `X-Grupo-Id`. Es **idempotente por token** (D-62-12): la app la
+        puede repetir con el mismo cuerpo mientras el resultado sea `pendiente` (diseño 7.3, cada 15
+        segundos y con «Revisar ahora»), y después de un error de red.
+
+        **Qué trae y qué hace** (los nombres son los de Transbank, decisión 232):
+
+        | Trae | Caso | Qué hace MATU | `resultado` |
+        |---|---|---|---|
+        | `token_ws` de una venta `iniciada` | La persona pagó o el banco no aprobó | Pasa la venta a `autorizando` y hace `commit(token)`. Ver la tabla de abajo | según el `commit` |
+        | `token_ws` de una venta que ya no está `iniciada` | **Retorno repetido** (recarga, atrás) | **No llama a Transbank** ni cambia nada; `ya_registrado: true`. Con la venta en `autorizando`, reintenta el `commit` como mucho una vez cada 10 segundos (decisión 233) | el guardado |
+        | `TBK_TOKEN` (con `TBK_ORDEN_COMPRA` y `TBK_ID_SESION`, con o sin `token_ws`) | **La persona anuló** en Webpay, o hubo un error en el formulario | **No hace `commit`.** Consulta `status(token)`: si no está aprobada, cierra la venta `rechazada` con motivo `usuario_salio` | `abandonado` |
+        | Solo `TBK_ORDEN_COMPRA` y `TBK_ID_SESION` | **Se acabó el tiempo** del formulario de Webpay | Busca la venta por `buy_order` **y** `session_id` (los dos deben calzar), consulta `status` y, si no está aprobada, la cierra con motivo `formulario_vencido` | `tiempo_agotado` |
+        | Valores que no son de ninguna venta de MATU | Desconocido | **No llama a Transbank** ni escribe nada | **404** |
+
+        **Resultado del `commit`**, escrito en **una sola transacción** con el cambio de estado y el evento
+        del outbox (arquitectura 8.4):
+
+        | Transbank | Pedido | Qué queda | `resultado` |
+        |---|---|---|---|
+        | `AUTHORIZED`, `response_code = 0` | `total_confirmado` con el **mismo** `total` y `total_confirmado_en` de la venta, vigente | **Regla 2 de D-62-4.** Venta `aprobada` (tipo de tarjeta, últimos 4, cuotas y código), participación y cargo `pagado`, pedido `pagado` con `pagado_en`. Evento `pedido.pagado` | `aprobado` |
+        | Igual | Igual, pero el total **venció** mientras se pagaba (`vencido`, o `total_confirmado` con `total_vence_en <= ahora`) | Lo mismo: se respeta, `vencido → pagado` (si la fila decía `total_confirmado`, antes se guarda `→ vencido`, decisión 204) | `aprobado_tardio` |
+        | Igual | **Otro** total (se volvió a confirmar o se cambió el pedido), `cancelado` (también por el retiro de `despacho` o el borrado), o ya `pagado` por otra venta | **Regla 3 de D-62-4.** Venta `aprobada` y, en el mismo momento, la **anulación total** a la misma tarjeta (`tipo = anulacion`), con reintentos y alerta a operación si falla (D-62-6). **El pedido no cambia.** El cargo pasa a `rechazado` si no le queda otra venta en curso | `anulado`, con `anulacion` |
+        | Otro `response_code`, o `FAILED` | Cualquiera | Venta `rechazada` (motivo `no_aprobada`); el cargo pasa a `rechazado` si no le queda otra venta en curso | `no_aprobado` |
+        | Sin respuesta, error o tiempo agotado | Cualquiera | La venta queda `autorizando`. **La conciliación** consulta `status(token)` cada 5 minutos y la cierra con estas mismas reglas (D-62-5), en menos de 15 minutos | `pendiente` |
+
+        Dos retornos simultáneos del mismo token hacen **un solo** `commit` y dejan **un solo** cobro: la
+        venta se busca por su `token` (único) y se bloquea antes de tocarla; el segundo `commit` de
+        Transbank no falla y devuelve la misma venta (prueba del 10-11). Una sola venta aprobada y no anulada
+        por cargo (restricción de la migración de MATU-62).
+
+        **Con y sin sesión** (P3, decisión 234). Siempre responde `resultado`, `ya_registrado` y `anulacion`,
+        **sin montos ni tarjeta**. Con una sesión válida de una cuenta que es miembro activo del grupo del
+        pedido con rol `admin`, `cuidador` o `pagador`, suma `grupo_id`, `persona_cuidada_id` y `pedido_id`,
+        para que la app fije el grupo y la persona en memoria y lea el pago (`GET …/pago`). Sin sesión, o
+        de otra cuenta, esos tres van en `null` y la pantalla ofrece «Entrar» (diseño 7.10). Un token
+        inválido en `Authorization` se trata como sin sesión: la vuelta nunca responde 401.
+
+        **Sin datos en logs** (decisión 235): ni el cuerpo, ni el `buy_order`, ni la respuesta de Transbank.
+        La línea de la petición lleva la plantilla `/v1/pagos/retorno`, el estado y, como mucho, el caso
+        (`caso=commit|repetido|usuario_salio|formulario_vencido|desconocido`). Sin `X-Grupo-Id` ni CSRF: no
+        confía en nada salvo en un token o un par `buy_order`/`session_id` que MATU creó, y el resultado lo
+        da Transbank. **No se apaga con la capa 3** (decisión 241).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudRetorno'
+            examples:
+              normal:
+                summary: Lo que trajo la dirección en la vuelta normal
+                value:
+                  token_ws: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      responses:
+        '200':
+          description: El resultado del pago.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoRetorno'
+              examples:
+                aprobadoConSesion:
+                  summary: Aprobado, con la sesión de quien pagó
+                  value:
+                    resultado: aprobado
+                    ya_registrado: false
+                    anulacion: null
+                    volver_a_preguntar_en: null
+                    grupo_id: 5a7c9e10-0000-4000-8000-0000000000a1
+                    persona_cuidada_id: 7d1e2f30-0000-4000-8000-000000000001
+                    pedido_id: 9e8d7c60-0000-4000-8000-0000000000d1
+                pendienteSinSesion:
+                  summary: Sin respuesta de Transbank todavía, sin sesión
+                  value:
+                    resultado: pendiente
+                    ya_registrado: false
+                    anulacion: null
+                    volver_a_preguntar_en: 15
+                    grupo_id: null
+                    persona_cuidada_id: null
+                    pedido_id: null
+        '404':
+          $ref: '#/components/responses/NoEncontradoPago'
+        '422':
+          $ref: '#/components/responses/ValidacionPago'
+
+  /insumos/pedido/pago:
+    post:
+      tags: [retorno]
+      operationId: retornoWebpayFormulario
+      security: []
+      x-matu-fuera-de-openapi-json: true
+      summary: Cuando Transbank vuelve por POST a la return_url, un 303 a la misma pantalla
+      description: |
+        Decisión 231 (P1). **Fuera de `/v1`**, como `GET /r` (`app/core/web.py`): no entra en
+        `openapi.json` y se declara aquí para que el frontend y la QA sepan que existe. La `return_url` es
+        `/insumos/pedido/pago`, una pantalla de la app: por **GET**, el servidor entrega el `index.html` de la
+        app (decisión 115) y la pantalla lee la query. Transbank vuelve por **POST** en algunos casos (por
+        ejemplo, al anular en el formulario), y un POST a una ruta de la app hoy responde 404. Esta ruta lo
+        recibe y responde **303** a `/insumos/pedido/pago`, con los mismos valores **en el fragmento**
+        (`#token_ws=…` o `#TBK_TOKEN=…&TBK_ORDEN_COMPRA=…&TBK_ID_SESION=…`), que nunca llega a un servidor ni
+        a un log. La pantalla lee la query o el fragmento, lo borra con `history.replaceState` y sigue igual
+        que por GET. **No llama a Transbank ni escribe nada**: el `commit` lo hace `POST /v1/pagos/retorno`.
+
+        Solo pasa al fragmento los cuatro campos de Transbank, con su largo máximo y caracteres
+        `[A-Za-z0-9_-]`; cualquier otro campo o valor se descarta, y sin ninguno válido el 303 va sin
+        fragmento. No registra el cuerpo. Lleva `Referrer-Policy: no-referrer`. No se apaga con la capa 3.
+
+        La pantalla por GET con `?token_ws=…`: el log de acceso de uvicorn está apagado y la línea de la
+        petición registra la plantilla sin query (`app/core/logs.py`), así que el token tampoco queda en los
+        logs. La URL final, después de `replaceState`, es `/insumos/pedido/pago` sin nada.
+      requestBody:
+        required: false
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SolicitudRetorno'
+      responses:
+        '303':
+          description: A la pantalla de la vuelta, con los valores en el fragmento.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicyNoReferrer'
+            Location:
+              required: true
+              description: '`/insumos/pedido/pago`, con o sin fragmento. Nunca con query.'
+              schema:
+                type: string
+                pattern: '^/insumos/pedido/pago(#[A-Za-z0-9_=&-]*)?$'
+
+  /v1/pedidos/{pedido_id}/pago:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [pago]
+      operationId: leerPago
+      summary: El estado del pago del pedido, sus devoluciones y el comprobante
+      description: |
+        Decisiones 236, 238 y 239 (R4, D-62-2, D-62-7).
+
+        | Rol | Respuesta |
+        |---|---|
+        | `admin`, `cuidador`, `pagador` | `PagoVista`: estado, si hay un pago en curso, el último intento y, pagado, el comprobante. **La tarjeta, el código de autorización y el correo solo si quien lee es quien pagó** (`pagaste_tu`); para los demás, `null` |
+        | `observador` | `PagoVistaObservador`: solo `estado` (`pagado` o `sin_pagar`). DTO distinto (decisión 127) |
+        | otro grupo, pedido inexistente o de una persona eliminada | **404** |
+
+        Un pedido sin cargo responde **200** con `estado: sin_intento`. La usa la pantalla de la vuelta
+        después de `POST /v1/pagos/retorno` (con `pedido_id` en memoria) y «Ver el comprobante». No pide la
+        autorización `despacho`: la familia siempre puede ver lo que pagó. Las lecturas no se auditan
+        (decisión 52). Capa 3.
+      responses:
+        '200':
+          description: El estado del pago, con la vista del rol.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PagoVista'
+                  - $ref: '#/components/schemas/PagoVistaObservador'
+              examples:
+                aprobadoQuienPago:
+                  $ref: '#/components/examples/PagoAprobadoQuienPago'
+                observador:
+                  summary: Lo que ve el observador
+                  value:
+                    pedido_id: 9e8d7c60-0000-4000-8000-0000000000d1
+                    estado: pagado
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPago'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPago'
+        '422':
+          $ref: '#/components/responses/ValidacionPago'
+
+  /v1/personas-cuidadas/{persona_id}/pedido-pagado:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [pago]
+      operationId: leerPedidoPagado
+      summary: El último pedido pagado de la persona, con su comprobante
+      description: |
+        Decisión 237 (P2 del diseñador, decidida por el orquestador). Las rutas de la app no llevan ids
+        (C18) y `…/pedido-en-curso` devuelve solo pedidos sin pagar (decisión 197). Esta lectura da el
+        **último pedido pagado** de la persona (el de `pagado_en` más reciente, en cualquier estado desde
+        `pagado`, también `cancelado_con_devolucion`), para el bloque «Pedido pagado» de la pestaña «Pedido»
+        (diseño 8) y para la pantalla del comprobante al recargar (diseño 2.1). MATU-63 la reemplaza por el
+        seguimiento.
+
+        Mismos roles y vistas que `GET /v1/pedidos/{pedido_id}/pago`: `admin`, `cuidador` y `pagador`
+        reciben `PagoVista`; el `observador`, `PagoVistaObservador` (solo `estado: pagado`). Sin pedido
+        pagado, otro grupo o persona inexistente o eliminada: **404**. No pide la autorización `despacho`.
+        Capa 3.
+      responses:
+        '200':
+          description: El último pedido pagado, con la vista del rol.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PagoVista'
+                  - $ref: '#/components/schemas/PagoVistaObservador'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPago'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPago'
+        '422':
+          $ref: '#/components/responses/ValidacionPago'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+    PedidoId:
+      name: pedido_id
+      in: path
+      required: true
+      description: |
+        Pedido. Si no es un UUID, no existe, es de otro grupo o de una persona eliminada, responde
+        **404**, nunca 403.
+      schema:
+        type: string
+        format: uuid
+      example: 9e8d7c60-0000-4000-8000-0000000000d1
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        **Obligatoria** (arquitectura 9.1). Se declara `required: false` porque su falta la responde la
+        ruta con **428** `falta-idempotencia`, no la validación. De 16 a 64 caracteres
+        `[A-Za-z0-9_-]`; se recomienda un UUID v4 nuevo por cada toque del botón. Con otro formato, 422
+        en `Idempotency-Key`. Vale 24 horas por grupo y ruta (`idempotencia`, PK `grupo_id, endpoint,
+        clave`). Nunca va a los logs.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 64
+        pattern: '^[A-Za-z0-9_-]{16,64}$'
+      example: 0b5e8f2a-6c1d-4e7a-9f3b-2d4c6e8a0b1c
+    IfMatchPedido:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `etag` del pedido tal como se leyó, por ejemplo `"v3"`. **Obligatorio**: sin él, vacío o `*`,
+        428 `falta-version`; otro valor, 412 `version-desactualizada` con el pedido en `actual`.
+      schema:
+        type: string
+      example: '"v3"'
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    ETagPedido:
+      description: La versión del pedido, `"v<version>"`. Es el mismo valor de `PedidoVista.etag`.
+      required: true
+      schema:
+        type: string
+        pattern: '^"v[0-9]+"$'
+    ReferrerPolicyNoReferrer:
+      description: La pantalla de la vuelta no le dice a nadie de dónde vino.
+      required: true
+      schema:
+        type: string
+        const: no-referrer
+
+  schemas:
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    # ---------------------------------------------------------------- problemas
+
+    ProblemaSinAutorizacionPedidos:
+      description: |
+        403, como en MATU-61 (decisión 213). `/errores/sin-autorizacion-pedidos`: la persona no tiene la
+        autorización `despacho` no revocada. `/errores/revision-vencida`: la dio un cuidador de hecho y
+        venció su revisión de 12 meses. Los dos con `finalidad: despacho`.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [finalidad]
+          properties:
+            type:
+              enum: [/errores/sin-autorizacion-pedidos, /errores/revision-vencida]
+            status:
+              const: 403
+            finalidad:
+              const: despacho
+
+    ProblemaEstadoPedido:
+      description: |
+        409 `/errores/estado-pedido` (MATU-61): el estado del pedido no permite la acción. `estado` es el
+        actual, con el vencimiento calculado por el `Reloj`. En `pagar` con el total vencido, `vencido`
+        (D-62-15).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [estado]
+          properties:
+            type:
+              const: /errores/estado-pedido
+            status:
+              const: 409
+            estado:
+              $ref: '#/components/schemas/EstadoPedido'
+
+    ProblemaPagoEnCurso:
+      description: |
+        409 `/errores/pago-en-curso` (**nuevo**, D-62-4 regla 1, decisión 230): el cargo del pedido tiene una
+        venta `iniciada` vigente o `autorizando`. Sin miembros de extensión: no dice quién paga.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/pago-en-curso
+            status:
+              const: 409
+
+    ProblemaCondicionesCambiaron:
+      description: |
+        409 `/errores/condiciones-cambiaron` (**nuevo**, decisión 227): la versión o la huella que mandó la
+        pantalla no son las de las condiciones publicadas. `version_vigente` es la que hay que mostrar. No
+        se cobró nada.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [version_vigente]
+          properties:
+            type:
+              const: /errores/condiciones-cambiaron
+            status:
+              const: 409
+            version_vigente:
+              type: string
+              pattern: '^[0-9]+\.[0-9]+$'
+
+    ProblemaIdempotenciaEnCurso:
+      description: |
+        409 `/errores/idempotencia-en-curso` (MATU-61): otra petición con la misma `Idempotency-Key`
+        todavía no termina. Se reintenta con la misma clave.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/idempotencia-en-curso
+            status:
+              const: 409
+
+    ProblemaVersionPedido:
+      description: |
+        412 `/errores/version-desactualizada`, con el pedido vigente en `actual` (`PedidoVista` de
+        `openapi.json`). En `pagar`: el total, el teléfono o una regla cambiaron desde que se leyó, y no se
+        cobró nada (decisión 226).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            actual:
+              type: object
+              description: '`PedidoVista` de `openapi.json`, con los cambios de `CambioPedidoVista`.'
+
+    ProblemaPasarelaNoDisponible:
+      description: |
+        503 `/errores/pasarela-no-disponible` (**nuevo**): Webpay no respondió o falló el `create`. No se
+        cobró nada y no queda un pago en curso. Lleva `Retry-After`. Distinto de una caída de MATU (500) y
+        de `/errores/servicio-no-disponible`, que sigue siendo la falta de la llave de las huellas de
+        idempotencia (`PEPPER_LIMITES`, decisión 222).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              enum: [/errores/pasarela-no-disponible, /errores/servicio-no-disponible]
+            status:
+              const: 503
+
+    # ---------------------------------------------------------------- estados
+
+    EstadoPedido:
+      type: string
+      description: |
+        Los 17 estados del `CHECK` de `pedido` (migración 0002), como en `pedido.openapi.yaml`. **MATU-62
+        agrega `vencido → pagado`** (25 transiciones, decisión 242).
+      enum:
+        - borrador
+        - total_confirmado
+        - vencido
+        - pagado
+        - enviado_a_comercio
+        - preparando
+        - listo_retiro
+        - asignado
+        - sin_repartidor
+        - retirado
+        - en_ruta
+        - entregado
+        - no_entregado
+        - reprogramado
+        - cerrado
+        - cancelado
+        - cancelado_con_devolucion
+
+    EstadoVenta:
+      type: string
+      enum: [iniciada, autorizando, aprobada, rechazada, error]
+      description: |
+        `transaccion_pasarela.estado` de una venta (migración 0001). `iniciada`: el `create` se hizo.
+        `autorizando`: se envió el `commit` y no hay respuesta. `aprobada`: Transbank la aprobó.
+        `rechazada`: no se aprobó, la persona salió o se acabó el tiempo. `error`: falló el `create`.
+
+    EstadoPago:
+      type: string
+      enum: [sin_intento, pendiente, aprobado, no_aprobado, devuelto_parcial, anulado]
+      description: |
+        El estado del pago del pedido, desde el cargo (decisión 236). La pantalla no muestra el valor:
+        elige el texto de `lenguaje.md`, que no dice «rechazado» ni «fallido».
+
+        | `estado` | `cargo.estado` |
+        |---|---|
+        | `sin_intento` | no hay cargo |
+        | `pendiente` | `pendiente` |
+        | `aprobado` | `pagado` |
+        | `no_aprobado` | `rechazado` |
+        | `devuelto_parcial` | `devuelto_parcial` |
+        | `anulado` | `anulado` (se devolvió todo lo cobrado) |
+
+    ResultadoPago:
+      type: string
+      enum: [aprobado, aprobado_tardio, no_aprobado, abandonado, tiempo_agotado, pendiente, anulado, en_webpay]
+      description: |
+        Qué pasó con un intento (una venta), con los nombres del diseño (3.3, decisión 232). La pantalla
+        elige el texto; nunca muestra el valor.
+
+        | `resultado` | Venta | Pantalla (diseño) |
+        |---|---|---|
+        | `aprobado` | `aprobada`, pagó el pedido | 7.4 |
+        | `aprobado_tardio` | `aprobada` después de `vence_en`, y se respetó (regla 2) | 7.4 con 7.6 |
+        | `no_aprobado` | `rechazada`, motivo `no_aprobada` | 7.11 |
+        | `abandonado` | `rechazada`, motivo `usuario_salio` | 7.12 |
+        | `tiempo_agotado` | `rechazada`, motivo `formulario_vencido` | 7.12, variante |
+        | `pendiente` | `autorizando` | 7.3 |
+        | `anulado` | `aprobada` con su anulación total (regla 3) | 7.9 |
+        | `en_webpay` | `iniciada`: la persona está (o estuvo) en Webpay. **Solo en `GET …/pago`**; `POST /v1/pagos/retorno` nunca lo responde | 6.1 y 6.2 |
+
+    # ---------------------------------------------------------------- pagar
+
+    SolicitudPago:
+      type: object
+      additionalProperties: false
+      required: [acepta_condiciones, condiciones]
+      description: |
+        Cuerpo de `POST …/pagar` (decisión 227). Lo que quien paga aceptó (R5, D6, D-62-16): `version` y
+        `huella` se copian de `PedidoVista.resumen.condiciones`. **No lleva montos**: el monto lo fija el
+        servidor desde el pedido, y `If-Match` asegura que es el que la pantalla mostró.
+      properties:
+        acepta_condiciones:
+          type: boolean
+          const: true
+          description: La casilla marcada por quien paga. Con `false` o sin ella, 422.
+        condiciones:
+          type: object
+          additionalProperties: false
+          required: [version, huella]
+          properties:
+            version:
+              type: string
+              pattern: '^[0-9]+\.[0-9]+$'
+              examples: ['0.2']
+            huella:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+              description: SHA-256 del texto exacto, desde «## 1. Quién vende» hasta el final (decisión 221).
+
+    InicioPago:
+      type: object
+      additionalProperties: false
+      required: [intento_id, estado, monto, total_confirmado_en, url, token]
+      description: |
+        La venta abierta (decisiones 228 y 229). **Sin datos de tarjeta**. `monto` es el total que se cobrará,
+        igual al `total` que la pantalla mostró.
+      properties:
+        intento_id:
+          type: string
+          format: uuid
+          description: La venta (`transaccion_pasarela.id`). Id opaco; nunca a la URL de la app.
+        estado:
+          $ref: '#/components/schemas/EstadoVenta'
+        monto:
+          type: integer
+          exclusiveMinimum: 0
+          description: El total confirmado, en pesos enteros con IVA, envío incluido.
+        total_confirmado_en:
+          type: string
+          format: date-time
+          description: El total al que quedó atada la venta (D-62-4).
+        url:
+          type: [string, 'null']
+          format: uri
+          description: |
+            El `action` del formulario de Webpay (integración o producción, según la configuración). `null` en
+            la repetición de una clave cuya venta ya no está `iniciada`: la pantalla va al resultado.
+        token:
+          type: [string, 'null']
+          maxLength: 128
+          description: |
+            El valor del campo `token_ws` del formulario. Secreto de un solo uso; vence según Transbank
+            (decisión 230). `null` con `url: null`.
+
+    # ---------------------------------------------------------------- la vuelta
+
+    SolicitudRetorno:
+      type: object
+      additionalProperties: false
+      description: |
+        Lo que trajo la dirección de la vuelta (query o fragmento), tal cual, con los nombres de Transbank
+        (decisión 232). Al menos uno: si no viene ninguno, 422. Nada de esto va a logs.
+      minProperties: 1
+      properties:
+        token_ws:
+          type: string
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_-]+$'
+        TBK_TOKEN:
+          type: string
+          maxLength: 128
+          pattern: '^[A-Za-z0-9_-]+$'
+        TBK_ORDEN_COMPRA:
+          type: string
+          maxLength: 26
+          pattern: '^[A-Za-z0-9_-]+$'
+        TBK_ID_SESION:
+          type: string
+          maxLength: 61
+          pattern: '^[A-Za-z0-9_-]+$'
+
+    ResultadoRetorno:
+      type: object
+      additionalProperties: false
+      required: [resultado, ya_registrado, anulacion, volver_a_preguntar_en, grupo_id, persona_cuidada_id, pedido_id]
+      description: |
+        El resultado de la vuelta (decisiones 232 a 234). **Sin montos ni tarjeta**, con o sin sesión: la
+        pantalla los lee en `GET /v1/pedidos/{pedido_id}/pago`.
+      properties:
+        resultado:
+          $ref: '#/components/schemas/ResultadoPago'
+        ya_registrado:
+          type: boolean
+          description: |
+            El retorno de esta venta ya se había procesado (diseño 7.8): «Este pago ya está registrado. No se
+            cobró dos veces.».
+        anulacion:
+          type: [string, 'null']
+          enum: [en_curso, hecha, null]
+          description: 'Solo con `resultado: anulado`. `en_curso` si la anulación todavía se reintenta (D-62-6).'
+        volver_a_preguntar_en:
+          type: [integer, 'null']
+          minimum: 1
+          description: |
+            Con `pendiente`, en cuántos segundos repetir el mismo `POST` (15). `null` en los demás. Pasados
+            15 minutos desde que se inició, la conciliación ya cerró la venta.
+        grupo_id:
+          type: [string, 'null']
+          format: uuid
+          description: Solo con sesión de un `admin`, `cuidador` o `pagador` del grupo del pedido (P3).
+        persona_cuidada_id:
+          type: [string, 'null']
+          format: uuid
+          description: Igual que `grupo_id`. La app fija la persona en memoria (diseño 7.1).
+        pedido_id:
+          type: [string, 'null']
+          format: uuid
+          description: Igual que `grupo_id`. Para leer `GET …/pago`.
+
+    # ---------------------------------------------------------------- el pago y el comprobante
+
+    ProductoPedido:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, presentacion, unidad, unidades_por_envase]
+      description: |
+        El producto de una línea, como `ProductoCatalogo` sin sus comercios. Sin marca (decisión 164).
+        `unidad` y `unidades_por_envase` los pide la especificación del diseñador (3.1) para convertir la
+        lista de insumos a envases del catálogo.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        presentacion:
+          type: string
+        unidad:
+          type: string
+          enum: [unidad, sobre, ml, g]
+        unidades_por_envase:
+          type: integer
+          exclusiveMinimum: 0
+
+    Tarjeta:
+      type: object
+      additionalProperties: false
+      required: [tipo, ultimos4, cuotas]
+      description: |
+        Lo que Transbank devuelve en el `commit` y MATU guarda (R14, D-62-9). **Solo lo ve quien pagó**
+        (D-62-2). Nunca el número completo, la fecha de vencimiento ni el CVV, que MATU nunca recibe.
+      properties:
+        tipo:
+          type: string
+          enum: [credito, debito, prepago]
+          description: |
+            Desde `payment_type_code` (`VD` débito, `VP` prepago, el resto crédito). Solo para el texto:
+            **ningún cálculo depende del medio** (12.4, caso 2).
+        ultimos4:
+          type: string
+          pattern: '^[0-9]{4}$'
+        cuotas:
+          type: integer
+          minimum: 0
+          maximum: 48
+          description: |
+            `installments_number` del `commit` (P5, decisión 238). 0 o 1: sin cuotas. Mayor que 1: «en `{n}`
+            cuotas». **MATU cobra una sola vez el total**; las cuotas las reparte el banco. Columna nueva:
+            el analista lo confirma en el cierre.
+
+    IntentoPago:
+      type: object
+      additionalProperties: false
+      required: [id, resultado, iniciado_en, cerrado_en, es_tuyo]
+      description: El último intento de pago del pedido (la venta más reciente que no es `error`).
+      properties:
+        id:
+          type: string
+          format: uuid
+        resultado:
+          $ref: '#/components/schemas/ResultadoPago'
+        iniciado_en:
+          type: string
+          format: date-time
+        cerrado_en:
+          type: [string, 'null']
+          format: date-time
+          description: Cuándo se aprobó o se cerró sin cobro. `null` en `en_webpay` y `pendiente`.
+        es_tuyo:
+          type: boolean
+          description: Si lo inició quien lee.
+
+    Devolucion:
+      type: object
+      additionalProperties: false
+      required: [motivo, monto, producto, estado, solicitada_en, hecha_en, ultimos4]
+      description: |
+        Una anulación en Webpay (`transaccion_pasarela`, `tipo = anulacion`), a la misma tarjeta (ADR-027,
+        decisión 239). «Devolvimos `{monto}` a tu tarjeta terminada en `{ultimos4}`, por `{producto}`…»
+        (`hecha`) o «Estamos devolviendo `{monto}`…» (`en_curso`, D-62-6). Sin `producto`: «por tu pedido
+        completo». Las `en_curso` no restan del total pagado.
+
+        | `motivo` | Cuándo | Lo hace |
+        |---|---|---|
+        | `pago_tardio` | Regla 3 de D-62-4: se aprobó un total que ya no era el del pedido. Anulación total de esa venta, el mismo día | MATU-62 |
+        | `producto_no_entregado` | Un producto pagado que no se entrega. Anulación parcial por su precio pagado | MATU-63; la vista es de MATU-62 |
+        | `cancelacion` | Cancelar después de pagar, o no se entrega nada. Anulación total, envío incluido | MATU-63 (diseño P7) |
+      properties:
+        motivo:
+          type: string
+          enum: [pago_tardio, producto_no_entregado, cancelacion]
+        monto:
+          type: integer
+          exclusiveMinimum: 0
+        producto:
+          oneOf:
+            - $ref: '#/components/schemas/ProductoPedido'
+            - type: 'null'
+          description: Solo con `producto_no_entregado`.
+        estado:
+          type: string
+          enum: [en_curso, hecha]
+        solicitada_en:
+          type: string
+          format: date-time
+        hecha_en:
+          type: [string, 'null']
+          format: date-time
+        ultimos4:
+          type: [string, 'null']
+          pattern: '^[0-9]{4}$'
+          description: Solo para quien pagó (D-62-2). Los demás leen «a la tarjeta con que se pagó».
+
+    LineaComprobante:
+      type: object
+      additionalProperties: false
+      required: [producto, cantidad, precio_unitario, subtotal]
+      properties:
+        producto:
+          $ref: '#/components/schemas/ProductoPedido'
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 99
+        precio_unitario:
+          type: integer
+          exclusiveMinimum: 0
+        subtotal:
+          type: integer
+          exclusiveMinimum: 0
+
+    Comprobante:
+      type: object
+      additionalProperties: false
+      required:
+        - referencia
+        - pagado_en
+        - lineas
+        - subtotal_productos
+        - costo_envio
+        - total
+        - pagaste_tu
+        - tarjeta
+        - codigo_autorizacion
+        - vendedor
+        - ventana_entrega
+        - canal_reclamo
+        - condiciones
+        - tardio
+        - devoluciones
+        - precios_de_ejemplo
+        - pago_de_prueba
+        - correo
+      description: |
+        La confirmación escrita del pago (R4, ley 19.496; D-62-3, D-62-7; diseño 3.4 y 7.5), decisión 238.
+        **No es una boleta.** Lo ven `admin`, `cuidador` y `pagador`; `tarjeta`, `codigo_autorizacion` y
+        `correo` solo quien pagó (`null` para los demás). Nunca la dirección, el teléfono, el comercio de
+        cada línea, el `buy_order`, el `session_id`, el token ni `payload_respuesta`. Las garantías y el
+        sello del piloto son textos de `lenguaje.md`.
+      properties:
+        referencia:
+          type: string
+          pattern: '^[0-9]{4,6}$'
+          description: |
+            «Pedido `{referencia}`»: un número corto y legible, **único dentro del grupo**, aleatorio, que se
+            asigna al pagar (columna nueva `pedido.referencia`, decisión 238). No es el `buy_order` ni deriva
+            de un id. Sirve para un reclamo a MATU.
+          examples: ['4821']
+        pagado_en:
+          type: string
+          format: date-time
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaComprobante'
+          description: Los productos pagados. Están en la app; el correo no los lleva (D-62-3 b).
+        subtotal_productos:
+          type: integer
+          exclusiveMinimum: 0
+        costo_envio:
+          type: integer
+          minimum: 0
+        total:
+          type: integer
+          exclusiveMinimum: 0
+          description: |
+            «Total pagado». `subtotal_productos + costo_envio`, igual al total confirmado y al monto de la
+            venta aprobada (restricción de la migración de MATU-62). No resta las devoluciones: la pantalla
+            calcula «Pagaste en total» con las `hecha`.
+        pagaste_tu:
+          type: boolean
+          description: Si quien lee es quien pagó (diseño 2.3). Con `false`, «Lo pagó otra persona de tu grupo.».
+        tarjeta:
+          oneOf:
+            - $ref: '#/components/schemas/Tarjeta'
+            - type: 'null'
+        codigo_autorizacion:
+          type: [string, 'null']
+          maxLength: 6
+          description: Solo quien pagó.
+        vendedor:
+          type: string
+          const: MATU, piloto académico, sin persona jurídica
+        ventana_entrega:
+          type: string
+          examples: [Entre 24 y 48 horas hábiles]
+        canal_reclamo:
+          type: string
+          format: email
+          examples: [cuidaconmatu@gmail.com]
+        condiciones:
+          type: object
+          additionalProperties: false
+          required: [version, aceptadas_en, huella, enlace]
+          description: Las que quedaron fijas con el pago.
+          properties:
+            version:
+              type: string
+              pattern: '^[0-9]+\.[0-9]+$'
+            aceptadas_en:
+              type: string
+              format: date-time
+            huella:
+              type: string
+              pattern: '^[0-9a-f]{64}$'
+            enlace:
+              type: string
+              pattern: '^/v1/condiciones-pedido\?version=[0-9]+\.[0-9]+$'
+              description: La versión aceptada, no la vigente (P4, decisión 240).
+              examples: ['/v1/condiciones-pedido?version=0.2']
+        tardio:
+          type: boolean
+          description: Se respetó un pago que llegó con el total vencido (D-62-4, regla 2; diseño 7.6).
+        devoluciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Devolucion'
+          description: Por `solicitada_en`. Las de este pedido; también la de un pago tardío anulado.
+        precios_de_ejemplo:
+          type: boolean
+          description: Como en `PedidoVista` (decisión 163). `true` con el adaptador simulado del catálogo.
+        pago_de_prueba:
+          type: boolean
+          description: |
+            `true` con Transbank en integración (el piloto): el sello «Pago de prueba. No se cobró dinero
+            real. Este comprobante no es una boleta.» (D-62-7). Es distinto de `precios_de_ejemplo`: uno dice
+            que el dinero no se movió, el otro que los precios no son de un convenio.
+        correo:
+          oneOf:
+            - $ref: '#/components/schemas/CorreoComprobante'
+            - type: 'null'
+          description: Solo quien pagó.
+
+    CorreoComprobante:
+      type: object
+      additionalProperties: false
+      required: [destino, enviado]
+      description: El correo de confirmación (D-62-3 b), sin la lista de productos (diseño 7.5.4).
+      properties:
+        destino:
+          type: string
+          format: email
+          description: El correo de la cuenta de quien pagó.
+        enviado:
+          type: boolean
+          description: '`false` en el piloto: el comprobante no se envía por correo.'
+
+    PagoVista:
+      type: object
+      additionalProperties: false
+      required: [pedido_id, estado, pago_en_curso, intento, comprobante, devoluciones]
+      description: |
+        El pago del pedido para `admin`, `cuidador` y `pagador` (D-62-2, decisión 236). Montos en pesos
+        enteros. Nunca `grupo_id`, `buy_order`, `session_id`, el token ni la respuesta de Transbank.
+      properties:
+        pedido_id:
+          type: string
+          format: uuid
+        estado:
+          $ref: '#/components/schemas/EstadoPago'
+        pago_en_curso:
+          type: boolean
+          description: Hay una venta `iniciada` vigente o `autorizando` (decisión 230).
+        intento:
+          oneOf:
+            - $ref: '#/components/schemas/IntentoPago'
+            - type: 'null'
+          description: '`null` con `estado: sin_intento`.'
+        comprobante:
+          oneOf:
+            - $ref: '#/components/schemas/Comprobante'
+            - type: 'null'
+          description: Con `estado` `aprobado`, `devuelto_parcial` o `anulado`; `null` en los demás.
+        devoluciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Devolucion'
+          description: |
+            Las del pedido aunque no esté pagado: la anulación de un pago tardío (regla 3) de un pedido que
+            se canceló o cambió (diseño 7.9). Con comprobante, es la misma lista de `comprobante.devoluciones`.
+
+    PagoVistaObservador:
+      type: object
+      additionalProperties: false
+      required: [pedido_id, estado]
+      description: |
+        Lo que ve el `observador` (D-62-2, diseño 8): **solo si está pagado**. Sin montos, intentos,
+        devoluciones, comprobante ni tarjeta. DTO distinto (decisión 127).
+      properties:
+        pedido_id:
+          type: string
+          format: uuid
+        estado:
+          type: string
+          enum: [pagado, sin_pagar]
+          description: '`pagado` si el pedido tiene `pagado_en`.'
+
+    # ---------------------------------------------------------------- cambios a rutas ya implementadas
+
+    CambioRutasPagoEnCurso:
+      type: object
+      x-matu-se-suma-a:
+        - confirmar_v1_pedidos__pedido_id__confirmar_post
+        - cambiar_pedido_v1_pedidos__pedido_id__cambiar_post
+        - reemplazar_lineas_v1_pedidos__pedido_id__lineas_put
+        - reemplazar_reglas_v1_pedidos__pedido_id__reglas_faltante_put
+        - cambiar_contacto_v1_pedidos__pedido_id__contacto_put
+      description: |
+        **Cambio propuesto a cinco rutas de MATU-61** (por su `operationId` en `openapi.json`; D-62-4 regla
+        1, decisión 230): `POST …/confirmar`, `POST …/cambiar`, `PUT …/lineas`, `PUT …/reglas-faltante` y
+        `PUT …/contacto`. Su **409** suma `/errores/pago-en-curso` (`ProblemaPagoEnCurso`) cuando el cargo
+        del pedido tiene una venta `iniciada` vigente o `autorizando`. No cambia nada del pedido. **Va
+        después del 403 y de la idempotencia, y antes de `estado-pedido` y del 412**: quien mira un total
+        que otra persona está pagando recibe el motivo real.
+
+        **No se bloquean** (D-62-4): `POST …/cancelar` (si la venta se aprueba después, se anula completa,
+        regla 3), el retiro de `despacho`, el borrado de la persona, `PUT` y `DELETE …/direccion` (la
+        dirección de la persona, no la copia del pedido) y las lecturas.
+      properties:
+        type:
+          type: string
+          const: /errores/pago-en-curso
+
+    CambioPedidoVista:
+      type: object
+      x-matu-se-suma-a: [PedidoVista]
+      required: [pago_en_curso, pagado_en]
+      description: |
+        **Cambio propuesto a `PedidoVista`** (diseño 3.2, decisión 230), en `GET /v1/pedidos/{id}`, `GET
+        …/pedido-en-curso` y las respuestas de las escrituras del pedido. Se suman `pago_en_curso`, para que
+        la pantalla lo muestre al abrir sin esperar un 409 (diseño 6.1 y 6.2), y `pagado_en`.
+
+        Con el pedido pagado, `pagado` (y los siguientes) traen `total`, `total_confirmado_en` y `vence_en`
+        del total pagado, `vigencia_segundos: null`, `entrega` (la copia) y `resumen: null`; las líneas
+        quedan fijas. El pago se lee en `GET …/pago`. `…/pedido-en-curso` deja de devolverlo al pagarse
+        (decisión 197): para eso está `…/pedido-pagado`. `PedidoVistaObservador` no cambia.
+      properties:
+        pago_en_curso:
+          type: boolean
+        pagado_en:
+          type: [string, 'null']
+          format: date-time
+
+    CambioLineaPedido:
+      type: object
+      x-matu-se-suma-a: [LineaPedido]
+      required: [devolucion]
+      description: |
+        **Cambio propuesto a `LineaPedido`** (decisión 239): la devolución por anulación parcial de esa
+        línea (`pedido_linea.estado_linea = 'devuelta'`, `monto_devuelto`, `devuelta_en`; migración 0002).
+        La crea MATU-63; MATU-62 la muestra. `null` si no se devolvió. Sin los últimos 4.
+      properties:
+        devolucion:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [monto, estado, hecha_en]
+              properties:
+                monto:
+                  type: integer
+                  exclusiveMinimum: 0
+                estado:
+                  type: string
+                  enum: [en_curso, hecha]
+                hecha_en:
+                  type: [string, 'null']
+                  format: date-time
+            - type: 'null'
+
+    CambioCondicionesPedido:
+      type: object
+      x-matu-se-suma-a: [ver_condiciones_v1_condiciones_pedido_get, CondicionesPedidoVista, CondicionesVigentes]
+      description: |
+        **Cambio propuesto a `GET /v1/condiciones-pedido`** (P4, decisión 240):
+        - acepta el parámetro de consulta opcional **`version`** (`^[0-9]+\.[0-9]+$`). Sin él, la vigente,
+          como hoy. Con una versión publicada alguna vez (0.1, 0.2…), esa, con su `huella` y su texto; con
+          otra, **404**; con otro formato, 422. Sigue pública, sin auditoría y con `Cache-Control: no-cache`.
+          Es un número de versión, no un dato de nadie: no rompe la regla de la decisión 211. El backend
+          guarda cada versión publicada como un archivo (`condiciones-pedido-0.1.md`,
+          `condiciones-pedido-0.2.md`), con una sola fuente por versión;
+        - con MATU-62 la vigente pasa a la **0.2** (segunda revisión previa, 5.3, aprobada el 11-11), con la
+          frase del piloto **dentro** del texto con huella (decisión 221). `PedidoVista.resumen.condiciones`
+          trae siempre la vigente y su `enlace` sigue siendo `/v1/condiciones-pedido`; el comprobante enlaza a
+          `?version=` la aceptada.
+      properties:
+        version:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+$'
+          examples: ['0.2']
+
+  examples:
+    PagoAprobadoQuienPago:
+      summary: Pago aprobado, leído por quien pagó
+      value:
+        pedido_id: 9e8d7c60-0000-4000-8000-0000000000d1
+        estado: aprobado
+        pago_en_curso: false
+        intento:
+          id: 4c3b2a10-0000-4000-8000-0000000000f1
+          resultado: aprobado
+          iniciado_en: '2026-11-12T14:04:02Z'
+          cerrado_en: '2026-11-12T14:06:40Z'
+          es_tuyo: true
+        devoluciones: []
+        comprobante:
+          referencia: '4821'
+          pagado_en: '2026-11-12T14:06:40Z'
+          lineas:
+            - producto:
+                id: 2b4d6f80-0000-4000-8000-000000000c01
+                nombre: Pañal adulto talla M
+                presentacion: Paquete de 20 unidades
+                unidad: unidad
+                unidades_por_envase: 20
+              cantidad: 2
+              precio_unitario: 17990
+              subtotal: 35980
+            - producto:
+                id: 2b4d6f80-0000-4000-8000-000000000c02
+                nombre: Toallas húmedas
+                presentacion: Paquete de 80 unidades
+                unidad: unidad
+                unidades_por_envase: 80
+              cantidad: 2
+              precio_unitario: 8745
+              subtotal: 17490
+          subtotal_productos: 53470
+          costo_envio: 3990
+          total: 57460
+          pagaste_tu: true
+          tarjeta:
+            tipo: debito
+            ultimos4: '0000'
+            cuotas: 0
+          codigo_autorizacion: '1213'
+          vendedor: MATU, piloto académico, sin persona jurídica
+          ventana_entrega: Entre 24 y 48 horas hábiles
+          canal_reclamo: cuidaconmatu@gmail.com
+          condiciones:
+            version: '0.2'
+            aceptadas_en: '2026-11-12T14:04:02Z'
+            huella: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            enlace: /v1/condiciones-pedido?version=0.2
+          tardio: false
+          devoluciones: []
+          precios_de_ejemplo: true
+          pago_de_prueba: true
+          correo:
+            destino: persona.sintetica@example.com
+            enviado: false
+
+  responses:
+    NoAutenticadoPago:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`). La app renueva una vez y repite. `POST /v1/pagos/retorno` nunca lo
+        responde.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoEncontradoPago:
+      description: |
+        El mismo 404 para todo, sin revelar qué existe: falta `X-Grupo-Id` o no es un UUID; no es miembro
+        activo; su rol no alcanza (`cuidador` u `observador` en `pagar`); el pedido o la persona no existen,
+        son de otro grupo o la persona está eliminada; la persona no tiene pedido pagado; en `POST
+        /v1/pagos/retorno`, los valores no son de ninguna venta de MATU.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+
+    SinAutorizacionPedidos:
+      description: Falta la autorización de pedidos, o venció su revisión. Ver `ProblemaSinAutorizacionPedidos`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaSinAutorizacionPedidos'
+
+    VersionPedido:
+      description: El pedido cambió desde que la pantalla lo leyó. `actual` trae el vigente. No se cobró nada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        ETag:
+          $ref: '#/components/headers/ETagPedido'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaVersionPedido'
+
+    ValidacionPago:
+      description: |
+        Cuerpo, cabecera o identificador inválidos. `errores[]` nombra el campo y nunca repite el valor.
+        Y `/errores/idempotencia-reutilizada` (MATU-61): la misma `Idempotency-Key` con otro cuerpo o de
+        otra cuenta.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ProblemaValidacion'
+              - allOf:
+                  - $ref: '#/components/schemas/Problema'
+                  - properties:
+                      type:
+                        const: /errores/idempotencia-reutilizada
+                      status:
+                        const: 422
+
+    FaltaPrecondicion:
+      description: |
+        428. `/errores/falta-idempotencia`: falta `Idempotency-Key`. `/errores/falta-version`: falta
+        `If-Match`, viene vacío o es `*`. Si faltan las dos, `falta-idempotencia`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/falta-idempotencia, /errores/falta-version]
+                  status:
+                    const: 428
+
+    PasarelaNoDisponible:
+      description: Webpay no respondió. No se cobró nada. Ver `ProblemaPasarelaNoDisponible`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Retry-After:
+          description: Segundos antes de reintentar.
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 300
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaPasarelaNoDisponible'
+
+security:
+  - bearerAuth: []
