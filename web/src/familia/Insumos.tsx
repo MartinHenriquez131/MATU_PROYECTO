@@ -1132,7 +1132,7 @@ function PanelRegistro({
     if (anotaEnvase) {
       const ev = entero(envaseEscrito)
       if (ev === null) {
-        if (nEnvases !== null && nEnvases > 0) e.envase = LISTA.errFaltaEnvase
+        if (nEnvases !== null && nEnvases > 0) e.envase = LISTA.errFaltaEnvase(p.unidad)
       } else if (envaseValido(envaseEscrito) === null) e.envase = LISTA.errEnvaseRango
     }
     const t = totalDe(envases, sueltos, u)
@@ -1272,6 +1272,7 @@ function PanelRegistro({
                 anotaEnvase && (
                   <CampoEnvase
                     id={idEnvase}
+                    unidad={p.unidad}
                     valor={envaseEscrito}
                     onCambio={(v) => {
                       setEnvaseEscrito(v)
@@ -1647,7 +1648,7 @@ function Formulario({
       // MATU-84 (5.4 y 7): el envase es obligatorio si hay envases enteros, y va de 1 a 10.000.
       const ne = entero(envases)
       if (ev === null) {
-        if (ne !== null && ne > 0) e.envase = LISTA.errFaltaEnvase
+        if (ne !== null && ne > 0) e.envase = LISTA.errFaltaEnvase(unidad)
       } else if (envaseValido(envase) === null) e.envase = LISTA.errEnvaseRango
       // Los dos vacíos: error al anotar, y sin cambio en la edición (5.2).
       if (stockTotal === null) {
@@ -1870,7 +1871,7 @@ function Formulario({
         onSueltos={setSueltos}
         error={errores.envases}
         describe={idAyudaEnvases}
-        antes={<CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} ayuda={LISTA.envaseAyudaEnvases} error={errores.envase} />}
+        antes={<CampoEnvase id={ids.envase} unidad={unidad} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} ayuda={LISTA.envaseAyudaEnvases} error={errores.envase} />}
       />
       <EnlaceModo ocupado={ocupado} onClick={aSueltos}>
         {EN_ENVASES.contarSueltos}
@@ -1890,7 +1891,7 @@ function Formulario({
     <Stepper id={ids.aviso} etiqueta={INSUMOS.aviso} ayuda={INSUMOS.avisoAyuda} sufijo={INSUMOS.sufijoAviso} valor={aviso} onCambio={setAviso} min={0} max={60} error={errores.aviso} />
   )
   // MATU-84 D3: en modo envases, el campo del envase está dentro del bloque de lo que queda, nunca dos veces.
-  const campoEnvase = enEnvases ? null : <CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} error={errores.envase} />
+  const campoEnvase = enEnvases ? null : <CampoEnvase id={ids.envase} unidad={unidad} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} error={errores.envase} />
 
   return marco(
     <>
@@ -1965,9 +1966,11 @@ function Formulario({
 /**
  * MATU-60 9.2: «¿Cuántas unidades trae cada envase?», opcional, de 1 a 10.000. Sin − ni +: los
  * envases traen 20, 30 u 80. La ayuda va antes del campo y lo describe, con el error si lo hay.
+ * MATU-88: en los insumos en sobres, «¿Cuántos sobres trae cada envase?».
  */
 function CampoEnvase({
   id,
+  unidad,
   valor,
   onCambio,
   sufijo,
@@ -1976,6 +1979,7 @@ function CampoEnvase({
   soloLectura = false,
 }: {
   id: string
+  unidad: Unidad
   valor: string
   onCambio: (v: string) => void
   sufijo: string
@@ -1988,7 +1992,7 @@ function CampoEnvase({
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <label htmlFor={id} className="font-bold">
-        {LISTA.envase}
+        {LISTA.envase(unidad)}
       </label>
       <span id={`${id}-a`} className="text-base text-tenue">
         {ayuda}
