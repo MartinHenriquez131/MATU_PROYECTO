@@ -12,6 +12,7 @@ import { fechaYHoraDeChile } from '../compartido/fechas'
 import { POLITICA } from '../compartido/textosPolitica'
 import { Boton } from '../compartido/ui/Boton'
 import { EnlaceEnFrase, EnlacePoliticaSolo } from '../compartido/ui/Enlaces'
+import { celularEnPantalla } from './celularEnPantalla'
 import { CampoCodigo, useEspera } from './Codigo'
 import { useDemora } from './Estados'
 import { useFamilia } from './estado'
@@ -152,7 +153,7 @@ export function TuCuenta() {
               {carga.cuenta.celular_enmascarado ? (
                 <dd className="flex flex-col items-start gap-3">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="cifras text-lg font-bold angosto:whitespace-normal">{carga.cuenta.celular_enmascarado}</span>
+                    <span className="cifras text-lg font-bold angosto:whitespace-normal">{celularEnPantalla(carga.cuenta.celular_enmascarado)}</span>
                     <EstadoCelular verificado={carga.cuenta.celular_verificado} />
                   </span>
                   {!carga.cuenta.celular_verificado && (
@@ -322,7 +323,7 @@ export function ConfirmarCelular() {
           <>
             <div className="flex flex-col gap-0.5">
               <p className="font-bold">{CELULAR.tuCelular}</p>
-              <p className="cifras text-lg angosto:whitespace-normal">{cuenta.celular_enmascarado}</p>
+              <p className="cifras text-lg angosto:whitespace-normal">{celularEnPantalla(cuenta.celular_enmascarado)}</p>
             </div>
             <GrupoOpciones
               leyenda={CELULAR.canal}
@@ -347,7 +348,7 @@ export function ConfirmarCelular() {
         {cuenta?.celular_enmascarado && paso === 'confirmar' && (
           <>
             <Nota tono="rocio" rol="status">
-              {CELULAR.enviado}<span className="whitespace-nowrap angosto:whitespace-normal">{cuenta.celular_enmascarado}</span>.
+              {CELULAR.enviado}<span className="whitespace-nowrap angosto:whitespace-normal">{celularEnPantalla(cuenta.celular_enmascarado)}</span>.
             </Nota>
             <form noValidate className="flex flex-col gap-5" onSubmit={(e) => void confirmar(e)}>
               <CampoCodigo ref={campo} etiqueta={RECUPERAR.codigo} valor={codigo} onCambio={setCodigo} error={error} />
