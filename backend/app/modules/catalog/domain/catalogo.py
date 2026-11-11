@@ -44,6 +44,8 @@ class FilaOferta:
     nombre_fantasia: str
     precio: int
     stock: int
+    # MATU-61 (D9): comercio.ficticio. La pantalla agrega «(comercio ficticio)» solo con true
+    ficticio: bool = True
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,7 @@ class OfertaVista:
     # Pesos enteros con IVA (ADR-027)
     precio: int
     disponible: bool
+    ficticio: bool = True
 
 
 @dataclass(frozen=True)
@@ -95,6 +98,7 @@ def _oferta(fila: FilaOferta) -> OfertaVista:
         nombre_fantasia=fila.nombre_fantasia,
         precio=fila.precio,
         disponible=hay_stock(fila.stock),
+        ficticio=fila.ficticio,
     )
 
 

@@ -4,6 +4,7 @@ import './index.css'
 import { AppFamilia } from './familia/AppFamilia'
 import { PaginaRelevo } from './relevo/PaginaRelevo'
 import { PaginaPrivacidad } from './privacidad/PaginaPrivacidad'
+import { PaginaCondiciones } from './privacidad/PaginaCondiciones'
 import { RegionesVivas } from './compartido/ui/Anuncios'
 
 const raiz = createRoot(document.getElementById('raiz')!)
@@ -27,6 +28,14 @@ if (/^\/r\/?$/.test(ruta)) {
     <StrictMode>
       <RegionesVivas />
       <PaginaPrivacidad />
+    </StrictMode>,
+  )
+} else if (/^\/condiciones-pedido\/?$/.test(ruta)) {
+  // MATU-61 (9.8, O6): las condiciones del pedido, públicas, con el mismo armado de /privacidad.
+  raiz.render(
+    <StrictMode>
+      <RegionesVivas />
+      <PaginaCondiciones />
     </StrictMode>,
   )
 } else if (import.meta.env.DEV && import.meta.env.MODE !== 'api' && /^\/ejemplos\/?$/.test(ruta)) {

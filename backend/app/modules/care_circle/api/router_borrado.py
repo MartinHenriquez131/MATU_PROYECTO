@@ -24,6 +24,7 @@ from app.core.errores import ErrorMATU
 from app.modules.care_circle.api.dependencias import ContextoGrupo, SesionDeGrupo
 from app.modules.care_circle.api.router_autorizaciones import (
     Efectos,
+    Finalidades,
     RegistroDep,
     RelojDep,
     Retiros,
@@ -91,6 +92,7 @@ def borrar(
     retiros: Retiros,
     efectos: Efectos,
     reloj: RelojDep,
+    finalidades: Finalidades,
 ) -> BorradoPersona:
     try:
         persona = uuid.UUID(persona_id)
@@ -108,6 +110,7 @@ def borrar(
             repositorio,
             retiros,
             efectos,
+            finalidades,
         )
     except (RolSinPermisoBorrado, PersonaNoEncontrada):
         raise ErrorMATU(404) from None

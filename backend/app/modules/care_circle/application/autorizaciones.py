@@ -17,11 +17,14 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from app.modules.care_circle.domain.avisos import Aviso
+from app.modules.care_circle.domain.declaraciones import huella_declaracion_pedidos
 from app.modules.care_circle.domain.personas import (
     FINALIDAD_CONSUMO,
+    FINALIDAD_DESPACHO,
     FINALIDAD_PLAN_CUIDADO,
     AvisoMostrado,
     CalidadOtorgante,
+    OtorgamientoInvalido,
     aviso_de,
     evidencia,
     puede_dar_de_alta,
@@ -94,6 +97,16 @@ class SolicitudAutorizacion:
     aviso: AvisoMostrado | None
     request_id: str | None = None
     finalidad: str = FINALIDAD_CONSUMO
+    # MATU-61 (P13): la huella de declaracion_pedidos_<calidad> que se mostró. Obligatoria con despacho, prohibida
+    # con las otras finalidades
+    huella_declaracion: str | None = None
+
+
+class DeclaracionNoVigente(OtorgamientoInvalido):
+    """La huella de la declaración de pedidos no es la vigente (422 declaracion_no_vigente)."""
+
+    def __init__(self) -> None:
+        super().__init__("huella_declaracion", "la declaración no es la vigente: vuelve a mostrarla")
 
 
 @dataclass(frozen=True)
@@ -102,7 +115,19 @@ class AutorizacionOtorgada:
     aviso: Aviso | None
 
 
-FINALIDADES_QUE_SE_OTORGAN = frozenset({FINALIDAD_CONSUMO, FINALIDAD_PLAN_CUIDADO})
+FINALIDADES_QUE_SE_OTORGAN = frozenset({FINALIDAD_CONSUMO, FINALIDAD_PLAN_CUIDADO, FINALIDAD_DESPACHO})
+
+
+def validar_huella_declaracion(finalidad: str, calidad: CalidadOtorgante, huella: str | None) -> None:
+    """P13: con despacho, la huella de la declaración que se mostró debe ser la vigente; con las otras dos, no va."""
+    if finalidad != FINALIDAD_DESPACHO:
+        if huella is not None:
+            raise OtorgamientoInvalido("huella_declaracion", "esta autorización no lleva huella de declaración")
+        return
+    if huella is None:
+        raise OtorgamientoInvalido("huella_declaracion", "falta la huella de la declaración que se mostró")
+    if huella != huella_declaracion_pedidos(calidad):
+        raise DeclaracionNoVigente()
 
 
 def otorgar_autorizacion(
@@ -121,6 +146,7 @@ def otorgar_autorizacion(
     if not puede_dar_de_alta(solicitud.rol):
         raise RolSinPermisoAutorizacion()
     validar_otorgamiento(solicitud.calidad_otorgante, solicitud.referencia_documento, solicitud.aviso)
+    validar_huella_declaracion(solicitud.finalidad, solicitud.calidad_otorgante, solicitud.huella_declaracion)
     # C8: la fila de la persona con FOR SHARE. Un borrado la tiene con FOR UPDATE: se espera y, si terminó, 404
     if not repositorio.bloquear_persona(solicitud.persona_id):
         raise PersonaNoDisponible()
@@ -138,7 +164,9 @@ def otorgar_autorizacion(
         calidad_otorgante=solicitud.calidad_otorgante.value,
         finalidad=solicitud.finalidad,
         version_politica=version_politica,
-        evidencia=evidencia(solicitud.calidad_otorgante, version_politica, solicitud.finalidad),
+        evidencia=evidencia(
+            solicitud.calidad_otorgante, version_politica, solicitud.finalidad, solicitud.huella_declaracion
+        ),
         referencia_documento=solicitud.referencia_documento or None,
         otorgado_en=otorgado_en,
         revision_vence_en=revision_vence_en(solicitud.calidad_otorgante, otorgado_en),

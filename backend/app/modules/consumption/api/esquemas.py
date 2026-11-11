@@ -284,6 +284,12 @@ class LineaListaInsumos(BaseModel):
         le=UNIDADES_SUGERIDAS_MAXIMO,
         description="techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase",
     )
+    producto_id: uuid.UUID | None = Field(
+        description=(
+            "MATU-61 (decisión 215): el producto del catálogo del perfil, o null si el insumo se anotó con"
+            " nombre_libre. «Pedir estos productos» pasa al pedido solo las líneas con producto"
+        )
+    )
 
 
 class ListaInsumos(BaseModel):

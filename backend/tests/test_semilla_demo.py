@@ -407,7 +407,10 @@ def test_crea_dos_familias_con_los_cuatro_roles(
     por_grupo: dict[uuid.UUID, dict[str, tuple[Any, ...]]] = {}
     for fila in consentimientos:
         por_grupo.setdefault(fila[0], {})[fila[2]] = fila
-    assert set(por_grupo[soto]) == set(por_grupo[riquelme]) == {"plan_cuidado", "consumo"}
+    # MATU-61: solo la familia Soto tiene además la autorización de pedidos, en la misma calidad
+    assert set(por_grupo[soto]) == {"plan_cuidado", "consumo", "despacho"}
+    assert set(por_grupo[riquelme]) == {"plan_cuidado", "consumo"}
+    assert por_grupo[soto]["despacho"][3] == "cuidador_de_hecho"
     for finalidad in ("plan_cuidado", "consumo"):
         maria, hernan = por_grupo[soto][finalidad], por_grupo[riquelme][finalidad]
         assert maria[1] == "María Soto" and maria[3:5] == ("cuidador_de_hecho", "0.9")
@@ -456,7 +459,8 @@ def test_es_idempotente(fabrica: Fabrica, sembradora: Any, catalogo: dict[str, u
     # Ni una lectura ni una escritura más en la auditoría: la segunda corrida no toca nada
     assert _filas("SELECT count(*) FROM auditoria WHERE grupo_id = ANY(%s::uuid[])", grupos) == auditoria
     assert len(antes["membresias"]) == 6 and len(antes["personas"]) == 2
-    assert antes["autorizaciones"] == [("consumo", 2), ("plan_cuidado", 2)]
+    # MATU-61: la primera familia tiene además la autorización de pedidos (despacho), sin pedidos
+    assert antes["autorizaciones"] == [("consumo", 2), ("despacho", 1), ("plan_cuidado", 2)]
     assert len(antes["secciones"]) == 11 and len(antes["insumos"]) == 5 and len(antes["relevos"]) == 1
 
 

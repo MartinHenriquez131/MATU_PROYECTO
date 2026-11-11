@@ -40,6 +40,7 @@ def _linea(linea: LineaLista) -> LineaListaInsumos:
         unidades_sugeridas=linea.unidades_sugeridas,
         unidades_por_envase=linea.unidades_por_envase,
         envases_sugeridos=linea.envases_sugeridos,
+        producto_id=linea.producto_id,
     )
 
 

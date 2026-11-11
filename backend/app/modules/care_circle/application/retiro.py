@@ -20,10 +20,12 @@ from datetime import datetime
 from typing import Protocol
 
 from app.modules.care_circle.domain.retiro import (
+    FINALIDADES_CAPA_3,
     FINALIDADES_RETIRABLES,
     MOTIVO_RETIRO,
     AutorizacionRegistrada,
     EstadoDeAutorizacion,
+    EstadoVista,
     YaRetirada,
     estado_de,
     exigir_retirable,
@@ -115,6 +117,8 @@ class SolicitudRetiro:
 class AutorizacionRetirada:
     estado: EstadoDeAutorizacion
     enlaces_cortados: int
+    # MATU-61 (D1): los pedidos sin pagar que canceló el retiro de despacho. 0 con las otras finalidades
+    pedidos_cancelados: int = 0
 
 
 def retirar_autorizacion(
@@ -122,12 +126,16 @@ def retirar_autorizacion(
     reloj: Reloj,
     repositorio: RepositorioRetiros,
     efectos: Mapping[str, EfectoDelRetiro],
+    finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES,
 ) -> AutorizacionRetirada:
     """Retira la autorización de la finalidad. Orden: rol (404), finalidad o nunca autorizada (404),
-    ya retirada (409). Después, todo en la misma transacción y con un solo instante del Reloj."""
+    ya retirada (409). Después, todo en la misma transacción y con un solo instante del Reloj.
+
+    ``finalidades`` son las activas (finalidades_retirables): despacho solo con la capa 3 (C2). El efecto de
+    despacho devuelve los pedidos que canceló, que van en ``pedidos_cancelados`` y no en ``enlaces_cortados``."""
     if not puede_retirar(solicitud.rol):
         raise RolSinPermisoRetiro()
-    if solicitud.finalidad not in FINALIDADES_RETIRABLES:
+    if solicitud.finalidad not in finalidades:
         raise AutorizacionNoEncontrada()
     vigente = repositorio.bloquear_vigente(solicitud.persona_id, solicitud.finalidad)
     if vigente is None:
@@ -143,24 +151,38 @@ def retirar_autorizacion(
     repositorio.retirar(vigente.id, ahora, solicitud.usuario_id, solicitud.request_id)
     cortados = efecto.aplicar(solicitud.persona_id, ahora, solicitud.usuario_id, solicitud.request_id)
     retirada = replace(vigente, revocado_en=ahora)
-    return AutorizacionRetirada(estado=estado_de(solicitud.finalidad, retirada, None, ahora), enlaces_cortados=cortados)
+    estado = estado_de(solicitud.finalidad, retirada, None, ahora)
+    if solicitud.finalidad in FINALIDADES_CAPA_3:
+        # Decisión 192 (P14): despacho no programa un borrado a los 90 días
+        estado = replace(estado, borrado_en=None, borrada=False)
+        return AutorizacionRetirada(estado=estado, enlaces_cortados=0, pedidos_cancelados=cortados)
+    return AutorizacionRetirada(estado=estado, enlaces_cortados=cortados)
 
 
 def estado_autorizaciones(
-    persona_id: uuid.UUID, reloj: Reloj, repositorio: RepositorioRetiros
+    persona_id: uuid.UUID,
+    reloj: Reloj,
+    repositorio: RepositorioRetiros,
+    finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES,
 ) -> list[EstadoDeAutorizacion]:
-    """Las dos finalidades, en el orden de la vista (decisión 127). La ven los cuatro roles (P2): la API
-    elige la proyección del rol. Sale solo de los consentimientos y del Reloj, sin leer la ficha."""
+    """Las finalidades activas, en el orden de la vista (decisión 127): dos sin la capa 3 y tres con ella (C2).
+    La ven los cuatro roles (P2): la API elige la proyección del rol. Sale solo de los consentimientos y del
+    Reloj, sin leer la ficha. Con despacho, borrado_en es None y borrada False (P14)."""
     ahora = reloj.ahora()
     estados = []
-    for finalidad in FINALIDADES_RETIRABLES:
+    for finalidad in finalidades:
         actual = repositorio.ultima(persona_id, finalidad)
         anterior = (
             None
             if actual is None or actual.revocado_en is not None
             else repositorio.retiro_anterior(persona_id, finalidad, actual.otorgado_en)
         )
-        estados.append(estado_de(finalidad, actual, anterior, ahora))
+        estado = estado_de(finalidad, actual, anterior, ahora)
+        if finalidad in FINALIDADES_CAPA_3:
+            estado = replace(estado, borrado_en=None, borrada=False)
+            if estado.estado is EstadoVista.BORRADA:
+                estado = replace(estado, estado=EstadoVista.RETIRADA)
+        estados.append(estado)
     return estados
 
 

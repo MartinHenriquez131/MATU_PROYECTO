@@ -29,6 +29,8 @@ CAMPOS_LINEA = {
     "unidades_sugeridas",
     "unidades_por_envase",
     "envases_sugeridos",
+    # MATU-61 (decisión 215)
+    "producto_id",
 }
 
 
@@ -104,6 +106,7 @@ def test_la_lista_trae_lo_que_avisa_con_la_cantidad_y_en_orden(entorno_consumo: 
             "unidades_sugeridas": 215,
             "unidades_por_envase": 250,
             "envases_sugeridos": 1,
+            "producto_id": None,
         },
         {
             "perfil_id": str(toallitas),
@@ -113,6 +116,7 @@ def test_la_lista_trae_lo_que_avisa_con_la_cantidad_y_en_orden(entorno_consumo: 
             "unidades_sugeridas": 118,
             "unidades_por_envase": None,
             "envases_sugeridos": None,
+            "producto_id": None,
         },
         {
             "perfil_id": str(panal),
@@ -122,6 +126,7 @@ def test_la_lista_trae_lo_que_avisa_con_la_cantidad_y_en_orden(entorno_consumo: 
             "unidades_sugeridas": 96,
             "unidades_por_envase": 20,
             "envases_sugeridos": 5,
+            "producto_id": None,
         },
     ]
 

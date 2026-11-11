@@ -49,7 +49,7 @@ _INSERTAR_AUDITORIA = text(
     " :request_id, :ocurrido_en)"
 )
 
-_COLUMNAS_DIRECCION = "d.etiqueta, d.calle, d.numero, d.depto, d.comuna, d.region, d.referencia"
+_COLUMNAS_DIRECCION = "d.etiqueta, d.calle, d.numero, d.depto, d.comuna, d.region, d.referencia, d.version"
 
 # El filtro por grupo es explícito además de RLS. Solo personas no eliminadas
 _DESDE_PERSONAS = " FROM persona_cuidada p"
@@ -89,6 +89,7 @@ def _direccion(fila: Row[Any]) -> DatosDireccion | None:
         comuna=fila.comuna,
         region=fila.region,
         referencia=fila.referencia,
+        version=fila.version,
     )
 
 

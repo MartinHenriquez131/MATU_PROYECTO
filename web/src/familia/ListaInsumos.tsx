@@ -6,9 +6,15 @@
 // viven en la memoria de la página y nunca llegan al servidor, ni a localStorage, sessionStorage,
 // la URL, `history.state` o `document.title` (salvo «Lista de insumos» al imprimir). La lista se
 // pide de nuevo cada vez que se abre la pantalla, y si falla nunca se muestra una vieja.
+//
+// MATU-61 (especificación docs/diseno/matu-61-pedido.md, sección 6): «Pedir estos productos», en un
+// bloque propio después de los botones, para admin y cuidador con la capa 3 encendida y solo si
+// alguna línea tiene producto del catálogo. La lista nunca compra sola (D10): solo pasa al pedido lo
+// que Carmen pide, con la cantidad que se ve convertida a envases del catálogo (6.3).
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleAlert, CloudOff, Copy, Hourglass, Info, ListChecks, Lock, Pencil, Plus, Printer, Share2 } from 'lucide-react'
+import { CircleAlert, CloudOff, Copy, Hourglass, Info, ListChecks, Lock, Pencil, Plus, Printer, Share2, ShoppingBasket } from 'lucide-react'
+import { verCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
 import { nombrePilaDe } from '../compartido/api/familia'
 import { verListaInsumos, type LineaListaInsumos } from '../compartido/api/consumo'
@@ -19,7 +25,11 @@ import { useDemora } from './Estados'
 import { puedeEditar, useFamilia } from './estado'
 import { PestanasInsumos } from './Insumos'
 import { enfocar, entero, permisoDe, Stepper, unaLinea, useAncho } from './insumosComun'
+import { agregarAlPedido, PedidoNoEditable, parrafosDeLista, permisoPedidoDe } from './pedidoAcciones'
+import { cantidadDesdeLista, enTuListaTexto, primeraOferta, productosDe } from './pedidoComun'
 import { navegar } from './ruteo'
+import { PEDIDO } from './textosPedido'
+import type { IntencionPedido } from './estado'
 import { FICHA, GENERAL, LISTA } from './textos'
 import { armarLista, cantidadEnTexto, sufijoCantidad, textoDeLista, type LineaParaSacar, type UnidadLinea } from './textoLista'
 import { enPantalla, INSUMOS } from './textosInsumos'
@@ -43,6 +53,8 @@ interface Linea {
   /** `null` en lo agregado a mano: no tiene días. */
   dias: number | null
   deMatu: boolean
+  /** MATU-61 (decisión 215): el producto del catálogo del insumo, o `null` (nombre libre o a mano). */
+  productoId: string | null
   /** Lo escrito en el campo, tal cual. */
   valor: string
   /** 8.3: con Ctrl+P y una cantidad inválida, la hoja usa el último valor válido. */
@@ -59,6 +71,7 @@ const desdeApi = (l: LineaListaInsumos): Linea => {
     envase: l.envases_sugeridos === null ? null : l.unidades_por_envase,
     dias: l.dias_restantes,
     deMatu: true,
+    productoId: l.producto_id ?? null,
     valor: String(sugerida),
     ultimoValido: sugerida,
     max: Math.max(CANTIDAD_MAX, sugerida),
@@ -86,8 +99,10 @@ function hayCompartir(): boolean {
 // ---------------------------------------------------------------- pantalla
 
 export function ListaDeInsumos() {
-  const { persona, rol, personaId } = useFamilia()
+  const { persona, rol, personaId, capa3, fijar } = useFamilia()
   const editor = puedeEditar(rol)
+  const [pidiendo, setPidiendo] = useState(false)
+  const [errPedir, setErrPedir] = useState(false)
   // 2.4: admin, cuidador y pagador cambian, agregan, quitan y sacan la lista. El observador solo la ve.
   const puede = rol !== 'observador'
   const pila = persona ? (nombrePilaDe(persona).trim().split(/\s+/)[0] ?? '') : ''
@@ -191,7 +206,7 @@ export function ListaDeInsumos() {
   const agregar = (nombre: string, unidad: UnidadAMano, cantidad: number) => {
     contador.current += 1
     const clave = `a-mano-${contador.current}`
-    setLineas((xs) => [...xs, { clave, nombre, unidad, envase: null, dias: null, deMatu: false, valor: String(cantidad), ultimoValido: cantidad, max: CANTIDAD_MAX }])
+    setLineas((xs) => [...xs, { clave, nombre, unidad, envase: null, dias: null, deMatu: false, productoId: null, valor: String(cantidad), ultimoValido: cantidad, max: CANTIDAD_MAX }])
     setPanel(false)
     cambio()
     anunciar(LISTA.agregamos(nombre), 'status')
@@ -254,6 +269,53 @@ export function ListaDeInsumos() {
     }
     document.title = LISTA.documentoImpreso
     window.print()
+  }
+
+  /**
+   * MATU-61 (6.2): las líneas con producto del catálogo pasan al pedido con la cantidad de 6.3, y se
+   * llega a «Tu pedido» con la nota de 6.4. Sin la autorización, va a pedirla con la intención en memoria.
+   */
+  const pedir = async () => {
+    if (!personaId || pidiendo || !validarSalida()) return
+    setPidiendo(true)
+    setErrPedir(false)
+    try {
+      const productos = productosDe(await verCatalogo())
+      const quiere: IntencionPedido = { personaId, desde: 'lista', agregar: [], fuera: [] }
+      for (const l of lineas) {
+        const producto = l.productoId ? productos.get(l.productoId) : undefined
+        const oferta = producto ? primeraOferta(producto) : null
+        if (!producto || !oferta) {
+          quiere.fuera.push(l.nombre)
+          continue
+        }
+        const enLista = { cantidad: valida(l) ?? l.ultimoValido, unidad: l.unidad, envase: l.envase }
+        const { cantidad } = cantidadDesdeLista(enLista, producto)
+        quiere.agregar.push({ producto_id: producto.id, nombre: producto.nombre, oferta_id: oferta.oferta_id, cantidad, deLista: enTuListaTexto(enLista) })
+      }
+      const deLista = Object.fromEntries(quiere.agregar.map((a) => [a.producto_id, a.deLista!]))
+      if (!quiere.agregar.length) {
+        fijar({ llegadaPedido: { personaId, tono: 'ok', parrafos: parrafosDeLista(quiere, []), deLista } })
+        return navegar('/insumos/pedido')
+      }
+      try {
+        const { yaEstaban } = await agregarAlPedido(personaId, quiere.agregar)
+        fijar({ llegadaPedido: { personaId, tono: 'ok', parrafos: parrafosDeLista(quiere, yaEstaban), deLista } })
+        navegar('/insumos/pedido')
+      } catch (x) {
+        if (permisoPedidoDe(x)) {
+          fijar({ intencionPedido: quiere })
+          return navegar('/insumos/pedido')
+        }
+        if (x instanceof PedidoNoEditable) return navegar('/insumos/pedido')
+        throw x
+      }
+    } catch (x) {
+      if (esVencida(x)) return
+      setErrPedir(true)
+    } finally {
+      setPidiendo(false)
+    }
   }
 
   // ---------------------------------------------------------------- composición
@@ -415,6 +477,19 @@ export function ListaDeInsumos() {
                 <MensajeError>
                   {mensaje.tipo === 'err-compartir' ? LISTA.errCompartir : compartirNativo ? LISTA.errCopiarCompartir : LISTA.errCopiarImprimir}
                 </MensajeError>
+              </Anunciado>
+            )}
+          </div>
+        )}
+        {editor && capa3 === true && lineas.some((l) => l.productoId) && (
+          <div className="mt-8 flex flex-col items-start gap-3 self-stretch border-t border-linea pt-6">
+            <p className="max-w-prose text-base text-tenue">{PEDIDO.listaFrase}</p>
+            <Boton variante="secundario" icono={<ShoppingBasket aria-hidden className="size-5" />} ocupado={pidiendo} textoOcupado={PEDIDO.pidiendoLista} onClick={() => void pedir()}>
+              {PEDIDO.pedirLista}
+            </Boton>
+            {errPedir && (
+              <Anunciado urgencia="alert">
+                <MensajeError>{GENERAL.error}</MensajeError>
               </Anunciado>
             )}
           </div>

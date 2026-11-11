@@ -22,8 +22,9 @@ from datetime import datetime
 from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Path, Request, Response, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
 from app.modules.care_circle.api.dependencias import ContextoGrupo, SesionDeGrupo
 from app.modules.care_circle.api.esquemas_personas import (
@@ -35,6 +36,7 @@ from app.modules.care_circle.api.esquemas_personas import (
 from app.modules.care_circle.api.router_personas import obtener_politica_version
 from app.modules.care_circle.application.autorizaciones import (
     AutorizacionVigente,
+    DeclaracionNoVigente,
     PersonaNoDisponible,
     RepositorioAutorizaciones,
     RolSinPermisoAutorizacion,
@@ -53,6 +55,7 @@ from app.modules.care_circle.application.retiro import (
     retirar_autorizacion,
 )
 from app.modules.care_circle.domain.personas import (
+    FINALIDAD_DESPACHO,
     AvisoMostrado,
     CalidadOtorgante,
     OtorgamientoInvalido,
@@ -64,6 +67,7 @@ from app.modules.care_circle.domain.retiro import (
     RetiroNoPermitido,
     YaRetirada,
     finalidad_de,
+    finalidades_retirables,
 )
 from app.modules.care_circle.infrastructure.autorizacion import persona_con_autorizacion
 from app.modules.care_circle.infrastructure.efectos_retiro import efectos_de
@@ -84,6 +88,7 @@ RUTA_RETIRO = RUTA + "/{finalidad}/retiro"
 _DETALLE_VIGENTE = {
     "consumo": "Esta persona ya tiene la autorización para calcular sus insumos",
     "plan_cuidado": "Esta persona ya tiene la autorización para usar su ficha",
+    "despacho": "Esta persona ya tiene la autorización para pedir sus insumos",
 }
 
 _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
@@ -96,15 +101,34 @@ _ERRORES: dict[int | str, dict[str, Any]] = {
 
 
 class SolicitudAutorizacionEntrada(BaseModel):
-    """Cuerpo de la autorización: ``consumo`` (MATU-36) o ``plan_cuidado`` para volver a autorizar la ficha
-    (MATU-44, decisión 128). Un campo extra responde 422."""
+    """Cuerpo de la autorización: ``consumo`` (MATU-36), ``plan_cuidado`` para volver a autorizar la ficha
+    (MATU-44, decisión 128) o ``despacho``, la de pedidos (MATU-61, D1), solo con la capa 3. Un campo extra
+    responde 422."""
 
     model_config = ConfigDict(extra="forbid")
 
-    finalidad: Literal["consumo", "plan_cuidado"]
+    finalidad: Literal["consumo", "plan_cuidado", "despacho"]
     calidad_otorgante: CalidadOtorgante
     referencia_documento: ReferenciaDocumento | None = None
     aviso: AvisoMostradoEntrada | None = None
+    huella_declaracion: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        description=(
+            "MATU-61 (P13): SHA-256 del texto exacto de declaracion_pedidos_<calidad> que se mostró (política,"
+            " sección 5). Obligatoria con despacho y prohibida con las otras dos (422). Otra huella: 422"
+            " declaracion_no_vigente"
+        ),
+    )
+
+
+def finalidades_activas() -> tuple[str, ...]:
+    """Las finalidades que existen: con la capa 3, también despacho (C2, decisión 217). Las pruebas la
+    sobreescriben."""
+    return finalidades_retirables(obtener_configuracion().capa3_habilitada)
+
+
+Finalidades = Annotated[tuple[str, ...], Depends(finalidades_activas)]
 
 
 class AutorizacionCreada(BaseModel):
@@ -188,10 +212,20 @@ def otorgar(
     version_politica: Annotated[str, Depends(obtener_politica_version)],
     retiros: Retiros,
     efectos: Efectos,
+    finalidades: Finalidades,
 ) -> AutorizacionCreada:
     contexto = autorizar.contexto
     aviso = solicitud.aviso
     request_id = getattr(request.state, "request_id", None)
+    if solicitud.finalidad == FINALIDAD_DESPACHO and FINALIDAD_DESPACHO not in finalidades:
+        # C2: sin la capa 3 no hay pedidos que autorizar
+        raise ErrorMATU(
+            422,
+            detalle="Revisa los campos indicados",
+            errores=[
+                {"campo": "finalidad", "mensaje": "esta autorización no está disponible", "tipo": "literal_error"}
+            ],
+        )
 
     def preparar() -> None:
         # Decisión 128: una autorización 90 días o más después del retiro no recupera lo que se borró
@@ -209,6 +243,7 @@ def otorgar(
                 aviso=None if aviso is None else AvisoMostrado(id=aviso.id, version=aviso.version),
                 request_id=request_id,
                 finalidad=solicitud.finalidad,
+                huella_declaracion=solicitud.huella_declaracion,
             ),
             version_politica,
             reloj,
@@ -218,10 +253,11 @@ def otorgar(
     except (RolSinPermisoAutorizacion, PersonaNoDisponible):
         raise ErrorMATU(404) from None
     except OtorgamientoInvalido as error:
+        tipo = "declaracion_no_vigente" if isinstance(error, DeclaracionNoVigente) else "regla_calidad_otorgante"
         raise ErrorMATU(
             422,
             detalle="Revisa los campos indicados",
-            errores=[{"campo": error.campo, "mensaje": error.mensaje, "tipo": "regla_calidad_otorgante"}],
+            errores=[{"campo": error.campo, "mensaje": error.mensaje, "tipo": tipo}],
         ) from None
     except AutorizacionVigente:
         raise ErrorMATU(409, tipo="autorizacion-vigente", detalle=_DETALLE_VIGENTE[solicitud.finalidad]) from None
@@ -249,7 +285,7 @@ def otorgar(
 
 # --- Estado y retiro (MATU-44) ------------------------------------------------------------------------
 
-FinalidadVista = Literal["plan_cuidado", "consumo"]
+FinalidadVista = Literal["plan_cuidado", "consumo", "despacho"]
 
 
 class AutorizacionVista(BaseModel):
@@ -271,7 +307,7 @@ class AutorizacionVista(BaseModel):
 
 
 class AutorizacionesPersona(BaseModel):
-    """Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador."""
+    """plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2). Lo que ven admin y cuidador."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -295,7 +331,7 @@ class AutorizacionVistaResumen(BaseModel):
 
 
 class AutorizacionesPersonaResumen(BaseModel):
-    """Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador."""
+    """Los mismos ítems de AutorizacionesPersona. Lo que ven el pagador y el observador."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -303,12 +339,15 @@ class AutorizacionesPersonaResumen(BaseModel):
 
 
 class RetiroAutorizacion(BaseModel):
-    """Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo (decisión 126, C2)."""
+    """Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo y despacho (decisión 126, C2).
+    ``pedidos_cancelados`` (MATU-61, decisión 192): los pedidos sin pagar que canceló el retiro de despacho; 0 con
+    las otras finalidades."""
 
     model_config = ConfigDict(extra="forbid")
 
     autorizacion: AutorizacionVista
     enlaces_cortados: int
+    pedidos_cancelados: int = Field(ge=0)
 
 
 def _vista(estado: EstadoDeAutorizacion) -> AutorizacionVista:
@@ -351,12 +390,15 @@ def _resumen(estado: EstadoDeAutorizacion) -> AutorizacionVistaResumen:
         401: _ERRORES[401],
         404: {"description": "No miembro, persona de otro grupo o inexistente", **_PROBLEMA},
     },
-    summary="El estado de las dos autorizaciones de la persona",
+    summary="El estado de las autorizaciones de la persona: dos, o tres con la capa 3",
 )
 def estado(
-    ver: Annotated[PersonaParaAutorizar, Depends(persona_para_ver)], retiros: Retiros, reloj: RelojDep
+    ver: Annotated[PersonaParaAutorizar, Depends(persona_para_ver)],
+    retiros: Retiros,
+    reloj: RelojDep,
+    finalidades: Finalidades,
 ) -> AutorizacionesPersona | AutorizacionesPersonaResumen:
-    estados = estado_autorizaciones(ver.persona_id, reloj, retiros)
+    estados = estado_autorizaciones(ver.persona_id, reloj, retiros, finalidades)
     # Cada rol recibe su propia proyección: el pagador y el observador nunca reciben la calidad del otorgante
     if puede_dar_de_alta(ver.contexto.rol):
         return AutorizacionesPersona(autorizaciones=[_vista(e) for e in estados])
@@ -366,8 +408,8 @@ def estado(
 FinalidadRuta = Annotated[
     str,
     Path(
-        description="plan_cuidado o consumo. Otro valor responde 404",
-        json_schema_extra={"enum": ["plan_cuidado", "consumo"]},
+        description="plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404",
+        json_schema_extra={"enum": ["plan_cuidado", "consumo", "despacho"]},
     ),
 ]
 
@@ -393,8 +435,9 @@ def retirar(
     retiros: Retiros,
     efectos: Efectos,
     reloj: RelojDep,
+    finalidades: Finalidades,
 ) -> RetiroAutorizacion:
-    valida = finalidad_de(finalidad)
+    valida = finalidad_de(finalidad, finalidades)
     if valida is None:
         raise ErrorMATU(404)
     contexto = autorizar.contexto
@@ -410,6 +453,7 @@ def retirar(
             reloj,
             retiros,
             efectos,
+            finalidades,
         )
     except (RolSinPermisoRetiro, AutorizacionNoEncontrada):
         raise ErrorMATU(404) from None
@@ -420,4 +464,8 @@ def retirar(
     except EfectoNoDisponible:
         log.error("falta el efecto del retiro de una finalidad")
         raise ErrorMATU(500) from None
-    return RetiroAutorizacion(autorizacion=_vista(resultado.estado), enlaces_cortados=resultado.enlaces_cortados)
+    return RetiroAutorizacion(
+        autorizacion=_vista(resultado.estado),
+        enlaces_cortados=resultado.enlaces_cortados,
+        pedidos_cancelados=resultado.pedidos_cancelados,
+    )

@@ -457,3 +457,11 @@ def test_el_contrato_declara_los_codigos_y_los_campos(esquema: dict[str, Any]) -
     politica = esquema["components"]["schemas"]["PoliticaVista"]
     assert set(politica["properties"]) == {"version", "actualizada_en", "huella", "texto", "correo_contacto"}
     assert "politica_aceptada" in esquema["components"]["schemas"]["CuentaVista"]["properties"]
+
+
+def test_la_0_12_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-61 (D11): la 0.12 agrega los pedidos; la 0.11 sigue publicada para quien ya la aceptó."""
+    assert {"0.11", "0.12"} <= set(PUBLICADAS)
+    assert dotenv_values(BACKEND.parent / ".env.example")["POLITICA_VERSION"] == "0.12"
+    texto = texto_publicado("0.12")
+    assert "La autorización para los pedidos" in texto and texto != texto_publicado("0.11")

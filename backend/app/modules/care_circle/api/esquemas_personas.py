@@ -11,9 +11,9 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.modules.care_circle.domain.personas import (
     LARGO_MAXIMO_NOMBRE,
@@ -110,6 +110,17 @@ class DireccionVista(BaseModel):
     comuna: str
     region: str
     referencia: str | None
+    # MATU-61 (decisión 190): la versión de la dirección, para If-Match en PUT y DELETE …/direccion
+    etag: str = Field(pattern=r'^"v[0-9]+"$', description='La versión de la dirección, "v<version>" (If-Match)')
+
+    @model_validator(mode="before")
+    @classmethod
+    def _etag_desde_la_version(cls, datos: Any) -> Any:
+        # Las vistas de la persona se arman con from_attributes desde DatosDireccion, que trae version y no etag
+        if not isinstance(datos, dict) and hasattr(datos, "version"):
+            campos = ("etiqueta", "calle", "numero", "depto", "comuna", "region", "referencia")
+            return {**{c: getattr(datos, c) for c in campos}, "etag": f'"v{datos.version}"'}
+        return datos
 
 
 class ConsentimientoVista(BaseModel):

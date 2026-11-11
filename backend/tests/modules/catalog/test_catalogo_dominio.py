@@ -79,7 +79,7 @@ def test_el_stock_sale_solo_como_disponible() -> None:
     ofertas = [o for c in catalogo.categorias for p in c.productos for o in p.comercios]
 
     assert [f.name for f in dataclasses.fields(OfertaVista)] == [
-        "oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible",
+        "oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible", "ficticio",
     ]
     assert {o.disponible for o in ofertas} == {True, False}
 

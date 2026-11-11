@@ -20,6 +20,8 @@ CARPETA = Path(__file__).resolve().parents[1] / "politica"
 # La huella es pública, no un secreto: por eso el pragma de detect-secrets
 PUBLICADAS: dict[str, str] = {
     "0.11": "d1753de4cbe31c87a8e8fb97c7b5e7d89b9667a2e29bcb846008c7b62a5a2e3c",  # pragma: allowlist secret
+    # MATU-61 (D11): los pedidos de insumos, con su autorización aparte. La 0.11 sigue publicada para quien la aceptó
+    "0.12": "c58e1e8aac0091dcc5c205d7bf0a514c7f2d25cc1bd4c1fb514322a479845132",  # pragma: allowlist secret
 }
 
 

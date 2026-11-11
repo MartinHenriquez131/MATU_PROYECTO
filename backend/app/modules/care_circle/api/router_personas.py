@@ -45,6 +45,7 @@ from app.modules.care_circle.application.ports import (
     RepositorioPersonas,
 )
 from app.modules.care_circle.domain.avisos import Aviso
+from app.modules.care_circle.domain.direccion import etag_de
 from app.modules.care_circle.domain.personas import AvisoMostrado, OtorgamientoInvalido, puede_dar_de_alta
 from app.modules.care_circle.infrastructure.repositorio_personas import RepositorioPersonasSQL
 from app.modules.iam.api.dependencias import obtener_reloj
@@ -114,6 +115,7 @@ def _direccion_vista(d: DatosDireccion | None) -> DireccionVista | None:
         comuna=d.comuna,
         region=d.region,
         referencia=d.referencia,
+        etag=etag_de(d.version),
     )
 
 

@@ -12,6 +12,8 @@ import {
   type PersonaListada,
   type Rol,
 } from '../compartido/api/familia'
+import { verCatalogo } from '../compartido/api/catalogo'
+import { leerFallo } from '../compartido/api/cliente'
 import { anunciar as anunciarEnRegion } from '../compartido/ui/Anuncios'
 import type { FuenteSinGuardar } from '../compartido/version'
 import { escucharSesion, fijarGrupo, renovar, salir as cerrarSesion } from '../compartido/api/sesion'
@@ -26,6 +28,28 @@ export interface AccionAviso {
   variante: 'principal' | 'secundario' | 'texto'
 }
 export type AvisoEntrar = 'vencida' | 'salio' | 'clave-cambiada' | null
+
+/**
+ * MATU-61 (4): lo que se quería agregar al pedido cuando faltaba la autorización, desde el catálogo
+ * (un producto de un comercio) o desde la lista (sus líneas). Vive solo en memoria y se hace al
+ * autorizar; nunca va a la URL ni al almacenamiento del navegador (C18).
+ */
+export interface IntencionPedido {
+  personaId: string
+  desde: 'catalogo' | 'lista'
+  agregar: { producto_id: string; nombre: string; oferta_id: string; cantidad: number; deLista: string | null }[]
+  /** Los nombres de la lista que no están en el catálogo (6.4). */
+  fuera: string[]
+}
+
+/** MATU-61 (6.4 y 7.3): la nota al llegar a «Tu pedido», hasta salir de la pantalla. */
+export interface LlegadaPedido {
+  personaId: string
+  tono: 'ok' | 'rocio'
+  parrafos: string[]
+  /** «En tu lista: …» de las líneas que vinieron de la lista, por producto (7.4). */
+  deLista: Record<string, string>
+}
 
 /** Lo escrito en «¿A quién cuidas?», que vive en memoria hasta el POST de la autorización. */
 export interface BorradorPersona {
@@ -71,6 +95,16 @@ interface Estado {
    * subruta vuelve a `/grupo`. Solo en memoria.
    */
   reautorizar: { personaId: string; finalidad: Finalidad; vista: AutorizacionVista | null } | null
+  /**
+   * MATU-61 (2.2): si la capa 3 está encendida (el catálogo responde), `false` si responde 404, y
+   * `null` mientras no se sabe. Sin la capa 3 no se ven «Pedido», «Agregar al pedido» ni «Pedir
+   * estos productos».
+   */
+  capa3: boolean | null
+  intencionPedido: IntencionPedido | null
+  llegadaPedido: LlegadaPedido | null
+  /** MATU-61 (12.1): «Ver la dirección de entrega» de Grupo familiar; la dirección vuelve allá. */
+  direccionDesdeGrupo: boolean
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -84,6 +118,8 @@ interface Contexto extends Estado {
   elegir: (grupoId: string, personaId: string | null) => Promise<void>
   fijar: (cambios: Partial<Estado>) => void
   anunciar: (texto: string) => void
+  /** MATU-61: pregunta una vez si la capa 3 está encendida (`GET /v1/catalogo`). */
+  conocerCapa3: () => void
   /**
    * Los formularios registran aquí lo que tienen sin guardar, con `registrarSinGuardar`: el editor de
    * la ficha (5.7) y, desde MATU-67, los de Insumos. Lo consultan el vencimiento de la entrada (que
@@ -116,6 +152,10 @@ const INICIAL: Estado = {
   autorizacion: null,
   celularDesde: 'cuenta',
   reautorizar: null,
+  capa3: null,
+  intencionPedido: null,
+  llegadaPedido: null,
+  direccionDesdeGrupo: false,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
@@ -126,6 +166,22 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
 
   /** Por la región viva amable de main.tsx, la misma de los avisos (compartido/ui/Anuncios). */
   const anunciar = useCallback((texto: string) => anunciarEnRegion(texto, 'status'), [])
+
+  // MATU-61 (2.2): el catálogo dice si la capa 3 está encendida. Se pregunta una vez; un error que no
+  // es 404 deja `null` y se vuelve a preguntar la próxima vez.
+  const preguntando = useRef(false)
+  const conocerCapa3 = useCallback(() => {
+    if (preguntando.current) return
+    preguntando.current = true
+    verCatalogo()
+      .then(() => setS((x) => ({ ...x, capa3: true })))
+      .catch((e: unknown) => {
+        if (leerFallo(e).status === 404) setS((x) => ({ ...x, capa3: false }))
+      })
+      .finally(() => {
+        preguntando.current = false
+      })
+  }, [])
 
   /** Pide grupos y personas, y elige el primer grupo y la primera persona (2.3). */
   const alEntrar = useCallback(async () => {
@@ -198,9 +254,10 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
       elegir,
       fijar,
       anunciar,
+      conocerCapa3,
       sinGuardar,
     }
-  }, [s, cargar, alEntrar, salir, elegir, fijar, anunciar])
+  }, [s, cargar, alEntrar, salir, elegir, fijar, anunciar, conocerCapa3])
 
   return (
     <Ctx.Provider value={valor}>

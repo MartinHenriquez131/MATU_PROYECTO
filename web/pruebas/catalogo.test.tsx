@@ -6,7 +6,7 @@
 // cual. Datos sintéticos: comercios y productos ficticios.
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type InternalAxiosRequestConfig } from 'axios'
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Rol } from '../src/compartido/api/familia'
 import { apiFamilia, fijarGrupo } from '../src/compartido/api/sesion'
@@ -82,6 +82,11 @@ function abrir(rol: Rol, ...respuestas: RespuestaFalsa[]) {
   // Lo que de verdad saldría a la red: las cabeceras ya pasadas por el interceptor de sesion.ts.
   const adaptador = apiFamilia.defaults.adapter as (c: InternalAxiosRequestConfig) => Promise<unknown>
   apiFamilia.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+    // MATU-61 (5.2): admin y cuidador leen además el pedido en curso, que aquí no existe (404).
+    if (/pedido-en-curso$/.test(config.url ?? '')) {
+      pedidosEnCurso.push(`GET ${config.url}`)
+      throw new AxiosError('HTTP 404', AxiosError.ERR_BAD_REQUEST, config, {}, { data: { type: '/errores/no-encontrado', status: 404 }, status: 404, statusText: '', headers: {}, config })
+    }
     cabeceras.push(config.headers.toJSON() as Record<string, unknown>)
     return adaptador(config) as never
   }
@@ -98,8 +103,10 @@ function abrir(rol: Rol, ...respuestas: RespuestaFalsa[]) {
 const tarjeta = (nombre: string) => screen.getByRole('heading', { level: 3, name: nombre }).closest('li')!
 
 let escrituras: string[] = []
+let pedidosEnCurso: string[] = []
 beforeEach(() => {
   escrituras = []
+  pedidosEnCurso = []
   window.history.replaceState(null, '', '/insumos/catalogo')
   for (const s of [window.localStorage, window.sessionStorage]) s.clear()
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, clave: string) {
@@ -113,6 +120,8 @@ describe('El catálogo', () => {
     const { pedidas, cabeceras, pantalla } = abrir(rol)
     expect(await pantalla.findByRole('heading', { level: 3, name: 'Pañal adulto M x30' })).toBeVisible()
     expect(pedidas).toEqual(['GET /v1/catalogo'])
+    // MATU-61 (5.2): admin y cuidador leen además qué está en el pedido; pagador y observador, no.
+    await waitFor(() => expect(pedidosEnCurso).toEqual(rol === 'admin' || rol === 'cuidador' ? [`GET /v1/personas-cuidadas/${PERSONA.id}/pedido-en-curso`] : []))
     // Con un grupo elegido en la sesión, el catálogo igual no lo manda (decisión 159).
     expect(Object.keys(cabeceras[0]).map((k) => k.toLowerCase())).not.toContain('x-grupo-id')
 
@@ -232,8 +241,9 @@ describe('El catálogo', () => {
     expect(within(tarjeta('Suplemento nutricional en polvo 400 g')).getByText('Tarro de 400 g')).toBeVisible()
   })
 
-  it('no hay botón «Pedir» ni ningún control dentro de las tarjetas: solo las pestañas', async () => {
-    const { pantalla } = abrir('admin')
+  // MATU-61 (5.3): el criterio 2 sigue igual para el pagador y el observador; admin y cuidador tienen «Agregar al pedido».
+  it.each<Rol>(['pagador', 'observador'])('%s: no hay botón «Pedir» ni ningún control dentro de las tarjetas: solo las pestañas', async (rol) => {
+    const { pantalla } = abrir(rol)
     await pantalla.findByRole('heading', { level: 3, name: 'Pañal adulto M x30' })
     expect(pantalla.queryByRole('button')).toBeNull()
     expect(pantalla.queryByText(/pedir|comprar|agregar|carro|stock|oferta|recomendad|más barato/i)).toBeNull()

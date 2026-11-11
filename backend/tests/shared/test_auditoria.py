@@ -75,6 +75,11 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "reposicion.declarar",
         "clave.destruir",
         "persona.borrar",
+        "direccion.cambiar",
+        "pedido.crear",
+        "pedido.confirmar",
+        "pedido.cancelar",
+        "pedido.regla_faltante",
     }
 
 
@@ -96,6 +101,8 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "reposicion",
         "clave_datos",
         "persona_cuidada",
+        "direccion",
+        "pedido",
     }
 
 
@@ -107,7 +114,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         pytest.param(MotivoAuditoria, "se fue al hospital", id="motivo-texto-libre"),
         pytest.param(MotivoAuditoria, "", id="motivo-vacio"),
         pytest.param(ActorTipo, "comercio", id="actor-aun-no-usado"),
-        pytest.param(EntidadAuditoria, "direccion", id="entidad-fuera-de-catalogo"),
+        pytest.param(EntidadAuditoria, "comercio", id="entidad-fuera-de-catalogo"),
     ],
 )
 def test_catalogo_rechaza_un_valor_fuera_de_el(catalogo: type, valor: str) -> None:

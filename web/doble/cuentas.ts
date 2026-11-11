@@ -115,6 +115,20 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'politica-sin-registro@example.com', que: '«Tu cuenta»: «No tenemos registro de qué versión aceptaste.» (una cuenta anterior a MATU-75)' },
   { email: 'recuperar-espera@example.com', que: 'Cambiar la contraseña con el código responde 429 con Retry-After: 120' },
   { email: 'codigo-invalido@example.com', que: 'Cambiar la contraseña responde siempre 422 codigo-invalido' },
+  // MATU-61: el pedido (/insumos/pedido). Todas con la autorización de pedidos vigente y dirección, salvo donde se dice.
+  { email: 'pedido@example.com', que: 'Pedido: admin con tres productos en borrador; «Ver el total», el resumen, «Cambiar el pedido» y cancelar' },
+  { email: 'pedido-cuidador@example.com', que: 'Pedido: cuidadora con el mismo carrito (también cancela, JC3)' },
+  { email: 'pedido-vacio@example.com', que: 'Pedido: sin pedido y sin dirección («Tu pedido está vacío.»); agregar desde el catálogo y «Agregar la dirección»' },
+  { email: 'pedido-permiso@example.com', que: 'Pedido: cuidadora sin la autorización de pedidos ni dirección, con una lista que trae productos del catálogo («Pedir estos productos»)' },
+  { email: 'pedido-renovar@example.com', que: 'Pedido: la autorización de pedidos por renovar («Renovar la autorización»)' },
+  { email: 'pedido-pagador@example.com', que: 'Pedido: pagador con el total ya confirmado («Ver el resumen», sin cambiar nada)' },
+  { email: 'pedido-observador@example.com', que: 'Pedido: observador, el carrito sin la entrega ni controles' },
+  { email: 'pedido-observador-sin@example.com', que: 'Pedido: observador sin la autorización de pedidos («Falta la autorización de pedidos…»)' },
+  { email: 'pedido-cambios@example.com', que: 'Pedido: al confirmar, el pañal baja de precio, los protectores pasan a otro comercio y las toallitas salen' },
+  { email: 'pedido-plazo@example.com', que: 'Pedido: el total vale 130 s: «Quedan 2 minutos…» a los 10 s, y vence a los 130 s' },
+  { email: 'pedido-conflicto@example.com', que: 'Pedido: guardar la dirección responde 412 la primera vez (otra persona la cambió)' },
+  { email: 'pedido-falla@example.com', que: 'Pedido: «Ver el total» responde 503 («No pudimos confirmar el total…»)' },
+  { email: 'pedido-retirada@example.com', que: 'Pedido: la autorización de pedidos retirada; Grupo familiar con «Ver la dirección de entrega» y «Volver a autorizar»' },
 ]
 
 /**

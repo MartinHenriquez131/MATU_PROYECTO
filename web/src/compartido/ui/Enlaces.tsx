@@ -1,6 +1,6 @@
 // Enlaces de MATU-75 (Demo/DISENO.md, sección 6, «Enlace dentro de una frase»; especificación
 // docs/diseno/matu-75-privacidad.md, secciones 4, 5.3 y 7).
-import type { ReactNode } from 'react'
+import type { MouseEventHandler, ReactNode } from 'react'
 import { FileText } from 'lucide-react'
 import { POLITICA, RUTA_PRIVACIDAD } from '../textosPolitica'
 
@@ -15,14 +15,21 @@ export function EnlaceEnFrase({
   otraPestana = false,
   className = '',
   children,
+  id,
+  onClick,
 }: {
   href: string
   otraPestana?: boolean
   className?: string
   children: ReactNode
+  /** MATU-61 (5.2): «Ver tu pedido» recibe el foco al agregar y navega dentro de la app. */
+  id?: string
+  onClick?: MouseEventHandler<HTMLAnchorElement>
 }) {
   return (
     <a
+      id={id}
+      onClick={onClick}
       href={href}
       target={otraPestana ? '_blank' : undefined}
       rel={otraPestana ? 'noopener noreferrer' : undefined}

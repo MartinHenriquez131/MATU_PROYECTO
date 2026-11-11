@@ -52,12 +52,12 @@ def test_rutas_metodos_y_codigos(esquema: dict[str, Any]) -> None:
     assert {"200", "401", "404", "409"} <= set(retiro["responses"])
     assert "requestBody" not in retiro
     [finalidad] = [p for p in retiro["parameters"] if p["name"] == "finalidad"]
-    assert finalidad["schema"]["enum"] == ["plan_cuidado", "consumo"]
+    assert finalidad["schema"]["enum"] == ["plan_cuidado", "consumo", "despacho"]
 
 
 def test_el_post_acepta_plan_cuidado(esquema: dict[str, Any]) -> None:
     entrada = esquema["components"]["schemas"]["SolicitudAutorizacionEntrada"]
-    assert set(entrada["properties"]["finalidad"]["enum"]) == {"consumo", "plan_cuidado"}
+    assert set(entrada["properties"]["finalidad"]["enum"]) == {"consumo", "plan_cuidado", "despacho"}  # MATU-61 (D1)
 
 
 def test_la_vista_trae_solo_lo_acordado(esquema: dict[str, Any]) -> None:
@@ -75,4 +75,5 @@ def test_la_vista_trae_solo_lo_acordado(esquema: dict[str, Any]) -> None:
     assert {r["$ref"].rsplit("/", 1)[1] for r in respuesta["anyOf"]} == {
         "AutorizacionesPersona", "AutorizacionesPersonaResumen"}
     retiro = esquema["components"]["schemas"]["RetiroAutorizacion"]
-    assert set(retiro["properties"]) == set(retiro["required"]) == {"autorizacion", "enlaces_cortados"}
+    campos = {"autorizacion", "enlaces_cortados", "pedidos_cancelados"}  # pedidos_cancelados: MATU-61
+    assert set(retiro["properties"]) == set(retiro["required"]) == campos

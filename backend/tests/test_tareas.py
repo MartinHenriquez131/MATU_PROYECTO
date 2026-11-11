@@ -127,6 +127,7 @@ def test_una_tarea_que_falla_no_detiene_a_las_demas_y_el_log_no_lleva_su_mensaje
         ("destruccion_fichas", "ok"),
         ("conservacion_consumo", "fallo"),
         ("conservacion_sesiones", "ok"),
+        ("conservacion_pedidos", "ok"),
         ("quiebres", "ok"),
     ]
     fallo = lineas[1]
@@ -363,6 +364,7 @@ class _Prohibida:
         ("destruccion_fichas", "SCHEDULER_DATABASE_URL"),
         ("conservacion_consumo", "SCHEDULER_DATABASE_URL"),
         ("conservacion_sesiones", "SCHEDULER_DATABASE_URL"),
+        ("conservacion_pedidos", "SCHEDULER_DATABASE_URL"),
         ("quiebres", "SCHEDULER_DATABASE_URL"),
         ("avisos", "PUBLISHER_DATABASE_URL"),
     ],
@@ -443,7 +445,9 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
     solo con las que le tocan."""
     from sqlalchemy import text
 
-    config = _CONFIG.model_copy(update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"})
+    config = _CONFIG.model_copy(
+        update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"}
+    )
     conexiones = {
         "matu_app": tareas.fabrica_tareas(config),
         "matu_scheduler": tareas.fabrica_de_rol(config.scheduler_database_url, tareas.ROL_SCHEDULER),
@@ -461,6 +465,7 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
         "destruccion_fichas": {"matu_scheduler"},
         "conservacion_consumo": {"matu_scheduler"},
         "conservacion_sesiones": {"matu_scheduler"},
+        "conservacion_pedidos": {"matu_scheduler"},
         "quiebres": {"matu_app", "matu_scheduler"},
         "avisos": {"matu_app", "matu_publisher"},
     }
@@ -557,3 +562,21 @@ def test_los_readme_dicen_los_mismos_horarios() -> None:
             assert f"`{cron}`" in texto, (readme.name, tarea)
         for viejo in ("`10 6,7 * * *`", "`30 7 * * *`", "`*/15 * * * *`"):
             assert viejo not in texto, (readme.name, viejo)
+
+
+@requiere_base
+@pytest.mark.rf("RF-21")
+def test_conservacion_pedidos_corre_con_la_capa_3_apagada() -> None:
+    """MATU-61 (decisión 220, política 0.12 §10): con CAPA3_HABILITADA apagada, lo no pagado igual se borra a los 30
+    días. La tarea llama a pedido_conservar con matu_scheduler y queda ok, no apagada."""
+    config = _CONFIG.model_copy(update={"capa3_habilitada": False})
+    espia = _Espia(fabrica_scheduler())
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=_Prohibida(),  # type: ignore[arg-type]
+        reloj=RelojFijo(datetime.now(UTC)),
+        fabrica_scheduler=espia,  # type: ignore[arg-type]
+    )
+    assert tareas.correr(["conservacion_pedidos"], ctx) == tareas.SALIDA_OK
+    assert espia.sesiones
+

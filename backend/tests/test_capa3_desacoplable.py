@@ -65,6 +65,8 @@ RUTAS_CAPAS_1_Y_2 = (
     "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar",
     # MATU-72: borrar a la persona no depende del despacho; si existiera un pedido, se conserva (C12)
     "/v1/personas-cuidadas/{persona_id}/borrado",
+    # MATU-61 (C6, C8): la dirección de la persona es de care_circle y existe sin la capa 3
+    "/v1/personas-cuidadas/{persona_id}/direccion",
 )
 
 # Los prefijos del despacho en el contrato (arquitectura, sección 9.4)
@@ -76,6 +78,9 @@ PREFIJOS_CAPA_3 = (
     "/v1/comercio/",
     "/v1/backoffice/comercios",
     "/v1/backoffice/consumos",
+    # MATU-61: el pedido de la persona, el pedido en curso y las condiciones del pedido
+    "/v1/personas-cuidadas/{persona_id}/pedido",
+    "/v1/condiciones-pedido",
 )
 
 # Cada petición se detiene antes de la base: sin sesión responde 401, y un cuerpo inválido, 422. Así
@@ -98,6 +103,10 @@ PETICIONES: list[tuple[str, str, Any, int]] = [
     ("POST", f"/v1/personas-cuidadas/{PERSONA}/consumo/{PERSONA}/reponer", {"cantidad": 1}, 401),
     ("POST", f"/v1/personas-cuidadas/{PERSONA}/consumo/{PERSONA}/recontar", {"stock_unidades": 1}, 401),
     ("POST", f"/v1/personas-cuidadas/{PERSONA}/borrado", None, 401),
+    # MATU-61: la dirección existe sin la capa 3; el pedido de la persona y las condiciones, no
+    ("DELETE", f"/v1/personas-cuidadas/{PERSONA}/direccion", None, 401),
+    ("POST", f"/v1/personas-cuidadas/{PERSONA}/pedidos", {}, 404),
+    ("GET", "/v1/condiciones-pedido", None, 404),
     ("POST", "/v1/sesiones", {}, 422),
     ("POST", "/v1/pedidos", {}, 404),
     # MATU-59: el catálogo existe, pero es capa 3: sin ella, su ruta no está (404 de ruteo, no 401)
@@ -423,7 +432,7 @@ def test_paquetes_bloqueados_siguen_las_flechas() -> None:
 TABLAS_CAPA_3 = frozenset(
     {
         "categoria_cuidado", "producto", "comercio", "usuario_comercio", "convenio", "oferta",
-        "pedido", "pedido_entrega", "pedido_linea", "regla_sustitucion", "pedido_transicion",
+        "pedido", "pedido_entrega", "pedido_linea", "regla_sustitucion", "pedido_transicion", "pedido_comercio",
         "plan_reposicion", "plan_reposicion_linea", "ocurrencia",
         "cargo", "participacion", "transaccion_pasarela", "medio_pago_inscrito",
         "repartidor", "oferta_asignacion", "asignacion", "evidencia",
@@ -433,7 +442,9 @@ TABLAS_CAPA_3 = frozenset(
 
 # Tablas que no son de las capas 1 y 2 y pueden apuntar al despacho: backoffice atiende incidencias de
 # pedidos (modelo de datos, sección 3.1, BO --> ORD)
-FUERA_DE_LAS_CAPAS_1_Y_2 = frozenset({"incidencia"})
+# MATU-61 (D5): idempotencia es transversal, pero solo la usan los POST de pedidos y pagos (arquitectura 9.1); su
+# pedido_id cae con el pedido (ON DELETE CASCADE) y no la usa ninguna ruta de las capas 1 y 2
+FUERA_DE_LAS_CAPAS_1_Y_2 = frozenset({"incidencia", "idempotencia"})
 
 # La única llave de las capas 1 y 2 hacia la capa 3, declarada (decisión 104): el insumo puede venir del
 # catálogo, y si no, va con nombre_libre (ADR-002). Es anulable, y sin catálogo queda vacía
@@ -503,6 +514,9 @@ FLUJOS = (
     "tests/modules/consumption/test_alertas_api.py::test_listar_y_descartar_una_alerta",
     # La lista de insumos (MATU-60): se exporta sin catálogo, con nombre libre
     "tests/modules/consumption/test_lista_api.py::test_la_lista_trae_lo_que_avisa_con_la_cantidad_y_en_orden",
+    # MATU-61 (C2): sin la capa 3, dos autorizaciones, y borrar a la persona funciona y no toca pedidos
+    "tests/modules/care_circle/test_despacho_capa3_api.py::test_sin_la_capa_3_son_dos_autorizaciones_y_despacho_no_existe",
+    "tests/modules/care_circle/test_despacho_capa3_api.py::test_sin_la_capa_3_borrar_a_la_persona_funciona_y_revoca_despacho",
 )
 
 

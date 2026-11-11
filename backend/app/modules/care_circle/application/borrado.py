@@ -78,6 +78,7 @@ def borrar_persona(
     repositorio: RepositorioBorrado,
     retiros: RepositorioRetiros,
     efectos: Mapping[str, EfectoDelRetiro],
+    finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES,
 ) -> PersonaBorrada:
     """Borra al tiro todo lo guardado de la persona. Orden: rol (404), persona (404), ya borrada (409). Después,
     todo en la misma transacción y con un solo instante del Reloj."""
@@ -85,7 +86,9 @@ def borrar_persona(
         raise RolSinPermisoBorrado()
     persona = exigir_borrable(repositorio.bloquear_persona(solicitud.persona_id))
     # Falla cerrado: sin el efecto de una finalidad, lo de esa finalidad quedaría guardado
-    if any(finalidad not in efectos for finalidad in FINALIDADES_RETIRABLES):
+    # MATU-61 (C2): ``finalidades`` son las activas. Con la capa 3, también despacho, y su efecto cancela los pedidos
+    # sin pagar; sin la capa 3, una autorización despacho que quedó se revoca igual, sin tocar pedidos
+    if any(finalidad not in efectos for finalidad in finalidades):
         raise EfectoNoDisponible()
     vigentes = repositorio.bloquear_vigentes(persona.id)
     ahora = reloj.ahora()
@@ -93,7 +96,7 @@ def borrar_persona(
     for autorizacion in vigentes:
         retiros.retirar(autorizacion.id, ahora, solicitud.usuario_id, solicitud.request_id, motivo=MOTIVO_BORRADO)
     cortados = 0
-    for finalidad in sorted(efectos, key=lambda f: (orden_de_bloqueo(f), f)):
+    for finalidad in sorted((f for f in efectos if f in finalidades), key=lambda f: (orden_de_bloqueo(f), f)):
         cortados += efectos[finalidad].borrar(persona.id, ahora, solicitud.usuario_id, solicitud.request_id)
     repositorio.anonimizar(persona, ahora, solicitud.usuario_id, solicitud.request_id)
     return PersonaBorrada(

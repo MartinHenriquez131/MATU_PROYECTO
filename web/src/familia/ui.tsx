@@ -117,6 +117,9 @@ export function GrupoOpciones<T extends string>({
   error,
   forma = 'lista',
   children,
+  nombradoPor,
+  describe,
+  detalleGrande = false,
 }: {
   leyenda: string
   opciones: { valor: T; texto: string; detalle?: string }[]
@@ -131,6 +134,12 @@ export function GrupoOpciones<T extends string>({
    */
   forma?: 'lista' | 'chips'
   children?: ReactNode
+  /** MATU-61 (7.6): el grupo se nombra con su leyenda y este id («Si falta este producto, Pañal…»). */
+  nombradoPor?: string
+  /** MATU-61 (O9): ids que también lo describen («Nunca lo cambiamos por otra marca…»). */
+  describe?: string
+  /** MATU-61 (7.6): el detalle de cada opción en `text-base`. */
+  detalleGrande?: boolean
 }) {
   const id = useId()
   if (forma === 'chips')
@@ -160,9 +169,16 @@ export function GrupoOpciones<T extends string>({
         {children}
       </fieldset>
     )
+  const describeLista = [describe ?? '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   return (
-    <fieldset className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`} aria-describedby={error ? `${id}-e` : undefined}>
-      <legend className="mb-2 font-bold">{leyenda}</legend>
+    <fieldset
+      className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`}
+      aria-labelledby={nombradoPor ? `${id}-l ${nombradoPor}` : undefined}
+      aria-describedby={describeLista}
+    >
+      <legend id={`${id}-l`} className="mb-2 font-bold">
+        {leyenda}
+      </legend>
       <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl/main:grid-cols-3' : ''}`}>
         {opciones.map((o) => {
           const on = o.valor === valor
@@ -179,7 +195,7 @@ export function GrupoOpciones<T extends string>({
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="font-bold leading-snug">{o.texto}</span>
-                {o.detalle && <span className="text-sm text-tenue">{o.detalle}</span>}
+                {o.detalle && <span className={`${detalleGrande ? 'text-base' : 'text-sm'} text-tenue`}>{o.detalle}</span>}
               </span>
             </label>
           )

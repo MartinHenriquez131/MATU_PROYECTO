@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaEnvases, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, DOMINIO_NO_PERMITIDO } from './cuentas'
+import { atenderPedido, otorgarDespacho, productoDelCatalogo, retirarDespacho, sembrarDespacho, sembrarPedido, vistaDespacho } from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -457,6 +458,39 @@ function sembrar() {
   cuenta('politica-sin-registro@example.com', 'Carmen', soto()).politica = null
   cuenta('recuperar-espera@example.com', 'Carmen', soto(), 'recuperar-espera')
   cuenta('codigo-invalido@example.com', 'Carmen', soto(), 'codigo-invalido')
+  // MATU-61: el pedido, una cuenta por estado y por rol (especificación 17). María tiene dirección
+  // salvo en «pedido-vacio» y «pedido-permiso»; la lista de «pedido-permiso» trae productos del catálogo.
+  const DIRECCION = { etiqueta: 'Casa', calle: 'Los Aromos', numero: '123', depto: '4', comuna: 'La Reina', region: 'Metropolitana', referencia: 'Portón verde', etag: '"v1"' }
+  const conPedido = (email: string, nombre: string, rol: Rol, despacho: Parameters<typeof sembrarDespacho>[1], modo?: string, conDireccion = true) => {
+    const u = cuenta(email, nombre, sotoLista(rol), modo)
+    u.celularVerificado = true
+    const p = u.grupos[0].personas[0]
+    if (conDireccion) p.direccion = { ...DIRECCION }
+    sembrarDespacho(p.id, despacho)
+    return { u, p }
+  }
+  const tresProductos: [string, number][] = [['Pañal adulto M', 2], ['Protectores diarios', 1], ['Toallitas húmedas', 3]]
+  sembrarPedido(conPedido('pedido@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos)
+  sembrarPedido(conPedido('pedido-cuidador@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos)
+  conPedido('pedido-vacio@example.com', 'Carmen', 'admin', 'vigente', undefined, false)
+  {
+    const { u } = conPedido('pedido-permiso@example.com', 'Javiera', 'cuidador', 'no', undefined, false)
+    const c = insumos(u, 'vigente', false)
+    c.perfiles = listaParaLista({ id: u.id, nombre: u.nombre }).map((x) => ({
+      ...x,
+      producto_id: x.nombre_libre.startsWith('Pañal') ? productoDelCatalogo('Pañal adulto M') : x.nombre_libre === 'Toallitas húmedas' ? productoDelCatalogo('Toallitas húmedas') : null,
+    }))
+    crearAlertas(c)
+  }
+  sembrarPedido(conPedido('pedido-renovar@example.com', 'Carmen', 'admin', 'vencida').p.id, tresProductos)
+  sembrarPedido(conPedido('pedido-pagador@example.com', 'Rodrigo', 'pagador', 'vigente').p.id, tresProductos, true)
+  sembrarPedido(conPedido('pedido-observador@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresProductos)
+  conPedido('pedido-observador-sin@example.com', 'Rodrigo', 'observador', 'no')
+  sembrarPedido(conPedido('pedido-cambios@example.com', 'Carmen', 'admin', 'vigente', 'pedido-cambios').p.id, tresProductos)
+  sembrarPedido(conPedido('pedido-plazo@example.com', 'Carmen', 'admin', 'vigente', 'pedido-plazo').p.id, tresProductos)
+  sembrarPedido(conPedido('pedido-conflicto@example.com', 'Carmen', 'admin', 'vigente', 'pedido-conflicto').p.id, tresProductos)
+  sembrarPedido(conPedido('pedido-falla@example.com', 'Carmen', 'admin', 'vigente', 'pedido-falla').p.id, tresProductos)
+  conPedido('pedido-retirada@example.com', 'Carmen', 'admin', 'retirada')
 }
 sembrar()
 
@@ -550,13 +584,15 @@ const completitud = (p: Persona) => Math.round(((['rutina', 'manejo_situaciones'
 
 function vistaPersona(p: Persona, rol: Rol) {
   if (rol === 'observador') return { id: p.id, nombre: p.nombre }
-  if (rol === 'pagador') return { id: p.id, nombre: p.nombre, direccion: p.direccion }
+  // MATU-61 (decisión 190): la dirección trae su `etag` para `If-Match`.
+  const direccion = p.direccion ? { etag: '"v1"', ...p.direccion } : null
+  if (rol === 'pagador') return { id: p.id, nombre: p.nombre, direccion }
   return {
     id: p.id,
     nombre: p.nombre,
     nombre_pila: p.nombre_pila,
     nivel_apoyo: p.nivel_apoyo,
-    direccion: p.direccion,
+    direccion,
     consentimiento: { id: randomUUID(), calidad_otorgante: p.calidad, finalidad: 'plan_cuidado', version_politica: '0.9', otorgado_en: hace(60 * 24), revision_vence_en: null },
   }
 }
@@ -685,7 +721,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 200, catalogoDoble(u.modo)), true
   }
 
-  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo')) return false
+  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos')) return false
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
@@ -751,6 +787,13 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return json(res, 201, { ...vistaPersona(p, 'admin'), aviso: null }), true
   }
 
+  // MATU-61: la dirección y el pedido. Con la capa 3 apagada, las rutas del pedido no existen (C2).
+  const capa3 = u.modo !== 'catalogo-apagado'
+  if (capa3 || /\/direccion$/.test(ruta)) {
+    const personaDe = (id: string) => g?.personas.find((x) => x.id === id) ?? null
+    if (atenderPedido(req, res, cuerpo, r, u, g?.rol ?? null, personaDe)) return true
+  }
+
   // MATU-72: `POST …/borrado` (decisiones 149 a 153). La persona sale del grupo y sus enlaces quedan
   // cortados; un segundo borrado responde 409. Cuentas: «retiro-falla» responde 500, «retiro-otra»
   // borra como si fuera otra persona y responde 409, y «retiro-lento» tarda 2 s.
@@ -778,6 +821,17 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   if (mAut) {
     const pc = g?.personas.find((x) => x.id === decodeURIComponent(mAut[1]))
     if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
+    const despacho = u.modo !== 'catalogo-apagado'
+    const metodoAut = req.method ?? 'GET'
+    const editorAut = g.rol === 'admin' || g.rol === 'cuidador'
+    // MATU-61 (decisión 192): `despacho` se otorga y se retira como las otras, solo con la capa 3.
+    if (despacho && metodoAut === 'POST' && editorAut && mAut[2] === 'despacho') return retirarDespacho(res, pc.id, g.rol, r), true
+    if (despacho && metodoAut === 'POST' && editorAut && !mAut[2] && cuerpo?.finalidad === 'despacho') return otorgarDespacho(res, cuerpo, pc.id, r), true
+    if (despacho && metodoAut === 'GET' && !mAut[2]) {
+      res.setHeader('Cache-Control', 'no-store')
+      const vistas = (['plan_cuidado', 'consumo'] as const).map((f) => vistaAutorizacion(pc, u, f, g.rol))
+      return r.json(res, 200, { autorizaciones: [...vistas, vistaDespacho(pc.id, g.rol)] }), true
+    }
     const atendido = atenderAutorizaciones(req, res, cuerpo, r, u, g, pc, mAut[2] ? decodeURIComponent(mAut[2]) : null)
     if (atendido) return true
   }

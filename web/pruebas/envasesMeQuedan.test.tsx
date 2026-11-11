@@ -4,7 +4,7 @@
 // el panel (D5), el cambio de modo sin perder lo escrito, ml y g sin enlace (D2), el envase de 1
 // (D6), «Compré» igual y el formulario con el campo del envase dentro del bloque (D3). Textos [L 30]
 // tal cual. Datos sintéticos.
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -123,6 +123,31 @@ const ok = (p: Perfil, cambios: Partial<Perfil> = {}): RespuestaFalsa => ({ stat
 // ---------------------------------------------------------------- panel con envase guardado
 
 describe('«Me quedan» con envase guardado (4.1)', () => {
+  it('si la persona ya tocó un campo del panel antes de los 40 ms, el foco no se le quita y no se pierde lo escrito', async () => {
+    const { pedidas, u } = await abrir()
+    // Sin depender de la velocidad de la máquina: el temporizador de 40 ms con que el panel toma el
+    // foco (D4) se retiene y corre entre el «5» y el «000», como pasó en el CI, más lento: quedaba «5».
+    const original = window.setTimeout
+    const retenidos: (() => void)[] = []
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
+      ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    try {
+      await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+      await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
+      await u.click(envasesEnteros())
+      await u.keyboard('5')
+      act(() => retenidos.splice(0).forEach((fn) => fn()))
+      await u.keyboard('000')
+    } finally {
+      espia.mockRestore()
+    }
+    expect(envasesEnteros()).toHaveValue('5000')
+    expect(envasesEnteros()).toHaveFocus()
+    expect(grupo()).toHaveTextContent('En total, quedan unas 100.000 unidades.')
+    expect(escritas(pedidas)).toEqual([])
+  })
+
+
   it('abre en envases, vacío y con el foco en el panel, sin teclado (D4, criterio 1)', async () => {
     const { u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))

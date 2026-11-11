@@ -75,6 +75,7 @@ def _vista(catalogo: dominio.Catalogo) -> Catalogo:
                                 nombre_fantasia=oferta.nombre_fantasia,
                                 precio=oferta.precio,
                                 disponible=oferta.disponible,
+                                ficticio=oferta.ficticio,
                             )
                             for oferta in producto.comercios
                         ],

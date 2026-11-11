@@ -10,6 +10,8 @@ type Unidad = 'unidad' | 'sobre' | 'ml' | 'g'
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 
 export interface PerfilDoble {
+  /** MATU-61 (decisión 215): el producto del catálogo del insumo, si lo tiene. */
+  producto_id?: string | null
   id: string
   nombre_libre: string
   unidad: Unidad
@@ -462,6 +464,7 @@ function listaDe(c: ConsumoDoble) {
         unidades_sugeridas: unidades,
         unidades_por_envase: envase,
         envases_sugeridos: envase ? Math.ceil(unidades / envase) : null,
+        producto_id: p.producto_id ?? null,
       }
     })
   return { fecha: hoy(), items }

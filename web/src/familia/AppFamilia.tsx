@@ -9,9 +9,10 @@ import { Compartir, EnlaceListo, Enlaces } from './Compartir'
 import { Catalogo } from './Catalogo'
 import { useRevisarVersion } from '../compartido/version'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
-import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from './Grupo'
+import { AutorizarFicha, AutorizarInsumos, AutorizarPedidosDesdeGrupo, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
 import { ListaDeInsumos } from './ListaInsumos'
+import { PantallaPedido } from './Pedido'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
@@ -58,11 +59,15 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   if (ruta === '/compartir/enlaces' && !puedeCompartir(s.rol) && !(s.rol === 'pagador' && s.grupo?.puede_ver_plan)) return inicio(s)
   // MATU-44 2.1: volver a autorizar, solo admin y cuidador y solo desde «Volver a autorizar» (con la
   // persona elegida en memoria). Al recargar no hay intención y se vuelve a Grupo familiar.
-  if (ruta === '/grupo/autorizar-ficha' || ruta === '/grupo/autorizar-insumos') {
-    const finalidad = ruta === '/grupo/autorizar-ficha' ? 'plan_cuidado' : 'consumo'
+  if (ruta === '/grupo/autorizar-ficha' || ruta === '/grupo/autorizar-insumos' || ruta === '/grupo/autorizar-pedidos') {
+    const finalidad = ruta === '/grupo/autorizar-ficha' ? 'plan_cuidado' : ruta === '/grupo/autorizar-insumos' ? 'consumo' : 'despacho'
     const r = s.reautorizar
     if (!editor || !r || r.finalidad !== finalidad || r.personaId !== s.personaId) return '/grupo'
   }
+  // MATU-61 2.1: la dirección es de admin y cuidador, y el observador no llega al resumen (su vista
+  // no lo trae). Quien no puede ver una ruta del pedido llega a «Tu pedido».
+  if (ruta === '/insumos/pedido/direccion' && !editor) return '/insumos/pedido'
+  if (ruta === '/insumos/pedido/resumen' && s.rol === 'observador') return '/insumos/pedido'
   return null
 }
 
@@ -89,6 +94,15 @@ function Rutas() {
   useLayoutEffect(() => {
     document.title = `${tituloDe(ruta)} · MATU`
   }, [ruta])
+  // MATU-61 (2.2): la pestaña «Pedido» depende de la capa 3. El catálogo y el pedido ya piden el
+  // catálogo y la fijan ellos: ahí no se pregunta dos veces.
+  const { fase, capa3, conocerCapa3 } = s
+  useEffect(() => {
+    // Revisión P2-3: la dirección no pide el catálogo, así que al entrar directo a ella (desde Grupo
+    // familiar o al recargar) se pregunta aquí, y «Pedido» aparece activa.
+    const propia = ruta === '/insumos/catalogo' || (ruta.startsWith('/insumos/pedido') && ruta !== '/insumos/pedido/direccion')
+    if (fase === 'dentro' && capa3 === null && ruta.startsWith('/insumos') && !propia) conocerCapa3()
+  }, [fase, capa3, conocerCapa3, ruta])
   useEffect(() => {
     if (s.fase === 'cargando') return
     const t = window.setTimeout(() => (document.getElementById(ID_AVISO_LLEGADA) ?? document.getElementById('titulo-pagina'))?.focus({ preventScroll: false }), 0)
@@ -148,9 +162,13 @@ function Rutas() {
   else if (ruta === '/compartir/listo') pantalla = <EnlaceListo />
   else if (ruta === '/compartir/enlaces') pantalla = <Enlaces />
   else if (ruta === '/insumos/lista') pantalla = <ListaDeInsumos />
+  // MATU-61: las tres rutas del pedido son una sola pantalla, que conserva el pedido en memoria al
+  // pasar del carrito a la dirección y al resumen (la `key` de abajo no cambia entre ellas).
+  else if (ruta.startsWith('/insumos/pedido')) pantalla = <PantallaPedido />
   else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
   else if (ruta === '/grupo/autorizar-ficha') pantalla = <AutorizarFicha />
   else if (ruta === '/grupo/autorizar-insumos') pantalla = <AutorizarInsumos />
+  else if (ruta === '/grupo/autorizar-pedidos') pantalla = <AutorizarPedidosDesdeGrupo />
   else pantalla = <Insumos />
 
   return (
