@@ -5,7 +5,8 @@ Cadena: 0022 (MATU-74) -> 0023. down_revision = "0022".
 Decisiones 188 a 219 de docs/api/README.md, decisiones D1 a D12 de Jorge (revisión previa del analista) y C1 a C9.
 
 a) direccion.version (el ETag de PUT y DELETE …/direccion, decisiones 189 y 216) y CHECK de lat y lng nulas en
-   direccion y pedido_entrega (C8: «No guardamos su ubicación en el mapa»). Antes del CHECK se vacían.
+   direccion y pedido_entrega (C8: «No guardamos su ubicación en el mapa»). Antes del CHECK se vacían. La copia
+   de la entrega suma region y telefono_origen (celular_cuenta o escrito, decisión 203).
 b) comercio.ficticio boolean NOT NULL DEFAULT true (D9).
 c) app_escribe_pedido() (admin o cuidador activo) y app_ve_entrega() (admin, cuidador o pagador activo): los roles
    de C3 en la base.
@@ -13,6 +14,7 @@ d) pedido: sale destinatario_nombre_pila (C16); comercio_id deja de ser obligato
    pedido_comercio); condiciones_version, condiciones_aceptadas_en y condiciones_huella, juntas o ninguna, y el
    CHECK de que no hay pagado_en sin condiciones_aceptadas_en (D6). Ese CHECK va NOT VALID: alcanza a toda fila
    nueva o cambiada, y no a los pedidos pagados que ya existieran (no los hay fuera de las pruebas de migración).
+   pedido_sin_pagar_uq: un solo pedido sin pagar (borrador, total_confirmado o vencido) por persona (C4).
 e) pedido_comercio (D7, R8): un registro por comercio dentro del pedido, con su referencia opaca (C22). Lleva
    grupo_id, como acceso_relevo, para que sus políticas no consulten pedido: así la política del comercio sobre
    pedido puede mirar pedido_comercio sin recursión. RLS forzado. El comercio ve su registro, y por él sus líneas y
@@ -83,6 +85,11 @@ UPDATE direccion SET lat = NULL, lng = NULL WHERE lat IS NOT NULL OR lng IS NOT 
 ALTER TABLE direccion ADD CONSTRAINT direccion_sin_ubicacion CHECK (lat IS NULL AND lng IS NULL);
 UPDATE pedido_entrega SET lat = NULL, lng = NULL WHERE lat IS NOT NULL OR lng IS NOT NULL;
 ALTER TABLE pedido_entrega ADD CONSTRAINT pedido_entrega_sin_ubicacion CHECK (lat IS NULL AND lng IS NULL);
+-- La copia lleva la región, como la dirección, y de dónde salió el teléfono (decisión 203)
+ALTER TABLE pedido_entrega ADD COLUMN region text NOT NULL DEFAULT 'Metropolitana';
+ALTER TABLE pedido_entrega ADD COLUMN telefono_origen text NOT NULL DEFAULT 'escrito';
+ALTER TABLE pedido_entrega ADD CONSTRAINT pedido_entrega_telefono_origen
+    CHECK (telefono_origen IN ('celular_cuenta', 'escrito'));
 
 -- (b) D9
 ALTER TABLE comercio ADD COLUMN ficticio boolean NOT NULL DEFAULT true;
@@ -109,6 +116,9 @@ ALTER TABLE pedido ADD CONSTRAINT pedido_condiciones_completas CHECK (
 ALTER TABLE pedido ADD CONSTRAINT pedido_condiciones_huella CHECK (condiciones_huella ~ '^[0-9a-f]{{64}}$');
 ALTER TABLE pedido ADD CONSTRAINT pedido_pago_con_condiciones
     CHECK (pagado_en IS NULL OR condiciones_aceptadas_en IS NOT NULL) NOT VALID;
+-- C4: un solo pedido sin pagar por persona
+CREATE UNIQUE INDEX pedido_sin_pagar_uq ON pedido (persona_cuidada_id)
+    WHERE estado IN ('borrador', 'total_confirmado', 'vencido');
 
 -- (e) Un registro por comercio dentro del pedido (D7)
 CREATE TABLE pedido_comercio (
@@ -420,6 +430,7 @@ DROP TABLE pedido_comercio;
 DROP FUNCTION pedido_comercio_mismo_grupo();
 
 -- (d)
+DROP INDEX pedido_sin_pagar_uq;
 ALTER TABLE pedido DROP CONSTRAINT pedido_pago_con_condiciones;
 ALTER TABLE pedido DROP CONSTRAINT pedido_condiciones_huella;
 ALTER TABLE pedido DROP CONSTRAINT pedido_condiciones_completas;
@@ -438,6 +449,9 @@ DROP FUNCTION app_escribe_pedido();
 ALTER TABLE comercio DROP COLUMN ficticio;
 
 -- (a)
+ALTER TABLE pedido_entrega DROP CONSTRAINT pedido_entrega_telefono_origen;
+ALTER TABLE pedido_entrega DROP COLUMN telefono_origen;
+ALTER TABLE pedido_entrega DROP COLUMN region;
 ALTER TABLE pedido_entrega DROP CONSTRAINT pedido_entrega_sin_ubicacion;
 ALTER TABLE direccion DROP CONSTRAINT direccion_sin_ubicacion;
 ALTER TABLE direccion DROP CONSTRAINT direccion_version_positiva;
