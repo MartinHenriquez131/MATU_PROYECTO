@@ -684,6 +684,7 @@ El observador no tiene el botón, pero el navegador siempre deja imprimir. Para 
 ### 9.1 Dónde va
 
 - **Al final del formulario**, después de «¿Con cuántos días de anticipación te avisamos?» al anotar, y después del nombre y de la línea de la unidad al cambiar. Antes de la vista previa «Así, alcanza para…».
+- **Reemplazado en modo envases por MATU-84 (decisión de Jorge del 10-11, D3): ver `matu-84-me-quedan-envases.md`.** Cuando la persona toca «Contar en envases», este campo sube al bloque de «¿Cuántos quedan hoy, más o menos?», y vuelve al final con su valor al tocar «Contar sueltos». Es un solo campo y nunca aparece dos veces. En modo sueltos, y con ml y g, sigue al final como dice esta sección.
 - **Por qué al final:** es opcional y no cambia la fecha. Ponerlo entre los campos que sí la cambian alarga el camino corto de anotar un insumo, que es el que MATU-36 cuida. Va en el mismo lugar al anotar y al cambiar.
 - Solo `admin` y `cuidador` (los que ven el formulario).
 

@@ -182,6 +182,7 @@ Mismo lugar y misma forma que «Compré».
 
 - **Vacío** al abrir, por la misma razón que MATU-36 deja vacío el stock al cambiar: un número precargado invita a confirmar sin contar.
 - Mínimo **0**, máximo **100.000**. Siempre en la unidad del insumo, aunque tenga envase (decisión de Jorge). Sufijo `INSUMOS.sufijoStock(unidad)`.
+  - **Reemplazado para unidades y sobres por MATU-84 (decisión de Jorge del 10-11): ver `matu-84-me-quedan-envases.md`.** Con envase conocido, «Me quedan» pregunta en envases enteros más unos sueltos, y sin envase ofrece «Contar en envases». Con ml y g sigue igual.
 - «−» con el campo vacío deja 0, como ya hace el `Stepper` con `min={0}`.
 - **Lo que va a la API (decisión 139):** `{"stock_unidades": n}`, con `If-Match` y el `etag` de la fila. Nunca una fecha.
 
@@ -249,7 +250,7 @@ Mismo lugar y misma forma que «Compré».
 | Momento | Dónde queda el foco | Qué se anuncia |
 |---|---|---|
 | Abre «Compré» con envase (valor 1) | **En el panel** (`role="group"`, `tabIndex={-1}`), no en el campo. Así el teclado del teléfono no se abre y tapa «Anotar la compra», y el camino corto son los toques «+» y confirmar | «¿Cuántos envases compraste?, grupo». El `Tab` sigue a «−», el campo, «+», «Anotar la compra» y «Volver» |
-| Abre «Compré» sin envase, o «Me quedan» | En el campo, porque hay que escribir | La etiqueta y la ayuda (`aria-describedby`) |
+| Abre «Compré» sin envase, o «Me quedan» | En el campo, porque hay que escribir. **Reemplazado para «Me quedan» con envase conocido por MATU-84 (decisión de Jorge del 10-11, D4): ver `matu-84-me-quedan-envases.md`.** Ahí el foco va al panel, como «Compré» con envase. Sin envase, y con ml y g, sigue igual | La etiqueta y la ayuda (`aria-describedby`) |
 | Al abrir, en los dos casos | El panel se desplaza con `scrollIntoView({ block: 'nearest' })`. `scroll-mb-28` deja la barra fija de secciones fuera del camino (DISENO 3, WCAG 2.4.11) | — |
 | Enviando | El foco se queda en el botón de confirmar (`aria-busy`). Ver 5.2 | «Guardando…» |
 | Éxito | En la confirmación de la fila (`hecho-{id}`), que se desplaza a la vista. La fila pudo moverse en la lista porque se ordena por fecha: el foco la sigue | El texto de la confirmación (`role="status"`) |

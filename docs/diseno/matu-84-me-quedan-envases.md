@@ -1,6 +1,8 @@
 # MATU-84 · «Me quedan» y el alta del insumo, también en envases · Especificación de diseño
 
-**Versión 1.0 · 10/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 10/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.1:** Jorge aprobó la especificación completa el 10-11: las decisiones D1 a D6 y los textos nuevos, tal como se propusieron. Los textos están en `docs/lenguaje.md` del repositorio MATU, sección 30, y se marcan **[L 30]**.
 
 **Viene de:** el hallazgo U3 (P2) de la ronda 1 de usabilidad (`docs/usabilidad/ronda-1-informe.md` del repositorio MATU). A quien controla lo que queda mirando la repisa le cuesta contar unidades sueltas: «tenemos todo guardado en una repisa y ahí vamos revisando».
 
@@ -8,13 +10,15 @@
 
 **Dónde se construye:** `web/src/familia/Insumos.tsx` (el panel de «Me quedan» de `Fila` y el campo de lo que queda de `Formulario`), con textos en `textosInsumos.ts` y `textos.ts`. No hay pantalla, ruta ni endpoint nuevos.
 
-**Fuentes, en este orden:** `Demo/DISENO.md` y los tokens de `web/src/index.css` (**ningún token nuevo**) · la decisión de Jorge del 10-11 · `docs/lenguaje.md` del repositorio MATU, secciones 2, 3, 18, 21 y 23 · las especificaciones de MATU-51 (el patrón de «Compré» con envase, que esta copia), MATU-60 sección 9 (el campo del envase) y MATU-36 (el formulario y el `Stepper`) · el contrato `docs/api/README.md`, decisiones 41, 121 y 139.
+**Fuentes, en este orden:** `Demo/DISENO.md` y los tokens de `web/src/index.css` (**ningún token nuevo**) · la decisión de Jorge del 10-11 · `docs/lenguaje.md` del repositorio MATU, secciones 2, 3, 18, 21, 23 y 30 · las especificaciones de MATU-51 (el patrón de «Compré» con envase, que esta copia), MATU-60 sección 9 (el campo del envase) y MATU-36 (el formulario y el `Stepper`) · el contrato `docs/api/README.md`, decisiones 41, 121 y 139.
 
-**Marcas de los textos:** **[L n]** ya está en `lenguaje.md`, sección n · **[PROPUESTO]** nuevo, lo aprueba Jorge y entra a `lenguaje.md` · **[CAMBIA]** reemplaza algo ya especificado o aprobado. `{nombre}` es el nombre del insumo, `{u}` las unidades por envase, `{n}` una cantidad con punto de miles desde 1.000.
+**Marcas de los textos:** **[L n]** ya está en `lenguaje.md`, sección n · **[L 30]** nuevo en MATU-84, aprobado por Jorge el 10-11 y ya en `lenguaje.md`, sección 30 · **[CAMBIA]** reemplaza algo ya especificado o aprobado. `{nombre}` es el nombre del insumo, `{u}` las unidades por envase, `{n}` una cantidad con punto de miles desde 1.000.
 
 ---
 
-## 0. Lo que Jorge tiene que ver
+## 0. Decisiones · aprobadas por Jorge el 10-11
+
+Las seis se aprobaron tal como se propusieron. Los textos que salen de ellas están en `lenguaje.md`, sección 30.
 
 | # | Qué | Propuesta | Por qué |
 |---|---|---|---|
@@ -25,7 +29,7 @@
 | D5 | Anotar el envase desde «Me quedan» | Si se anota el envase en el panel, se guarda con lo que queda en **una sola petición** (`PATCH`, ver 4.4) | Las dos cosas se guardan juntas o ninguna. No queda un envase guardado con lo que queda sin guardar |
 | D6 | Un envase de 1 unidad | Se trata como si no tuviera envase | «1 envase de 1 unidad y 5 sueltas» no ayuda a nadie |
 
-**Contradicción que informo al orquestador:** MATU-51 3.5 dice «Siempre en la unidad del insumo, aunque tenga envase (decisión de Jorge)». La decisión de Jorge del 10-11 la reemplaza. Hay que actualizar esa línea de MATU-51 en el mismo pull request, o anotar que MATU-84 la reemplaza.
+**Contradicción con MATU-51 3.5, resuelta:** «Siempre en la unidad del insumo, aunque tenga envase» queda reemplazada para unidades y sobres por la decisión de Jorge del 10-11. MATU-51 3.5 lleva la nota. En ml y g sigue igual (D2).
 
 ---
 
@@ -189,7 +193,7 @@ La fila vive en la columna izquierda (`3fr`), de unos 500 px a 1280 y unos 900 a
 
 La de MATU-51 [L 23], sin cambios: «Anotamos lo que queda de «{nombre}»: {cantidad}. Alcanza para {n} días, hasta el {fecha}.», con `{cantidad}` **en la unidad del insumo** («45 unidades», «12 sobres»). Es lo mismo que dice la fila después («Quedan 45 hoy.»), así que la confirmación y la fila no se contradicen.
 
-Si se anotó el envase en el panel, se agrega al final una frase: «También anotamos que cada envase trae 20 unidades.» [PROPUESTO].
+Si se anotó el envase en el panel, se agrega al final una frase: «También anotamos que cada envase trae 20 unidades.» [L 30].
 
 ---
 
@@ -290,35 +294,35 @@ El formulario vive en la columna derecha (`2fr`) o en su marco `bg-hoja` (MATU-3
 |---|---|---|
 | Pregunta del bloque y del panel | ¿Cuántos quedan hoy, más o menos? | [L 18] |
 | Ayuda del panel, modo sueltos | Reemplaza lo que calculábamos. Si no queda nada, escribe 0. | [L 23] |
-| Ayuda del panel, modo envases | Cuenta los envases enteros y, a ojo, lo suelto. Reemplaza lo que calculábamos. | [PROPUESTO] |
-| Ayuda del alta, modo envases | Cuenta los envases enteros y, a ojo, lo suelto. | [PROPUESTO] |
-| Ayuda de la edición, modo envases | El {fecha} anotaste {n}. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes. Cuenta los envases enteros y, a ojo, lo suelto. | [L 18] + [PROPUESTO] |
-| Enlace para pasar a envases | Contar en envases | [PROPUESTO] |
-| Enlace para volver | Contar sueltos | [PROPUESTO] |
-| Primer campo | Envases enteros | [PROPUESTO] |
-| Sufijo del primer campo | envase de {u} unidades · envases de {u} unidades (con sobres, «de {u} sobres») · sin envase válido: envases | [L 21] · [PROPUESTO] el «envases» solo |
-| Segundo campo | Unidades sueltas · Sobres sueltos | [PROPUESTO] |
+| Ayuda del panel, modo envases | Cuenta los envases enteros y, a ojo, lo suelto. Reemplaza lo que calculábamos. | [L 30] |
+| Ayuda del alta, modo envases | Cuenta los envases enteros y, a ojo, lo suelto. | [L 30] |
+| Ayuda de la edición, modo envases | El {fecha} anotaste {n}. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes. Cuenta los envases enteros y, a ojo, lo suelto. | [L 18] + [L 30] |
+| Enlace para pasar a envases | Contar en envases | [L 30] |
+| Enlace para volver | Contar sueltos | [L 30] |
+| Primer campo | Envases enteros | [L 30] |
+| Sufijo del primer campo | envase de {u} unidades · envases de {u} unidades (con sobres, «de {u} sobres») · sin envase válido: envases | [L 21] · [L 30] el «envases» solo |
+| Segundo campo | Unidades sueltas · Sobres sueltos | [L 30] |
 | Sufijo del segundo campo | unidades · sobres | [L 18] |
 | Botones − y + (lector) | Uno menos: Envases enteros · Uno más: Envases enteros · Uno menos: Unidades sueltas · Uno más: Unidades sueltas (o Sobres sueltos) | Forma de MATU-36 |
 | Campo del envase | ¿Cuántas unidades trae cada envase? | [L 21] |
-| Ayuda del campo del envase, modo envases | Lo guardamos para la próxima vez y para la lista. | [PROPUESTO] |
+| Ayuda del campo del envase, modo envases | Lo guardamos para la próxima vez y para la lista. | [L 30] |
 | Ayuda del campo del envase, modo sueltos (al final del formulario) | Si lo anotas, la lista sugiere envases enteros. Puedes dejarlo en blanco. | [L 21], sin cambios |
-| Resultado, varias unidades | En total, quedan unas {n} unidades. | [PROPUESTO] |
-| Resultado, varios sobres | En total, quedan unos {n} sobres. | [PROPUESTO] |
-| Resultado, 1 | En total, queda 1 unidad. · En total, queda 1 sobre. | [PROPUESTO] |
-| Resultado, 0 | En total, no queda nada. | [PROPUESTO] |
+| Resultado, varias unidades | En total, quedan unas {n} unidades. | [L 30] |
+| Resultado, varios sobres | En total, quedan unos {n} sobres. | [L 30] |
+| Resultado, 1 | En total, queda 1 unidad. · En total, queda 1 sobre. | [L 30] |
+| Resultado, 0 | En total, no queda nada. | [L 30] |
 | Confirmar, panel | Anotar lo que queda | [L 23] |
 | Confirmación | Anotamos lo que queda de «{nombre}»: {cantidad}. Alcanza para {n} días, hasta el {fecha}. (y sus variantes) | [L 23] |
-| Confirmación, si se anotó el envase en el panel | (lo anterior) + También anotamos que cada envase trae {u} unidades. · … trae {u} sobres. · Con {u} igual a 1 no aplica (D6) | [PROPUESTO] |
+| Confirmación, si se anotó el envase en el panel | (lo anterior) + También anotamos que cada envase trae {u} unidades. · … trae {u} sobres. · Con {u} igual a 1 no aplica (D6) | [L 30] |
 
 **Errores:**
 
 | Caso | Dónde | Texto | Marca |
 |---|---|---|---|
 | Los dos vacíos al confirmar (panel y alta) | Bajo «Envases enteros», foco ahí | Escribe cuántos quedan. Si no queda nada, escribe 0. | [L 18] |
-| Envase vacío con un número en envases enteros | Bajo el campo del envase, foco ahí | Escribe cuántas unidades trae cada envase. | [PROPUESTO] |
-| Envase en 0 o sobre 10.000, en modo envases (o 422 en `unidades_por_envase`) | Bajo el campo del envase | Escribe un número de 1 a 10.000. | [PROPUESTO] (en modo sueltos sigue el de L 21, que dice «o déjalo en blanco») |
-| El total pasa de 100.000 | Bajo «Envases enteros» | Con eso quedarían más de 100.000 unidades. Revisa cuántos envases y sueltos anotaste. (o «sobres») | [PROPUESTO] |
+| Envase vacío con un número en envases enteros | Bajo el campo del envase, foco ahí | Escribe cuántas unidades trae cada envase. | [L 30] |
+| Envase en 0 o sobre 10.000, en modo envases (o 422 en `unidades_por_envase`) | Bajo el campo del envase | Escribe un número de 1 a 10.000. | [L 30] (en modo sueltos sigue el de L 21, que dice «o déjalo en blanco») |
+| El total pasa de 100.000 | Bajo «Envases enteros» | Con eso quedarían más de 100.000 unidades. Revisa cuántos envases y sueltos anotaste. (o «sobres») | [L 30] |
 | Más de 10 años (422 `cobertura_maxima`), panel | Bajo «Envases enteros» | Con esa cantidad alcanzaría para más de 10 años. Revisa cuántos quedan. | [L 23] |
 | Más de 10 años, formulario | Error general del formulario | Con esos números alcanzaría para más de 10 años. Revisa cuánto queda y cuánto se usa. | [L 18] |
 | 404, 403, 409, 412, 428, red | Los de MATU-51 5.5 y MATU-36 | Sin cambios | [L 18] [L 23] |
@@ -426,6 +430,7 @@ El formulario vive en la columna derecha (`2fr`) o en su marco `bg-hoja` (MATU-3
 ## 14. Para el orquestador
 
 - **Sin cambios de contrato ni de backend.** `recontar` y el `PATCH` con `unidades_por_envase` ya existen (decisiones 121 y 139).
-- **Contradicción con MATU-51 3.5** («siempre en la unidad del insumo»): la reemplaza la decisión de Jorge del 10-11. Ver la sección 0.
-- **Cambia MATU-60 9.1** (el envase siempre al final) y **MATU-51 4** (el foco de «Me quedan»): D3 y D4, para el visto de Jorge.
-- **Textos [PROPUESTO]** de la sección 7: entran a `lenguaje.md` como una sección nueva o como filas de la 23, cuando Jorge los apruebe.
+- **MATU-51 3.5** («siempre en la unidad del insumo»): reemplazada para unidades y sobres por la decisión de Jorge del 10-11.
+- **MATU-60 9.1** (el envase siempre al final) y **MATU-51 4** (el foco de «Me quedan»): cambian por D3 y D4, aprobadas el 10-11.
+- **Textos [L 30]** de la sección 7: aprobados por Jorge el 10-11, ya en `lenguaje.md`, sección 30.
+- **Notas de reemplazo:** MATU-51 3.5 y 4, y MATU-60 9.1, llevan una nota que remite a esta especificación.
