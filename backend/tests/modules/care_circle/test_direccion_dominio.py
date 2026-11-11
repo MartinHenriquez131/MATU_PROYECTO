@@ -28,7 +28,12 @@ from app.modules.care_circle.domain.direccion import (
     puede_cambiar_direccion,
 )
 from app.modules.care_circle.domain.personas import CalidadOtorgante, OtorgamientoInvalido, evidencia
-from app.modules.care_circle.domain.retiro import FINALIDADES_RETIRABLES, finalidad_de, finalidades_retirables
+from app.modules.care_circle.domain.retiro import (
+    FINALIDADES_RETIRABLES,
+    finalidad_de,
+    finalidades_que_se_retiran,
+    finalidades_retirables,
+)
 
 TERMINOS_PROHIBIDOS = ("diagnóstico", "diagnostico", "conducta", "incidente", "deterioro", "incontinencia", "paciente")
 
@@ -86,6 +91,22 @@ def test_despacho_solo_con_la_capa_3() -> None:
     assert finalidades_retirables(True) == ("plan_cuidado", "consumo", "despacho")
     assert finalidad_de("despacho") is None
     assert finalidad_de("despacho", finalidades_retirables(True)) == "despacho"
+
+
+def test_despacho_se_retira_con_la_capa_3_apagada_si_su_efecto_esta() -> None:
+    """MATU-94 (decisión 250): retirar y borrar cancelan los pedidos sin pagar aunque la capa 3 esté apagada."""
+    apagada = finalidades_retirables(False)
+    assert finalidades_que_se_retiran(apagada, {"plan_cuidado", "consumo", "despacho"}) == (
+        "plan_cuidado",
+        "consumo",
+        "despacho",
+    )
+    # Con la capa 3 quitada, el efecto no está: lo de siempre (decisión 217)
+    assert finalidades_que_se_retiran(apagada, {"plan_cuidado", "consumo"}) == ("plan_cuidado", "consumo")
+    # Encendida, despacho ya es activa y no se repite
+    encendida = finalidades_retirables(True)
+    assert finalidades_que_se_retiran(encendida, {"despacho"}) == encendida
+    assert finalidades_que_se_retiran(encendida, set()) == encendida
 
 
 @pytest.mark.parametrize("calidad", list(CalidadOtorgante))

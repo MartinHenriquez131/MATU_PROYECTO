@@ -67,10 +67,11 @@ from app.modules.care_circle.domain.retiro import (
     RetiroNoPermitido,
     YaRetirada,
     finalidad_de,
+    finalidades_que_se_retiran,
     finalidades_retirables,
 )
 from app.modules.care_circle.infrastructure.autorizacion import persona_con_autorizacion
-from app.modules.care_circle.infrastructure.efectos_retiro import efectos_de
+from app.modules.care_circle.infrastructure.efectos_retiro import efectos_de, finalidades_registradas
 from app.modules.care_circle.infrastructure.repositorio_autorizaciones import RepositorioAutorizacionesSQL
 from app.modules.care_circle.infrastructure.repositorio_retiros import RepositorioRetirosSQL
 from app.modules.iam.api.dependencias import obtener_reloj
@@ -129,6 +130,15 @@ def finalidades_activas() -> tuple[str, ...]:
 
 
 Finalidades = Annotated[tuple[str, ...], Depends(finalidades_activas)]
+
+
+def finalidades_de_retiro(finalidades: Finalidades) -> tuple[str, ...]:
+    """Las que se retiran y se borran: las activas y despacho si su efecto está registrado, aunque la capa 3 esté
+    apagada (MATU-94, decisión 250). Otorgar y la vista siguen con las activas (decisión 217)."""
+    return finalidades_que_se_retiran(finalidades, finalidades_registradas())
+
+
+FinalidadesRetiro = Annotated[tuple[str, ...], Depends(finalidades_de_retiro)]
 
 
 class AutorizacionCreada(BaseModel):
@@ -408,7 +418,8 @@ def estado(
 FinalidadRuta = Annotated[
     str,
     Path(
-        description="plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404",
+        description="plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250)."
+        " Otro valor responde 404",
         json_schema_extra={"enum": ["plan_cuidado", "consumo", "despacho"]},
     ),
 ]
@@ -421,7 +432,7 @@ FinalidadRuta = Annotated[
         401: _ERRORES[401],
         404: {
             "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que"
-            " no es una de las dos o que nunca se autorizó",
+            " no es una de las tres o que nunca se autorizó",
             **_PROBLEMA,
         },
         409: {"description": "/errores/ya-retirada: la autorización ya estaba retirada", **_PROBLEMA},
@@ -435,7 +446,7 @@ def retirar(
     retiros: Retiros,
     efectos: Efectos,
     reloj: RelojDep,
-    finalidades: Finalidades,
+    finalidades: FinalidadesRetiro,
 ) -> RetiroAutorizacion:
     valida = finalidad_de(finalidad, finalidades)
     if valida is None:

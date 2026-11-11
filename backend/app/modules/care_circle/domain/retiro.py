@@ -13,6 +13,7 @@ Sin I/O y sin reloj del sistema: el instante llega como argumento (puerto Reloj)
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -36,6 +37,14 @@ def finalidades_retirables(capa3: bool) -> tuple[str, ...]:
     """Las finalidades activas, en el orden de la vista: con la capa 3, también despacho (tres ítems); sin ella,
     las dos de siempre (C2)."""
     return FINALIDADES_RETIRABLES + FINALIDADES_CAPA_3 if capa3 else FINALIDADES_RETIRABLES
+
+
+def finalidades_que_se_retiran(activas: tuple[str, ...], con_efecto: Iterable[str]) -> tuple[str, ...]:
+    """Las que se retiran y se borran (MATU-94, decisión 250): las activas y, aunque la capa 3 esté apagada, despacho
+    si su efecto está registrado. Retirar o borrar cancela los pedidos sin pagar y borra su entrega (política, §4 y
+    §10): es una protección de datos, no una función de la capa 3. Sin el efecto (la capa 3 quitada), lo de siempre."""
+    registradas = frozenset(con_efecto)
+    return activas + tuple(f for f in FINALIDADES_CAPA_3 if f not in activas and f in registradas)
 
 ROLES_QUE_RETIRAN = frozenset({"admin", "cuidador"})
 

@@ -131,7 +131,8 @@ def retirar_autorizacion(
     """Retira la autorización de la finalidad. Orden: rol (404), finalidad o nunca autorizada (404),
     ya retirada (409). Después, todo en la misma transacción y con un solo instante del Reloj.
 
-    ``finalidades`` son las activas (finalidades_retirables): despacho solo con la capa 3 (C2). El efecto de
+    ``finalidades`` son las que se retiran (finalidades_que_se_retiran): despacho con su efecto registrado, también
+    con la capa 3 apagada (MATU-94, decisión 250). El efecto de
     despacho devuelve los pedidos que canceló, que van en ``pedidos_cancelados`` y no en ``enlaces_cortados``."""
     if not puede_retirar(solicitud.rol):
         raise RolSinPermisoRetiro()

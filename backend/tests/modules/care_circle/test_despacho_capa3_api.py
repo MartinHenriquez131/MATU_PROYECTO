@@ -1,9 +1,11 @@
 """MATU-61 · La autorización de pedidos (despacho) con la capa 3 apagada y encendida (C2, decisión 217).
 
 Sin importar ordering: estas pruebas corren también en el intérprete sin la capa 3 (tests/test_capa3_desacoplable.py,
-FLUJOS). Con la capa 3 apagada, GET …/consentimientos trae dos ítems, despacho no se otorga ni se retira por la ruta,
-y borrar a la persona funciona y revoca también una autorización despacho que quedó de cuando estaba encendida, sin
-tocar pedidos. Con la capa 3 encendida, tres ítems.
+FLUJOS). Con la capa 3 apagada, GET …/consentimientos trae dos ítems y despacho no se otorga. Su retiro sin una
+autorización responde 404: quitada la capa, porque despacho no es una finalidad; apagada, porque nunca se autorizó. Con
+una que quedó, el retiro y el borrado cancelan lo no pagado (MATU-94, decisión 250,
+tests/modules/ordering/test_pedido_capa3_apagada.py). Borrar a la persona funciona y revoca también una autorización
+despacho que quedó de cuando estaba encendida. Con la capa 3 encendida, tres ítems.
 """
 
 import json
