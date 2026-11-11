@@ -61,6 +61,7 @@ export function Stepper({
   textoMenos,
   textoMas,
   soloLectura = false,
+  describe: describeExtra,
 }: {
   id: string
   etiqueta: string
@@ -76,8 +77,10 @@ export function Stepper({
   textoMas?: string
   /** MATU-51 5.2: mientras guarda, el campo es de solo lectura y los − y + ignoran el toque. */
   soloLectura?: boolean
+  /** MATU-84: ids que también lo describen, antes de su ayuda (la ayuda común de dos campos). */
+  describe?: string
 }) {
-  const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
+  const describe = [describeExtra ?? '', ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   const paso = (d: number) => {
     if (soloLectura) return
     const n = entero(valor)
