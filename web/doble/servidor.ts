@@ -44,6 +44,19 @@ const UN_CAMPO: Campos = {
   red_apoyo: { texto: 'Primero a Carmen: +56 9 5555 0141.\nSi no contesta, a Rodrigo, su hijo: +56 9 5555 0102.' },
 }
 
+// Revisión del 10/11/2026 (especificación 3.11.4 y sección 8): los teléfonos no se parten.
+const TELEFONOS: Campos = {
+  rutina: {
+    texto:
+      '08:00 Se levanta y toma desayuno en la cocina.\n10:00 Si tiene dolor, llamar a Rodrigo +56 9 5555 0141\n16:00 Llega el pedido de $69.000 que se pagó el 10/11/2026.',
+  },
+  manejo_situaciones: { texto: 'Le hace bien que la llame su hermana al 9 5555 0177 a las 18:00' },
+  red_apoyo: {
+    texto:
+      'Rodrigo, su hijo: +56 9 5555 0141\nAna, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123\nConsultorio: +56955550199',
+  },
+}
+
 const largo = (base: string) => base.repeat(Math.ceil(500 / base.length)).slice(0, 500)
 const TEXTOS_LARGOS: Campos = {
   rutina: {
@@ -83,6 +96,8 @@ function seccionesDe(token: string): SeccionRelevo[] {
   if (token === 'ejemplo-con-secciones') return DOS_SECCIONES
   if (token === 'ejemplo-con-remedios') return SEIS_SECCIONES
   if (token === 'ejemplo-textos-largos') return SECCIONES_LARGAS
+  if (token === 'ejemplo-telefonos')
+    return [{ tipo: 'quien_es', texto: 'Le dicen Mari. Su nieta Sofía (+56 9 5555 0163) la visita los domingos a las 11:00.' }]
   return []
 }
 
@@ -94,7 +109,7 @@ function fichaDe(s: Sesion) {
     nombre_pila: largos ? 'Maximiliana' : 'María',
     nombre_pila_comparte: largos ? 'Bernardita' : 'Carmen',
     vence_en: new Date(vence).toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    campos: s.token === 'ejemplo-un-campo' ? UN_CAMPO : largos ? TEXTOS_LARGOS : TRES_CAMPOS,
+    campos: s.token === 'ejemplo-un-campo' ? UN_CAMPO : s.token === 'ejemplo-telefonos' ? TELEFONOS : largos ? TEXTOS_LARGOS : TRES_CAMPOS,
     secciones: seccionesDe(s.token),
   }
 }
