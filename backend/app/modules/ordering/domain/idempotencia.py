@@ -6,11 +6,14 @@
   el pedido tal como está ahora: se guarda solo el estado HTTP y el id del pedido (D5), nunca el cuerpo.
 - La misma clave con otro cuerpo o de otra cuenta del grupo: 422 idempotencia-reutilizada. Mientras la primera no
   termina: 409 idempotencia-en-curso.
-- La huella de la petición es la SHA-256 de la ruta y el cuerpo canónico: nunca se guarda el cuerpo, y la clave no
-  va a los logs.
+- La huella de la petición es un HMAC-SHA256 de la ruta y el cuerpo canónico con una llave del servidor
+  (PEPPER_LIMITES, la de las huellas de los contadores): el cuerpo de confirmar puede llevar un teléfono, y sin llave
+  la huella se podría comparar contra teléfonos probables (P3 del cierre del analista). Nunca se guarda el cuerpo, y
+  la clave no va a los logs.
 """
 
 import hashlib
+import hmac
 import json
 import re
 import uuid
@@ -33,10 +36,16 @@ def exigir_forma(clave: str) -> str:
     return clave
 
 
-def huella_peticion(endpoint: str, cuerpo: Any) -> bytes:
-    """SHA-256 de la ruta y el cuerpo en JSON canónico (claves ordenadas, sin espacios)."""
+PREFIJO_HUELLA = b"idempotencia\n"
+
+
+def huella_peticion(endpoint: str, cuerpo: Any, llave: bytes) -> bytes:
+    """HMAC-SHA256, con la llave del servidor, de la ruta y el cuerpo en JSON canónico (claves ordenadas, sin
+    espacios)."""
+    if not llave:
+        raise ValueError("falta la llave de la huella")
     canonico = json.dumps(cuerpo, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
-    return hashlib.sha256(f"{endpoint}\n{canonico}".encode()).digest()
+    return hmac.new(llave, PREFIJO_HUELLA + f"{endpoint}\n{canonico}".encode(), hashlib.sha256).digest()
 
 
 def expira_en(ahora: datetime) -> datetime:

@@ -40,6 +40,8 @@ from app.modules.ordering.domain.pedido import (
 pytestmark = pytest.mark.rf("RF-21")
 
 AHORA = datetime(2026, 11, 20, 14, 5, tzinfo=UTC)
+# Llave sintética del HMAC de la huella de la petición
+LLAVE = b"llave-de-prueba-del-hmac-de-idempotencia"
 UNO = Comercio(uuid.UUID(int=1), "Almacén El Ejemplo", True)
 DOS = Comercio(uuid.UUID(int=2), "Bodega La Muestra", True)
 TRES = Comercio(uuid.UUID(int=3), "Casa de Prueba", True)
@@ -299,14 +301,14 @@ def test_forma_de_la_clave_invalida(clave: str) -> None:
 
 def test_decidir_que_hacer_con_la_misma_clave() -> None:
     yo, otro = uuid.uuid4(), uuid.uuid4()
-    huella = idempotencia.huella_peticion("POST /v1/x", {"lineas": [{"cantidad": 1}]})
+    huella = idempotencia.huella_peticion("POST /v1/x", {"lineas": [{"cantidad": 1}]}, LLAVE)
     vence = idempotencia.expira_en(AHORA)
     terminada = idempotencia.Registro(yo, huella, 201, uuid.uuid4(), vence)
     D = idempotencia.Decision
     assert idempotencia.decidir(None, yo, huella, AHORA) is D.NUEVA
     assert idempotencia.decidir(terminada, yo, huella, AHORA) is D.REPETIDA
     assert idempotencia.decidir(terminada, otro, huella, AHORA) is D.REUTILIZADA
-    otra = idempotencia.huella_peticion("POST /v1/x", {"lineas": [{"cantidad": 2}]})
+    otra = idempotencia.huella_peticion("POST /v1/x", {"lineas": [{"cantidad": 2}]}, LLAVE)
     assert idempotencia.decidir(terminada, yo, otra, AHORA) is D.REUTILIZADA
     assert idempotencia.decidir(replace(terminada, estado_http=None), yo, huella, AHORA) is D.EN_CURSO
     # Vale 24 horas
@@ -314,10 +316,10 @@ def test_decidir_que_hacer_con_la_misma_clave() -> None:
 
 
 def test_la_huella_no_depende_del_orden_de_las_claves_y_no_guarda_el_cuerpo() -> None:
-    a = idempotencia.huella_peticion("e", {"a": 1, "b": 2})
-    assert a == idempotencia.huella_peticion("e", {"b": 2, "a": 1})
+    a = idempotencia.huella_peticion("e", {"a": 1, "b": 2}, LLAVE)
+    assert a == idempotencia.huella_peticion("e", {"b": 2, "a": 1}, LLAVE)
     assert len(a) == 32 and b"a" not in a[:0]
-    assert a != idempotencia.huella_peticion("otra", {"a": 1, "b": 2})
+    assert a != idempotencia.huella_peticion("otra", {"a": 1, "b": 2}, LLAVE)
 
 
 def test_la_oferta_del_carrito_se_conserva_aunque_ya_no_este_publicada() -> None:
@@ -333,3 +335,19 @@ def test_la_oferta_del_carrito_se_conserva_aunque_ya_no_este_publicada() -> None
     )
     with pytest.raises(CarritoInvalido):
         armar_carrito([LineaPedida(uuid.uuid4(), 1)], {}, [linea])
+
+
+def test_la_huella_es_un_hmac_con_la_llave_del_servidor() -> None:
+    """P3 del cierre del analista: el cuerpo de confirmar puede llevar un teléfono. Sin la llave, la huella no se puede
+    recalcular contra teléfonos probables: no es el SHA-256 del cuerpo y cambia con la llave."""
+    import hashlib
+    import json
+
+    cuerpo = {"telefono_contacto": "+56 9 5555 0177"}
+    huella = idempotencia.huella_peticion("POST /v1/pedidos/x/confirmar", cuerpo, LLAVE)
+    canonico = json.dumps(cuerpo, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert huella != hashlib.sha256(f"POST /v1/pedidos/x/confirmar\n{canonico}".encode()).digest()
+    assert huella != idempotencia.huella_peticion("POST /v1/pedidos/x/confirmar", cuerpo, b"otra-llave-de-prueba")
+    assert b"5555" not in huella
+    with pytest.raises(ValueError):
+        idempotencia.huella_peticion("POST /v1/pedidos/x/confirmar", cuerpo, b"")

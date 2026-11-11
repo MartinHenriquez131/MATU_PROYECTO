@@ -520,7 +520,13 @@ def test_idempotencia_en_curso_409(entorno_pedido: EntornoPedido) -> None:
         cx.execute(
             "INSERT INTO idempotencia (grupo_id, endpoint, clave, usuario_id, hash_peticion, expira_en)"
             " VALUES (%s, %s, %s, %s, %s, now() + interval '1 day')",
-            (familia.grupo.id, endpoint, clave, familia.admin.id, huella_peticion(endpoint, {"lineas": lineas})),
+            (
+                familia.grupo.id,
+                endpoint,
+                clave,
+                familia.admin.id,
+                huella_peticion(endpoint, {"lineas": lineas}, e.iam.pepper_limites),
+            ),
         )
     respuesta = e.crear(familia, lineas, clave=clave)
     assert respuesta.status_code == 409 and respuesta.json()["type"] == "/errores/idempotencia-en-curso"
@@ -607,3 +613,35 @@ def test_la_autorizacion_de_pedidos_queda_con_la_politica_0_12(
     version, evidencia = fila
     assert version == "0.12" and evidencia["declaracion"]["version"] == "0.12"
     assert all(texto in texto_publicado("0.12") for texto in DECLARACIONES_PEDIDOS.values())
+
+
+def test_la_huella_guardada_es_un_hmac_y_sin_llave_falla_cerrado(entorno_pedido: EntornoPedido) -> None:
+    """P3 del cierre del analista: idempotencia.hash_peticion es un HMAC con PEPPER_LIMITES, nunca el SHA-256 del
+    cuerpo con el teléfono; sin la llave, los POST del pedido responden 503 y no se crea nada."""
+    import hashlib
+    import json
+
+    from app.core.limite_ip import obtener_pepper_limites
+    from app.modules.ordering.domain.idempotencia import huella_peticion
+
+    e = entorno_pedido
+    familia, pedido = _crear_y_confirmar(e)
+    endpoint = f"POST /v1/pedidos/{pedido['id']}/confirmar"
+    cuerpo = {"telefono_contacto": TELEFONO}
+    with psycopg.connect(DSN) as cx:
+        [guardada] = [
+            bytes(f[0]) for f in cx.execute("SELECT hash_peticion FROM idempotencia WHERE endpoint = %s", (endpoint,))
+        ]
+    canonico = json.dumps(cuerpo, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert guardada == huella_peticion(endpoint, cuerpo, e.iam.pepper_limites)
+    assert guardada != hashlib.sha256(f"{endpoint}\n{canonico}".encode()).digest()
+
+    # La sesión se abre antes: la entrada también usa la llave
+    otra = e.lista_para_pedir(e.fabrica.familia())
+    e.token(otra.admin)
+    e.iam.cliente.app.dependency_overrides[obtener_pepper_limites] = lambda: None  # type: ignore[attr-defined]
+    respuesta = e.crear(otra, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}])
+    assert respuesta.status_code == 503 and respuesta.headers["Cache-Control"] == "no-store"
+    assert (
+        e.pedir("GET", f"/v1/personas-cuidadas/{otra.persona.id}/pedido-en-curso", otra.admin, otra).status_code == 404
+    )

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Body, Depends, Header, Path, Request, Response, s
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
+from app.core.limite_ip import obtener_pepper_limites
 from app.modules.care_circle.api.dependencias import ContextoGrupo, SesionDeGrupo
 from app.modules.care_circle.api.router_autorizaciones import RegistroDep, RelojDep
 from app.modules.catalog.application.ports import CatalogoComercio
@@ -253,6 +254,18 @@ def obtener_repositorio_idempotencia(contexto: SesionDeGrupo, reloj: RelojDep) -
 Idempotencia = Annotated[RepositorioIdempotencia, Depends(obtener_repositorio_idempotencia)]
 
 
+def llave_idempotencia(pepper: Annotated[bytes | None, Depends(obtener_pepper_limites)]) -> bytes:
+    """La llave del HMAC de la huella de la petición (PEPPER_LIMITES). Sin ella, 503: falla cerrado."""
+    if not pepper:
+        raise ErrorMATU(
+            503, detalle="El servicio no está disponible en este momento. Cita el request_id si lo reportas"
+        )
+    return pepper
+
+
+Llave = Annotated[bytes, Depends(llave_idempotencia)]
+
+
 # --- Respuestas ----------------------------------------------------------------------------------------------------
 
 
@@ -379,11 +392,17 @@ class Repeticion:
 
 
 def _reservar(
-    repositorio: RepositorioIdempotencia, endpoint: str, clave: str, actor: Actor, cuerpo: Any, reloj: Reloj
+    repositorio: RepositorioIdempotencia,
+    endpoint: str,
+    clave: str,
+    actor: Actor,
+    cuerpo: Any,
+    reloj: Reloj,
+    llave: bytes,
 ) -> Repeticion | None:
     """None si la petición es nueva y quedó reservada; una Repeticion si ya terminó antes con la misma clave."""
     ahora = reloj.ahora()
-    huella = idempotencia.huella_peticion(endpoint, cuerpo)
+    huella = idempotencia.huella_peticion(endpoint, cuerpo, llave)
     vence = idempotencia.expira_en(ahora)
     existente = repositorio.reservar(endpoint, clave, actor.usuario_id, huella, vence)
     decision = idempotencia.decidir(existente, actor.usuario_id, huella, ahora)
@@ -437,13 +456,14 @@ def crear_pedido(
     solicitud: SolicitudPedido,
     repositorio: Repositorio,
     idem: Idempotencia,
+    llave: Llave,
     registro: RegistroDep,
     reloj: RelojDep,
     costo: CostoEnvio,
     proyectar: Proyectar,
 ) -> Vista:
     endpoint = f"POST /v1/personas-cuidadas/{persona.persona_id}/pedidos"
-    repeticion = _reservar(idem, endpoint, clave, persona.actor, solicitud.model_dump(mode="json"), reloj)
+    repeticion = _reservar(idem, endpoint, clave, persona.actor, solicitud.model_dump(mode="json"), reloj, llave)
     if repeticion is not None:
         vista = _repetir(response, repeticion, persona.actor, proyectar)
         response.headers["Location"] = f"/v1/pedidos/{repeticion.pedido_id}"
@@ -582,6 +602,7 @@ def confirmar(
     escribir: Escribir,
     clave: Clave,
     idem: Idempotencia,
+    llave: Llave,
     registro: RegistroDep,
     reloj: RelojDep,
     costo: CostoEnvio,
@@ -591,7 +612,7 @@ def confirmar(
 ) -> Vista:
     cuerpo = solicitud or SolicitudConfirmar()
     endpoint = f"POST /v1/pedidos/{escribir.pedido.id}/confirmar"
-    repeticion = _reservar(idem, endpoint, clave, escribir.actor, cuerpo.model_dump(mode="json"), reloj)
+    repeticion = _reservar(idem, endpoint, clave, escribir.actor, cuerpo.model_dump(mode="json"), reloj, llave)
     if repeticion is not None:
         return _repetir(response, repeticion, escribir.actor, proyectar)
     try:
@@ -653,11 +674,12 @@ def cambiar_pedido(
     escribir: Escribir,
     clave: Clave,
     idem: Idempotencia,
+    llave: Llave,
     reloj: RelojDep,
     proyectar: Proyectar,
 ) -> Vista:
     endpoint = f"POST /v1/pedidos/{escribir.pedido.id}/cambiar"
-    repeticion = _reservar(idem, endpoint, clave, escribir.actor, {}, reloj)
+    repeticion = _reservar(idem, endpoint, clave, escribir.actor, {}, reloj, llave)
     if repeticion is not None:
         return _repetir(response, repeticion, escribir.actor, proyectar)
     try:
@@ -684,12 +706,13 @@ def cancelar(
     escribir: Cancelar,
     clave: Clave,
     idem: Idempotencia,
+    llave: Llave,
     registro: RegistroDep,
     reloj: RelojDep,
     proyectar: Proyectar,
 ) -> Vista:
     endpoint = f"POST /v1/pedidos/{escribir.pedido.id}/cancelar"
-    repeticion = _reservar(idem, endpoint, clave, escribir.actor, {}, reloj)
+    repeticion = _reservar(idem, endpoint, clave, escribir.actor, {}, reloj, llave)
     if repeticion is not None:
         return _repetir(response, repeticion, escribir.actor, proyectar)
     try:
