@@ -13,6 +13,8 @@ import { AutorizarFicha, AutorizarInsumos, AutorizarPedidosDesdeGrupo, GrupoFami
 import { Insumos } from './Insumos'
 import { ListaDeInsumos } from './ListaInsumos'
 import { PantallaPedido } from './Pedido'
+import { PantallaPago, VueltaSinSesion } from './Pago'
+import { hayVuelta, RUTA_PAGO } from './vueltaPago'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
@@ -42,6 +44,8 @@ function inicio(s: ReturnType<typeof useFamilia>): Ruta {
 /** La redirección que corresponde, o `null` si la ruta se muestra tal cual. */
 function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | null {
   if (!esRuta(ruta) || ruta === '/') return inicio(s)
+  // MATU-62 (7.10): la vuelta de Webpay se muestra aunque no se recupere la sesión, sin montos ni tarjeta.
+  if (s.fase !== 'dentro' && ruta === RUTA_PAGO && hayVuelta()) return null
   if (s.fase !== 'dentro') return PUBLICAS.has(ruta) ? null : '/entrar'
   if (PUBLICAS.has(ruta)) return inicio(s)
   // MATU-57: «Tu cuenta» no depende del grupo ni de la persona.
@@ -68,6 +72,9 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // no lo trae). Quien no puede ver una ruta del pedido llega a «Tu pedido».
   if (ruta === '/insumos/pedido/direccion' && !editor) return '/insumos/pedido'
   if (ruta === '/insumos/pedido/resumen' && s.rol === 'observador') return '/insumos/pedido'
+  // MATU-62 2.1: el observador llega a «Tu pedido». Con una vuelta de Webpay no: el grupo elegido al
+  // abrir es el primero, y la vuelta fija después el del pedido.
+  if (ruta === RUTA_PAGO && s.rol === 'observador' && !hayVuelta()) return '/insumos/pedido'
   return null
 }
 
@@ -129,6 +136,13 @@ function Rutas() {
     )
   if (destino) return null
 
+  if (s.fase !== 'dentro' && ruta === RUTA_PAGO)
+    return (
+      <MarcoSimple>
+        <VueltaSinSesion />
+      </MarcoSimple>
+    )
+
   switch (ruta) {
     case '/crear-cuenta':
       return <CrearCuenta />
@@ -153,6 +167,8 @@ function Rutas() {
   else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
   // MATU-59 (2.2): el catálogo no depende de la persona ni de su autorización.
   else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
+  // MATU-62: la vuelta de Webpay fija ella la persona del pedido (7.1), así que no depende de la elegida.
+  else if (ruta === RUTA_PAGO && (s.persona || hayVuelta())) pantalla = <PantallaPago />
   else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo || seccion) {
