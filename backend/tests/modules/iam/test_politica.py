@@ -481,6 +481,8 @@ def test_la_0_13_esta_publicada_y_es_la_de_env_example() -> None:
         # Cierre del analista: la auditoría del pago y lo que ve el observador (§6)
         "crea, confirma, paga o cancela un pedido",
         "ve los productos del pedido y si está pagado",
+        # P3 de MATU-94: todos los campos de la dirección, con la región y su nombre (§4)
+        "calle, número, depto, comuna, región, un nombre para reconocerla",
     ):
         assert parte in texto, parte
     # Las declaraciones de la autorización de pedidos (MATU-61) siguen en el texto vigente
