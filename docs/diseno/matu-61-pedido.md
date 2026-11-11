@@ -1,6 +1,7 @@
 # MATU-61 · Pedido: carrito y qué hacer si falta un producto · Especificación de diseño
 
-**Versión 1.2 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.3 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.3:** en pantalla ancha, los errores de «Número» y «Depto» van bajo la fila, a todo su ancho, y la columna de 10 rem no cambia (8.1 y criterio 13, decisión del orquestador del 11-11).
 **Cambios de la 1.2** (después de la revisión visual del 11-11, con las decisiones del orquestador): «No hay reserva ni cobros después.» queda como única excepción de «reserva» (secciones 1, 14 y criterio 19); el teléfono abierto tiene un solo rótulo, el `h3` (7.8.1, criterio 27); la nota «El envío y el total los ves al confirmar…» va solo en `borrador` (7.9, criterio 24).
 **Cambios de la 1.1:** las decisiones de Jorge del 11-11 sobre el contrato. Se citan **JC1** a **JC7** (en su mensaje, C1 a C7) para no confundirlas con las condiciones C1 a C25 del analista, y **JC-IVA** la del IVA: en Chile todos los precios llevan el IVA incluido, y nunca se presenta como algo que se suma. Cierra los puntos O1 a O11 (sección 0), agrega «Cambiar el pedido» (9.12) y «Vaciar la dirección» (8.7), y abre O12.
 **Historia:** MATU-61, el pedido de la familia hasta el total confirmado (RF-21, ADR-027, capa 3). Carmen junta productos del catálogo o de su lista de insumos, dice cuántos quiere y qué hacer si falta cada uno, deja la dirección una vez y ve el total confirmado antes de pagar. **La historia termina en el resumen con el total confirmado.** El botón «Pagar» es de **MATU-62**: aquí se dice dónde va y cómo se ve, nada más.
@@ -645,6 +646,12 @@ Sin el aviso del piloto, sin la entrega y sin «Ver el total»: no hay precios n
 ```
 
 **Pantalla ancha:** una columna de `max-w-2xl`, alineada a la izquierda. «Calle» y «Número» en una fila (`@xl/main:grid-cols-[minmax(0,1fr)_10rem]`), y «Depto» y «Comuna» en otra (`@xl/main:grid-cols-[10rem_minmax(0,1fr)]`), con `grid-cols-1` en el ancho más chico (DISENO.md 3). Sin columna derecha: no hay nada que mostrar al lado.
+
+**Los errores de los campos angostos (v1.3).** El campo de «Número» y el de «Depto» miden 10 rem, y esa columna no cambia. Su `MensajeError` **no se encierra en esa columna**:
+- **en pantalla ancha** (`@xl/main`), va en un renglón propio **bajo la fila, a todo su ancho** (`@xl/main:col-span-2`), después del error del campo ancho de la misma fila si lo hay. El error de «Calle» queda bajo «Calle», y el de «Comuna» bajo «Comuna»;
+- **en el teléfono** (`grid-cols-1`), va bajo su campo, a todo el ancho de la columna; solo el `input` lleva `w-40`.
+
+Así «Escribe el número. Si no tiene, escribe S/N.» se lee en uno o dos renglones, y no en cuatro dentro de 170 px (revisión visual del 11-11, P3-1). El error sigue unido a su campo por `aria-describedby` y `aria-invalid`, y el foco va al primer campo con error, como dice 8.3: cambia dónde se dibuja, no a qué campo pertenece.
 
 ### 8.2 Campos
 
@@ -1348,7 +1355,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 10. La bajada, la boleta y «Pagar» (MATU-62) muestran **la misma cifra** de total.
 11. Ningún comercio aparece sin «(comercio ficticio)» en su línea mientras `ficticio` sea `true`. No aparecen el RUT, la razón social, la dirección ni el teléfono de un comercio.
 12. El aviso «Precios de ejemplo.» aparece **exactamente una vez** en el carrito y en el resumen, arriba, lejos del botón principal. No aparece en el vacío ni en los errores.
-13. La dirección no tiene mapa, ni «usar mi ubicación», ni región. La ayuda de la referencia dice «No escribas datos de salud.» y va antes del campo.
+13. La dirección no tiene mapa, ni «usar mi ubicación», ni región. La ayuda de la referencia dice «No escribas datos de salud.» y va antes del campo. Los errores de «Número» y «Depto» miden lo mismo que la columna, a 360 px, o que la fila entera, a 1280 y 1920 px (`getBoundingClientRect().width`). Nunca miden los 10 rem del campo, y «Escribe el número. Si no tiene, escribe S/N.» ocupa como máximo dos renglones sin el aumento de texto.
 14. Con la capa 3 apagada no se ven la pestaña «Pedido», «Agregar al pedido» ni «Pedir estos productos».
 15. El pagador y el observador no ven «Agregar al pedido», «Pedir estos productos», el − y el +, las opciones de «Si falta», «Sacar del pedido», «Cambiar dirección», «Cambiar teléfono», «Ver el total», «Volver a confirmar», «Cambiar el pedido», «Vaciar la dirección» ni «Cancelar pedido». El observador no ve la entrega ni llega al resumen. El cuidador sí ve y usa «Cancelar pedido» (JC3).
 16. A 320 px, a 360 px y con el texto al 200 % a 320 px, `document.documentElement.scrollWidth` es igual a `clientWidth` en las cinco rutas, el diálogo y el conflicto.
