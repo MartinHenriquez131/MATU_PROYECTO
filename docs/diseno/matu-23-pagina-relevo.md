@@ -1,6 +1,7 @@
 # MATU-23 · Página web del relevo · Especificación de diseño
 
-**Versión 1.2 · 10/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Versión 1.3 · 10/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Cambios en 1.3 (10/11/2026):** revisión visual de la misma tarjeta. En 3.11.4, un `<wbr>` después del guion (Firefox no cortaba «+56-9-5555-0141» y desbordaba a 320 px con el texto al 200%), la puntuación pegada al número va dentro de su bloque, y el criterio de «un solo renglón» se mide por carácter, porque `getClientRects()` de un `inline-block` siempre da 1. La sección 8 suma un teléfono con guiones a la ficha de prueba.
 **Cambios en 1.2 (10/11/2026):** tarjeta «Relevo: el teléfono escrito en la ficha no se parte, y "A quién llamar" le habla a quien reemplaza» (sprint 4, decidida por Jorge el 09/11). Un teléfono dentro del texto de la ficha ya no se corta entre dos renglones (3.11.4) y la pregunta de «A quién llamar» en el relevo pasa a «¿A quién llamar si algo pasa?» (3.11.1 y 3.11.5).
 **Cambios en 1.1 (09/11/2026):** D2 decidida por Jorge. La página del relevo ya no muestra el ejemplo de cada campo y mantiene la pregunta guía (D2, 3.11, 3.11.1 y 3.11.3). La versión 1.0 es del 28/10/2026.
 **Historia:** "Como persona que reemplaza a la cuidadora, quiero leer la ficha desde el celular sin instalar nada, para saber qué hacer desde el primer minuto". RF-06.
@@ -651,14 +652,21 @@ Cada número reconocido se dibuja así, dentro del mismo párrafo y sin tocar su
 
 ```tsx
 <span className="inline-block max-w-full tabular-nums">
-  <span className="cifras">{prefijo}</span>
-  {separador || <wbr />}
-  <span className="cifras">{resto}</span>
+  <span className="cifras">{abre}{prefijo}</span>
+  {separador}
+  {separador !== ' ' && <wbr />}
+  <span className="cifras">{resto}{cierra}</span>
 </span>
 ```
 
+- **`<wbr>` después del guion, y cuando no hay separador** (corrección de la revisión visual del 10/11/2026). Unicode no permite cortar después de un guion seguido de un dígito (UAX #14, regla LB25). Chrome cortó igual en «+56-9-5555-0141», pero **Firefox no**: a 320 px con el texto al 200% el número quedó en un solo renglón y salió unos 46 px fuera de la pantalla. Con el `<wbr>` los dos cortan en el mismo lugar («+56-9-» arriba y «5555-0141» abajo). El `<wbr>` no tiene texto: el `textContent` no cambia. Después de un espacio no hace falta, porque el espacio ya es un lugar de corte.
+- **La puntuación pegada al número va dentro del bloque** (misma revisión). Con el bloque solo, el renglón se podía cortar entre el bloque y su signo: «Sofía (» al final de un renglón y «+56 9 5555 0163)» abajo a 360 px, o «. Si no» al empezar un renglón a 320 px con el texto al 200%. Por eso:
+  - `abre`: **un** signo de apertura que está justo antes del número, sin espacio: `(`, `[`, `«`, `"`, `“`, `¿` o `¡`. Se quita del trozo de texto anterior y va al principio de la `cifras` del prefijo. Patrón sobre el texto anterior: `/[(\[«"“¿¡]$/`.
+  - `cierra`: lo que está justo después del número, sin espacio: **un** signo de cierre (`)`, `]`, `»`, `"` o `”`) y después **un** signo de puntuación (`.`, `,`, `;`, `:`, `!` o `?`), los dos opcionales. Se quita del trozo de texto siguiente y va al final de la `cifras` del resto. Patrón sobre el texto siguiente: `/^[)\]»"”]?[.,;:!?]?/`.
+  - No cambia ningún carácter ni su orden: solo en qué `span` queda. El patrón `TELEFONO` no cambia.
+
 - **El número entero no se parte nunca mientras cabe en un renglón.** Si no cabe en lo que queda del renglón, **baja entero** al siguiente: el `inline-block` se comporta como una sola palabra.
-- **Solo si el número es más ancho que un renglón entero**, se corta en un solo lugar: entre el prefijo y el resto, donde Carmen puso el espacio o el guion (o en el `<wbr>` si no puso nada). El prefijo y el resto son `cifras`: cada uno queda junto, igual que la decisión del celular enmascarado de «Tu cuenta» («+56 9» junto y «•••• ••37» junto, MATU-57). Como el `inline-block` empieza en su propio renglón, los dos pedazos quedan **uno debajo del otro**, solos, y no «+56 9» al final de una frase y «5555 0141» abajo.
+- **Solo si el número es más ancho que un renglón entero**, se corta en un solo lugar: entre el prefijo y el resto, donde Carmen puso el espacio o el guion (con su `<wbr>`), o en el `<wbr>` si no puso nada. El prefijo y el resto son `cifras`: cada uno queda junto, igual que la decisión del celular enmascarado de «Tu cuenta» («+56 9» junto y «•••• ••37» junto, MATU-57). Como el `inline-block` empieza en su propio renglón, los dos pedazos quedan **uno debajo del otro**, solos, y no «+56 9» al final de una frase y «5555 0141» abajo.
 - **Nunca** `break-all`, `overflow-wrap: anywhere`, ni un espacio duro u otro carácter insertado: cortarían en medio de un grupo o cambiarían el texto.
 - Va en los tres lugares de la hoja donde se pinta texto de Carmen: el texto corrido (`TextoCampo`), el texto de cada hora de la línea de tiempo y las secciones complementarias (`TextoSeccion`). En todos los campos, no solo en «A quién llamar»: Carmen puede escribir un teléfono en «Si se altera». En `TextoSeccion`, las horas en `cifras` siguen igual: una hora no puede caer dentro de un teléfono, porque el patrón no acepta `:` ni `.`.
 - Sin `aria-*` nuevos: el lector de pantalla lee el número igual que antes.
@@ -676,7 +684,9 @@ El resto (8 dígitos y su separador) es el pedazo más ancho que puede quedar, y
 **Tokens y utilidades:** `cifras` y `tabular-nums`, que ya existen. **Ningún token nuevo.**
 
 **Criterios verificables de 3.11.4:**
-- Con la ficha de prueba de la sección 8, a 360 px y 1280 px con el texto normal, cada número reconocido ocupa **un solo renglón**: `getClientRects().length === 1` en su `inline-block`.
+- Con la ficha de prueba de la sección 8, a 360 px y 1280 px con el texto normal, cada número reconocido ocupa **un solo renglón**: los caracteres de su `inline-block`, medidos uno por uno con un `Range`, tienen todos el mismo `top`. (Hasta la versión 1.2 decía `getClientRects().length === 1`, pero un `inline-block` devuelve siempre una sola caja aunque ocupe dos renglones: la medición del 10/11 dio 1 también a 320 px, donde el número va en dos. No sirve para saberlo.)
+- Con un guion o sin separador entre el prefijo y el resto, hay un `<wbr>` justo después; con un espacio, no. «+56-9-5555-0141» a 320 px con el texto al 200% va en dos renglones, «+56-9-» y «5555-0141», sin desplazamiento horizontal, en Chrome **y en Firefox**.
+- Ningún renglón empieza con `)`, `.`, `,` ni `;` que siga a un teléfono, y ningún renglón termina en `(` o `«` que abra uno: «(+56 9» y «5555 0163)» quedan juntos.
 - A 320 px con el texto al 200%: `document.documentElement.scrollWidth <= innerWidth`; «+56 9 5555 0141» ocupa dos renglones, el primero es «+56 9» y el segundo es exactamente «5555 0141»; ningún grupo de dígitos aparece partido.
 - Si el número se corta, el corte es dentro de su propio bloque: ningún renglón termina en «+56 9» precedido del texto de Carmen.
 - El `textContent` de cada párrafo es igual a su línea del `texto` de la API, incluidos los guiones y los números sin separador.
@@ -1069,7 +1079,7 @@ Capturas de **cada** pantalla y estado:
 - Con `prefers-reduced-motion: reduce`.
 
 **Revisión de la tarjeta del 10/11/2026** (3.11.4 y 3.11.5). El doble del contrato suma una ficha con estos textos sintéticos:
-- «A quién llamar»: «Rodrigo, su hijo: +56 9 5555 0141», «Ana, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123» y «Consultorio: +56955550199».
+- «A quién llamar»: «Rodrigo, su hijo: +56 9 5555 0141», «Ana, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123», «Consultorio: +56955550199» y (desde la versión 1.3) «Su hermana: +56-9-5555-0177», para ver el guion y su `<wbr>`.
 - «Si se altera»: «Le hace bien que la llame su hermana al 9 5555 0177 a las 18:00», para ver un teléfono junto a una hora.
 - «Su día», como línea de tiempo: «10:00 Si tiene dolor, llamar a Rodrigo +56 9 5555 0141», y una línea con «$69.000» y «10/11/2026», que no deben calzar.
 
