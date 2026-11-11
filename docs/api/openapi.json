@@ -2845,7 +2845,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404",
+              "description": "plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404",
               "enum": [
                 "plan_cuidado",
                 "consumo",
@@ -2853,7 +2853,7 @@
               ],
               "title": "Finalidad"
             },
-            "description": "plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404"
+            "description": "plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404"
           },
           {
             "name": "persona_id",
@@ -2900,7 +2900,7 @@
             }
           },
           "404": {
-            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó",
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las tres o que nunca se autorizó",
             "content": {
               "application/problem+json": {}
             }
