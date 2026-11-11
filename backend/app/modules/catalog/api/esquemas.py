@@ -16,11 +16,14 @@ class OfertaCatalogo(BaseModel):
     oferta_id: uuid.UUID
     comercio_id: uuid.UUID
     nombre_fantasia: str = Field(
-        description="El nombre del comercio que se muestra. La pantalla agrega «(comercio ficticio)»"
+        description="El nombre del comercio que se muestra. Con ficticio, la pantalla agrega «(comercio ficticio)»"
     )
     precio: int = Field(gt=0, description="Precio exacto en pesos enteros, con IVA. Nunca neto (ADR-027)")
     disponible: bool = Field(
         description="Si el comercio tiene el producto. No promete disponibilidad: se confirma antes de pagar"
+    )
+    ficticio: bool = Field(
+        description="MATU-61 (D9): comercio.ficticio. La pantalla agrega «(comercio ficticio)» solo con true"
     )
 
 

@@ -27,8 +27,9 @@ from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_borrado import router as router_borrado
+from app.modules.care_circle.api.router_direccion import router as router_direccion
 from app.modules.care_circle.api.router_personas import router as router_personas
-from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, FINALIDAD_PLAN_CUIDADO
+from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, FINALIDAD_DESPACHO, FINALIDAD_PLAN_CUIDADO
 from app.modules.care_circle.infrastructure.efectos_retiro import registrar_efecto
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
@@ -54,7 +55,18 @@ router_salud = APIRouter(tags=["salud"])
 # Routers de la capa 3 (MATU-40, ADR-002), como "paquete.del.router:atributo". Se importan al armar la
 # app y solo con CAPA3_HABILITADA: nunca en el nivel superior de este archivo. MATU-59 agrega el catálogo
 # (GET /v1/catalogo, decisión 167)
-ROUTERS_CAPA_3: tuple[str, ...] = ("app.modules.catalog.api.router:router",)
+ROUTERS_CAPA_3: tuple[str, ...] = (
+    "app.modules.catalog.api.router:router",
+    # MATU-61: el pedido sin pagar y las condiciones del pedido (decisión 188)
+    "app.modules.ordering.api.router:router",
+    "app.modules.ordering.api.router_condiciones:router",
+)
+
+# MATU-61 (C2, decisión 217): el efecto del retiro de despacho y del borrado sobre los pedidos, como
+# "finalidad=paquete:clase". Se importa solo con CAPA3_HABILITADA, igual que ROUTERS_CAPA_3
+EFECTOS_CAPA_3: tuple[tuple[str, str], ...] = (
+    (FINALIDAD_DESPACHO, "app.modules.ordering.infrastructure.efecto_retiro:EfectoRetiroPedidos"),
+)
 
 
 @router_salud.get("/salud")
@@ -63,10 +75,14 @@ def salud() -> dict[str, str]:
 
 
 def incluir_capa_3(app: FastAPI) -> None:
-    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1. Solo se llama con CAPA3_HABILITADA."""
+    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1 y registra los efectos de EFECTOS_CAPA_3. Solo se
+    llama con CAPA3_HABILITADA."""
     for referencia in ROUTERS_CAPA_3:
         modulo, _, atributo = referencia.partition(":")
         app.include_router(getattr(importlib.import_module(modulo), atributo), prefix="/v1")
+    for finalidad, referencia in EFECTOS_CAPA_3:
+        modulo, _, atributo = referencia.partition(":")
+        registrar_efecto(finalidad, getattr(importlib.import_module(modulo), atributo))
 
 
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
@@ -100,8 +116,10 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
     # MATU-36: también bajo /v1/personas-cuidadas/ (autorización, consumo y ficha), en los 403 y 404
     # MATU-57: también la recuperación del acceso y la cuenta. MATU-41: la preferencia de avisos (/v1/yo/)
+    # MATU-61 (C17): el pedido, también sus errores. La dirección ya va bajo /v1/personas-cuidadas/
     for prefijo in (
-        "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/"
+        "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/",
+        "/v1/pedidos",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
@@ -121,6 +139,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_relevo_publico, prefix="/v1")
     app.include_router(router_autorizaciones, prefix="/v1")
     app.include_router(router_borrado, prefix="/v1")
+    # MATU-61: la dirección de la persona es de care_circle y existe también sin la capa 3 (C8)
+    app.include_router(router_direccion, prefix="/v1")
     # Antes que router_consumo: por-acabarse, alertas y lista (MATU-60) son rutas fijas que {perfil_id} capturaría
     app.include_router(router_alertas, prefix="/v1")
     app.include_router(router_lista, prefix="/v1")

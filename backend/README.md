@@ -17,7 +17,8 @@ python -m app.tareas <tarea>
 | `destruccion_fichas` | Destruye las claves de las fichas retiradas hace 90 días (MATU-44) | ver `borrados` | ver `borrados` |
 | `conservacion_consumo` | Borra los perfiles de consumo 90 días después de terminar la autorización (MATU-36) | ver `borrados` | ver `borrados` |
 | `conservacion_sesiones` | Borra sesiones y dispositivos vencidos (MATU-38) | ver `borrados` | ver `borrados` |
-| `borrados` | Las tres de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
+| `conservacion_pedidos` | Borra los pedidos no pagados 30 días después de su último cambio y las claves de idempotencia vencidas (MATU-61, D5). Capa 3: con `CAPA3_HABILITADA` apagada queda `apagada` | ver `borrados` | ver `borrados` |
+| `borrados` | Las cuatro de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
 | `quiebres` | Recalcula los quiebres de cada grupo y conserva alertas, eventos, notificaciones y compras (MATU-37 y MATU-51) | 05:00 en horario de verano, 04:00 en invierno | `0 8 * * *` |
 | `avisos` | Publica el outbox y envía los avisos de quiebre (MATU-41) | cada 5 minutos | `*/5 * * * *` |
 | `todas_diarias` | `borrados` y después `quiebres`, en ese orden | a mano | — |
@@ -81,7 +82,7 @@ Cada tarea usa el rol mínimo para lo que hace, y la API nunca usa estos roles:
 
 | Conexión | Rol | Para qué |
 |---|---|---|
-| `SCHEDULER_DATABASE_URL` | `matu_scheduler` | Enumera los grupos activos (solo `id` y `estado`) y llama a `plan_destruir_claves`, `consumo_conservar`, `iam_conservar` y `quiebre_conservar` |
+| `SCHEDULER_DATABASE_URL` | `matu_scheduler` | Enumera los grupos activos (solo `id` y `estado`) y llama a `plan_destruir_claves`, `consumo_conservar`, `iam_conservar`, `quiebre_conservar` y, desde la 0023, `pedido_conservar` |
 | `PUBLISHER_DATABASE_URL` | `matu_publisher` | Llama a `outbox_tomar`, `outbox_publicado`, `outbox_reintentar` y `outbox_posponer`. No lee ni escribe `evento_outbox` ni `evento_consumido` directo: un solo camino, las funciones |
 | `DATABASE_URL` | `matu_app` | El trabajo de cada grupo (los quiebres y el consumidor de avisos), con `app.rol = 'sistema'` y `app.grupo_id`, que necesita RLS |
 

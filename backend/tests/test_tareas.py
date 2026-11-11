@@ -127,6 +127,7 @@ def test_una_tarea_que_falla_no_detiene_a_las_demas_y_el_log_no_lleva_su_mensaje
         ("destruccion_fichas", "ok"),
         ("conservacion_consumo", "fallo"),
         ("conservacion_sesiones", "ok"),
+        ("conservacion_pedidos", "ok"),
         ("quiebres", "ok"),
     ]
     fallo = lineas[1]
@@ -363,6 +364,7 @@ class _Prohibida:
         ("destruccion_fichas", "SCHEDULER_DATABASE_URL"),
         ("conservacion_consumo", "SCHEDULER_DATABASE_URL"),
         ("conservacion_sesiones", "SCHEDULER_DATABASE_URL"),
+        ("conservacion_pedidos", "SCHEDULER_DATABASE_URL"),
         ("quiebres", "SCHEDULER_DATABASE_URL"),
         ("avisos", "PUBLISHER_DATABASE_URL"),
     ],
@@ -371,7 +373,7 @@ def test_sin_la_conexion_de_su_rol_la_tarea_falla_y_nombra_la_variable(
     tarea: str, variable: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Nunca cae a matu_app: la fábrica de matu_app ni se abre, y la línea nombra la variable, sin su valor."""
-    config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado"})
+    config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado", "capa3_habilitada": True})
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr([tarea], _contexto(_Prohibida(), config=config)) == tareas.SALIDA_FALLO
     [registro] = _corridas(caplog)
@@ -443,7 +445,9 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
     solo con las que le tocan."""
     from sqlalchemy import text
 
-    config = _CONFIG.model_copy(update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"})
+    config = _CONFIG.model_copy(
+        update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl", "capa3_habilitada": True}
+    )
     conexiones = {
         "matu_app": tareas.fabrica_tareas(config),
         "matu_scheduler": tareas.fabrica_de_rol(config.scheduler_database_url, tareas.ROL_SCHEDULER),
@@ -461,6 +465,7 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
         "destruccion_fichas": {"matu_scheduler"},
         "conservacion_consumo": {"matu_scheduler"},
         "conservacion_sesiones": {"matu_scheduler"},
+        "conservacion_pedidos": {"matu_scheduler"},
         "quiebres": {"matu_app", "matu_scheduler"},
         "avisos": {"matu_app", "matu_publisher"},
     }

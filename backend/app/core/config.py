@@ -223,6 +223,10 @@ class Configuracion(BaseSettings):
     # funcionan igual. No es un secreto
     capa3_habilitada: bool = False
 
+    # MATU-61 (C5 y P12): el envío único de cada pedido, en pesos enteros con IVA incluido. Uno por pedido aunque lo
+    # preparen varios comercios (ADR-027). El valor de ejemplo de la arquitectura 8.2. No es un secreto
+    costo_envio: int = Field(default=3990, ge=0, le=100_000)
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",

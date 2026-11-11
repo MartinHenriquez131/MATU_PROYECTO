@@ -9,7 +9,7 @@ Mientras sea el adaptador en uso, precios_de_ejemplo es true y la pantalla rotul
 
 import logging
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from app.modules.catalog.domain.consulta_stock import ConsultaStock, LineaDisponible, RespuestaStock
 
@@ -34,3 +34,19 @@ class CatalogoComercioSimulado:
             for linea in consulta.lineas
         )
         return RespuestaStock(referencia=consulta.referencia, lineas=lineas)
+
+
+class CatalogoComercioDesdeOfertas:
+    """El simulado con las existencias de la tabla oferta (MATU-61): sin convenio, lo que «tiene» un comercio es el
+    stock de su oferta publicada. Lee solo (comercio, producto, stock) del comercio consultado y responde como el
+    simulado: sin red, sin precios y sin nada de quien pregunta. Lo usa la confirmación del pedido."""
+
+    def __init__(self, existencias_de: Callable[[list[uuid.UUID]], Mapping[tuple[uuid.UUID, uuid.UUID], int]]) -> None:
+        self._existencias_de = existencias_de
+
+    @property
+    def precios_de_ejemplo(self) -> bool:
+        return True
+
+    def consultar_stock(self, comercio_id: uuid.UUID, consulta: ConsultaStock) -> RespuestaStock:
+        return CatalogoComercioSimulado(self._existencias_de([comercio_id])).consultar_stock(comercio_id, consulta)

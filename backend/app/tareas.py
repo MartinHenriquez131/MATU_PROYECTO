@@ -9,18 +9,21 @@ Tareas:
 - destruccion_fichas: claves de las fichas retiradas hace 90 días (care_plan, MATU-44).
 - conservacion_consumo: perfiles de consumo a los 90 días de terminar la autorización (MATU-36).
 - conservacion_sesiones: sesiones y dispositivos vencidos (iam, MATU-38).
+- conservacion_pedidos: los pedidos no pagados a los 30 días y las claves de idempotencia vencidas (ordering,
+  MATU-61, D5). Es capa 3: con CAPA3_HABILITADA apagada queda "apagada" y ni siquiera importa ordering.
 - quiebres: el trabajo diario de la predicción de quiebre y la conservación de alertas, eventos,
   notificaciones y compras (MATU-37 y MATU-51). Si un grupo falla, los demás se procesan igual, pero la
   corrida queda "fallo" (con sus contadores) y el proceso sale con 1.
 - avisos: el publicador del outbox con el consumidor de avisos (MATU-41). Sin ENVIADOR_AVISOS no toma
   ningún evento y la corrida queda como "apagada".
-- borrados: las tres de borrado (destruccion_fichas, conservacion_consumo y conservacion_sesiones).
+- borrados: las cuatro de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones y
+  conservacion_pedidos).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
 
 Conexiones (hallazgo H2 de Martín, migración 0022). Cada tarea reutiliza el ``ejecutar`` de su módulo:
 
 - SCHEDULER_DATABASE_URL, como matu_scheduler: enumera los grupos activos y llama a plan_destruir_claves,
-  consumo_conservar, iam_conservar y quiebre_conservar, con app.rol = 'operacion'.
+  consumo_conservar, iam_conservar, quiebre_conservar y pedido_conservar (MATU-61), con app.rol = 'operacion'.
 - PUBLISHER_DATABASE_URL, como matu_publisher: llama a las funciones outbox_* con app.rol = 'operacion'.
 - DATABASE_URL, como matu_app: el trabajo de cada grupo (los quiebres y el consumidor de avisos), con
   app.rol = 'sistema' y app.grupo_id, que necesita RLS.
@@ -39,6 +42,7 @@ Condiciones del analista normativo (MATU-74):
   grupo, un correo, un teléfono, un token, texto de la ficha ni el nombre de un insumo.
 """
 
+import importlib
 import logging
 import sys
 import time
@@ -134,6 +138,17 @@ def _conservacion_sesiones(ctx: Contexto) -> Salida:
     return Salida(OK, asdict(tarea_conservacion_sesiones.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
+# MATU-61: la tarea de la capa 3 se importa solo con la capa encendida, como ROUTERS_CAPA_3 de app/main.py
+TAREA_CONSERVACION_PEDIDOS = "app.modules.ordering.infrastructure.tarea_conservacion"
+
+
+def _conservacion_pedidos(ctx: Contexto) -> Salida:
+    if not ctx.config.capa3_habilitada:
+        return Salida(APAGADA, {})
+    tarea = importlib.import_module(TAREA_CONSERVACION_PEDIDOS)
+    return Salida(OK, asdict(tarea.ejecutar(ctx.scheduler(), ctx.reloj)))
+
+
 def _quiebres(ctx: Contexto) -> Salida:
     trabajo, conservacion = tarea_quiebres.ejecutar(ctx.fabrica, ctx.scheduler(), ctx.reloj)
     # Un grupo que falla no detiene a los demás, pero la corrida queda fallida para que el cron lo muestre
@@ -154,11 +169,17 @@ TAREAS: dict[str, Tarea] = {
     "destruccion_fichas": _destruccion_fichas,
     "conservacion_consumo": _conservacion_consumo,
     "conservacion_sesiones": _conservacion_sesiones,
+    "conservacion_pedidos": _conservacion_pedidos,
     "quiebres": _quiebres,
     "avisos": _avisos,
 }
 
-BORRADOS_DIARIOS: tuple[str, ...] = ("destruccion_fichas", "conservacion_consumo", "conservacion_sesiones")
+BORRADOS_DIARIOS: tuple[str, ...] = (
+    "destruccion_fichas",
+    "conservacion_consumo",
+    "conservacion_sesiones",
+    "conservacion_pedidos",
+)
 # Los borrados antes que los quiebres: el trabajo diario no recalcula lo que ya debía borrarse
 DIARIAS: tuple[str, ...] = (*BORRADOS_DIARIOS, "quiebres")
 

@@ -82,6 +82,8 @@ class LineaLista:
     envases_sugeridos: int | None
     # Para ordenar; no se publica
     fecha_quiebre_estimada: date
+    # MATU-61 (decisión 215, D10): el producto del catálogo del perfil, o None si se anotó con nombre_libre
+    producto_id: uuid.UUID | None = None
 
 
 def entra(candidato: InsumoCandidato, hoy: date) -> bool:
@@ -101,6 +103,7 @@ def linea(candidato: InsumoCandidato, hoy: date) -> LineaLista:
         unidades_por_envase=p.unidades_por_envase,
         envases_sugeridos=envases_sugeridos(unidades, p.unidades_por_envase),
         fecha_quiebre_estimada=p.fecha_quiebre_estimada,
+        producto_id=p.producto_id,
     )
 
 
