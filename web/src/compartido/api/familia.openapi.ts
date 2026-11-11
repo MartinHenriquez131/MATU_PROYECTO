@@ -412,7 +412,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** El estado de las dos autorizaciones de la persona */
+        /** El estado de las autorizaciones de la persona: dos, o tres con la capa 3 */
         get: operations["estado_v1_personas_cuidadas__persona_id__consentimientos_get"];
         put?: never;
         /** Dar la autorización para calcular los insumos o para usar la ficha */
@@ -821,6 +821,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/personas-cuidadas/{persona_id}/direccion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar o cambiar la dirección de entrega de la persona
+         * @description MATU-61 (D4, decisiones 189 a 191 y 219). admin y cuidador; el resto, 404. If-None-Match: * la primera vez, If-Match con el etag después (428 sin ninguna, 422 las dos juntas, 412 con actual). Sin lat ni lng. Cambia la dirección de esa persona y solo de ella. No pide la autorización de pedidos (C8). Registra direccion.cambiar sin el contenido. Cache-Control: no-store
+         */
+        put: operations["guardar_v1_personas_cuidadas__persona_id__direccion_put"];
+        post?: never;
+        /**
+         * Vaciar la dirección de entrega de la persona
+         * @description MATU-61 (C6, decisiones 216 y 219). admin y cuidador; el resto, 404. If-Match obligatorio (428 sin él o con *, 412 con actual). Sin dirección, 404. La persona queda sin dirección y la fila se borra si nadie más la usa. No pide la autorización de pedidos (C8). Registra direccion.cambiar sin el contenido. Cache-Control: no-store
+         */
+        delete: operations["vaciar_v1_personas_cuidadas__persona_id__direccion_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedidos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear el carrito (borrador) con productos del catálogo
+         * @description MATU-61 (decisiones 193 a 196). admin y cuidador, con la autorización despacho vigente. Idempotency-Key obligatoria. Un solo pedido sin pagar por persona (409 pedido-abierto, C4). El servidor fija el precio y el comercio de cada línea desde la oferta (C15) y no lee el consumo (C20). Registra pedido.crear. Capa 3
+         */
+        post: operations["crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedido-en-curso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El pedido sin pagar de la persona, para volver al carrito
+         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
+         */
+        get: operations["ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leer el pedido, con el resumen antes de pagar si el total está confirmado
+         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3
+         */
+        get: operations["ver_pedido_v1_pedidos__pedido_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/lineas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ajustar el carrito: cantidades, agregar y sacar productos
+         * @description MATU-61 (decisión 199). Solo en borrador (con el total confirmado, primero POST …/cambiar). Reemplaza todas las líneas; admite []. If-Match obligatorio. No se audita. Capa 3
+         */
+        put: operations["reemplazar_lineas_v1_pedidos__pedido_id__lineas_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/reglas-faltante": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Qué hacer si falta cada producto (RF-21)
+         * @description MATU-61 (decisión 200). otro_comercio o quitar, nunca otra marca. En borrador, total confirmado y vencido; no cambia el total ni el plazo. If-Match obligatorio. Registra pedido.regla_faltante, sin las acciones. Capa 3
+         */
+        put: operations["reemplazar_reglas_v1_pedidos__pedido_id__reglas_faltante_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/confirmar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmar que haya cada producto y fijar el total por 15 minutos
+         * @description MATU-61 (decisiones 201 a 205; C1 y C5). Desde borrador, vencido o un total vigente, que se reemplaza. Una consulta de stock por comercio. Con otro_comercio busca el mismo producto en el comercio de menor precio; con quitar, lo que falta sale. Total = subtotal + un envío, con IVA incluido. Idempotency-Key obligatoria. Registra pedido.confirmar. No crea el cargo (MATU-62). Capa 3
+         */
+        post: operations["confirmar_v1_pedidos__pedido_id__confirmar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/contacto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Cambiar el teléfono de contacto desde el resumen
+         * @description MATU-61 (decisión 203). En total confirmado y vencido; no toca el total ni el plazo. If-Match obligatorio. No se audita. Capa 3
+         */
+        put: operations["cambiar_contacto_v1_pedidos__pedido_id__contacto_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/cambiar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volver al carrito desde el total confirmado o vencido («Cambiar el pedido»)
+         * @description MATU-61 (decisión 218; C1 y C9). total_confirmado o vencido → borrador: descarta el total, las partes por comercio y la entrega; cada línea vuelve al carrito. Idempotency-Key obligatoria. No se audita. Capa 3
+         */
+        post: operations["cambiar_pedido_v1_pedidos__pedido_id__cambiar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/cancelar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar un pedido sin pagar, sin costo
+         * @description MATU-61 (decisión 206). Desde borrador, total confirmado o vencido; borra la copia de la entrega. No pide la autorización despacho. Idempotency-Key obligatoria: la repetición responde 200. Registra pedido.cancelar. Capa 3
+         */
+        post: operations["cancelar_v1_pedidos__pedido_id__cancelar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/condiciones-pedido": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Las condiciones del pedido vigentes, con su versión y su huella
+         * @description MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. Capa 3
+         */
+        get: operations["ver_condiciones_v1_condiciones_pedido_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -998,7 +1222,7 @@ export interface components {
              * Finalidad
              * @enum {string}
              */
-            finalidad: "plan_cuidado" | "consumo";
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
             estado: components["schemas"]["EstadoVista"];
             /** Id */
             id: string | null;
@@ -1024,7 +1248,7 @@ export interface components {
              * Finalidad
              * @enum {string}
              */
-            finalidad: "plan_cuidado" | "consumo";
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
             estado: components["schemas"]["EstadoVista"];
             /** Id */
             id: string | null;
@@ -1041,7 +1265,7 @@ export interface components {
         };
         /**
          * AutorizacionesPersona
-         * @description Siempre dos ítems: plan_cuidado y consumo, en ese orden. Lo que ven admin y cuidador.
+         * @description plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2). Lo que ven admin y cuidador.
          */
         AutorizacionesPersona: {
             /** Autorizaciones */
@@ -1049,7 +1273,7 @@ export interface components {
         };
         /**
          * AutorizacionesPersonaResumen
-         * @description Siempre dos ítems, como AutorizacionesPersona. Lo que ven el pagador y el observador.
+         * @description Los mismos ítems de AutorizacionesPersona. Lo que ven el pagador y el observador.
          */
         AutorizacionesPersonaResumen: {
             /** Autorizaciones */
@@ -1261,6 +1485,11 @@ export interface components {
             region: string;
             /** Referencia */
             referencia: string | null;
+            /**
+             * Etag
+             * @description La versión de la dirección, "v<version>" (If-Match)
+             */
+            etag: string;
         };
         /**
          * DispositivoVista
@@ -1535,6 +1764,11 @@ export interface components {
              * @description techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase
              */
             envases_sugeridos: number | null;
+            /**
+             * Producto Id
+             * @description MATU-61 (decisión 215): el producto del catálogo del perfil, o null si el insumo se anotó con nombre_libre. «Pedir estos productos» pasa al pedido solo las líneas con producto
+             */
+            producto_id: string | null;
         };
         /**
          * ListaInsumos
@@ -1750,12 +1984,16 @@ export interface components {
         };
         /**
          * RetiroAutorizacion
-         * @description Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo (decisión 126, C2).
+         * @description Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo y despacho (decisión 126, C2).
+         *     ``pedidos_cancelados`` (MATU-61, decisión 192): los pedidos sin pagar que canceló el retiro de despacho; 0 con
+         *     las otras finalidades.
          */
         RetiroAutorizacion: {
             autorizacion: components["schemas"]["AutorizacionVista"];
             /** Enlaces Cortados */
             enlaces_cortados: number;
+            /** Pedidos Cancelados */
+            pedidos_cancelados: number;
         };
         /**
          * SeccionComplementaria
@@ -1826,19 +2064,25 @@ export interface components {
         };
         /**
          * SolicitudAutorizacionEntrada
-         * @description Cuerpo de la autorización: ``consumo`` (MATU-36) o ``plan_cuidado`` para volver a autorizar la ficha
-         *     (MATU-44, decisión 128). Un campo extra responde 422.
+         * @description Cuerpo de la autorización: ``consumo`` (MATU-36), ``plan_cuidado`` para volver a autorizar la ficha
+         *     (MATU-44, decisión 128) o ``despacho``, la de pedidos (MATU-61, D1), solo con la capa 3. Un campo extra
+         *     responde 422.
          */
         SolicitudAutorizacionEntrada: {
             /**
              * Finalidad
              * @enum {string}
              */
-            finalidad: "consumo" | "plan_cuidado";
+            finalidad: "consumo" | "plan_cuidado" | "despacho";
             calidad_otorgante: components["schemas"]["CalidadOtorgante"];
             /** Referencia Documento */
             referencia_documento?: string | null;
             aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
+            /**
+             * Huella Declaracion
+             * @description MATU-61 (P13): SHA-256 del texto exacto de declaracion_pedidos_<calidad> que se mostró (política, sección 5). Obligatoria con despacho y prohibida con las otras dos (422). Otra huella: 422 declaracion_no_vigente
+             */
+            huella_declaracion?: string | null;
         };
         /**
          * SolicitudCambioContrasena
@@ -2159,7 +2403,7 @@ export interface components {
             comercio_id: string;
             /**
              * Nombre Fantasia
-             * @description El nombre del comercio que se muestra. La pantalla agrega «(comercio ficticio)»
+             * @description El nombre del comercio que se muestra. Con ficticio, la pantalla agrega «(comercio ficticio)»
              */
             nombre_fantasia: string;
             /**
@@ -2172,6 +2416,11 @@ export interface components {
              * @description Si el comercio tiene el producto. No promete disponibilidad: se confirma antes de pagar
              */
             disponible: boolean;
+            /**
+             * Ficticio
+             * @description MATU-61 (D9): comercio.ficticio. La pantalla agrega «(comercio ficticio)» solo con true
+             */
+            ficticio: boolean;
         };
         /** ProductoCatalogo */
         ProductoCatalogo: {
@@ -2204,6 +2453,363 @@ export interface components {
              * @description Cada comercio con su precio y si hay stock, por nombre_fantasia y comercio_id, nunca por precio
              */
             comercios: components["schemas"]["OfertaCatalogo"][];
+        };
+        /** CambioDeLinea */
+        CambioDeLinea: {
+            /**
+             * Precio Antes
+             * @description El precio del carrito, si el confirmado es distinto
+             */
+            precio_antes: number | null;
+            /** @description El comercio del carrito, si el producto pasó a otro */
+            comercio_antes: components["schemas"]["ComercioVista"] | null;
+        };
+        /** ComercioVista */
+        ComercioVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Fantasia */
+            nombre_fantasia: string;
+            /**
+             * Ficticio
+             * @description comercio.ficticio (D9). Con true, la pantalla agrega «(comercio ficticio)»
+             */
+            ficticio: boolean;
+        };
+        /** CondicionesPedidoVista */
+        CondicionesPedidoVista: {
+            /** Version */
+            version: string;
+            /**
+             * Actualizada En
+             * Format: date
+             */
+            actualizada_en: string;
+            /** Huella */
+            huella: string;
+            /** Texto */
+            texto: string;
+        };
+        /** CondicionesVigentes */
+        CondicionesVigentes: {
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /**
+             * Enlace
+             * @constant
+             */
+            enlace: "/v1/condiciones-pedido";
+        };
+        /**
+         * DireccionEntrada
+         * @description Cuerpo de PUT …/direccion: los campos y largos de DireccionNueva del alta. Sin lat ni lng (C8): un campo
+         *     extra responde 422. Reemplaza la dirección completa.
+         */
+        DireccionEntrada: {
+            /**
+             * Etiqueta
+             * @default Casa
+             */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto?: string | null;
+            /** Comuna */
+            comuna: string;
+            /**
+             * Region
+             * @default Metropolitana
+             */
+            region: string;
+            /** Referencia */
+            referencia?: string | null;
+        };
+        /** EntregaVista */
+        EntregaVista: {
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Telefono Contacto
+             * @description El celular de una cuenta va enmascarado (celular_cuenta); uno escrito, completo en E.164
+             */
+            telefono_contacto: string;
+            /**
+             * Telefono Origen
+             * @enum {string}
+             */
+            telefono_origen: "celular_cuenta" | "escrito";
+            /** Telefono Es Tuyo */
+            telefono_es_tuyo: boolean;
+        };
+        /**
+         * Estado
+         * @enum {string}
+         */
+        Estado: "borrador" | "total_confirmado" | "vencido" | "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "asignado" | "sin_repartidor" | "retirado" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cerrado" | "cancelado" | "cancelado_con_devolucion";
+        /** LineaPedido */
+        LineaPedido: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+            /**
+             * Precio Unitario
+             * @description Precio exacto en pesos enteros, con IVA incluido
+             */
+            precio_unitario: number;
+            /**
+             * Subtotal
+             * @description cantidad × precio_unitario
+             */
+            subtotal: number;
+            regla_faltante: components["schemas"]["Regla"];
+            /** Retracto Pierde Al Abrir */
+            retracto_pierde_al_abrir: boolean;
+            cambio: components["schemas"]["CambioDeLinea"] | null;
+        };
+        /** LineaSalida */
+        LineaSalida: {
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+        };
+        /** LineaSolicitud */
+        LineaSolicitud: {
+            /**
+             * Oferta Id
+             * Format: uuid
+             */
+            oferta_id: string;
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+        };
+        /** ParteComercio */
+        ParteComercio: {
+            comercio: components["schemas"]["ComercioVista"];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+        };
+        /**
+         * PedidoVista
+         * @description El pedido de la familia, como un solo pedido (D7). Lo ven admin, cuidador y pagador (C3).
+         */
+        PedidoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Persona Cuidada Id
+             * Format: uuid
+             */
+            persona_cuidada_id: string;
+            estado: components["schemas"]["Estado"];
+            /** Etag */
+            etag: string;
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedido"][];
+            /** Salieron */
+            salieron: components["schemas"]["LineaSalida"][];
+            /** Comercios */
+            comercios: components["schemas"]["ParteComercio"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /**
+             * Costo Envio
+             * @description Un solo envío por pedido (ADR-027), con IVA incluido
+             */
+            costo_envio: number;
+            /**
+             * Total
+             * @description subtotal_productos + costo_envio, con IVA incluido
+             */
+            total: number | null;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Vence En */
+            vence_en: string | null;
+            /** Vigencia Segundos */
+            vigencia_segundos: number | null;
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            entrega: components["schemas"]["EntregaVista"] | null;
+            resumen: components["schemas"]["ResumenAntesDePagar"] | null;
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /**
+         * PedidoVistaObservador
+         * @description Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag.
+         */
+        PedidoVistaObservador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Persona Cuidada Id
+             * Format: uuid
+             */
+            persona_cuidada_id: string;
+            estado: components["schemas"]["Estado"];
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedido"][];
+            /** Salieron */
+            salieron: components["schemas"]["LineaSalida"][];
+            /** Comercios */
+            comercios: components["schemas"]["ParteComercio"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number | null;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Vence En */
+            vence_en: string | null;
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** ProductoPedido */
+        ProductoPedido: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades Por Envase */
+            unidades_por_envase: number;
+        };
+        /**
+         * Regla
+         * @description RF-21: qué hacer si falta un producto. Nunca otra marca: no existe otra acción.
+         * @enum {string}
+         */
+        Regla: "otro_comercio" | "quitar";
+        /** ReglaProducto */
+        ReglaProducto: {
+            /**
+             * Producto Id
+             * Format: uuid
+             */
+            producto_id: string;
+            accion: components["schemas"]["Regla"];
+        };
+        /** ResumenAntesDePagar */
+        ResumenAntesDePagar: {
+            /**
+             * Vendedor
+             * @constant
+             */
+            vendedor: "MATU, piloto académico, sin persona jurídica";
+            /**
+             * Boleta
+             * @constant
+             */
+            boleta: "En este piloto no se emite boleta";
+            /**
+             * Ventana Entrega
+             * @constant
+             */
+            ventana_entrega: "Entre 24 y 48 horas hábiles";
+            /** Canal Reclamo */
+            canal_reclamo: string;
+            condiciones: components["schemas"]["CondicionesVigentes"];
+        };
+        /** SolicitudConfirmar */
+        SolicitudConfirmar: {
+            /** Telefono Contacto */
+            telefono_contacto?: string | null;
+        };
+        /** SolicitudContacto */
+        SolicitudContacto: {
+            /**
+             * Telefono Contacto
+             * @description Celular chileno, con la regla de POST /v1/usuarios; se guarda en E.164
+             */
+            telefono_contacto: string;
+        };
+        /** SolicitudLineas */
+        SolicitudLineas: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaSolicitud"][];
+        };
+        /** SolicitudPedido */
+        SolicitudPedido: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaSolicitud"][];
+        };
+        /** SolicitudReglasFaltante */
+        SolicitudReglasFaltante: {
+            /** Reglas */
+            reglas: components["schemas"]["ReglaProducto"][];
         };
     };
     responses: never;
@@ -3933,8 +4539,8 @@ export interface operations {
                 "X-Grupo-Id"?: string | null;
             };
             path: {
-                /** @description plan_cuidado o consumo. Otro valor responde 404 */
-                finalidad: "plan_cuidado" | "consumo";
+                /** @description plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404 */
+                finalidad: "plan_cuidado" | "consumo" | "despacho";
                 persona_id: string;
             };
             cookie?: never;
@@ -5473,6 +6079,900 @@ export interface operations {
             };
             /** @description Cuerpo inválido */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardar_v1_personas_cuidadas__persona_id__direccion_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+                "If-None-Match"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DireccionEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DireccionVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada; al vaciar, también la persona sin dirección */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con la dirección vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version: falta If-Match (o If-None-Match: * la primera vez) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    vaciar_v1_personas_cuidadas__persona_id__direccion_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada; al vaciar, también la persona sin dirección */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con la dirección vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description /errores/falta-version: falta If-Match (o If-None-Match: * la primera vez) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPedido"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"] | components["schemas"]["PedidoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_pedido_v1_pedidos__pedido_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"] | components["schemas"]["PedidoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reemplazar_lineas_v1_pedidos__pedido_id__lineas_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudLineas"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    reemplazar_reglas_v1_pedidos__pedido_id__reglas_faltante_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudReglasFaltante"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    confirmar_v1_pedidos__pedido_id__confirmar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SolicitudConfirmar"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_contacto_v1_pedidos__pedido_id__contacto_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudContacto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_pedido_v1_pedidos__pedido_id__cambiar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cancelar_v1_pedidos__pedido_id__cancelar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_condiciones_v1_condiciones_pedido_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-cache: se revalida cada vez */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CondicionesPedidoVista"];
+                };
+            };
+            /** @description El texto publicado no está o no calza con su huella */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
