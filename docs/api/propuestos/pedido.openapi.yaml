@@ -7,9 +7,25 @@ info:
     Contrato **propuesto** de MATU-61, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con las decisiones D1 a D12 de Jorge del 11-11 y las condiciones C1 a C25 de la revisión
     previa del analista normativo (`docs/legal/revision-previa-matu-61.md` del repositorio MATU). Las
-    decisiones de este contrato son las **188 a 215** de `docs/api/README.md`, sección "MATU-61", y las
-    preguntas abiertas para Jorge están ahí mismo ("Para Jorge (MATU-61)", P1 a P16). Jorge revisa este
-    contrato antes de construir.
+    decisiones de este contrato son las **188 a 219** de `docs/api/README.md`, sección "MATU-61". Las
+    preguntas P1 a P16 quedaron **resueltas por Jorge el 11-11 con sus decisiones C1 a C7** (README, "Para
+    Jorge (MATU-61)"), y este archivo ya las aplica:
+    - **C1:** `confirmar` acepta también un total **vigente** y lo reemplaza (15 minutos nuevos), y
+      `POST /v1/pedidos/{pedido_id}/cambiar` vuelve de `total_confirmado` a `borrador` («Cambiar el pedido»).
+    - **C2:** con la capa 3 apagada, el retiro de autorizaciones y el borrado de la persona siguen funcionando
+      y no tocan pedidos; `GET …/consentimientos` trae 3 ítems con la capa 3 encendida y 2 con la capa apagada.
+    - **C3:** admin y cuidador arman, ajustan, confirman y cancelan sin pagar; el pagador ve todo y no
+      confirma; el observador ve el carrito sin la entrega ni el resumen.
+    - **C4:** un solo pedido sin pagar por persona, leído con `GET …/pedido-en-curso`.
+    - **C5:** al confirmar, solo se busca otro comercio con la regla `otro_comercio`; con `quitar`, el
+      producto que falta sale. Entre varios, el de menor precio. Ventana fija. Envío único de la
+      configuración. Todos los precios llevan el IVA incluido: no hay IVA que se sume.
+    - **C6:** retirar `despacho` conserva la dirección de la persona; se puede **vaciar** con
+      `DELETE …/direccion`.
+    - **C7:** se aceptan las rutas, `PUT …/contacto`, `GET /v1/condiciones-pedido`, `huella_declaracion` y
+      `ventana_entrega` también en `borrador`.
+    - **C8:** leer, cambiar y vaciar la dirección de la persona **no** piden la autorización `despacho`; se
+      exige solo en las operaciones del pedido.
 
     **Frontera con MATU-62 (decisión de Jorge).** MATU-61 llega hasta el **total confirmado**, que vale
     15 minutos, y el pedido **vencido** o **cancelado sin pagar**. No hay pago, cargo, retorno de la
@@ -18,10 +34,11 @@ info:
     de MATU-61 pero se escriben al pagar, en MATU-62: aquí el resumen solo entrega la versión vigente de
     las condiciones, su huella y su enlace.
 
-    **Es capa 3** (decisión 104). Las rutas `/v1/pedidos/…`, `…/personas-cuidadas/{persona_id}/pedidos` y
-    `/v1/condiciones-pedido` van en `ROUTERS_CAPA_3` y existen solo con `CAPA3_HABILITADA=true`. La
-    dirección (`PUT …/direccion`) y la autorización `despacho` viven en `care_circle` (decisiones 189 y
-    192).
+    **Es capa 3** (decisión 104). Las rutas `/v1/pedidos/…`, `…/personas-cuidadas/{persona_id}/pedidos`,
+    `…/pedido-en-curso` y `/v1/condiciones-pedido` van en `ROUTERS_CAPA_3` y existen solo con
+    `CAPA3_HABILITADA=true`. La dirección (`PUT` y `DELETE …/direccion`) vive en `care_circle` y existe
+    siempre. La autorización `despacho` vive en `care_circle`, pero se otorga, se ve y se retira solo con la
+    capa 3 encendida (C2, decisión 217).
 
     **Rutas que ya están en `openapi.json` y cambian** (`POST`/`GET …/consentimientos`, `POST
     …/consentimientos/{finalidad}/retiro`, `GET /v1/grupos/{grupo_id}/personas-cuidadas` y `GET
@@ -32,7 +49,9 @@ info:
     **Contexto de la familia.** Todas las rutas, salvo `GET /v1/condiciones-pedido`, usan `bearerAuth` +
     `X-Grupo-Id` y fijan el contexto con `sesion_de_grupo`. Un pedido o una persona de otro grupo, un rol
     que no alcanza o un id que no es UUID responden **404**, nunca 403 (CLAUDE.md, agente 2, punto 4). El
-    único 403 es la autorización de pedidos (`despacho`) que falta o tiene la revisión vencida.
+    único 403 es la autorización de pedidos (`despacho`) que falta o tiene la revisión vencida, y solo en
+    las operaciones del pedido (crear, ajustar, reglas, confirmar, teléfono y cambiar). **La dirección de la
+    persona no la pide** (C8 de Jorge): leerla, cambiarla y vaciarla nunca responden 403.
 
     **`Cache-Control: no-store` en todas las respuestas del pedido y de la dirección**, 2xx y errores
     (C17). Nada del contenido va en la URL: los ids son opacos y los productos, cantidades, dirección y
@@ -81,6 +100,10 @@ paths:
         persona inexistente o eliminada: **404**. El pagador la **ve** en `GET
         /v1/grupos/{grupo_id}/personas-cuidadas` (`PersonaVistaPagador.direccion`), y el observador no.
 
+        **No pide la autorización `despacho`** (C8 de Jorge): la dirección es un dato de la persona, y
+        leerla, cambiarla y vaciarla no dependen de la autorización de pedidos, vigente, vencida o
+        retirada. Nunca responde 403.
+
         **Precondición obligatoria**, como `PUT …/plan/ficha/{campo}`:
         - la persona **no tiene** dirección: `If-None-Match: *`. Si ya tiene una, **412** con `actual`;
         - la persona **tiene** dirección: `If-Match` con el `etag` de `DireccionVista`. Otro valor: **412**
@@ -94,7 +117,9 @@ paths:
         **Qué hace:** cambia la dirección de esa persona y solo de ella; si su fila de `direccion` la
         comparte otra persona del grupo, crea una nueva. Sube `version`. Registra `direccion.cambiar`,
         con entidad `direccion` y sin el contenido (C10, D12). Un pedido ya confirmado **no cambia**: su
-        dirección es la copia de `pedido_entrega` (D4, ver P7).
+        dirección es la copia de `pedido_entrega` (D4). Para llevar la dirección nueva a un total
+        confirmado, la pantalla vuelve a confirmar (`POST …/confirmar` acepta un total vigente, C1; P7
+        resuelta).
 
         Orden: 401, 404, 428, 422, 412 y 200.
       parameters:
@@ -149,6 +174,59 @@ paths:
           $ref: '#/components/responses/ValidacionPedido'
         '428':
           $ref: '#/components/responses/FaltaVersion'
+    delete:
+      tags: [direccion]
+      operationId: vaciarDireccion
+      summary: Vaciar la dirección de entrega de la persona
+      description: |
+        Decisión 216 (C6 de Jorge). Deja a la persona **sin dirección**: `persona_cuidada.direccion_entrega_id`
+        pasa a `null` y la fila de `direccion` se borra si ninguna otra persona del grupo la usa. Retirar la
+        autorización `despacho` **no** la borra (C6): esta ruta es la forma de vaciarla.
+
+        **Quién:** `admin` y `cuidador`. `pagador`, `observador`, otro grupo, una persona inexistente o
+        eliminada: **404**. **`If-Match` obligatorio** con el `etag` de `DireccionVista`: sin él, vacío o
+        `*`, **428**; otro valor, **412** con la dirección vigente en `actual`. Si la persona no tiene
+        dirección, **404** (no hay nada que vaciar). Sin cuerpo.
+
+        **No pide la autorización `despacho`** (C8 de Jorge): con la autorización retirada, vencida o
+        nunca dada, admin y cuidador igual vacían la dirección. Nunca responde 403.
+
+        Un pedido ya confirmado **no cambia**: su dirección es la copia de `pedido_entrega`. Un pedido sin
+        dirección no se puede confirmar (409 `sin-direccion`, C7). Registra `direccion.cambiar` con entidad
+        `direccion` y sin el contenido (D12), como el `PUT`.
+
+        Orden: 401, 404, 428, 412 y 204.
+      parameters:
+        - $ref: '#/components/parameters/IfMatchDireccion'
+      responses:
+        '204':
+          description: La persona quedó sin dirección.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '412':
+          description: |
+            La dirección cambió desde que se leyó. `/errores/version-desactualizada`, con la dirección
+            vigente en `actual`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagDireccion'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemaVersionDireccion'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
 
   /v1/personas-cuidadas/{persona_id}/pedidos:
     parameters:
@@ -177,8 +255,9 @@ paths:
         `perfil_consumo`** (C20). Cada línea guarda el precio y el comercio de la oferta en ese momento:
         son el «precio del carrito» contra el que se marcan los cambios al confirmar (C15).
 
-        **Un solo pedido abierto por persona** (P2, por aprobar): si la persona ya tiene uno en
-        `borrador`, `total_confirmado` o `vencido`, **409** `pedido-abierto` con su `pedido_id`.
+        **Un solo pedido sin pagar por persona** (C4 de Jorge): si la persona ya tiene uno en
+        `borrador`, `total_confirmado` o `vencido`, **409** `pedido-abierto` con su `pedido_id`. La
+        pantalla lo lee con `GET …/pedido-en-curso`.
 
         Registra `pedido.crear`. Orden: 401, 404, 403, 428, 422 (cabecera y cuerpo), idempotencia
         (repetida, 422 o 409), 409 `pedido-abierto` y 201.
@@ -222,7 +301,7 @@ paths:
           $ref: '#/components/responses/NoEncontradoPedido'
         '409':
           description: |
-            `/errores/pedido-abierto` (con `pedido_id`, P2) o `/errores/idempotencia-en-curso`.
+            `/errores/pedido-abierto` (con `pedido_id`, C4) o `/errores/idempotencia-en-curso`.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/XRequestId'
@@ -238,30 +317,45 @@ paths:
           $ref: '#/components/responses/ValidacionPedido'
         '428':
           $ref: '#/components/responses/FaltaIdempotencia'
+
+  /v1/personas-cuidadas/{persona_id}/pedido-en-curso:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
     get:
       tags: [pedidos]
-      operationId: listarPedidosAbiertos
-      summary: Los pedidos sin pagar de la persona (para volver al carrito)
+      operationId: leerPedidoEnCurso
+      summary: El pedido sin pagar de la persona (para volver al carrito)
       description: |
-        Decisión 197 (P1, por aprobar). El carrito vive en el servidor (C18) y la pantalla no guarda nada
-        en el navegador: después de recargar, esta ruta dice si hay un pedido abierto y cuál.
+        Decisión 197 (C4 de Jorge, reemplaza la lista de pedidos abiertos de P1). El carrito vive en el
+        servidor (C18) y la pantalla no guarda nada en el navegador: después de recargar, esta ruta
+        entrega **el** pedido sin pagar de la persona (`borrador`, `total_confirmado` o `vencido`), o
+        **404** si no tiene uno. Hay a lo más uno (409 `pedido-abierto` al crear).
 
-        Solo `borrador`, `total_confirmado` y `vencido`, del más nuevo al más antiguo. Los cancelados y
-        los pagados no vienen (los pagados son de MATU-62 y MATU-63). **Quién:** los cuatro roles
-        (arquitectura 11.2: pagador y observador «ver»). Otro grupo o persona inexistente: 404. No pide
-        la autorización `despacho`. Es una lectura: no se audita. Orden: 401, 404 y 200.
+        Es la misma vista de `GET /v1/pedidos/{pedido_id}`, con su `ETag` y la proyección del rol:
+        `PedidoVista` para `admin`, `cuidador` y `pagador`, y `PedidoVistaObservador` para el
+        `observador` (C3). Otro grupo, una persona inexistente o eliminada, o sin pedido en curso: el
+        mismo **404**. No pide la autorización `despacho`. Es una lectura: no se audita. Orden: 401, 404 y
+        200.
       responses:
         '200':
-          description: Los pedidos abiertos. Con la regla de P2, a lo más uno.
+          description: El pedido en curso, con la proyección del rol.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/XRequestId'
             Cache-Control:
               $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              description: La versión del pedido. Solo con `PedidoVista`; el observador no escribe.
+              schema:
+                type: string
+                pattern: '^"v[0-9]+"$'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ListaPedidosAbiertos'
+                anyOf:
+                  - $ref: '#/components/schemas/PedidoVista'
+                  - $ref: '#/components/schemas/PedidoVistaObservador'
         '401':
           $ref: '#/components/responses/NoAutenticadoPedido'
         '404':
@@ -276,10 +370,11 @@ paths:
       operationId: leerPedido
       summary: Leer el pedido, con el resumen antes de pagar si el total está confirmado
       description: |
-        Decisiones 198 y 205. **Quién:** los cuatro roles (arquitectura 11.2). `admin`, `cuidador` y
-        `pagador` reciben `PedidoVista`; el `observador` recibe `PedidoVistaObservador`, **sin
-        `entrega`** (arquitectura 11.2: el observador ve el nombre de la persona, no su dirección). Otro
-        grupo, inexistente o de una persona eliminada: **404**. No pide la autorización `despacho`.
+        Decisiones 198 y 205. **Quién** (C3 de Jorge): los cuatro roles. `admin`, `cuidador` y `pagador`
+        reciben `PedidoVista`, con la entrega y el resumen; el `observador` recibe
+        `PedidoVistaObservador`, el carrito **sin `entrega` ni `resumen`** (arquitectura 11.2: el
+        observador ve el nombre de la persona, no su dirección). Otro grupo, inexistente o de una persona
+        eliminada: **404**. No pide la autorización `despacho`.
 
         **El vencimiento lo dice el `Reloj`:** un pedido en `total_confirmado` con `vence_en` ya cumplido
         se informa como `vencido`, aunque todavía no se haya guardado la transición (decisión 204).
@@ -320,9 +415,9 @@ paths:
         oferta no cambian conserva su precio del carrito; si cambia la oferta, el precio del carrito pasa
         a ser el de la oferta nueva. Puede quedar vacío (`lineas: []`, «Tu pedido está vacío.»).
 
-        **Solo en `borrador`.** En `total_confirmado` y `vencido`, **409** `estado-pedido` según la
-        arquitectura 8.1, que no tiene transición de vuelta a `borrador` (ver P3: se recomienda
-        agregarla). En los demás estados, también 409.
+        **Solo en `borrador`.** En `total_confirmado` y `vencido`, **409** `estado-pedido`: para cambiar
+        el carrito después de ver el total, primero `POST …/cambiar` («Cambiar el pedido», C1), que lo
+        devuelve a `borrador`. En los demás estados, también 409.
 
         **Quién:** `admin` y `cuidador`; el resto, 404. Pide la autorización `despacho` vigente (403).
         `If-Match` obligatorio con el `etag` del pedido: 428 sin él, 412 con `actual` si cambió. No se
@@ -420,21 +515,28 @@ paths:
       description: |
         Decisiones 201 a 204 (arquitectura 8.2 y 9.4, ADR-027).
 
-        **Desde `borrador` o `vencido`** (`vencido → total_confirmado`, «Volver a confirmar», C23). En
-        `total_confirmado` todavía vigente y en los demás estados: **409** `estado-pedido`.
+        **Desde `borrador`, `vencido` o `total_confirmado` todavía vigente** (C1 de Jorge):
+        `vencido → total_confirmado` es «Volver a confirmar» (C23), y con el total **vigente** lo
+        **reemplaza**: revisa otra vez el stock y los precios y da 15 minutos nuevos (el aviso de los 2
+        minutos, WCAG 2.2.1, y la dirección cambiada desde el resumen, diseño O5). En los demás estados:
+        **409** `estado-pedido`.
 
         **Qué hace, en una transacción y con un solo instante del `Reloj`:**
         1. Consulta el stock de **todas las líneas del carrito** por `CatalogoComercio`, una consulta por
            comercio con su propia referencia opaca (C22). Sin datos de nadie (arquitectura 11.2).
-        2. Cada línea queda en el comercio del carrito si lo tiene. Si no, MATU busca **el mismo
-           producto** en otro comercio activo que lo tenga (el de menor precio; empate por
-           `nombre_fantasia` y `comercio_id`, P10). Si ninguno lo tiene, la línea **sale** y viene en
-           `salieron`. Esto pasa con cualquier regla de faltante: la regla rige después de pagar (P9).
+        2. Cada línea queda en el comercio del carrito si lo tiene. Si no (C5 de Jorge):
+           - con la regla **`otro_comercio`**, MATU busca **el mismo producto** en otro comercio activo
+             que lo tenga; entre varios, **el de menor precio** (empate por `nombre_fantasia` y
+             `comercio_id`), y lo marca en `cambio`. Si ninguno lo tiene, la línea **sale**;
+           - con la regla **`quitar`**, la línea **sale** sin buscar en otro comercio.
+
+           Lo que sale viene en `salieron` y no suma al total.
         3. Marca cada línea que cambió de **precio** o de **comercio** contra el precio y el comercio del
            carrito (C15), en `cambio`.
-        4. Fija el precio exacto con IVA de cada línea, copia `retracto_pierde_al_abrir` (C3), suma el
-           envío único, fija `total = subtotal_productos + costo_envio`, `total_confirmado_en = ahora` y
-           `vence_en = ahora + 15 minutos`.
+        4. Fija el precio exacto de cada línea, copia `retracto_pierde_al_abrir` (C3), suma **un** envío
+           (`costo_envio`, de la configuración), fija `total = subtotal_productos + costo_envio`,
+           `total_confirmado_en = ahora` y `vence_en = ahora + 15 minutos`. **Todos los precios llevan el
+           IVA incluido** (Chile): no hay un IVA que se sume aparte.
         5. Copia la dirección vigente de la persona y el teléfono de contacto a `pedido_entrega` (D4).
         6. Registra la transición y `pedido.confirmar`.
 
@@ -446,9 +548,9 @@ paths:
         confirmar); si no, el **celular verificado de quien confirma**. Si no hay ninguno, 422
         `telefono_requerido` en `telefono_contacto`.
 
-        **Quién:** `admin` y `cuidador`. El `pagador` **no confirma**: la arquitectura 11.2 le da «ver»
-        en pedidos y «pagar» en pago, y ningún «confirmar» (ver P5). El resto, 404. Pide la autorización
-        `despacho` vigente. `Idempotency-Key` obligatoria, con las reglas de `POST …/pedidos`.
+        **Quién:** `admin` y `cuidador`. El `pagador` **no confirma** (C3 de Jorge; arquitectura 11.2:
+        «ver» en pedidos y «pagar» en pago). El resto, 404. Pide la autorización `despacho` vigente.
+        `Idempotency-Key` obligatoria, con las reglas de `POST …/pedidos`.
 
         Orden: 401, 404, 403, 428, 422, idempotencia, 409 y 200.
       parameters:
@@ -517,8 +619,8 @@ paths:
       operationId: cambiarTelefonoContacto
       summary: Cambiar el teléfono de contacto desde el resumen
       description: |
-        Decisión 203 (P6, por aprobar). El resumen muestra el teléfono de contacto y permite cambiarlo
-        (D4). Solo en `total_confirmado` y `vencido`, cuando existe `pedido_entrega`; en `borrador` el
+        Decisión 203 (P6, aprobada por Jorge con C7). El resumen muestra el teléfono de contacto y permite
+        cambiarlo (D4). Solo en `total_confirmado` y `vencido`, cuando existe `pedido_entrega`; en `borrador` el
         teléfono va en el cuerpo de `confirmar`. Cambia solo `pedido_entrega.telefono_contacto`: no
         toca el total ni `vence_en`. Otros estados: 409 `estado-pedido`.
 
@@ -551,6 +653,61 @@ paths:
         '428':
           $ref: '#/components/responses/FaltaVersion'
 
+  /v1/pedidos/{pedido_id}/cambiar:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [pedidos]
+      operationId: cambiarPedido
+      summary: Volver al carrito desde el total confirmado («Cambiar el pedido»)
+      description: |
+        Decisión 218 (C1 de Jorge). Transición `total_confirmado → borrador`, antes de pagar, para
+        cambiar cantidades, sacar o agregar productos después de ver el total. **Solo con el total
+        vigente**: con el total vencido (`vencido`), **409** `estado-pedido` (se vuelve a confirmar o se
+        cancela); en `borrador` y en los demás estados, también 409.
+
+        **Qué hace:** descarta el total confirmado (`total`, `total_confirmado_en` y `vence_en` vuelven a
+        `null`), las partes por comercio y la copia de la entrega (`pedido_entrega` se borra, como al
+        cancelar). Cada línea vuelve al precio y al comercio del carrito, también las que salieron al
+        confirmar. Las reglas de faltante se conservan. Registra la transición (actor `usuario`, motivo
+        `familia_cambia_carrito`). No se audita (D12 no lo lista). Al volver a confirmar, el teléfono
+        de contacto es el del cuerpo o, si no viene, el celular verificado de quien confirma.
+
+        **Quién:** `admin` y `cuidador`; el resto, 404. Pide la autorización `despacho` vigente, como
+        ajustar las líneas. Sin cuerpo. `Idempotency-Key` obligatoria (arquitectura 9.1: POST de
+        pedidos): la repetición con la misma clave responde 200 con el pedido tal como está.
+
+        Orden: 401, 404, 403, 428, 422, idempotencia, 409 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          $ref: '#/components/responses/PedidoActualizado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          description: '`/errores/estado-pedido` (con `estado`) o `/errores/idempotencia-en-curso`.'
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProblemaEstadoPedido'
+                  - $ref: '#/components/schemas/ProblemaIdempotenciaEnCurso'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaIdempotencia'
+
   /v1/pedidos/{pedido_id}/cancelar:
     parameters:
       - $ref: '#/components/parameters/PedidoId'
@@ -565,8 +722,8 @@ paths:
         D2). Con el pedido pagado, o ya cancelado, **409** `estado-pedido`: cancelar con devolución es de
         MATU-62 y MATU-63.
 
-        **Quién:** `admin` y `cuidador` (ver P4: la arquitectura 11.2 le da «cancelar» solo al admin).
-        El resto, 404. **No pide la autorización `despacho`**: no seguir debe ser siempre posible, como
+        **Quién:** `admin` y `cuidador` (C3 de Jorge: los dos cancelan **sin pagar**; la cancelación con
+        devolución, de MATU-62 y MATU-63, sigue la arquitectura 11.2). El resto, 404. **No pide la autorización `despacho`**: no seguir debe ser siempre posible, como
         retirar una autorización (decisión 123). Sin cuerpo. `Idempotency-Key` obligatoria (arquitectura
         9.1: POST de pedidos): la repetición con la misma clave responde 200 con el pedido cancelado, no
         409. Registra `pedido.cancelar`. Orden: 401, 404, 428, 422, idempotencia, 409 y 200.
@@ -604,7 +761,7 @@ paths:
       security: []
       summary: Las condiciones del pedido vigentes, con su versión y su huella
       description: |
-        Decisión 207 (P8, por aprobar), como `GET /v1/politica` (decisiones 173 a 175). Es el destino
+        Decisión 207 (P8, aprobada por Jorge con C7), como `GET /v1/politica` (decisiones 173 a 175). Es el destino
         de «Condiciones del pedido» en el resumen. Pública, sin sesión, sin cookies y sin auditoría. El
         texto vive en el backend, generado desde `docs/legal/condiciones-pedido.md` (v0.1 del piloto,
         aprobada por Jorge el 11-11), con una sola fuente. `Cache-Control: no-cache`, no `no-store`: no
@@ -857,8 +1014,8 @@ components:
 
     ProblemaPedidoAbierto:
       description: |
-        409 `/errores/pedido-abierto` (nuevo, P2): la persona ya tiene un pedido sin pagar. `pedido_id`
-        es ese pedido, para volver a él.
+        409 `/errores/pedido-abierto` (nuevo, C4): la persona ya tiene un pedido sin pagar. `pedido_id`
+        es ese pedido, para volver a él (también con `GET …/pedido-en-curso`).
       allOf:
         - $ref: '#/components/schemas/Problema'
         - type: object
@@ -990,8 +1147,8 @@ components:
       type: string
       description: |
         Los 17 estados del `CHECK` de `pedido` (migración 0002, arquitectura 8.1). **MATU-61 usa
-        `borrador`, `total_confirmado`, `vencido` y `cancelado`.** Las transiciones están en la decisión
-        208 del README.
+        `borrador`, `total_confirmado`, `vencido` y `cancelado`.** Las 23 transiciones están en la
+        decisión 208 del README, con `total_confirmado → borrador` («Cambiar el pedido», C1).
       enum:
         - borrador
         - total_confirmado
@@ -1223,8 +1380,10 @@ components:
           const: En este piloto no se emite boleta
         ventana_entrega:
           type: string
-          examples: [Entre 24 y 48 horas hábiles]
-          description: La ventana fija de ejemplo del piloto (D8). `pedido.ventana_entrega` no se llena (P11).
+          const: Entre 24 y 48 horas hábiles
+          description: |
+            La ventana fija del piloto (D8, C5), un texto y no un rango: calcular «horas hábiles» exigiría un
+            calendario de feriados. `pedido.ventana_entrega` no se llena (P11).
         canal_reclamo:
           type: string
           format: email
@@ -1250,14 +1409,20 @@ components:
         - total_confirmado_en
         - vence_en
         - vigencia_segundos
+        - ventana_entrega
         - entrega
         - resumen
         - creado_en
         - actualizado_en
       description: |
         El pedido de la familia, como **un solo pedido** aunque lo preparen varios comercios (D7). Lo
-        ven `admin`, `cuidador` y `pagador`. Nunca `grupo_id`, `creado_por`, el nombre de la persona ni
-        las referencias opacas de los comercios.
+        ven `admin`, `cuidador` y `pagador` (C3). Nunca `grupo_id`, `creado_por`, el nombre de la persona
+        ni las referencias opacas de los comercios.
+
+        **Todos los precios llevan el IVA incluido** (C5 de Jorge): `precio_unitario`, `subtotal`,
+        `subtotal_productos`, `costo_envio` y `total`. No hay un campo de IVA ni un IVA que se sume:
+        `total = subtotal_productos + costo_envio`, y `subtotal_productos` es la suma exacta de los
+        `subtotal` de `lineas`.
 
         | Estado | `total`, `total_confirmado_en`, `vence_en` | `entrega` | `resumen` | `salieron` |
         |---|---|---|---|---|
@@ -1302,12 +1467,15 @@ components:
           type: integer
           minimum: 0
           description: |
-            Un solo envío por pedido, aunque lo preparen varios comercios (ADR-027). Se muestra aparte
-            («Envío (uno por pedido)»). En `borrador` es el vigente, para informar antes de confirmar (P12).
+            Un solo envío por pedido, aunque lo preparen varios comercios (ADR-027). Sale de la
+            configuración (`COSTO_ENVIO`, C5 y P12), con IVA incluido. Se muestra aparte («Envío (uno por
+            pedido)»). En `borrador` es el vigente, para informar antes de confirmar.
         total:
           type: [integer, 'null']
           exclusiveMinimum: 0
-          description: '`subtotal_productos + costo_envio`, con IVA. Solo con un total confirmado.'
+          description: |
+            `subtotal_productos + costo_envio`, en pesos enteros con IVA incluido. Solo con un total
+            confirmado.
         total_confirmado_en:
           type: [string, 'null']
           format: date-time
@@ -1325,6 +1493,13 @@ components:
             Cuántos segundos le quedan al total según el `Reloj` de la API al responder. La pantalla mide
             el aviso de los 2 minutos desde que recibe la respuesta, no con el reloj del teléfono, que
             puede estar adelantado (diseño 3.1). `null` sin total confirmado; 0 si venció.
+        ventana_entrega:
+          type: string
+          examples: [Entre 24 y 48 horas hábiles]
+          description: |
+            La ventana de entrega fija del piloto (D8, C5), en **todos** los estados, también en
+            `borrador` («Llega entre 24 y 48 horas hábiles.», C7 y diseño O11 c). Es la misma de
+            `resumen.ventana_entrega`. `pedido.ventana_entrega` no se llena (P11).
         entrega:
           oneOf:
             - $ref: '#/components/schemas/EntregaVista'
@@ -1344,11 +1519,11 @@ components:
     PedidoVistaObservador:
       type: object
       additionalProperties: false
-      required: [id, persona_cuidada_id, estado, precios_de_ejemplo, lineas, salieron, comercios, subtotal_productos, costo_envio, total, total_confirmado_en, vence_en, creado_en, actualizado_en]
+      required: [id, persona_cuidada_id, estado, precios_de_ejemplo, lineas, salieron, comercios, subtotal_productos, costo_envio, total, total_confirmado_en, vence_en, ventana_entrega, creado_en, actualizado_en]
       description: |
-        Lo que ve el `observador` (arquitectura 11.2: pedidos «ver», datos de la persona «nombre»): el
-        mismo pedido **sin `entrega`, sin `resumen` y sin `etag`**, porque no escribe. Es un DTO distinto
-        y no la misma vista con campos en `null`, como `AutorizacionVistaResumen` (decisión 127). Ver P5.
+        Lo que ve el `observador` (C3 de Jorge; arquitectura 11.2: pedidos «ver», datos de la persona
+        «nombre»): el carrito **sin `entrega`, sin `resumen` y sin `etag`**, porque no escribe. Es un DTO
+        distinto y no la misma vista con campos en `null`, como `AutorizacionVistaResumen` (decisión 127).
       properties:
         id:
           type: string
@@ -1386,50 +1561,14 @@ components:
         vence_en:
           type: [string, 'null']
           format: date-time
+        ventana_entrega:
+          type: string
         creado_en:
           type: string
           format: date-time
         actualizado_en:
           type: string
           format: date-time
-
-    PedidoAbierto:
-      type: object
-      additionalProperties: false
-      required: [id, estado, productos, subtotal_productos, total, vence_en, actualizado_en]
-      description: Un pedido sin pagar, en la lista de la persona. Sin productos ni dirección.
-      properties:
-        id:
-          type: string
-          format: uuid
-        estado:
-          type: string
-          enum: [borrador, total_confirmado, vencido]
-        productos:
-          type: integer
-          minimum: 0
-          description: Cuántas líneas tiene el carrito.
-        subtotal_productos:
-          type: integer
-          minimum: 0
-        total:
-          type: [integer, 'null']
-        vence_en:
-          type: [string, 'null']
-          format: date-time
-        actualizado_en:
-          type: string
-          format: date-time
-
-    ListaPedidosAbiertos:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/PedidoAbierto'
 
     LineaSolicitud:
       type: object
@@ -1614,7 +1753,8 @@ components:
         versión de la política y su huella. `huella_declaracion` es **obligatoria con `despacho`** y
         prohibida con las otras dos (422), como `huella_politica` (decisión 182): es la SHA-256 de la
         plantilla de la declaración que la pantalla mostró, con `{nombre_pila}` sin reemplazar. Otra
-        huella responde 422 `declaracion_no_vigente` (P13).
+        huella responde 422 `declaracion_no_vigente` (P13, aprobada por Jorge con C7). **Con la capa 3
+        apagada**, `despacho` no se otorga: 422 en `finalidad` (C2, decisión 217).
       properties:
         finalidad:
           type: string
@@ -1631,11 +1771,11 @@ components:
       type: object
       x-matu-se-suma-a: [AutorizacionVista, AutorizacionVistaResumen, AutorizacionesPersona, AutorizacionesPersonaResumen]
       description: |
-        **Cambio propuesto a `GET …/consentimientos`** (decisión 192): `finalidad` admite `despacho` y
-        la respuesta trae **siempre tres ítems**, en este orden: `plan_cuidado`, `consumo` y `despacho`
-        (antes «siempre dos», decisión 127). Con `despacho`, `borrado_en` es siempre `null` y `borrada`
-        siempre `false`: retirarla no programa un borrado a los 90 días (P14). Con la capa 3 apagada,
-        `despacho` viene en `sin_autorizar`.
+        **Cambio propuesto a `GET …/consentimientos`** (decisión 192, C2 de Jorge): `finalidad` admite
+        `despacho`. Con la capa 3 **encendida**, la respuesta trae **tres ítems**, en este orden:
+        `plan_cuidado`, `consumo` y `despacho`; con la capa 3 **apagada**, los **dos** de siempre
+        (decisión 127), sin `despacho`. Con `despacho`, `borrado_en` es siempre `null` y `borrada`
+        siempre `false`: retirarla no programa un borrado a los 90 días (P14).
       properties:
         finalidad:
           type: string
@@ -1649,9 +1789,11 @@ components:
         **Cambio propuesto a `POST …/consentimientos/{finalidad}/retiro`** (D1, decisión 192): `finalidad`
         en la ruta admite `despacho`. Retirarla pasa a `cancelado` los pedidos **sin pagar** de la
         persona (`borrador`, `total_confirmado` y `vencido`), borra su `pedido_entrega` y registra un
-        `pedido.cancelar` por pedido, en la misma transacción y con el mismo instante (decisión 124). Los
-        pagados siguen su plazo (CL-44). Se suma `pedidos_cancelados`: cuántos canceló, siempre 0 con
-        las otras finalidades.
+        `pedido.cancelar` por pedido, en la misma transacción y con el mismo instante (decisión 124): si
+        cancelar falla, no se retira nada. Los pagados siguen su plazo (CL-44). **La dirección de la
+        persona se conserva** (C6 de Jorge): solo se borra la copia de los pedidos cancelados; para
+        vaciarla, `DELETE …/direccion`. Se suma `pedidos_cancelados`: cuántos canceló, siempre 0 con
+        las otras finalidades. Con la capa 3 apagada, `despacho` no se retira por esta ruta (404, C2).
       properties:
         pedidos_cancelados:
           type: integer
@@ -1810,7 +1952,8 @@ components:
       description: |
         El mismo 404 para todo, sin revelar qué existe: falta `X-Grupo-Id` o no es un UUID; no es miembro
         activo; su rol no alcanza (`pagador` u `observador` al escribir, `pagador` u `observador` en la
-        dirección); la persona o el pedido no existen, son de otro grupo o la persona está eliminada.
+        dirección); la persona o el pedido no existen, son de otro grupo o la persona está eliminada; la
+        persona no tiene pedido en curso (`GET …/pedido-en-curso`) o no tiene dirección que vaciar.
         «No encontramos este pedido.»
       headers:
         X-Request-ID:
