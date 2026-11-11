@@ -242,7 +242,7 @@ const sinCalidad = (a: AutorizacionVista): AutorizacionVista => ({
 
 const rutaConsentimientos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/consentimientos`
 
-/** Siempre dos ítems: `plan_cuidado` y `consumo`. */
+/** `plan_cuidado` y `consumo`, y `despacho` con la capa 3 encendida (MATU-61, decisión 192 y C2). */
 export async function leerAutorizaciones(personaId: string): Promise<AutorizacionVista[]> {
   const r = await apiFamilia.get<S['AutorizacionesPersona'] | S['AutorizacionesPersonaResumen']>(rutaConsentimientos(personaId))
   return r.data.autorizaciones.map(sinCalidad)
@@ -254,7 +254,7 @@ export async function retirarAutorizacion(personaId: string, finalidad: Finalida
   return { autorizacion: sinCalidad(r.data.autorizacion), enlaces_cortados: r.data.enlaces_cortados }
 }
 
-/** `POST …/consentimientos` con `plan_cuidado` o `consumo` (decisión 128): 201, 409 `autorizacion-vigente` o 422. */
+/** `POST …/consentimientos` (decisión 128; `despacho` con su `huella_declaracion`, decisión 192): 201, 409 `autorizacion-vigente` o 422. */
 export async function autorizar(personaId: string, cuerpo: SolicitudAutorizacion): Promise<void> {
   await apiFamilia.post(rutaConsentimientos(personaId), cuerpo)
 }

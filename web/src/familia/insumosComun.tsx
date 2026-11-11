@@ -63,6 +63,8 @@ export function Stepper({
   soloLectura = false,
   describe: describeExtra,
   vacioEs,
+  seleccionarAlEnfocar = false,
+  onSalir,
 }: {
   id: string
   etiqueta: string
@@ -82,6 +84,13 @@ export function Stepper({
   describe?: string
   /** MATU-84 (4.1): el valor de un campo vacío al tocar − o +. Con 0, «+» dos veces deja 2. */
   vacioEs?: number
+  /**
+   * MATU-61 (7.5, U4): al recibir el foco se selecciona todo, para que escribir «3» reemplace el «12»
+   * sin borrar a mano. Con el teclado numérico, «Listo» en vez de «Intro».
+   */
+  seleccionarAlEnfocar?: boolean
+  /** MATU-61 (7.5): al salir del campo (se guarda o se muestra el error de rango). */
+  onSalir?: () => void
 }) {
   const describe = [describeExtra ?? '', ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   const paso = (d: number) => {
@@ -113,6 +122,9 @@ export function Stepper({
           autoComplete="off"
           value={valor}
           readOnly={soloLectura || undefined}
+          enterKeyHint={seleccionarAlEnfocar ? 'done' : undefined}
+          onFocus={seleccionarAlEnfocar ? (e) => e.currentTarget.select() : undefined}
+          onBlur={onSalir}
           aria-labelledby={nombradoPor ? `${id}-l ${nombradoPor}` : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={describe}

@@ -43,6 +43,7 @@ import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
 import { envaseUtil, envaseValido, ENVASE_MAX, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe, totalVisible } from './enEnvases'
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
 import { CATALOGO } from './textosCatalogo'
+import { DECLARACION_PEDIDOS, huellaDe, PEDIDO } from './textosPedido'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, EN_ENVASES, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
@@ -58,10 +59,14 @@ const porFecha = (a: Perfil, b: Perfil) => a.fecha_quiebre_estimada.localeCompar
  * en el permiso, en «Falta el permiso» y en «Hay que renovar» van solo «Insumos» y «Catálogo»
  * (`sinLista`): «Lista de insumos» llevaría de vuelta a la misma pantalla.
  */
-export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumos' | '/insumos/lista' | '/insumos/catalogo'; sinLista?: boolean }) {
+export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumos' | '/insumos/lista' | '/insumos/catalogo' | '/insumos/pedido'; sinLista?: boolean }) {
+  const { capa3 } = useFamilia()
   const items: { texto: string; ruta: Ruta; activa: boolean }[] = [{ texto: INSUMOS.titulo, ruta: '/insumos', activa: activa === '/insumos' }]
   if (!sinLista) items.push({ texto: LISTA.titulo, ruta: '/insumos/lista', activa: activa === '/insumos/lista' })
   items.push({ texto: CATALOGO.titulo, ruta: '/insumos/catalogo', activa: activa === '/insumos/catalogo' })
+  // MATU-61 (2.2): «Pedido» al final, solo con la capa 3 encendida y para los cuatro roles. Sacar la
+  // capa 3 quita las dos últimas y deja las de antes como estaban.
+  if (capa3 === true) items.push({ texto: PEDIDO.pestana, ruta: '/insumos/pedido', activa: activa === '/insumos/pedido' })
   return <Pestanas etiqueta={LISTA.vistas} items={items} />
 }
 
@@ -1346,6 +1351,7 @@ export function Permiso({
   antes,
   frase,
   cargando,
+  finalidad = 'consumo',
 }: {
   pila: string
   personaId: string | null
@@ -1354,7 +1360,13 @@ export function Permiso({
   antes?: ReactNode
   frase?: ReactNode
   cargando?: ReactNode
+  /**
+   * MATU-61 (4.2): con `despacho` es la autorización de pedidos, la misma pantalla con otros textos,
+   * su declaración y la huella de lo que se mostró (`huella_declaracion`, decisión 221).
+   */
+  finalidad?: 'consumo' | 'despacho'
 }) {
+  const pedidos = finalidad === 'despacho'
   const [calidad, setCalidad] = useState<Calidad | null>('cuidador_de_hecho')
   const [leido, setLeido] = useState(false)
   const [referencia, setReferencia] = useState('')
@@ -1372,10 +1384,11 @@ export function Permiso({
     setOcupado(true)
     try {
       await autorizarConsumo(personaId, {
-        finalidad: 'consumo',
+        finalidad,
         calidad_otorgante: calidad,
         referencia_documento: calidad === 'representante_legal' ? referencia.trim() : null,
         aviso: calidad === 'cuidador_de_hecho' ? { id: AVISO_CUIDADOR.id, version: AVISO_CUIDADOR.version } : null,
+        ...(pedidos ? { huella_declaracion: await huellaDe(DECLARACION_PEDIDOS[calidad]) } : {}),
       })
       onListo(false)
     } catch (x) {
@@ -1393,16 +1406,23 @@ export function Permiso({
     <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
         {antes}
-        <p className="text-base text-tenue">{INSUMOS.titulo}</p>
-        <Titulo className="text-3xl @2xl/main:text-5xl">{INSUMOS.permisoTitulo}</Titulo>
-        <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
+        {!pedidos && <p className="text-base text-tenue">{INSUMOS.titulo}</p>}
+        <Titulo className="text-3xl @2xl/main:text-5xl">{pedidos ? PEDIDO.autTitulo : INSUMOS.permisoTitulo}</Titulo>
+        {pedidos ? (
+          <>
+            <p className="max-w-prose text-lg">{PEDIDO.autExplicacion}</p>
+            <p className="max-w-prose text-lg">{PEDIDO.autAparte}</p>
+          </>
+        ) : (
+          <p className="max-w-prose text-lg">{INSUMOS.permisoBajada(pila)}</p>
+        )}
         {frase}
       </div>
       {cargando ?? (
         <>
       <GrupoOpciones
         leyenda={INSUMOS.permisoLeyenda}
-        nombre="calidad-consumo"
+        nombre={`calidad-${finalidad}`}
         valor={calidad}
         columnas
         error={error === 'calidad' ? INSUMOS.errCalidad : null}
@@ -1426,8 +1446,8 @@ export function Permiso({
       )}
       {calidad === 'cuidador_de_hecho' && (
         <AvisoCuidadorDeHecho
-          idTitulo="aviso-consumo-t"
-          idError="leido-consumo-e"
+          idTitulo={`aviso-${finalidad}-t`}
+          idError={`leido-${finalidad}-e`}
           leido={leido}
           error={error === 'leido'}
           onLeido={(v) => {
@@ -1438,18 +1458,18 @@ export function Permiso({
       )}
       {calidad && (
         <Nota tono="rocio" titulo={AUTORIZACION.declaras} iconoEnLinea>
-          <p className="max-w-prose">{DECLARACION_CONSUMO[calidad]}</p>
+          <p className="max-w-prose">{(pedidos ? DECLARACION_PEDIDOS : DECLARACION_CONSUMO)[calidad]}</p>
           <LeePoliticaAntesDeAutorizar />
         </Nota>
       )}
       {falla && (
         <Anunciado urgencia="alert">
-          <MensajeError>{falla === '422' ? INSUMOS.errPermiso : INSUMOS.errRedSinEscrito}</MensajeError>
+          <MensajeError>{falla === '422' ? (pedidos ? PEDIDO.autError : INSUMOS.errPermiso) : INSUMOS.errRedSinEscrito}</MensajeError>
         </Anunciado>
       )}
       <Acciones>
-        <Boton onClick={() => void aceptar()} ocupado={ocupado} textoOcupado={INSUMOS.permisoEnviando}>
-          {INSUMOS.permisoBoton}
+        <Boton onClick={() => void aceptar()} ocupado={ocupado} textoOcupado={pedidos ? PEDIDO.autEnviando : INSUMOS.permisoEnviando}>
+          {pedidos ? PEDIDO.autBoton : INSUMOS.permisoBoton}
         </Boton>
       </Acciones>
         </>

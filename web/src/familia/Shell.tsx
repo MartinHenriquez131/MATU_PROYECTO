@@ -111,6 +111,9 @@ function Persona() {
     const seccion = seccionDe(ruta)
     // MATU-59 (2.2): el catálogo no cambia con la persona, así que la ruta se mantiene.
     if (ruta === '/insumos/catalogo') navegar('/insumos/catalogo', { reemplazar: true })
+    // MATU-61 (2.3): el pedido es de la persona: se queda en «Tu pedido» y muestra el de la otra; desde
+    // la dirección o el resumen, vuelve a «Tu pedido».
+    else if (ruta.startsWith('/insumos/pedido')) navegar('/insumos/pedido', { reemplazar: true })
     else navegar(seccion === 'ficha' ? '/ficha' : seccion === 'compartir' ? '/compartir' : seccion === 'insumos' ? '/insumos' : seccion === 'grupo' ? '/grupo' : '/', { reemplazar: true })
     window.setTimeout(() => document.getElementById('titulo-pagina')?.focus(), 0)
   }

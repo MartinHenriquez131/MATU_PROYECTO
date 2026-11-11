@@ -402,6 +402,10 @@ export const TITULOS: Record<string, string> = {
   '/insumos/cambiar': 'Cambiar un insumo', // [lenguaje 18] MATU-36, 2.2
   '/insumos/lista': 'Lista de insumos', // [lenguaje 21] MATU-60, 2.2
   '/insumos/catalogo': 'Catálogo', // [lenguaje 27] MATU-59, 2.2
+  // MATU-61 2.1 [lenguaje 31]: sin nombres ni ids.
+  '/insumos/pedido': 'Tu pedido',
+  '/insumos/pedido/direccion': '¿Dónde lo entregamos?',
+  '/insumos/pedido/resumen': 'Antes de pagar',
   '/compartir': ESTADOS.compartirTitulo,
   // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
   '/compartir/listo': 'Enlace creado', // aprobado por Jorge el 04-11
@@ -410,6 +414,7 @@ export const TITULOS: Record<string, string> = {
   '/grupo': 'Grupo familiar',
   '/grupo/autorizar-ficha': 'Grupo familiar',
   '/grupo/autorizar-insumos': 'Grupo familiar',
+  '/grupo/autorizar-pedidos': 'Permiso para pedir sus insumos', // MATU-61 2.1
 }
 
 /**
