@@ -13,7 +13,7 @@ info:
     - las respuestas del orquestador, por delegación de Jorge, a los puntos abiertos **P1 a P5** del
       diseñador (README, decisiones 231, 234, 237, 238 y 240).
 
-    Las decisiones de este contrato son las **223 a 248** de `docs/api/README.md`, sección "MATU-62". Se
+    Las decisiones de este contrato son las **223 a 249** de `docs/api/README.md`, sección "MATU-62". Se
     apila sobre MATU-61 (`pedido.openapi.yaml`, decisiones 188 a 222, ya en `openapi.json`).
 
     **Qué cubre:**
@@ -1223,7 +1223,9 @@ components:
           oneOf:
             - $ref: '#/components/schemas/CorreoComprobante'
             - type: 'null'
-          description: Solo quien pagó.
+          description: |
+            Solo quien pagó, y solo si el comprobante se envió. En el piloto no se envía (D-62-3, P-62-5): va en `null`
+            para todos (decisión 249).
 
     CorreoComprobante:
       type: object
@@ -1237,7 +1239,7 @@ components:
           description: El correo de la cuenta de quien pagó.
         enviado:
           type: boolean
-          description: '`false` en el piloto: el comprobante no se envía por correo.'
+          description: 'Si se envió. Con la decisión 249, mientras el comprobante no se envíe, `correo` va en `null` y este objeto no aparece.'
 
     PagoVista:
       type: object
@@ -1444,9 +1446,7 @@ components:
           devoluciones: []
           precios_de_ejemplo: true
           pago_de_prueba: true
-          correo:
-            destino: persona.sintetica@example.com
-            enviado: false
+          correo: null
 
   responses:
     NoAutenticadoPago:

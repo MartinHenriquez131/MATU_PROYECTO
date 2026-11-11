@@ -583,3 +583,20 @@ def test_si_transbank_aprueba_otro_monto_no_se_paga_y_se_anula_lo_cobrado(caplog
     assert escena.pasarela.cobrado(token) == 0  # se anuló todo lo que cobró, también el peso de más
     assert escena.cargo().monto_cobrado == 0
     assert [r for r in caplog.records if getattr(r, "evento", None) == "monto_distinto"]
+
+
+def test_el_comprobante_de_quien_pago_no_trae_correo_mientras_no_se_envie() -> None:
+    """Decisión 249 (observación 4): en el piloto no se envía, y correo va en null también para quien pagó."""
+    from app.modules.payments.application.lectura import estado_del_pago
+
+    escena = Escena()
+    escena.pagado()
+    escena.base.correos[escena.admin] = "persona.sintetica@example.com"
+    repo = RepositorioPagosEnMemoria(escena.base, escena.p.grupo_id, escena.admin)
+    pedido = repo.pedido(escena.p.id)
+    assert pedido is not None
+    estado = estado_del_pago(
+        repo, pedido, escena.admin, repo.correo_propio(), AHORA, VIDA, precios_de_ejemplo=True, pago_de_prueba=True
+    )
+    assert estado.comprobante is not None and estado.comprobante.pagaste_tu
+    assert estado.comprobante.tarjeta is not None and estado.comprobante.correo is None

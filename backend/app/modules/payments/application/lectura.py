@@ -41,6 +41,10 @@ CON_COMPROBANTE = frozenset({"aprobado", "devuelto_parcial", "anulado"})
 
 ENLACE_CONDICIONES = "/v1/condiciones-pedido?version={version}"
 
+# D-62-3 y P-62-5: en el piloto el comprobante no se envía por correo. Mientras sea False, Comprobante.correo va en
+# null (decisión 249, observación 4 del cierre del analista): no se muestra un destino al que nada se envía
+CORREO_COMPROBANTE_ACTIVO = False
+
 
 @dataclass(frozen=True)
 class Intento:
@@ -210,9 +214,9 @@ def estado_del_pago(
             devoluciones=devoluciones,
             precios_de_ejemplo=precios_de_ejemplo,
             pago_de_prueba=pago_de_prueba,
-            # D-62-3 (P-62-5): en el piloto el comprobante no se envía por correo
-            correo=Correo(destino=correo_de_quien_lee, enviado=False)
-            if pagaste_tu and correo_de_quien_lee is not None
+            # D-62-3 (P-62-5) y decisión 249: en el piloto el comprobante no se envía, y correo va en null
+            correo=Correo(destino=correo_de_quien_lee, enviado=True)
+            if CORREO_COMPROBANTE_ACTIVO and pagaste_tu and correo_de_quien_lee is not None
             else None,
         )
     return EstadoDelPago(

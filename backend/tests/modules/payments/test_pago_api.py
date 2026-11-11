@@ -92,7 +92,8 @@ def test_pagar_volver_y_el_comprobante(
         "ultimos4": "7763" if debito else "2032",
         "cuotas": 0,
     }
-    assert comprobante["pago_de_prueba"] is True and comprobante["correo"]["enviado"] is False
+    # Decisión 249: en el piloto el comprobante no se envía por correo, y correo va en null
+    assert comprobante["pago_de_prueba"] is True and comprobante["correo"] is None
     assert comprobante["condiciones"]["version"] == "0.2"
     assert comprobante["condiciones"]["enlace"] == "/v1/condiciones-pedido?version=0.2"
     assert 4 <= len(comprobante["referencia"]) <= 6 and comprobante["referencia"].isdigit()

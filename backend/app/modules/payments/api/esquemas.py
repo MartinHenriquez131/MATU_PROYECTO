@@ -163,7 +163,9 @@ class CorreoComprobante(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     destino: str = Field(description="El correo de la cuenta de quien pagó")
-    enviado: bool = Field(description="false en el piloto: el comprobante no se envía por correo (D-62-3)")
+    enviado: bool = Field(
+        description="Si se envió. Decisión 249: mientras no se envíe, Comprobante.correo va en null (D-62-3)"
+    )
 
 
 class Comprobante(BaseModel):
@@ -188,7 +190,9 @@ class Comprobante(BaseModel):
     devoluciones: list[Devolucion]
     precios_de_ejemplo: bool
     pago_de_prueba: bool
-    correo: CorreoComprobante | None
+    correo: CorreoComprobante | None = Field(
+        description="Solo quien pagó y solo si se envió. En el piloto no se envía: null (decisión 249)"
+    )
 
 
 class PagoVista(BaseModel):
