@@ -341,7 +341,8 @@ function Encabezado({ tono, icono, titulo, pestanas = true }: { tono: TonoBaldos
       {pestanas && <PestanasInsumos activa="/insumos/pedido" />}
       <div className="mt-2 flex flex-col items-start gap-5 @xl/main:flex-row @xl/main:items-center">
         <Baldosa tono={tono} icono={icono} />
-        <Titulo className="text-3xl @2xl/main:text-4xl">{titulo}</Titulo>
+        {/* Revisión visual P1: el título puede encogerse junto a la baldosa y partir en renglones. */}
+        <Titulo className="max-w-full min-w-0 text-3xl @2xl/main:text-4xl">{titulo}</Titulo>
       </div>
     </>
   )
@@ -612,7 +613,8 @@ function PagasteTuPedido({ pago, yaRegistrado }: { pago: PagoVista & { comproban
         <NotaDevolucion key={`${d.solicitada_en}-${d.monto}-${d.producto?.id ?? 'pedido'}`} devolucion={d} pagasteTu={c.pagaste_tu} />
       ))}
       {c.precios_de_ejemplo && <AvisoPiloto />}
-      <div className="mt-4 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      {/* Revisión visual P3: las dos primeras filas miden lo suyo y la última toma el resto, sin huecos. */}
+      <div className="mt-4 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @3xl/main:grid-rows-[auto_auto_1fr]">
         {/* 7.4.2: el comprobante va primero en el DOM (el lector y el Tab lo leen antes) y a la derecha en ancho. */}
         <div className="min-w-0 @3xl/main:col-start-2 @3xl/main:row-span-3 @3xl/main:row-start-1 @3xl/main:sticky @3xl/main:top-6 @3xl/main:max-h-[calc(100dvh-3rem)] @3xl/main:self-start @3xl/main:overflow-y-auto [scrollbar-width:thin]">
           <ComprobanteBoleta c={c} />
@@ -689,9 +691,10 @@ function ComprobanteBoleta({ c }: { c: Comprobante }) {
       aria-labelledby="comprobante-t comprobante-ref"
       className="relative rounded-t-lg bg-hoja px-4 angosto:px-2 @3xl/main:px-7 pt-5 pb-8 ring-1 ring-linea [mask:radial-gradient(circle_at_50%_100%,transparent_0.42rem,var(--color-tinta)_0.45rem)_bottom/1.1rem_100%_repeat-x]"
     >
-      <h2 id="comprobante-t" className="mb-4 flex items-center gap-2 text-xl font-bold">
+      {/* Revisión visual P1: a 320 px con el texto al 200 % el título baja bajo el ícono y no se sale. */}
+      <h2 id="comprobante-t" className="mb-4 flex items-center gap-2 text-xl font-bold angosto:flex-col angosto:items-start">
         <ReceiptText aria-hidden className="size-5 shrink-0 text-turquesa" />
-        {PAGO.comprobante}
+        <span className="min-w-0">{PAGO.comprobante}</span>
       </h2>
       <div className="flex flex-col gap-3">
         <div>

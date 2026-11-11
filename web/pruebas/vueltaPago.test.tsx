@@ -46,6 +46,7 @@ function abrir(rol: Rol = 'admin', cambios: Record<string, unknown> = {}) {
 }
 
 const h1 = (nombre: string) => screen.findByRole('heading', { level: 1, name: nombre })
+const h1Confirmando = () => h1('Estamos confirmando tu pago')
 const rutas = (r: Record<string, Respuesta | ((...a: never[]) => Respuesta | Promise<Respuesta>)>) => apiPedido(r as never, { pedido: confirmado() })
 const macizos = () => screen.queryAllByRole('button').filter((b) => /\bbg-turquesa\b/.test(b.className))
 
@@ -196,6 +197,27 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
     expect(boleta.getByText(/Tarjeta de débito terminada en/)).toHaveTextContent('Tarjeta de débito terminada en 4051')
     expect(boleta.getByText(/Código de autorización/)).toHaveTextContent('Código de autorización 123456')
     expect(boleta.queryByText('Lo pagó otra persona de tu grupo.')).toBeNull()
+  })
+
+  it('revisión visual P1 y P3: el título del comprobante y el h1 se pueden encoger a 320 px con el texto al 200 %; la grilla sin huecos', async () => {
+    const { boleta } = await comprobanteDe()
+    const h2 = boleta.getByRole('heading', { level: 2, name: 'Comprobante' })
+    expect([...h2.classList]).toContain('angosto:flex-col')
+    expect([...h2.classList]).toContain('angosto:items-start')
+    expect(h2.querySelector('span.min-w-0')).toHaveTextContent('Comprobante')
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect([...h1.classList]).toContain('max-w-full')
+    expect([...h1.classList]).toContain('min-w-0')
+    expect(boleta.getByText('Pedido 4821').closest('.grid')!.className).toMatch(/@3xl\/main:grid-rows-\[auto_auto_1fr\]/)
+  })
+
+  it('revisión visual P1: «Estamos confirmando tu pago» también se puede encoger', async () => {
+    rutas({ 'POST ^/v1/pagos/retorno$': () => new Promise<Respuesta>(() => {}) })
+    volverDeWebpay()
+    abrir()
+    const h1 = await h1Confirmando()
+    expect([...h1.classList]).toContain('max-w-full')
+    expect([...h1.classList]).toContain('min-w-0')
   })
 
   it('7.5.2 y criterio 10: el sello del piloto dentro del comprobante, antes de los productos, con la primera frase en negrita', async () => {
