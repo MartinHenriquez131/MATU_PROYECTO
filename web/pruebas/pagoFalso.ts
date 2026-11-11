@@ -7,7 +7,8 @@ import { PEDIDO_ID, PERSONA_ID } from './pedidoFalso'
 export const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 export const OTRO_GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g2'
 export const OTRA_PERSONA_ID = '3c9d4e20-0000-4000-8000-0000000000bb'
-export const TOKEN = 'tokenDePruebaSintetico0123456789abcdefABCDEF'
+// Un token sintético de baja entropía: no es de Transbank.
+export const TOKEN = 't'.repeat(64)
 
 const producto = (id: string, nombre: string) => ({ id, nombre, presentacion: nombre, unidad: 'unidad' as const, unidades_por_envase: 1 })
 export const PANAL_C = producto('3c9d4e20-0000-4000-8000-0000000000d1', 'Pañal adulto M x30')
