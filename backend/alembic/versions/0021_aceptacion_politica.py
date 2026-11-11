@@ -11,11 +11,11 @@ No guarda la IP ni el navegador.
   - aceptacion_operacion_leer (SELECT): operación las lee para soporte, y no las crea, cambia ni borra.
 - matu_app tiene solo SELECT e INSERT. Sin UPDATE ni DELETE: nadie las cambia ni las borra desde la aplicación. El
   trigger aceptacion_politica_inalterable (rechazar_modificacion de 0001) lo impide además a todo rol, también al
-  dueño, salvo el borrado: queda para la conservación que decida la consulta legal (CL-75-2).
+  dueño, salvo el borrado: queda para la conservación que decida la consulta legal (CL-49).
 - usuario_id sin ON DELETE CASCADE, como dispositivo, sesion_refresh y consentimiento, que tampoco caen con la cuenta
   (solo indice_credencial lo hace). La aceptación es respaldo de qué se informó, como el consentimiento: borrar la
   cuenta no la arrastra sin aviso. Cuánto se guarda después de eliminar la cuenta lo dice la consulta legal
-  (CL-75-2); hoy ninguna ruta borra cuentas.
+  (CL-49); hoy ninguna ruta borra cuentas.
 - version con la forma de POLITICA_VERSION (MAYOR.MENOR) y huella de 64 caracteres hexadecimales en minúscula.
 - Índice por usuario y fecha: «Tu cuenta» lee la última.
 

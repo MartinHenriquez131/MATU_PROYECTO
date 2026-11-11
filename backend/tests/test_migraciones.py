@@ -983,7 +983,7 @@ def test_0021_aceptacion_politica_y_baja_al_esquema_de_0020(base_desechable):
                          ("aceptacion_propia_crear", "INSERT", "{public}"),
                          ("aceptacion_operacion_leer", "SELECT", "{public}")}
     assert _privilegios("aceptacion_politica") == {"SELECT", "INSERT"}
-    # Sin ON DELETE CASCADE: la aceptación no cae con la cuenta (CL-75-2)
+    # Sin ON DELETE CASCADE: la aceptación no cae con la cuenta (CL-49)
     [(definicion,)] = consultar("SELECT pg_get_constraintdef(oid) FROM pg_constraint"
                                 " WHERE conrelid = 'aceptacion_politica'::regclass AND contype = 'f'")
     assert "CASCADE" not in definicion

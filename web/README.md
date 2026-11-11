@@ -48,6 +48,7 @@ En `http://localhost:5173/ejemplos` (solo en desarrollo) están las cuentas de e
 |---|---|
 | `ejemplo-tres-campos` | Ficha con los tres campos (horas, corrido, sin completar). Cada PIN malo descuenta un intento; el quinto bloquea |
 | `ejemplo-un-campo` | Ficha con un solo campo |
+| `ejemplo-telefonos` | Teléfonos dentro del texto (especificación 3.11.4): junto a una hora, sin separadores, con guion entre el prefijo y el resto («+56-9-5555-0177»), en la línea de tiempo y en una sección con paréntesis, y un monto y una fecha que no se reconocen |
 | `ejemplo-quedan-3` / `ejemplo-quedan-1` | PIN incorrecto con 3 y con 1 intento |
 | `ejemplo-bloqueado`, `ejemplo-vencido`, `ejemplo-cortado`, `ejemplo-no-disponible`, `ejemplo-pausado` | Estados en que el enlace no abre |
 | `ejemplo-espera-60`, `ejemplo-espera-600`, `ejemplo-espera-sin-cabecera`, `ejemplo-espera-canje` | 429 con `Retry-After` 60, 600, sin cabecera y en el canje |

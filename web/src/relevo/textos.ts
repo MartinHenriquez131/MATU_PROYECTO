@@ -106,7 +106,7 @@ export const CAMPOS: Record<CampoFicha, { etiqueta: string; pregunta: (pila: str
   },
   red_apoyo: {
     etiqueta: 'A quién llamar',
-    pregunta: () => '¿A quién llamar si algo pasa y no te ubican?',
+    pregunta: () => '¿A quién llamar si algo pasa?', // [lenguaje 5.3, variante del relevo] 3.11.5: le habla a quien reemplaza
     ejemplo: 'Por ejemplo: «Rodrigo, su hijo: +56 9 5555 0102».',
   },
 }

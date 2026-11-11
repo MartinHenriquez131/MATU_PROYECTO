@@ -10,7 +10,7 @@ import { PantallaFicha } from '../src/relevo/PantallaFicha'
 const PREGUNTAS = [
   '¿Cómo es un día normal para Elena? Puedes contar un día bueno o uno difícil.',
   '¿Qué calma a Elena cuando se angustia?',
-  '¿A quién llamar si algo pasa y no te ubican?',
+  '¿A quién llamar si algo pasa?', // 3.11.5: el relevo no lleva «y no te ubican»
 ]
 
 function ficha(campos: FichaRelevo['campos']): FichaRelevo {
@@ -40,7 +40,8 @@ describe('la hoja del relevo no muestra los ejemplos', () => {
   it('con los tres campos llenos', () => {
     render(<PantallaFicha ficha={ficha(LLENOS)} onActualizar={async () => 'ok'} />)
     sinEjemplos()
-    expect(screen.getByText('Carmen, su hija: +56 9 5555 0137')).toBeInTheDocument()
+    // 3.11.4: el teléfono va en su propio bloque, así que el texto se busca en el párrafo entero.
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Carmen, su hija: +56 9 5555 0137')).toBeInTheDocument()
   })
 
   it('con un campo vacío', () => {
