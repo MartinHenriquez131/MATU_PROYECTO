@@ -1,6 +1,7 @@
 # MATU-23 · Página web del relevo · Especificación de diseño
 
-**Versión 1.1 · 09/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Versión 1.2 · 10/11/2026** · agente 6 (UI/UX) · para el frontend, antes de construir
+**Cambios en 1.2 (10/11/2026):** tarjeta «Relevo: el teléfono escrito en la ficha no se parte, y "A quién llamar" le habla a quien reemplaza» (sprint 4, decidida por Jorge el 09/11). Un teléfono dentro del texto de la ficha ya no se corta entre dos renglones (3.11.4) y la pregunta de «A quién llamar» en el relevo pasa a «¿A quién llamar si algo pasa?» (3.11.1 y 3.11.5).
 **Cambios en 1.1 (09/11/2026):** D2 decidida por Jorge. La página del relevo ya no muestra el ejemplo de cada campo y mantiene la pregunta guía (D2, 3.11, 3.11.1 y 3.11.3). La versión 1.0 es del 28/10/2026.
 **Historia:** "Como persona que reemplaza a la cuidadora, quiero leer la ficha desde el celular sin instalar nada, para saber qué hacer desde el primer minuto". RF-06.
 **Dónde se construye:** `web/`, con React 19, TypeScript, Vite y Tailwind CSS v4 (decisión de Martín del 28/10, ADR-026). Es la primera ruta del cliente web: `/r`.
@@ -21,7 +22,7 @@ No lo decido yo. Va al orquestador antes de construir:
 | D2 | **Los ejemplos de la ficha en la página del relevo.** El criterio de Jorge del 28/10 pide mostrar la pregunta guía y el ejemplo de cada campo (lenguaje 5.1 a 5.3). Pero esos textos están escritos para quien **escribe** la ficha, no para quien la lee: | **Riesgo P1 de seguridad.** Con «A quién llamar» sin completar, Rosa ve "Rodrigo, su hijo: +56 9 5555 0102" y en un apuro puede llamar a un número de ejemplo. **Se confirmó con el campo lleno:** Martín, en el teléfono con la demo, vio el «+56 9 5555 0102» del ejemplo justo debajo del teléfono real | **DECIDIDA por Jorge el 09/11/2026:** en el relevo se muestra **solo la pregunta guía, sin el ejemplo**, en los tres campos, estén llenos o vacíos (era la recomendación de esta especificación). Motivo: el teléfono del ejemplo queda pegado al real y Rosa, apurada, puede marcar el equivocado. Ver 3.11.1 y 3.11.3. Hasta el 09/11 la especificación mostraba el ejemplo con una mitigación (versión 1.0) |
 | | · el ejemplo de «A quién llamar» trae un teléfono que parece real | | |
 | | · el ejemplo de «Su día» termina en "Si empiezas con la hora, lo mostramos como línea de tiempo", que le habla a Carmen | | |
-| | · "¿A quién llamar si algo pasa y no te ubican?" dice "te": a Rosa nadie la busca | | La pregunta guía se mantiene tal cual (lenguaje 5.3). Lo del "te" queda como observación P3 para `lenguaje.md`, fuera de esta decisión |
+| | · "¿A quién llamar si algo pasa y no te ubican?" dice "te": a Rosa nadie la busca | | La pregunta guía se mantuvo tal cual hasta el 09/11. **Resuelto el 10/11/2026** (decisión de Jorge del 09/11): en el relevo la pregunta dice «¿A quién llamar si algo pasa?» y en el editor de la familia queda como está. Ver 3.11.5 |
 | | Con la decisión, los dos primeros puntos desaparecen de la página del relevo. Los ejemplos siguen en la ficha que escribe Carmen, que es para quien están escritos | | |
 | D3 | **Autorización vencida en el relevo.** Lenguaje 6.4b dice que con la autorización por renovar "un relevo con un enlace anterior tampoco abre la ficha". El contrato del relevo no tiene un 403 en `/presentacion`, `/canje` ni `/ficha`, y `lenguaje.md` no tiene texto para Rosa en ese caso | Si la API responde un 403 al relevo, la página no sabe qué decir | Un `type` no previsto cae en el error general (sección 3.12). Falta: el código de respuesta en el contrato y el texto para Rosa en lenguaje 7.3. Propuesta: usar el estado "Este enlace no está disponible", porque para Rosa el efecto es el mismo y no conviene contarle a un tercero que falta una autorización |
 | D4 | **El aviso 7.5 tiene un hueco.** El texto final trae "[PENDIENTE: correo de contacto]" | No se puede mostrar un texto con un marcador | Usa la variante sin el correo, la misma de la demo (lenguaje 7.5, "En la demo"), hasta la política 1.0 |
@@ -535,7 +536,7 @@ Textos exactos de la pregunta guía:
 |---|---|
 | Su día (`rutina`) | «¿Cómo es un día normal para `{nombre_pila}`? Puedes contar un día bueno o uno difícil.» |
 | Si se altera (`manejo_situaciones`) | «¿Qué calma a `{nombre_pila}` cuando se angustia?» |
-| A quién llamar (`red_apoyo`) | «¿A quién llamar si algo pasa y no te ubican?» |
+| A quién llamar (`red_apoyo`) | «¿A quién llamar si algo pasa?» [PROPUESTO, variante del relevo de lenguaje 5.3, 10/11/2026: ver 3.11.5] |
 
 #### 3.11.2 El contenido
 
@@ -544,6 +545,7 @@ Textos exactos de la pregunta guía:
 - **Línea de tiempo:** si alguna línea empieza con una hora (`8:00`, `08:00`, `8.00`, con o sin guion después), el campo se muestra como la línea de tiempo de la demo (`LineaDeTiempo`, `Demo/src/components/TextoFicha.tsx`): una `ol`, cada hora en `cifras w-13 shrink-0 text-right font-bold text-turquesa`, un punto `size-3 rounded-full bg-miel ring-4 ring-hoja` (`aria-hidden`), la línea vertical `w-0.5 bg-miel/45` (`aria-hidden`) y el texto en `text-lg min-w-0`. Una hora de una cifra se completa con un cero (`8:00` → `08:00`). Una línea sin hora va sin hora, en su lugar.
 - **Vacío** (`texto: null`, o solo espacios): la etiqueta «Sin completar» (lenguaje 5.4 y 7.4), una píldora `inline-flex items-center gap-1.5 rounded-full bg-tinta/7 px-2.5 py-0.5 text-base font-bold text-tenue` con el ícono `CircleDashed` (`size-4`, `aria-hidden`). Lleva figura y palabra, no solo un tono gris ni cursiva: Rosa tiene que entender que el campo está vacío, no que no cargó.
 - **Los teléfonos no se vuelven enlaces.** Detectar un número dentro de un texto libre puede equivocarse, y un `tel:` mal armado en una urgencia es peor que ninguno. Queda como propuesta para después del piloto.
+- **Un teléfono dentro del texto no se parte** (desde el 10/11/2026): sección 3.11.4. Solo cambia cómo se dibuja, nunca lo que dice.
 
 #### 3.11.3 El ejemplo: no se muestra
 
@@ -560,6 +562,142 @@ Textos exactos de la pregunta guía:
 La mitigación de la versión 1.0 (el ejemplo después del contenido, con `border-s-2 border-linea`, sin enlace y con `aria-describedby`) queda sin efecto. Los ejemplos siguen en la pantalla donde Carmen escribe la ficha (lenguaje 5.1 a 5.3).
 
 ---
+
+#### 3.11.4 Un teléfono dentro del texto no se parte (10/11/2026)
+
+**Tarjeta:** «Relevo: el teléfono escrito en la ficha no se parte, y "A quién llamar" le habla a quien reemplaza» (sprint 4, decidida por Jorge el 09/11/2026).
+
+**Objetivo, desde Rosa:** cuando lee «A quién llamar» en una urgencia, ve cada teléfono entero, en un solo bloque, y no puede marcar solo la mitad.
+
+**El problema** (revisión visual del PR #73, 09/11/2026, P2): un teléfono escrito por Carmen se corta en cualquier espacio, por ejemplo «Rodrigo, su hijo: +56 9» en un renglón y «5555 0141» en el siguiente. Pasa a 360 px con el texto normal y a 320 px con el texto al 200%. Rosa puede leer solo el primer renglón o marcar mal.
+
+**Lo que no cambia:**
+- **El texto que escribió Carmen.** No se agregan, quitan ni cambian caracteres: ni espacios duros, ni guiones, ni un formato «normalizado». El `textContent` de cada párrafo es igual, carácter por carácter, a su línea en el `texto` de la API. Copiar y pegar el número da lo que Carmen escribió.
+- **La API.** Sin campos ni endpoints nuevos. Es solo cómo se dibuja.
+- **El aspecto.** El número no cambia de color, peso ni tamaño: es parte del texto de Carmen. Solo lleva números tabulares.
+- **Sin enlace `tel:`.** Que el número se pueda tocar para llamar está en el Product Backlog, fuera de esta tarjeta (3.11.2).
+
+##### Qué se reconoce como teléfono
+
+Solo números chilenos de 9 dígitos (sin contar el 56), con los separadores que se escriben a mano: **un espacio o un guion** entre grupos, o ninguno. Nunca punto, barra ni dos puntos, que son de montos, fechas y horas.
+
+| Forma | Cuándo | Se agrupa como |
+|---|---|---|
+| Celular con código de país | `+56` o `56`, después `9` y 8 dígitos | `+56 9` · `5555 0141` |
+| Celular sin código de país | `9` y 8 dígitos | `9` · `5555 0141` |
+| Fijo de Santiago | `+56` o `56`, después `2` y 8 dígitos | `+56 2` · `2555 0123` |
+| Fijo de regiones | `+56` o `56`, después dos dígitos (el primero del 3 al 8) y 7 dígitos | `+56 32` · `255 0123` |
+
+Un fijo **sin** `56` no se reconoce (por ejemplo «22 555 0123»): se parece demasiado a una cantidad, y si no se reconoce solo queda como hoy.
+
+**Patrón exacto** (JavaScript, sobre cada línea del texto, con `g`):
+
+```js
+const TELEFONO = /(?<![\d+$])(?:\+?56[ -]?(?:9[ -]?\d{4}[ -]?\d{4}|2[ -]?\d{4}[ -]?\d{4}|[3-8]\d[ -]?\d{3}[ -]?\d{4})|9[ -]?\d{4}[ -]?\d{4})(?![\d]|[.,]\d)/g
+```
+
+- `(?<![\d+$])`: no empieza pegado a otro dígito, a un `+` suelto ni a un `$`.
+- `(?![\d]|[.,]\d)`: no sigue otro dígito, ni un punto o una coma seguidos de dígito (un monto o un decimal). Un punto o una coma de fin de frase sí pueden seguir («llama al 9 5555 0141.»).
+- Los separadores solo valen **entre** grupos (después del código de país, después del prefijo y en medio de los dígitos), nunca en otro lugar. Por eso un RUT no calza.
+
+**Partes de un número reconocido**, para saber dónde se puede cortar (se aplica sobre lo que calzó):
+
+```js
+const PARTES = /^(\+?56[ -]?(?:[29]|[3-8]\d)|9)([ -]?)(.+)$/
+// [1] prefijo · [2] separador tal como lo escribió Carmen (espacio, guion o nada) · [3] el resto
+```
+
+Probé los dos patrones contra todas las filas de las dos tablas que siguen, el 10/11/2026, con Node.
+
+**Ejemplos que sí calzan** (todos sintéticos, de la serie 5555 de la demo):
+
+| Texto | Calza | Prefijo · resto |
+|---|---|---|
+| «Rodrigo, su hijo: +56 9 5555 0141» | `+56 9 5555 0141` | `+56 9` · `5555 0141` |
+| «+56 9 5555-0141» | entero | `+56 9` · `5555-0141` |
+| «+56-9-5555-0141» | entero | `+56-9` · `5555-0141` (el guion queda entre los dos) |
+| «+569 5555 0141» | entero | `+569` · `5555 0141` |
+| «+56955550141» | entero | `+569` · `55550141` (sin separador) |
+| «56 9 5555 0141» | entero | `56 9` · `5555 0141` |
+| «Llama al 9 5555 0141.» | `9 5555 0141`, sin el punto | `9` · `5555 0141` |
+| «955550141» | entero | `9` · `55550141` |
+| «(+56 9 5555 0141)» | sin los paréntesis | `+56 9` · `5555 0141` |
+| «+56 2 2555 0123» | entero | `+56 2` · `2555 0123` |
+| «+56 32 255 0123» | entero | `+56 32` · `255 0123` |
+| «Ana: 9 5555 0141, Rodrigo: +56 9 5555 0102» | los dos, por separado | |
+
+**Ejemplos que no calzan:**
+
+| Texto | Por qué no |
+|---|---|
+| «10/11/2026» | Fecha: la barra no es separador |
+| «08:00» y «8.30» | Hora: dos puntos y punto no son separadores |
+| «$69.000» y «$955.550.141» | Monto: lleva `$` y puntos |
+| «12.345.678-9» y «12345678-9» | RUT: puntos, o un guion antes del último dígito, que no es lugar de separador |
+| «95555014-1» | Mismo caso: el guion no está entre grupos |
+| «2 pañales cada 6 horas» | Cantidad: no son 9 dígitos |
+| «5555 0141» | 8 dígitos sin el 9 del celular |
+| «9 5555 014» | Le falta un dígito |
+| «+56 9 5555 01412» | Le sobra un dígito |
+| «PIN 4821», «2026 0141» | No son 9 dígitos ni empiezan con 9 |
+| «9.5555.0141» | El punto no es separador |
+| «22 555 0123» | Fijo sin `56`: no se reconoce, a propósito |
+
+Las pruebas del frontend usan estas dos tablas tal cual.
+
+##### Cómo se muestra
+
+Cada número reconocido se dibuja así, dentro del mismo párrafo y sin tocar sus caracteres:
+
+```tsx
+<span className="inline-block max-w-full tabular-nums">
+  <span className="cifras">{prefijo}</span>
+  {separador || <wbr />}
+  <span className="cifras">{resto}</span>
+</span>
+```
+
+- **El número entero no se parte nunca mientras cabe en un renglón.** Si no cabe en lo que queda del renglón, **baja entero** al siguiente: el `inline-block` se comporta como una sola palabra.
+- **Solo si el número es más ancho que un renglón entero**, se corta en un solo lugar: entre el prefijo y el resto, donde Carmen puso el espacio o el guion (o en el `<wbr>` si no puso nada). El prefijo y el resto son `cifras`: cada uno queda junto, igual que la decisión del celular enmascarado de «Tu cuenta» («+56 9» junto y «•••• ••37» junto, MATU-57). Como el `inline-block` empieza en su propio renglón, los dos pedazos quedan **uno debajo del otro**, solos, y no «+56 9» al final de una frase y «5555 0141» abajo.
+- **Nunca** `break-all`, `overflow-wrap: anywhere`, ni un espacio duro u otro carácter insertado: cortarían en medio de un grupo o cambiarían el texto.
+- Va en los tres lugares de la hoja donde se pinta texto de Carmen: el texto corrido (`TextoCampo`), el texto de cada hora de la línea de tiempo y las secciones complementarias (`TextoSeccion`). En todos los campos, no solo en «A quién llamar»: Carmen puede escribir un teléfono en «Si se altera». En `TextoSeccion`, las horas en `cifras` siguen igual: una hora no puede caer dentro de un teléfono, porque el patrón no acepta `:` ni `.`.
+- Sin `aria-*` nuevos: el lector de pantalla lee el número igual que antes.
+
+**Medidas que lo justifican** (texto `text-lg`, 19 px; con el texto al 200%, unos 38 px):
+
+| Ancho | Espacio para el texto en la hoja | «+56 9 5555 0141» | Resultado |
+|---|---|---|---|
+| 360 px, texto normal | unos 292 px (`main` `px-4` y hoja `px-4`) | unos 160 px | Cabe siempre en un renglón. Si no cabe en lo que queda, baja entero |
+| 320 px, texto al 200% (`angosto`) | unos 250 px (`main` `angosto:px-2` y hoja `angosto:px-2`) | unos 315 px | No cabe en ningún renglón: va en dos, «+56 9» y abajo «5555 0141» (unos 190 px, cabe) |
+| 1280 px | la hoja, de `max-w-3xl` | | Cabe siempre |
+
+El resto (8 dígitos y su separador) es el pedazo más ancho que puede quedar, y cabe con margen en el ancho más angosto que exige WCAG 1.4.10. Por eso no hace falta un tercer punto de corte. Si un día no cabe, se ve el desborde (el `body` no tiene `overflow-x: hidden`) y se corrige: no se esconde.
+
+**Tokens y utilidades:** `cifras` y `tabular-nums`, que ya existen. **Ningún token nuevo.**
+
+**Criterios verificables de 3.11.4:**
+- Con la ficha de prueba de la sección 8, a 360 px y 1280 px con el texto normal, cada número reconocido ocupa **un solo renglón**: `getClientRects().length === 1` en su `inline-block`.
+- A 320 px con el texto al 200%: `document.documentElement.scrollWidth <= innerWidth`; «+56 9 5555 0141» ocupa dos renglones, el primero es «+56 9» y el segundo es exactamente «5555 0141»; ningún grupo de dígitos aparece partido.
+- Si el número se corta, el corte es dentro de su propio bloque: ningún renglón termina en «+56 9» precedido del texto de Carmen.
+- El `textContent` de cada párrafo es igual a su línea del `texto` de la API, incluidos los guiones y los números sin separador.
+- Ninguna de las cadenas de «Ejemplos que no calzan» queda dentro de un `inline-block` de teléfono.
+- El número no tiene otro color, peso, subrayado ni `href` que el texto que lo rodea, en tema claro y oscuro.
+
+#### 3.11.5 La pregunta de «A quién llamar» le habla a Rosa (10/11/2026)
+
+**El problema:** sobre «A quién llamar», el relevo dice «¿A quién llamar si algo pasa y no te ubican?». Ese «te» es Carmen, que escribió la ficha. Rosa lee una pregunta que no es para ella, justo en el campo de la urgencia.
+
+**Decisión de Jorge del 09/11/2026:**
+
+| Dónde | Pregunta guía de «A quién llamar» |
+|---|---|
+| **Página del relevo** | «¿A quién llamar si algo pasa?» |
+| Editor de la familia (Carmen escribe) | «¿A quién llamar si algo pasa y no te ubican?», **sin cambios** |
+
+- Las otras dos preguntas guía no cambian, en ninguna pantalla.
+- El relevo sigue sin ejemplo (3.11.3, `MOSTRAR_EJEMPLO = false`).
+- **Dónde vive el texto:** `web/src/relevo/textos.ts`, `CAMPOS.red_apoyo.pregunta`, con la marca de su sección de lenguaje. El editor de la familia tiene su propia copia en `web/src/familia/datos.ts` y **no se toca**. En `lenguaje.md`, la sección 5.3 suma la variante del relevo; la actualiza Jorge en el mismo pull request (lenguaje, sección 12). Hasta entonces es [PROPUESTO].
+- **Criterio verificable:** en la página del relevo aparece «¿A quién llamar si algo pasa?» bajo «A quién llamar», y «no te ubican» no aparece en ningún estado ni en el árbol de accesibilidad. En el editor de la familia sigue «¿A quién llamar si algo pasa y no te ubican?».
 
 ### 3.12 Error general (sin conexión, 5xx o un `type` no previsto)
 
@@ -916,6 +1054,7 @@ Ninguno se usa hasta que Jorge los apruebe. Van a la sección 7 de `lenguaje.md`
 | Enlace a la política | Política de privacidad (se abre en otra pestaña) | Mismo patrón que lenguaje 6.4b |
 | Nombre de la columna de datos, para el lector de pantalla | Sobre esta ficha | `aria-label` de la demo |
 | `<title>` | «Ficha de cuidado compartida · MATU» y, en un estado que no abre, «`{título del estado}` · MATU» | 2.5 |
+| Pregunta guía de «A quién llamar», solo en el relevo (10/11/2026) | ¿A quién llamar si algo pasa? | Variante de lenguaje 5.3: el «te» de «no te ubican» le habla a quien escribe la ficha, no a quien la lee. El editor de la familia no cambia (3.11.5) |
 
 ---
 
@@ -928,6 +1067,13 @@ Capturas de **cada** pantalla y estado:
 - 320 px con el zoom del navegador al 200%, y 1280 px con el zoom al 400% (320 px efectivos).
 - Con la preferencia de tamaño de texto del sistema al 200% en un teléfono Android real (checklist de la estrategia, sección 7: "Revisión en un teléfono real").
 - Con `prefers-reduced-motion: reduce`.
+
+**Revisión de la tarjeta del 10/11/2026** (3.11.4 y 3.11.5). El doble del contrato suma una ficha con estos textos sintéticos:
+- «A quién llamar»: «Rodrigo, su hijo: +56 9 5555 0141», «Ana, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123» y «Consultorio: +56955550199».
+- «Si se altera»: «Le hace bien que la llame su hermana al 9 5555 0177 a las 18:00», para ver un teléfono junto a una hora.
+- «Su día», como línea de tiempo: «10:00 Si tiene dolor, llamar a Rodrigo +56 9 5555 0141», y una línea con «$69.000» y «10/11/2026», que no deben calzar.
+
+Capturas de la ficha abierta a **320 px con el texto al 200%**, **360 px** y **1280 px**, en tema **claro y oscuro** (seis en total). En cada una mido los criterios de 3.11.4 y 3.11.5. Antes de la revisión, el frontend deja las pruebas unitarias del patrón con las dos tablas de ejemplos de 3.11.4.
 
 En cada una mido: `scrollWidth <= innerWidth`, alto de lo que se toca (≥ 48 px), contraste del texto y de los bordes, el foco visible al recorrer con Tab, que el único `turquesa` macizo sea el de la tabla de abajo, y que ningún texto quede bajo 17 px.
 
