@@ -38,9 +38,13 @@ ACC_VIGENTE = uuid.UUID("00000000-0000-0000-0000-0000000003a1")
 ACC_VENCIDO = uuid.UUID("00000000-0000-0000-0000-0000000003a2")
 ACC_REVOCADO = uuid.UUID("00000000-0000-0000-0000-0000000003a3")
 COMERCIO = uuid.UUID("00000000-0000-0000-0000-0000000004c1")
-# MATU-61 (D7): un segundo comercio con su parte del pedido A
-COMERCIO_2 = uuid.UUID("00000000-0000-0000-0000-0000000004c2")
-U_ENC_2 = uuid.UUID("00000000-0000-0000-0000-0000000000c2")
+# MATU-61 (D7): un segundo comercio, su encargado y un pedido de A con dos partes, solo en sus pruebas
+COMERCIO_2 = uuid.UUID("00000000-0000-0000-0000-0000000004c3")
+U_ENC_2 = uuid.UUID("00000000-0000-0000-0000-0000000000c3")
+P_A2 = uuid.UUID("00000000-0000-0000-0000-0000000001a2")
+PED_A_DOS = uuid.UUID("00000000-0000-0000-0000-0000000006a3")
+PRODUCTO_2 = uuid.UUID("00000000-0000-0000-0000-000000000f03")
+OFERTA_2 = uuid.UUID("00000000-0000-0000-0000-000000000f14")
 REPARTIDOR = uuid.UUID("00000000-0000-0000-0000-0000000005d1")
 PED_A_ENVIADO = uuid.UUID("00000000-0000-0000-0000-0000000006a1")
 PED_A_BORRADOR = uuid.UUID("00000000-0000-0000-0000-0000000006a2")
@@ -56,8 +60,7 @@ INSERT INTO usuario (id, email, nombre, password_hash) VALUES
  ('{U_ADMIN_A}', 'admin.a@x.cl', 'Admin A', 'h'), ('{U_OBS_A}', 'obs.a@x.cl', 'Obs A', 'h'),
  ('{U_PAG_A}', 'pag.a@x.cl', 'Pag A', 'h'),       ('{U_PAG2_A}', 'pag2.a@x.cl', 'Pag2 A', 'h'),
  ('{U_ADMIN_B}', 'admin.b@x.cl', 'Admin B', 'h'), ('{U_ENC}', 'enc@comercio.cl', 'Encargado', 'h'),
- ('{U_REP}', 'rep@x.cl', 'Repartidor', 'h'),      ('{U_NUEVO}', 'nuevo@x.cl', 'Nuevo', 'h'),
- ('{U_ENC_2}', 'enc2@comercio.cl', 'Encargado 2', 'h');
+ ('{U_REP}', 'rep@x.cl', 'Repartidor', 'h'),      ('{U_NUEVO}', 'nuevo@x.cl', 'Nuevo', 'h');
 INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES
  ('{G_A}', 'Familia A', '{U_ADMIN_A}'), ('{G_B}', 'Familia B', '{U_ADMIN_B}');
 INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES
@@ -96,16 +99,11 @@ INSERT INTO categoria_cuidado (id, nombre) VALUES
 INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
  ('00000000-0000-0000-0000-000000000f01', '00000000-0000-0000-0000-000000000c01',
   'Pañal adulto M', 'x30', 'unidad', 30);
-INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase) VALUES
- ('00000000-0000-0000-0000-000000000f02', '00000000-0000-0000-0000-000000000c01',
-  'Toallitas húmedas', 'x80', 'unidad', 80);
 INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna) VALUES
- ('{COMERCIO}', 'Farmacia Uno SpA', 'Farmacia Uno', '76.000.000-1', 'Av. Larraín 1', 'La Reina'),
- ('{COMERCIO_2}', 'Bodega Dos SpA', 'Bodega Dos', '76.000.000-2', 'Av. Ossa 2', 'La Reina');
-INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES ('{U_ENC}', '{COMERCIO}'), ('{U_ENC_2}', '{COMERCIO_2}');
+ ('{COMERCIO}', 'Farmacia Uno SpA', 'Farmacia Uno', '76.000.000-1', 'Av. Larraín 1', 'La Reina');
+INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES ('{U_ENC}', '{COMERCIO}');
 INSERT INTO oferta (id, producto_id, comercio_id, precio) VALUES
- ('00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', '{COMERCIO}', 12990),
- ('00000000-0000-0000-0000-000000000f12', '00000000-0000-0000-0000-000000000f02', '{COMERCIO_2}', 4490);
+ ('00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', '{COMERCIO}', 12990);
 INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, producto_id, tasa_unidades, stock_unidades,
                             stock_medido_en, fecha_quiebre_estimada) VALUES
  ('{G_A}', '{P_A}', '00000000-0000-0000-0000-000000000f01', 4, 24, current_date, current_date + 6),
@@ -117,24 +115,18 @@ INSERT INTO perfil_consumo (grupo_id, persona_cuidada_id, producto_id, tasa_unid
 -- comercio tiene su parte (D7), visible para él recién con enviado_en.
 INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos, costo_envio, total,
                     creado_por) VALUES
- ('{PED_A_ENVIADO}',  '{G_A}', '{P_A}', '{COMERCIO}', 'cancelado', 30470, 2990, 33460, '{U_ADMIN_A}'),
+ ('{PED_A_ENVIADO}',  '{G_A}', '{P_A}', '{COMERCIO}', 'cancelado', 25980, 2990, 28970, '{U_ADMIN_A}'),
  ('{PED_A_BORRADOR}', '{G_A}', '{P_A}', '{COMERCIO}', 'borrador', 12990, 2990, 15980, '{U_ADMIN_A}'),
  ('{PED_B_ENVIADO}',  '{G_B}', '{P_B}', '{COMERCIO}', 'borrador', 12990, 2990, 15980, '{U_ADMIN_B}');
 INSERT INTO pedido_entrega (pedido_id, calle, numero, comuna, telefono_contacto) VALUES
  ('{PED_A_ENVIADO}', 'Los Aromos', '123', 'La Reina', '+56911111111');
 INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, enviado_en) VALUES
  ('00000000-0000-0000-0000-0000000009a1', '{G_A}', '{PED_A_ENVIADO}', '{COMERCIO}', 'referencia-opaca-a-uno', now()),
- ('00000000-0000-0000-0000-0000000009a2', '{G_A}', '{PED_A_ENVIADO}', '{COMERCIO_2}', 'referencia-opaca-a-dos', now()),
  ('00000000-0000-0000-0000-0000000009b1', '{G_B}', '{PED_B_ENVIADO}', '{COMERCIO}', 'referencia-opaca-b-uno', now());
 INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario, pedido_comercio_id) VALUES
  ('{PED_A_ENVIADO}',  '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 2, 12990,
   '00000000-0000-0000-0000-0000000009a1'),
- ('{PED_A_ENVIADO}',  '00000000-0000-0000-0000-000000000f12', '00000000-0000-0000-0000-000000000f02', 1, 4490,
-  '00000000-0000-0000-0000-0000000009a2'),
  ('{PED_A_BORRADOR}', '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 1, 12990, NULL);
-INSERT INTO regla_sustitucion (pedido_id, producto_id, accion) VALUES
- ('{PED_A_BORRADOR}', '00000000-0000-0000-0000-000000000f01', 'otro_comercio'),
- ('{PED_A_ENVIADO}', '00000000-0000-0000-0000-000000000f01', 'quitar');
 INSERT INTO pedido_transicion (pedido_id, desde, hacia, actor_tipo, actor_ref) VALUES
  ('{PED_A_BORRADOR}', NULL, 'borrador', 'usuario', '{U_ADMIN_A}');
 UPDATE pedido SET estado = 'enviado_a_comercio', total_confirmado_en = now() - interval '5 minutes',
@@ -634,7 +626,7 @@ def test_comercio_ve_pedidos_enviados_sin_direccion_ni_pago(cx):
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
     assert contar(cx, "pedido") == 2                          # A y B enviados, no el borrador
     assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 0
-    assert contar(cx, "pedido_linea") == 1                    # solo su línea del pedido enviado (D7, R8)
+    assert contar(cx, "pedido_linea") == 1                    # solo la del pedido enviado (D7, R8)
     for t in ("pedido_entrega", "cargo", "participacion", "transaccion_pasarela",
               "persona_cuidada", "direccion", "plan_cuidado", "perfil_consumo"):
         assert contar(cx, t) == 0, f"el comercio alcanza {t}"
@@ -842,8 +834,13 @@ def test_pedido_pagado_exige_total_confirmado_y_marca_de_pago(cx):
     # Si vence, se vuelve a confirmar, y recién entonces se paga
     cx.execute("""UPDATE pedido SET estado = 'total_confirmado', total_confirmado_en = now() + interval '1 minute',
                   total_vence_en = now() + interval '16 minutes' WHERE id = %s""", (PED_A_BORRADOR,))
-    cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes' WHERE id = %s",
-               (PED_A_BORRADOR,))
+    # MATU-61 (D6): no hay pago sin las condiciones aceptadas
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes' WHERE id = %s",
+                   (PED_A_BORRADOR,))
+    cx.execute("""UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes',
+                  condiciones_version = '0.1', condiciones_aceptadas_en = now() + interval '2 minutes',
+                  condiciones_huella = repeat('b', 64) WHERE id = %s""", (PED_A_BORRADOR,))
 
 
 @pytest.mark.rf("ADR-027")
@@ -906,12 +903,19 @@ def test_reasignacion_solo_al_mismo_producto_nunca_otra_marca(cx):
 @pytest.mark.parametrize("estado", ["total_confirmado", "vencido", "pagado", "cancelado"])
 def test_comercio_no_ve_pedidos_sin_pagar_o_sin_enviar(cx, estado):
     pagado = estado == "pagado"
-    cx.execute("""INSERT INTO pedido (grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos, total,
-                                      total_confirmado_en, total_vence_en, pagado_en, destinatario_nombre_pila,
-                                      creado_por)
+    # Desde la 0023: sin destinatario_nombre_pila (C16), con las condiciones si está pagado (D6), y de otra persona
+    # de A, porque P_A ya tiene su pedido sin pagar (C4)
+    _persona_a2(cx)
+    pedido = cx.execute("""INSERT INTO pedido (grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos,
+                                      total, total_confirmado_en, total_vence_en, pagado_en, condiciones_version,
+                                      condiciones_aceptadas_en, condiciones_huella, creado_por)
                   VALUES (%s, %s, %s, %s, 12990, 12990, now(), now() + interval '15 minutes',
-                          CASE WHEN %s THEN now() END, 'María', %s)""",
-               (G_A, P_A, COMERCIO, estado, pagado, U_ADMIN_A))
+                          CASE WHEN %s THEN now() END, CASE WHEN %s THEN '0.1' END, CASE WHEN %s THEN now() END,
+                          CASE WHEN %s THEN repeat('c', 64) END, %s) RETURNING id""",
+               (G_A, P_A2, COMERCIO, estado, pagado, pagado, pagado, pagado, U_ADMIN_A)).fetchone()[0]
+    # Aunque tenga su parte enviada: sin pagar o sin enviar, el comercio no lo ve
+    cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia, enviado_en)"
+               " VALUES (%s, %s, %s, 'referencia-opaca-prueba', now())", (G_A, pedido, COMERCIO))
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
     assert contar(cx, "pedido") == 2                          # solo los dos pagados y enviados de la semilla
 
@@ -975,12 +979,16 @@ def test_si_falta_otro_comercio_o_quitar(cx, accion):
 
 @pytest.mark.rf("RF-21")
 def test_regla_de_otro_grupo_no_se_ve_ni_se_crea(cx):
+    # Desde la 0023 (C12) la regla de un pedido pagado queda fija: B arma un pedido sin pagar
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (PED_A_BORRADOR,))
+    sin_pagar = cx.execute("INSERT INTO pedido (grupo_id, persona_cuidada_id, creado_por) VALUES (%s, %s, %s)"
+                           " RETURNING id", (G_B, P_B, U_ADMIN_B)).fetchone()[0]
     como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
-    cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "quitar"))
+    cx.execute(REGLA, (sin_pagar, PRODUCTO, "quitar"))
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     assert contar(cx, "regla_sustitucion") == 0
     with pytest.raises(errors.InsufficientPrivilege):
-        cx.execute(REGLA, (PED_B_ENVIADO, PRODUCTO, "otro_comercio"))
+        cx.execute(REGLA, (sin_pagar, PRODUCTO, "otro_comercio"))
 
 
 # ------------------------------------------------------------------ lectura de la auditoría (decisión 36)
@@ -2728,6 +2736,45 @@ def test_los_privilegios_por_omision_no_dan_nada_a_los_roles_de_las_tareas(cx):
 
 # ---- MATU-61 (migración 0023): el pedido sin pagar por operación y por rol, y un registro por comercio (D7)
 
+def _persona_a2(cx):
+    cx.execute("INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)"
+               " VALUES (%s, %s, 'Rosa Díaz', 'Rosa', 'apoyo_parcial') ON CONFLICT (id) DO NOTHING", (P_A2, G_A))
+
+
+def _pedido_de_dos_comercios(cx, enviado: bool = True):
+    """Como superusuario: un pedido pagado de A preparado por dos comercios, con su parte cada uno (D7)."""
+    _persona_a2(cx)
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, 'enc2@comercio.cl', 'Enc 2', 'h')",
+               (U_ENC_2,))
+    cx.execute("INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna)"
+               " VALUES (%s, 'Bodega Tres SpA', 'Bodega Tres', '76.000.000-3', 'Av. Ossa 3', 'La Reina')",
+               (COMERCIO_2,))
+    cx.execute("INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES (%s, %s)", (U_ENC_2, COMERCIO_2))
+    cx.execute("INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase)"
+               " VALUES (%s, '00000000-0000-0000-0000-000000000c01', 'Toallitas húmedas', 'x80', 'unidad', 80)",
+               (PRODUCTO_2,))
+    cx.execute("INSERT INTO oferta (id, producto_id, comercio_id, precio) VALUES (%s, %s, %s, 4490)",
+               (OFERTA_2, PRODUCTO_2, COMERCIO_2))
+    cx.execute("INSERT INTO pedido (id, grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+               " creado_por) VALUES (%s, %s, %s, 'borrador', 17480, 2990, 20470, %s)",
+               (PED_A_DOS, G_A, P_A2, U_ADMIN_A))
+    enviado_en = "now()" if enviado else "NULL"
+    for parte, comercio, referencia in ((uuid.UUID(int=0xA31), COMERCIO, "referencia-opaca-dos-uno"),
+                                         (uuid.UUID(int=0xA32), COMERCIO_2, "referencia-opaca-dos-dos")):
+        cx.execute("INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, enviado_en)"
+                   f" VALUES (%s, %s, %s, %s, %s, {enviado_en})", (parte, G_A, PED_A_DOS, comercio, referencia))
+    cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario,"
+               " pedido_comercio_id) VALUES (%s, %s, %s, 1, 12990, %s), (%s, %s, %s, 1, 4490, %s)",
+               (PED_A_DOS, OFERTA, PRODUCTO, uuid.UUID(int=0xA31), PED_A_DOS, OFERTA_2, PRODUCTO_2,
+                uuid.UUID(int=0xA32)))
+    cx.execute("INSERT INTO regla_sustitucion (pedido_id, producto_id, accion) VALUES (%s, %s, 'quitar')",
+               (PED_A_DOS, PRODUCTO))
+    cx.execute("""UPDATE pedido SET estado = 'enviado_a_comercio', total_confirmado_en = now() - interval '5 minutes',
+                  total_vence_en = now() + interval '10 minutes', pagado_en = now(), condiciones_version = '0.1',
+                  condiciones_aceptadas_en = now(), condiciones_huella = repeat('d', 64) WHERE id = %s""",
+               (PED_A_DOS,))
+
+
 A_PAGADOR = {"usuario_id": U_PAG_A, "grupo_id": G_A}
 A_OBSERVADOR = {"usuario_id": U_OBS_A, "grupo_id": G_A}
 A_ADMIN = {"usuario_id": U_ADMIN_A, "grupo_id": G_A}
@@ -2740,6 +2787,7 @@ INSERTAR_PEDIDO = ("INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, cr
 @pytest.mark.parametrize("ctx", [A_PAGADOR, A_OBSERVADOR], ids=["pagador", "observador"])
 def test_pagador_y_observador_leen_el_pedido_y_no_lo_escriben(cx, ctx):
     """C3 y C13: lee todo el grupo; escriben solo admin y cuidador (antes de la 0023, pedido_familia era FOR ALL)."""
+    cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, "otro_comercio"))
     como(cx, **ctx)
     assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 1
     assert contar(cx, "regla_sustitucion", f"pedido_id = '{PED_A_BORRADOR}'") == 1
@@ -2764,6 +2812,7 @@ def test_pagador_y_observador_leen_el_pedido_y_no_lo_escriben(cx, ctx):
 
 @pytest.mark.rf("RF-21")
 def test_admin_escribe_su_pedido_y_nadie_lo_borra_desde_la_api(cx):
+    cx.execute(REGLA, (PED_A_BORRADOR, PRODUCTO, "otro_comercio"))
     como(cx, **A_ADMIN)
     assert cx.execute(f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'").rowcount == 1
     assert cx.execute(f"UPDATE regla_sustitucion SET accion = 'quitar' WHERE pedido_id = '{PED_A_BORRADOR}'"
@@ -2786,19 +2835,23 @@ def test_el_observador_no_ve_la_entrega_y_el_pagador_si(cx):
 
 @pytest.mark.rf("RF-21")
 def test_cada_comercio_ve_solo_su_parte_y_sus_lineas(cx):
-    """D7 y R8: el segundo comercio ve el pedido A con su línea, nunca la del otro ni su referencia."""
+    """D7 y R8: el segundo comercio ve el pedido con su línea, nunca la del otro ni su referencia."""
+    _pedido_de_dos_comercios(cx)
     como(cx, usuario_id=U_ENC_2, comercio_id=COMERCIO_2)
-    assert contar(cx, "pedido") == 1
-    assert [r[0] for r in cx.execute("SELECT producto_id FROM pedido_linea").fetchall()] == [
-        uuid.UUID("00000000-0000-0000-0000-000000000f02")]
-    assert [r[0] for r in cx.execute("SELECT referencia FROM pedido_comercio").fetchall()] == ["referencia-opaca-a-dos"]
+    assert [r[0] for r in cx.execute("SELECT id FROM pedido").fetchall()] == [PED_A_DOS]
+    assert [r[0] for r in cx.execute("SELECT producto_id FROM pedido_linea").fetchall()] == [PRODUCTO_2]
+    assert [r[0] for r in cx.execute("SELECT referencia FROM pedido_comercio").fetchall()] == [
+        "referencia-opaca-dos-dos"]
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    assert contar(cx, "pedido_linea", f"pedido_id = '{PED_A_DOS}'") == 1
     for t in ("pedido_entrega", "pedido_transicion", "idempotencia", "persona_cuidada", "direccion"):
         assert contar(cx, t) == 0, t
 
 
 @pytest.mark.rf("RF-21")
 def test_la_parte_no_enviada_no_la_ve_el_comercio(cx):
-    cx.execute("UPDATE pedido_comercio SET enviado_en = NULL WHERE comercio_id = %s", (COMERCIO_2,))
+    _pedido_de_dos_comercios(cx, enviado=False)
     como(cx, usuario_id=U_ENC_2, comercio_id=COMERCIO_2)
     assert contar(cx, "pedido") == 0 and contar(cx, "pedido_linea") == 0 and contar(cx, "pedido_comercio") == 0
 
@@ -2808,11 +2861,13 @@ def test_pedido_comercio_tiene_rls_forzado_y_el_grupo_de_su_pedido(cx):
     assert cx.execute("SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE relname = 'pedido_comercio'"
                       ).fetchone() == (True,)
     como(cx, **A_ADMIN)
-    cx.execute("SAVEPOINT s")
-    with pytest.raises(errors.InsufficientPrivilege):
-        cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia)"
-                   " VALUES (%s, %s, %s, 'referencia-de-otro-grupo')", (G_B, PED_B_ENVIADO, COMERCIO))
-    cx.execute("ROLLBACK TO SAVEPOINT s")
+    # Con el grupo de otro (RLS) o con el pedido de otro grupo (pedido_comercio_mismo_grupo): no entra
+    for grupo in (G_B, G_A):
+        cx.execute("SAVEPOINT s")
+        with pytest.raises((errors.InsufficientPrivilege, errors.CheckViolation)):
+            cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia)"
+                       " VALUES (%s, %s, %s, 'referencia-de-otro-grupo')", (grupo, PED_B_ENVIADO, COMERCIO))
+        cx.execute("ROLLBACK TO SAVEPOINT s")
     como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
     assert contar(cx, "pedido_comercio", f"pedido_id = '{PED_A_ENVIADO}'") == 0
 
@@ -2835,9 +2890,16 @@ def test_la_clave_de_idempotencia_la_escribe_solo_su_cuenta(cx):
 
 @pytest.mark.rf("RF-21")
 def test_la_regla_queda_fija_con_el_pedido_pagado(cx):
-    """C12: ni el superusuario cambia la regla de un pedido pagado."""
-    with pytest.raises(errors.CheckViolation):
-        cx.execute(f"UPDATE regla_sustitucion SET accion = 'otro_comercio' WHERE pedido_id = '{PED_A_ENVIADO}'")
+    """C12: ni el superusuario cambia, agrega ni borra la regla de un pedido pagado."""
+    _pedido_de_dos_comercios(cx)
+    for sentencia in (
+        f"UPDATE regla_sustitucion SET accion = 'otro_comercio' WHERE pedido_id = '{PED_A_DOS}'",
+        f"DELETE FROM regla_sustitucion WHERE pedido_id = '{PED_A_DOS}'",
+        f"INSERT INTO regla_sustitucion (pedido_id, producto_id, accion)"
+        f" VALUES ('{PED_A_DOS}', '{PRODUCTO_2}', 'quitar')",
+    ):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(sentencia)
 
 
 @pytest.mark.rf("RF-21")
@@ -2875,6 +2937,8 @@ def test_pedido_conservar_borra_lo_no_pagado_con_su_linea_de_tiempo(cx):
     assert contar(cx, "pedido_transicion", f"pedido_id = '{PED_A_BORRADOR}'") == 0
     assert contar(cx, "pedido", f"id = '{PED_A_ENVIADO}'") == 1
     # Fuera de la cascada, la línea de tiempo sigue siendo de solo inserción
+    cx.execute("INSERT INTO pedido_transicion (pedido_id, hacia, actor_tipo) VALUES (%s, 'pagado', 'sistema')",
+               (PED_A_ENVIADO,))
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("DELETE FROM pedido_transicion")
 

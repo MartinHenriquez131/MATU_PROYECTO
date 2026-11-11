@@ -442,7 +442,9 @@ TABLAS_CAPA_3 = frozenset(
 
 # Tablas que no son de las capas 1 y 2 y pueden apuntar al despacho: backoffice atiende incidencias de
 # pedidos (modelo de datos, sección 3.1, BO --> ORD)
-FUERA_DE_LAS_CAPAS_1_Y_2 = frozenset({"incidencia"})
+# MATU-61 (D5): idempotencia es transversal, pero solo la usan los POST de pedidos y pagos (arquitectura 9.1); su
+# pedido_id cae con el pedido (ON DELETE CASCADE) y no la usa ninguna ruta de las capas 1 y 2
+FUERA_DE_LAS_CAPAS_1_Y_2 = frozenset({"incidencia", "idempotencia"})
 
 # La única llave de las capas 1 y 2 hacia la capa 3, declarada (decisión 104): el insumo puede venir del
 # catálogo, y si no, va con nombre_libre (ADR-002). Es anulable, y sin catálogo queda vacía

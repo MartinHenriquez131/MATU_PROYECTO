@@ -160,7 +160,7 @@ def test_nada_disponible_no_cambia_el_pedido(entorno_pedido: EntornoPedido) -> N
 def test_el_total_vence_a_los_15_minutos_y_se_vuelve_a_confirmar(entorno_pedido: EntornoPedido) -> None:
     e = entorno_pedido
     familia, pedido = _crear_y_confirmar(e)
-    e.iam.reloj.avanzar(timedelta(minutes=15))
+    e.avanzar(timedelta(minutes=15))
 
     visto = e.pedir("GET", f"/v1/pedidos/{pedido['id']}", familia.admin, familia).json()
     assert visto["estado"] == "vencido" and visto["vigencia_segundos"] == 0 and visto["resumen"] is None
@@ -175,7 +175,7 @@ def test_el_total_vence_a_los_15_minutos_y_se_vuelve_a_confirmar(entorno_pedido:
 def test_volver_a_confirmar_un_total_vigente_da_15_minutos_nuevos(entorno_pedido: EntornoPedido) -> None:
     e = entorno_pedido
     familia, pedido = _crear_y_confirmar(e)
-    e.iam.reloj.avanzar(timedelta(minutes=13))
+    e.avanzar(timedelta(minutes=13))
     otra = e.confirmar(familia, pedido["id"], cuerpo={}).json()
     assert otra["estado"] == "total_confirmado" and otra["vigencia_segundos"] == 900
     assert datetime.fromisoformat(otra["vence_en"]) > datetime.fromisoformat(pedido["vence_en"])
@@ -187,7 +187,7 @@ def test_volver_a_confirmar_un_total_vigente_da_15_minutos_nuevos(entorno_pedido
 def test_cambiar_el_pedido_vuelve_al_carrito(entorno_pedido: EntornoPedido, minutos: int) -> None:
     e = entorno_pedido
     familia, pedido = _crear_y_confirmar(e)
-    e.iam.reloj.avanzar(timedelta(minutes=minutos))
+    e.avanzar(timedelta(minutes=minutos))
     lineas = e.pedir(
         "PUT",
         f"/v1/pedidos/{pedido['id']}/lineas",

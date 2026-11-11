@@ -10,6 +10,7 @@ fija, sin red. El catálogo se siembra con catalogo_sintetico de MATU-59 y se bo
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -77,6 +78,11 @@ class EntornoPedido:
             assert respuesta.status_code == 200, respuesta.text
             self.tokens[usuario.id] = respuesta.json()["access_token"]
         return self.tokens[usuario.id]
+
+    def avanzar(self, tiempo: timedelta) -> None:
+        """Avanza el Reloj de la API. El access token dura 15 minutos con el mismo reloj: se vuelve a entrar."""
+        self.iam.reloj.avanzar(tiempo)
+        self.tokens.clear()
 
     def clave(self) -> str:
         self.claves += 1

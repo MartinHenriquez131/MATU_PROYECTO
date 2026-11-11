@@ -84,9 +84,11 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     "retracto_pierde_al_abrir": False,
                     "comercios": [
                         {"oferta_id": str(c.ofertas[("bolsa", "uno")]), "comercio_id": str(c.comercios["uno"]),
-                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 15990, "disponible": False},
+                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 15990, "disponible": False,
+                         "ficticio": True},
                         {"oferta_id": str(c.ofertas[("bolsa", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 16490, "disponible": False},
+                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 16490, "disponible": False,
+                         "ficticio": True},
                     ],
                 },
                 {
@@ -99,9 +101,11 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     # Por nombre de fantasía: la Bodega es más barata y va segunda
                     "comercios": [
                         {"oferta_id": str(c.ofertas[("panal", "uno")]), "comercio_id": str(c.comercios["uno"]),
-                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 12990, "disponible": True},
+                         "nombre_fantasia": f"Almacén El Ejemplo {s}", "precio": 12990, "disponible": True,
+                         "ficticio": True},
                         {"oferta_id": str(c.ofertas[("panal", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 9990, "disponible": False},
+                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 9990, "disponible": False,
+                         "ficticio": True},
                     ],
                 },
             ],
@@ -120,7 +124,8 @@ def test_lo_que_entra_con_su_precio_disponible_y_orden(
                     "retracto_pierde_al_abrir": True,
                     "comercios": [
                         {"oferta_id": str(c.ofertas[("crema", "dos")]), "comercio_id": str(c.comercios["dos"]),
-                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 7290, "disponible": True},
+                         "nombre_fantasia": f"Bodega La Muestra {s}", "precio": 7290, "disponible": True,
+                         "ficticio": True},
                     ],
                 },
             ],
