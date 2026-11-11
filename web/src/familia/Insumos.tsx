@@ -1067,8 +1067,11 @@ function PanelRegistro({
   const alPanel = conEnvase || guardado !== null
   useEffect(() => {
     const t = window.setTimeout(() => {
-      document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
-      document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' })
+      // Si en esos 40 ms la persona ya tocó algo del panel (un campo), el foco se queda donde lo puso:
+      // quitárselo a mitad de lo que escribe hacía perder dígitos (CI del PR #83).
+      const panel = document.getElementById(id)
+      if (!panel?.contains(document.activeElement)) document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
+      panel?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
   }, [alPanel, id, campo])
