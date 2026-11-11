@@ -11,7 +11,7 @@ el saldo (D-62-9). El resto del diccionario se descarta sin guardarlo.
 
 Errores: el mensaje de Transbank o de requests nunca sube (puede traer el token en la URL): se traduce a
 PasarelaNoDisponible (red, tiempo agotado, 5xx) o PasarelaRechazo (4xx), con mensaje fijo y sin la causa. El log de
-urllib3 queda en WARNING: en DEBUG escribiría la ruta del commit, que lleva el token.
+urllib3 queda en ERROR: en DEBUG o en sus avisos de reintento escribiría la ruta del commit, que lleva el token.
 """
 
 import logging
@@ -20,8 +20,10 @@ from typing import Any
 from app.modules.payments.application.ports import InicioVenta, PasarelaNoDisponible, PasarelaRechazo
 from app.modules.payments.domain.venta import RespuestaAnulacion, RespuestaTransaccion
 
-# La ruta de commit, status y refund lleva el token: urllib3 no la escribe nunca
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+# La ruta de commit, status y refund lleva el token: urllib3 no la escribe (como en app/core/logs.py, observación 1 del
+# cierre del analista), y el SDK queda en WARNING
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+logging.getLogger("transbank").setLevel(logging.WARNING)
 
 # Segundos de espera por cada llamada a Transbank. El SDK trae 600 por omisión
 TIEMPO_ESPERA_S = 15
