@@ -44,6 +44,8 @@ CAMPOS_PERMITIDOS = (
     "notificacion_id", "evento_id", "canal", "codigo",
     "xff_cabeceras", "xff_elementos", "xff_clases", "proxy_saltos", "ip_contada",
     "tarea", "resultado", "corrida", "inicio", "fin", "contadores", "falta",
+    # MATU-62 (decisión 235): el caso de la vuelta de Webpay, nunca lo que trajo
+    "caso",
 )
 
 # Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)
@@ -178,7 +180,7 @@ class MiddlewareRequestId:
                 "estado": estado,
                 "duracion_ms": round((time.perf_counter() - inicio) * 1000, 1),
             }
-            for campo in ("usuario_id", "grupo_id"):
+            for campo in ("usuario_id", "grupo_id", "caso"):
                 if campo in estado_peticion:
                     extra[campo] = estado_peticion[campo]
             log.info("peticion", extra=extra)

@@ -82,7 +82,9 @@ def _ejecutar(sql: str) -> None:
         cursor.execute(sql)
 
 
-MOTIVOS_0023 = "('total_vencio', 'familia_cancela', 'familia_cambia_carrito', 'autorizacion_retirada', 'persona_borrada')"
+MOTIVOS_0023 = (
+    "('total_vencio', 'familia_cancela', 'familia_cambia_carrito', 'autorizacion_retirada', 'persona_borrada')"
+)
 MOTIVOS_0024 = (
     "('total_vencio', 'familia_cancela', 'familia_cambia_carrito', 'autorizacion_retirada', 'persona_borrada',"
     " 'pago_aprobado')"
@@ -206,7 +208,8 @@ ALTER TABLE transaccion_pasarela
     ADD COLUMN cerrada_en          timestamptz,
     ADD COLUMN anulacion_total     boolean NOT NULL DEFAULT false,
     ADD COLUMN venta_id            uuid REFERENCES transaccion_pasarela(id),
-    ADD COLUMN motivo_anulacion    text CHECK (motivo_anulacion IN ('pago_tardio', 'producto_no_entregado', 'cancelacion')),
+    ADD COLUMN motivo_anulacion    text
+        CHECK (motivo_anulacion IN ('pago_tardio', 'producto_no_entregado', 'cancelacion')),
     ADD COLUMN pedido_linea_id     uuid REFERENCES pedido_linea(id),
     ADD COLUMN intentos            smallint NOT NULL DEFAULT 0 CHECK (intentos >= 0);
 UPDATE transaccion_pasarela t SET cargo_id = pa.cargo_id FROM participacion pa WHERE pa.id = t.participacion_id;
@@ -240,7 +243,8 @@ $$
 DECLARE
     venta public.transaccion_pasarela%ROWTYPE;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM participacion pa WHERE pa.id = NEW.participacion_id AND pa.cargo_id = NEW.cargo_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM participacion pa
+                    WHERE pa.id = NEW.participacion_id AND pa.cargo_id = NEW.cargo_id) THEN
         RAISE EXCEPTION 'la transacción es del cargo de su participación' USING ERRCODE = 'check_violation';
     END IF;
     IF TG_OP = 'INSERT' AND NEW.tipo = 'venta' AND NOT EXISTS (
@@ -358,7 +362,8 @@ BEGIN
         resto.pagado_en := OLD.pagado_en;
         resto.referencia := OLD.referencia;
         IF resto IS DISTINCT FROM OLD
-           OR (NEW.estado IS DISTINCT FROM OLD.estado AND NOT (OLD.pagado_en IS NULL AND NEW.pagado_en IS NOT NULL)) THEN
+           OR (NEW.estado IS DISTINCT FROM OLD.estado
+               AND NOT (OLD.pagado_en IS NULL AND NEW.pagado_en IS NOT NULL)) THEN
             RAISE EXCEPTION 'el sistema solo marca el pago' USING ERRCODE = 'check_violation';
         END IF;
     ELSIF app_usuario() IS NOT NULL AND app_comercio() IS NULL AND app_repartidor() IS NULL
@@ -411,7 +416,8 @@ CREATE POLICY cargo_sistema_editar ON cargo FOR UPDATE
 CREATE POLICY cargo_operacion_leer ON cargo FOR SELECT USING (app_rol() = 'operacion');
 CREATE POLICY cargo_operacion_editar ON cargo FOR UPDATE
     USING (app_rol() = 'operacion') WITH CHECK (app_rol() = 'operacion');
-CREATE POLICY cargo_resolver_pago ON cargo FOR SELECT TO matu_owner USING (app_rol() = 'sistema' AND app_grupo() IS NULL);
+CREATE POLICY cargo_resolver_pago ON cargo FOR SELECT TO matu_owner
+    USING (app_rol() = 'sistema' AND app_grupo() IS NULL);
 CREATE POLICY cargo_conservacion_borrar ON cargo FOR DELETE TO matu_owner
     USING (app_rol() = 'operacion' AND estado IN ('pendiente', 'rechazado') AND monto_cobrado = 0);
 
