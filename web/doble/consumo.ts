@@ -360,6 +360,13 @@ function atenderRegistro(
       Object.assign(p, { activo: false, version: p.version + 1, autor: RODRIGO_CONSUMO })
     } else if (p.nombre_libre.startsWith('Crema')) return problema(res, 500, '/errores/error-interno')
   }
+  // MATU-84, cuenta «envases-defectos»: el pañal choca una vez (412) y las toallitas responden 500.
+  if (usuario.modo === 'envases-defectos') {
+    if (p.nombre_libre.startsWith('Pañal') && !registroUnaVez.has(`envases-${p.id}`)) {
+      registroUnaVez.add(`envases-${p.id}`)
+      Object.assign(p, { stock_unidades: 18, stock_medido_en: hoy(), version: p.version + 1, autor: RODRIGO_CONSUMO })
+    } else if (p.nombre_libre.startsWith('Toallitas')) return problema(res, 500, '/errores/error-interno')
+  }
   if (!p.activo) return problema(res, 409, '/errores/perfil-inactivo')
   if (ifMatch !== `"v${p.version}"`) {
     res.setHeader('ETag', `"v${p.version}"`)
@@ -403,6 +410,24 @@ export function listaParaCompre(autor: { id: string; nombre: string }): PerfilDo
     perfil('Bolsas de basura', 'unidad', 1, 2, 1000, 0, autor),
     conEnvase(perfil('ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60'.slice(0, 60), 'unidad', 3, 1, 9, 0, autor), 10_000),
     perfil('Toallas de papel', 'unidad', 2, 1, 10, 6, autor, false),
+  ]
+}
+
+/**
+ * La lista de la revisión de MATU-84 (especificación 13): el pañal con 20 por envase, el champú en
+ * sobres con 10 por caja, las toallitas sin envase, los guantes con envase de 1 (D6), la crema en ml
+ * con envase (D2), un nombre de 60 caracteres sin espacios con 10.000 por envase, y las bolsas, que
+ * con unas 2.000 alcanzan para más de 10 años (422 `cobertura_maxima`).
+ */
+export function listaParaEnvases(autor: { id: string; nombre: string }): PerfilDoble[] {
+  return [
+    conEnvase(perfil('Pañal adulto talla M', 'unidad', 4, 1, 24, 6, autor), 20),
+    conEnvase(perfil('Champú en sobre', 'sobre', 1, 1, 30, 2, autor), 10),
+    perfil('Toallitas húmedas', 'unidad', 3, 1, 12, 1, autor),
+    conEnvase(perfil('Guantes desechables', 'unidad', 6, 1, 60, 0, RODRIGO_CONSUMO), 1),
+    conEnvase(perfil('Crema humectante', 'ml', 50, 7, 500, 0, autor), 250),
+    conEnvase(perfil('ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60'.slice(0, 60), 'unidad', 3, 1, 9, 0, autor), 10_000),
+    perfil('Bolsas de basura', 'unidad', 1, 2, 40, 0, autor),
   ]
 }
 
@@ -595,6 +620,13 @@ export function atenderConsumo(
       p.version += 1
       p.autor = RODRIGO_CONSUMO
     } else if (p.nombre_libre.startsWith('Guantes')) return problema(res, 500, '/errores/error-interno')
+  }
+  // MATU-84, cuenta «envases-defectos»: anotar el envase desde «Me quedan» (un solo `PATCH`, D5)
+  // responde 422 en `unidades_por_envase` en las toallitas, y 500 en los guantes (envase de 1).
+  if (usuario.modo === 'envases-defectos' && cuerpo && 'unidades_por_envase' in cuerpo) {
+    if (p.nombre_libre.startsWith('Toallitas'))
+      return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'unidades_por_envase', mensaje: 'MENSAJE DEL DOBLE', tipo: 'less_than_equal' }] })
+    if (p.nombre_libre.startsWith('Guantes')) return problema(res, 500, '/errores/error-interno')
   }
 
   if (ifMatch !== `"v${p.version}"`) {
