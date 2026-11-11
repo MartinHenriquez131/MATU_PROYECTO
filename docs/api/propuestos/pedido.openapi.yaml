@@ -1,9 +1,12 @@
 openapi: 3.1.0
 info:
   title: MATU API · Pedido (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.1.0-implementado
   summary: Autorización de pedidos, dirección de entrega, carrito, qué hacer si falta un producto, total confirmado y cancelar sin pagar (MATU-61, RF-21).
   description: |
+    **Implementado en MATU-61 (11-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `ficha.openapi.yaml`.
+
     Contrato **propuesto** de MATU-61, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con las decisiones D1 a D12 de Jorge del 11-11 y las condiciones C1 a C25 de la revisión
     previa del analista normativo (`docs/legal/revision-previa-matu-61.md` del repositorio MATU). Las

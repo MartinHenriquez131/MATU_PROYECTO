@@ -52,8 +52,14 @@ def _despacho_que_quedo(familia: FamiliaCreada) -> uuid.UUID:
             "INSERT INTO consentimiento (id, grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
             " version_politica, evidencia, otorgado_en) VALUES (%s, %s, %s, %s, 'titular', 'despacho', '0.11',"
             " %s::jsonb, %s)",
-            (consentimiento, familia.grupo.id, familia.persona.id, familia.admin.id, json.dumps(datos),
-             datetime.now(UTC)),
+            (
+                consentimiento,
+                familia.grupo.id,
+                familia.persona.id,
+                familia.admin.id,
+                json.dumps(datos),
+                datetime.now(UTC),
+            ),
         )
     return consentimiento
 
@@ -68,9 +74,15 @@ def test_sin_la_capa_3_son_dos_autorizaciones_y_despacho_no_existe(
     estado = entorno_iam.cliente.get(ruta, headers=cab)
     assert [a["finalidad"] for a in estado.json()["autorizaciones"]] == ["plan_cuidado", "consumo"]
 
-    otorgar = entorno_iam.cliente.post(ruta, headers=cab, json={
-        "finalidad": "despacho", "calidad_otorgante": "titular",
-        "huella_declaracion": huella_declaracion_pedidos(CalidadOtorgante.TITULAR)})
+    otorgar = entorno_iam.cliente.post(
+        ruta,
+        headers=cab,
+        json={
+            "finalidad": "despacho",
+            "calidad_otorgante": "titular",
+            "huella_declaracion": huella_declaracion_pedidos(CalidadOtorgante.TITULAR),
+        },
+    )
     assert otorgar.status_code == 422 and otorgar.json()["errores"][0]["campo"] == "finalidad"
     assert entorno_iam.cliente.post(ruta + "/despacho/retiro", headers=cab).status_code == 404
 
@@ -102,3 +114,35 @@ def test_con_la_capa_3_son_tres_autorizaciones(entorno_iam: EntornoIam, fabrica_
     assert [a["finalidad"] for a in estado["autorizaciones"]] == ["plan_cuidado", "consumo", "despacho"]
     despacho = estado["autorizaciones"][2]
     assert (despacho["estado"], despacho["borrado_en"], despacho["borrada"]) == ("sin_autorizar", None, False)
+
+
+def test_la_direccion_con_su_precondicion_y_sus_roles(entorno_iam: EntornoIam, fabrica_despacho: Fabrica) -> None:
+    """D4, C6 y C8: admin y cuidador, If-Match obligatorio, 404 a pagador y observador, auditada sin contenido."""
+    familia = fabrica_despacho.familia()
+    ruta = f"/v1/personas-cuidadas/{familia.persona.id}/direccion"
+    cab = _cabeceras(entorno_iam, familia.admin, familia)
+    cuerpo = {"calle": "Calle de Prueba", "numero": "9", "comuna": "Comuna Sintética"}
+    cliente = entorno_iam.cliente
+
+    assert cliente.put(ruta, headers=cab, json=cuerpo).status_code == 428
+    viejo = cliente.put(ruta, headers={**cab, "If-Match": '"v9"'}, json=cuerpo)
+    assert viejo.status_code == 412 and viejo.json()["actual"]["etag"] == '"v1"'
+    assert cliente.put(ruta, headers={**cab, "If-Match": '"v1"'}, json={**cuerpo, "lat": -33.4}).status_code == 422
+    for rol in ("pagador", "observador"):
+        otro = _cabeceras(entorno_iam, familia.miembros[rol].usuario, familia)
+        assert cliente.put(ruta, headers={**otro, "If-Match": '"v1"'}, json=cuerpo).status_code == 404, rol
+
+    cambiada = cliente.put(ruta, headers={**cab, "If-Match": '"v1"'}, json=cuerpo)
+    assert cambiada.status_code == 200 and cambiada.headers["ETag"] == '"v2"'
+    assert cambiada.headers["Cache-Control"] == "no-store"
+    assert cliente.delete(ruta, headers={**cab, "If-Match": '"v2"'}).status_code == 204
+    assert cliente.delete(ruta, headers={**cab, "If-Match": '"v2"'}).status_code == 404
+    primera = cliente.put(ruta, headers={**cab, "If-None-Match": "*"}, json=cuerpo)
+    assert primera.status_code == 200 and primera.json()["etag"] == '"v1"'
+    with psycopg.connect(DSN) as cx:
+        filas = cx.execute(
+            "SELECT entidad, detalle FROM auditoria WHERE accion = 'direccion.cambiar' AND grupo_id = %s",
+            (familia.grupo.id,),
+        ).fetchall()
+    assert filas == [("direccion", None)] * 3
+    assert "Calle de Prueba" not in entorno_iam.texto_log()

@@ -13,7 +13,8 @@ docs/api/
     ├── app-familia.openapi.yaml  MATU-32: sesión, dispositivos, autorización para el consumo, consumo y alertas
     │                             (implementados), y MATU-60: lista de insumos y unidades por envase (implementados)
     └── pedido.openapi.yaml       MATU-61: autorización de pedidos, dirección, carrito, reglas si falta un producto,
-                                  total confirmado y cancelar sin pagar (propuesto, decisiones 188 a 219)
+                                  total confirmado y cancelar sin pagar (implementado en MATU-61, decisiones 188 a
+                                  221; se conserva como explicación y manda openapi.json)
 ```
 
 ## Propuestos e implementados
@@ -78,18 +79,18 @@ docs/api/
 | `POST /v1/cuenta/celular/verificar` | MATU-57 (RF-37) | Implementado. En `openapi.json` desde MATU-57 |
 | `GET /v1/yo/avisos` | MATU-41 (RF-39, decisión 111) | Implementado. En `openapi.json` desde MATU-41. Sin pantalla: la pantalla es de MATU-55 |
 | `PUT /v1/yo/avisos` | MATU-41 (RF-39, decisión 111) | Implementado. En `openapi.json` desde MATU-41. Sin pantalla: la pantalla es de MATU-55 |
-| `PUT /v1/personas-cuidadas/{persona_id}/direccion` | MATU-61 (D4) | **Propuesto** (decisiones 189 a 191 y 219). Contrato en `pedido.openapi.yaml` |
-| `DELETE /v1/personas-cuidadas/{persona_id}/direccion` | MATU-61 (C6) | **Propuesto** (decisiones 216 y 219). Vaciar la dirección |
-| `POST /v1/personas-cuidadas/{persona_id}/pedidos` | MATU-61 (RF-21) | **Propuesto** (decisiones 193 a 196). Capa 3. Contrato en `pedido.openapi.yaml` |
-| `GET /v1/personas-cuidadas/{persona_id}/pedido-en-curso` | MATU-61 (C4) | **Propuesto** (decisión 197). Capa 3 |
-| `GET /v1/pedidos/{pedido_id}` | MATU-61 | **Propuesto** (decisión 198). Capa 3 |
-| `PUT /v1/pedidos/{pedido_id}/lineas` | MATU-61 | **Propuesto** (decisión 199). Capa 3 |
-| `PUT /v1/pedidos/{pedido_id}/reglas-faltante` | MATU-61 (RF-21) | **Propuesto** (decisión 200). Capa 3 |
-| `POST /v1/pedidos/{pedido_id}/confirmar` | MATU-61 (ADR-027) | **Propuesto** (decisiones 201 a 205). Capa 3 |
-| `PUT /v1/pedidos/{pedido_id}/contacto` | MATU-61 (D4) | **Propuesto** (decisión 203). Capa 3 |
-| `POST /v1/pedidos/{pedido_id}/cambiar` | MATU-61 (C1, C9) | **Propuesto** (decisión 218). Capa 3 |
-| `POST /v1/pedidos/{pedido_id}/cancelar` | MATU-61 | **Propuesto** (decisión 206). Capa 3 |
-| `GET /v1/condiciones-pedido` | MATU-61 (D6) | **Propuesto** (decisión 207). Pública. Capa 3 |
+| `PUT /v1/personas-cuidadas/{persona_id}/direccion` | MATU-61 (D4) | Implementado. En `openapi.json` desde MATU-61 (decisiones 189 a 191 y 219) |
+| `DELETE /v1/personas-cuidadas/{persona_id}/direccion` | MATU-61 (C6) | Implementado. En `openapi.json` desde MATU-61 (decisiones 216 y 219). Vaciar la dirección |
+| `POST /v1/personas-cuidadas/{persona_id}/pedidos` | MATU-61 (RF-21) | Implementado. En `openapi.json` desde MATU-61 (decisiones 193 a 196). Capa 3 |
+| `GET /v1/personas-cuidadas/{persona_id}/pedido-en-curso` | MATU-61 (C4) | Implementado. En `openapi.json` desde MATU-61 (decisión 197). Capa 3 |
+| `GET /v1/pedidos/{pedido_id}` | MATU-61 | Implementado. En `openapi.json` desde MATU-61 (decisión 198). Capa 3 |
+| `PUT /v1/pedidos/{pedido_id}/lineas` | MATU-61 | Implementado. En `openapi.json` desde MATU-61 (decisión 199). Capa 3 |
+| `PUT /v1/pedidos/{pedido_id}/reglas-faltante` | MATU-61 (RF-21) | Implementado. En `openapi.json` desde MATU-61 (decisión 200). Capa 3 |
+| `POST /v1/pedidos/{pedido_id}/confirmar` | MATU-61 (ADR-027) | Implementado. En `openapi.json` desde MATU-61 (decisiones 201 a 205). Capa 3 |
+| `PUT /v1/pedidos/{pedido_id}/contacto` | MATU-61 (D4) | Implementado. En `openapi.json` desde MATU-61 (decisión 203). Capa 3 |
+| `POST /v1/pedidos/{pedido_id}/cambiar` | MATU-61 (C1, C9) | Implementado. En `openapi.json` desde MATU-61 (decisión 218). Capa 3 |
+| `POST /v1/pedidos/{pedido_id}/cancelar` | MATU-61 | Implementado. En `openapi.json` desde MATU-61 (decisión 206). Capa 3 |
+| `GET /v1/condiciones-pedido` | MATU-61 (D6) | Implementado. En `openapi.json` desde MATU-61 (decisión 207). Pública. Capa 3 |
 
 Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). Desde MATU-67, `/version.json` entrega el identificador del build con `Cache-Control: no-store`, y 404 RFC 7807 si no está en el build, nunca el `index.html` (decisión 172). `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
@@ -1342,6 +1343,11 @@ La numeración sigue en la 188: la última de `main` es la 187 (MATU-74), y ning
 217. **La capa 3 apagada** (C2, resuelve P15). Sin `CAPA3_HABILITADA`, `despacho` no es una finalidad activa: no se otorga (422 en `finalidad`), no se retira por la ruta (404), no viene en `GET …/consentimientos` (dos ítems) y su efecto no se registra. El borrado de la persona (MATU-72) **sigue funcionando**: revoca toda autorización no revocada, también una `despacho` de cuando la capa estaba encendida, con motivo `borrado`, y no toca los pedidos (la capa 3 no está). Con la capa 3 encendida, el efecto de `despacho` es obligatorio: si falta, el retiro y el borrado fallan cerrados (500), y si cancelar los pedidos falla, se deshace todo. Lo prueba `tests/test_capa3_desacoplable.py`.
 218. **Cambiar el pedido: `POST /v1/pedidos/{pedido_id}/cambiar`** (C1 y C9). `total_confirmado → borrador` con el total vigente y `vencido → borrador` con el total vencido (si la fila todavía dice `total_confirmado`, primero se guarda `total_confirmado → vencido`, decisión 204); en `borrador` y en los demás estados, 409 `estado-pedido`. Descarta el total, las partes por comercio y la copia de la entrega; cada línea vuelve al precio y al comercio del carrito (también las que salieron); las reglas se conservan. Transición con motivo `familia_cambia_carrito`. `admin` y `cuidador`, con la autorización `despacho` vigente (403) e `Idempotency-Key` (arquitectura 9.1). No se audita (D12 no lo lista).
 219. **La dirección no pide la autorización `despacho`** (C8 de Jorge). Leer (en la persona), cambiar (`PUT`) y vaciar (`DELETE`) la dirección son de la persona, no del pedido: los hacen `admin` y `cuidador` con la autorización de pedidos vigente, vencida, retirada o nunca dada, y nunca responden 403. El pagador la ve y el observador no (C3). La autorización se exige solo en crear, ajustar, reglas, confirmar, teléfono y cambiar.
+
+220. **Los 30 días de lo no pagado corren desde el último cambio** (C10 de Jorge, sobre D5). Un borrador, desde su último cambio (agregar, quitar, cambiar cantidad o regla: cada uno sube la versión y `pedido.actualizado_en`); un total confirmado o vencido, desde que venció (`total_vence_en`); un cancelado, desde que se canceló. `pedido_conservar(limite, ahora)` (migración 0023) borra los no pagados con `GREATEST(actualizado_en, total_vence_en) <= limite`, con sus líneas, reglas, partes, entrega, transiciones y claves; la tarea es `conservacion_pedidos`, dentro de `borrados`.
+221. **Textos con huella.** Las tres declaraciones `declaracion_pedidos_<calidad>` son las de la política, sección 5, «La autorización para los pedidos», aprobadas por Jorge el 11-11, y `huella_declaracion` es la SHA-256 de ese texto exacto (sin marcadores: no llevan `{nombre_pila}`). La huella de las condiciones del pedido se calcula sobre `docs/legal/condiciones-pedido.md` **desde «## 1. Quién vende» hasta el final** (el encabezado queda fuera, como la política desde «En un minuto»), y ese es el `texto` que entrega `GET /v1/condiciones-pedido`, versión `0.1`.
+
+**Implementado en MATU-61 (11-11).** Las rutas pasaron a `openapi.json`, exportado desde `app.openapi()` con `CAPA3_HABILITADA=true` (sin las del relevo, que siguen en `relevo.openapi.yaml`). `pedido.openapi.yaml` se conserva como explicación de las decisiones, como `ficha.openapi.yaml`; manda `openapi.json`. Diferencias con el propuesto que se aceptan: los errores se declaran como `application/problem+json` sin esquema (como el resto de `openapi.json`), `If-Match`, `If-None-Match` e `Idempotency-Key` salen como `string` (su forma la valida la ruta: 422 o 428), y `X-Grupo-Id` como `string | null`. Migración 0023; el backend no crea el cargo (MATU-62).
 
 ### Para Jorge (MATU-61)
 
