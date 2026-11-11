@@ -61,9 +61,23 @@ AHORA = datetime(2026, 11, 20, 14, 5, tzinfo=UTC)
 
 def test_son_los_17_estados_del_check_de_pedido() -> None:
     assert {e.value for e in Estado} == {
-        "borrador", "total_confirmado", "vencido", "pagado", "enviado_a_comercio", "preparando", "listo_retiro",
-        "asignado", "sin_repartidor", "retirado", "en_ruta", "entregado", "no_entregado", "reprogramado", "cerrado",
-        "cancelado", "cancelado_con_devolucion",
+        "borrador",
+        "total_confirmado",
+        "vencido",
+        "pagado",
+        "enviado_a_comercio",
+        "preparando",
+        "listo_retiro",
+        "asignado",
+        "sin_repartidor",
+        "retirado",
+        "en_ruta",
+        "entregado",
+        "no_entregado",
+        "reprogramado",
+        "cerrado",
+        "cancelado",
+        "cancelado_con_devolucion",
     }
     assert len(PARES) == 289
 
@@ -119,7 +133,11 @@ def test_todo_estado_es_alcanzable_desde_borrador_salvo_los_de_la_fase_2() -> No
 
 def test_los_motivos_son_la_lista_cerrada_de_c19() -> None:
     assert {m.value for m in Motivo} == {
-        "total_vencio", "familia_cancela", "familia_cambia_carrito", "autorizacion_retirada", "persona_borrada"
+        "total_vencio",
+        "familia_cancela",
+        "familia_cambia_carrito",
+        "autorizacion_retirada",
+        "persona_borrada",
     }
 
 

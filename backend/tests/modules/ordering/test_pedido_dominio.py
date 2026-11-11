@@ -49,8 +49,12 @@ OTRA_MARCA = Producto(uuid.UUID(int=13), "Pañal adulto M de otra marca", "Paque
 
 
 def _oferta(producto: Producto, comercio: Comercio, precio: int) -> Oferta:
-    return Oferta(id=uuid.uuid5(uuid.NAMESPACE_OID, f"{producto.id}{comercio.id}"), producto=producto,
-                  comercio=comercio, precio=precio)
+    return Oferta(
+        id=uuid.uuid5(uuid.NAMESPACE_OID, f"{producto.id}{comercio.id}"),
+        producto=producto,
+        comercio=comercio,
+        precio=precio,
+    )
 
 
 def _linea(oferta: Oferta, cantidad: int = 1, regla: Regla = Regla.OTRO_COMERCIO) -> Linea:
@@ -84,11 +88,13 @@ def _pedido(*lineas: Linea, costo_envio: int = 3990) -> Pedido:
     )
 
 
-def _confirmado(pedido: Pedido, ofertas: dict[uuid.UUID, list[Oferta]], hay: dict[tuple[uuid.UUID, uuid.UUID], bool]
-                ) -> Pedido:
+def _confirmado(
+    pedido: Pedido, ofertas: dict[uuid.UUID, list[Oferta]], hay: dict[tuple[uuid.UUID, uuid.UUID], bool]
+) -> Pedido:
     lineas = aplicar_confirmacion(pedido, confirmar_lineas(pedido.lineas, ofertas, hay))
-    return replace(pedido, estado=Estado.TOTAL_CONFIRMADO, total_confirmado_en=AHORA, total_vence_en=AHORA,
-                   lineas=lineas)
+    return replace(
+        pedido, estado=Estado.TOTAL_CONFIRMADO, total_confirmado_en=AHORA, total_vence_en=AHORA, lineas=lineas
+    )
 
 
 # --- Roles (C3) ---------------------------------------------------------------------------------------------------
@@ -147,8 +153,11 @@ def test_reglas_por_omision_otro_comercio_y_errores() -> None:
     assert reglas == {PANAL.id: Regla.OTRO_COMERCIO, TOALLAS.id: Regla.QUITAR}
     with pytest.raises(CarritoInvalido) as error:
         armar_reglas(
-            [ReglaPedida(OTRA_MARCA.id, Regla.QUITAR), ReglaPedida(PANAL.id, Regla.QUITAR),
-             ReglaPedida(PANAL.id, Regla.OTRO_COMERCIO)],
+            [
+                ReglaPedida(OTRA_MARCA.id, Regla.QUITAR),
+                ReglaPedida(PANAL.id, Regla.QUITAR),
+                ReglaPedida(PANAL.id, Regla.OTRO_COMERCIO),
+            ],
             [PANAL.id],
         )
     assert [e.tipo for e in error.value.errores] == ["producto_no_esta", "producto_repetido"]
@@ -227,7 +236,8 @@ def test_total_es_la_suma_exacta_mas_un_envio_y_lo_que_salio_no_suma() -> None:
     assert isinstance(confirmado.total, int)
     assert [x.producto for x in confirmado.salieron()] == [OTRA_MARCA]
     assert [(p.comercio, p.subtotal_productos) for p in partes_por_comercio(confirmado.lineas)] == [
-        (UNO, 37980), (DOS, 4490)
+        (UNO, 37980),
+        (DOS, 4490),
     ]
 
 
@@ -264,8 +274,9 @@ def test_volver_al_carrito_recupera_lo_que_salio_y_el_precio_visto() -> None:
     """C1 y C9: «Cambiar el pedido» devuelve cada línea al carrito, también la que salió."""
     a, b = _oferta(PANAL, UNO, 3990), _oferta(PANAL, DOS, 4490)
     t = _oferta(TOALLAS, UNO, 4490)
-    confirmado = _confirmado(_pedido(_linea(a), _linea(t)), {PANAL.id: [a, b], TOALLAS.id: [t]},
-                             {(DOS.id, PANAL.id): True})
+    confirmado = _confirmado(
+        _pedido(_linea(a), _linea(t)), {PANAL.id: [a, b], TOALLAS.id: [t]}, {(DOS.id, PANAL.id): True}
+    )
     assert any(x.salio for x in confirmado.lineas)
     for linea in volver_al_carrito(confirmado.lineas):
         assert not linea.salio and linea.retracto_copiado is None

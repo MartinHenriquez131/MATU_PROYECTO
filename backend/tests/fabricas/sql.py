@@ -96,6 +96,9 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM evento_outbox WHERE grupo_id = ANY(%s::uuid[])",
     # MATU-36: sus reposiciones y alertas caen por ON DELETE CASCADE
     "DELETE FROM perfil_consumo WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-61: los pedidos del grupo; sus líneas, reglas, partes, entrega, transiciones y claves caen en cascada
+    "DELETE FROM idempotencia WHERE grupo_id = ANY(%s::uuid[])",
+    "DELETE FROM pedido WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])",

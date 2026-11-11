@@ -1,14 +1,10 @@
-# Condiciones del pedido de MATU
-
-Versión 0.1 del piloto académico. En el piloto no se cobra dinero real.
-
 ## 1. Quién vende
 
-Durante el piloto vende MATU, piloto académico, sin persona jurídica. En este piloto no se emite boleta.
+Durante el piloto vende MATU, piloto académico, sin persona jurídica. En el piloto no se emite boleta. [PENDIENTE: persona jurídica y boleta, CL-46 y CL-47]
 
 ## 2. Qué compras y cuánto pagas
 
-- Cada producto tiene un precio exacto con IVA, del comercio en convenio que lo prepara.
+- Cada producto tiene un precio exacto, con IVA incluido, del comercio en convenio que lo prepara.
 - Se suma un solo envío por pedido, aunque lo preparen varios comercios.
 - Antes de pagar confirmamos que haya cada producto. Lo que no hay sale del pedido y lo ves antes de pagar.
 - El total confirmado vale 15 minutos. Si vence, se vuelve a confirmar y te mostramos lo que cambió.
@@ -29,11 +25,11 @@ Antes de pagar eliges, por cada producto, si lo buscamos en otro comercio o si l
 
 ## 5. Entrega
 
-Entre 24 y 48 horas hábiles. Si no podemos cumplirla, te avisamos y eliges entre esperar o recibir la devolución.
+Durante el piloto, el pedido llega entre 24 y 48 horas hábiles. Te lo mostramos antes de pagar. Si no podemos cumplirlo, te avisamos y eliges entre esperar o recibir la devolución.
 
 ## 6. Derecho a retracto
 
-Tienes 10 días desde que recibes el producto. En los productos de uso personal o de higiene sellados, se pierde solo si abres el sello. MATU devuelve también el envío y paga el retiro. Lo pides en el pedido entregado, con «Arrepentirme de la compra». Todavía no definimos cómo aplica a algunos productos ni el medio de devolución si pasa el plazo de anulación de la tarjeta: lo publicaremos antes de usar MATU con dinero real.
+Tienes 10 días desde que recibes el producto. En los productos de uso personal o de higiene sellados, se pierde solo si abres el sello. MATU devuelve también el envío y paga el retiro. Lo pides en el pedido entregado, con «Arrepentirme de la compra». [PENDIENTE: CL-41, suplemento y bolsas colectoras; medio de devolución si se pasa el plazo de anulación de Transbank]
 
 ## 7. Si algo no llega
 
@@ -41,7 +37,7 @@ MATU responde ante ti y devuelve el mismo día lo que no se entregó. Estas cond
 
 ## 8. Reclamos
 
-Reclamos: cuidaconmatu@gmail.com
+Reclamos: escribe a cuidaconmatu@gmail.com.
 
 ## 9. Tus datos
 

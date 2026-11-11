@@ -1,9 +1,10 @@
 """Las condiciones del pedido vigentes (MATU-61, D6, R13; decisión 207).
 
-Una sola fuente en el backend: app/modules/ordering/condiciones/condiciones-pedido-<versión>.md, el texto para la
-persona de docs/legal/condiciones-pedido.md (v0.1 del piloto, aprobada por Jorge el 11-11), sin las notas internas
-ni las citas a consultas legales. Tienen versión propia, separada de la política (D6). La huella es la SHA-256 del
-texto exacto que se entrega (UTF-8, saltos LF), como la de la política (MATU-75).
+Una sola fuente en el backend: app/modules/ordering/condiciones/condiciones-pedido-<versión>.md, copia exacta de
+docs/legal/condiciones-pedido.md del repositorio MATU (v0.1 del piloto, aprobada por Jorge el 11-11) desde
+«## 1. Quién vende» hasta el final: el encabezado queda fuera, como la política cuenta desde «En un minuto» (decisión
+de Jorge del 11-11). Tienen versión propia, separada de la política (D6). La huella es la SHA-256 de ese texto exacto,
+el que se entrega (UTF-8, saltos LF).
 
 PUBLICADAS ata cada versión a su huella: si el archivo cambia y la tabla no, las condiciones no se sirven y la
 prueba falla. Un texto nuevo es una versión nueva.
@@ -21,7 +22,7 @@ CARPETA = Path(__file__).resolve().parents[1] / "condiciones"
 VERSION_VIGENTE = "0.1"
 
 PUBLICADAS: dict[str, tuple[date, str]] = {
-    "0.1": (date(2026, 11, 11), "38f4c899b183d16a1aecabb6889dec61ef39926e0a0a5c90a75f1080c3aaea9b"),
+    "0.1": (date(2026, 11, 11), "966f02be1457944be712d8c064ce19aeb6cff25e9543083f96c8e21fc7f08e4f"),
 }
 ENLACE: Final = "/v1/condiciones-pedido"
 
