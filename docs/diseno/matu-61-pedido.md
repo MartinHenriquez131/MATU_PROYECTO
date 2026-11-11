@@ -1,6 +1,7 @@
 # MATU-61 · Pedido: carrito y qué hacer si falta un producto · Especificación de diseño
 
-**Versión 1.0 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.1 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.1:** las decisiones de Jorge del 11-11 sobre el contrato. Se citan **JC1** a **JC7** (en su mensaje, C1 a C7) para no confundirlas con las condiciones C1 a C25 del analista, y **JC-IVA** la del IVA: en Chile todos los precios llevan el IVA incluido, y nunca se presenta como algo que se suma. Cierra los puntos O1 a O11 (sección 0), agrega «Cambiar el pedido» (9.12) y «Vaciar la dirección» (8.7), y abre O12.
 **Historia:** MATU-61, el pedido de la familia hasta el total confirmado (RF-21, ADR-027, capa 3). Carmen junta productos del catálogo o de su lista de insumos, dice cuántos quiere y qué hacer si falta cada uno, deja la dirección una vez y ve el total confirmado antes de pagar. **La historia termina en el resumen con el total confirmado.** El botón «Pagar» es de **MATU-62**: aquí se dice dónde va y cómo se ve, nada más.
 **Dónde se construye:** `web/`, en la app de la familia, React 19, TypeScript y Tailwind CSS v4, mobile first.
 
@@ -9,6 +10,7 @@
 **Cómo se lee:** los textos entre comillas latinas «» van tal cual en pantalla. Marcas de origen:
 - **[A4]** texto propuesto por el analista en su sección 4, que entra a `lenguaje.md` 31 con esta especificación;
 - **[D8]**, **[D9]**, **[D10]** texto que fijó Jorge en esa decisión;
+- **[JC-IVA]** texto que cambia por la decisión del IVA;
 - **[L nn]** texto ya aprobado en esa sección de `lenguaje.md`;
 - **[AJUSTE]** un texto de [A4] o de [L nn] que cambio, con el porqué;
 - **[NUEVO]** un texto mío, que Jorge aprueba antes de construir.
@@ -19,23 +21,24 @@ Las llaves son datos de la API: `{producto}` es el `nombre` del producto, `{come
 
 ---
 
-## 0. Puntos abiertos
+## 0. Puntos abiertos y cómo se resolvieron
 
-Cada punto trae la opción que usa esta especificación. Si la persona elige otra, cambio la sección que se indica.
+O1 a O11 quedaron **resueltos** el 11-11 con las decisiones de Jorge (JC1 a JC7). La columna de la derecha dice qué se decidió y dónde cambió la especificación. Queda abierto O12.
 
-| # | Qué | Para quién | Opción por defecto (la de esta especificación) |
+| # | Qué | Para quién | Resolución |
 |---|---|---|---|
-| O1 | **Quién arma, quién ve y quién confirma.** Lo fija la arquitectura 11.2, y el contrato propuesto la sigue (`docs/api/propuestos/pedido.openapi.yaml`, P5 por aprobar) | Jorge | **Admin y cuidador** arman el carrito, eligen la regla, cambian la dirección y el teléfono, y confirman el total. **El pagador** ve el carrito y el resumen sin cambiar nada y **no confirma** (11.2 le da «ver» y «pagar», ningún «confirmar»). **El observador** ve el carrito sin la entrega y sin el resumen (`PedidoVistaObservador`). **Para MATU-62:** si el pagador paga, un total vencido lo tiene que volver a confirmar quien armó el pedido (9.11) |
-| O2 | **Cómo entra un producto desde el catálogo.** El carrito tiene que mostrar un precio, y el cambio de precio se marca contra el precio que vio la familia (C15). Ese precio es de un comercio | Jorge y backend | **«Agregar al pedido» en cada fila de comercio que dice «Hay»** (sección 5). La familia elige el comercio igual que hoy lee su precio, sin que la pantalla recomiende ninguno. Al confirmar, MATU puede moverlo a otro comercio, y el resumen lo marca |
-| O3 | **Cómo pasa la lista de insumos al pedido** (D10). Hoy `LineaListaInsumos` no trae el producto del catálogo, una línea puede no estar en el catálogo (`nombre_libre`, o agregada a mano) y el envase que anotó la familia puede no ser el del catálogo (20 unidades contra «x30») | Backend y Jorge | Pasan **solo las líneas con producto del catálogo**, con la cantidad que se ve en pantalla convertida a envases del catálogo y redondeada hacia arriba (6.3). El comercio de cada una es la primera oferta con «Hay» en el orden del catálogo (por `nombre_fantasia`, nunca por precio). Las que no están en el catálogo se nombran al llegar al carrito. El contrato propuesto ya suma `producto_id` a la lista (`CambioLineaListaInsumos`) y crea el pedido con los `oferta_id` que arma la pantalla |
-| O4 | **Un producto de la lista que ya estaba en el carrito** | Jorge | Queda **una sola línea, con la cantidad de la lista**, y se dice al llegar (6.4). Sumar daría de más: la lista ya calcula lo que falta |
-| O5 | **Cambiar la dirección con el total ya confirmado.** La dirección se copia al pedido al confirmar (D4) | Backend | Al guardar una dirección nueva desde el resumen, la pantalla vuelve a confirmar el total y muestra la hora nueva (8.6). Si el backend prefiere copiar la dirección sin reconfirmar, se quita ese paso y nada más cambia |
-| O6 | **Dónde se leen las condiciones del pedido.** El resumen las enlaza (D6). El contrato propuesto trae `GET /v1/condiciones-pedido`, pública | Orquestador | Página pública `/condiciones-pedido` de la app, con el mismo armado de `/privacidad` (MATU-75), que se abre en otra pestaña para no perder el resumen |
-| O7 | **La dirección de la persona al retirar la autorización de pedidos.** D1 dice que se cancelan los pedidos sin pagar y se borra su entrega. No dice qué pasa con `persona_cuidada.direccion_entrega_id` | Analista | La confirmación del retiro (12.3) no promete nada sobre esa dirección. Si el analista decide borrarla, se agrega un punto a la lista |
-| O8 | **«Pedir estos productos» en la lista: ¿principal o secundario?** La lista ya tiene su acción principal («Compartir la lista» o «Imprimir…») y una sola cabe por pantalla | Jorge | **Secundario**, en un bloque propio después de los botones de la lista (6.1). La lista sirve sin la capa 3, y sacarla no debe cambiar cuál es la acción principal |
-| O9 | **«Nunca lo cambiamos por otra marca ni por otro producto»: ¿en cada línea?** El analista lo pone en el bloque «RF-21, en cada línea» | Jorge | **Se ve una vez**, sobre las líneas, y **se lee en cada línea**: cada grupo «Si falta este producto» la lleva en su `aria-describedby` (7.6). Repetida en cada línea, con cuatro productos son cuatro renglones iguales en el teléfono **[AJUSTE]** |
-| O10 | **El envío en el carrito.** El contrato propuesto entrega `costo_envio` ya en `borrador` (P12, por aprobar) | Jorge | El carrito **no** muestra el envío ni un total: «El envío y el total con IVA los ves al confirmar…» (7.9). Si Jorge aprueba P12 y lo quiere a la vista, se suma un renglón «Envío (uno por pedido)» bajo «Productos», nunca un total sin confirmar |
-| O11 | **Tres datos que el contrato propuesto todavía no trae** | Backend | (a) los segundos que quedan al responder (`vigencia_segundos`), para el aviso de los 2 minutos sin depender del reloj del teléfono (9.5); sin ellos, la pantalla calcula con `vence_en` y la cabecera `Date` de la respuesta. (b) `unidad` y `unidades_por_envase` en `ProductoPedido`, para el sufijo de la cantidad (7.5); sin ellos, el sufijo es «envases» («envase» con 1). (c) `ventana_entrega` también en `borrador`, para «Llega entre…» del carrito (7.8); sin ella, esa línea no va en el carrito. (d) **Bloqueante para C23:** el contrato propuesto responde 409 `estado-pedido` a `confirmar` con el total **todavía vigente**. El aviso de los 2 minutos ofrece «Volver a confirmar» antes de que venza (9.5), y cambiar la dirección desde el resumen también vuelve a confirmar (O5). `confirmar` tiene que aceptar `total_confirmado` vigente y dar 15 minutos nuevos; si no, el aviso de 9.5 no puede extender el plazo y no cumple WCAG 2.2.1 |
+| O1 | **Quién arma, quién ve y quién confirma.** Lo fija la arquitectura 11.2, y el contrato propuesto la sigue (`docs/api/propuestos/pedido.openapi.yaml`, P5) | Jorge | **Resuelto (JC3)**, como lo proponía: **admin y cuidador** arman el carrito, eligen la regla, cambian la dirección y el teléfono, confirman el total, usan «Cambiar el pedido» y **cancelan sin pagar** (10). **El pagador** ve el carrito y el resumen sin cambiar nada, **no confirma** y no cancela. **El observador** ve el carrito sin la entrega y sin el resumen (`PedidoVistaObservador`). **Para MATU-62:** si el pagador paga, un total vencido lo tiene que volver a confirmar quien armó el pedido (9.11) |
+| O2 | **Cómo entra un producto desde el catálogo.** El carrito tiene que mostrar un precio, y el cambio de precio se marca contra el precio que vio la familia (C15). Ese precio es de un comercio | Jorge y backend | **Resuelto (JC7), como lo proponía.** **«Agregar al pedido» en cada fila de comercio que dice «Hay»** (sección 5). La familia elige el comercio igual que hoy lee su precio, sin que la pantalla recomiende ninguno. Al confirmar, MATU puede moverlo a otro comercio, y el resumen lo marca |
+| O3 | **Cómo pasa la lista de insumos al pedido** (D10). Hoy `LineaListaInsumos` no trae el producto del catálogo, una línea puede no estar en el catálogo (`nombre_libre`, o agregada a mano) y el envase que anotó la familia puede no ser el del catálogo (20 unidades contra «x30») | Backend y Jorge | **Resuelto (JC7), como lo proponía.** Pasan **solo las líneas con producto del catálogo**, con la cantidad que se ve en pantalla convertida a envases del catálogo y redondeada hacia arriba (6.3). El comercio de cada una es la primera oferta con «Hay» en el orden del catálogo (por `nombre_fantasia`, nunca por precio). Las que no están en el catálogo se nombran al llegar al carrito. El contrato propuesto ya suma `producto_id` a la lista (`CambioLineaListaInsumos`) y crea el pedido con los `oferta_id` que arma la pantalla |
+| O4 | **Un producto de la lista que ya estaba en el carrito** | Jorge | **Resuelto (JC7), como lo proponía.** Queda **una sola línea, con la cantidad de la lista**, y se dice al llegar (6.4). Sumar daría de más: la lista ya calcula lo que falta |
+| O5 | **Cambiar la dirección con el total ya confirmado.** La dirección se copia al pedido al confirmar (D4) | Backend | **Resuelto (JC1).** `confirmar` acepta también el total **vigente** y da 15 minutos nuevos. Al guardar una dirección nueva desde el resumen, la pantalla vuelve a confirmar sin cancelar y muestra la hora nueva (8.6) |
+| O6 | **Dónde se leen las condiciones del pedido.** El resumen las enlaza (D6). El contrato propuesto trae `GET /v1/condiciones-pedido`, pública | Orquestador | **Resuelto (JC7), como lo proponía.** Página pública `/condiciones-pedido` de la app, con el mismo armado de `/privacidad` (MATU-75), que se abre en otra pestaña para no perder el resumen |
+| O7 | **La dirección de la persona al retirar la autorización de pedidos.** D1 dice que se cancelan los pedidos sin pagar y se borra su entrega. No dice qué pasa con `persona_cuidada.direccion_entrega_id` | Analista | **Resuelto (JC6).** La dirección de la persona **se conserva** al retirar la autorización, y la confirmación del retiro lo dice (12.2). Admin y cuidador la pueden **vaciar** desde «¿Dónde lo entregamos?», con su confirmación (8.7). Cómo se llega a esa pantalla con la autorización retirada queda en O12 |
+| O8 | **«Pedir estos productos» en la lista: ¿principal o secundario?** La lista ya tiene su acción principal («Compartir la lista» o «Imprimir…») y una sola cabe por pantalla | Jorge | **Resuelto (JC7), como lo proponía.** **Secundario**, en un bloque propio después de los botones de la lista (6.1). La lista sirve sin la capa 3, y sacarla no debe cambiar cuál es la acción principal |
+| O9 | **«Nunca lo cambiamos por otra marca ni por otro producto»: ¿en cada línea?** El analista lo pone en el bloque «RF-21, en cada línea» | Jorge | **Resuelto (JC7), como lo proponía.** **Se ve una vez**, sobre las líneas, y **se lee en cada línea**: cada grupo «Si falta este producto» la lleva en su `aria-describedby` (7.6). Repetida en cada línea, con cuatro productos son cuatro renglones iguales en el teléfono **[AJUSTE]** |
+| O10 | **El envío en el carrito.** El contrato propuesto entrega `costo_envio` ya en `borrador` (P12, por aprobar) | Jorge | **Resuelto (JC5).** El carrito **no** muestra el envío ni un total: «El envío y el total los ves al confirmar…» (7.9). Sin renglón de envío en el carrito |
+| O11 | **Datos que el contrato propuesto no traía** | Backend | **Resuelto (JC1, JC4 y JC7).** El pedido se lee con `GET …/personas-cuidadas/{persona_id}/pedido-en-curso`, uno por persona (JC4, sección 3.1 y 7.2). (a) los segundos que quedan al responder (`vigencia_segundos`), para el aviso de los 2 minutos (9.5): si el contrato final no los trae, la pantalla calcula con `vence_en` y la cabecera `Date` de la respuesta, nunca con el reloj del teléfono solo. (b) `unidad` y `unidades_por_envase` en `ProductoPedido`, para el sufijo de la cantidad (7.5): si no vienen, el sufijo es «envases» («envase» con 1). (c) `ventana_entrega` también en `borrador` (JC7): el carrito muestra «Llega entre…» (7.8). (d) `confirmar` acepta `total_confirmado` vigente y da 15 minutos nuevos (JC1): «Volver a confirmar» del aviso de los 2 minutos (9.5) y cambiar la dirección desde el resumen (8.6) vuelven a confirmar sin cancelar. **El bloqueante de C23 queda resuelto** |
+| O12 | **Vaciar la dirección con la autorización de pedidos retirada.** Con JC6 la dirección se conserva al retirar, pero `/insumos/pedido` muestra la autorización (4) en vez del carrito, y la entrega con «Cambiar dirección» no se ve | Jorge y backend | **Abierto.** Propongo: en Grupo familiar, en el bloque «Permiso para pedir sus insumos», cuando hay una dirección guardada, `Boton variante="texto"` «Ver la dirección de entrega» que lleva a `/insumos/pedido/direccion` (12.1), y que leer y vaciar la dirección **no pidan** la autorización `despacho` vigente (borrar lo propio no puede depender de un permiso retirado). Si el contrato las exige, nadie puede vaciarla después de retirar |
 
 **Lo que este documento no decide:** los textos de las tres declaraciones `declaracion_pedidos_<calidad>` (los redacta el analista en la política 0.12), el texto completo de las condiciones (v0.1, aprobado), el flujo del pago, la pasarela y el comprobante (MATU-62), y el seguimiento después de pagar (MATU-63).
 
@@ -53,6 +56,7 @@ Cada punto trae la opción que usa esta especificación. Si la persona elige otr
 - Guardar algo del pedido en `localStorage`, `sessionStorage` ni la URL (C18). El carrito vive en el servidor como borrador. Las rutas no llevan ids ni nombres.
 - Pedir sin la autorización de pedidos vigente (D1, C21).
 - Comprar solas: ni el aviso de Insumos, ni «Compré», ni la lista hacen un pedido (D10).
+- Presentar el IVA como algo que se suma o que aparece después (JC-IVA). Todos los precios lo llevan incluido: el total es «Total», y «IVA» solo aparece en «Precio de ejemplo · IVA incluido».
 - Mostrar un contador que corre hacia atrás. El plazo se dice como hora (`Este total vale hasta las 16:45.`), y el aviso llega una vez, a los 2 minutos (10.5).
 - Decir «stock», «reserva», «reservar», «monto real», «tope», «estimado», «aprox.», «carro» ni «carrito». En pantalla es «tu pedido».
 
@@ -101,19 +105,23 @@ El pedido es de una persona cuidada (`pedido.persona_cuidada_id`). Al cambiar de
 
 ## 3. Lo que las pantallas necesitan del contrato
 
-El backend escribió en paralelo el contrato propuesto, `docs/api/propuestos/pedido.openapi.yaml` de esta rama, con sus decisiones 188 a 215 y las preguntas P1 a P16 en `docs/api/README.md`. Esta tabla usa sus nombres. Lo que todavía falta está en O11.
+El backend escribió en paralelo el contrato propuesto, `docs/api/propuestos/pedido.openapi.yaml` de esta rama, con sus decisiones 188 a 215 y las preguntas P1 a P16 en `docs/api/README.md`. Esta tabla usa sus nombres, con las decisiones de Jorge del 11-11 (JC1 a JC7). Si el backend nombra distinto una ruta nueva, manda el contrato y la pantalla no cambia.
 
 ### 3.1 El pedido
 
 | Dato del contrato propuesto | Dónde se usa |
 |---|---|
-| `GET …/personas-cuidadas/{persona_id}/pedidos` (los abiertos, a lo más uno, P2), y `GET /v1/pedidos/{pedido_id}`. La ruta de la app no lleva el id: vive en la memoria de la página | Abrir `/insumos/pedido` (7.2) |
+| `GET …/personas-cuidadas/{persona_id}/pedido-en-curso` (JC4): el pedido en curso de la persona, uno por persona, o que no hay ninguno. La ruta de la app no lleva el id del pedido: vive en la memoria de la página | Abrir `/insumos/pedido` (7.2) y volver a pedirlo después de un 409 o un 412 (11.2) |
+| `confirmar` acepta `borrador`, `vencido` y también `total_confirmado` **vigente**, y da 15 minutos nuevos (JC1) | «Ver el total» (7.9), «Volver a confirmar» (9.5 y 9.6) y la dirección cambiada desde el resumen (8.6) |
+| La vuelta de `total_confirmado` a `borrador` sin perder las líneas (JC2) | «Cambiar el pedido» (9.12) |
+| Cancelar sin pagar, para admin y cuidador (JC3) | «Cancelar pedido» (10) |
 | `estado` (`borrador`, `total_confirmado`, `vencido`, `cancelado`) y `etag` para `If-Match` | Qué se muestra en 7 y 9, y el 409 de 11 |
 | `lineas[]`: `id`, `producto` (`id`, `nombre`, `presentacion`), `cantidad` (1 a 99), `comercio` (`nombre_fantasia`, `ficticio`), `precio_unitario`, `subtotal`, `regla_faltante` (`otro_comercio` o `quitar`) y `retracto_pierde_al_abrir`. En `borrador`, el precio y el comercio son los del carrito | La línea del carrito (7.4 a 7.6) |
 | `lineas[].cambio` (`precio_antes`, `comercio_antes`), desde `total_confirmado` | El resumen (9.3) y sus marcas (9.2) |
 | `salieron[]` (`producto`, `cantidad`, `comercio`) | «Ya no hay `{producto}`. Salió del pedido.» (9.2) |
 | `subtotal_productos`, `costo_envio`, `total`, en pesos enteros | «Productos: …» del carrito (7.9) y la boleta (9.4) |
 | `vence_en` (y los segundos que quedan, O11 a) | La hora (9.4) y el aviso de los 2 minutos (9.5) |
+| `ventana_entrega`, también en `borrador` (JC7) | «Llega entre…» del carrito (7.8) y «Entrega: …» del resumen (9.7) |
 | `entrega` (la dirección y `telefono_contacto` copiados al confirmar) | El resumen (9.7) |
 | `resumen`: `vendedor`, `boleta`, `ventana_entrega`, `canal_reclamo` y `condiciones` (`version`, `huella`, `enlace`) | El resumen (9.7 y 9.8) |
 | `precios_de_ejemplo` | El aviso del piloto, solo si es `true` |
@@ -127,6 +135,7 @@ El backend escribió en paralelo el contrato propuesto, `docs/api/propuestos/ped
 | `producto_id` (o `null`) en cada `LineaListaInsumos` (O3) | «Pedir estos productos» (6) |
 | La autorización `despacho` en `GET …/consentimientos`, con los mismos campos que `plan_cuidado` y `consumo` | 4, 7.2 y 12 |
 | Las declaraciones `declaracion_pedidos_<calidad>`, por el mismo camino que las de consumo | 4 |
+| Vaciar la dirección de la persona, con `If-Match` (JC6). Se conserva al retirar la autorización de pedidos | «Vaciar la dirección» (8.7) |
 | `DireccionVista` de la persona con `etag`, para `If-Match` (o `If-None-Match` la primera vez) | 7.8 y 8. **`etiqueta` y `region` no se muestran ni se piden**: tienen valor por omisión en el contrato (ver 8.2) |
 | `celular_verificado` y `celular_enmascarado` de `GET /v1/cuenta` | El teléfono del carrito antes de confirmar (7.8) |
 | `type` de los errores: 403 `sin-autorizacion-pedidos` y `revision-vencida` (con `finalidad: despacho`), 404, 409, 412 de la dirección, y los 422 con `errores[].campo` | 11 |
@@ -393,9 +402,8 @@ Lo agregado a mano en la lista se nombra igual que lo de MATU que no tiene produ
 │ Llega entre 24 y 48 horas hábiles. │  text-base
 │                                    │
 │ Productos: $38.970                 │  text-xl, la cifra font-bold
-│ El envío y el total con IVA los    │  text-base text-tenue
-│ ves al confirmar que haya cada     │
-│ producto.                          │
+│ El envío y el total los ves al     │  text-base text-tenue
+│ confirmar que haya cada producto.  │
 │ [ Ver el total ]                   │  principal. Único turquesa macizo
 │ Cancelar pedido                    │  textoPeligro
 └────────────────────────────────────┘
@@ -405,21 +413,23 @@ Lo agregado a mano en la lista se nombra igual que lo de MATU que no tiene produ
 ### 7.2 Al abrir
 
 ```
-abre /insumos/pedido ─► GET …/consentimientos (despacho) y GET …/pedidos (los abiertos)
-   ├─ hay un pedido abierto ─► GET /v1/pedidos/{id}
+abre /insumos/pedido ─► GET …/consentimientos (despacho) y GET …/pedido-en-curso (JC4)
+   ├─ hay un pedido en curso
    │     ├─ autorización vigente o pagador u observador ─► carrito (7.1), con lo de abajo
    │     └─ admin o cuidador sin autorización ─► 4 · revisión vencida ─► 4.5
-   └─ no hay pedido abierto
+   └─ no hay pedido en curso
          ├─ sin autorización: admin o cuidador ─► 4 · pagador u observador ─► 4.4
          ├─ revisión vencida ─► 4.5
          └─ vigente ─► vacío (7.10)
 
- el pedido abierto:
-                 ├─ 200 borrador ─► carrito (7.1)
-                 ├─ 200 total_confirmado vigente ─► carrito con la nota de 7.9
-                 ├─ 200 vencido ─► carrito con la nota de 7.9
+ el pedido en curso:
+                 ├─ borrador ─► carrito (7.1)
+                 ├─ total_confirmado vigente ─► carrito sin controles, con la nota de 7.9 y «Cambiar el pedido»
+                 ├─ vencido ─► carrito sin controles, con la nota de 9.6 y «Cambiar el pedido»
                  └─ red o 5xx ─► error al cargar (11.1)
 ```
+
+Una sola llamada trae el pedido completo: no hace falta un segundo `GET /v1/pedidos/{id}` para abrir la pantalla.
 
 «Cargando…» [L 26] pasados 400 ms, en `text-lg text-tenue`, con `aria-busy` en la región. Sin esqueleto. Las pestañas y el título se ven desde el principio.
 
@@ -436,6 +446,8 @@ abre /insumos/pedido ─► GET …/consentimientos (despacho) y GET …/pedidos
 | Autorizar, desde la pestaña | Pedidos autorizados. Agrega productos desde el catálogo o desde tu lista de insumos. | **[NUEVO]** |
 | La lista (6) | 6.4 | — |
 | La dirección (8) | Guardamos la dirección. | **[NUEVO]**, mismo verbo que «Guardar la dirección» |
+| Vaciar la dirección (8.7) | Vaciamos la dirección. | **[NUEVO]**, mismo verbo que «Vaciar la dirección» |
+| «Cambiar el pedido» (9.12) | Ya puedes cambiar tu pedido. Cuando termines, toca «Ver el total» para confirmarlo de nuevo. | **[NUEVO]**, `tono="rocio"` en vez de `ok`: no terminó nada, empieza algo |
 
 ### 7.4 La línea
 
@@ -484,6 +496,7 @@ El hallazgo U4 de la ronda 1: ajustar la cantidad de las toallitas costó. El pr
 - **Cada grupo se nombra con el producto:** el `fieldset` lleva `aria-labelledby` con el id de la leyenda y el del `h2`, para que el lector diga «Si falta este producto, Pañal adulto M x30, grupo».
 - **El estado nunca solo por color:** la elegida lleva el punto dentro del círculo, el anillo `turquesa` y el fondo `rocio`. Ninguna va en `turquesa` macizo.
 - **Se guarda solo**, al cambiar la opción, igual que la cantidad. Si falla, vuelve la opción anterior y aparece bajo el grupo: «No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo.» **[NUEVO]**.
+- **Qué hace cada opción (JC5):** con «Buscarlo en otro comercio», si falta, MATU busca el mismo producto en otro comercio al mismo precio. Con «Sacarlo del pedido y devolverme su precio», si falta, **sale sin buscarlo en otro comercio**. Los textos de la opción, del pagador (más abajo) y del resumen (9.3 y 9.7) dicen eso y nada más.
 - **«Sacarlo del pedido y devolverme su precio» no es «Sacar del pedido».** La opción dice qué hacer si falta al preparar, el botón saca la línea ahora. Por eso la opción va dentro de su grupo, con la pregunta, y el botón va al final de la línea, separado por el retracto.
 - **Con el modo `angosto`:** el indicador arriba y el texto debajo (DISENO.md 6, la regla de MATU-57).
 - **Pagador y observador:** en lugar del grupo, `p text-base`: «Si falta: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (las mismas frases del resumen, 9.3).
@@ -503,7 +516,7 @@ El hallazgo U4 de la ronda 1: ajustar la cantidad de las toallitas costó. El pr
 |---|---|---|---|
 | **Dirección** | `p text-base`: «`{calle}` `{numero}`, `{depto}`, `{comuna}`» (sin «depto» si no hay), y `p text-base text-tenue` con la referencia si la hay. Debajo, `Boton variante="texto"` «Cambiar dirección», que lleva a 8 | `p text-base`: «Todavía no hay una dirección de entrega.» y `Boton variante="secundario"` «Agregar la dirección», que lleva a 8 | Título «Dirección» **[NUEVO]** · «Cambiar dirección» [A4] · los otros dos **[NUEVO]** |
 | **Teléfono de contacto** | Mientras no se cambie: `celular_enmascarado` de `GET /v1/cuenta` en `cifras` (con `angosto:whitespace-normal`, DISENO.md 2) y « (tu celular)» en `text-tenue`. Si se cambió: el número escrito. Debajo, `Boton variante="texto"` «Cambiar teléfono» | Si la cuenta no tiene `celular_verificado`: el campo abierto (7.8.1) | «Teléfono de contacto» [A4] · «(tu celular)» y «Cambiar teléfono» **[NUEVO]** |
-| **Cuándo llega** | `p text-base`: «Llega entre 24 y 48 horas hábiles.» con `ventana_entrega` (O11 c: si el contrato no la trae en `borrador`, esta línea no va) | — | **[AJUSTE]** de «Entrega: Entre 24 y 48 horas hábiles» [D8]: aquí ya está bajo el título «Entrega», así que va como frase. En el resumen va la forma de [D8] |
+| **Cuándo llega** | `p text-base`: «Llega entre 24 y 48 horas hábiles.» con `ventana_entrega`, que el contrato trae también en `borrador` (JC7) | — | **[AJUSTE]** de «Entrega: Entre 24 y 48 horas hábiles» [D8]: aquí ya está bajo el título «Entrega», así que va como frase. En el resumen va la forma de [D8] |
 
 - **Pagador:** ve la dirección sin los botones (D4). No ve el teléfono en el carrito: antes de confirmar es el celular de quien va a confirmar, que no es el suyo. Lo ve en el resumen (9.7).
 - **Observador:** no ve la sección «Entrega» (no viene en su vista).
@@ -524,17 +537,22 @@ Se abre en el lugar, con el patrón de «Agregar otro insumo» (MATU-60 4.7): el
 | Parte | Componente y tokens | Texto |
 |---|---|---|
 | Suma | `p text-xl`, la cifra en `cifras font-bold` | «Productos: `{precio}`» **[NUEVO]**. Es la suma de los subtotales de la pantalla. **No dice «total»**: el total lleva el envío y se confirma |
-| Nota | `p max-w-prose text-base text-tenue` | «El envío y el total con IVA los ves al confirmar que haya cada producto.» **[NUEVO]** |
+| Nota | `p max-w-prose text-base text-tenue` | «El envío y el total los ves al confirmar que haya cada producto.» **[NUEVO]**, sin «con IVA» [JC-IVA]: los precios ya lo llevan. Sin renglón de envío en el carrito (JC5) |
 | Principal | `Boton` principal, sin ícono. Único `turquesa` macizo | «Ver el total» [A4] |
 | En curso | Gerundio, `aria-busy`, y debajo `p role="status" text-base`: «Estamos confirmando que haya cada producto…» [A4] | «Confirmando…» **[NUEVO]** |
-| Salida | `Boton variante="textoPeligro"`, `mt-4`, abre 10 | «Cancelar pedido» [A4] |
+| Salida | `Boton variante="textoPeligro"`, `mt-4`, abre 10. Admin y cuidador (JC3) | «Cancelar pedido» [A4] |
 
 **Validación al tocar «Ver el total»** (el botón nunca está deshabilitado):
 - sin dirección: bajo «Dirección», `MensajeError` «Agrega la dirección de entrega para ver el total.» **[NUEVO]**, y el foco va a «Agregar la dirección». Es el mismo texto si el servidor responde 409 `sin-direccion`;
 - una cantidad fuera de rango: el error de 7.5 y el foco al primer campo con error;
 - sin teléfono: el error de 7.8.1 bajo el campo abierto, con el foco en él.
 
-**Con el total ya confirmado** (volvió del resumen): bajo la bajada, `Nota tono="rocio"` sin `rol`: «Ya confirmaste el total. Si cambias algo, lo confirmamos de nuevo.» **[NUEVO]**. «Ver el total» lleva al resumen sin volver a confirmar mientras no cambie nada y el total siga vigente. Con el total vencido, la nota es la de 9.6 y el botón confirma de nuevo.
+**Con el total ya confirmado** (abrió la pestaña «Pedido» después de confirmar): el contrato solo deja cambiar las líneas en `borrador`, así que admin y cuidador ven el carrito **sin controles**, como el pagador (7.2): la cantidad como texto, «Si falta: …» como frase, sin «Sacar del pedido» y sin «Cambiar dirección» ni «Cambiar teléfono». Bajo la bajada, `Nota tono="rocio"` sin `rol`: «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».» **[NUEVO]**. En el pie, en este orden:
+- «Ver el total», principal: lleva al resumen sin volver a confirmar mientras el total siga vigente;
+- «Cambiar el pedido», `Boton variante="secundario"`, con el mismo comportamiento y textos de 9.12;
+- «Cancelar pedido», `textoPeligro`.
+
+Con el total **vencido**, la nota es la de 9.6, «Ver el total» confirma de nuevo y «Cambiar el pedido» sigue igual (si el contrato acepta la vuelta a `borrador` desde `vencido`; si no, no se muestra con el total vencido y el carrito se cambia después de volver a confirmar).
 
 ### 7.10 Vacío
 
@@ -689,7 +707,56 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 
 ### 8.6 Cambiar la dirección desde el resumen (O5)
 
-«Cambiar dirección» en el resumen (9.7) lleva aquí con `Volver` «Volver a antes de pagar» **[NUEVO]**. Al guardar, la pantalla vuelve a confirmar el total («Estamos confirmando que haya cada producto…» [A4]) y llega al resumen con la hora nueva y el anuncio de 9.5.
+«Cambiar dirección» en el resumen (9.7) lleva aquí con `Volver` «Volver a antes de pagar» **[NUEVO]**. Al guardar, la pantalla vuelve a confirmar el total **sin cancelar el pedido ni volverlo a `borrador`** (JC1: `confirmar` acepta el total vigente y da 15 minutos nuevos), con «Estamos confirmando que haya cada producto…» [A4], y llega al resumen con la dirección nueva, la hora nueva y el anuncio de 9.5. Si `Volver` lleva al resumen sin guardar, nada cambia y el total sigue con su hora.
+
+### 8.7 Vaciar la dirección (JC6)
+
+**Objetivo:** Carmen puede borrar de MATU la dirección de su mamá cuando quiera, sin hacer un pedido y aunque haya retirado la autorización.
+
+**Dónde va:** solo cuando hay una dirección guardada, y solo para admin y cuidador. Un bloque propio **después de «Guardar la dirección»**, separado: `mt-10 border-t border-linea pt-6`, `flex flex-col items-start gap-3`. En pantalla ancha, igual, dentro de la misma columna de `max-w-2xl`.
+
+```
+│ [ Guardar la dirección ]           │  principal, sin cambios
+│ ────────────────────────────────── │  border-t border-linea
+│ Si no quieres que MATU la guarde,  │  p text-base text-tenue max-w-prose
+│ puedes vaciarla. Para el próximo   │
+│ pedido habrá que escribirla de     │
+│ nuevo.                             │
+│ Vaciar la dirección                │  Boton textoPeligro
+```
+
+**Jerarquía:** tercera. Es una salida, no la tarea de la pantalla: va lejos del botón principal, en `textoPeligro` (rojo sin fondo, con palabra), y nunca en `turquesa`.
+
+**La confirmación:** el diálogo de MATU-44 4.1 (el mismo de 10): `<dialog>` modal con `showModal()`, `max-w-md`, el foco inicial en el título, la región de error vacía y sin animación.
+
+```
+┌──────────────────────────────────┐
+│ ¿Vaciar la dirección de entrega  │  h2 text-xl font-bold, tabIndex -1
+│ de María?                        │
+│ La borramos de MATU. Para el     │  p text-base
+│ próximo pedido habrá que         │
+│ escribirla de nuevo.             │
+│ [ Vaciar la dirección ] Dejarla  │  peligroPrincipal · texto
+│                         como está│
+└──────────────────────────────────┘
+```
+
+| Parte | Texto | Origen |
+|---|---|---|
+| Frase antes del botón | Si no quieres que MATU la guarde, puedes vaciarla. Para el próximo pedido habrá que escribirla de nuevo. | **[NUEVO]** |
+| Botón | Vaciar la dirección. Nombre accesible: «Vaciar la dirección de entrega de `{pila}`» | **[NUEVO]** |
+| Título del diálogo | ¿Vaciar la dirección de entrega de `{pila}`? | **[NUEVO]**, mismo verbo que el botón |
+| Texto | La borramos de MATU. Para el próximo pedido habrá que escribirla de nuevo. | **[NUEVO]** |
+| Botones | Vaciar la dirección (`peligroPrincipal`, macizo `pronto`: no se deshace) · Dejarla como está (`texto`) | **[NUEVO]** |
+| En curso | Vaciando… | **[NUEVO]** |
+| Hecho | Cierra el diálogo y vuelve a donde llegó: al carrito, con «Vaciamos la dirección.» (7.3), donde la entrega dice «Todavía no hay una dirección de entrega.»; o a Grupo familiar (O12), con `Nota tono="ok"` «Vaciamos la dirección.». El foco va al `h1` | **[NUEVO]** |
+| Error de conexión | En la región de error del diálogo: «No pudimos vaciar la dirección. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.» | **[NUEVO]**, con la forma de [L 22] |
+| 412, otra persona la cambió | Cierra el diálogo y muestra la dirección como quedó, con `Nota tono="atenta"` `rol="alert"`: «Otra persona de tu grupo cambió la dirección mientras la revisabas. Revisa cómo quedó antes de vaciarla.» | **[NUEVO]**, con la forma de 8.5 |
+| 404, ya vaciada | Cierra el diálogo y hace lo mismo que con el hecho, sin error: lo que Carmen pidió ya pasó | — |
+
+- `Esc` y «Dejarla como está» cierran sin vaciar y devuelven el foco a «Vaciar la dirección».
+- **El texto no habla del pedido en curso:** la entrega se copia al pedido al confirmar (D4), y qué pasa con esa copia lo fija el contrato. Si el backend la borra también, se agrega una frase al diálogo y pasa por `lenguaje.md`.
+- **Sin el bloque** cuando no hay dirección guardada, para el pagador y para el observador.
 
 ---
 
@@ -698,9 +765,9 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 **Objetivo:** antes de pagar, Carmen sabe exactamente qué llega, cuánto paga una sola vez, quién lo prepara, cuándo llega, qué pasa si algo falta y hasta qué hora vale el total, y puede no seguir sin costo.
 
 **Jerarquía:**
-1. El total con IVA y hasta qué hora vale, y lo que cambió desde su pedido.
+1. El total y hasta qué hora vale, y lo que cambió desde su pedido.
 2. Los productos con su cantidad, precio, subtotal y qué hacer si faltan; la boleta; «Pagar» (MATU-62).
-3. La entrega, qué pasa si falta, quién vende, reclamos, condiciones y la salida sin costo.
+3. «Cambiar el pedido», la entrega, qué pasa si falta, quién vende, reclamos, condiciones y la salida sin costo.
 
 ### 9.1 Esquema a 360 px
 
@@ -711,7 +778,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 │ ‹ Volver a tu pedido               │  Volver
 │ Antes de pagar                     │  h1 titular text-3xl
 │ Confirmamos que hay cada producto. │  bajada text-lg max-w-prose, el total en cifras font-bold
-│ El total con IVA es $57.460.       │
+│ El total es $57.460.               │
 │ ┃(i) Precios de ejemplo. …         │  Nota atenta borde, Info. Una vez
 │ ┌ (↻) Cambió desde tu pedido ────┐ │  Nota rocio, RefreshCw. Solo si hubo cambios
 │ │ · Ya no hay Toallitas húmedas  │ │
@@ -734,6 +801,9 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 │ │ días… No aplica si abres el    │ │
 │ │ sello del producto.            │ │
 │ └────────────────────────────────┘ │
+│ Si cambias algo, antes de pagar    │  p text-base text-tenue (9.12)
+│ confirmamos el total de nuevo.     │
+│ [ Cambiar el pedido ]              │  Boton secundario
 │ Entrega                            │  h2
 │ Entrega: Entre 24 y 48 horas       │  text-base
 │ hábiles                            │
@@ -752,7 +822,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 │ │ Productos (3)          $53.470 │ │
 │ │ Envío (uno por pedido)  $3.990 │ │
 │ │ ══════════════════════════════ │ │
-│ │ Total con IVA          $57.460 │ │  text-2xl font-bold
+│ │ Total                  $57.460 │ │  text-2xl font-bold
 │ │ Este total vale hasta las      │ │
 │ │ 16:45.                         │ │
 │ │ Se cobra una sola vez este     │ │
@@ -771,7 +841,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 └────────────────────────────────────┘
 ```
 
-**Orden del DOM, el mismo en todos los anchos:** una parte de lectura (cambios, productos, entrega, si falta, quién vende) y después la parte de decisión (la boleta, el aviso del plazo, las condiciones, la casilla, «Pagar» y la salida). En el teléfono se lee todo y al final se decide. En pantalla ancha, la parte de decisión es la columna derecha (9.9).
+**Orden del DOM, el mismo en todos los anchos:** una parte de lectura (cambios, productos, «Cambiar el pedido», entrega, si falta, quién vende) y después la parte de decisión (la boleta, el aviso del plazo, las condiciones, la casilla, «Pagar» y la salida). En el teléfono se lee todo y al final se decide. En pantalla ancha, la parte de decisión es la columna derecha (9.9).
 
 ### 9.2 Lo que cambió (C15 y C25)
 
@@ -804,7 +874,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 | Si falta | `p text-base` | «Si falta: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (C1: la elección de RF-21) |
 | Retracto | `p text-lg max-w-prose`, «Derecho a retracto:» en negrita | Uno de los dos textos [L 27]. Letra igual a la del precio (C2) |
 
-**Para cambiar algo** (cantidad, regla, sacar), `Volver` «Volver a tu pedido» **[NUEVO]** arriba. Al volver, el carrito muestra la nota de 7.9.
+**Para cambiar algo** (cantidad, regla, sacar, agregar): «Cambiar el pedido», justo después de la lista (9.12). `Volver` «Volver a tu pedido» **[NUEVO]** arriba sigue siendo navegación: lleva al carrito sin cambiar el estado, y el carrito se ve sin controles con la nota de 7.9.
 
 ### 9.4 La boleta
 
@@ -816,7 +886,7 @@ Es el componente `Boleta` de la demo (`Demo/src/familia/Pedidos.tsx`), reconstru
 | Productos | Renglón: texto a la izquierda, cifra a la derecha (`flex justify-between gap-4`, la cifra `cifras`), `text-lg` | «Productos (`{n}`)» **[NUEVO]** |
 | Envío | Igual | «Envío (uno por pedido)» [A4] |
 | Separador | `hr border-0 border-t-2 border-tinta` | — |
-| Total | `text-2xl font-bold` | «Total con IVA» [A4] |
+| Total | `text-2xl font-bold` | «Total» **[AJUSTE]** de «Total con IVA» [A4], por [JC-IVA]: en Chile todos los precios llevan el IVA incluido, y «con IVA» junto al total se lee como algo que se sumó |
 | Plazo | `p text-base`, la hora en `cifras` | «Este total vale hasta las `{HH:MM}`.» [A4] |
 | Cobro | `p text-base` | «Se cobra una sola vez este total, con crédito o con débito. No hay reserva ni cobros después.» [A4] |
 
@@ -833,7 +903,7 @@ Es el componente `Boleta` de la demo (`Demo/src/familia/Pedidos.tsx`), reconstru
 | Aviso | Quedan 2 minutos para pagar este total. | [A4] |
 | Botón dentro del aviso | `Boton variante="secundario"` «Volver a confirmar» | [A4] |
 
-- **«Volver a confirmar» con un toque, sin perder nada:** confirma de nuevo con el mismo pedido (el carrito vive en el servidor), y la pantalla se redibuja con la hora nueva y los cambios si los hay. Se anuncia: «Confirmamos de nuevo. Este total vale hasta las `{HH:MM}`.» **[NUEVO]**. Mientras confirma, el botón dice «Confirmando…» y la línea de estado, «Estamos confirmando que haya cada producto…» [A4].
+- **«Volver a confirmar» con un toque, sin perder nada:** confirma de nuevo con el mismo pedido, con el total todavía vigente (JC1: el contrato lo acepta y da 15 minutos nuevos, sin cancelar ni volver a `borrador`), y la pantalla se redibuja con la hora nueva y los cambios si los hay. Se anuncia: «Confirmamos de nuevo. Este total vale hasta las `{HH:MM}`.» **[NUEVO]**. Mientras confirma, el botón dice «Confirmando…» y la línea de estado, «Estamos confirmando que haya cada producto…» [A4].
 - **La casilla no se desmarca** al volver a confirmar si no cambió nada. Si cambió algo (9.2), se desmarca y el anuncio suma «Revisa lo que cambió antes de pagar.» **[NUEVO]**: aceptó otras cifras.
 
 ### 9.6 El total venció
@@ -841,7 +911,7 @@ Es el componente `Boleta` de la demo (`Demo/src/familia/Pedidos.tsx`), reconstru
 ```
 │ ┌ Tu pedido ─────────────────────┐ │
 │ │ …                              │ │
-│ │ Total con IVA          $57.460 │ │
+│ │ Total                  $57.460 │ │
 │ │ [⏱ Venció]                     │ │  Etiqueta atenta, Clock
 │ │ Este total venció a las 16:45. │ │
 │ └~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~┘ │
@@ -912,21 +982,21 @@ Tres `section` con su `h2 titular text-2xl` **[NUEVO]**: «Entrega», «Si falta
 │ (M) MATU      │ Insumos   Lista de insumos   Catálogo   Pedido                            │
 │               │ ‹ Volver a tu pedido                                                      │
 │               │ Antes de pagar                                                            │
-│               │ Confirmamos que hay cada producto. El total con IVA es $57.460.           │
+│               │ Confirmamos que hay cada producto. El total es $57.460.                   │
 │               │ ┃(i) Precios de ejemplo. …                                                │
 │               │ ┌ (↻) Cambió desde tu pedido ───────────┐  ┌ Tu pedido ──────────────────┐ │
 │               │ │ · Ya no hay Toallitas húmedas x80. …  │  │ Productos (3)       $53.470 │ │
 │               │ └───────────────────────────────────────┘  │ Envío (uno por pedido)$3.990│ │
 │               │ Productos                                  │ ═══════════════════════════ │ │
-│               │ ┌ Pañal adulto M x30 ───────────────────┐  │ Total con IVA       $57.460 │ │
+│               │ ┌ Pañal adulto M x30 ───────────────────┐  │ Total               $57.460 │ │
 │               │ │ … Subtotal: $25.980 · Si falta: …     │  │ Este total vale hasta las   │ │
 │               │ │ Derecho a retracto: …                 │  │ 16:45. Se cobra una sola…   │ │
 │               │ └───────────────────────────────────────┘  └~~~~~~~~~~~~~~~~~~~~~~~~~~~~~┘ │
-│               │ Entrega …                                  Condiciones del pedido (…)     │
-│               │ Si falta un producto …                     [ ] Leí y acepto las condicio… │
-│               │ Quién vende …                              [ Pagar $57.460 ]  (MATU-62)   │
-│               │                                            No pagar no tiene costo.       │
-│               │                                            Cancelar pedido  (sticky top-6)│
+│               │ Si cambias algo, antes de pagar …          Condiciones del pedido (…)     │
+│               │ [ Cambiar el pedido ]                      [ ] Leí y acepto las condicio… │
+│               │ Entrega …                                  [ Pagar $57.460 ]  (MATU-62)   │
+│               │ Si falta un producto …                     No pagar no tiene costo.       │
+│               │ Quién vende …                              Cancelar pedido  (sticky top-6)│
 └───────────────┴───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -936,11 +1006,35 @@ Tres `section` con su `h2 titular text-2xl` **[NUEVO]**: «Entrega», «Si falta
 
 ### 9.11 Pagador
 
-Ve el resumen igual, sin «Cambiar dirección» ni «Cambiar teléfono», y sin «Cancelar pedido». **No confirma** (O1, arquitectura 11.2), así que:
+Ve el resumen igual, sin «Cambiar el pedido» ni su frase, sin «Cambiar dirección» ni «Cambiar teléfono», y sin «Cancelar pedido». **No confirma ni cancela** (JC3, arquitectura 11.2), así que:
 - el aviso de los 2 minutos (9.5) va sin el botón, y dice «Quedan 2 minutos para pagar este total.» [A4] igual;
 - con el total vencido (9.6), en lugar de la frase y del botón: «Pasaron 15 minutos y el total venció. Pídele a quien armó el pedido que lo vuelva a confirmar.» **[NUEVO]**, sin ningún botón macizo.
 
 «Pagar» y quién lo ve se deciden en MATU-62. **El observador no llega al resumen:** su vista no trae `resumen`.
+
+### 9.12 Cambiar el pedido (JC2)
+
+**Objetivo:** Carmen ve el total, se da cuenta de que le falta un paquete, y vuelve a su pedido para cambiarlo sin perder nada ni cancelar.
+
+**Qué hace:** devuelve el pedido de `total_confirmado` a `borrador` con las mismas líneas, las mismas reglas de «Si falta» y la misma dirección, y lleva a `/insumos/pedido` con los controles de nuevo. El total confirmado deja de valer: para pagar hay que tocar «Ver el total» otra vez. No cobra nada.
+
+**Dónde va:** en la parte de lectura, **justo después de la lista de «Productos»** y antes de «Entrega». Es donde Carmen está cuando nota que quiere otra cantidad, y queda lejos de «Pagar» y de «Cancelar pedido», en la otra columna en pantalla ancha. Va también en el pie del carrito sin controles (7.9).
+
+**Jerarquía:** segunda del resumen, por debajo de «Pagar» (MATU-62). `Boton variante="secundario"`, sin ícono y sin flecha, `self-start`. Nunca en `turquesa` macizo.
+
+| Parte | Componente y tokens | Texto | Origen |
+|---|---|---|---|
+| Frase, antes del botón | `p text-base text-tenue max-w-prose mt-4`, en el `aria-describedby` del botón | Si cambias algo, antes de pagar confirmamos el total de nuevo. | **[NUEVO]** |
+| Botón | `Boton variante="secundario"` | Cambiar el pedido | **[NUEVO]**, de JC2 |
+| En curso | Mismo ancho, `aria-busy` | Abriendo tu pedido… | **[NUEVO]** |
+| Hecho | Lleva a `/insumos/pedido` en `borrador`, con la `Nota tono="rocio"` `rol="status"` de 7.3. Foco al `h1` | Ya puedes cambiar tu pedido. Cuando termines, toca «Ver el total» para confirmarlo de nuevo. | **[NUEVO]** |
+| Error de conexión | `MensajeError` bajo el botón. El resumen sigue igual | No pudimos abrir tu pedido para cambiarlo. Revisa tu conexión y vuelve a intentarlo. El total sigue confirmado. | **[NUEVO]** |
+| 409 o 412, otra persona lo cambió | La fila de 11.2 | Este pedido cambió mientras lo revisabas. Te mostramos cómo quedó. | 11.2 |
+
+- **Sin confirmación:** no se pierde nada ni se cobra nada, y volver a confirmar es un toque. Si la casilla de las condiciones estaba marcada, se desmarca (vive en la memoria de la página y aceptó otras cifras).
+- **No es «Volver a tu pedido».** `Volver` es navegación y deja el total como está; «Cambiar el pedido» es una acción y lo deja sin confirmar. Por eso la acción lleva su frase antes, que dice la consecuencia.
+- **Con el total vencido** (9.6): «Cambiar el pedido» sigue en su lugar si el contrato acepta la vuelta a `borrador` desde `vencido`; si no, no se muestra, y la única acción es «Volver a confirmar».
+- **Admin y cuidador.** El pagador y el observador no lo ven.
 
 ---
 
@@ -948,7 +1042,7 @@ Ve el resumen igual, sin «Cambiar dirección» ni «Cambiar teléfono», y sin 
 
 **Objetivo:** Carmen deja el pedido sin costo, sabiendo que no se cobró nada.
 
-Desde el carrito (7.9) y el resumen (9.9). Patrón del diálogo de MATU-44 4.1: `<dialog>` modal con `showModal()`, `max-w-md`, el foco inicial en el título, la región de error vacía y sin animación.
+Desde el carrito (7.9) y el resumen (9.9). **Cancelan admin y cuidador**, sin pagar (JC3). El pagador y el observador no ven «Cancelar pedido». Patrón del diálogo de MATU-44 4.1: `<dialog>` modal con `showModal()`, `max-w-md`, el foco inicial en el título, la región de error vacía y sin animación.
 
 ```
 ┌──────────────────────────────────┐
@@ -1018,6 +1112,8 @@ Un tercer bloque en Grupo familiar, después de «Permiso para calcular sus insu
 | `retirada` | `ShieldOff` `text-tenue` | Autorización retirada el `{revocado_en}`. | `secundario` «Volver a autorizar» | **[AJUSTE]** de [L 22]: sin la frase del borrado a los 90 días. Al retirar, lo sin pagar se cancela y su entrega se borra en el momento (D1), así que no hay nada que vuelva |
 | `sin_autorizar` | `ShieldQuestion` `text-tenue` | Sin permiso todavía. Se pide la primera vez que haces un pedido. | Ninguno | **[NUEVO]**, con la forma de [L 22] |
 
+**Propuesta de O12, abierta:** en los estados `vigente`, `revision_vencida` y `retirada`, si hay una dirección guardada, debajo del botón del bloque va `Boton variante="texto"` «Ver la dirección de entrega» **[NUEVO]** (nombre accesible: «Ver la dirección de entrega de `{pila}`»), que lleva a `/insumos/pedido/direccion` con `Volver` «Volver a Grupo familiar» [L 22]. Así se puede vaciar (8.7) aunque se haya retirado la autorización. Solo admin y cuidador.
+
 | Parte | Texto | Origen |
 |---|---|---|
 | Título del bloque | Permiso para pedir sus insumos | **[NUEVO]**, con la forma de «Permiso para calcular sus insumos» [L 22] |
@@ -1031,15 +1127,15 @@ El diálogo de MATU-44 4.1, con estos puntos en la lista **[NUEVO]**, para que e
 | Parte | Texto |
 |---|---|
 | Título | ¿Retirar la autorización de los pedidos de `{pila}`? |
-| Puntos | Ya no se pueden hacer pedidos para `{pila}` desde MATU, desde ahora. · **Cancelamos sin costo los pedidos sin pagar y borramos su dirección y teléfono de entrega.** (en negrita: no vuelve) · Los pedidos ya pagados siguen hasta que se entreguen. · La lista de insumos se puede seguir imprimiendo y compartiendo. · Su ficha, sus insumos y los enlaces de relevo no cambian. |
+| Puntos | Ya no se pueden hacer pedidos para `{pila}` desde MATU, desde ahora. · **Cancelamos sin costo los pedidos sin pagar y borramos la dirección y el teléfono que se copiaron en ellos.** (en negrita: no vuelve) · Los pedidos ya pagados siguen hasta que se entreguen. · La dirección de entrega de `{pila}` queda guardada para cuando vuelvas a autorizar. Puedes vaciarla cuando quieras. · La lista de insumos se puede seguir imprimiendo y compartiendo. · Su ficha, sus insumos y los enlaces de relevo no cambian. |
 | Botones, en curso, error de conexión, ya retirada | Los de [L 22], sin cambios |
 | Hecho | Autorización retirada. Ya no se pueden hacer pedidos para `{pila}`. |
 
 El punto de los pedidos pagados es cierto desde MATU-62. En MATU-61 no hay pedidos pagados, pero el texto no cambia cuando lleguen.
 
-### 12.3 Lo que no promete (O7)
+### 12.3 La dirección de la persona al retirar (O7, JC6)
 
-La confirmación no dice nada de la dirección guardada de la persona. Si el analista decide borrarla al retirar, se agrega un punto.
+**La dirección guardada se conserva** al retirar la autorización de pedidos, y la confirmación lo dice en su cuarto punto (12.2): «La dirección de entrega de `{pila}` queda guardada para cuando vuelvas a autorizar. Puedes vaciarla cuando quieras.» **[NUEVO]**, para el analista. Se vacía con 8.7. Cómo se llega a esa pantalla con la autorización retirada es O12 (12.1). El primer punto cambia de «borramos su dirección y teléfono de entrega» a «borramos la dirección y el teléfono que se copiaron en ellos» **[AJUSTE]**, para no decir que se borra la de la persona.
 
 ### 12.4 Volver a autorizar (`/grupo/autorizar-pedidos`)
 
@@ -1058,10 +1154,12 @@ Patrón de MATU-44 5.2: la pantalla de 4.1 con `Volver` «Volver a Grupo familia
 | El catálogo (5) | Ninguno (los «Agregar al pedido» son secundarios) |
 | La lista (6) | El de MATU-60, sin cambios («Pedir estos productos» es secundario) |
 | El carrito (7) | «Ver el total» |
+| El carrito con el total confirmado, sin controles (7.9) | «Ver el total» («Cambiar el pedido» es secundario) |
 | El carrito vacío (7.10) | Ninguno |
-| La dirección (8) | «Guardar la dirección» |
+| La dirección (8) | «Guardar la dirección» («Vaciar la dirección» es `textoPeligro`) |
+| El diálogo de vaciar la dirección (8.7) | Ninguno en `turquesa`: «Vaciar la dirección» es macizo `pronto` |
 | El conflicto de la dirección (8.5) | «Guardar la mía» |
-| El resumen, vigente (9) | «Pagar `{total}`» (MATU-62). En MATU-61, ninguno |
+| El resumen, vigente (9) | «Pagar `{total}`» (MATU-62). En MATU-61, ninguno («Cambiar el pedido» es secundario) |
 | El resumen, vencido (9.6) | «Volver a confirmar» |
 | Error al cargar (11.1) | «Volver a intentar» |
 | El diálogo de cancelar (10) | Ninguno en `turquesa`: «Cancelar pedido» es macizo `pronto` |
@@ -1107,7 +1205,7 @@ Todo lo que se toca mide `min-h-12` (51 px): los botones (`Boton`), el − y el 
 | Qué | Región |
 |---|---|
 | Agregar, sacar, guardar el teléfono | `anunciar(texto, 'status')` |
-| Llegar al carrito después de una acción (7.3, 6.4) | `Nota` `rol="status"` |
+| Llegar al carrito después de una acción (7.3, 6.4), incluidos «Cambiar el pedido» y «Vaciar la dirección» | `Nota` `rol="status"` |
 | Lo que cambió al confirmar (9.2) | `Nota` `rol="status"` |
 | Quedan 2 minutos (9.5) y el vencido (9.6) | `Nota` `rol="status"`: se anuncian sin interrumpir. No son errores |
 | Volver a confirmar, hecho | `anunciar(…, 'status')` |
@@ -1150,7 +1248,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 
 ## 15. Textos para `lenguaje.md`, sección 31 «Pedido (MATU-61)»
 
-**Regla de la sección:** en la app se dice «tu pedido», nunca «carro» ni «carrito». Se dice «lo que hay» y «que haya», nunca «stock». La cantidad es en envases del catálogo. «Pedir» lo hace solo quien tiene la autorización de pedidos. La lista nunca compra sola, el aviso nunca ofrece comprar y «Compré» nunca hace un pedido (D10).
+**Regla de la sección:** en la app se dice «tu pedido», nunca «carro» ni «carrito». Se dice «lo que hay» y «que haya», nunca «stock». La cantidad es en envases del catálogo. **Todos los precios llevan el IVA incluido** (JC-IVA): el total se llama «Total», nunca «Total con IVA», y ningún texto presenta el IVA como algo que se suma o que aparece después. «IVA» solo va en «Precio de ejemplo · IVA incluido» [L 27]. «Pedir» lo hace solo quien tiene la autorización de pedidos. La lista nunca compra sola, el aviso nunca ofrece comprar y «Compré» nunca hace un pedido (D10).
 
 **Cambios en otras secciones (D10):**
 - Sección 21: «La lista nunca ofrece comprar» pasa a «La lista nunca compra sola. Solo quien tiene la autorización de pedidos puede tocar "Pedir estos productos".»
@@ -1194,24 +1292,26 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 | Sacar | Sacar del pedido · Para el lector: Sacar del pedido: {producto} · Sacamos «{producto}» del pedido. · No pudimos sacarlo. Revisa tu conexión y vuelve a intentarlo. | [A4] · **[NUEVO]** |
 | Entrega | Entrega · Dirección · Todavía no hay una dirección de entrega. · Agregar la dirección · Cambiar dirección · Teléfono de contacto · (tu celular) · Cambiar teléfono · Llega entre 24 y 48 horas hábiles. | **[NUEVO]** · [A4] · **[AJUSTE]** de [D8] |
 | Teléfono | Para que quien entrega pueda avisarte. Si es el de otra persona, avísale. · Guardar el teléfono · Guardamos el teléfono. · Escribe un celular de Chile, por ejemplo +56 9 5555 0137. | [A4] · **[NUEVO]** · [L 8] |
-| Pie | Productos: {precio} · El envío y el total con IVA los ves al confirmar que haya cada producto. · Ver el total · Confirmando… · Estamos confirmando que haya cada producto… | **[NUEVO]** · [A4] |
+| Pie | Productos: {precio} · El envío y el total los ves al confirmar que haya cada producto. · Ver el total · Confirmando… · Estamos confirmando que haya cada producto… | **[NUEVO]** [JC-IVA] · [A4] |
 | Sin dirección | Agrega la dirección de entrega para ver el total. | **[NUEVO]** |
-| Total ya confirmado | Ya confirmaste el total. Si cambias algo, lo confirmamos de nuevo. | **[NUEVO]** |
+| Total ya confirmado | Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido». | **[NUEVO]** (cambia en la 1.1, JC2) |
 | Vacío | Tu pedido está vacío. Agrega productos desde el catálogo o desde tu lista de insumos. · Ir al catálogo · Ir a la lista de insumos · Pagador y observador: Todavía no hay un pedido para {pila}. | [A4] · **[NUEVO]** |
 | Pagador y observador | Quien administra el grupo o quien cuida a {pila} puede cambiar el pedido y ver el total. · Ver el resumen (solo el pagador) · Pasaron 15 minutos y el total venció. Pídele a quien armó el pedido que lo vuelva a confirmar. | **[NUEVO]** |
 | **Dirección** | | |
 | Título y ayuda | ¿Dónde lo entregamos? · La usamos solo para entregar tus pedidos. Ningún comercio la ve. · La guardamos para los próximos pedidos de {pila}. | [A4] · **[NUEVO]** |
 | Campos | Calle · Número · Depto (opcional) · Comuna · Referencia (opcional) · Por ejemplo: portón verde. No escribas datos de salud. | [A4] |
 | Botón y hecho | Guardar la dirección · Guardando… · Guardamos la dirección. | **[NUEVO]** · [L 23] |
+| Vaciar (JC6) | Si no quieres que MATU la guarde, puedes vaciarla. Para el próximo pedido habrá que escribirla de nuevo. · Vaciar la dirección · Para el lector: Vaciar la dirección de entrega de {pila} · ¿Vaciar la dirección de entrega de {pila}? · La borramos de MATU. Para el próximo pedido habrá que escribirla de nuevo. · Dejarla como está · Vaciando… · Vaciamos la dirección. · No pudimos vaciar la dirección. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. · Otra persona de tu grupo cambió la dirección mientras la revisabas. Revisa cómo quedó antes de vaciarla. | **[NUEVO]** |
 | Validación | Escribe la calle. · Escribe el número. Si no tiene, escribe S/N. · Escribe la comuna. · La referencia admite hasta 200 caracteres. Acórtala un poco. · No pudimos guardar la dirección. Revisa los datos y vuelve a intentarlo. | **[NUEVO]** |
 | Volver | Volver a tu pedido · Volver a antes de pagar | **[NUEVO]** |
 | Conflicto (412) | Otra persona de tu grupo cambió la dirección mientras la cambiabas. · No guardamos la tuya encima de la suya. Elige cuál dejar. · La que guardó · La tuya, sin guardar · Guardar la mía · Dejar la que guardó · Dejaste la dirección que guardó otra persona de tu grupo. | **[AJUSTE]** de [L 18] · **[NUEVO]** el último |
 | **Antes de pagar** | | |
-| Título y bajada | Antes de pagar · Confirmamos que hay cada producto. El total con IVA es {total}. | [A4] · **[NUEVO]** |
+| Título y bajada | Antes de pagar · Confirmamos que hay cada producto. El total es {total}. | [A4] · **[NUEVO]** [JC-IVA] |
+| Cambiar el pedido (JC2) | Si cambias algo, antes de pagar confirmamos el total de nuevo. · Cambiar el pedido · Abriendo tu pedido… · Ya puedes cambiar tu pedido. Cuando termines, toca «Ver el total» para confirmarlo de nuevo. · No pudimos abrir tu pedido para cambiarlo. Revisa tu conexión y vuelve a intentarlo. El total sigue confirmado. | **[NUEVO]** |
 | Cambios | Cambió desde tu pedido · Ya no hay {producto}. Salió del pedido. · Ahora {producto} lo prepara {comercio} (comercio ficticio). · Cambió el precio de {producto}: antes {precio}, ahora {precio}. · Cambió el precio · Otro comercio | **[NUEVO]** · [A4] · **[AJUSTE]** de [A4] · **[NUEVO]** |
 | Productos | Productos · {cantidad} × {precio} · Subtotal: {precio} | **[NUEVO]** |
 | Retracto | Los dos de la sección 27, en cada línea, con letra no menor que el precio | [L 27] |
-| Boleta | Tu pedido · Productos ({n}) · Envío (uno por pedido) · Total con IVA · Este total vale hasta las {HH:MM}. · Se cobra una sola vez este total, con crédito o con débito. No hay reserva ni cobros después. | [A4] · **[NUEVO]** «Productos ({n})» |
+| Boleta | Tu pedido · Productos ({n}) · Envío (uno por pedido) · Total · Este total vale hasta las {HH:MM}. · Se cobra una sola vez este total, con crédito o con débito. No hay reserva ni cobros después. | [A4] · **[NUEVO]** «Productos ({n})» · **[AJUSTE]** «Total», de «Total con IVA» [A4], por [JC-IVA] |
 | Plazo | Quedan 2 minutos para pagar este total. · Volver a confirmar · Confirmamos de nuevo. Este total vale hasta las {HH:MM}. · Revisa lo que cambió antes de pagar. | [A4] · **[NUEVO]** |
 | Vencido | Venció · Este total venció a las {HH:MM}. · Pasaron 15 minutos y el total venció. Vuelve a confirmar para ver lo que hay y su precio. · Volver a confirmar | **[NUEVO]** · [A4] |
 | Entrega | Entrega: {ventana} · Teléfono de contacto: {telefono} | [A4], [D8] |
@@ -1223,7 +1323,8 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 | **Cancelar** | ¿Cancelar este pedido? · No tiene costo. · Cancelar pedido · Seguir con el pedido · Cancelando… · Cancelamos el pedido. No se cobró nada. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. · Otra persona de tu grupo ya canceló este pedido. | [A4] · **[NUEVO]** |
 | **Errores** | No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · No pudimos confirmar el total. Revisa tu conexión y vuelve a intentarlo. Tu pedido sigue aquí. · Ahora ningún comercio tiene estos productos. No hay nada que pagar. Tu pedido sigue aquí para intentarlo más tarde. · Este pedido cambió mientras lo revisabas. Te mostramos cómo quedó. · No encontramos este pedido. · Ir a tu pedido · El pedido no está disponible por ahora. | **[NUEVO]** · [A4] el 404 |
 | **Grupo familiar** | Permiso para pedir sus insumos · Autorizado el {fecha}. · Autorizado el {fecha}. Hay que renovarlo desde el {fecha}. · Autorización retirada el {fecha}. · Sin permiso todavía. Se pide la primera vez que haces un pedido. · Para el lector: Retirar la autorización de los pedidos de {pila} · Volver a autorizar los pedidos de {pila} | [L 22] · **[AJUSTE]** · **[NUEVO]** |
-| Retirar | ¿Retirar la autorización de los pedidos de {pila}? · Ya no se pueden hacer pedidos para {pila} desde MATU, desde ahora. · Cancelamos sin costo los pedidos sin pagar y borramos su dirección y teléfono de entrega. · Los pedidos ya pagados siguen hasta que se entreguen. · La lista de insumos se puede seguir imprimiendo y compartiendo. · Su ficha, sus insumos y los enlaces de relevo no cambian. · Autorización retirada. Ya no se pueden hacer pedidos para {pila}. | **[NUEVO]**, para el analista |
+| Ver la dirección (O12, propuesta) | Ver la dirección de entrega · Para el lector: Ver la dirección de entrega de {pila} | **[NUEVO]** |
+| Retirar | ¿Retirar la autorización de los pedidos de {pila}? · Ya no se pueden hacer pedidos para {pila} desde MATU, desde ahora. · Cancelamos sin costo los pedidos sin pagar y borramos la dirección y el teléfono que se copiaron en ellos. · Los pedidos ya pagados siguen hasta que se entreguen. · La dirección de entrega de {pila} queda guardada para cuando vuelvas a autorizar. Puedes vaciarla cuando quieras. · La lista de insumos se puede seguir imprimiendo y compartiendo. · Su ficha, sus insumos y los enlaces de relevo no cambian. · Autorización retirada. Ya no se pueden hacer pedidos para {pila}. | **[NUEVO]**, para el analista |
 | Volver a autorizar, hecho | Pedidos autorizados. Ya puedes hacer pedidos para {pila}. | **[NUEVO]** |
 | Aviso del piloto | El de la sección 11, una vez por pantalla con precios: el carrito y el resumen | [L 11] |
 
@@ -1241,18 +1342,24 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 6. «Cambió el precio», «Otro comercio», «Salió del pedido» y «Venció» se entienden **en escala de grises**: cada uno tiene palabra e ícono.
 7. Con el total vencido **no existe** la casilla ni «Pagar», y está «Volver a confirmar» como único macizo. La boleta sigue con sus montos en `tinta`.
 8. El aviso «Quedan 2 minutos para pagar este total.» aparece una vez, con «Volver a confirmar», y **no hay ningún número que cambie cada segundo** en la pantalla.
-9. El resumen muestra los puntos de C1, cada uno visible sin abrir nada: productos con cantidad, precio y subtotal; lo que salió; lo que cambió; la elección de «Si falta» por línea; el envío aparte; el total con IVA y su hora; quién vende y «En este piloto no se emite boleta»; la entrega; qué pasa si falta, con el medio y el plazo; el retracto en cada línea; el reclamo; el enlace a las condiciones; y «No pagar no tiene costo.» con «Cancelar pedido».
+9. El resumen muestra los puntos de C1, cada uno visible sin abrir nada: productos con cantidad, precio y subtotal; lo que salió; lo que cambió; la elección de «Si falta» por línea; el envío aparte; el total y su hora; quién vende y «En este piloto no se emite boleta»; la entrega; qué pasa si falta, con el medio y el plazo; el retracto en cada línea; el reclamo; el enlace a las condiciones; y «No pagar no tiene costo.» con «Cancelar pedido».
 10. La bajada, la boleta y «Pagar» (MATU-62) muestran **la misma cifra** de total.
 11. Ningún comercio aparece sin «(comercio ficticio)» en su línea mientras `ficticio` sea `true`. No aparecen el RUT, la razón social, la dirección ni el teléfono de un comercio.
 12. El aviso «Precios de ejemplo.» aparece **exactamente una vez** en el carrito y en el resumen, arriba, lejos del botón principal. No aparece en el vacío ni en los errores.
 13. La dirección no tiene mapa, ni «usar mi ubicación», ni región. La ayuda de la referencia dice «No escribas datos de salud.» y va antes del campo.
 14. Con la capa 3 apagada no se ven la pestaña «Pedido», «Agregar al pedido» ni «Pedir estos productos».
-15. El pagador y el observador no ven «Agregar al pedido», «Pedir estos productos», el − y el +, las opciones de «Si falta», «Sacar del pedido», «Cambiar dirección», «Cambiar teléfono», «Ver el total», «Volver a confirmar» ni «Cancelar pedido». El observador no ve la entrega ni llega al resumen.
+15. El pagador y el observador no ven «Agregar al pedido», «Pedir estos productos», el − y el +, las opciones de «Si falta», «Sacar del pedido», «Cambiar dirección», «Cambiar teléfono», «Ver el total», «Volver a confirmar», «Cambiar el pedido», «Vaciar la dirección» ni «Cancelar pedido». El observador no ve la entrega ni llega al resumen. El cuidador sí ve y usa «Cancelar pedido» (JC3).
 16. A 320 px, a 360 px y con el texto al 200 % a 320 px, `document.documentElement.scrollWidth` es igual a `clientWidth` en las cinco rutas, el diálogo y el conflicto.
 17. Ningún texto de estas pantallas mide menos de 17 px de `font-size` calculado.
 18. Nada del pedido, la dirección ni el teléfono en `localStorage`, `sessionStorage` ni en la URL: las rutas son las de 2.1, sin parámetros ni fragmento.
 19. Ninguna palabra de la lista de 14 aparece en pantalla (un `grep` sobre los textos de la pantalla).
 20. En el resumen, el título de la boleta dice «Tu pedido», nunca «Boleta».
+21. **«IVA» aparece solo en «Precio de ejemplo · IVA incluido»** (JC-IVA). La boleta dice «Total», la bajada dice «El total es `{total}`.» y el carrito dice «El envío y el total los ves al confirmar…». Ningún texto dice «con IVA», «más IVA» ni «+ IVA» (un `grep` sobre los textos de la pantalla).
+22. En el resumen vigente, «Cambiar el pedido» está **después de la lista de productos y antes de «Entrega»**, en `secundario`, con su frase antes. Al tocarlo se llega a `/insumos/pedido` con el − y el + de nuevo, las mismas líneas, las mismas reglas de «Si falta» y la nota «Ya puedes cambiar tu pedido…». No hay ningún diálogo de por medio.
+23. «Volver a confirmar» del aviso de los 2 minutos, con el total todavía vigente, deja la pantalla en el resumen con una hora nueva 15 minutos después, sin pasar por el carrito ni por el vacío. Cambiar la dirección desde el resumen hace lo mismo.
+24. Con el total confirmado, el carrito no tiene el −, el +, las opciones de «Si falta» ni «Sacar del pedido», y muestra «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».».
+25. «Vaciar la dirección» está solo con una dirección guardada, en `textoPeligro` y separado de «Guardar la dirección» por el borde. Su diálogo usa el mismo verbo en el título y en el botón macizo `pronto`, y «Dejarla como está» devuelve el foco a «Vaciar la dirección».
+26. El carrito no muestra el envío ni un total antes de confirmar (JC5): el único monto del pie es «Productos: `{precio}`».
 
 ---
 
@@ -1265,10 +1372,12 @@ Capturas a 320 px con el texto al 200 %, 360 px, 1280 px y 1920 px, en tema clar
 - La lista con «Pedir estos productos», y el carrito al llegar con un producto que ya estaba y otro que no está en el catálogo.
 - El carrito con tres productos, una línea venida de la lista, una con «Sacarlo del pedido…» elegido, sin dirección y con dirección, el teléfono abierto y el error de cantidad.
 - El carrito vacío, como Carmen y como Rodrigo.
-- La dirección, vacía, llena, con errores y con el conflicto (412).
+- La dirección, vacía, llena, con errores y con el conflicto (412), y «Vaciar la dirección» con su diálogo, su error y el carrito después.
 - «Ver el total» cargando, con un producto que salió, uno que cambió de precio y uno que cambió de comercio.
-- El resumen vigente, con el aviso de los 2 minutos (con el reloj del servidor de pruebas adelantado) y vencido.
+- El resumen vigente, con el aviso de los 2 minutos (con el reloj del servidor de pruebas adelantado) y «Volver a confirmar» antes de que venza, y vencido.
+- «Cambiar el pedido» desde el resumen, el carrito al llegar, y el carrito sin controles abierto desde la pestaña con el total confirmado.
+- El diálogo de cancelar como cuidadora (Carmen).
 - El diálogo de cancelar y el carrito después.
 - Los errores de 11 (backend detenido, 404, 409 y la capa 3 apagada).
 - Grupo familiar con el bloque de pedidos en sus cuatro estados y la confirmación de retirar.
-- Los criterios 1 a 20 de la sección 16, uno por uno, y el U4: cambiar «Toallitas húmedas x80» de 1 a 3 con un toque en el campo y un dígito, y con el + dos veces.
+- Los criterios 1 a 26 de la sección 16, uno por uno, y el U4: cambiar «Toallitas húmedas x80» de 1 a 3 con un toque en el campo y un dígito, y con el + dos veces.
