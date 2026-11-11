@@ -442,9 +442,8 @@ function Bloque({
         </Boton>
       )}
       {/* 12.1 (O12, C8): con una dirección guardada, para verla o vaciarla aunque se haya retirado el permiso.
-          Con la capa 3 apagada (`se_puede_otorgar: false`, decisión 251) el bloque queda solo con el estado
-          y, si está vigente, «Retirar». */}
-      {editor && pedidos && conDireccion && v.estado !== 'sin_autorizar' && v.se_puede_otorgar && (
+          También con la capa 3 apagada (`se_puede_otorgar: false`, decisión 251): la ruta se monta siempre. */}
+      {editor && pedidos && conDireccion && v.estado !== 'sin_autorizar' && (
         <Boton variante="texto" className="self-start" aria-label={P.verDireccionDe(pila)} onClick={onVerDireccion}>
           {P.verDireccion}
         </Boton>

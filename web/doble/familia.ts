@@ -430,12 +430,6 @@ function sembrar() {
   }
   // MATU-59: el catálogo vacío, con error y con la capa 3 apagada (los demás roles lo ven con sus cuentas de siempre).
   for (const modo of ['catalogo-vacio', 'catalogo-falla', 'catalogo-apagado'] as const) insumos(cuenta(`${modo}@example.com`, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo), 'vigente', true)
-  // MATU-94 (decisión 251): la capa 3 apagada con una autorización de pedidos de cuando estaba encendida.
-  for (const [modo, despacho] of [['catalogo-apagado-despacho', 'vigente'], ['catalogo-apagado-retirado', 'retirada']] as const) {
-    const u = cuenta(`${modo}@example.com`, 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(persona('María Soto', 'María', completos()))])], modo)
-    insumos(u, 'vigente', true)
-    sembrarDespacho(u.grupos[0].personas[0].id, despacho)
-  }
   cuenta('enlaces-cortar-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'cortar-falla')
   cuenta('enlaces-lista-falla@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conAperturas(conTodas())])], 'lista-falla')
   cuenta('compartir-nombre@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [conTodas()])], '422-nombre_relevo')
@@ -475,6 +469,10 @@ function sembrar() {
     sembrarDespacho(p.id, despacho)
     return { u, p }
   }
+  // MATU-94 (decisión 251): la capa 3 apagada con una autorización de pedidos de cuando estaba encendida
+  // y la dirección guardada (C8: se ve y se vacía también así).
+  conPedido('catalogo-apagado-despacho@example.com', 'Carmen', 'admin', 'vigente', 'catalogo-apagado-despacho')
+  conPedido('catalogo-apagado-retirado@example.com', 'Carmen', 'admin', 'retirada', 'catalogo-apagado-retirado')
   const tresProductos: [string, number][] = [['Pañal adulto M', 2], ['Protectores diarios', 1], ['Toallitas húmedas', 3]]
   sembrarPedido(conPedido('pedido@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos)
   sembrarPedido(conPedido('pedido-cuidador@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos)
