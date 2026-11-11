@@ -13,6 +13,11 @@ Pagan admin y pagador (D-62-8). Con el pedido bloqueado y un solo instante del R
    (PagoNoIniciado, 503).
 
 Registra pago.iniciar, sin montos ni datos de la pasarela (decisión 244). No sube la versión del pedido.
+
+Riesgo aceptado (orquestador, 11-11; decisión 224): la autorización despacho se lee **sin FOR SHARE**. RLS no deja al
+pagador bloquear el consentimiento (lo retiran admin y cuidador, y FOR SHARE exige la política de UPDATE), así que un
+retiro simultáneo con pagar no espera. La compensación es la regla 3 de D-62-4: si la venta se aprueba con el pedido ya
+cancelado por el retiro, se anula completa el mismo día, a la misma tarjeta (cobro.aprobar).
 """
 
 import uuid

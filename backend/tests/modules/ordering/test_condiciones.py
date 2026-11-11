@@ -61,10 +61,14 @@ def test_la_0_2_trae_el_pago_y_la_frase_del_piloto_dentro_de_la_huella() -> None
         "anulamos el cobro completo el mismo día, a la misma tarjeta",
         "Nunca te pedimos los datos de tu tarjeta ni de tu banco por mensaje.",
         "Guardamos qué versión de estas condiciones aceptaste, quién la aceptó, cuándo",
+        # P-62-5: el comprobante queda en MATU y en el piloto no se envía por correo
+        "un comprobante, que queda guardado en MATU",
+        "En el piloto, el comprobante no se envía por correo.",
     ):
         assert parte in texto, parte
     # Las secciones van del 1 al 13, sin las remisiones «igual que la versión 0.1» del borrador
     assert "igual que la" not in texto
+    assert "te lo enviamos al correo" not in texto
     assert [f"## {n}." for n in range(1, 14)] == [linea[: len(f"## {n}.")] for n, linea in enumerate(
         (x for x in texto.splitlines() if x.startswith("## ")), start=1)]
 

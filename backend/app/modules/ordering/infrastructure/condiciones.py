@@ -33,7 +33,7 @@ PUBLICADAS: dict[str, tuple[date, str]] = {
     # MATU-62: el pago, quién acepta, el pago tardío y lo que pasa si no se puede devolver
     "0.2": (
         date(2026, 11, 11),
-        "3973d732eeda6d04eead152a1858cbee64bde448f703db518976ffd83a1681bd",  # pragma: allowlist secret
+        "64859e519a0aa19bb56b415256d2d9757f162e278824edffb1092a2985a334b7",  # pragma: allowlist secret
     ),
 }
 ENLACE: Final = "/v1/condiciones-pedido"

@@ -20,7 +20,7 @@ Durante el piloto vende MATU, piloto académico, sin persona jurídica. En el pi
 
 ## 4. Tu confirmación
 
-Al pagar te mostramos un comprobante y te lo enviamos al correo de tu cuenta, con el número del pedido, la fecha, el total, quién vende, tu derecho a retracto, cómo se devuelve si falta un producto y estas condiciones completas. El detalle de los productos está en la aplicación. [PENDIENTE: CL-54]
+Al pagar te mostramos un comprobante, que queda guardado en MATU, con el número del pedido, la fecha, el total, los productos, quién vende, tu derecho a retracto, cómo se devuelve si falta un producto y la versión de estas condiciones que aceptaste. Lo puedes volver a ver cuando quieras en la aplicación. En el piloto, el comprobante no se envía por correo. [PENDIENTE: CL-54]
 
 ## 5. Si falta un producto
 
