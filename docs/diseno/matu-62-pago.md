@@ -1,6 +1,15 @@
 # MATU-62 · Pago con Webpay Plus del total exacto confirmado · Especificación de diseño
 
-**Versión 1.0 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.1 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+
+**Cambios de la v1.1** (decisiones del orquestador después de construir, incluida la decisión 248):
+- La tarjeta de prepago se llama «Tarjeta de prepago terminada en `{ultimos4}`» (7.5.1).
+- El sello de 7.9 se muestra solo si `PagoVista.pago_de_prueba` es verdadero (decisión 248). El del comprobante sigue la misma marca (7.5.2).
+- Los estados sin texto propio reutilizan textos que ya existen (7.13): la vuelta con 404 o 422 va sin mensaje a «Tu pedido» o a `/entrar`, y si falla la lectura del pago se muestra «No pudimos traer tu pedido…» con «Volver a intentar».
+- Un pago tardío anulado no resta de «Pagaste en total» (7.7).
+- Con el pago en curso también se ocultan «Cambiar el pedido», «Cambiar dirección» y «Cambiar teléfono» en el resumen (6.2).
+- Un 412 al pagar deja la casilla como estaba (4.6).
+- En 7.10 (sin sesión) van solo frases, sin montos ni tarjeta (7.10).
 **Historia:** MATU-62, el pago del total confirmado con Webpay Plus en venta normal (ADR-027, RF-22, capa 3). Carmen, o Rodrigo como pagador, ve el total exacto, acepta las condiciones, paga una sola vez en la página de Transbank, vuelve a MATU y ve un comprobante que le dice cuánto pagó, con qué tarjeta y qué le garantizamos.
 **Dónde se construye:** `web/`, en la app de la familia, React 19, TypeScript y Tailwind CSS v4, mobile first.
 **Empieza donde termina MATU-61:** en el resumen «Antes de pagar» (`docs/diseno/matu-61-pedido.md` v1.3, sección 9), donde la 9.9 dejó el lugar de «Pagar `{total}`». Esta especificación construye ese botón, lo que pasa antes de ir a Webpay, la vuelta, el comprobante y los estados del pago. El seguimiento de la preparación y la entrega es de MATU-63.
@@ -141,7 +150,7 @@ El backend escribe el contrato en paralelo en `docs/api/`. Uso nombres de trabaj
 | `lineas[]`: `producto.nombre`, `cantidad`, `precio_unitario`, `subtotal` | los tres | Productos |
 | `costo_envio`, `total` | los tres | Boleta |
 | `pagaste_tu`: si quien mira es quien pagó | los tres | 2.3 |
-| `tarjeta.tipo` (`debito` o `credito`), `tarjeta.ultimos4`, `tarjeta.cuotas`, `codigo_autorizacion` | **solo quien pagó** (D-62-2) | La tarjeta (7.5) |
+| `tarjeta.tipo` (`debito`, `credito` o `prepago`, v1.1), `tarjeta.ultimos4`, `tarjeta.cuotas`, `codigo_autorizacion` | **solo quien pagó** (D-62-2) | La tarjeta (7.5) |
 | `vendedor`, `ventana_entrega`, `canal_reclamo` (los de `resumen` de MATU-61) | los tres | Datos del pedido |
 | `condiciones`: `version`, `aceptadas_en`, `enlace` (P4) | los tres | Condiciones aceptadas |
 | `tardio`: se respetó un pago que llegó con el total vencido | los tres | 7.6 |
@@ -256,7 +265,7 @@ Todos van **sobre el botón**, en la parte de decisión, y el botón vuelve a «
 | Webpay no responde | el `type` de 3.1 (`pasarela-no-disponible`) | `Nota tono="atenta"` con `CloudOff`, `rol="alert"` | Webpay no responde ahora. No se cobró nada. Inténtalo en unos minutos. | [A5.4] |
 | MATU no responde (red o 5xx) | — | Igual | No pudimos abrir Webpay. Revisa tu conexión y vuelve a intentarlo. No se cobró nada. | **[NUEVO]**, con la forma de [L 8] |
 | El total venció | 409 `estado-pedido`, `estado: vencido` (D-62-15) | El estado vencido de MATU-61, 9.6: admin con «Volver a confirmar»; pagador con 9.11 (sección 5) | Los de 9.6 y 9.11 | [L 31] |
-| El pedido cambió o se canceló | 409 `estado-pedido` con otro estado, o 412 | La fila de MATU-61, 11.2: `Nota tono="rocio"` bajo la bajada y se vuelve a leer el pedido | Este pedido cambió mientras lo revisabas. Te mostramos cómo quedó. | [L 31] |
+| El pedido cambió o se canceló | 409 `estado-pedido` con otro estado, o 412 | La fila de MATU-61, 11.2: `Nota tono="rocio"` bajo la bajada y se vuelve a leer el pedido. **Con un 412, la casilla queda como estaba** (v1.1): si estaba marcada sigue marcada, y la persona no tiene que volver a marcarla para pagar el pedido que ahora ve. Si la lectura trae condiciones de otra versión, manda la fila «Las condiciones cambiaron» | Este pedido cambió mientras lo revisabas. Te mostramos cómo quedó. | [L 31] |
 | Ya hay un pago en curso | 409 `pago-en-curso` | 6.2 | Ya hay un pago en curso para este pedido. Espera su resultado antes de intentar de nuevo. | [A5.4] |
 | Las condiciones cambiaron | el `type` de 3.1 (`condiciones-cambiaron`) | La casilla se desmarca. `MensajeError` bajo la casilla y el foco a la casilla. La pantalla vuelve a leer el resumen, que trae la versión nueva | Las condiciones del pedido cambiaron. Léelas de nuevo y marca la casilla para pagar. | **[NUEVO]** |
 | La misma petición sigue en curso | 409 `idempotencia-en-curso` | Sin texto: «Pagando…» sigue, y la pantalla repite **una vez**, a los 2 segundos, con la misma clave. Si vuelve el mismo 409, la fila de «MATU no responde» | — | — |
@@ -332,6 +341,7 @@ En el resumen, **desaparecen la casilla, la frase de Webpay y «Pagar»**, y en 
 | Segunda frase | Si saliste de Webpay sin terminar, se cierra solo en menos de 15 minutos. | **[NUEVO]**, en tú: quien paga puede ser quien salió |
 | Botón y anuncios | Los de 6.1 | — |
 
+- **En la parte de lectura del resumen se ocultan «Cambiar el pedido», «Cambiar dirección» y «Cambiar teléfono»** (v1.1), para todos los roles: cambiar respondería 409, igual que en el pedido (6.1). La dirección y el teléfono se leen como texto.
 - **El admin ve este aviso en el resumen y el de 6.1 en el pedido:** en el resumen viene a pagar, en el pedido viene a cambiar.
 - **Con pago en curso no se muestra el aviso de los 2 minutos ni «Volver a confirmar»**, aunque el total esté por vencer o vencido: volver a confirmar respondería 409, y si Transbank aprueba un pago que empezó con el total vigente, se respeta (D-62-4, regla 2). La boleta sigue con su hora o con «Venció».
 - **Sin elemento en `turquesa` macizo.**
@@ -567,7 +577,7 @@ llega a /insumos/pedido/pago con parámetros de Transbank
 | Separador | `hr border-0 border-t-2 border-tinta` | — | — |
 | Total pagado | Renglón `text-2xl font-bold`, la cifra en `cifras` | Total pagado | [A5.4] |
 | Marca | `Etiqueta tono="ok"` con `Check` `size-4` `aria-hidden` | Pagado | **[NUEVO]**: el estado con palabra y forma (DISENO.md 4.3) |
-| Tarjeta, solo quien pagó | `p text-base`, los cuatro dígitos en `cifras` | Tarjeta de débito terminada en `{ultimos4}` · Tarjeta de crédito terminada en `{ultimos4}` · con cuotas: Tarjeta de crédito terminada en `{ultimos4}`, en `{n}` cuotas | **[AJUSTE]** de «`{Débito/Crédito}` terminada en `{últimos 4}`» [A5.4]: «Débito terminada» no concuerda. «Tarjeta de…» lo arregla y es la palabra de la demo (escena 22). Las cuotas, P5 |
+| Tarjeta, solo quien pagó | `p text-base`, los cuatro dígitos en `cifras` | Tarjeta de débito terminada en `{ultimos4}` · Tarjeta de crédito terminada en `{ultimos4}` · Tarjeta de prepago terminada en `{ultimos4}` (v1.1) · con cuotas: Tarjeta de crédito terminada en `{ultimos4}`, en `{n}` cuotas | **[AJUSTE]** de «`{Débito/Crédito}` terminada en `{últimos 4}`» [A5.4]: «Débito terminada» no concuerda. «Tarjeta de…» lo arregla y es la palabra de la demo (escena 22). Las cuotas, P5 |
 | Código, solo quien pagó | `p text-base`, el código en `cifras` | Código de autorización `{codigo}` | [A5.4] |
 | Quien no pagó, en lugar de los dos anteriores | `p text-base` | Lo pagó otra persona de tu grupo. | **[NUEVO]** (D-62-2: no ve la tarjeta). Sin el nombre: el contrato no lo trae y no hace falta para entender el comprobante |
 
@@ -581,6 +591,7 @@ llega a /insumos/pedido/pago con parámetros de Transbank
 |---|---|---|---|
 | Sello | `Nota tono="atenta"` **sin `borde`**, con `Info` `aria-hidden`, **dentro del comprobante**, después de la fecha y antes de los productos. La primera frase en `font-bold` | **Pago de prueba. No se cobró dinero real.** Este comprobante no es una boleta. | [D-62-7] |
 
+- **Cuándo va (v1.1):** cuando `pago_de_prueba` del pago es verdadero, que en el piloto es siempre. Es la misma marca que decide el sello de 7.9 (decisión 248). Si llega falso, el sello no va, y el comprobante no cambia en nada más.
 - **Por qué dentro del comprobante y no arriba de la página:** es parte del documento. Si Carmen lo imprime, le saca una captura o lo reenvía, el sello va con él. El aviso «Precios de ejemplo.» de arriba es de la pantalla (`lenguaje.md` 11) y no viaja con el comprobante.
 - **Por qué van los dos:** dicen cosas distintas. El de arriba, que los precios son de ejemplo y no hay convenio. El sello, que este pago no movió dinero y que el papel no sirve como boleta. Los dos en `atenta`, uno sin borde y dentro de la boleta, para que no se lean como el mismo aviso repetido.
 - **Antes de los productos y no al pie:** se lee antes de ver la cifra. Nunca junto a un botón.
@@ -662,6 +673,7 @@ Pueden aparecer en el comprobante cuando un producto no se pudo entregar (la anu
 | Total después de devolver | Un segundo separador `border-t-2 border-tinta`, `text-2xl font-bold` | Pagaste en total | **[NUEVO]**, de «Pagas en total» de la escena 33, en pasado |
 
 - **Las devoluciones en curso no restan** en el comprobante: todavía no volvió el dinero. Solo lo dice su `Nota`.
+- **Un pago tardío anulado no resta de «Pagaste en total»** (v1.1): no es una devolución de un pedido pagado, sino un pago que nunca quedó en el pedido. No tiene comprobante, no lleva renglón «Devolvimos:» ni entra en la resta; se ve solo en 7.9.
 - **La devolución de todo el pedido** usa los mismos textos con «por tu pedido completo» en lugar de «por `{producto}`» **[NUEVO]**.
 - **El dinero que vuelve no va en `turquesa` ni en verde suelto:** la `Nota ok` lleva palabra («Devolvimos») e ícono, y el renglón lleva el signo menos.
 
@@ -696,7 +708,7 @@ Si el retorno responde `ya_registrado` (la persona volvió dos veces desde Webpa
 |---|---|---|---|
 | La anulación ya se hizo | Anulamos tu pago | El pedido cambió o se canceló mientras pagabas. Anulamos tu pago de `{total}` completo, a tu tarjeta terminada en `{ultimos4}`. Cuándo lo ves en tu cuenta depende de tu banco. | [A5.4] el texto · **[NUEVO]** el título, mismo verbo |
 | La anulación está en curso (D-62-6) | Estamos anulando tu pago | El pedido cambió o se canceló mientras pagabas. Estamos devolviendo `{total}` a tu tarjeta terminada en `{ultimos4}`. Si no se completa hoy, te escribimos. MATU nunca te pide los datos de tu banco por mensaje. | **[NUEVO]**, con las frases de [A5.4] de la devolución en curso |
-| Sello | — | Pago de prueba. No se cobró dinero real. | [D-62-7], la primera frase del sello. Aquí no hay comprobante, así que no va «no es una boleta» |
+| Sello, **solo si `PagoVista.pago_de_prueba` es verdadero** (v1.1, decisión 248) | `p text-base text-tenue` | Pago de prueba. No se cobró dinero real. | [D-62-7], la primera frase del sello. Aquí no hay comprobante, así que no va «no es una boleta». Si `pago_de_prueba` es falso, no va nada en su lugar |
 | Botón | `Boton variante="secundario"`, a `/insumos/pedido` | Ir a tu pedido | [L 31] |
 
 - **Baldosa `atenta` con `Undo2`**, nunca `pronto`: MATU hizo lo correcto, y el dinero vuelve.
@@ -711,6 +723,18 @@ Si la app no logra recuperar la sesión al volver (por ejemplo, porque pasó muc
 | Título | El del resultado: «Pagaste tu pedido», «El pago no se hizo», «Saliste de Webpay sin pagar», «Anulamos tu pago» o «Estamos confirmando tu pago» | — | 7.2 a 7.12 |
 | Texto | `p text-lg max-w-prose` | Para ver el comprobante y tu pedido, entra a MATU. | **[NUEVO]** |
 | Botón | `Boton` principal, a `/entrar`. Al entrar, va a `/insumos/pedido` | Entrar | **[NUEVO]**, el de la pantalla de entrar |
+
+**Solo frases, sin montos ni tarjeta (v1.1).** Sin sesión no se sabe quién mira, así que no va ninguna cifra, hora, referencia ni dato de la tarjeta. Por resultado, bajo el título:
+
+| Resultado | Lo que va entre el título y «Para ver el comprobante…» |
+|---|---|
+| `aprobado`, `aprobado_tardio` | Nada. Con `ya_registrado`, la `Nota rocio` de 7.8: «Este pago ya está registrado. No se cobró dos veces.» |
+| `no_aprobado` | «Transbank no lo aprobó y no se cobró nada. Puedes intentarlo con otra tarjeta mientras el total siga vigente.» (sin la hora ni «Intentar de nuevo») |
+| `abandonado`, `tiempo_agotado` | «No se cobró nada.» |
+| `pendiente` | La `Nota atenta` de 7.3, sin «Revisar ahora» |
+| `anulado` | Nada: la frase de 7.9 lleva el monto y la tarjeta. Solo el título («Anulamos tu pago» o «Estamos anulando tu pago») |
+
+Ni el aviso de los precios de ejemplo, ni el sello de 7.9, ni la baldosa con otro tono que el de su resultado.
 
 Es el único estado de la vuelta con un `turquesa` macizo además de «Intentar de nuevo»: sin entrar no hay nada más que hacer.
 
@@ -759,6 +783,19 @@ Es el único estado de la vuelta con un `turquesa` macizo además de «Intentar 
 | Plazo, botón y salida | Los de 7.11, también con el total vencido | Igual | — |
 
 Misma composición y tokens que 7.11. «Intentar de nuevo» es el único `turquesa` macizo.
+
+### 7.13 Los estados sin texto propio (v1.1)
+
+No se escriben textos nuevos para estos casos: se reutilizan los que ya existen.
+
+| Caso | Qué se ve | Texto | Origen |
+|---|---|---|---|
+| La vuelta responde 404 o 422 (el token no existe, ya no sirve o vino mal) | **Sin mensaje.** Con sesión, la pantalla reemplaza la dirección por `/insumos/pedido` («Tu pedido»), que muestra cómo quedó. Sin sesión, va a `/entrar` | — | — |
+| Falla la lectura del pago (red o 5xx en el pago del pedido o en el pedido pagado) | El patrón de error de carga de MATU-61, 11.1: baldosa `bg-tinta/7 text-tenue` con `CloudOff`, el título del resultado si se conoce («Pagaste tu pedido», «Anulamos tu pago»…) o «Tu pedido» si no, el texto en `Anunciado urgencia="alert"` y el `Boton` principal «Volver a intentar», único macizo | No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · Volver a intentar | [L 31] · [L 26] |
+
+- «Volver a intentar» repite la misma lectura (el retorno es idempotente: no cobra de nuevo). El foco no se mueve si vuelve a fallar; va al `h1` si llega el resultado.
+- Sin `pronto` en la baldosa: no se perdió nada, es la conexión.
+- En 10.1 este estado tiene un macizo, «Volver a intentar».
 
 ---
 
@@ -821,6 +858,7 @@ Al fusionar, la especificación de MATU-61 se actualiza así (lo hago yo en `doc
 | El pago no se hizo y salió sin pagar (7.11 y 7.12), vigente | «Intentar de nuevo» |
 | Lo mismo con el total vencido | admin: «Volver a confirmar» · pagador: ninguno |
 | Bloque «Pedido pagado» (8) | Ninguno |
+| No pudimos traer tu pedido (7.13, v1.1) | «Volver a intentar» |
 
 ### 10.2 Áreas táctiles de 48 × 48 px
 
@@ -938,7 +976,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 | Sin sesión | Para ver el comprobante y tu pedido, entra a MATU. · Entrar | **[NUEVO]** |
 | **Pagaste** | | |
 | Título y bajada | Pagaste tu pedido · Pagaste {total} una sola vez. Es el total que viste antes de pagar. | [A5.4] · **[NUEVO]** |
-| Comprobante | Comprobante · Pedido {referencia} · {DD/MM/AAAA} a las {HH:MM} · {cantidad} × {precio} · Envío (uno por pedido) · Total pagado · Pagado · Tarjeta de débito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4}, en {n} cuotas · Código de autorización {codigo} · Lo pagó otra persona de tu grupo. | **[NUEVO]** · [A5.4] · **[AJUSTE]** la tarjeta |
+| Comprobante | Comprobante · Pedido {referencia} · {DD/MM/AAAA} a las {HH:MM} · {cantidad} × {precio} · Envío (uno por pedido) · Total pagado · Pagado · Tarjeta de débito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4}, en {n} cuotas · Tarjeta de prepago terminada en {ultimos4} · Código de autorización {codigo} · Lo pagó otra persona de tu grupo. | **[NUEVO]** · [A5.4] · **[AJUSTE]** la tarjeta |
 | Sello del piloto | Pago de prueba. No se cobró dinero real. Este comprobante no es una boleta. | [D-62-7] |
 | Datos del pedido | Datos del pedido · Vende: MATU, piloto académico, sin persona jurídica. · Entrega: {ventana} · Condiciones aceptadas: versión {v}, el {DD/MM/AAAA} · Condiciones del pedido, versión {v} (se abre en otra pestaña) | **[NUEVO]** · [A5.4] |
 | Garantías | Lo que te garantizamos · Derecho a retracto: tienes 10 días desde que lo recibes. · Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. · Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar. · ¿Algo no está bien? Escríbenos a {correo}. | **[NUEVO]** el título · [A5.4] |
@@ -970,7 +1008,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 9. **La tarjeta y el código de autorización aparecen solo para quien pagó.** Como Carmen, después de que pagó Rodrigo, el comprobante dice «Lo pagó otra persona de tu grupo.» y la respuesta de la API no trae `tarjeta` ni `codigo_autorizacion`. El observador ve solo «Pedido pagado» y «Pagado».
 10. **El sello «Pago de prueba. No se cobró dinero real. Este comprobante no es una boleta.» está dentro del comprobante, antes de los productos**, y aparece también en la hoja impresa, arriba.
 11. El comprobante se titula «Comprobante», nunca «Boleta». Ningún texto dice «Total con IVA», «rechazado», «fallido» ni «token» (un `grep` sobre los textos de la pantalla).
-12. Con un pago en curso, el carrito no tiene controles ni «Ver el total», el resumen no tiene la casilla, «Pagar», el aviso de los 2 minutos ni «Volver a confirmar», **y «Cancelar pedido» sigue** para admin y cuidador. El diálogo de cancelar suma el párrafo de 6.3 en negrita.
+12. Con un pago en curso, el carrito no tiene controles ni «Ver el total», el resumen no tiene la casilla, «Pagar», el aviso de los 2 minutos, «Volver a confirmar», «Cambiar el pedido», «Cambiar dirección» ni «Cambiar teléfono», **y «Cancelar pedido» sigue** para admin y cuidador. El diálogo de cancelar suma el párrafo de 6.3 en negrita.
 13. Un 409 `pago-en-curso` al cambiar la cantidad muestra la `Nota` de 6.1 con el foco en ella, y la pantalla queda sin controles.
 14. «Estamos confirmando tu pago» **no tiene animación** ni número que cambie. Pasados 10 segundos sin respuesta aparece la nota de 7.3, sin botón de pagar.
 15. «El pago no se hizo» y «Saliste de Webpay sin pagar» dicen «No se cobró nada.», no usan `pronto` y llevan «Intentar de nuevo» al resumen con la casilla sin marcar.
@@ -983,6 +1021,11 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 22. Ningún texto de estas pantallas mide menos de 17 px de `font-size` calculado.
 23. El aviso «Precios de ejemplo.» aparece **una vez** en el comprobante, arriba, y no aparece en 7.2, 7.3, 7.9, 7.11 ni 7.12 (no hay precios que rotular).
 24. En pantalla ancha, el comprobante va a la derecha y es `sticky`, y **el orden de Tab y del lector es el mismo que a 360 px** (el comprobante antes que los datos del pedido).
+25. (v1.1) Con prepago, el comprobante dice «Tarjeta de prepago terminada en `{ultimos4}`».
+26. (v1.1) El sello de 7.9 aparece solo con `pago_de_prueba` verdadero.
+27. (v1.1) Un 412 al pagar deja la casilla como estaba.
+28. (v1.1) Sin sesión (7.10) no hay ninguna cifra, hora, referencia ni dígito de tarjeta en la pantalla.
+29. (v1.1) Un pago tardío anulado no aparece como renglón ni resta en ningún comprobante.
 
 ---
 
