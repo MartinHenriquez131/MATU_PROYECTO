@@ -1,0 +1,1952 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Pedido (propuesto)
+  version: 0.1.0-propuesto
+  summary: Autorización de pedidos, dirección de entrega, carrito, qué hacer si falta un producto, total confirmado y cancelar sin pagar (MATU-61, RF-21).
+  description: |
+    Contrato **propuesto** de MATU-61, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
+    regla 1), con las decisiones D1 a D12 de Jorge del 11-11 y las condiciones C1 a C25 de la revisión
+    previa del analista normativo (`docs/legal/revision-previa-matu-61.md` del repositorio MATU). Las
+    decisiones de este contrato son las **188 a 215** de `docs/api/README.md`, sección "MATU-61", y las
+    preguntas abiertas para Jorge están ahí mismo ("Para Jorge (MATU-61)", P1 a P16). Jorge revisa este
+    contrato antes de construir.
+
+    **Frontera con MATU-62 (decisión de Jorge).** MATU-61 llega hasta el **total confirmado**, que vale
+    15 minutos, y el pedido **vencido** o **cancelado sin pagar**. No hay pago, cargo, retorno de la
+    pasarela ni la transición `total_confirmado → pagado`. Las columnas de las condiciones
+    (`condiciones_version`, `condiciones_aceptadas_en`, `condiciones_huella`, D6) se crean en la migración
+    de MATU-61 pero se escriben al pagar, en MATU-62: aquí el resumen solo entrega la versión vigente de
+    las condiciones, su huella y su enlace.
+
+    **Es capa 3** (decisión 104). Las rutas `/v1/pedidos/…`, `…/personas-cuidadas/{persona_id}/pedidos` y
+    `/v1/condiciones-pedido` van en `ROUTERS_CAPA_3` y existen solo con `CAPA3_HABILITADA=true`. La
+    dirección (`PUT …/direccion`) y la autorización `despacho` viven en `care_circle` (decisiones 189 y
+    192).
+
+    **Rutas que ya están en `openapi.json` y cambian** (`POST`/`GET …/consentimientos`, `POST
+    …/consentimientos/{finalidad}/retiro`, `GET /v1/grupos/{grupo_id}/personas-cuidadas` y `GET
+    /v1/catalogo`): no se repiten aquí. Se declaran como fragmentos `Cambio*` con `x-matu-se-suma-a`,
+    igual que en MATU-60 y MATU-44. Al implementar, todo se exporta a `openapi.json` desde
+    `app.openapi()` y se quita de este archivo en el mismo PR.
+
+    **Contexto de la familia.** Todas las rutas, salvo `GET /v1/condiciones-pedido`, usan `bearerAuth` +
+    `X-Grupo-Id` y fijan el contexto con `sesion_de_grupo`. Un pedido o una persona de otro grupo, un rol
+    que no alcanza o un id que no es UUID responden **404**, nunca 403 (CLAUDE.md, agente 2, punto 4). El
+    único 403 es la autorización de pedidos (`despacho`) que falta o tiene la revisión vencida.
+
+    **`Cache-Control: no-store` en todas las respuestas del pedido y de la dirección**, 2xx y errores
+    (C17). Nada del contenido va en la URL: los ids son opacos y los productos, cantidades, dirección y
+    teléfono viajan solo en el cuerpo.
+
+    **Lo que nunca sale ni se registra** (C17): productos, cantidades, precios, dirección, referencia y
+    teléfono nunca van a logs, errores, auditoría, eventos ni URL. Un 422 nombra el campo y nunca repite
+    el valor (`app/core/errores.py`). Los logs llevan la plantilla de la ruta y, como mucho, contadores
+    (`lineas=N`).
+
+    **Auditoría** (D12, sin contenido): `consentimiento.otorgar` y `consentimiento.revocar` de
+    `despacho`, `direccion.cambiar`, `pedido.crear`, `pedido.confirmar`, `pedido.cancelar` y
+    `pedido.regla_faltante`. Las lecturas no se auditan (decisión 52): la línea de tiempo la da
+    `pedido_transicion`.
+
+    Los componentes comunes (`ErrorCampo`, `Problema`, `ProblemaValidacion`, `XGrupoId`, `PersonaId`,
+    `bearerAuth`, `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`) son copias idénticas de
+    `relevo.openapi.yaml`, como en `app-familia.openapi.yaml`. La descripción de `CacheControlNoStore`
+    habla de la ficha y del relevo, y aquí vale igual para el pedido y la dirección.
+
+    Todos los datos de los ejemplos son sintéticos.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: pedidos
+    description: Carrito, reglas si falta un producto, total confirmado y cancelar sin pagar (capa 3, MATU-61)
+  - name: direccion
+    description: Dirección de entrega de la persona cuidada (D4)
+  - name: condiciones
+    description: Condiciones del pedido, con versión y huella (R13, D6)
+
+paths:
+  /v1/personas-cuidadas/{persona_id}/direccion:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [direccion]
+      operationId: guardarDireccion
+      summary: Guardar o cambiar la dirección de entrega de la persona
+      description: |
+        Decisiones 189 a 191. **Quién:** `admin` y `cuidador`. `pagador` y `observador`, otro grupo, una
+        persona inexistente o eliminada: **404**. El pagador la **ve** en `GET
+        /v1/grupos/{grupo_id}/personas-cuidadas` (`PersonaVistaPagador.direccion`), y el observador no.
+
+        **Precondición obligatoria**, como `PUT …/plan/ficha/{campo}`:
+        - la persona **no tiene** dirección: `If-None-Match: *`. Si ya tiene una, **412** con `actual`;
+        - la persona **tiene** dirección: `If-Match` con el `etag` de `DireccionVista`. Otro valor: **412**
+          con `actual`;
+        - ninguna de las dos, vacía o `If-Match: *`: **428** `falta-version`. Las dos juntas o
+          `If-None-Match` distinto de `*`: **422**.
+
+        **Sin `lat` ni `lng`** (C8): un campo que no está en `DireccionEntrada` responde 422. `referencia`
+        tiene 200 caracteres como máximo y la pantalla pone la ayuda «No escribas datos de salud.» (C9).
+
+        **Qué hace:** cambia la dirección de esa persona y solo de ella; si su fila de `direccion` la
+        comparte otra persona del grupo, crea una nueva. Sube `version`. Registra `direccion.cambiar`,
+        con entidad `direccion` y sin el contenido (C10, D12). Un pedido ya confirmado **no cambia**: su
+        dirección es la copia de `pedido_entrega` (D4, ver P7).
+
+        Orden: 401, 404, 428, 422, 412 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IfMatchDireccion'
+        - $ref: '#/components/parameters/IfNoneMatchDireccion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DireccionEntrada'
+            example:
+              calle: Calle de Prueba
+              numero: '123'
+              depto: 4B
+              comuna: Ñuñoa
+              referencia: Portón verde
+      responses:
+        '200':
+          description: La dirección guardada, con su `etag` nuevo. Igual al crearla y al cambiarla.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagDireccion'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DireccionVista'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '412':
+          description: |
+            La dirección cambió desde que se leyó, o `If-None-Match: *` y ya existe una.
+            `/errores/version-desactualizada`, con la dirección vigente en `actual`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagDireccion'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemaVersionDireccion'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+
+  /v1/personas-cuidadas/{persona_id}/pedidos:
+    parameters:
+      - $ref: '#/components/parameters/PersonaId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [pedidos]
+      operationId: crearPedido
+      summary: Crear el carrito (borrador) con productos del catálogo
+      description: |
+        Decisiones 193 a 196. **Quién:** `admin` y `cuidador` (arquitectura 11.2: «crear»). `pagador`,
+        `observador`, otro grupo, una persona inexistente o eliminada: **404**.
+
+        **Autorización de pedidos vigente** (C21): la persona necesita la autorización `despacho` no
+        revocada y, si la dio un cuidador de hecho, con la revisión de 12 meses al día según el `Reloj`.
+        Si no: **403** `sin-autorizacion-pedidos` o `revision-vencida`, con `finalidad: despacho`.
+
+        **`Idempotency-Key` obligatoria** (arquitectura 9.1): sin ella, **428** `falta-idempotencia`. La
+        misma clave con el mismo cuerpo devuelve el mismo código y el pedido **tal como está ahora**
+        (D5: `idempotencia` guarda solo el estado y el id). La misma clave con otro cuerpo, o de otra
+        cuenta del grupo, **422** `idempotencia-reutilizada`. Mientras la primera petición no termina,
+        **409** `idempotencia-en-curso`.
+
+        **Desde la lista de insumos** (D10): la pantalla arma las líneas con los `oferta_id` del catálogo
+        (`GET /v1/catalogo`) que corresponden a los productos de la lista. **El servidor no lee
+        `perfil_consumo`** (C20). Cada línea guarda el precio y el comercio de la oferta en ese momento:
+        son el «precio del carrito» contra el que se marcan los cambios al confirmar (C15).
+
+        **Un solo pedido abierto por persona** (P2, por aprobar): si la persona ya tiene uno en
+        `borrador`, `total_confirmado` o `vencido`, **409** `pedido-abierto` con su `pedido_id`.
+
+        Registra `pedido.crear`. Orden: 401, 404, 403, 428, 422 (cabecera y cuerpo), idempotencia
+        (repetida, 422 o 409), 409 `pedido-abierto` y 201.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPedido'
+            example:
+              lineas:
+                - oferta_id: 3c4d5e60-0000-4000-8000-0000000000b1
+                  cantidad: 2
+                - oferta_id: 3c4d5e60-0000-4000-8000-0000000000b4
+                  cantidad: 1
+      responses:
+        '201':
+          description: El borrador creado (o el mismo, si es una repetición con la misma clave).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPedido'
+            Location:
+              description: '`/v1/pedidos/{pedido_id}`'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoVista'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          description: |
+            `/errores/pedido-abierto` (con `pedido_id`, P2) o `/errores/idempotencia-en-curso`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProblemaPedidoAbierto'
+                  - $ref: '#/components/schemas/ProblemaIdempotenciaEnCurso'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaIdempotencia'
+    get:
+      tags: [pedidos]
+      operationId: listarPedidosAbiertos
+      summary: Los pedidos sin pagar de la persona (para volver al carrito)
+      description: |
+        Decisión 197 (P1, por aprobar). El carrito vive en el servidor (C18) y la pantalla no guarda nada
+        en el navegador: después de recargar, esta ruta dice si hay un pedido abierto y cuál.
+
+        Solo `borrador`, `total_confirmado` y `vencido`, del más nuevo al más antiguo. Los cancelados y
+        los pagados no vienen (los pagados son de MATU-62 y MATU-63). **Quién:** los cuatro roles
+        (arquitectura 11.2: pagador y observador «ver»). Otro grupo o persona inexistente: 404. No pide
+        la autorización `despacho`. Es una lectura: no se audita. Orden: 401, 404 y 200.
+      responses:
+        '200':
+          description: Los pedidos abiertos. Con la regla de P2, a lo más uno.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaPedidosAbiertos'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+
+  /v1/pedidos/{pedido_id}:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [pedidos]
+      operationId: leerPedido
+      summary: Leer el pedido, con el resumen antes de pagar si el total está confirmado
+      description: |
+        Decisiones 198 y 205. **Quién:** los cuatro roles (arquitectura 11.2). `admin`, `cuidador` y
+        `pagador` reciben `PedidoVista`; el `observador` recibe `PedidoVistaObservador`, **sin
+        `entrega`** (arquitectura 11.2: el observador ve el nombre de la persona, no su dirección). Otro
+        grupo, inexistente o de una persona eliminada: **404**. No pide la autorización `despacho`.
+
+        **El vencimiento lo dice el `Reloj`:** un pedido en `total_confirmado` con `vence_en` ya cumplido
+        se informa como `vencido`, aunque todavía no se haya guardado la transición (decisión 204).
+
+        Es una lectura: no se audita. Orden: 401, 404 y 200.
+      responses:
+        '200':
+          description: El pedido, con la proyección del rol.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPedido'
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/PedidoVista'
+                  - $ref: '#/components/schemas/PedidoVistaObservador'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+
+  /v1/pedidos/{pedido_id}/lineas:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [pedidos]
+      operationId: reemplazarLineas
+      summary: Ajustar el carrito (cantidades, agregar y sacar productos)
+      description: |
+        Decisión 199. Reemplaza **todas** las líneas del borrador con las del cuerpo: una línea que no
+        viene sale del carrito, y una nueva entra con la regla `otro_comercio`. Una línea cuyo producto y
+        oferta no cambian conserva su precio del carrito; si cambia la oferta, el precio del carrito pasa
+        a ser el de la oferta nueva. Puede quedar vacío (`lineas: []`, «Tu pedido está vacío.»).
+
+        **Solo en `borrador`.** En `total_confirmado` y `vencido`, **409** `estado-pedido` según la
+        arquitectura 8.1, que no tiene transición de vuelta a `borrador` (ver P3: se recomienda
+        agregarla). En los demás estados, también 409.
+
+        **Quién:** `admin` y `cuidador`; el resto, 404. Pide la autorización `despacho` vigente (403).
+        `If-Match` obligatorio con el `etag` del pedido: 428 sin él, 412 con `actual` si cambió. No se
+        audita (D12 no lo lista). Orden: 401, 404, 403, 428, 422, 412, 409 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IfMatchPedido'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudLineas'
+            example:
+              lineas:
+                - oferta_id: 3c4d5e60-0000-4000-8000-0000000000b1
+                  cantidad: 3
+      responses:
+        '200':
+          $ref: '#/components/responses/PedidoActualizado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          $ref: '#/components/responses/EstadoPedidoNoPermite'
+        '412':
+          $ref: '#/components/responses/VersionPedido'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+
+  /v1/pedidos/{pedido_id}/reglas-faltante:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [pedidos]
+      operationId: reemplazarReglasFaltante
+      summary: Qué hacer si falta cada producto (RF-21)
+      description: |
+        Decisión 200 (arquitectura 9.4, propuesta para RF-21). Reemplaza todas las elecciones del pedido:
+        cada producto del pedido queda con la `accion` del cuerpo, y **el que no viene queda en
+        `otro_comercio`**, la opción por omisión. `quitar` es «Sacarlo del pedido y devolverme su precio».
+        **Nunca otra marca ni otro producto:** no existe otra acción (`CHECK` de `regla_sustitucion` y
+        trigger `pedido_linea_mismo_producto`).
+
+        **En `borrador`, `total_confirmado` y `vencido`.** No cambia el total ni `vence_en`, así que el
+        resumen sigue valiendo. En los demás estados, **409** `estado-pedido`: queda fija al pagar (C12;
+        el trigger que lo asegura en la base va en la migración de MATU-61).
+
+        **Quién:** `admin` y `cuidador` (C13); el resto, 404. Pide la autorización `despacho` vigente.
+        `If-Match` obligatorio. Registra `pedido.regla_faltante`, sin las acciones. Orden: 401, 404, 403,
+        428, 422, 412, 409 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IfMatchPedido'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudReglasFaltante'
+            example:
+              reglas:
+                - producto_id: 1a2b3c40-0000-4000-8000-0000000000c2
+                  accion: quitar
+      responses:
+        '200':
+          $ref: '#/components/responses/PedidoActualizado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          $ref: '#/components/responses/EstadoPedidoNoPermite'
+        '412':
+          $ref: '#/components/responses/VersionPedido'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+
+  /v1/pedidos/{pedido_id}/confirmar:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [pedidos]
+      operationId: confirmarTotal
+      summary: Confirmar que haya cada producto y fijar el total por 15 minutos
+      description: |
+        Decisiones 201 a 204 (arquitectura 8.2 y 9.4, ADR-027).
+
+        **Desde `borrador` o `vencido`** (`vencido → total_confirmado`, «Volver a confirmar», C23). En
+        `total_confirmado` todavía vigente y en los demás estados: **409** `estado-pedido`.
+
+        **Qué hace, en una transacción y con un solo instante del `Reloj`:**
+        1. Consulta el stock de **todas las líneas del carrito** por `CatalogoComercio`, una consulta por
+           comercio con su propia referencia opaca (C22). Sin datos de nadie (arquitectura 11.2).
+        2. Cada línea queda en el comercio del carrito si lo tiene. Si no, MATU busca **el mismo
+           producto** en otro comercio activo que lo tenga (el de menor precio; empate por
+           `nombre_fantasia` y `comercio_id`, P10). Si ninguno lo tiene, la línea **sale** y viene en
+           `salieron`. Esto pasa con cualquier regla de faltante: la regla rige después de pagar (P9).
+        3. Marca cada línea que cambió de **precio** o de **comercio** contra el precio y el comercio del
+           carrito (C15), en `cambio`.
+        4. Fija el precio exacto con IVA de cada línea, copia `retracto_pierde_al_abrir` (C3), suma el
+           envío único, fija `total = subtotal_productos + costo_envio`, `total_confirmado_en = ahora` y
+           `vence_en = ahora + 15 minutos`.
+        5. Copia la dirección vigente de la persona y el teléfono de contacto a `pedido_entrega` (D4).
+        6. Registra la transición y `pedido.confirmar`.
+
+        **Errores propios:** la persona sin dirección, **409** `sin-direccion` (C7); el carrito vacío,
+        **409** `pedido-vacio`; ningún producto disponible en ningún comercio, **409** `nada-disponible`,
+        y el pedido no cambia (arquitectura 8.1: «si ningún producto está disponible no sale de ahí»).
+
+        **Teléfono de contacto** (D4): el del cuerpo; si no viene, el que ya tenía el pedido (al volver a
+        confirmar); si no, el **celular verificado de quien confirma**. Si no hay ninguno, 422
+        `telefono_requerido` en `telefono_contacto`.
+
+        **Quién:** `admin` y `cuidador`. El `pagador` **no confirma**: la arquitectura 11.2 le da «ver»
+        en pedidos y «pagar» en pago, y ningún «confirmar» (ver P5). El resto, 404. Pide la autorización
+        `despacho` vigente. `Idempotency-Key` obligatoria, con las reglas de `POST …/pedidos`.
+
+        Orden: 401, 404, 403, 428, 422, idempotencia, 409 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        description: Opcional. Sin cuerpo es lo mismo que `{}`.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudConfirmar'
+            example:
+              telefono_contacto: '+56 9 5555 0177'
+      responses:
+        '200':
+          description: |
+            El pedido en `total_confirmado`, con `resumen` (C1 y D8). Es todo lo que la familia ve antes
+            de pagar.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagPedido'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoVista'
+              examples:
+                confirmado:
+                  $ref: '#/components/examples/PedidoConfirmado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          description: |
+            `/errores/estado-pedido` (con `estado`), `/errores/sin-direccion`, `/errores/pedido-vacio`,
+            `/errores/nada-disponible` o `/errores/idempotencia-en-curso`.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProblemaEstadoPedido'
+                  - $ref: '#/components/schemas/ProblemaConfirmar'
+                  - $ref: '#/components/schemas/ProblemaIdempotenciaEnCurso'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaIdempotencia'
+
+  /v1/pedidos/{pedido_id}/contacto:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    put:
+      tags: [pedidos]
+      operationId: cambiarTelefonoContacto
+      summary: Cambiar el teléfono de contacto desde el resumen
+      description: |
+        Decisión 203 (P6, por aprobar). El resumen muestra el teléfono de contacto y permite cambiarlo
+        (D4). Solo en `total_confirmado` y `vencido`, cuando existe `pedido_entrega`; en `borrador` el
+        teléfono va en el cuerpo de `confirmar`. Cambia solo `pedido_entrega.telefono_contacto`: no
+        toca el total ni `vence_en`. Otros estados: 409 `estado-pedido`.
+
+        **Quién:** `admin` y `cuidador`; el resto, 404. Pide la autorización `despacho` vigente.
+        `If-Match` obligatorio. No se audita (D12 no lo lista). Orden: 401, 404, 403, 428, 422, 412, 409
+        y 200.
+      parameters:
+        - $ref: '#/components/parameters/IfMatchPedido'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudContacto'
+      responses:
+        '200':
+          $ref: '#/components/responses/PedidoActualizado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '403':
+          $ref: '#/components/responses/SinAutorizacionPedidos'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          $ref: '#/components/responses/EstadoPedidoNoPermite'
+        '412':
+          $ref: '#/components/responses/VersionPedido'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaVersion'
+
+  /v1/pedidos/{pedido_id}/cancelar:
+    parameters:
+      - $ref: '#/components/parameters/PedidoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [pedidos]
+      operationId: cancelarSinPagar
+      summary: Cancelar un pedido sin pagar, sin costo
+      description: |
+        Decisión 206. Desde `borrador`, `total_confirmado` o `vencido` pasa a `cancelado`, sin costo
+        («¿Cancelar este pedido? No tiene costo.»). Borra su `pedido_entrega` (minimización, como D1 y
+        D2). Con el pedido pagado, o ya cancelado, **409** `estado-pedido`: cancelar con devolución es de
+        MATU-62 y MATU-63.
+
+        **Quién:** `admin` y `cuidador` (ver P4: la arquitectura 11.2 le da «cancelar» solo al admin).
+        El resto, 404. **No pide la autorización `despacho`**: no seguir debe ser siempre posible, como
+        retirar una autorización (decisión 123). Sin cuerpo. `Idempotency-Key` obligatoria (arquitectura
+        9.1: POST de pedidos): la repetición con la misma clave responde 200 con el pedido cancelado, no
+        409. Registra `pedido.cancelar`. Orden: 401, 404, 428, 422, idempotencia, 409 y 200.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          $ref: '#/components/responses/PedidoActualizado'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoPedido'
+        '404':
+          $ref: '#/components/responses/NoEncontradoPedido'
+        '409':
+          description: '`/errores/estado-pedido` (con `estado`) o `/errores/idempotencia-en-curso`.'
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProblemaEstadoPedido'
+                  - $ref: '#/components/schemas/ProblemaIdempotenciaEnCurso'
+        '422':
+          $ref: '#/components/responses/ValidacionPedido'
+        '428':
+          $ref: '#/components/responses/FaltaIdempotencia'
+
+  /v1/condiciones-pedido:
+    get:
+      tags: [condiciones]
+      operationId: leerCondicionesPedido
+      security: []
+      summary: Las condiciones del pedido vigentes, con su versión y su huella
+      description: |
+        Decisión 207 (P8, por aprobar), como `GET /v1/politica` (decisiones 173 a 175). Es el destino
+        de «Condiciones del pedido» en el resumen. Pública, sin sesión, sin cookies y sin auditoría. El
+        texto vive en el backend, generado desde `docs/legal/condiciones-pedido.md` (v0.1 del piloto,
+        aprobada por Jorge el 11-11), con una sola fuente. `Cache-Control: no-cache`, no `no-store`: no
+        tiene datos de nadie.
+      responses:
+        '200':
+          description: Las condiciones vigentes.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              description: El navegador la puede guardar, pero la revalida cada vez.
+              required: true
+              schema:
+                type: string
+                const: no-cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CondicionesPedidoVista'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+    PedidoId:
+      name: pedido_id
+      in: path
+      required: true
+      description: |
+        Pedido. Si no es un UUID, no existe, es de otro grupo o de una persona eliminada, responde
+        **404**, nunca 403.
+      schema:
+        type: string
+        format: uuid
+      example: 9e8d7c60-0000-4000-8000-0000000000d1
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        **Obligatoria** (arquitectura 9.1). Se declara `required: false` porque su falta la responde la
+        ruta con **428** `falta-idempotencia`, no la validación. De 16 a 64 caracteres
+        `[A-Za-z0-9_-]`; se recomienda un UUID v4 nuevo por cada toque del botón. Con otro formato, 422
+        en `Idempotency-Key`. Vale 24 horas por grupo y ruta (`idempotencia`, PK `grupo_id, endpoint,
+        clave`). Nunca va a los logs.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 64
+        pattern: '^[A-Za-z0-9_-]{16,64}$'
+      example: 0b5e8f2a-6c1d-4e7a-9f3b-2d4c6e8a0b1c
+    IfMatchPedido:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `etag` del pedido tal como se leyó, por ejemplo `"v3"`. **Obligatorio**: sin él, vacío o `*`,
+        428 `falta-version`; otro valor, 412 `version-desactualizada` con el pedido en `actual`.
+      schema:
+        type: string
+      example: '"v3"'
+    IfMatchDireccion:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `etag` de la dirección (`DireccionVista.etag`), por ejemplo `"v2"`. Obligatorio si la persona ya
+        tiene dirección. Vacío o `*`: 428. Otro valor: 412.
+      schema:
+        type: string
+      example: '"v2"'
+    IfNoneMatchDireccion:
+      name: If-None-Match
+      in: header
+      required: false
+      description: |
+        Solo `*`, la primera vez que la persona tiene dirección. Si ya tiene una, 412. Otro valor, o
+        enviarla junto con `If-Match`, 422.
+      schema:
+        type: string
+        const: '*'
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    ETagPedido:
+      description: La versión del pedido, `"v<version>"`. Es el mismo valor de `PedidoVista.etag`.
+      required: true
+      schema:
+        type: string
+        pattern: '^"v[0-9]+"$'
+    ETagDireccion:
+      description: La versión de la dirección, `"v<version>"`. Es el mismo valor de `DireccionVista.etag`.
+      required: true
+      schema:
+        type: string
+        pattern: '^"v[0-9]+"$'
+
+  schemas:
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    # ---------------------------------------------------------------- problemas propios de MATU-61
+
+    ProblemaSinAutorizacionPedidos:
+      description: |
+        403. `/errores/sin-autorizacion-pedidos` (nuevo, D1): la persona no tiene la autorización
+        `despacho` no revocada. `/errores/revision-vencida` (existe): la tiene, la dio un cuidador de
+        hecho y venció su revisión de 12 meses según el `Reloj` (C21). Los dos con `finalidad:
+        despacho`, como el 403 del consumo (decisión 44).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [finalidad]
+          properties:
+            type:
+              enum: [/errores/sin-autorizacion-pedidos, /errores/revision-vencida]
+            status:
+              const: 403
+            finalidad:
+              const: despacho
+
+    ProblemaEstadoPedido:
+      description: |
+        409 `/errores/estado-pedido` (nuevo): el estado del pedido no permite la acción. `estado` es el
+        estado actual (con el vencimiento calculado por el `Reloj`), como `alerta-cerrada` (MATU-37).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [estado]
+          properties:
+            type:
+              const: /errores/estado-pedido
+            status:
+              const: 409
+            estado:
+              $ref: '#/components/schemas/EstadoPedido'
+
+    ProblemaConfirmar:
+      description: |
+        409 al confirmar (nuevos): `/errores/sin-direccion` (la persona no tiene dirección de entrega,
+        C7: la pantalla lleva a «¿Dónde lo entregamos?»), `/errores/pedido-vacio` (el carrito no tiene
+        líneas) o `/errores/nada-disponible` (ningún comercio tiene ningún producto del carrito; el
+        pedido no cambia).
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              enum: [/errores/sin-direccion, /errores/pedido-vacio, /errores/nada-disponible]
+            status:
+              const: 409
+
+    ProblemaPedidoAbierto:
+      description: |
+        409 `/errores/pedido-abierto` (nuevo, P2): la persona ya tiene un pedido sin pagar. `pedido_id`
+        es ese pedido, para volver a él.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [pedido_id]
+          properties:
+            type:
+              const: /errores/pedido-abierto
+            status:
+              const: 409
+            pedido_id:
+              type: string
+              format: uuid
+
+    ProblemaIdempotenciaEnCurso:
+      description: |
+        409 `/errores/idempotencia-en-curso` (nuevo): otra petición con la misma `Idempotency-Key`
+        todavía no termina. Se reintenta con la misma clave.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/idempotencia-en-curso
+            status:
+              const: 409
+
+    ProblemaVersionPedido:
+      description: 412 `/errores/version-desactualizada`, con el pedido vigente en `actual`.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            actual:
+              $ref: '#/components/schemas/PedidoVista'
+
+    ProblemaVersionDireccion:
+      description: |
+        412 `/errores/version-desactualizada`, con la dirección vigente en `actual`. `actual: null` no
+        ocurre: el 412 solo sale si existe una dirección.
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            actual:
+              $ref: '#/components/schemas/DireccionVista'
+
+    # ---------------------------------------------------------------- dirección
+
+    DireccionEntrada:
+      type: object
+      additionalProperties: false
+      required: [calle, numero, comuna]
+      description: |
+        Cuerpo de `PUT …/direccion`. Los mismos campos y largos de `DireccionNueva` del alta (MATU-07),
+        de una línea, sin caracteres de control. **Sin `lat` ni `lng`** (C8): un campo extra responde 422.
+        Reemplaza la dirección completa: un campo opcional que no viene queda con su valor por omisión.
+      properties:
+        etiqueta:
+          type: string
+          minLength: 1
+          maxLength: 40
+          default: Casa
+        calle:
+          type: string
+          minLength: 1
+          maxLength: 120
+        numero:
+          type: string
+          minLength: 1
+          maxLength: 20
+        depto:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 20
+        comuna:
+          type: string
+          minLength: 1
+          maxLength: 60
+        region:
+          type: string
+          minLength: 1
+          maxLength: 60
+          default: Metropolitana
+        referencia:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 200
+          description: Por ejemplo «portón verde». La pantalla avisa «No escribas datos de salud.» (C9).
+
+    DireccionVista:
+      type: object
+      additionalProperties: false
+      required: [etiqueta, calle, numero, depto, comuna, region, referencia, etag]
+      description: |
+        `DireccionVista` de `openapi.json` con `etag` sumado (ver `CambioDireccionVista`). Es la que
+        devuelve `PUT …/direccion` y la que trae la persona en `GET /v1/grupos/{grupo_id}/personas-cuidadas`.
+      properties:
+        etiqueta:
+          type: string
+        calle:
+          type: string
+        numero:
+          type: string
+        depto:
+          type: [string, 'null']
+        comuna:
+          type: string
+        region:
+          type: string
+        referencia:
+          type: [string, 'null']
+        etag:
+          type: string
+          pattern: '^"v[0-9]+"$'
+
+    # ---------------------------------------------------------------- pedido
+
+    EstadoPedido:
+      type: string
+      description: |
+        Los 17 estados del `CHECK` de `pedido` (migración 0002, arquitectura 8.1). **MATU-61 usa
+        `borrador`, `total_confirmado`, `vencido` y `cancelado`.** Las transiciones están en la decisión
+        208 del README.
+      enum:
+        - borrador
+        - total_confirmado
+        - vencido
+        - pagado
+        - enviado_a_comercio
+        - preparando
+        - listo_retiro
+        - asignado
+        - sin_repartidor
+        - retirado
+        - en_ruta
+        - entregado
+        - no_entregado
+        - reprogramado
+        - cerrado
+        - cancelado
+        - cancelado_con_devolucion
+
+    ReglaFaltante:
+      type: string
+      enum: [otro_comercio, quitar]
+      description: |
+        RF-21. `otro_comercio` (por omisión): «Buscarlo en otro comercio. El mismo producto. Pagas lo
+        mismo.». `quitar`: «Sacarlo del pedido y devolverme su precio». Nunca otra marca.
+
+    ComercioVista:
+      type: object
+      additionalProperties: false
+      required: [id, nombre_fantasia, ficticio]
+      description: |
+        Un comercio, tal como lo ve la familia. Solo `id` (opaco), `nombre_fantasia` y `ficticio` (D9).
+        Nunca razón social, RUT, dirección, comuna ni teléfono (decisión 164).
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre_fantasia:
+          type: string
+        ficticio:
+          type: boolean
+          description: '`comercio.ficticio` (D9). Con `true`, la pantalla agrega «(comercio ficticio)».'
+
+    ProductoPedido:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, presentacion, unidad, unidades_por_envase]
+      description: |
+        El producto de una línea, como `ProductoCatalogo` sin sus comercios. Sin marca (decisión 164).
+        `unidad` y `unidades_por_envase` los pide la especificación del diseñador (3.1) para convertir la
+        lista de insumos a envases del catálogo.
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        presentacion:
+          type: string
+        unidad:
+          type: string
+          enum: [unidad, sobre, ml, g]
+        unidades_por_envase:
+          type: integer
+          exclusiveMinimum: 0
+
+    CambioDeLinea:
+      type: object
+      additionalProperties: false
+      required: [precio_antes, comercio_antes]
+      description: |
+        Lo que cambió al confirmar contra lo que la familia vio en el carrito (C15). Al menos uno de los
+        dos no es `null`. «Cambió el precio: antes `{precio_antes}`, ahora `{precio_unitario}`.» y «Ahora
+        lo prepara `{comercio}`.»
+      properties:
+        precio_antes:
+          type: [integer, 'null']
+          exclusiveMinimum: 0
+          description: El precio del carrito, si el confirmado es distinto. Pesos enteros con IVA.
+        comercio_antes:
+          oneOf:
+            - $ref: '#/components/schemas/ComercioVista'
+            - type: 'null'
+          description: El comercio del carrito, si el producto pasó a otro.
+
+    LineaPedido:
+      type: object
+      additionalProperties: false
+      required: [id, producto, cantidad, comercio, precio_unitario, subtotal, regla_faltante, retracto_pierde_al_abrir, cambio]
+      description: |
+        Una línea del pedido. En `borrador`, `precio_unitario` y `comercio` son los del carrito. Desde
+        `total_confirmado`, son los confirmados y `cambio` dice qué cambió.
+      properties:
+        id:
+          type: string
+          format: uuid
+        producto:
+          $ref: '#/components/schemas/ProductoPedido'
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 99
+        comercio:
+          $ref: '#/components/schemas/ComercioVista'
+        precio_unitario:
+          type: integer
+          exclusiveMinimum: 0
+          description: Precio exacto en pesos enteros, con IVA (ADR-027).
+        subtotal:
+          type: integer
+          exclusiveMinimum: 0
+          description: '`cantidad × precio_unitario`.'
+        regla_faltante:
+          $ref: '#/components/schemas/ReglaFaltante'
+        retracto_pierde_al_abrir:
+          type: boolean
+          description: |
+            Cuál de los dos textos del retracto (`lenguaje.md` 27) va en la línea (C2). En `borrador` sale
+            del producto; desde `total_confirmado` es la copia guardada en la línea (C3).
+        cambio:
+          oneOf:
+            - $ref: '#/components/schemas/CambioDeLinea'
+            - type: 'null'
+          description: '`null` en `borrador` y en las líneas que no cambiaron.'
+
+    LineaSalida:
+      type: object
+      additionalProperties: false
+      required: [producto, cantidad, comercio]
+      description: |
+        Un producto del carrito que ningún comercio tiene al confirmar: «Ya no hay `{producto}`. Salió
+        del pedido.». No suma al total. Al volver a confirmar se consulta de nuevo (decisión 202).
+      properties:
+        producto:
+          $ref: '#/components/schemas/ProductoPedido'
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 99
+        comercio:
+          $ref: '#/components/schemas/ComercioVista'
+
+    ParteComercio:
+      type: object
+      additionalProperties: false
+      required: [comercio, subtotal_productos]
+      description: |
+        Lo que prepara cada comercio dentro del pedido (D7). La familia ve **un** pedido, con un envío
+        único; esto solo dice qué parte va a cada comercio. Desde `total_confirmado`, cada parte tiene
+        su registro y su referencia opaca, que la familia no ve (decisión 209).
+      properties:
+        comercio:
+          $ref: '#/components/schemas/ComercioVista'
+        subtotal_productos:
+          type: integer
+          minimum: 0
+
+    EntregaVista:
+      type: object
+      additionalProperties: false
+      required: [calle, numero, depto, comuna, region, referencia, telefono_contacto, telefono_origen, telefono_es_tuyo]
+      description: |
+        La dirección y el teléfono copiados a `pedido_entrega` al confirmar (D4). Sin `lat` ni `lng`
+        (C8). Ningún comercio la ve (arquitectura 11.2).
+      properties:
+        calle:
+          type: string
+        numero:
+          type: string
+        depto:
+          type: [string, 'null']
+        comuna:
+          type: string
+        region:
+          type: string
+        referencia:
+          type: [string, 'null']
+        telefono_contacto:
+          type: string
+          maxLength: 20
+          description: |
+            Si es el celular verificado de quien confirmó (`telefono_origen: celular_cuenta`), va
+            **enmascarado** como en `GET /v1/cuenta` («+56 9 •••• ••37»): nunca se muestra completo el
+            celular de una cuenta. Si se escribió (`escrito`), va completo en E.164, porque quien lo
+            escribió tiene que poder revisarlo.
+          examples: ['+56 9 •••• ••77', '+56955550177']
+        telefono_origen:
+          type: string
+          enum: [celular_cuenta, escrito]
+        telefono_es_tuyo:
+          type: boolean
+          description: '`true` si es el celular verificado de quien lee. La pantalla agrega «(tu celular)».'
+
+    CondicionesVigentes:
+      type: object
+      additionalProperties: false
+      required: [version, huella, enlace]
+      description: |
+        Las condiciones del pedido que se muestran en el resumen (D6). MATU-62 guarda la aceptación al
+        tocar «Pagar», con la huella que la pantalla mostró, como `huella_politica` (decisión 182).
+      properties:
+        version:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+$'
+          examples: ['0.1']
+        huella:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: SHA-256 del texto exacto, en minúscula.
+        enlace:
+          type: string
+          const: /v1/condiciones-pedido
+          description: Dónde se leen (decisión 207). La pantalla las muestra como la política.
+
+    ResumenAntesDePagar:
+      type: object
+      additionalProperties: false
+      required: [vendedor, boleta, ventana_entrega, canal_reclamo, condiciones]
+      description: |
+        Lo que el resumen agrega a las líneas y los montos (C1, D8). Son datos del piloto fijados en la
+        configuración y atados a la versión de las condiciones, no textos de pantalla. Los textos (el
+        cobro, si falta un producto, el retracto, «No pagar no tiene costo.») salen de `lenguaje.md`.
+      properties:
+        vendedor:
+          type: string
+          const: MATU, piloto académico, sin persona jurídica
+        boleta:
+          type: string
+          const: En este piloto no se emite boleta
+        ventana_entrega:
+          type: string
+          examples: [Entre 24 y 48 horas hábiles]
+          description: La ventana fija de ejemplo del piloto (D8). `pedido.ventana_entrega` no se llena (P11).
+        canal_reclamo:
+          type: string
+          format: email
+          examples: [cuidaconmatu@gmail.com]
+        condiciones:
+          $ref: '#/components/schemas/CondicionesVigentes'
+
+    PedidoVista:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - persona_cuidada_id
+        - estado
+        - etag
+        - precios_de_ejemplo
+        - lineas
+        - salieron
+        - comercios
+        - subtotal_productos
+        - costo_envio
+        - total
+        - total_confirmado_en
+        - vence_en
+        - vigencia_segundos
+        - entrega
+        - resumen
+        - creado_en
+        - actualizado_en
+      description: |
+        El pedido de la familia, como **un solo pedido** aunque lo preparen varios comercios (D7). Lo
+        ven `admin`, `cuidador` y `pagador`. Nunca `grupo_id`, `creado_por`, el nombre de la persona ni
+        las referencias opacas de los comercios.
+
+        | Estado | `total`, `total_confirmado_en`, `vence_en` | `entrega` | `resumen` | `salieron` |
+        |---|---|---|---|---|
+        | `borrador` | `null` | `null` | `null` | `[]` |
+        | `total_confirmado` | los confirmados | la copia | sí | los que salieron |
+        | `vencido` | los del total vencido | la copia | `null` | los que salieron |
+        | `cancelado` | los últimos, o `null` | `null` (se borró) | `null` | `[]` |
+      properties:
+        id:
+          type: string
+          format: uuid
+        persona_cuidada_id:
+          type: string
+          format: uuid
+        estado:
+          $ref: '#/components/schemas/EstadoPedido'
+        etag:
+          type: string
+          pattern: '^"v[0-9]+"$'
+        precios_de_ejemplo:
+          type: boolean
+          description: Como en `GET /v1/catalogo` (decisión 163). `true` con el adaptador simulado.
+        lineas:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/LineaPedido'
+        salieron:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaSalida'
+        comercios:
+          type: array
+          description: Una parte por comercio de `lineas`, por `nombre_fantasia` y `id`.
+          items:
+            $ref: '#/components/schemas/ParteComercio'
+        subtotal_productos:
+          type: integer
+          minimum: 0
+          description: Suma de los `subtotal` de `lineas`. En `borrador`, con los precios del carrito.
+        costo_envio:
+          type: integer
+          minimum: 0
+          description: |
+            Un solo envío por pedido, aunque lo preparen varios comercios (ADR-027). Se muestra aparte
+            («Envío (uno por pedido)»). En `borrador` es el vigente, para informar antes de confirmar (P12).
+        total:
+          type: [integer, 'null']
+          exclusiveMinimum: 0
+          description: '`subtotal_productos + costo_envio`, con IVA. Solo con un total confirmado.'
+        total_confirmado_en:
+          type: [string, 'null']
+          format: date-time
+        vence_en:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            `total_confirmado_en + 15 minutos` (`pedido.total_vence_en`). «Este total vale hasta las
+            `{HH:MM}`.» en America/Santiago. La pantalla avisa antes de que venza (C23).
+        vigencia_segundos:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 900
+          description: |
+            Cuántos segundos le quedan al total según el `Reloj` de la API al responder. La pantalla mide
+            el aviso de los 2 minutos desde que recibe la respuesta, no con el reloj del teléfono, que
+            puede estar adelantado (diseño 3.1). `null` sin total confirmado; 0 si venció.
+        entrega:
+          oneOf:
+            - $ref: '#/components/schemas/EntregaVista'
+            - type: 'null'
+        resumen:
+          oneOf:
+            - $ref: '#/components/schemas/ResumenAntesDePagar'
+            - type: 'null'
+          description: Solo en `total_confirmado` (C1).
+        creado_en:
+          type: string
+          format: date-time
+        actualizado_en:
+          type: string
+          format: date-time
+
+    PedidoVistaObservador:
+      type: object
+      additionalProperties: false
+      required: [id, persona_cuidada_id, estado, precios_de_ejemplo, lineas, salieron, comercios, subtotal_productos, costo_envio, total, total_confirmado_en, vence_en, creado_en, actualizado_en]
+      description: |
+        Lo que ve el `observador` (arquitectura 11.2: pedidos «ver», datos de la persona «nombre»): el
+        mismo pedido **sin `entrega`, sin `resumen` y sin `etag`**, porque no escribe. Es un DTO distinto
+        y no la misma vista con campos en `null`, como `AutorizacionVistaResumen` (decisión 127). Ver P5.
+      properties:
+        id:
+          type: string
+          format: uuid
+        persona_cuidada_id:
+          type: string
+          format: uuid
+        estado:
+          $ref: '#/components/schemas/EstadoPedido'
+        precios_de_ejemplo:
+          type: boolean
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPedido'
+        salieron:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaSalida'
+        comercios:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParteComercio'
+        subtotal_productos:
+          type: integer
+          minimum: 0
+        costo_envio:
+          type: integer
+          minimum: 0
+        total:
+          type: [integer, 'null']
+        total_confirmado_en:
+          type: [string, 'null']
+          format: date-time
+        vence_en:
+          type: [string, 'null']
+          format: date-time
+        creado_en:
+          type: string
+          format: date-time
+        actualizado_en:
+          type: string
+          format: date-time
+
+    PedidoAbierto:
+      type: object
+      additionalProperties: false
+      required: [id, estado, productos, subtotal_productos, total, vence_en, actualizado_en]
+      description: Un pedido sin pagar, en la lista de la persona. Sin productos ni dirección.
+      properties:
+        id:
+          type: string
+          format: uuid
+        estado:
+          type: string
+          enum: [borrador, total_confirmado, vencido]
+        productos:
+          type: integer
+          minimum: 0
+          description: Cuántas líneas tiene el carrito.
+        subtotal_productos:
+          type: integer
+          minimum: 0
+        total:
+          type: [integer, 'null']
+        vence_en:
+          type: [string, 'null']
+          format: date-time
+        actualizado_en:
+          type: string
+          format: date-time
+
+    ListaPedidosAbiertos:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PedidoAbierto'
+
+    LineaSolicitud:
+      type: object
+      additionalProperties: false
+      required: [oferta_id, cantidad]
+      properties:
+        oferta_id:
+          type: string
+          format: uuid
+          description: |
+            `OfertaCatalogo.oferta_id` de `GET /v1/catalogo`. Una oferta que no está en el catálogo
+            (no publicada, comercio inactivo, producto inactivo o con receta, decisión 171) responde 422
+            `oferta_no_disponible` en `lineas[i].oferta_id`. Una oferta sin stock **sí** entra: se
+            resuelve al confirmar.
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 99
+          description: Envases del producto (como en el catálogo), de 1 a 99.
+
+    SolicitudPedido:
+      type: object
+      additionalProperties: false
+      required: [lineas]
+      description: |
+        Cuerpo de `POST …/pedidos`. Sin `persona_cuidada_id` (va en la ruta), sin precios (los fija el
+        servidor), sin dirección y sin `origen`. Un producto aparece una sola vez: dos ofertas del mismo
+        producto responden 422 `producto_repetido`.
+      properties:
+        lineas:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/LineaSolicitud'
+
+    SolicitudLineas:
+      type: object
+      additionalProperties: false
+      required: [lineas]
+      description: Cuerpo de `PUT …/lineas`. Como `SolicitudPedido`, pero admite `[]`.
+      properties:
+        lineas:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/LineaSolicitud'
+
+    ReglaProducto:
+      type: object
+      additionalProperties: false
+      required: [producto_id, accion]
+      properties:
+        producto_id:
+          type: string
+          format: uuid
+          description: Un producto de las líneas del pedido. Otro responde 422 `producto_no_esta`.
+        accion:
+          $ref: '#/components/schemas/ReglaFaltante'
+
+    SolicitudReglasFaltante:
+      type: object
+      additionalProperties: false
+      required: [reglas]
+      description: |
+        Cuerpo de `PUT …/reglas-faltante`. Un producto repetido responde 422 `producto_repetido`. Un
+        producto del pedido que no viene queda en `otro_comercio`.
+      properties:
+        reglas:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ReglaProducto'
+
+    SolicitudConfirmar:
+      type: object
+      additionalProperties: false
+      description: Cuerpo opcional de `POST …/confirmar`.
+      properties:
+        telefono_contacto:
+          type: string
+          maxLength: 20
+          pattern: '^(\+?56 ?)?9( ?[0-9]){8}$'
+          description: |
+            Celular chileno, con la misma regla de `POST /v1/usuarios` (decisión 65); se guarda en E.164.
+            «Para que quien entrega pueda avisarte. Si es el de otra persona, avísale.» (CL-33).
+
+    SolicitudContacto:
+      type: object
+      additionalProperties: false
+      required: [telefono_contacto]
+      properties:
+        telefono_contacto:
+          type: string
+          maxLength: 20
+          pattern: '^(\+?56 ?)?9( ?[0-9]){8}$'
+
+    CondicionesPedidoVista:
+      type: object
+      additionalProperties: false
+      required: [version, actualizada_en, huella, texto]
+      description: Como `PoliticaVista` (decisión 173).
+      properties:
+        version:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+$'
+        actualizada_en:
+          type: string
+          format: date
+        huella:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        texto:
+          type: string
+          description: Markdown, con una sola fuente en el backend.
+
+    # ---------------------------------------------------------------- lo que verá el comercio (MATU-63)
+
+    ProyeccionComercio:
+      type: object
+      additionalProperties: false
+      x-matu-fuera-de-alcance: MATU-63
+      required: [referencia, estado, lineas]
+      description: |
+        **No es una ruta de MATU-61.** Describe la forma del registro por comercio (D7, R8) para que la
+        migración de MATU-61 lo cree bien y MATU-63 lo exponga en `GET /v1/comercio/pedidos/{id}`
+        (arquitectura 9.5). Cada comercio ve **solo su parte**: sus líneas y su referencia opaca, y
+        recién con el pedido pagado y enviado (política `pedido_comercio_ver`, migración 0002).
+
+        **Nunca** `grupo_id`, `persona_cuidada_id`, `creado_por`, el nombre de la persona (C16: sale
+        `destinatario_nombre_pila`), la dirección, el teléfono, las transiciones, las líneas de otro
+        comercio, el envío ni el total de la familia (C16, R8).
+      properties:
+        referencia:
+          type: string
+          description: |
+            La referencia opaca de esta parte (`secrets.token_urlsafe(16)`, como la de la consulta de
+            stock, C22). Distinta por comercio y por pedido; no deriva de `pedido_id` ni de `grupo_id`.
+        estado:
+          $ref: '#/components/schemas/EstadoPedido'
+        lineas:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [producto, cantidad, precio_unitario]
+            properties:
+              producto:
+                $ref: '#/components/schemas/ProductoPedido'
+              cantidad:
+                type: integer
+                minimum: 1
+              precio_unitario:
+                type: integer
+                exclusiveMinimum: 0
+
+    # ---------------------------------------------------------------- cambios a rutas ya implementadas
+
+    CambioDireccionVista:
+      type: object
+      x-matu-se-suma-a: [DireccionVista]
+      required: [etag]
+      description: |
+        **Cambio propuesto a `DireccionVista`** de `openapi.json` (decisión 190): se suma `etag`, la
+        versión de la dirección (`direccion.version`, columna nueva de la migración de MATU-61). Viaja en
+        `PersonaVistaCompleta`, `PersonaVistaPagador` y `PersonaCreada`, así que la pantalla lee la
+        dirección y su `etag` en `GET /v1/grupos/{grupo_id}/personas-cuidadas`, sin una ruta nueva.
+      properties:
+        etag:
+          type: string
+          pattern: '^"v[0-9]+"$'
+
+    CambioSolicitudAutorizacionEntrada:
+      type: object
+      x-matu-se-suma-a: [SolicitudAutorizacionEntrada]
+      description: |
+        **Cambio propuesto a `POST …/consentimientos`** (D1, decisión 192): `finalidad` admite
+        `despacho`, con las mismas calidades, aviso del cuidador de hecho, revisión de 12 meses y 409
+        `autorizacion-vigente`. La evidencia lleva la declaración `declaracion_pedidos_<calidad>` con la
+        versión de la política y su huella. `huella_declaracion` es **obligatoria con `despacho`** y
+        prohibida con las otras dos (422), como `huella_politica` (decisión 182): es la SHA-256 de la
+        plantilla de la declaración que la pantalla mostró, con `{nombre_pila}` sin reemplazar. Otra
+        huella responde 422 `declaracion_no_vigente` (P13).
+      properties:
+        finalidad:
+          type: string
+          enum: [consumo, plan_cuidado, despacho]
+        huella_declaracion:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+      examples:
+        - finalidad: despacho
+          calidad_otorgante: titular
+          huella_declaracion: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+    CambioAutorizacionVista:
+      type: object
+      x-matu-se-suma-a: [AutorizacionVista, AutorizacionVistaResumen, AutorizacionesPersona, AutorizacionesPersonaResumen]
+      description: |
+        **Cambio propuesto a `GET …/consentimientos`** (decisión 192): `finalidad` admite `despacho` y
+        la respuesta trae **siempre tres ítems**, en este orden: `plan_cuidado`, `consumo` y `despacho`
+        (antes «siempre dos», decisión 127). Con `despacho`, `borrado_en` es siempre `null` y `borrada`
+        siempre `false`: retirarla no programa un borrado a los 90 días (P14). Con la capa 3 apagada,
+        `despacho` viene en `sin_autorizar`.
+      properties:
+        finalidad:
+          type: string
+          enum: [plan_cuidado, consumo, despacho]
+
+    CambioRetiroAutorizacion:
+      type: object
+      x-matu-se-suma-a: [RetiroAutorizacion]
+      required: [pedidos_cancelados]
+      description: |
+        **Cambio propuesto a `POST …/consentimientos/{finalidad}/retiro`** (D1, decisión 192): `finalidad`
+        en la ruta admite `despacho`. Retirarla pasa a `cancelado` los pedidos **sin pagar** de la
+        persona (`borrador`, `total_confirmado` y `vencido`), borra su `pedido_entrega` y registra un
+        `pedido.cancelar` por pedido, en la misma transacción y con el mismo instante (decisión 124). Los
+        pagados siguen su plazo (CL-44). Se suma `pedidos_cancelados`: cuántos canceló, siempre 0 con
+        las otras finalidades.
+      properties:
+        pedidos_cancelados:
+          type: integer
+          minimum: 0
+
+    CambioOfertaCatalogo:
+      type: object
+      x-matu-se-suma-a: [OfertaCatalogo]
+      required: [ficticio]
+      description: |
+        **Cambio propuesto a `GET /v1/catalogo`** (D9, decisión 210): se suma `ficticio`
+        (`comercio.ficticio boolean NOT NULL DEFAULT true`, migración de MATU-61). La pantalla agrega
+        «(comercio ficticio)» solo con `true`, en vez de siempre (decisión 164).
+      properties:
+        ficticio:
+          type: boolean
+
+    CambioLineaListaInsumos:
+      type: object
+      x-matu-se-suma-a: [LineaListaInsumos]
+      required: [producto_id]
+      description: |
+        **Cambio propuesto a `GET …/consumo/lista`** (MATU-60, decisión 215): se suma `producto_id`, el
+        producto del catálogo del perfil, o `null` si el insumo se anotó con `nombre_libre`. Lo pide la
+        especificación del diseñador (O3) para «Pedir estos productos» (D10): pasan al carrito solo las
+        líneas con producto. Es una lectura del consumo; el pedido sigue sin leer `perfil_consumo` (C20).
+      properties:
+        producto_id:
+          type: [string, 'null']
+          format: uuid
+
+  examples:
+    PedidoConfirmado:
+      summary: Total confirmado con dos comercios, un producto que cambió de comercio y uno que salió
+      value:
+        id: 9e8d7c60-0000-4000-8000-0000000000d1
+        persona_cuidada_id: 7d1e2f30-0000-4000-8000-000000000001
+        estado: total_confirmado
+        etag: '"v4"'
+        precios_de_ejemplo: true
+        lineas:
+          - id: 0a1b2c30-0000-4000-8000-0000000000e1
+            producto:
+              id: 1a2b3c40-0000-4000-8000-0000000000c1
+              nombre: Pañal adulto M x30
+              presentacion: Paquete de 30 unidades
+              unidad: unidad
+              unidades_por_envase: 30
+            cantidad: 2
+            comercio:
+              id: 2b3c4d50-0000-4000-8000-0000000000f1
+              nombre_fantasia: Almacén El Ejemplo
+              ficticio: true
+            precio_unitario: 18990
+            subtotal: 37980
+            regla_faltante: otro_comercio
+            retracto_pierde_al_abrir: true
+            cambio: null
+          - id: 0a1b2c30-0000-4000-8000-0000000000e2
+            producto:
+              id: 1a2b3c40-0000-4000-8000-0000000000c2
+              nombre: Toallitas húmedas x80
+              presentacion: Paquete de 80 unidades
+              unidad: unidad
+              unidades_por_envase: 80
+            cantidad: 1
+            comercio:
+              id: 2b3c4d50-0000-4000-8000-0000000000f2
+              nombre_fantasia: Bodega La Muestra
+              ficticio: true
+            precio_unitario: 4490
+            subtotal: 4490
+            regla_faltante: quitar
+            retracto_pierde_al_abrir: true
+            cambio:
+              precio_antes: 3990
+              comercio_antes:
+                id: 2b3c4d50-0000-4000-8000-0000000000f1
+                nombre_fantasia: Almacén El Ejemplo
+                ficticio: true
+        salieron:
+          - producto:
+              id: 1a2b3c40-0000-4000-8000-0000000000c3
+              nombre: Bolsa colectora x10
+              presentacion: Caja de 10 unidades
+              unidad: unidad
+              unidades_por_envase: 10
+            cantidad: 1
+            comercio:
+              id: 2b3c4d50-0000-4000-8000-0000000000f1
+              nombre_fantasia: Almacén El Ejemplo
+              ficticio: true
+        comercios:
+          - comercio:
+              id: 2b3c4d50-0000-4000-8000-0000000000f1
+              nombre_fantasia: Almacén El Ejemplo
+              ficticio: true
+            subtotal_productos: 37980
+          - comercio:
+              id: 2b3c4d50-0000-4000-8000-0000000000f2
+              nombre_fantasia: Bodega La Muestra
+              ficticio: true
+            subtotal_productos: 4490
+        subtotal_productos: 42470
+        costo_envio: 3990
+        total: 46460
+        total_confirmado_en: '2026-11-20T14:05:00Z'
+        vence_en: '2026-11-20T14:20:00Z'
+        entrega:
+          calle: Calle de Prueba
+          numero: '123'
+          depto: 4B
+          comuna: Ñuñoa
+          region: Metropolitana
+          referencia: Portón verde
+          telefono_contacto: '+56955550177'
+          telefono_origen: escrito
+          telefono_es_tuyo: false
+        vigencia_segundos: 900
+        resumen:
+          vendedor: MATU, piloto académico, sin persona jurídica
+          boleta: En este piloto no se emite boleta
+          ventana_entrega: Entre 24 y 48 horas hábiles
+          canal_reclamo: cuidaconmatu@gmail.com
+          condiciones:
+            version: '0.1'
+            huella: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            enlace: /v1/condiciones-pedido
+        creado_en: '2026-11-20T13:58:00Z'
+        actualizado_en: '2026-11-20T14:05:00Z'
+
+  responses:
+    NoAutenticadoPedido:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`). La app renueva una vez y repite.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoEncontradoPedido:
+      description: |
+        El mismo 404 para todo, sin revelar qué existe: falta `X-Grupo-Id` o no es un UUID; no es miembro
+        activo; su rol no alcanza (`pagador` u `observador` al escribir, `pagador` u `observador` en la
+        dirección); la persona o el pedido no existen, son de otro grupo o la persona está eliminada.
+        «No encontramos este pedido.»
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+
+    SinAutorizacionPedidos:
+      description: Falta la autorización de pedidos, o venció su revisión (C21). Ver `ProblemaSinAutorizacionPedidos`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaSinAutorizacionPedidos'
+          example:
+            type: /errores/sin-autorizacion-pedidos
+            title: Sin permiso
+            status: 403
+            detail: Falta la autorización para pedir insumos para esta persona
+            errores: []
+            request_id: 9b2f4c1e-0000-4000-8000-0000000000e4
+            finalidad: despacho
+
+    EstadoPedidoNoPermite:
+      description: '`/errores/estado-pedido`: el estado del pedido no permite la acción.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaEstadoPedido'
+
+    VersionPedido:
+      description: Otra persona cambió el pedido desde que se leyó. `actual` trae el pedido vigente.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        ETag:
+          $ref: '#/components/headers/ETagPedido'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaVersionPedido'
+
+    PedidoActualizado:
+      description: El pedido después del cambio, con su `etag` nuevo.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        ETag:
+          $ref: '#/components/headers/ETagPedido'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PedidoVista'
+
+    ValidacionPedido:
+      description: |
+        Cuerpo, cabecera o regla inválidos. `errores[]` nombra el campo y nunca repite el valor. Tipos
+        propios: `oferta_no_disponible`, `producto_repetido`, `producto_no_esta`, `telefono_requerido`,
+        `celular_invalido`, `declaracion_no_vigente`. Y `/errores/idempotencia-reutilizada` (nuevo): la
+        misma `Idempotency-Key` con otro cuerpo o de otra cuenta.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ProblemaValidacion'
+              - allOf:
+                  - $ref: '#/components/schemas/Problema'
+                  - properties:
+                      type:
+                        const: /errores/idempotencia-reutilizada
+                      status:
+                        const: 422
+
+    FaltaVersion:
+      description: '`/errores/falta-version`: falta `If-Match` (o `If-None-Match: *` en la dirección), o es `*`.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/falta-version
+                  status:
+                    const: 428
+
+    FaltaIdempotencia:
+      description: '`/errores/falta-idempotencia` (nuevo): falta `Idempotency-Key`.'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/falta-idempotencia
+                  status:
+                    const: 428
+
+security:
+  - bearerAuth: []
