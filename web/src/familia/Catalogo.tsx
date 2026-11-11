@@ -3,21 +3,46 @@
 // por categoría y, en cada uno, cada comercio con su precio y si lo tiene. No se pide nada desde
 // aquí (D4): sin botones ni enlaces dentro de las tarjetas.
 //
+// MATU-61 (especificación docs/diseno/matu-61-pedido.md, sección 5): admin y cuidador, con la capa 3
+// encendida, tienen «Agregar al pedido» en cada comercio que dice «Hay». Un producto, una línea:
+// el que ya está en el pedido muestra «En tu pedido» en su comercio y ningún botón en la tarjeta.
+// El pagador y el observador lo ven como en MATU-59, sin botones.
+//
 // Igual para los cuatro roles: no depende del grupo ni de la persona, y no se cruza con lo que
 // anotó la familia. Se pide cada vez que se abre la pantalla. Nada se guarda en el navegador ni
 // va en la URL; si falla, nunca se muestra un catálogo viejo.
 import { useEffect, useState } from 'react'
-import { CircleCheck, CircleMinus, CloudOff, Info, Store } from 'lucide-react'
+import { CircleCheck, CircleMinus, CloudOff, Info, Plus, Store } from 'lucide-react'
 import { verCatalogo, type Catalogo as CatalogoApi, type CategoriaCatalogo, type OfertaCatalogo, type ProductoCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
+import { leerPedidoEnCurso, type Pedido } from '../compartido/api/pedido'
 import { esVencida } from '../compartido/api/sesion'
-import { Anunciado } from '../compartido/ui/Anuncios'
+import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
+import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
 import { useDemora } from './Estados'
+import { puedeEditar, useFamilia } from './estado'
+import { enfocar } from './insumosComun'
 import { PestanasInsumos } from './Insumos'
+import { agregarAlPedido, PedidoNoEditable, permisoPedidoDe } from './pedidoAcciones'
+import { productosDe } from './pedidoComun'
+import { navegar } from './ruteo'
+import { PEDIDO } from './textosPedido'
 import { GENERAL } from './textos'
 import { CATALOGO, pesos } from './textosCatalogo'
-import { Etiqueta, Nota, Titulo } from './ui'
+import { Etiqueta, MensajeError, Nota, Titulo } from './ui'
+
+/** Lo que el catálogo necesita para «Agregar al pedido» (5.2). `null` si no se puede agregar desde aquí. */
+interface Agregar {
+  /** Qué producto está en el pedido y en qué comercio. */
+  enPedido: Map<string, string>
+  agregando: string | null
+  error: string | null
+  onAgregar: (producto: ProductoCatalogo, oferta: OfertaCatalogo) => void
+}
+
+const enElPedido = (p: Pedido | null) => new Map((p?.lineas ?? []).map((l) => [l.producto.id, l.comercio.id]))
+const idVerPedido = (productoId: string) => `ver-pedido-${productoId}`
 
 // 'apagado': la capa 3 está apagada (CAPA3_HABILITADA=false) y la API responde 404 (decisión 167).
 type Carga = 'cargando' | 'listo' | 'red' | 'apagado'
@@ -35,8 +60,13 @@ function visibles(c: CatalogoApi): CategoriaCatalogo[] {
 }
 
 export function Catalogo() {
+  const { rol, personaId, capa3, fijar } = useFamilia()
+  const editor = puedeEditar(rol)
   const [carga, setCarga] = useState<Carga>('cargando')
   const [catalogo, setCatalogo] = useState<CatalogoApi | null>(null)
+  const [enPedido, setEnPedido] = useState<Map<string, string>>(new Map())
+  const [agregando, setAgregando] = useState<string | null>(null)
+  const [errAgregar, setErrAgregar] = useState<string | null>(null)
 
   const cargar = async () => {
     setCarga('cargando')
@@ -44,13 +74,48 @@ export function Catalogo() {
     try {
       setCatalogo(await verCatalogo())
       setCarga('listo')
+      if (capa3 !== true) fijar({ capa3: true })
+      // 5.2: lo que ya está en el pedido. Si no se puede saber, se ven los botones y el servidor manda.
+      if (editor && personaId)
+        void leerPedidoEnCurso(personaId)
+          .then((p) => setEnPedido(enElPedido(p)))
+          .catch(() => {})
     } catch (x) {
       // 401: la app renueva la entrada una vez y, si falla, lleva a Entrar.
       if (esVencida(x)) return
       // Solo un 404 es «no disponible»; 503, 5xx y la falta de red siguen siendo el error con reintento.
-      setCarga(leerFallo(x).status === 404 ? 'apagado' : 'red')
+      const apagado = leerFallo(x).status === 404
+      if (apagado && capa3 !== false) fijar({ capa3: false })
+      setCarga(apagado ? 'apagado' : 'red')
     }
   }
+
+  /** 5.2: agrega 1 con «Buscarlo en otro comercio». Sin la autorización, va a pedirla con la intención en memoria. */
+  const agregar = async (producto: ProductoCatalogo, oferta: OfertaCatalogo) => {
+    if (!personaId || agregando) return
+    setAgregando(oferta.oferta_id)
+    setErrAgregar(null)
+    const nueva = { producto_id: producto.id, oferta_id: oferta.oferta_id, cantidad: 1 }
+    try {
+      const { pedido } = await agregarAlPedido(personaId, [nueva], productosDe(catalogo))
+      setEnPedido(enElPedido(pedido))
+      anunciar(PEDIDO.agregamos(producto.nombre), 'status')
+      enfocar(idVerPedido(producto.id), 60)
+    } catch (x) {
+      if (esVencida(x)) return
+      if (permisoPedidoDe(x)) {
+        fijar({ intencionPedido: { personaId, desde: 'catalogo', agregar: [{ ...nueva, nombre: producto.nombre, deLista: null }], fuera: [] } })
+        return navegar('/insumos/pedido')
+      }
+      // El total ya está confirmado: el pedido se cambia desde «Tu pedido» (9.12).
+      if (x instanceof PedidoNoEditable) return navegar('/insumos/pedido')
+      setErrAgregar(oferta.oferta_id)
+    } finally {
+      setAgregando(null)
+    }
+  }
+
+  const accion: Agregar | null = editor && personaId ? { enPedido, agregando, error: errAgregar, onAgregar: (p, o) => void agregar(p, o) } : null
 
   // 3.2: una vez al llegar, y otra cada vez que se vuelve a entrar (la pantalla se monta de nuevo).
   useEffect(() => {
@@ -110,7 +175,7 @@ export function Catalogo() {
         <p className="mt-4 max-w-prose text-base text-tenue">{CATALOGO.notaStock}</p>
         <p className="mt-1 max-w-prose text-base text-tenue">{CATALOGO.notaEnvio}</p>
         {categorias.map((cat, i) => (
-          <Categoria key={cat.id} categoria={cat} primera={i === 0} deEjemplo={deEjemplo} />
+          <Categoria key={cat.id} categoria={cat} primera={i === 0} deEjemplo={deEjemplo} accion={accion} />
         ))}
       </div>
     )
@@ -140,7 +205,7 @@ function Cargando() {
   )
 }
 
-function Categoria({ categoria, primera, deEjemplo }: { categoria: CategoriaCatalogo; primera: boolean; deEjemplo: boolean }) {
+function Categoria({ categoria, primera, deEjemplo, accion }: { categoria: CategoriaCatalogo; primera: boolean; deEjemplo: boolean; accion: Agregar | null }) {
   const idTitulo = `categoria-${categoria.id}`
   return (
     <section aria-labelledby={idTitulo}>
@@ -149,7 +214,7 @@ function Categoria({ categoria, primera, deEjemplo }: { categoria: CategoriaCata
       </h2>
       <ul className="flex max-w-6xl flex-col gap-4">
         {categoria.productos.map((p) => (
-          <Producto key={p.id} producto={p} deEjemplo={deEjemplo} />
+          <Producto key={p.id} producto={p} deEjemplo={deEjemplo} accion={accion} />
         ))}
       </ul>
     </section>
@@ -157,7 +222,7 @@ function Categoria({ categoria, primera, deEjemplo }: { categoria: CategoriaCata
 }
 
 /** 4.2: la tarjeta. No es un botón ni un enlace: no recibe foco ni cambia al pasar el puntero. */
-function Producto({ producto, deEjemplo }: { producto: ProductoCatalogo; deEjemplo: boolean }) {
+function Producto({ producto, deEjemplo, accion }: { producto: ProductoCatalogo; deEjemplo: boolean; accion: Agregar | null }) {
   const ninguno = producto.comercios.every((o) => !o.disponible)
   const presentacion = producto.presentacion.trim()
   return (
@@ -180,7 +245,7 @@ function Producto({ producto, deEjemplo }: { producto: ProductoCatalogo; deEjemp
         <div className="@container/oferta mt-3 min-w-0 @3xl/producto:col-start-2 @3xl/producto:row-span-2 @3xl/producto:row-start-1 @3xl/producto:mt-0">
           <ul className="grid grid-cols-1 gap-x-6 gap-y-3 @md/oferta:grid-cols-2">
             {producto.comercios.map((o) => (
-              <Comercio key={o.oferta_id} oferta={o} deEjemplo={deEjemplo} />
+              <Comercio key={o.oferta_id} oferta={o} producto={producto} deEjemplo={deEjemplo} accion={accion} />
             ))}
           </ul>
         </div>
@@ -195,8 +260,9 @@ function Producto({ producto, deEjemplo }: { producto: ProductoCatalogo; deEjemp
 }
 
 /** 4.3: cada comercio con su precio, aunque no lo tenga, sin tachar ni resaltar. */
-function Comercio({ oferta, deEjemplo }: { oferta: OfertaCatalogo; deEjemplo: boolean }) {
+function Comercio({ oferta, producto, deEjemplo, accion }: { oferta: OfertaCatalogo; producto: ProductoCatalogo; deEjemplo: boolean; accion: Agregar | null }) {
   const nombre = oferta.nombre_fantasia
+  const enPedido = accion?.enPedido.get(producto.id)
   return (
     <li className="min-w-0 border-t border-linea pt-3">
       <p className="text-base font-bold break-words">{CATALOGO.comercio(nombre)}</p>
@@ -214,6 +280,43 @@ function Comercio({ oferta, deEjemplo }: { oferta: OfertaCatalogo; deEjemplo: bo
         <p className="mt-1 flex gap-1.5 text-base text-tenue">
           <CircleMinus aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
           <span className="min-w-0 break-words">{CATALOGO.noHay(nombre)}</span>
+        </p>
+      )}
+      {/* MATU-61 (5.1): solo en un comercio que dice «Hay»; lo que no hay no se puede apartar. */}
+      {accion && oferta.disponible && enPedido === undefined && (
+        <div className="mt-2 flex flex-col items-start gap-1">
+          <Boton
+            variante="secundario"
+            icono={<Plus aria-hidden className="size-5" />}
+            className="self-start"
+            aria-label={PEDIDO.agregarDe(producto.nombre, nombre)}
+            ocupado={accion.agregando === oferta.oferta_id}
+            textoOcupado={PEDIDO.agregando}
+            onClick={() => accion.onAgregar(producto, oferta)}
+          >
+            {PEDIDO.agregar}
+          </Boton>
+          {accion.error === oferta.oferta_id && (
+            <Anunciado urgencia="alert">
+              <MensajeError>{PEDIDO.errAgregar}</MensajeError>
+            </Anunciado>
+          )}
+        </div>
+      )}
+      {accion && enPedido === oferta.comercio_id && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 text-base text-tinta">
+          <CircleCheck aria-hidden className="size-5 shrink-0 text-ok" />
+          <span>{PEDIDO.enTuPedido}</span>
+          <EnlaceEnFrase
+            id={idVerPedido(producto.id)}
+            href="/insumos/pedido"
+            onClick={(e) => {
+              e.preventDefault()
+              navegar('/insumos/pedido')
+            }}
+          >
+            {PEDIDO.verTuPedido}
+          </EnlaceEnFrase>
         </p>
       )}
     </li>
