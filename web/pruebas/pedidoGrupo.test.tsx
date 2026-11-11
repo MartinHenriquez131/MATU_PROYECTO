@@ -1,6 +1,7 @@
 // MATU-61: Grupo familiar con el permiso para pedir (especificación 12, decisión 192, C2, C6 y C8).
 // El tercer bloque en sus cuatro estados, la confirmación de retirar con sus puntos, «Volver a
-// autorizar» y «Ver la dirección de entrega». Con la capa 3 apagada, el bloque no viene (dos ítems).
+// autorizar» y «Ver la dirección de entrega». Con la capa 3 apagada, el bloque no viene (dos ítems)
+// o, si hay un registro, viene con `se_puede_otorgar: false`: solo se retira (MATU-94, decisión 251).
 // Solo datos sintéticos.
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -93,6 +94,65 @@ describe('El permiso para pedir sus insumos (12.1)', () => {
     abrir('admin', 'vigente', { rutas: { 'GET /consentimientos$': { status: 200, cuerpo: { autorizaciones: autorizaciones().autorizaciones.slice(0, 2) } } } })
     await screen.findByRole('region', { name: 'Permiso para calcular sus insumos' })
     expect(screen.queryByRole('region', { name: 'Permiso para pedir sus insumos' })).toBeNull()
+  })
+})
+
+describe('MATU-94 (decisión 251): la capa 3 apagada con un registro de pedidos', () => {
+  const capaApagada = (despacho: 'vigente' | 'retirada', rutas: Parameters<typeof apiPedido>[0] = {}) => ({
+    'GET /consentimientos$': { status: 200, cuerpo: autorizaciones(despacho, false) },
+    ...rutas,
+  })
+
+  it('vigente: se ve «Retirar la autorización» y no «Volver a autorizar» ni «Ver la dirección»; al retirar queda sin botón', async () => {
+    const { api } = abrir('admin', 'vigente', {
+      rutas: capaApagada('vigente', {
+        'POST /consentimientos/despacho/retiro$': { status: 200, cuerpo: { autorizacion: autorizaciones('retirada', false).autorizaciones[2], enlaces_cortados: 0, pedidos_cancelados: 0 } },
+      }),
+    })
+    const b = await bloque()
+    expect(b.getByText(/^Autorizado el/).closest('p')).toHaveTextContent('Autorizado el 09/11/2026.')
+    expect(b.getAllByRole('button').map((x) => x.getAttribute('aria-label'))).toEqual(['Retirar la autorización de los pedidos de María'])
+    expect(b.queryByRole('button', { name: /Volver a autorizar/ })).toBeNull()
+    await userEvent.click(b.getByRole('button', { name: 'Retirar la autorización de los pedidos de María' }))
+    const dialogo = screen.getByRole('dialog', { name: '¿Retirar la autorización de los pedidos de María?' })
+    await userEvent.click(within(dialogo).getByRole('button', { name: 'Retirar la autorización' }))
+    expect((await screen.findAllByText('Autorización retirada. Ya no se pueden hacer pedidos para María.'))[0]).toBeVisible()
+    expect(api.escrituras().map((x) => `${x.metodo} ${x.ruta}`)).toEqual([`POST /v1/personas-cuidadas/${PERSONA_ID}/consentimientos/despacho/retiro`])
+    const despues = await bloque()
+    expect(despues.getByText(/^Autorización retirada el/).closest('p')).toHaveTextContent(/^Autorización retirada el 10\/11\/2026\.$/)
+    expect(despues.queryByRole('button')).toBeNull()
+  })
+
+  it('retirada: solo «Autorización retirada el {fecha}.», sin ningún botón', async () => {
+    abrir('admin', 'retirada', { rutas: capaApagada('retirada') })
+    const b = await bloque()
+    expect(b.getByText(/^Autorización retirada el/).closest('p')).toHaveTextContent(/^Autorización retirada el 10\/11\/2026\.$/)
+    expect(b.queryByRole('button')).toBeNull()
+    // Las otras dos siguen como siempre.
+    expect(screen.getAllByRole('button', { name: /^Retirar la autorización de / })).toHaveLength(2)
+  })
+
+  it('pagador con la retirada: sin la frase de quién puede volver a autorizarla', async () => {
+    abrir('pagador', 'retirada', { rutas: capaApagada('retirada') })
+    const b = await bloque()
+    expect(b.getByText(/^Autorización retirada el/)).toBeVisible()
+    expect(b.queryByText(/Puede volver a autorizarla/)).toBeNull()
+  })
+
+  it('capa encendida (`se_puede_otorgar: true`): la retirada ofrece «Volver a autorizar» y «Ver la dirección», como siempre', async () => {
+    abrir('admin', 'retirada')
+    const b = await bloque()
+    expect(b.getAllByRole('button').map((x) => x.getAttribute('aria-label'))).toEqual(['Volver a autorizar los pedidos de María', 'Ver la dirección de entrega de María'])
+  })
+
+  it('«Volver a autorizar» con una vista que no se puede otorgar vuelve a Grupo familiar', async () => {
+    window.history.replaceState(null, '', '/grupo/autorizar-pedidos')
+    fijarGrupo(GRUPO.id)
+    apiPedido({}, { despacho: 'retirada' })
+    const vista = autorizaciones('retirada', false).autorizaciones[2]
+    contexto = familiaFalsa({ grupo: GRUPO, rol: 'admin', personas: [persona()], personaId: PERSONA_ID, persona: persona(), fijar: vi.fn(), reautorizar: { personaId: PERSONA_ID, finalidad: 'despacho', vista } } as never)
+    conRegionesGlobales(<AutorizarPedidosDesdeGrupo />)
+    await waitFor(() => expect(window.location.pathname).toBe('/grupo'))
   })
 })
 
