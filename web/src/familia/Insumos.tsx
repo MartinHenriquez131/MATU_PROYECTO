@@ -1898,7 +1898,8 @@ function Formulario({
             {campoEnvase}
           </>
         )}
-        <VistaPrevia stock={stockTotal} uso={entero(uso)} cada={tasaDias} />
+        {/* 1.3 (5.1): la vista previa sigue la regla del total; sin envase válido y con envases, se oculta. */}
+        <VistaPrevia stock={enEnvases ? totalVisible(envases, sueltos, uForm) : stockTotal} uso={entero(uso)} cada={tasaDias} />
         {general && (
           <Anunciado urgencia="alert" className="flex max-w-prose gap-1.5 font-bold text-pronto">
             <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />

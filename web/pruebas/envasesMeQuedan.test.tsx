@@ -573,6 +573,18 @@ describe('El alta (5.1)', () => {
     expect(bloque).toHaveTextContent('En total, quedan unas 60 unidades.')
   })
 
+  it('1.3: la vista previa se oculta con 1 envase y sin envase, y vuelve con el envase en 20 (criterio 8)', async () => {
+    const { u } = await abrirFormulario('/insumos/nuevo')
+    const previa = () => screen.queryByText(/^Así, /, { selector: 'p' })
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    expect(envasesEnteros()).toHaveValue('1')
+    expect(previa()).toBeNull()
+    await u.type(envases()[0], '20')
+    // 20 unidades a 1 al día.
+    expect(previa()).toHaveTextContent(/^Así, alcanza para 20 días, hasta el/)
+  })
+
   it('el total sobre 100.000 no se envía', async () => {
     const { pedidas, u } = await abrirFormulario('/insumos/nuevo')
     await u.type(screen.getByRole('textbox', { name: '¿Qué insumo es?' }), 'Gasas')
