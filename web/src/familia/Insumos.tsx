@@ -1425,6 +1425,7 @@ export function Permiso({
         nombre={`calidad-${finalidad}`}
         valor={calidad}
         columnas
+        detalleGrande
         error={error === 'calidad' ? INSUMOS.errCalidad : null}
         onCambio={(v) => {
           setCalidad(v)

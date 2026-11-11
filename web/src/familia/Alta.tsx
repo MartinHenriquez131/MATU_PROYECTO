@@ -664,6 +664,7 @@ export function DeclaracionFicha({ pila, d }: { pila: string; d: ReturnType<type
         nombre="calidad"
         valor={calidad}
         columnas
+        detalleGrande
         error={error === 'calidad' ? AUTORIZACION.errCalidad : null}
         onCambio={(v) => {
           setCalidad(v)
