@@ -10,17 +10,14 @@ import { FICHA } from './textos'
  * Baja entero de renglón y, solo si es más ancho que un renglón, se corta entre esas dos partes.
  * No agrega ni quita caracteres: el `textContent` es la línea tal cual. Sin `tel:` ni `aria-*`.
  */
-export function ConTelefonos({ texto, resto: pintarTexto = (t) => t }: { texto: string; resto?: (t: string) => ReactNode }) {
+export function ConTelefonos({ texto, pintarTexto = (t) => t }: { texto: string; pintarTexto?: (t: string) => ReactNode }) {
   return trozosConTelefonos(texto).map((t, i) =>
     t.tipo === 'texto' ? (
       <Fragment key={i}>{pintarTexto(t.texto)}</Fragment>
     ) : (
       <span key={i} className="inline-block max-w-full tabular-nums">
         <span className="cifras">{t.prefijo}</span>
-        {/* Tras un guion antes de un dígito el navegador no corta (UAX 14, LB25): el <wbr> le da el
-            único lugar de corte que pide 3.11.4, sin agregar un carácter. */}
         {t.separador || <wbr />}
-        {t.separador === '-' && <wbr />}
         <span className="cifras">{t.resto}</span>
       </span>
     ),
@@ -87,7 +84,7 @@ export function TextoSeccion({ texto }: { texto: string }) {
             {/* Primero los teléfonos: una hora no cae dentro de uno, porque el patrón no acepta : ni . */}
             <ConTelefonos
               texto={l}
-              resto={(t) =>
+              pintarTexto={(t) =>
                 t.split(HORAS_EN_TEXTO).map((p, j) =>
                   j % 2 ? (
                     <span key={j} className="cifras">

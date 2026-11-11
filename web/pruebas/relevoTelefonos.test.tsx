@@ -155,7 +155,7 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
     expect(conEspacio.childNodes[1].textContent).toBe(' ')
   })
 
-  it('con un guion entre el prefijo y el resto, el guion queda y se puede cortar justo después', () => {
+  it('con un guion entre el prefijo y el resto, el guion queda entre las dos cifras', () => {
     render(
       <PantallaFicha
         ficha={{ ...ficha(), campos: { red_apoyo: { texto: 'Rodrigo: +56-9-5555-0141' } }, secciones: [] }}
@@ -163,8 +163,8 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
       />,
     )
     const [b] = bloques(document)
-    expect([...b.childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'WBR', 'SPAN'])
-    expect([...b.childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '', '5555-0141'])
+    expect([...b.childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'SPAN'])
+    expect([...b.childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '5555-0141'])
     expect(b.parentElement?.textContent).toBe('Rodrigo: +56-9-5555-0141')
   })
 
