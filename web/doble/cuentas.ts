@@ -101,6 +101,10 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'compre-defectos@example.com', que: 'Compré y Me quedan: el pañal responde 412 una vez (Rodrigo lo cambió), las toallitas 409 perfil-inactivo («Ver cómo quedó» la deja en «Sin seguir»), el champú 404 (ya no está) y la crema 500. El agua y las bolsas dan los 422 de la cuenta compre@' },
   { email: 'compre-renovar@example.com', que: 'Compré y Me quedan: la primera anotación responde 403 revision-vencida («Hay que renovar…»)' },
   { email: 'compre-lento@example.com', que: 'Compré y Me quedan: cada respuesta tarda 2 segundos («Guardando…» y la fila sin cambios hasta la respuesta)' },
+  // MATU-84: «Me quedan» y el formulario del insumo en envases (/insumos)
+  { email: 'envases@example.com', que: 'Me quedan en envases: admin. Pañal con 20 por envase (abre en envases), champú con 10 sobres por caja, toallitas sin envase («Contar en envases» lo anota con un solo PATCH), guantes con envase de 1 (como sin envase), crema en ml (sin enlace), un nombre de 60 caracteres con 10.000 por envase y bolsas que con unas 2.000 alcanzan para más de 10 años (422 cobertura_maxima)' },
+  { email: 'envases-defectos@example.com', que: 'Me quedan en envases: el pañal responde 412 una vez (Rodrigo lo cambió), las toallitas 500 al anotar lo que queda y 422 en unidades_por_envase al anotar el envase, y los guantes 500 al anotar el envase' },
+  { email: 'envases-lento@example.com', que: 'Me quedan en envases: cada respuesta tarda 2 segundos («Guardando…», los campos en solo lectura y los enlaces sin efecto)' },
   // MATU-57: recuperar el acceso y confirmar el celular. Los códigos solo se ven en la consola del doble.
   { email: 'celular-verificado@example.com', que: 'Celular confirmado: «Tu cuenta» dice «Confirmado»; recuperar envía el código «al celular»' },
   { email: 'celular-sin-verificar@example.com', que: 'Celular sin confirmar: «Tu cuenta» ofrece «Confirmar celular» (SMS o WhatsApp)' },
