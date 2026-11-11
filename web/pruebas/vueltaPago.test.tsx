@@ -421,6 +421,19 @@ describe('La persona y la sesión (7.1 y 7.10)', () => {
     expect(leerVuelta()?.resultado?.resultado).toBe('aprobado')
   })
 
+  it('2.2: si después se elige otra persona en el encabezado, va a «Tu pedido» y olvida la vuelta, sin volver a fijar', async () => {
+    rutas({ 'POST ^/v1/pagos/retorno$': { status: 200, cuerpo: retorno({ grupo_id: OTRO_GRUPO_ID, persona_cuidada_id: OTRA_PERSONA_ID }) } })
+    volverDeWebpay()
+    abrir()
+    await waitFor(() => expect(contexto.elegir).toHaveBeenCalledTimes(1))
+    cleanup()
+    // La pantalla se monta de nuevo con una persona que no es la del pedido (la eligió quien mira).
+    abrir()
+    await waitFor(() => expect(window.location.pathname).toBe('/insumos/pedido'))
+    expect(contexto.elegir).not.toHaveBeenCalled()
+    expect(hayVuelta()).toBe(false)
+  })
+
   it('7.10: con la sesión de otra cuenta (ids en null), el resultado sin montos y «Entrar», único macizo', async () => {
     rutas({ 'POST ^/v1/pagos/retorno$': { status: 200, cuerpo: retorno({ grupo_id: null, persona_cuidada_id: null, pedido_id: null }) } })
     volverDeWebpay()

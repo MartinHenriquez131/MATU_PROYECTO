@@ -24,6 +24,8 @@ interface Vuelta {
   /** `Date.now()` al llegar: «Te avisamos aquí» pregunta sola hasta 15 minutos después (7.3). */
   llegada: number
   resultado: ResultadoRetorno | null
+  /** Ya se fijaron el grupo y la persona del pedido una vez (7.1). */
+  fijada: boolean
 }
 
 let vuelta: Vuelta | null = null
@@ -49,13 +51,16 @@ export function capturarRetorno(loc: Location = window.location) {
   if (!loc.search && !loc.hash) return
   const cuerpo = leerValores(loc.search) ?? leerValores(loc.hash)
   window.history.replaceState(null, '', RUTA_PAGO)
-  if (cuerpo) vuelta = { cuerpo, llegada: Date.now(), resultado: null }
+  if (cuerpo) vuelta = { cuerpo, llegada: Date.now(), resultado: null, fijada: false }
 }
 
 export const hayVuelta = () => vuelta !== null
 export const leerVuelta = (): Readonly<Vuelta> | null => vuelta
 export function guardarResultado(r: ResultadoRetorno) {
   if (vuelta) vuelta = { ...vuelta, resultado: r }
+}
+export function marcarFijada() {
+  if (vuelta) vuelta = { ...vuelta, fijada: true }
 }
 /** La vuelta terminó (la persona salió de la pantalla): un «Ver el comprobante» posterior no la repite. */
 export function olvidarVuelta() {

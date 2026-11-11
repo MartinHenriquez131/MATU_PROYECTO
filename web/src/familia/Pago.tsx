@@ -30,6 +30,7 @@ import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
 import { useFamilia } from './estado'
+import { useDemora } from './Estados'
 import { enfocar, esTipo } from './insumosComun'
 import { PestanasInsumos } from './Insumos'
 import { AvisoPiloto, Baldosa, horaDeVencimiento, type TonoBaldosa } from './PiezasPedido'
@@ -39,7 +40,7 @@ import { pesos } from './textosCatalogo'
 import { PAGO } from './textosPago'
 import { PEDIDO } from './textosPedido'
 import { Acciones, Etiqueta, Nota, Titulo } from './ui'
-import { guardarResultado, leerVuelta, olvidarComprobante, olvidarVuelta, RUTA_PAGO, tomarComprobante } from './vueltaPago'
+import { guardarResultado, leerVuelta, marcarFijada, olvidarComprobante, olvidarVuelta, RUTA_PAGO, tomarComprobante } from './vueltaPago'
 
 const RUTA_PEDIDO = '/insumos/pedido'
 const RUTA_RESUMEN = '/insumos/pedido/resumen'
@@ -180,7 +181,14 @@ export function PantallaPago() {
       // 7.1: fija el grupo y la persona del pedido (la elegida en memoria se perdió al ir a Webpay).
       // La pantalla se monta de nuevo con la persona nueva y sigue desde el resultado guardado.
       if (r.grupo_id !== grupoId || r.persona_cuidada_id !== personaId) {
+        // 2.2: si ya se fijó una vez y la persona cambió después, fue la persona quien eligió otra
+        // en el encabezado: va a «Tu pedido» de esa persona, y la vuelta se olvida.
+        if (leerVuelta()?.fijada) {
+          olvidarVuelta()
+          return navegar(RUTA_PEDIDO, { reemplazar: true })
+        }
         try {
+          marcarFijada()
           await elegir(r.grupo_id, r.persona_cuidada_id)
           return
         } catch (x) {
@@ -339,10 +347,11 @@ function Encabezado({ tono, icono, titulo, pestanas = true }: { tono: TonoBaldos
 }
 
 function Cargando() {
+  const ver = useDemora()
   return (
     <div aria-busy="true" className="mt-2">
       <p role="status" className="text-lg text-tenue">
-        {GENERAL.cargando}
+        {ver ? GENERAL.cargando : ''}
       </p>
     </div>
   )
