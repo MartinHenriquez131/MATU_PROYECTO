@@ -230,6 +230,64 @@ def test_estado_trae_las_dos_finalidades_en_orden() -> None:
         ("plan_cuidado", EstadoVista.VIGENTE), ("consumo", EstadoVista.SIN_AUTORIZAR)]
 
 
+# --- MATU-94 (decisión 251): despacho en la vista con la capa 3 apagada ---------------------------------------
+
+APAGADA = ("plan_cuidado", "consumo")
+RETIRABLES_APAGADA = ("plan_cuidado", "consumo", "despacho")
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize("revocado", [None, AHORA - timedelta(days=3)], ids=["vigente", "retirada"])
+def test_con_la_capa_apagada_la_vista_trae_despacho_si_tiene_registro(revocado: datetime | None) -> None:
+    repo = Repo({"despacho": [_autorizacion("despacho", revocado=revocado)]})
+
+    estados = estado_autorizaciones(uuid.uuid4(), RelojFijo(AHORA), repo, APAGADA, RETIRABLES_APAGADA)
+
+    assert [(e.finalidad, e.se_puede_otorgar) for e in estados] == [
+        ("plan_cuidado", True), ("consumo", True), ("despacho", False)]
+    despacho = estados[2]
+    esperado = EstadoVista.VIGENTE if revocado is None else EstadoVista.RETIRADA
+    assert (despacho.estado, despacho.borrado_en, despacho.borrada) == (esperado, None, False)
+
+
+@pytest.mark.rf("RF-21")
+def test_con_la_capa_apagada_sin_registro_de_despacho_siguen_dos() -> None:
+    estados = estado_autorizaciones(uuid.uuid4(), RelojFijo(AHORA), Repo({}), APAGADA, RETIRABLES_APAGADA)
+
+    assert [e.finalidad for e in estados] == ["plan_cuidado", "consumo"]
+    # Quitada la capa 3 (sin el efecto, despacho no se retira): tampoco se muestra, aunque tenga registro
+    repo = Repo({"despacho": [_autorizacion("despacho")]})
+    assert [e.finalidad for e in estado_autorizaciones(uuid.uuid4(), RelojFijo(AHORA), repo, APAGADA)] == [
+        "plan_cuidado", "consumo"]
+
+
+@pytest.mark.rf("RF-21")
+def test_con_la_capa_encendida_despacho_sin_autorizar_se_puede_otorgar() -> None:
+    estados = estado_autorizaciones(uuid.uuid4(), RelojFijo(AHORA), Repo({}), RETIRABLES_APAGADA, RETIRABLES_APAGADA)
+
+    assert [(e.finalidad, e.estado, e.se_puede_otorgar) for e in estados][2] == (
+        "despacho", EstadoVista.SIN_AUTORIZAR, True)
+
+
+@pytest.mark.rf("RF-21")
+def test_retirar_despacho_con_la_capa_apagada_no_ofrece_volver_a_autorizar() -> None:
+    repo = Repo({"despacho": [_autorizacion("despacho")]})
+
+    resultado = retirar_autorizacion(
+        _solicitud(finalidad="despacho"), RelojFijo(AHORA), repo, {"despacho": Efecto(cortados=1)},
+        RETIRABLES_APAGADA, APAGADA,
+    )
+
+    assert resultado.pedidos_cancelados == 1
+    assert (resultado.estado.estado, resultado.estado.se_puede_otorgar) == (EstadoVista.RETIRADA, False)
+    # Sin activas explícitas, las que se retiran también se otorgan (encendida)
+    otro = Repo({"despacho": [_autorizacion("despacho")]})
+    encendida = retirar_autorizacion(
+        _solicitud(finalidad="despacho"), RelojFijo(AHORA), otro, {"despacho": Efecto()}, RETIRABLES_APAGADA
+    )
+    assert encendida.estado.se_puede_otorgar is True
+
+
 @pytest.mark.parametrize(("dias", "borra"), [(89, False), (90, True)])
 def test_antes_de_otorgar_avisa_el_plazo_cumplido_solo_desde_el_dia_90(dias: int, borra: bool) -> None:
     efecto = Efecto()

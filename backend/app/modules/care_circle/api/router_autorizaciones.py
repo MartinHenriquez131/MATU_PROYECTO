@@ -134,7 +134,8 @@ Finalidades = Annotated[tuple[str, ...], Depends(finalidades_activas)]
 
 def finalidades_de_retiro(finalidades: Finalidades) -> tuple[str, ...]:
     """Las que se retiran y se borran: las activas y despacho si su efecto está registrado, aunque la capa 3 esté
-    apagada (MATU-94, decisión 250). Otorgar y la vista siguen con las activas (decisión 217)."""
+    apagada (MATU-94, decisión 250). Otorgar sigue con las activas (decisión 217); la vista suma despacho solo si la
+    persona tiene un registro de ella (decisión 251)."""
     return finalidades_que_se_retiran(finalidades, finalidades_registradas())
 
 
@@ -314,10 +315,15 @@ class AutorizacionVista(BaseModel):
     revocado_en: datetime | None
     borrado_en: datetime | None
     borrada: bool
+    se_puede_otorgar: bool = Field(
+        description="false si la finalidad no se otorga ahora: despacho con la capa 3 apagada, que viene solo si la"
+        " persona tiene un registro, para poder retirarla. La pantalla no ofrece «Volver a autorizar» (decisión 251)"
+    )
 
 
 class AutorizacionesPersona(BaseModel):
-    """plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2). Lo que ven admin y cuidador."""
+    """plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2) o, con la capa 3 apagada, si la persona
+    tiene un registro de ella (decisión 251). Lo que ven admin y cuidador."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -338,6 +344,7 @@ class AutorizacionVistaResumen(BaseModel):
     revocado_en: datetime | None
     borrado_en: datetime | None
     borrada: bool
+    se_puede_otorgar: bool = Field(description="Como en AutorizacionVista (decisión 251)")
 
 
 class AutorizacionesPersonaResumen(BaseModel):
@@ -372,6 +379,7 @@ def _vista(estado: EstadoDeAutorizacion) -> AutorizacionVista:
         revocado_en=None if a is None else a.revocado_en,
         borrado_en=estado.borrado_en,
         borrada=estado.borrada,
+        se_puede_otorgar=estado.se_puede_otorgar,
     )
 
 
@@ -400,15 +408,16 @@ def _resumen(estado: EstadoDeAutorizacion) -> AutorizacionVistaResumen:
         401: _ERRORES[401],
         404: {"description": "No miembro, persona de otro grupo o inexistente", **_PROBLEMA},
     },
-    summary="El estado de las autorizaciones de la persona: dos, o tres con la capa 3",
+    summary="El estado de las autorizaciones de la persona: dos, o tres con la capa 3 o con un registro de despacho",
 )
 def estado(
     ver: Annotated[PersonaParaAutorizar, Depends(persona_para_ver)],
     retiros: Retiros,
     reloj: RelojDep,
     finalidades: Finalidades,
+    retirables: FinalidadesRetiro,
 ) -> AutorizacionesPersona | AutorizacionesPersonaResumen:
-    estados = estado_autorizaciones(ver.persona_id, reloj, retiros, finalidades)
+    estados = estado_autorizaciones(ver.persona_id, reloj, retiros, finalidades, retirables)
     # Cada rol recibe su propia proyección: el pagador y el observador nunca reciben la calidad del otorgante
     if puede_dar_de_alta(ver.contexto.rol):
         return AutorizacionesPersona(autorizaciones=[_vista(e) for e in estados])
@@ -447,6 +456,7 @@ def retirar(
     efectos: Efectos,
     reloj: RelojDep,
     finalidades: FinalidadesRetiro,
+    activas: Finalidades,
 ) -> RetiroAutorizacion:
     valida = finalidad_de(finalidad, finalidades)
     if valida is None:
@@ -465,6 +475,7 @@ def retirar(
             retiros,
             efectos,
             finalidades,
+            activas,
         )
     except (RolSinPermisoRetiro, AutorizacionNoEncontrada):
         raise ErrorMATU(404) from None

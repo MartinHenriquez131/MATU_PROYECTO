@@ -27,10 +27,13 @@ from app.modules.care_circle.domain.retiro import (
     EstadoDeAutorizacion,
     EstadoVista,
     YaRetirada,
+    candidatas_de_la_vista,
     estado_de,
     exigir_retirable,
     lo_guardado_ya_no_esta,
     puede_retirar,
+    se_muestra_en_la_vista,
+    se_puede_otorgar,
 )
 from app.shared.puertos import Reloj
 
@@ -127,13 +130,15 @@ def retirar_autorizacion(
     repositorio: RepositorioRetiros,
     efectos: Mapping[str, EfectoDelRetiro],
     finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES,
+    activas: tuple[str, ...] | None = None,
 ) -> AutorizacionRetirada:
     """Retira la autorización de la finalidad. Orden: rol (404), finalidad o nunca autorizada (404),
     ya retirada (409). Después, todo en la misma transacción y con un solo instante del Reloj.
 
     ``finalidades`` son las que se retiran (finalidades_que_se_retiran): despacho con su efecto registrado, también
-    con la capa 3 apagada (MATU-94, decisión 250). El efecto de
-    despacho devuelve los pedidos que canceló, que van en ``pedidos_cancelados`` y no en ``enlaces_cortados``."""
+    con la capa 3 apagada (MATU-94, decisión 250). ``activas`` son las que se otorgan (por omisión, ``finalidades``):
+    deciden ``se_puede_otorgar`` del estado que se devuelve (decisión 251). El efecto de despacho devuelve los pedidos
+    que canceló, que van en ``pedidos_cancelados`` y no en ``enlaces_cortados``."""
     if not puede_retirar(solicitud.rol):
         raise RolSinPermisoRetiro()
     if solicitud.finalidad not in finalidades:
@@ -153,6 +158,8 @@ def retirar_autorizacion(
     cortados = efecto.aplicar(solicitud.persona_id, ahora, solicitud.usuario_id, solicitud.request_id)
     retirada = replace(vigente, revocado_en=ahora)
     estado = estado_de(solicitud.finalidad, retirada, None, ahora)
+    otorgables = finalidades if activas is None else activas
+    estado = replace(estado, se_puede_otorgar=se_puede_otorgar(solicitud.finalidad, otorgables))
     if solicitud.finalidad in FINALIDADES_CAPA_3:
         # Decisión 192 (P14): despacho no programa un borrado a los 90 días
         estado = replace(estado, borrado_en=None, borrada=False)
@@ -165,20 +172,28 @@ def estado_autorizaciones(
     reloj: Reloj,
     repositorio: RepositorioRetiros,
     finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES,
+    retirables: tuple[str, ...] | None = None,
 ) -> list[EstadoDeAutorizacion]:
     """Las finalidades activas, en el orden de la vista (decisión 127): dos sin la capa 3 y tres con ella (C2).
     La ven los cuatro roles (P2): la API elige la proyección del rol. Sale solo de los consentimientos y del
-    Reloj, sin leer la ficha. Con despacho, borrado_en es None y borrada False (P14)."""
+    Reloj, sin leer la ficha. Con despacho, borrado_en es None y borrada False (P14).
+
+    MATU-94 (decisión 251): ``retirables`` (finalidades_que_se_retiran) suma, después de las activas, las que se
+    retiran sin estar activas (despacho con la capa 3 apagada), solo si la persona tiene un registro de ellas, vigente
+    o retirado; con ``se_puede_otorgar`` en False."""
     ahora = reloj.ahora()
     estados = []
-    for finalidad in finalidades:
+    for finalidad in candidatas_de_la_vista(finalidades, finalidades if retirables is None else retirables):
         actual = repositorio.ultima(persona_id, finalidad)
+        if not se_muestra_en_la_vista(finalidad, finalidades, actual is not None):
+            continue
         anterior = (
             None
             if actual is None or actual.revocado_en is not None
             else repositorio.retiro_anterior(persona_id, finalidad, actual.otorgado_en)
         )
         estado = estado_de(finalidad, actual, anterior, ahora)
+        estado = replace(estado, se_puede_otorgar=se_puede_otorgar(finalidad, finalidades))
         if finalidad in FINALIDADES_CAPA_3:
             estado = replace(estado, borrado_en=None, borrada=False)
             if estado.estado is EstadoVista.BORRADA:

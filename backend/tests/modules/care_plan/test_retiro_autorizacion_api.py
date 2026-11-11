@@ -366,14 +366,14 @@ def test_estado_de_las_dos_autorizaciones(entorno: EntornoAbrir) -> None:
     assert (plan["revocado_en"], plan["borrado_en"], plan["borrada"]) == (None, None, False)
     assert consumo == {"finalidad": "consumo", "estado": "sin_autorizar", "id": None, "calidad_otorgante": None,
                        "otorgado_en": None, "revision_vence_en": None, "revocado_en": None, "borrado_en": None,
-                       "borrada": False}
+                       "borrada": False, "se_puede_otorgar": True}
 
     retiro = _retirar(entorno, familia).json()["autorizacion"]
     despues = _estado(entorno, familia).json()["autorizaciones"][0]
     assert despues == retiro and despues["estado"] == "retirada"
     # Sin la referencia, la evidencia, la versión de la política ni quién la dio
     assert set(despues) == {"finalidad", "estado", "id", "calidad_otorgante", "otorgado_en", "revision_vence_en",
-                            "revocado_en", "borrado_en", "borrada"}
+                            "revocado_en", "borrado_en", "borrada", "se_puede_otorgar"}
 
 
 # --- La carrera con compartir (condición 7) ------------------------------------------------------------------

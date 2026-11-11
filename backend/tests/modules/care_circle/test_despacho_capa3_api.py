@@ -108,6 +108,43 @@ def test_sin_la_capa_3_borrar_a_la_persona_funciona_y_revoca_despacho(
         )
 
 
+def test_sin_la_capa_3_despacho_vigente_se_ve_y_se_retira(entorno_iam: EntornoIam, fabrica_despacho: Fabrica) -> None:
+    """MATU-94 (decisión 251): con la capa 3 apagada, una autorización despacho que quedó aparece en la vista, sin
+    «Volver a autorizar» (se_puede_otorgar false), y se retira por la ruta (200). Retirar es igual de fácil que dar."""
+    familia = fabrica_despacho.familia()
+    _despacho_que_quedo(familia)
+    cab = _cabeceras(entorno_iam, familia.admin, familia)
+    ruta = CONSENTIMIENTOS.format(familia.persona.id)
+
+    antes = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
+    assert [(a["finalidad"], a["estado"], a["se_puede_otorgar"]) for a in antes] == [
+        ("plan_cuidado", "vigente", True), ("consumo", "sin_autorizar", True), ("despacho", "vigente", False)]
+
+    retiro = entorno_iam.cliente.post(ruta + "/despacho/retiro", headers=cab)
+
+    assert retiro.status_code == 200, retiro.text
+    assert retiro.json()["pedidos_cancelados"] == 0
+    assert (retiro.json()["autorizacion"]["estado"], retiro.json()["autorizacion"]["se_puede_otorgar"]) == (
+        "retirada", False)
+    despues = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
+    assert [(a["finalidad"], a["estado"]) for a in despues][2] == ("despacho", "retirada")
+    # Otorgar despacho sigue respondiendo 422 con la capa apagada
+    otorgar = entorno_iam.cliente.post(
+        ruta,
+        headers=cab,
+        json={
+            "finalidad": "despacho",
+            "calidad_otorgante": "titular",
+            "huella_declaracion": huella_declaracion_pedidos(CalidadOtorgante.TITULAR),
+        },
+    )
+    assert otorgar.status_code == 422 and otorgar.json()["errores"][0]["campo"] == "finalidad"
+    # El pagador ve lo mismo en su resumen
+    pagador = _cabeceras(entorno_iam, familia.miembros["pagador"].usuario, familia)
+    resumen = entorno_iam.cliente.get(ruta, headers=pagador).json()["autorizaciones"]
+    assert [(a["finalidad"], a["se_puede_otorgar"]) for a in resumen][2] == ("despacho", False)
+
+
 def test_con_la_capa_3_son_tres_autorizaciones(entorno_iam: EntornoIam, fabrica_despacho: Fabrica) -> None:
     entorno_iam.cliente.app.dependency_overrides[finalidades_activas] = lambda: finalidades_retirables(True)  # type: ignore[attr-defined]
     familia = fabrica_despacho.familia()

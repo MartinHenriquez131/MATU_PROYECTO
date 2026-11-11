@@ -72,9 +72,11 @@ def test_con_la_capa_3_apagada_retirar_despacho_cancela_lo_no_pagado(
     assert retiro.json()["pedidos_cancelados"] == 1 and retiro.json()["enlaces_cortados"] == 0
     assert _estado_y_motivo(pedido_id) == ("cancelado", "autorizacion_retirada")
     assert _entregas(pedido_id) == 0
-    # La vista y el otorgamiento siguen como en la decisión 217: dos ítems, y despacho no se otorga
+    # La vista trae despacho porque tiene un registro, sin «Volver a autorizar», y no se otorga (decisión 251)
     vista = e.pedir("GET", ruta, familia.admin, familia).json()
-    assert [a["finalidad"] for a in vista["autorizaciones"]] == ["plan_cuidado", "consumo"]
+    assert [(a["finalidad"], a["se_puede_otorgar"]) for a in vista["autorizaciones"]] == [
+        ("plan_cuidado", True), ("consumo", True), ("despacho", False)]
+    assert vista["autorizaciones"][2]["estado"] == "retirada"
     assert e.autorizar_pedidos(familia).status_code == 422
     # Una segunda vez, ya retirada
     assert e.pedir("POST", ruta + "/despacho/retiro", familia.admin, familia).status_code == 409
