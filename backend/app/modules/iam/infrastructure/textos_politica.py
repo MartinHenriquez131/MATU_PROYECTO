@@ -23,7 +23,7 @@ PUBLICADAS: dict[str, str] = {
     # MATU-61 (D11): los pedidos de insumos, con su autorización aparte. La 0.11 sigue publicada para quien la aceptó
     "0.12": "c58e1e8aac0091dcc5c205d7bf0a514c7f2d25cc1bd4c1fb514322a479845132",  # pragma: allowlist secret
     # MATU-62 (D11): el pago con Transbank. La 0.12 y la 0.11 siguen publicadas para quien las aceptó
-    "0.13": "947d9b996ee17395c546482b75b02e6fb5683edd3243778c8837dbaa34b226d7",  # pragma: allowlist secret
+    "0.13": "b5e2be03e72afddc6e45c3112ff1fd75a3816efc723816731b7c9415165b136a",  # pragma: allowlist secret
 }
 
 

@@ -474,7 +474,14 @@ def test_la_0_13_esta_publicada_y_es_la_de_env_example() -> None:
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.13", "2026-11-11")
     texto = texto_publicado("0.13")
     assert texto != texto_publicado("0.12")
-    for parte in ("pagarlo en la página de Transbank", "MATU no ve el número de tu tarjeta", "sin cobros reales"):
+    for parte in (
+        "pagarlo en la página de Transbank",
+        "MATU no ve el número de tu tarjeta",
+        "sin cobros reales",
+        # Cierre del analista: la auditoría del pago y lo que ve el observador (§6)
+        "crea, confirma, paga o cancela un pedido",
+        "ve los productos del pedido y si está pagado",
+    ):
         assert parte in texto, parte
     # Las declaraciones de la autorización de pedidos (MATU-61) siguen en el texto vigente
     from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
