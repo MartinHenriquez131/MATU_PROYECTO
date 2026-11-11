@@ -35,6 +35,7 @@ import { Permiso } from './Insumos'
 import { navegar } from './ruteo'
 import { AUTORIZACION, GENERAL } from './textos'
 import { BORRAR_DATOS as B, GRUPO_FAMILIAR as T } from './textosGrupo'
+import { GRUPO_PEDIDOS as P } from './textosPedido'
 import { Acciones, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 
 /** Con la autorización vigente o por renovar: hay algo que retirar. */
@@ -73,7 +74,7 @@ function ConFecha({ partes: [antes, pegado, despues], iso }: { partes: readonly 
 
 interface DatosPersona {
   persona: PersonaListada
-  /** `[plan_cuidado, consumo]`, en el orden del contrato. */
+  /** `[plan_cuidado, consumo]`, en el orden del contrato, y `despacho` con la capa 3 (MATU-61, C2). */
   vistas: AutorizacionVista[]
   /** 2.2: cuántos enlaces hay hoy. `null` si no se pidió o falló: la confirmación omite la frase. */
   enlaces: number | null
@@ -163,7 +164,8 @@ export function GrupoFamiliar() {
     // 4.5: la ficha que estaba en memoria sale, y la app sabe que se retiró (decisión 131).
     if (finalidad === 'plan_cuidado' && d.persona.id === elegidaId) fijar({ ficha: null, autorizacion: 'sin-consentimiento' })
     const pila = nombrePilaDe(d.persona)
-    conAviso(claveDe(d.persona.id, finalidad), { tono: 'ok', texto: finalidad === 'plan_cuidado' ? T.retiradaFicha(cortados) : T.retiradaInsumos(pila) })
+    const texto = finalidad === 'plan_cuidado' ? T.retiradaFicha(cortados) : finalidad === 'despacho' ? P.retirada(pila) : T.retiradaInsumos(pila)
+    conAviso(claveDe(d.persona.id, finalidad), { tono: 'ok', texto })
   }
 
   const alYaRetirada = async (d: DatosPersona, finalidad: Finalidad) => {
@@ -216,7 +218,16 @@ export function GrupoFamiliar() {
     const otra = d.persona.id !== elegidaId
     flushSync(() => {
       fijar({ ...(otra ? { personaId: d.persona.id, ficha: null, autorizacion: null } : {}), reautorizar: { personaId: d.persona.id, finalidad, vista } })
-      navegar(finalidad === 'plan_cuidado' ? '/grupo/autorizar-ficha' : '/grupo/autorizar-insumos')
+      navegar(finalidad === 'plan_cuidado' ? '/grupo/autorizar-ficha' : finalidad === 'despacho' ? '/grupo/autorizar-pedidos' : '/grupo/autorizar-insumos')
+    })
+  }
+
+  /** MATU-61 (12.1, C8): la dirección de entrega de la persona, para verla o vaciarla aunque se haya retirado el permiso. */
+  const verDireccion = (d: DatosPersona) => {
+    const otra = d.persona.id !== elegidaId
+    flushSync(() => {
+      fijar({ ...(otra ? { personaId: d.persona.id, ficha: null, autorizacion: null } : {}), direccionDesdeGrupo: true })
+      navegar('/insumos/pedido/direccion')
     })
   }
 
@@ -258,6 +269,8 @@ export function GrupoFamiliar() {
                   aviso={avisos[claveDe(d.persona.id, v.finalidad)] ?? null}
                   onRetirar={() => setRetirando({ datos: d, finalidad: v.finalidad })}
                   onVolver={() => volverAAutorizar(d, v.finalidad, v)}
+                  conDireccion={v.finalidad === 'despacho' && 'direccion' in d.persona && !!d.persona.direccion}
+                  onVerDireccion={() => verDireccion(d)}
                 />
               ))}
             </div>
@@ -319,6 +332,8 @@ function Cargando() {
 /** 3.4: cada estado con su ícono distinto y su frase, nunca solo color. */
 function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) {
   const ficha = v.finalidad === 'plan_cuidado'
+  // MATU-61 (12.1): los pedidos no guardan nada que se borre a los 90 días: la retirada va sin esa frase.
+  const pedidos = v.finalidad === 'despacho'
   // 3.3 (revisión del 07-11): en modo angosto el ícono va en la primera línea, como en `MensajeError`.
   const icono = 'mt-0.5 size-5 shrink-0 angosto:mt-0 angosto:mr-1.5 angosto:inline angosto:align-middle'
   let Icono = ShieldQuestion
@@ -347,7 +362,7 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
       <>
         {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." />
         {/* El dominio siempre entrega `borrado_en` con `retirada`. Si no llega, solo la primera oración. */}
-        {v.borrado_en && (
+        {v.borrado_en && !pedidos && (
           <>
             {' '}
             {editor ? T.siNoVuelves : T.siNadieVuelve} <Fecha iso={v.borrado_en} fin="." />
@@ -362,7 +377,7 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
         {T.retiradaEl} <Fecha iso={v.revocado_en} fin="." /> {T.seBorro} <Fecha iso={v.borrado_en} fin="." />
       </>
     )
-  } else frase = T.sinAutorizar
+  } else frase = pedidos ? P.sinAutorizar : T.sinAutorizar
   return (
     <p className="flex gap-2 angosto:block text-base">
       <Icono aria-hidden className={`${icono} ${tono}`} />
@@ -379,6 +394,8 @@ function Bloque({
   aviso,
   onRetirar,
   onVolver,
+  conDireccion = false,
+  onVerDireccion,
 }: {
   vista: AutorizacionVista
   pila: string
@@ -387,14 +404,18 @@ function Bloque({
   aviso: AvisoBloque | null
   onRetirar: () => void
   onVolver: () => void
+  conDireccion?: boolean
+  onVerDireccion?: () => void
 }) {
   const clave = claveDe(personaId, v.finalidad)
   const ficha = v.finalidad === 'plan_cuidado'
+  const pedidos = v.finalidad === 'despacho'
+  const titulo = ficha ? T.tituloFicha : pedidos ? P.titulo : T.tituloInsumos
   const conBorde = autorizada(v) ? 'bg-hoja ring-1 ring-linea' : 'bg-papel border-2 border-dashed border-borde'
   return (
     <section aria-labelledby={`bloque-${clave}`} className={`flex min-w-0 flex-col gap-3 rounded-xl px-4 angosto:px-2 py-4 ${conBorde}`}>
       <h3 id={`bloque-${clave}`} className="text-lg font-bold break-words">
-        {ficha ? T.tituloFicha : T.tituloInsumos}
+        {titulo}
       </h3>
       {aviso && (
         <Nota id={`aviso-${clave}`} tono={aviso.tono} rol="status" enfocable>
@@ -403,13 +424,19 @@ function Bloque({
       )}
       <EstadoBloque v={v} editor={editor} />
       {editor && autorizada(v) && (
-        <Boton id={`retirar-${clave}`} variante="peligro" className="self-start" aria-label={ficha ? T.retirarFichaDe(pila) : T.retirarInsumosDe(pila)} onClick={onRetirar}>
+        <Boton id={`retirar-${clave}`} variante="peligro" className="self-start" aria-label={ficha ? T.retirarFichaDe(pila) : pedidos ? P.retirarDe(pila) : T.retirarInsumosDe(pila)} onClick={onRetirar}>
           {T.retirar}
         </Boton>
       )}
       {editor && retirada(v) && (
-        <Boton id={`volver-${clave}`} variante="secundario" className="self-start" aria-label={ficha ? T.volverFichaDe(pila) : T.volverInsumosDe(pila)} onClick={onVolver}>
+        <Boton id={`volver-${clave}`} variante="secundario" className="self-start" aria-label={ficha ? T.volverFichaDe(pila) : pedidos ? P.volverDe(pila) : T.volverInsumosDe(pila)} onClick={onVolver}>
           {T.volverAAutorizar}
+        </Boton>
+      )}
+      {/* 12.1 (O12, C8): con una dirección guardada, para verla o vaciarla aunque se haya retirado el permiso. */}
+      {editor && pedidos && conDireccion && v.estado !== 'sin_autorizar' && (
+        <Boton variante="texto" className="self-start" aria-label={P.verDireccionDe(pila)} onClick={onVerDireccion}>
+          {P.verDireccion}
         </Boton>
       )}
       {!editor && autorizada(v) && <p className="text-base text-tenue">{T.puedeRetirarla(pila)}</p>}
@@ -446,6 +473,7 @@ function DialogoRetirar({
   const pila = nombrePilaDe(datos.persona)
   const [vFicha, vInsumos] = datos.vistas
   const ficha = finalidad === 'plan_cuidado'
+  const pedidos = finalidad === 'despacho'
 
   useEffect(() => {
     const d = ref.current
@@ -495,7 +523,9 @@ function DialogoRetirar({
 
   // 4.3: «Hoy abren {n}», o «Hoy están en pausa {n}» con la revisión vencida. Sin conteo, se omite.
   const conteo = datos.enlaces === null ? '' : vFicha?.estado === 'revision_vencida' ? T.hoyEnPausa(datos.enlaces) : T.hoyAbren(datos.enlaces)
-  const puntos: { texto: string; fuerte?: boolean }[] = ficha
+  const puntos: { texto: string; fuerte?: boolean }[] = pedidos
+    ? P.puntos(pila)
+    : ficha
     ? [
         { texto: T.fichaNadie },
         { texto: [T.fichaSeCortan, conteo, T.fichaAbierta].filter(Boolean).join(' ') },
@@ -532,7 +562,7 @@ function DialogoRetirar({
     >
       <div className="flex flex-col gap-4">
         <h2 ref={titulo} id={`${uid}-t`} tabIndex={-1} className="text-xl font-bold break-words outline-none">
-          {ficha ? T.preguntaFicha(pila) : T.preguntaInsumos(pila)}
+          {ficha ? T.preguntaFicha(pila) : pedidos ? P.pregunta(pila) : T.preguntaInsumos(pila)}
         </h2>
         <ul id={`${uid}-d`} className="flex max-w-prose list-disc flex-col gap-2 ps-5 text-base leading-relaxed marker:text-tenue">
           {puntos.map((p) => (
@@ -936,6 +966,38 @@ export function AutorizarInsumos() {
           { reautorizar: null, aviso: yaVigente ? { titulo: T.yaAutorizada, tono: 'rocio' } : { titulo: enBlanco ? T.guardadoInsumosEnBlanco : T.guardadoInsumos, tono: 'ok' } },
           fijar,
         )
+      }}
+      onNoEncontrado={() => setNoEncontrado(true)}
+    />
+  )
+}
+
+/** MATU-61 (12.4): el permiso de los pedidos de 4.1, con «Volver a Grupo familiar» y sin frase de estado. */
+export function AutorizarPedidosDesdeGrupo() {
+  const { persona, personaId, fijar } = useFamilia()
+  const { vista, falla, pedir } = useVistaAReautorizar('despacho')
+  const [noEncontrado, setNoEncontrado] = useState(false)
+  const pila = persona ? nombrePilaDe(persona) : ''
+
+  if (noEncontrado || falla === 'no-encontrado')
+    return (
+      <Pagina titulo={T.titulo}>
+        <Nota tono="rocio" icono={<Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+          {GENERAL.noEncontrado}
+        </Nota>
+      </Pagina>
+    )
+  const lista = vista && retirada(vista) ? vista : null
+
+  return (
+    <Permiso
+      finalidad="despacho"
+      pila={pila}
+      personaId={personaId}
+      antes={<VolverAGrupo />}
+      cargando={lista ? undefined : <EsperaVista falla={falla} pedir={() => void pedir()} />}
+      onListo={(yaVigente) => {
+        volverConAviso({ reautorizar: null, aviso: yaVigente ? { titulo: T.yaAutorizada, tono: 'rocio' } : { titulo: P.autorizada(pila), tono: 'ok' } }, fijar)
       }}
       onNoEncontrado={() => setNoEncontrado(true)}
     />
