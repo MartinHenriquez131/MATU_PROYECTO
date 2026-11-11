@@ -96,6 +96,9 @@ class ResultadoRetorno(BaseModel):
     grupo_id: uuid.UUID | None = Field(description="Solo con la sesión de un admin, cuidador o pagador del grupo")
     persona_cuidada_id: uuid.UUID | None
     pedido_id: uuid.UUID | None
+    pago_de_prueba: bool = Field(
+        description="Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)"
+    )
 
 
 # --- el pago y el comprobante -----------------------------------------------------------------------------------
@@ -199,6 +202,12 @@ class PagoVista(BaseModel):
     intento: IntentoPago | None
     comprobante: Comprobante | None
     devoluciones: list[Devolucion]
+    pago_de_prueba: bool = Field(
+        description=(
+            "Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello"
+            " de un pago anulado (diseño 7.9)"
+        )
+    )
 
 
 class PagoVistaObservador(BaseModel):

@@ -82,6 +82,25 @@ def test_pagar_declara_sus_codigos_y_la_vuelta_no_responde_401(esquema: dict[str
             assert all(p["in"] != "query" for p in operacion.get("parameters", [])), ruta
 
 
+@pytest.mark.parametrize("vista", ["PagoVista", "ResultadoRetorno"])
+def test_pago_de_prueba_va_tambien_fuera_del_comprobante(esquema: dict[str, Any], vista: str) -> None:
+    """Decisión 248: el sello «Pago de prueba» de un pago anulado, que no tiene comprobante (diseño 7.9)."""
+    componente = esquema["components"]["schemas"][vista]
+    assert componente["properties"]["pago_de_prueba"]["type"] == "boolean"
+    assert "pago_de_prueba" in componente["required"]
+    assert "pago_de_prueba" not in esquema["components"]["schemas"]["PagoVistaObservador"]["properties"]
+
+
+def test_pago_de_prueba_es_true_salvo_con_la_pasarela_de_produccion() -> None:
+    from app.modules.payments.infrastructure.pasarela_falsa import PasarelaFalsa
+    from app.modules.payments.infrastructure.pasarela_transbank import PasarelaTransbank
+
+    assert PasarelaFalsa().pago_de_prueba is True
+    assert PasarelaTransbank(produccion=False).pago_de_prueba is True
+    produccion = PasarelaTransbank(produccion=True, codigo_comercio="000000000000", llave="llave-sintetica-de-prueba")
+    assert produccion.pago_de_prueba is False
+
+
 def test_el_comprobante_lleva_el_sello_del_piloto_y_la_version_aceptada(esquema: dict[str, Any]) -> None:
     comprobante = esquema["components"]["schemas"]["Comprobante"]["properties"]
     for campo in ("pago_de_prueba", "precios_de_ejemplo", "condiciones", "tardio", "referencia", "pagaste_tu"):

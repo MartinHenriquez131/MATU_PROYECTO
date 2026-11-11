@@ -11615,6 +11615,11 @@
             },
             "type": "array",
             "title": "Devoluciones"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba",
+            "description": "Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello de un pago anulado (diseño 7.9)"
           }
         },
         "additionalProperties": false,
@@ -11625,7 +11630,8 @@
           "pago_en_curso",
           "intento",
           "comprobante",
-          "devoluciones"
+          "devoluciones",
+          "pago_de_prueba"
         ],
         "title": "PagoVista",
         "description": "El pago del pedido para admin, cuidador y pagador (decisión 236)."
@@ -11737,6 +11743,11 @@
               }
             ],
             "title": "Pedido Id"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba",
+            "description": "Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)"
           }
         },
         "additionalProperties": false,
@@ -11748,7 +11759,8 @@
           "volver_a_preguntar_en",
           "grupo_id",
           "persona_cuidada_id",
-          "pedido_id"
+          "pedido_id",
+          "pago_de_prueba"
         ],
         "title": "ResultadoRetorno",
         "description": "El resultado de la vuelta (decisiones 232 a 234). Sin montos ni tarjeta, con o sin sesión."

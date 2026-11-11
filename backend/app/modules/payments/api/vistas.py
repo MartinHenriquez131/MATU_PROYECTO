@@ -96,6 +96,7 @@ def vista_pago(estado: lectura.EstadoDelPago) -> PagoVista:
         ),
         comprobante=None if estado.comprobante is None else _comprobante(estado.comprobante),
         devoluciones=[_devolucion(d) for d in estado.devoluciones],
+        pago_de_prueba=estado.pago_de_prueba,
     )
 
 

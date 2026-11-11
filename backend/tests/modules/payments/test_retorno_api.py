@@ -26,7 +26,8 @@ pytestmark = pytest.mark.rf("RF-25")
 
 RUTA = "/v1/pagos/retorno"
 CLAVES = {
-    "resultado", "ya_registrado", "anulacion", "volver_a_preguntar_en", "grupo_id", "persona_cuidada_id", "pedido_id"
+    "resultado", "ya_registrado", "anulacion", "volver_a_preguntar_en", "grupo_id", "persona_cuidada_id", "pedido_id",
+    "pago_de_prueba",
 }
 
 
@@ -83,6 +84,7 @@ def test_aprobado_sin_sesion_sin_montos_ni_tarjeta_y_el_log_solo_con_el_caso(
         "grupo_id": None,
         "persona_cuidada_id": None,
         "pedido_id": None,
+        "pago_de_prueba": True,
     }
     assert str(TOTAL) not in respuesta.text and "2032" not in respuesta.text
     assert escena.p.estado == "pagado"

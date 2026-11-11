@@ -106,6 +106,8 @@ class EstadoDelPago:
     intento: Intento | None
     comprobante: Comprobante | None
     devoluciones: tuple[Devolucion, ...]
+    # Decisión 248: el sello «Pago de prueba» también sin comprobante (un pago anulado, diseño 7.9)
+    pago_de_prueba: bool = True
 
 
 @dataclass(frozen=True)
@@ -220,6 +222,7 @@ def estado_del_pago(
         intento=intento,
         comprobante=comprobante,
         devoluciones=devoluciones,
+        pago_de_prueba=pago_de_prueba,
     )
 
 

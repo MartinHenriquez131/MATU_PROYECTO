@@ -13,7 +13,7 @@ info:
     - las respuestas del orquestador, por delegación de Jorge, a los puntos abiertos **P1 a P5** del
       diseñador (README, decisiones 231, 234, 237, 238 y 240).
 
-    Las decisiones de este contrato son las **223 a 247** de `docs/api/README.md`, sección "MATU-62". Se
+    Las decisiones de este contrato son las **223 a 248** de `docs/api/README.md`, sección "MATU-62". Se
     apila sobre MATU-61 (`pedido.openapi.yaml`, decisiones 188 a 222, ya en `openapi.json`).
 
     **Qué cubre:**
@@ -931,7 +931,7 @@ components:
     ResultadoRetorno:
       type: object
       additionalProperties: false
-      required: [resultado, ya_registrado, anulacion, volver_a_preguntar_en, grupo_id, persona_cuidada_id, pedido_id]
+      required: [resultado, ya_registrado, anulacion, volver_a_preguntar_en, grupo_id, persona_cuidada_id, pedido_id, pago_de_prueba]
       description: |
         El resultado de la vuelta (decisiones 232 a 234). **Sin montos ni tarjeta**, con o sin sesión: la
         pantalla los lee en `GET /v1/pedidos/{pedido_id}/pago`.
@@ -965,6 +965,11 @@ components:
           type: [string, 'null']
           format: uuid
           description: Igual que `grupo_id`. Para leer `GET …/pago`.
+        pago_de_prueba:
+          type: boolean
+          description: |
+            Decisión 248: `true` si la pasarela no es la de producción (no se movió dinero real, D-62-7). Con y sin
+            sesión: no es un dato de nadie.
 
     # ---------------------------------------------------------------- el pago y el comprobante
 
@@ -1237,7 +1242,7 @@ components:
     PagoVista:
       type: object
       additionalProperties: false
-      required: [pedido_id, estado, pago_en_curso, intento, comprobante, devoluciones]
+      required: [pedido_id, estado, pago_en_curso, intento, comprobante, devoluciones, pago_de_prueba]
       description: |
         El pago del pedido para `admin`, `cuidador` y `pagador` (D-62-2, decisión 236). Montos en pesos
         enteros. Nunca `grupo_id`, `buy_order`, `session_id`, el token ni la respuesta de Transbank.
@@ -1267,6 +1272,11 @@ components:
           description: |
             Las del pedido aunque no esté pagado: la anulación de un pago tardío (regla 3) de un pedido que
             se canceló o cambió (diseño 7.9). Con comprobante, es la misma lista de `comprobante.devoluciones`.
+        pago_de_prueba:
+          type: boolean
+          description: |
+            Decisión 248: `true` si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello
+            «Pago de prueba» de un pago anulado (diseño 7.9). Con comprobante, igual a `comprobante.pago_de_prueba`.
 
     PagoVistaObservador:
       type: object

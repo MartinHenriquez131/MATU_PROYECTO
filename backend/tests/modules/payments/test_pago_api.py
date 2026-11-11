@@ -74,6 +74,7 @@ def test_pagar_volver_y_el_comprobante(
         "grupo_id": str(familia.grupo.id),
         "persona_cuidada_id": str(familia.persona.id),
         "pedido_id": pedido["id"],
+        "pago_de_prueba": True,
     }
     pago = e.pedir("GET", f"/v1/pedidos/{pedido['id']}/pago", familia.admin, familia)
     assert pago.status_code == 200 and pago.headers["Cache-Control"] == "no-store"
@@ -241,7 +242,7 @@ def test_si_se_cancela_mientras_paga_el_pago_se_anula_completo(
     assert _consultar("SELECT estado, pagado_en FROM pedido WHERE id = %s", pedido["id"]) == [("cancelado", None)]
     assert pasarela_falsa.cobrado(token) == 0
     vista = e.pedir("GET", f"/v1/pedidos/{pedido['id']}/pago", familia.admin, familia).json()
-    assert vista["comprobante"] is None
+    assert vista["comprobante"] is None and vista["pago_de_prueba"] is True  # decisión 248: el sello del anulado
     assert [(d["motivo"], d["monto"], d["estado"]) for d in vista["devoluciones"]] == [("pago_tardio", TOTAL, "hecha")]
 
 

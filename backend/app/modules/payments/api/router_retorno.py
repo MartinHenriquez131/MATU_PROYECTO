@@ -136,6 +136,8 @@ def retorno(
         grupo_id=resultado.grupo_id if contexto else None,
         persona_cuidada_id=resultado.persona_id if contexto else None,
         pedido_id=resultado.pedido_id if contexto else None,
+        # Decisión 248: sin pasarela configurada no se movió dinero, como en el comprobante (D-62-7)
+        pago_de_prueba=pasarela.pago_de_prueba if pasarela is not None else True,
     )
 
 
