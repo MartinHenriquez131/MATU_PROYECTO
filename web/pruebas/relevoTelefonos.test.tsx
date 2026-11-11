@@ -5,12 +5,12 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { FichaRelevo } from '../src/compartido/api/relevo'
 import { PantallaFicha } from '../src/relevo/PantallaFicha'
-import { partesDeTelefono, TELEFONO, trozosConTelefonos } from '../src/relevo/telefonos'
+import { partesDeTelefono, TELEFONO, trozosConTelefonos, type Trozo } from '../src/relevo/telefonos'
 
 const calces = (texto: string) => [...texto.matchAll(TELEFONO)].map((m) => m[0])
 const unir = (texto: string) =>
   trozosConTelefonos(texto)
-    .map((t) => (t.tipo === 'texto' ? t.texto : t.prefijo + t.separador + t.resto))
+    .map((t) => (t.tipo === 'texto' ? t.texto : t.abre + t.prefijo + t.separador + t.resto + t.cierra))
     .join('')
 
 // 3.11.4, «Ejemplos que sí calzan»: texto, lo que calza, prefijo y resto.
@@ -68,9 +68,38 @@ describe('3.11.4 · qué se reconoce como teléfono', () => {
     expect(calces(texto)).toEqual(['9 5555 0141', '+56 9 5555 0102'])
     const tel = trozosConTelefonos(texto).filter((t) => t.tipo === 'telefono')
     expect(tel).toEqual([
-      { tipo: 'telefono', prefijo: '9', separador: ' ', resto: '5555 0141' },
-      { tipo: 'telefono', prefijo: '+56 9', separador: ' ', resto: '5555 0102' },
+      { tipo: 'telefono', abre: '', prefijo: '9', separador: ' ', resto: '5555 0141', cierra: ',' },
+      { tipo: 'telefono', abre: '', prefijo: '+56 9', separador: ' ', resto: '5555 0102', cierra: '' },
     ])
+    expect(unir(texto)).toBe(texto)
+  })
+
+  // 3.11.4 v1.3: la puntuación pegada al número cambia de trozo, nunca de lugar ni de carácter.
+  const tel = (abre: string, prefijo: string, separador: string, resto: string, cierra: string): Trozo => ({
+    tipo: 'telefono',
+    abre,
+    prefijo,
+    separador,
+    resto,
+    cierra,
+  })
+  it.each<[string, Trozo[]]>([
+    ['Su nieta Sofía (+56 9 5555 0163) la visita', [{ tipo: 'texto', texto: 'Su nieta Sofía ' }, tel('(', '+56 9', ' ', '5555 0163', ')'), { tipo: 'texto', texto: ' la visita' }]],
+    ['Ana: 9 5555-0102. Si no contesta', [{ tipo: 'texto', texto: 'Ana: ' }, tel('', '9', ' ', '5555-0102', '.'), { tipo: 'texto', texto: ' Si no contesta' }]],
+    ['(+56 9 5555 0141)', [tel('(', '+56 9', ' ', '5555 0141', ')')]],
+    ['«+56955550199».', [tel('«', '+569', '', '55550199', '».')]],
+    ['[9 5555 0141];', [tel('[', '9', ' ', '5555 0141', '];')]],
+    ['¿9 5555 0141?', [tel('¿', '9', ' ', '5555 0141', '?')]],
+    ['¡+56 2 2555 0123!', [tel('¡', '+56 2', ' ', '2555 0123', '!')]],
+    ['“9 5555 0141”, dijo', [tel('“', '9', ' ', '5555 0141', '”,'), { tipo: 'texto', texto: ' dijo' }]],
+    ['"9 5555 0141":', [tel('"', '9', ' ', '5555 0141', '":')]],
+    // Con un espacio en medio, el signo no se pega: queda en el texto.
+    ['( 9 5555 0141 )', [{ tipo: 'texto', texto: '( ' }, tel('', '9', ' ', '5555 0141', ''), { tipo: 'texto', texto: ' )' }]],
+    // Solo un signo de apertura, y un cierre más una puntuación.
+    ['((9 5555 0141)).', [{ tipo: 'texto', texto: '(' }, tel('(', '9', ' ', '5555 0141', ')'), { tipo: 'texto', texto: ').' }]],
+    ['9 5555 0141...', [tel('', '9', ' ', '5555 0141', '.'), { tipo: 'texto', texto: '..' }]],
+  ])('«%s»: la apertura y el cierre pegados van con el número', (texto, trozos) => {
+    expect(trozosConTelefonos(texto)).toEqual(trozos)
     expect(unir(texto)).toBe(texto)
   })
 
@@ -81,7 +110,7 @@ describe('3.11.4 · qué se reconoce como teléfono', () => {
 })
 
 // La ficha de prueba de la sección 8 (la misma del doble, `ejemplo-telefonos`).
-const RED = 'Rodrigo, su hijo: +56 9 5555 0141\nAna, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123\nConsultorio: +56955550199'
+const RED = 'Rodrigo, su hijo: +56 9 5555 0141\nAna, la vecina del 3: 9 5555-0102. Si no contesta, a la farmacia +56 2 2555 0123\nConsultorio: +56955550199\nSu hermana: +56-9-5555-0177'
 const SE_ALTERA = 'Le hace bien que la llame su hermana al 9 5555 0177 a las 18:00'
 const SU_DIA = '08:00 Desayuno con té.\n10:00 Si tiene dolor, llamar a Rodrigo +56 9 5555 0141\n16:00 Llega el pedido de $69.000 que se pagó el 10/11/2026.'
 const SECCION = 'Su nieta Sofía (+56 9 5555 0163) la visita los domingos a las 11:00.'
@@ -121,16 +150,19 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
       '+56 9 5555 0141', // Su día, en la línea de tiempo
       '9 5555 0177', // Si se altera, junto a una hora
       '+56 9 5555 0141',
-      '9 5555-0102',
+      '9 5555-0102.', // con el punto que lo sigue
       '+56 2 2555 0123',
       '+56955550199',
-      '+56 9 5555 0163', // la sección
+      '+56-9-5555-0177',
+      '(+56 9 5555 0163)', // la sección, con sus paréntesis
     ])
     for (const b of todos) {
       expect(b).toHaveClass('inline-block', 'max-w-full', 'tabular-nums')
       const cifras = b.querySelectorAll(':scope > span.cifras')
       expect(cifras).toHaveLength(2)
-      expect(b.children).toHaveLength(b.querySelector('wbr') ? 3 : 2)
+      // <wbr> después de un guion o donde no hay separador; con un espacio, no (3.11.4 v1.3).
+      const separador = b.childNodes[1].nodeName === '#text' ? b.childNodes[1].textContent : ''
+      expect(b.children).toHaveLength(separador === ' ' ? 2 : 3)
       // Sin enlace, sin aria-* nuevos y sin partir en cualquier lugar.
       expect(b.closest('a')).toBeNull()
       expect([...b.attributes].map((a) => a.name)).toEqual(['class'])
@@ -138,6 +170,10 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
     }
     const [, alteraTel] = todos
     expect([...alteraTel.querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['9', '5555 0177'])
+    // La puntuación pegada va dentro de las cifras: al principio del prefijo y al final del resto.
+    const sofia = todos[todos.length - 1]
+    expect([...sofia.querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['(+56 9', '5555 0163)'])
+    expect([...todos[3].querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['9', '5555-0102.'])
     // En las secciones, la hora sigue en su propia cifra, fuera del bloque del número.
     const enSeccion = seccion('Quién es').querySelector('p') as HTMLElement
     expect([...enSeccion.querySelectorAll(':scope > .cifras')].map((c) => c.textContent)).toEqual(['11:00'])
@@ -155,7 +191,7 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
     expect(conEspacio.childNodes[1].textContent).toBe(' ')
   })
 
-  it('con un guion entre el prefijo y el resto, el guion queda entre las dos cifras', () => {
+  it('con un guion entre el prefijo y el resto, el guion queda y después va un <wbr> (Firefox no corta solo)', () => {
     render(
       <PantallaFicha
         ficha={{ ...ficha(), campos: { red_apoyo: { texto: 'Rodrigo: +56-9-5555-0141' } }, secciones: [] }}
@@ -163,9 +199,20 @@ describe('3.11.4 · el teléfono se dibuja sin cambiar el texto', () => {
       />,
     )
     const [b] = bloques(document)
-    expect([...b.childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'SPAN'])
-    expect([...b.childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '5555-0141'])
+    expect([...b.childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'WBR', 'SPAN'])
+    expect([...b.childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '', '5555-0141'])
     expect(b.parentElement?.textContent).toBe('Rodrigo: +56-9-5555-0141')
+  })
+
+  it('el «(» y el «).» pegados quedan dentro del bloque y el párrafo dice lo mismo que la API', () => {
+    const texto = 'Rodrigo (+56 9 5555 0141). Ana (9 5555-0102), y «+56955550199».'
+    render(<PantallaFicha ficha={{ ...ficha(), campos: { red_apoyo: { texto } }, secciones: [] }} onActualizar={async () => 'ok'} />)
+    expect(bloques(document).map((b) => b.textContent)).toEqual(['(+56 9 5555 0141).', '(9 5555-0102),', '«+56955550199».'])
+    const p = seccion('A quién llamar').querySelector('div.renglones > p') as HTMLElement
+    expect(p.textContent).toBe(texto)
+    // Fuera de los bloques quedan solo las palabras y los espacios.
+    const fuera = [...p.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent)
+    expect(fuera).toEqual(['Rodrigo ', ' Ana ', ' y '])
   })
 
   it('un monto, una fecha y una hora no quedan dentro de un bloque de teléfono', () => {
