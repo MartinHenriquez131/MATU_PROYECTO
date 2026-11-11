@@ -3134,6 +3134,11 @@ export interface components {
             comprobante: components["schemas"]["Comprobante"] | null;
             /** Devoluciones */
             devoluciones: components["schemas"]["Devolucion"][];
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello de un pago anulado (diseño 7.9)
+             */
+            pago_de_prueba: boolean;
         };
         /**
          * PagoVistaObservador
@@ -3176,6 +3181,11 @@ export interface components {
             persona_cuidada_id: string | null;
             /** Pedido Id */
             pedido_id: string | null;
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)
+             */
+            pago_de_prueba: boolean;
         };
         /**
          * SolicitudPago

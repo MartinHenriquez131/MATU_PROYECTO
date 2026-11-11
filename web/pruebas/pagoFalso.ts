@@ -53,6 +53,7 @@ export function pago(cambios: Partial<PagoVista> = {}): PagoVista {
     pedido_id: PEDIDO_ID,
     estado: 'aprobado',
     pago_en_curso: false,
+    pago_de_prueba: true,
     intento: { id: '3c9d4e20-0000-4000-8000-0000000000f1', resultado: 'aprobado', iniciado_en: '2026-11-11T19:38:00Z', cerrado_en: '2026-11-11T19:41:00Z', es_tuyo: true },
     devoluciones: c?.devoluciones ?? [],
     ...cambios,
@@ -79,5 +80,6 @@ export const retorno = (cambios: Partial<ResultadoRetorno> = {}): ResultadoRetor
   grupo_id: GRUPO_ID,
   persona_cuidada_id: PERSONA_ID,
   pedido_id: PEDIDO_ID,
+  pago_de_prueba: true,
   ...cambios,
 })

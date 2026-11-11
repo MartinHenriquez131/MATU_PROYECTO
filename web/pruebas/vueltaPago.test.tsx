@@ -396,6 +396,18 @@ describe('Los otros resultados (7.9, 7.11 y 7.12)', () => {
     expect(screen.getByRole('button', { name: 'Ir a tu pedido' }).className).toMatch(/ring-turquesa/)
   })
 
+  it('7.9 y decisión 248: sin `pago_de_prueba` (después del piloto) no va el sello', async () => {
+    const anulacion = devolucion({ motivo: 'pago_tardio', producto: null, monto: 57460 })
+    rutas({
+      'POST ^/v1/pagos/retorno$': { status: 200, cuerpo: retorno({ resultado: 'anulado', anulacion: 'hecha', pago_de_prueba: false }) },
+      'GET /pago$': { status: 200, cuerpo: pago({ estado: 'no_aprobado', comprobante: null, devoluciones: [anulacion], pago_de_prueba: false }) },
+    })
+    volverDeWebpay()
+    abrir()
+    await h1('Anulamos tu pago')
+    expect(screen.queryByText('Pago de prueba. No se cobró dinero real.')).toBeNull()
+  })
+
   it('7.9: la anulación en curso, «Estamos anulando tu pago»', async () => {
     const anulacion = devolucion({ motivo: 'pago_tardio', producto: null, monto: 57460, estado: 'en_curso', hecha_en: null })
     rutas({

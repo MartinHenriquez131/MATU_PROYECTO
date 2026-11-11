@@ -146,7 +146,7 @@ type Vista =
   | { tipo: 'cargando' }
   | { tipo: 'comprobante'; pago: PagoVista & { comprobante: Comprobante }; yaRegistrado: boolean }
   | { tipo: 'no-se-hizo'; resultado: 'no_aprobado' | 'abandonado' | 'tiempo_agotado'; pedido: PedidoVista | null }
-  | { tipo: 'anulado'; anulacion: 'hecha' | 'en_curso'; devolucion: Devolucion }
+  | { tipo: 'anulado'; anulacion: 'hecha' | 'en_curso'; devolucion: Devolucion; pagoDePrueba: boolean }
   | { tipo: 'sin-sesion'; resultado: ResultadoRetorno }
   | { tipo: 'error'; titulo: string | null }
 
@@ -206,7 +206,8 @@ export function PantallaPago() {
         if (r.resultado === 'anulado') {
           const p = await leerPago(pedidoId)
           const d = esPagoCompleto(p) ? anulacionTardia(p) : null
-          if (d) return setVista({ tipo: 'anulado', anulacion: r.anulacion ?? d.estado, devolucion: d })
+          // Decisión 248: el sello sale de `pago_de_prueba` del pago (aquí no hay comprobante).
+          if (d && esPagoCompleto(p)) return setVista({ tipo: 'anulado', anulacion: r.anulacion ?? d.estado, devolucion: d, pagoDePrueba: p.pago_de_prueba })
           return setVista({ tipo: 'error', titulo: tituloDeResultado(r) })
         }
         if (r.resultado === 'no_aprobado' || r.resultado === 'abandonado' || r.resultado === 'tiempo_agotado') {
@@ -276,7 +277,7 @@ export function PantallaPago() {
     contenido = <NoSeHizo resultado={vista.resultado} pedido={vista.pedido} admin={rol === 'admin'} />
   } else if (vista.tipo === 'anulado') {
     titulo = vista.anulacion === 'hecha' ? PAGO.anulamosTitulo : PAGO.anulandoTitulo
-    contenido = <Anulado anulacion={vista.anulacion} devolucion={vista.devolucion} />
+    contenido = <Anulado anulacion={vista.anulacion} devolucion={vista.devolucion} pagoDePrueba={vista.pagoDePrueba} />
   } else if (vista.tipo === 'sin-sesion') {
     titulo = tituloDeResultado(vista.resultado)
     contenido = <ResultadoSinSesion resultado={vista.resultado} dentro />
@@ -554,7 +555,7 @@ function NoSeHizo({ resultado, pedido, admin }: { resultado: 'no_aprobado' | 'ab
 
 // ---------------------------------------------------------------- 7.9 pago tardío anulado
 
-function Anulado({ anulacion, devolucion: d }: { anulacion: 'hecha' | 'en_curso'; devolucion: Devolucion }) {
+function Anulado({ anulacion, devolucion: d, pagoDePrueba }: { anulacion: 'hecha' | 'en_curso'; devolucion: Devolucion; pagoDePrueba: boolean }) {
   const monto = <span className="cifras font-bold">{pesos(d.monto)}</span>
   const tarjeta = <span className="cifras">{d.ultimos4 ?? ''}</span>
   return (
@@ -573,7 +574,7 @@ function Anulado({ anulacion, devolucion: d }: { anulacion: 'hecha' | 'en_curso'
         )}
       </p>
       {/* D-62-7: el sello, sin «no es una boleta» porque aquí no hay comprobante. */}
-      <p className="max-w-prose text-base text-tenue">{PAGO.selloSolo}</p>
+      {pagoDePrueba && <p className="max-w-prose text-base text-tenue">{PAGO.selloSolo}</p>}
       <Boton variante="secundario" className="self-start" onClick={() => navegar(RUTA_PEDIDO)}>
         {PAGO.irATuPedido}
       </Boton>
