@@ -26,6 +26,7 @@ info:
       `ventana_entrega` también en `borrador`.
     - **C8:** leer, cambiar y vaciar la dirección de la persona **no** piden la autorización `despacho`; se
       exige solo en las operaciones del pedido.
+    - **C9:** «Cambiar el pedido» también desde el total vencido: `vencido → borrador`, por la misma ruta.
 
     **Frontera con MATU-62 (decisión de Jorge).** MATU-61 llega hasta el **total confirmado**, que vale
     15 minutos, y el pedido **vencido** o **cancelado sin pagar**. No hay pago, cargo, retorno de la
@@ -416,8 +417,8 @@ paths:
         a ser el de la oferta nueva. Puede quedar vacío (`lineas: []`, «Tu pedido está vacío.»).
 
         **Solo en `borrador`.** En `total_confirmado` y `vencido`, **409** `estado-pedido`: para cambiar
-        el carrito después de ver el total, primero `POST …/cambiar` («Cambiar el pedido», C1), que lo
-        devuelve a `borrador`. En los demás estados, también 409.
+        el carrito después de ver el total, vigente o vencido, primero `POST …/cambiar` («Cambiar el
+        pedido», C1 y C9), que lo devuelve a `borrador`. En los demás estados, también 409.
 
         **Quién:** `admin` y `cuidador`; el resto, 404. Pide la autorización `despacho` vigente (403).
         `If-Match` obligatorio con el `etag` del pedido: 428 sin él, 412 con `actual` si cambió. No se
@@ -660,12 +661,13 @@ paths:
     post:
       tags: [pedidos]
       operationId: cambiarPedido
-      summary: Volver al carrito desde el total confirmado («Cambiar el pedido»)
+      summary: Volver al carrito desde el total confirmado o vencido («Cambiar el pedido»)
       description: |
-        Decisión 218 (C1 de Jorge). Transición `total_confirmado → borrador`, antes de pagar, para
-        cambiar cantidades, sacar o agregar productos después de ver el total. **Solo con el total
-        vigente**: con el total vencido (`vencido`), **409** `estado-pedido` (se vuelve a confirmar o se
-        cancela); en `borrador` y en los demás estados, también 409.
+        Decisión 218 (C1 y C9 de Jorge). Transiciones `total_confirmado → borrador` y `vencido → borrador`,
+        antes de pagar, para cambiar cantidades, sacar o agregar productos después de ver el total, esté
+        vigente o vencido. En `borrador` y en los demás estados, **409** `estado-pedido`. Con el total
+        vencido según el `Reloj` y la fila todavía en `total_confirmado`, primero se guarda
+        `total_confirmado → vencido` (decisión 204) y después `vencido → borrador`.
 
         **Qué hace:** descarta el total confirmado (`total`, `total_confirmado_en` y `vence_en` vuelven a
         `null`), las partes por comercio y la copia de la entrega (`pedido_entrega` se borra, como al
@@ -1147,8 +1149,9 @@ components:
       type: string
       description: |
         Los 17 estados del `CHECK` de `pedido` (migración 0002, arquitectura 8.1). **MATU-61 usa
-        `borrador`, `total_confirmado`, `vencido` y `cancelado`.** Las 23 transiciones están en la
-        decisión 208 del README, con `total_confirmado → borrador` («Cambiar el pedido», C1).
+        `borrador`, `total_confirmado`, `vencido` y `cancelado`.** Las 24 transiciones están en la
+        decisión 208 del README, con `total_confirmado → borrador` y `vencido → borrador` («Cambiar el
+        pedido», C1 y C9).
       enum:
         - borrador
         - total_confirmado
