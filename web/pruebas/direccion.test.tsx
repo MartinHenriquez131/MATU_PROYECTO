@@ -198,3 +198,38 @@ describe('Revisión visual de MATU-61 en la dirección (P3-1)', () => {
     for (let el: HTMLElement | null = error; el; el = el.parentElement) expect(el).not.toHaveClass('w-40')
   })
 })
+
+describe('Especificación 1.3, 8.1: el error de Número bajo la fila', () => {
+  it('va fuera de la columna de 10 rem, a todo el ancho de la fila en pantalla ancha, después del de Calle, y sigue unido a su campo', async () => {
+    apiPedido({})
+    abrir(null)
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar la dirección' }))
+    const numero = screen.getByRole('textbox', { name: 'Número' })
+    const calle = screen.getByRole('textbox', { name: 'Calle' })
+    const errNumero = screen.getByText('Escribe el número. Si no tiene, escribe S/N.').closest('p')!
+    const errCalle = screen.getByText('Escribe la calle.').closest('p')!
+    // Unido a su campo: aria-invalid y aria-describedby con el id del error.
+    expect(numero).toHaveAttribute('aria-invalid', 'true')
+    expect(numero.getAttribute('aria-describedby')?.split(' ')).toContain(errNumero.id)
+    expect(numero).toHaveAccessibleDescription('Escribe el número. Si no tiene, escribe S/N.')
+    // Fuera de la columna del campo: un renglón propio de la fila, con col-span-2 en pantalla ancha.
+    const columnaNumero = numero.closest('div')!
+    expect(columnaNumero.contains(errNumero)).toBe(false)
+    const renglon = errNumero.parentElement!
+    expect(renglon).toHaveClass('@xl/main:col-span-2')
+    expect(renglon.parentElement).toBe(columnaNumero.parentElement)
+    // El de Calle sigue bajo Calle, y va primero.
+    expect(calle.closest('div')!.contains(errCalle)).toBe(true)
+    expect(errCalle.compareDocumentPosition(errNumero) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // El foco va al primer campo con error, como antes.
+    await waitFor(() => expect(calle).toHaveFocus())
+  })
+
+  it('Comuna queda a la derecha de Depto en ancho, para que el error de Depto vaya en el renglón de abajo', async () => {
+    apiPedido({})
+    abrir(null)
+    const columnaComuna = screen.getByRole('textbox', { name: 'Comuna' }).closest('div')!
+    expect(columnaComuna).toHaveClass('@xl/main:col-start-2', '@xl/main:row-start-1')
+    expect(screen.getByRole('textbox', { name: 'Depto (opcional)' })).toHaveAttribute('id', 'direccion-depto')
+  })
+})

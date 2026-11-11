@@ -69,6 +69,7 @@ export function CampoConAyuda({
   error,
   className = '',
   anchoCampo = 'w-full',
+  errorAparte = false,
   ...resto
 }: InputHTMLAttributes<HTMLInputElement> & {
   etiqueta: string
@@ -76,6 +77,11 @@ export function CampoConAyuda({
   error?: string | null
   /** El ancho del `input` solo: la etiqueta y el error toman el de la columna (revisión P3-1). */
   anchoCampo?: string
+  /**
+   * 8.1 (v1.3): el error se dibuja fuera, con `ErrorAparte` y el mismo `id`; el campo sigue con su
+   * `aria-invalid` y su `aria-describedby`. Para «Número» y «Depto», que miden 10 rem.
+   */
+  errorAparte?: boolean
 }) {
   const generado = useId()
   const id = idPropio ?? generado
@@ -101,10 +107,27 @@ export function CampoConAyuda({
         className={`min-h-12 ${anchoCampo} min-w-0 rounded-xl bg-hoja px-4 angosto:px-2 py-2.5 ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
         {...resto}
       />
-      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+      {error && !errorAparte && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
     </div>
   )
 }
+
+/**
+ * 8.1 (v1.3): el error de un campo angosto. En el teléfono va bajo su campo, a todo el ancho de la
+ * columna; en pantalla ancha, en un renglón propio bajo la fila, a todo su ancho. `-mt-3.5` deja,
+ * contra el `gap-5` de la fila, el mismo `gap-1.5` que separa un error de su campo.
+ */
+function ErrorAparte({ campo, error, className = '' }: { campo: string; error?: string | null; className?: string }) {
+  if (!error) return null
+  return (
+    <div className={`-mt-3.5 min-w-0 @xl/main:col-span-2 ${className}`}>
+      <MensajeError id={`${campo}-e`}>{error}</MensajeError>
+    </div>
+  )
+}
+
+const ID_NUMERO = 'direccion-numero'
+const ID_DEPTO = 'direccion-depto'
 
 export function Direccion({
   desde,
@@ -254,6 +277,7 @@ export function Direccion({
           <div className="grid grid-cols-1 gap-5 @xl/main:grid-cols-[minmax(0,1fr)_10rem]">
             <CampoConAyuda etiqueta={PEDIDO.calle} value={valores.calle} onChange={(e) => cambiar('calle', e.target.value)} autoComplete="address-line1" maxLength={LARGOS.calle} error={errores.calle} />
             <CampoConAyuda
+              id={ID_NUMERO}
               etiqueta={PEDIDO.numero}
               value={valores.numero}
               onChange={(e) => cambiar('numero', e.target.value)}
@@ -262,10 +286,14 @@ export function Direccion({
               maxLength={LARGOS.numero}
               anchoCampo="w-40 max-w-full @xl/main:w-full"
               error={errores.numero}
+              errorAparte
             />
+            {/* El error de «Calle» queda bajo «Calle»; el de «Número», después, bajo la fila. */}
+            <ErrorAparte campo={ID_NUMERO} error={errores.numero} />
           </div>
           <div className="grid grid-cols-1 gap-5 @xl/main:grid-cols-[10rem_minmax(0,1fr)]">
             <CampoConAyuda
+              id={ID_DEPTO}
               etiqueta={PEDIDO.depto}
               value={valores.depto}
               onChange={(e) => cambiar('depto', e.target.value)}
@@ -273,8 +301,19 @@ export function Direccion({
               maxLength={LARGOS.depto}
               anchoCampo="w-40 max-w-full @xl/main:w-full"
               error={errores.depto}
+              errorAparte
             />
-            <CampoConAyuda etiqueta={PEDIDO.comuna} value={valores.comuna} onChange={(e) => cambiar('comuna', e.target.value)} autoComplete="address-level2" maxLength={LARGOS.comuna} error={errores.comuna} />
+            {/* En el teléfono, bajo «Depto»; en ancho, bajo la fila, después del error de «Comuna». */}
+            <ErrorAparte campo={ID_DEPTO} error={errores.depto} className="@xl/main:row-start-2" />
+            <CampoConAyuda
+              className="@xl/main:col-start-2 @xl/main:row-start-1"
+              etiqueta={PEDIDO.comuna}
+              value={valores.comuna}
+              onChange={(e) => cambiar('comuna', e.target.value)}
+              autoComplete="address-level2"
+              maxLength={LARGOS.comuna}
+              error={errores.comuna}
+            />
           </div>
           <CampoConAyuda
             etiqueta={PEDIDO.referencia}
