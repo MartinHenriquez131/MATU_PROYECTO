@@ -2845,7 +2845,9 @@ def test_cada_comercio_ve_solo_su_parte_y_sus_lineas(cx):
     cx.execute("RESET ROLE")
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
     assert contar(cx, "pedido_linea", f"pedido_id = '{PED_A_DOS}'") == 1
-    for t in ("pedido_entrega", "pedido_transicion", "idempotencia", "persona_cuidada", "direccion"):
+    # R8 y D7: tampoco la elección de la familia si falta un producto (regla_sustitucion, cierre del analista)
+    for t in ("pedido_entrega", "pedido_transicion", "idempotencia", "persona_cuidada", "direccion",
+              "regla_sustitucion"):
         assert contar(cx, t) == 0, t
 
 

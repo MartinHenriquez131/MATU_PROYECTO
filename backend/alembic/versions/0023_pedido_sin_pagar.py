@@ -25,7 +25,8 @@ f) pedido_linea: pedido_comercio_id, el precio y la oferta del carrito (precio_c
 g) regla_sustitucion queda fija con el pedido pagado (C12): trigger regla_sustitucion_pagada_fija.
 h) Políticas por operación y por rol (C13, y las FOR ALL que la 0020 dejó para MATU-61): pedido_familia,
    pedido_operacion, entrega_familia, linea_hereda, regla_hereda, transicion_hereda e idempotencia_familia. Leen
-   todos los miembros del grupo (C3), salvo la entrega, que no ve el observador; escriben admin y cuidador
+   todos los miembros del grupo (C3), salvo la entrega, que no ve el observador; las reglas de faltante no las ve
+   ningún comercio (R8: la elección es de la familia); escriben admin y cuidador
    (app_escribe_pedido). Sin política de DELETE para la familia en pedido, y la entrega, las líneas, las reglas y
    las partes por comercio las borran admin y cuidador. pedido_comercio_ver y pedido_comercio_actualizar pasan a
    mirar pedido_comercio. Las políticas TO matu_owner existentes no se tocan; se agregan las de la conservación.
@@ -244,7 +245,8 @@ CREATE POLICY linea_borrar ON pedido_linea FOR DELETE USING ({_escribe("pedido_l
 
 DROP POLICY regla_hereda ON regla_sustitucion;
 CREATE POLICY regla_leer ON regla_sustitucion FOR SELECT USING (
-    app_repartidor() IS NULL AND EXISTS (SELECT 1 FROM pedido p WHERE p.id = regla_sustitucion.pedido_id));
+    app_repartidor() IS NULL AND app_comercio() IS NULL
+    AND EXISTS (SELECT 1 FROM pedido p WHERE p.id = regla_sustitucion.pedido_id));
 CREATE POLICY regla_crear ON regla_sustitucion FOR INSERT WITH CHECK ({_escribe("regla_sustitucion")});
 CREATE POLICY regla_editar ON regla_sustitucion FOR UPDATE
     USING ({_escribe("regla_sustitucion")}) WITH CHECK ({_escribe("regla_sustitucion")});
