@@ -107,7 +107,8 @@ function Rutas() {
   useEffect(() => {
     // Revisión P2-3: la dirección no pide el catálogo, así que al entrar directo a ella (desde Grupo
     // familiar o al recargar) se pregunta aquí, y «Pedido» aparece activa.
-    const propia = ruta === '/insumos/catalogo' || (ruta.startsWith('/insumos/pedido') && ruta !== '/insumos/pedido/direccion')
+    // MATU-62: la vuelta de Webpay y el comprobante tampoco piden el catálogo.
+    const propia = ruta === '/insumos/catalogo' || (ruta.startsWith('/insumos/pedido') && ruta !== '/insumos/pedido/direccion' && ruta !== RUTA_PAGO)
     if (fase === 'dentro' && capa3 === null && ruta.startsWith('/insumos') && !propia) conocerCapa3()
   }, [fase, capa3, conocerCapa3, ruta])
   useEffect(() => {
