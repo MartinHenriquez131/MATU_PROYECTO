@@ -407,7 +407,10 @@ def test_crea_dos_familias_con_los_cuatro_roles(
     por_grupo: dict[uuid.UUID, dict[str, tuple[Any, ...]]] = {}
     for fila in consentimientos:
         por_grupo.setdefault(fila[0], {})[fila[2]] = fila
-    assert set(por_grupo[soto]) == set(por_grupo[riquelme]) == {"plan_cuidado", "consumo"}
+    # MATU-61: solo la familia Soto tiene además la autorización de pedidos, en la misma calidad
+    assert set(por_grupo[soto]) == {"plan_cuidado", "consumo", "despacho"}
+    assert set(por_grupo[riquelme]) == {"plan_cuidado", "consumo"}
+    assert por_grupo[soto]["despacho"][3] == "cuidador_de_hecho"
     for finalidad in ("plan_cuidado", "consumo"):
         maria, hernan = por_grupo[soto][finalidad], por_grupo[riquelme][finalidad]
         assert maria[1] == "María Soto" and maria[3:5] == ("cuidador_de_hecho", "0.9")
