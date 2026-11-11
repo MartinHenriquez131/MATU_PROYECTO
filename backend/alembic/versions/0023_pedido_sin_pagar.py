@@ -36,7 +36,8 @@ k) pedido_transicion: motivo de una lista cerrada (C19), ON DELETE CASCADE desde
    inserción deja borrar solo dentro de la cascada de un pedido que ya no está (D5).
 l) pedido_conservar(limite, ahora), SECURITY DEFINER, dueño matu_owner, solo para matu_scheduler y con
    app.rol = 'operacion' (D5): borra los pedidos no pagados (borrador, total confirmado, vencido o cancelado sin
-   pago) sin cambios desde limite, que debe ser de 30 días o más, y las claves de idempotencia vencidas.
+   pago) cuyo último cambio, o el vencimiento de su total, es igual o anterior a limite (C10), que debe ser de 30
+   días o más, y las claves de idempotencia vencidas.
 
 backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0022; si queda un pedido sin comercio_id (los
 de MATU-61), el downgrade falla en SET NOT NULL y no borra nada.
@@ -309,7 +310,9 @@ BEGIN
     END IF;
     DELETE FROM public.pedido
      WHERE pagado_en IS NULL AND estado IN ('borrador', 'total_confirmado', 'vencido', 'cancelado')
-       AND actualizado_en <= limite;
+       -- C10: desde el último cambio (actualizado_en, que fija el trigger en cada escritura del pedido, sus líneas
+       -- y sus reglas suben la versión) y, con un total confirmado, desde que venció
+       AND GREATEST(actualizado_en, COALESCE(total_vence_en, actualizado_en)) <= limite;
     GET DIAGNOSTICS pedidos = ROW_COUNT;
     DELETE FROM public.idempotencia WHERE expira_en <= ahora;
     GET DIAGNOSTICS idempotencias = ROW_COUNT;

@@ -164,6 +164,8 @@ def test_alta_con_direccion_la_devuelve_sin_coordenadas(sin_base: EntornoSinBase
         "comuna": "Comuna Sintética",
         "region": "Metropolitana",
         "referencia": None,
+        # MATU-61 (decisión 190): la versión de la dirección, para If-Match
+        "etag": '"v1"',
     }
     [alta] = sin_base.repositorio.altas
     assert alta.direccion_id is not None
