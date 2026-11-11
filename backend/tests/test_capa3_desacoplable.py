@@ -536,3 +536,115 @@ def test_flujos_de_las_capas_1_y_2_pasan_sin_la_capa_3() -> None:
     assert proceso.returncode == 0, salida
     # Todas pasan: ni una saltada (la base está, la marca requiere_base lo asegura)
     assert re.search(rf"\b{len(FLUJOS)} passed\b", salida) and "skipped" not in salida, salida
+
+
+# ---------------------------------------------------------------------------
+# 8 · MATU-62 (D-62-17, decisión 241): con la capa 3 apagada y un pago en curso, la vuelta y la conciliación siguen
+# ---------------------------------------------------------------------------
+
+
+def _app_sin_capa3(monkeypatch: pytest.MonkeyPatch) -> Any:
+    from app.core import config
+    from app.main import crear_app
+
+    monkeypatch.setenv("CAPA3_HABILITADA", "false")
+    config.obtener_configuracion.cache_clear()
+    try:
+        return crear_app(stream_logs=io.StringIO())
+    finally:
+        config.obtener_configuracion.cache_clear()
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_vuelta_del_pago_sigue_y_pagar_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = _app_sin_capa3(monkeypatch)
+    rutas = app.openapi()["paths"]
+    assert "post" in rutas["/v1/pagos/retorno"]
+    assert not any(ruta.startswith("/v1/pedidos") for ruta in rutas)
+    assert "/v1/personas-cuidadas/{persona_id}/pedido-pagado" not in rutas
+    cliente = TestClient(app)
+    # Fuera de openapi.json, y montada igual: el POST de Transbank vuelve a la pantalla
+    assert cliente.post("/insumos/pedido/pago", follow_redirects=False).status_code == 303
+    assert cliente.post(f"/v1/pedidos/{PERSONA}/pagar", json={}).status_code == 404
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_un_pago_en_curso_se_registra_por_la_vuelta(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Se apagó la capa 3 con la persona en Webpay: el pago que el banco aprobó se registra igual."""
+    from app.core.db import obtener_fabrica_sesiones
+    from app.modules.iam.api.dependencias import obtener_clave_jwt, obtener_reloj
+    from app.modules.payments.api.router_retorno import obtener_abrir_grupo, obtener_resolver
+    from app.modules.payments.infrastructure.pasarela import obtener_pasarela
+    from tests.modules.payments.test_casos_pago import Escena
+
+    escena = Escena()
+    token = escena.pagar().token  # con la capa 3 encendida
+    assert token is not None
+    escena.pasarela.pagar(token)
+    app = _app_sin_capa3(monkeypatch)
+    app.dependency_overrides[obtener_resolver] = lambda: escena.sistema.resolver
+    app.dependency_overrides[obtener_abrir_grupo] = lambda: escena.sistema.abrir
+    app.dependency_overrides[obtener_pasarela] = lambda: escena.pasarela
+    app.dependency_overrides[obtener_reloj] = lambda: escena.reloj
+    app.dependency_overrides[obtener_fabrica_sesiones] = lambda: None
+    clave = secrets.token_hex(32).encode()
+    app.dependency_overrides[obtener_clave_jwt] = lambda: clave
+
+    respuesta = TestClient(app).post("/v1/pagos/retorno", json={"token_ws": token})
+
+    assert (respuesta.status_code, respuesta.json()["resultado"]) == (200, "aprobado")
+    assert escena.p.estado == "pagado"
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_conciliacion_corre_y_cierra_el_pago(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D-62-17: la tarea conciliacion_pagos no mira CAPA3_HABILITADA. Sin base: el pago en memoria."""
+    from datetime import timedelta
+
+    from app import tareas
+    from app.core.config import obtener_configuracion
+    from app.modules.payments.infrastructure import tarea_conciliacion
+    from tests.modules.payments.test_casos_pago import VIDA, Escena
+
+    escena = Escena()
+    token = escena.pagar().token
+    assert token is not None
+    escena.pasarela.pagar(token)  # pagó y no volvió
+    escena.reloj.avanzar(VIDA + timedelta(seconds=1))
+    monkeypatch.setattr(tarea_conciliacion, "pasarela_desde", lambda config: escena.pasarela)
+    monkeypatch.setattr(tarea_conciliacion, "ListarPorConciliarSQL", lambda fabrica: escena.sistema.listar)
+    monkeypatch.setattr(tarea_conciliacion, "AbrirGrupoSQL", lambda fabrica, reloj: escena.sistema.abrir)
+    config = obtener_configuracion().model_copy(update={"capa3_habilitada": False})
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=object(),  # type: ignore[arg-type]
+        reloj=escena.reloj,
+        fabrica_scheduler=object(),  # type: ignore[arg-type]
+    )
+
+    assert tareas.correr(["conciliacion_pagos"], ctx) == tareas.SALIDA_OK
+    assert escena.p.estado == "pagado" and escena.pasarela.cobrado(token) == escena.p.total
+
+
+@requiere_base
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_conciliacion_usa_matu_scheduler() -> None:
+    """Con base: pagos_por_conciliar con matu_scheduler, y la corrida queda ok, no apagada."""
+    from datetime import UTC, datetime
+
+    from app import tareas
+    from app.core.config import obtener_configuracion
+    from tests.base_datos import fabrica_scheduler
+    from tests.dobles.reloj_fijo import RelojFijo
+    from tests.test_tareas import _Espia
+
+    config = obtener_configuracion().model_copy(update={"capa3_habilitada": False, "pasarela_pago": "falsa"})
+    espia = _Espia(fabrica_scheduler())
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=tareas.fabrica_tareas(config),
+        reloj=RelojFijo(datetime.now(UTC)),
+        fabrica_scheduler=espia,  # type: ignore[arg-type]
+    )
+    assert tareas.correr(["conciliacion_pagos"], ctx) == tareas.SALIDA_OK
+    assert espia.sesiones
