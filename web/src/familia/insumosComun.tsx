@@ -62,6 +62,7 @@ export function Stepper({
   textoMas,
   soloLectura = false,
   describe: describeExtra,
+  vacioEs,
 }: {
   id: string
   etiqueta: string
@@ -79,12 +80,14 @@ export function Stepper({
   soloLectura?: boolean
   /** MATU-84: ids que también lo describen, antes de su ayuda (la ayuda común de dos campos). */
   describe?: string
+  /** MATU-84 (4.1): el valor de un campo vacío al tocar − o +. Con 0, «+» dos veces deja 2. */
+  vacioEs?: number
 }) {
   const describe = [describeExtra ?? '', ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   const paso = (d: number) => {
     if (soloLectura) return
     const n = entero(valor)
-    const base = n === null ? (d > 0 ? min - 1 : min + 1) : n
+    const base = n === null ? (vacioEs ?? (d > 0 ? min - 1 : min + 1)) : n
     onCambio(String(Math.max(min, Math.min(max, base + d))))
   }
   const claseBoton = 'grid size-12 shrink-0 place-items-center rounded-xl bg-hoja text-turquesa ring-2 ring-inset ring-turquesa/80 hover:bg-rocio active:bg-rocio'
