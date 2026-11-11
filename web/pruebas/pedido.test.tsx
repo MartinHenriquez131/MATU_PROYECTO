@@ -134,7 +134,7 @@ describe('Tu pedido: el carrito (7)', () => {
     const api = apiPedido({ 'PUT /lineas$': (p) => ({ status: 200, cuerpo: { ...borrador({ lineas: [linea(PANAL, ALMACEN, cantidad(p), 12990), linea(TOALLITAS, BODEGA, 1, 4290)] }), etag: 'p2' } }) })
     abrir()
     await cargado()
-    const campo = screen.getByRole('textbox', { name: 'Cantidad Pañal adulto M x30' })
+    const campo = screen.getByRole<HTMLInputElement>('textbox', { name: 'Cantidad Pañal adulto M x30' })
     await userEvent.click(campo)
     expect(campo.selectionStart).toBe(0)
     expect(campo.selectionEnd).toBe(1)

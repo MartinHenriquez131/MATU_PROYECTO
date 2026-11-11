@@ -43,7 +43,7 @@ describe('¿Dónde lo entregamos? (8)', () => {
     expect(screen.getByRole('heading', { level: 1, name: '¿Dónde lo entregamos?' })).toBeVisible()
     expect(screen.getByText('La usamos solo para entregar tus pedidos. Ningún comercio la ve. La guardamos para los próximos pedidos de María.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Volver a tu pedido' })).toBeVisible()
-    expect(screen.getAllByRole('textbox').map((c) => c.getAttribute('aria-labelledby') ?? c.labels?.[0]?.textContent)).toEqual(['Calle', 'Número', 'Depto (opcional)', 'Comuna', 'Referencia (opcional)'])
+    expect(screen.getAllByRole<HTMLInputElement>('textbox').map((c) => c.labels?.[0]?.textContent)).toEqual(['Calle', 'Número', 'Depto (opcional)', 'Comuna', 'Referencia (opcional)'])
     const referencia = screen.getByRole('textbox', { name: 'Referencia (opcional)' })
     expect(referencia).toHaveAccessibleDescription('Por ejemplo: portón verde. No escribas datos de salud.')
     const ayuda = screen.getByText('Por ejemplo: portón verde. No escribas datos de salud.')

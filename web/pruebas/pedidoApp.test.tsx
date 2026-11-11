@@ -15,7 +15,7 @@ const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: PERSONA_ID, nombre: 'María Soto', nombre_pila: 'María', nivel_apoyo: 'apoyo_parcial', direccion: DIRECCION, consentimiento: null }
 const PEDRO = { id: '3c9d4e20-0000-4000-8000-0000000000bb', nombre: 'Pedro Rojas', nombre_pila: 'Pedro', nivel_apoyo: 'apoyo_parcial', direccion: null, consentimiento: null }
 
-function apiApp(rol: Rol, { capa3 = true, personas = [MARIA] } = {}) {
+function apiApp(rol: Rol, { capa3 = true, personas = [MARIA] as object[] } = {}) {
   const pedidas: string[] = []
   const responder = (config: InternalAxiosRequestConfig, r: Respuesta): AxiosResponse => {
     const respuesta: AxiosResponse = { data: r.cuerpo ?? '', status: r.status, statusText: '', headers: r.cabeceras ?? {}, config, request: {} }
