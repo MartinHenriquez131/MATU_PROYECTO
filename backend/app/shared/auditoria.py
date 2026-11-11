@@ -78,6 +78,13 @@ class AccionAuditoria(StrEnum):
     CLAVE_DESTRUIR = "clave.destruir"
     # MATU-72 (decisión 157): borrar los datos de la persona al tiro, a pedido. Actor el usuario, sin detalle
     PERSONA_BORRAR = "persona.borrar"
+    # MATU-61 (D12): la dirección y el pedido sin pagar, todo sin contenido: ni la dirección, ni los productos, ni
+    # las cantidades, ni los montos, ni el teléfono. Ajustar líneas y cambiar el teléfono no se auditan
+    DIRECCION_CAMBIAR = "direccion.cambiar"
+    PEDIDO_CREAR = "pedido.crear"
+    PEDIDO_CONFIRMAR = "pedido.confirmar"
+    PEDIDO_CANCELAR = "pedido.cancelar"
+    PEDIDO_REGLA_FALTANTE = "pedido.regla_faltante"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -153,6 +160,9 @@ class EntidadAuditoria(StrEnum):
     CLAVE_DATOS = "clave_datos"
     # MATU-72
     PERSONA_CUIDADA = "persona_cuidada"
+    # MATU-61
+    DIRECCION = "direccion"
+    PEDIDO = "pedido"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:

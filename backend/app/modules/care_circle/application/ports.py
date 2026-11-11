@@ -56,6 +56,8 @@ class DatosDireccion:
     comuna: str
     region: str
     referencia: str | None
+    # MATU-61 (decisión 190): direccion.version, el etag de PUT y DELETE …/direccion. 1 al crearla
+    version: int = 1
 
 
 @dataclass(frozen=True)

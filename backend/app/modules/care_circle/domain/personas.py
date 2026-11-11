@@ -38,7 +38,9 @@ class CalidadOtorgante(StrEnum):
 FINALIDAD_PLAN_CUIDADO = "plan_cuidado"
 # MATU-36 (decisión 37): autorización propia para calcular cuándo se acaban los insumos
 FINALIDAD_CONSUMO = "consumo"
-FINALIDADES = frozenset({FINALIDAD_PLAN_CUIDADO, FINALIDAD_CONSUMO})
+# MATU-61 (D1): la autorización de pedidos. Es de la capa 3: solo existe con CAPA3_HABILITADA (C2, decisión 217)
+FINALIDAD_DESPACHO = "despacho"
+FINALIDADES = frozenset({FINALIDAD_PLAN_CUIDADO, FINALIDAD_CONSUMO, FINALIDAD_DESPACHO})
 
 # Recordatorio anual del cuidador de hecho (arquitectura 11.5, política v0.9 sección 5)
 MESES_REVISION_CUIDADOR_DE_HECHO = 12
@@ -115,19 +117,23 @@ def validar_otorgamiento(
 
 
 def evidencia(
-    calidad: CalidadOtorgante, version_politica: str, finalidad: str = FINALIDAD_PLAN_CUIDADO
+    calidad: CalidadOtorgante,
+    version_politica: str,
+    finalidad: str = FINALIDAD_PLAN_CUIDADO,
+    huella_declaracion: str | None = None,
 ) -> dict[str, Any]:
     """La evidencia mínima del consentimiento (consentimiento.evidencia).
 
-    La declaración es ``declaracion_<calidad>`` para plan_cuidado (MATU-07) y
-    ``declaracion_consumo_<calidad>`` para consumo (MATU-36, decisión 37). Lo demás ya vive en
-    columnas: usuario_id, calidad_otorgante, finalidad, version_politica,
-    otorgado_en, revision_vence_en y referencia_documento.
+    La declaración es ``declaracion_<calidad>`` para plan_cuidado (MATU-07),
+    ``declaracion_consumo_<calidad>`` para consumo (MATU-36, decisión 37) y
+    ``declaracion_pedidos_<calidad>`` para despacho (MATU-61, D1), esta con la huella SHA-256 de la plantilla
+    que se mostró (``huella_declaracion``, P13). Lo demás ya vive en columnas: usuario_id, calidad_otorgante,
+    finalidad, version_politica, otorgado_en, revision_vence_en y referencia_documento.
     """
-    datos: dict[str, Any] = {
-        "esquema": ESQUEMA_EVIDENCIA,
-        "declaracion": {"id": _declaracion(calidad, finalidad), "version": version_politica},
-    }
+    declaracion: dict[str, Any] = {"id": _declaracion(calidad, finalidad), "version": version_politica}
+    if huella_declaracion is not None:
+        declaracion["sha256"] = huella_declaracion
+    datos: dict[str, Any] = {"esquema": ESQUEMA_EVIDENCIA, "declaracion": declaracion}
     aviso = aviso_de(calidad)
     if aviso is not None:
         datos["aviso"] = {"id": aviso.id, "version": aviso.version, "sha256": aviso.sha256}
@@ -141,6 +147,8 @@ def _declaracion(calidad: CalidadOtorgante, finalidad: str) -> str:
         return f"declaracion_{calidad.value}"
     if finalidad == FINALIDAD_CONSUMO:
         return f"declaracion_consumo_{calidad.value}"
+    if finalidad == FINALIDAD_DESPACHO:
+        return f"declaracion_pedidos_{calidad.value}"
     raise ValueError("finalidad sin declaración")
 
 

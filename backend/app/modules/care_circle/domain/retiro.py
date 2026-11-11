@@ -19,14 +19,23 @@ from enum import StrEnum
 
 from app.modules.care_circle.domain.personas import (
     FINALIDAD_CONSUMO,
+    FINALIDAD_DESPACHO,
     FINALIDAD_PLAN_CUIDADO,
     AutorizacionGuardada,
     EstadoAutorizacion,
     estado_autorizacion,
 )
 
-# Las finalidades que se retiran y que muestra la vista, en este orden (decisión 127)
+# Las finalidades que se retiran y que muestra la vista, en este orden (decisión 127). Son las de las capas 1 y 2
 FINALIDADES_RETIRABLES = (FINALIDAD_PLAN_CUIDADO, FINALIDAD_CONSUMO)
+# MATU-61 (C2, decisión 217): la autorización de pedidos existe solo con la capa 3 encendida, después de las dos
+FINALIDADES_CAPA_3 = (FINALIDAD_DESPACHO,)
+
+
+def finalidades_retirables(capa3: bool) -> tuple[str, ...]:
+    """Las finalidades activas, en el orden de la vista: con la capa 3, también despacho (tres ítems); sin ella,
+    las dos de siempre (C2)."""
+    return FINALIDADES_RETIRABLES + FINALIDADES_CAPA_3 if capa3 else FINALIDADES_RETIRABLES
 
 ROLES_QUE_RETIRAN = frozenset({"admin", "cuidador"})
 
@@ -55,9 +64,9 @@ def puede_retirar(rol: str) -> bool:
     return rol in ROLES_QUE_RETIRAN
 
 
-def finalidad_de(valor: str) -> str | None:
-    """La finalidad del path, o None si no es una de las dos (la API responde 404)."""
-    return valor if valor in FINALIDADES_RETIRABLES else None
+def finalidad_de(valor: str, finalidades: tuple[str, ...] = FINALIDADES_RETIRABLES) -> str | None:
+    """La finalidad del path, o None si no es una de las activas (la API responde 404)."""
+    return valor if valor in finalidades else None
 
 
 @dataclass(frozen=True)

@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.modules.care_circle.domain.personas import (
     LARGO_MAXIMO_NOMBRE,
@@ -110,6 +110,8 @@ class DireccionVista(BaseModel):
     comuna: str
     region: str
     referencia: str | None
+    # MATU-61 (decisión 190): la versión de la dirección, para If-Match en PUT y DELETE …/direccion
+    etag: str = Field(pattern=r'^"v[0-9]+"$', description='La versión de la dirección, "v<version>" (If-Match)')
 
 
 class ConsentimientoVista(BaseModel):
