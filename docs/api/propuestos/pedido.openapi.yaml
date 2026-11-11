@@ -10,7 +10,7 @@ info:
     Contrato **propuesto** de MATU-61, escrito el 11-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con las decisiones D1 a D12 de Jorge del 11-11 y las condiciones C1 a C25 de la revisión
     previa del analista normativo (`docs/legal/revision-previa-matu-61.md` del repositorio MATU). Las
-    decisiones de este contrato son las **188 a 219** de `docs/api/README.md`, sección "MATU-61". Las
+    decisiones de este contrato son las **188 a 222** de `docs/api/README.md`, sección "MATU-61". Las
     preguntas P1 a P16 quedaron **resueltas por Jorge el 11-11 con sus decisiones C1 a C7** (README, "Para
     Jorge (MATU-61)"), y este archivo ya las aplica:
     - **C1:** `confirmar` acepta también un total **vigente** y lo reemplaza (15 minutos nuevos), y
@@ -1243,7 +1243,7 @@ components:
     LineaPedido:
       type: object
       additionalProperties: false
-      required: [id, producto, cantidad, comercio, precio_unitario, subtotal, regla_faltante, retracto_pierde_al_abrir, cambio]
+      required: [id, oferta_id, producto, cantidad, comercio, precio_unitario, subtotal, regla_faltante, retracto_pierde_al_abrir, cambio]
       description: |
         Una línea del pedido. En `borrador`, `precio_unitario` y `comercio` son los del carrito. Desde
         `total_confirmado`, son los confirmados y `cambio` dice qué cambió.
@@ -1251,6 +1251,13 @@ components:
         id:
           type: string
           format: uuid
+        oferta_id:
+          type: string
+          format: uuid
+          description: |
+            Decisión 222. La oferta del carrito de la línea, la que la pantalla reenvía en `PUT …/lineas`
+            para conservarla. `PUT …/lineas` la acepta aunque haya dejado de estar publicada: la línea queda
+            como estaba y al confirmar se resuelve como un producto que falta. Id opaco: nunca a la URL.
         producto:
           $ref: '#/components/schemas/ProductoPedido'
         cantidad:

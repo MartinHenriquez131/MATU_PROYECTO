@@ -318,3 +318,18 @@ def test_la_huella_no_depende_del_orden_de_las_claves_y_no_guarda_el_cuerpo() ->
     assert a == idempotencia.huella_peticion("e", {"b": 2, "a": 1})
     assert len(a) == 32 and b"a" not in a[:0]
     assert a != idempotencia.huella_peticion("otra", {"a": 1, "b": 2})
+
+
+def test_la_oferta_del_carrito_se_conserva_aunque_ya_no_este_publicada() -> None:
+    """Decisión 222: la pantalla reenvía LineaPedido.oferta_id; una oferta ajena no publicada sigue en 422."""
+    vista = _oferta(PANAL, UNO, 12990)
+    linea = _linea(vista, 1)
+    [conservada] = armar_carrito([LineaPedida(vista.id, 4)], {}, [linea])
+    assert (conservada.id, conservada.oferta.id, conservada.cantidad, conservada.precio_carrito) == (
+        linea.id,
+        vista.id,
+        4,
+        12990,
+    )
+    with pytest.raises(CarritoInvalido):
+        armar_carrito([LineaPedida(uuid.uuid4(), 1)], {}, [linea])

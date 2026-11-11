@@ -502,3 +502,108 @@ def test_lo_no_pagado_se_borra_a_los_30_dias_del_ultimo_cambio(entorno_pedido: E
             for f in cx.execute("SELECT id FROM pedido WHERE id = ANY(%s::uuid[])", ([viejo["id"], reciente["id"]],))
         }
     assert quedan == {reciente["id"]}
+
+
+# --- P3 del QA, decisión 222 y D11 ----------------------------------------------------------------------------------
+
+
+def test_idempotencia_en_curso_409(entorno_pedido: EntornoPedido) -> None:
+    """Otra petición con la misma clave y el mismo cuerpo todavía no termina (estado_http sin fijar)."""
+    from app.modules.ordering.domain.idempotencia import huella_peticion
+
+    e = entorno_pedido
+    familia = e.lista_para_pedir(e.fabrica.familia())
+    lineas = [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}]
+    clave = e.clave()
+    endpoint = f"POST /v1/personas-cuidadas/{familia.persona.id}/pedidos"
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        cx.execute(
+            "INSERT INTO idempotencia (grupo_id, endpoint, clave, usuario_id, hash_peticion, expira_en)"
+            " VALUES (%s, %s, %s, %s, %s, now() + interval '1 day')",
+            (familia.grupo.id, endpoint, clave, familia.admin.id, huella_peticion(endpoint, {"lineas": lineas})),
+        )
+    respuesta = e.crear(familia, lineas, clave=clave)
+    assert respuesta.status_code == 409 and respuesta.json()["type"] == "/errores/idempotencia-en-curso"
+    assert respuesta.headers["Cache-Control"] == "no-store"
+    assert (
+        e.pedir(
+            "GET", f"/v1/personas-cuidadas/{familia.persona.id}/pedido-en-curso", familia.admin, familia
+        ).status_code
+        == 404
+    )
+
+
+def test_autorizacion_de_pedidos_con_la_revision_vencida_403(entorno_pedido: EntornoPedido) -> None:
+    """C21: la dio un cuidador de hecho y venció su revisión de 12 meses según el Reloj."""
+    e = entorno_pedido
+    familia = e.fabrica.familia()
+    ahora = e.iam.reloj.ahora()
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        cx.execute(
+            "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
+            " version_politica, evidencia, otorgado_en, revision_vence_en)"
+            " VALUES (%s, %s, %s, 'cuidador_de_hecho', 'despacho', '0.12', '{}'::jsonb, %s, %s)",
+            (
+                familia.grupo.id,
+                familia.persona.id,
+                familia.admin.id,
+                ahora - timedelta(days=400),
+                ahora - timedelta(days=1),
+            ),
+        )
+    respuesta = e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}])
+    assert respuesta.status_code == 403
+    assert (respuesta.json()["type"], respuesta.json()["finalidad"]) == ("/errores/revision-vencida", "despacho")
+
+
+def test_la_linea_se_reenvia_aunque_su_oferta_ya_no_este_publicada(entorno_pedido: EntornoPedido) -> None:
+    """Decisión 222: LineaPedido.oferta_id vuelve en PUT …/lineas y conserva la línea y su precio del carrito."""
+    e = entorno_pedido
+    familia = e.lista_para_pedir(e.fabrica.familia())
+    creado = e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}]).json()
+    [linea] = creado["lineas"]
+    assert linea["oferta_id"] == e.oferta("panal", "uno")
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        cx.execute("UPDATE oferta SET disponible = false WHERE id = %s", (linea["oferta_id"],))
+    ajustado = e.pedir(
+        "PUT",
+        f"/v1/pedidos/{creado['id']}/lineas",
+        familia.admin,
+        familia,
+        {"lineas": [{"oferta_id": linea["oferta_id"], "cantidad": 3}]},
+        **{"If-Match": creado["etag"]},
+    )
+    assert ajustado.status_code == 200, ajustado.text
+    [nueva] = ajustado.json()["lineas"]
+    assert (nueva["id"], nueva["cantidad"], nueva["precio_unitario"]) == (linea["id"], 3, 12990)
+
+
+def test_la_autorizacion_de_pedidos_queda_con_la_politica_0_12(
+    entorno_pedido: EntornoPedido, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D11: con POLITICA_VERSION=0.12 (.env.example), despacho se registra con la 0.12, y su declaración es la de
+    la política publicada."""
+    from app.core import config
+    from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
+    from app.modules.iam.infrastructure.textos_politica import texto_publicado
+
+    monkeypatch.setenv("POLITICA_VERSION", "0.12")
+    config.obtener_configuracion.cache_clear()
+    try:
+        e = entorno_pedido
+        familia = e.fabrica.familia()
+        respuesta = e.autorizar_pedidos(familia)
+        assert respuesta.status_code == 201, respuesta.text
+        assert respuesta.json()["consentimiento"]["version_politica"] == "0.12"
+    finally:
+        config.obtener_configuracion.cache_clear()
+    with psycopg.connect(DSN) as cx:
+        fila = cx.execute(
+            "SELECT version_politica, evidencia FROM consentimiento WHERE persona_cuidada_id = %s"
+            " AND finalidad = 'despacho'",
+            (familia.persona.id,),
+        ).fetchone()
+    assert fila is not None
+    version, evidencia = fila
+    assert version == "0.12" and evidencia["declaracion"]["version"] == "0.12"
+    assert all(texto in texto_publicado("0.12") for texto in DECLARACIONES_PEDIDOS.values())

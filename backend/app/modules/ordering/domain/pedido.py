@@ -242,13 +242,21 @@ def armar_carrito(
     """Las líneas nuevas del carrito (decisiones 196 y 199). Lanza CarritoInvalido con un error por línea.
 
     El precio del carrito es el de la oferta ahora (C15). Una línea del mismo producto y la misma oferta que ya estaba
-    conserva su precio del carrito; con otra oferta, toma el de la nueva."""
+    conserva su precio del carrito; con otra oferta, toma el de la nueva. La oferta del carrito de una línea que ya
+    estaba se acepta aunque haya dejado de estar publicada (LineaPedido.oferta_id): se conserva como estaba, y al
+    confirmar se resuelve como cualquier producto que falta."""
     errores: list[ErrorLinea] = []
     vistos: set[uuid.UUID] = set()
     por_producto = {linea.producto.id: linea for linea in actuales}
+    por_oferta = {linea.oferta_carrito_id: linea for linea in actuales}
     armadas: list[LineaDelCarrito] = []
     for i, pedida in enumerate(pedidas):
         oferta = ofertas.get(pedida.oferta_id)
+        if oferta is None and pedida.oferta_id in por_oferta:
+            ya = por_oferta[pedida.oferta_id]
+            oferta = Oferta(
+                id=ya.oferta_carrito_id, producto=ya.producto, comercio=ya.comercio_carrito, precio=ya.precio_carrito
+            )
         if oferta is None:
             errores.append(
                 ErrorLinea(f"lineas.{i}.oferta_id", "oferta_no_disponible", "esta oferta no está en el catálogo")

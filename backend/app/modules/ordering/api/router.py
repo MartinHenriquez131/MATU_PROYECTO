@@ -98,6 +98,8 @@ _ERRORES: dict[int | str, dict[str, Any]] = {
     },
     428: {"description": "/errores/falta-version (If-Match) o /errores/falta-idempotencia", **_PROBLEMA},
 }
+# Los POST no llevan If-Match: sin 412
+_SIN_412: dict[int | str, dict[str, Any]] = {k: v for k, v in _ERRORES.items() if k != 412}
 _LECTURA: dict[int | str, dict[str, Any]] = {401: _ERRORES[401], 404: _ERRORES[404]}
 Vista = PedidoVista | PedidoVistaObservador
 
@@ -420,7 +422,7 @@ def _repetir(response: Response, repeticion: Repeticion, actor: Actor, proyectar
     RUTA_PERSONA + "/pedidos",
     status_code=status.HTTP_201_CREATED,
     response_model=PedidoVista,
-    responses=_ERRORES,
+    responses=_SIN_412,
     summary="Crear el carrito (borrador) con productos del catálogo",
     description=(
         "MATU-61 (decisiones 193 a 196). admin y cuidador, con la autorización despacho vigente. Idempotency-Key"
@@ -566,7 +568,7 @@ def reemplazar_reglas(
 @router.post(
     RUTA_PEDIDO + "/confirmar",
     response_model=PedidoVista,
-    responses=_ERRORES,
+    responses=_SIN_412,
     summary="Confirmar que haya cada producto y fijar el total por 15 minutos",
     description=(
         "MATU-61 (decisiones 201 a 205; C1 y C5). Desde borrador, vencido o un total vigente, que se reemplaza. Una"
@@ -639,7 +641,7 @@ def cambiar_contacto(
 @router.post(
     RUTA_PEDIDO + "/cambiar",
     response_model=PedidoVista,
-    responses=_ERRORES,
+    responses=_SIN_412,
     summary="Volver al carrito desde el total confirmado o vencido («Cambiar el pedido»)",
     description=(
         "MATU-61 (decisión 218; C1 y C9). total_confirmado o vencido → borrador: descarta el total, las partes por"

@@ -62,3 +62,16 @@ def test_sin_parametros_de_consulta_ni_datos_de_mas(esquema: dict[str, Any]) -> 
     for nombre in VISTAS:
         assert not set(esquema["components"]["schemas"][nombre]["properties"]) & NUNCA, nombre
     assert set(esquema["paths"]["/v1/personas-cuidadas/{persona_id}/direccion"]) == {"put", "delete"}
+
+
+def test_la_linea_trae_su_oferta_y_los_post_no_declaran_412(esquema: dict[str, Any]) -> None:
+    """Decisión 222 y P3 del QA."""
+    linea = esquema["components"]["schemas"]["LineaPedido"]
+    assert "oferta_id" in linea["properties"] and "oferta_id" in linea["required"]
+    for ruta in (
+        "/v1/personas-cuidadas/{persona_id}/pedidos",
+        "/v1/pedidos/{pedido_id}/confirmar",
+        "/v1/pedidos/{pedido_id}/cambiar",
+        "/v1/pedidos/{pedido_id}/cancelar",
+    ):
+        assert "412" not in esquema["paths"][ruta]["post"]["responses"], ruta

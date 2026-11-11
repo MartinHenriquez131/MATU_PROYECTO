@@ -57,6 +57,12 @@ class LineaPedido(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
+    oferta_id: uuid.UUID = Field(
+        description=(
+            "La oferta del carrito de esta línea, la que se reenvía en PUT …/lineas para conservarla, también si dejó"
+            " de estar publicada. Es un id opaco, nunca va a la URL del navegador"
+        )
+    )
     producto: ProductoPedido
     cantidad: Cantidad
     comercio: ComercioVista

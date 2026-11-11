@@ -14,7 +14,7 @@ docs/api/
     │                             (implementados), y MATU-60: lista de insumos y unidades por envase (implementados)
     └── pedido.openapi.yaml       MATU-61: autorización de pedidos, dirección, carrito, reglas si falta un producto,
                                   total confirmado y cancelar sin pagar (implementado en MATU-61, decisiones 188 a
-                                  221; se conserva como explicación y manda openapi.json)
+                                  222; se conserva como explicación y manda openapi.json)
 ```
 
 ## Propuestos e implementados
@@ -1346,6 +1346,7 @@ La numeración sigue en la 188: la última de `main` es la 187 (MATU-74), y ning
 
 220. **Los 30 días de lo no pagado corren desde el último cambio** (C10 de Jorge, sobre D5). Un borrador, desde su último cambio (agregar, quitar, cambiar cantidad o regla: cada uno sube la versión y `pedido.actualizado_en`); un total confirmado o vencido, desde que venció (`total_vence_en`); un cancelado, desde que se canceló. `pedido_conservar(limite, ahora)` (migración 0023) borra los no pagados con `GREATEST(actualizado_en, total_vence_en) <= limite`, con sus líneas, reglas, partes, entrega, transiciones y claves; la tarea es `conservacion_pedidos`, dentro de `borrados`.
 221. **Textos con huella.** Las tres declaraciones `declaracion_pedidos_<calidad>` son las de la política, sección 5, «La autorización para los pedidos», aprobadas por Jorge el 11-11, y `huella_declaracion` es la SHA-256 de ese texto exacto (sin marcadores: no llevan `{nombre_pila}`). La huella de las condiciones del pedido se calcula sobre `docs/legal/condiciones-pedido.md` **desde «## 1. Quién vende» hasta el final** (el encabezado queda fuera, como la política desde «En un minuto»), y ese es el `texto` que entrega `GET /v1/condiciones-pedido`, versión `0.1`.
+222. **`LineaPedido.oferta_id`** (decisión del orquestador, pregunta del frontend): la oferta del carrito de cada línea, para que la pantalla reenvíe las líneas con `PUT …/lineas` aunque la oferta haya dejado de estar publicada; esa oferta se acepta solo si ya era la del carrito de una línea (otra no publicada sigue en 422 `oferta_no_disponible`). Los `POST` del pedido (crear, confirmar, cambiar y cancelar) no declaran 412: no llevan `If-Match` (P3 del QA). La autorización `despacho` y la política se registran con la versión 0.12 (D11): `POLITICA_VERSION=0.12`, con la 0.11 todavía publicada para quien ya la aceptó.
 
 **Implementado en MATU-61 (11-11).** Las rutas pasaron a `openapi.json`, exportado desde `app.openapi()` con `CAPA3_HABILITADA=true` (sin las del relevo, que siguen en `relevo.openapi.yaml`). `pedido.openapi.yaml` se conserva como explicación de las decisiones, como `ficha.openapi.yaml`; manda `openapi.json`. Diferencias con el propuesto que se aceptan: los errores se declaran como `application/problem+json` sin esquema (como el resto de `openapi.json`), `If-Match`, `If-None-Match` e `Idempotency-Key` salen como `string` (su forma la valida la ruta: 422 o 428), y `X-Grupo-Id` como `string | null`. Migración 0023; el backend no crea el cargo (MATU-62).
 

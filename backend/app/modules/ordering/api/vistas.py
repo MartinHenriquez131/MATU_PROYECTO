@@ -60,6 +60,7 @@ def _linea(linea: Linea, confirmado: bool) -> LineaPedido:
     cambio = cambio_de(linea, confirmado)
     return LineaPedido(
         id=linea.id,
+        oferta_id=linea.oferta_carrito_id,
         producto=_producto(linea.producto),
         cantidad=linea.cantidad,
         comercio=_comercio(linea.comercio),

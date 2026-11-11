@@ -5521,12 +5521,6 @@
               "application/problem+json": {}
             }
           },
-          "412": {
-            "description": "/errores/version-desactualizada, con el pedido vigente en actual",
-            "content": {
-              "application/problem+json": {}
-            }
-          },
           "422": {
             "description": "Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada",
             "content": {
@@ -6067,12 +6061,6 @@
               "application/problem+json": {}
             }
           },
-          "412": {
-            "description": "/errores/version-desactualizada, con el pedido vigente en actual",
-            "content": {
-              "application/problem+json": {}
-            }
-          },
           "422": {
             "description": "Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada",
             "content": {
@@ -6299,12 +6287,6 @@
           },
           "409": {
             "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
-            "content": {
-              "application/problem+json": {}
-            }
-          },
-          "412": {
-            "description": "/errores/version-desactualizada, con el pedido vigente en actual",
             "content": {
               "application/problem+json": {}
             }
@@ -10055,6 +10037,12 @@
             "format": "uuid",
             "title": "Id"
           },
+          "oferta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Oferta Id",
+            "description": "La oferta del carrito de esta línea, la que se reenvía en PUT …/lineas para conservarla, también si dejó de estar publicada. Es un id opaco, nunca va a la URL del navegador"
+          },
           "producto": {
             "$ref": "#/components/schemas/ProductoPedido"
           },
@@ -10102,6 +10090,7 @@
         "type": "object",
         "required": [
           "id",
+          "oferta_id",
           "producto",
           "cantidad",
           "comercio",
