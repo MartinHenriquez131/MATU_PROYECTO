@@ -8,7 +8,7 @@ import type { FichaRelevo } from '../src/compartido/api/relevo'
 import { PantallaFicha } from '../src/relevo/PantallaFicha'
 
 const PREGUNTAS = [
-  '¿Cómo es un día normal para Elena? Puedes contar un día bueno o uno difícil.',
+  '¿Cómo es un día normal para Elena?', // 5.1 (MATU-88): el relevo no lleva «Puedes contar un día bueno o uno difícil.»
   '¿Qué calma a Elena cuando se angustia?',
   '¿A quién llamar si algo pasa?', // 3.11.5: el relevo no lleva «y no te ubican»
 ]

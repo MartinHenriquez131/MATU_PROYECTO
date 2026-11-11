@@ -5,6 +5,8 @@
 //   [aprobado por Jorge el 03-11]  textos de MATU-57, pendientes de lenguaje.md
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 
+import type { Unidad } from '../compartido/api/consumo'
+
 export const GENERAL = {
   /** [lenguaje 8] Cualquier otro, o sin respuesta. */
   error: 'No pudimos completar esto. Revisa tu conexión y vuelve a intentarlo. Lo que escribiste sigue aquí.',
@@ -613,13 +615,14 @@ export const LISTA = {
   pie: 'Piloto académico con datos de prueba',
 
   // 9 El campo del envase en el formulario del insumo
-  envase: '¿Cuántas unidades trae cada envase?',
+  /** [lenguaje 18] MATU-88: en los insumos en sobres dice «sobres» (H2 del TESTER de MATU-84). */
+  envase: (unidad: Unidad) => (unidad === 'sobre' ? '¿Cuántos sobres trae cada envase?' : '¿Cuántas unidades trae cada envase?'),
   envaseAyuda: 'Si lo anotas, la lista sugiere envases enteros. Puedes dejarlo en blanco.',
   errEnvase: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
   envaseConflicto: (u: string, sufijo: string) => `Cada envase trae ${u} ${sufijo}.`,
   sinEnvase: 'Sin unidades por envase.',
   // MATU-84 (especificación matu-84-me-quedan-envases.md, 7): el mismo campo dentro de «Contar en envases» [L 30]
   envaseAyudaEnvases: 'Lo guardamos para la próxima vez y para la lista.', // [L 30]
-  errFaltaEnvase: 'Escribe cuántas unidades trae cada envase.', // [L 30]
+  errFaltaEnvase: (unidad: Unidad) => (unidad === 'sobre' ? 'Escribe cuántos sobres trae cada envase.' : 'Escribe cuántas unidades trae cada envase.'), // [L 30] y MATU-88
   errEnvaseRango: 'Escribe un número de 1 a 10.000.', // [L 30]
 }
