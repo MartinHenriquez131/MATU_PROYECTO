@@ -456,7 +456,8 @@ def test_es_idempotente(fabrica: Fabrica, sembradora: Any, catalogo: dict[str, u
     # Ni una lectura ni una escritura más en la auditoría: la segunda corrida no toca nada
     assert _filas("SELECT count(*) FROM auditoria WHERE grupo_id = ANY(%s::uuid[])", grupos) == auditoria
     assert len(antes["membresias"]) == 6 and len(antes["personas"]) == 2
-    assert antes["autorizaciones"] == [("consumo", 2), ("plan_cuidado", 2)]
+    # MATU-61: la primera familia tiene además la autorización de pedidos (despacho), sin pedidos
+    assert antes["autorizaciones"] == [("consumo", 2), ("despacho", 1), ("plan_cuidado", 2)]
     assert len(antes["secciones"]) == 11 and len(antes["insumos"]) == 5 and len(antes["relevos"]) == 1
 
 

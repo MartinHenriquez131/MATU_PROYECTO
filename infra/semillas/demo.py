@@ -100,15 +100,19 @@ from app.modules.care_circle.application.borrado import SolicitudBorrado, borrar
 from app.modules.care_circle.application.grupos import crear_grupo, listar_grupos  # noqa: E402
 from app.modules.care_circle.application.personas import SolicitudAlta, dar_de_alta, listar_personas  # noqa: E402
 from app.modules.care_circle.application.ports import DatosDireccion  # noqa: E402
+from app.modules.care_circle.application.retiro import EfectoDelRetiro  # noqa: E402
 from app.modules.care_circle.domain.avisos import AVISO_CUIDADOR_DE_HECHO  # noqa: E402
+from app.modules.care_circle.domain.declaraciones import huella_declaracion_pedidos  # noqa: E402
 from app.modules.care_circle.domain.personas import (  # noqa: E402
     FINALIDAD_CONSUMO,
+    FINALIDAD_DESPACHO,
     FINALIDAD_PLAN_CUIDADO,
     AvisoMostrado,
     CalidadOtorgante,
     EstadoAutorizacion,
     estado_autorizacion,
 )
+from app.modules.care_circle.domain.retiro import finalidades_retirables  # noqa: E402
 from app.modules.care_circle.infrastructure.autorizacion import persona_con_autorizacion  # noqa: E402
 from app.modules.care_circle.infrastructure.membresia import rol_activo  # noqa: E402
 from app.modules.care_circle.infrastructure.repositorio_autorizaciones import (  # noqa: E402
@@ -249,6 +253,8 @@ class FamiliaDemo:
     ficha: FichaDemo
     insumos: tuple[InsumoDemo, ...]
     relevo: RelevoDemo | None = None
+    # MATU-61: la autorización de pedidos (despacho), para probar el recorrido 5 en vivo. La semilla no siembra pedidos
+    autoriza_pedidos: bool = False
 
 
 FICHA_MARIA = FichaDemo(
@@ -337,6 +343,7 @@ FAMILIAS: tuple[FamiliaDemo, ...] = (
             motivo=MotivoAcceso.FIN_DE_SEMANA_FUERA,
             secciones=(SeccionComplementaria.QUIEN_ES, SeccionComplementaria.PREFERENCIAS),
         ),
+        autoriza_pedidos=True,
     ),
     FamiliaDemo(
         grupo="Familia Riquelme",
@@ -600,6 +607,34 @@ class Sembradora:
             )
             return True
 
+    def autorizacion_pedidos(
+        self, admin_id: uuid.UUID, grupo_id: uuid.UUID, persona_id: uuid.UUID, persona: PersonaDemo
+    ) -> bool:
+        """La autorización de pedidos (despacho, MATU-61 D1), con la huella de su declaración, si no hay una vigente.
+        True si la dio ahora. Solo otorga el consentimiento: no siembra pedidos (el recorrido 5 se arma en vivo)."""
+        with self._contexto_admin(admin_id, grupo_id) as sesion:
+            registro = RegistroAuditoriaSql(sesion, self.reloj)
+            repositorio = RepositorioAutorizacionesSQL(sesion, grupo_id, registro)
+            if repositorio.hay_vigente(persona_id, FINALIDAD_DESPACHO):
+                return False
+            otorgar_autorizacion(
+                SolicitudAutorizacion(
+                    usuario_id=admin_id,
+                    grupo_id=grupo_id,
+                    rol="admin",
+                    persona_id=persona_id,
+                    calidad_otorgante=persona.calidad,
+                    referencia_documento=persona.referencia_documento,
+                    aviso=_aviso(persona.calidad),
+                    finalidad=FINALIDAD_DESPACHO,
+                    huella_declaracion=huella_declaracion_pedidos(persona.calidad),
+                ),
+                self.version_politica,
+                self.reloj,
+                repositorio,
+            )
+            return True
+
     def _exigir_vigente(self, sesion: Session, grupo_id: uuid.UUID, persona_id: uuid.UUID, finalidad: str) -> None:
         """Como la API (403 sin autorización): sin una vigente para la finalidad, la semilla no escribe nada."""
         encontrada = persona_con_autorizacion(sesion, grupo_id, persona_id, finalidad, bloquear=True)
@@ -752,6 +787,8 @@ class Sembradora:
             usuarios.append(usuario_id)
         persona_id, persona_creada = self.persona(admin_id, grupo_id, familia.persona)
         self.autorizacion_consumo(admin_id, grupo_id, persona_id, familia.persona)
+        if familia.autoriza_pedidos:
+            self.autorizacion_pedidos(admin_id, grupo_id, persona_id, familia.persona)
         campos, secciones = self.ficha(admin_id, grupo_id, persona_id, familia.ficha)
         insumos = self.insumos(admin_id, grupo_id, persona_id, familia.insumos, productos)
         relevo = None
@@ -788,15 +825,23 @@ class Sembradora:
         for persona_id in personas:
             with self._contexto_admin(admin_id, grupo_id) as sesion:
                 registro = RegistroAuditoriaSql(sesion, self.reloj)
+                efectos: dict[str, EfectoDelRetiro] = {
+                    FINALIDAD_PLAN_CUIDADO: EfectoRetiroFicha(sesion, grupo_id, registro),
+                    FINALIDAD_CONSUMO: EfectoRetiroConsumo(sesion, grupo_id, registro),
+                }
+                capa3 = obtener_configuracion().capa3_habilitada
+                if capa3:
+                    # MATU-61 (D2): los pedidos sin pagar armados en vivo se cancelan con el borrado. Capa 3: se importa
+                    # solo encendida, como en app.main
+                    pedidos = importlib.import_module("app.modules.ordering.infrastructure.efecto_retiro")
+                    efectos[FINALIDAD_DESPACHO] = pedidos.EfectoRetiroPedidos(sesion, grupo_id, registro)
                 borrar_persona(
                     SolicitudBorrado(usuario_id=admin_id, rol="admin", persona_id=persona_id),
                     self.reloj,
                     RepositorioBorradoSQL(sesion, grupo_id, registro),
                     RepositorioRetirosSQL(sesion, grupo_id, registro),
-                    {
-                        FINALIDAD_PLAN_CUIDADO: EfectoRetiroFicha(sesion, grupo_id, registro),
-                        FINALIDAD_CONSUMO: EfectoRetiroConsumo(sesion, grupo_id, registro),
-                    },
+                    efectos,
+                    finalidades_retirables(capa3),
                 )
         return len(personas)
 
