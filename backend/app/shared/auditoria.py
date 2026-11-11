@@ -85,6 +85,11 @@ class AccionAuditoria(StrEnum):
     PEDIDO_CONFIRMAR = "pedido.confirmar"
     PEDIDO_CANCELAR = "pedido.cancelar"
     PEDIDO_REGLA_FALTANTE = "pedido.regla_faltante"
+    # MATU-62 (decisión 244): el pago, sin montos ni datos de la pasarela (ni token, ni buy_order, ni tarjeta).
+    # pago.aprobar y pago.anular de la vuelta y la conciliación van con actor sistema
+    PAGO_INICIAR = "pago.iniciar"
+    PAGO_APROBAR = "pago.aprobar"
+    PAGO_ANULAR = "pago.anular"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
@@ -163,6 +168,8 @@ class EntidadAuditoria(StrEnum):
     # MATU-61
     DIRECCION = "direccion"
     PEDIDO = "pedido"
+    # MATU-62
+    CARGO = "cargo"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:
