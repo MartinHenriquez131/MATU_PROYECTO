@@ -10,6 +10,8 @@ interface Oferta {
   nombre_fantasia: string
   precio: number
   disponible: boolean
+  /** MATU-61 (D9): todos los comercios del doble son ficticios. */
+  ficticio: boolean
 }
 
 const ALMACEN = { id: randomUUID(), nombre: 'Almacén El Ejemplo' }
@@ -21,6 +23,7 @@ const oferta = (c: typeof ALMACEN, precio: number, stock: number): Oferta => ({
   nombre_fantasia: c.nombre,
   precio,
   disponible: stock > 0,
+  ficticio: true,
 })
 
 const producto = (nombre: string, presentacion: string, unidad: Unidad, unidades: number, retracto: boolean, uno: [number, number], dos: [number, number]) => ({
