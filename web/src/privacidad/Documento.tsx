@@ -158,8 +158,11 @@ function VolverAlIndice({ alVolver }: { alVolver: () => void }) {
   )
 }
 
-/** El documento, una `section` por título de primer nivel, cada una cerrada con «Volver al índice». */
-export function Documento({ secciones, alVolver }: { secciones: Seccion[]; alVolver: () => void }) {
+/**
+ * El documento, una `section` por título de primer nivel, cada una cerrada con «Volver al índice».
+ * Sin `alVolver` (las condiciones del pedido, MATU-61 9.8: diez secciones cortas) va sin índice.
+ */
+export function Documento({ secciones, alVolver }: { secciones: Seccion[]; alVolver?: () => void }) {
   return (
     <article className="min-w-0 max-w-xl">
       {secciones.map((s, i) => {
@@ -170,7 +173,7 @@ export function Documento({ secciones, alVolver }: { secciones: Seccion[]; alVol
         const contenido: ReactNode = (
           <>
             <Bloques bloques={conSeparador ? bloques.slice(0, -1) : bloques} />
-            {s.titulo && <VolverAlIndice alVolver={alVolver} />}
+            {s.titulo && alVolver && <VolverAlIndice alVolver={alVolver} />}
             {conSeparador && <hr className="my-10 border-t border-linea" />}
           </>
         )
