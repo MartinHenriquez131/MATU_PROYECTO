@@ -1,7 +1,31 @@
 // El contenido de un campo (3.11.2). Siempre como texto, nunca como HTML. Los teléfonos no se
-// vuelven enlaces.
+// vuelven enlaces, pero no se parten (3.11.4).
 import { CircleDashed } from 'lucide-react'
+import { Fragment, type ReactNode } from 'react'
+import { trozosConTelefonos } from './telefonos'
 import { FICHA } from './textos'
+
+/**
+ * 3.11.4: cada teléfono reconocido va en un `inline-block` con dos `cifras`, el prefijo y el resto.
+ * Baja entero de renglón y, solo si es más ancho que un renglón, se corta entre esas dos partes.
+ * No agrega ni quita caracteres: el `textContent` es la línea tal cual. Sin `tel:` ni `aria-*`.
+ */
+export function ConTelefonos({ texto, resto: pintarTexto = (t) => t }: { texto: string; resto?: (t: string) => ReactNode }) {
+  return trozosConTelefonos(texto).map((t, i) =>
+    t.tipo === 'texto' ? (
+      <Fragment key={i}>{pintarTexto(t.texto)}</Fragment>
+    ) : (
+      <span key={i} className="inline-block max-w-full tabular-nums">
+        <span className="cifras">{t.prefijo}</span>
+        {/* Tras un guion antes de un dígito el navegador no corta (UAX 14, LB25): el <wbr> le da el
+            único lugar de corte que pide 3.11.4, sin agregar un carácter. */}
+        {t.separador || <wbr />}
+        {t.separador === '-' && <wbr />}
+        <span className="cifras">{t.resto}</span>
+      </span>
+    ),
+  )
+}
 
 // Una línea que empieza con una hora: 8:00, 08:00 u 8.00, con o sin guion después.
 const HORA = /^\s*(\d{1,2})[:.](\d{2})\s*[-–·]?\s*(.*)$/
@@ -34,7 +58,9 @@ export function TextoCampo({ texto }: { texto: string | null }) {
     <div className="renglones max-w-prose text-lg leading-7">
       {texto.split('\n').map((l, i) =>
         l.trim() ? (
-          <p key={i}>{l}</p>
+          <p key={i}>
+            <ConTelefonos texto={l} />
+          </p>
         ) : (
           // Un renglón en blanco del texto se respeta como renglón en blanco.
           <p key={i} aria-hidden>
@@ -58,15 +84,21 @@ export function TextoSeccion({ texto }: { texto: string }) {
       {texto.split('\n').map((l, i) =>
         l.trim() ? (
           <p key={i}>
-            {l.split(HORAS_EN_TEXTO).map((p, j) =>
-              j % 2 ? (
-                <span key={j} className="cifras">
-                  {p}
-                </span>
-              ) : (
-                p
-              ),
-            )}
+            {/* Primero los teléfonos: una hora no cae dentro de uno, porque el patrón no acepta : ni . */}
+            <ConTelefonos
+              texto={l}
+              resto={(t) =>
+                t.split(HORAS_EN_TEXTO).map((p, j) =>
+                  j % 2 ? (
+                    <span key={j} className="cifras">
+                      {p}
+                    </span>
+                  ) : (
+                    p
+                  ),
+                )
+              }
+            />
           </p>
         ) : (
           <p key={i} aria-hidden>
@@ -87,7 +119,9 @@ function LineaDeTiempo({ items }: { items: { hora: string; texto: string }[] }) 
           <li key={i} className="relative flex items-start gap-3 angosto:flex-col angosto:gap-1">
             <span className="cifras w-13 shrink-0 pt-px text-right angosto:w-auto angosto:text-left font-bold text-turquesa">{it.hora}</span>
             <span aria-hidden className="relative z-10 mt-1.5 angosto:hidden size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
-            <span className="min-w-0 text-lg">{it.texto}</span>
+            <span className="min-w-0 text-lg">
+              <ConTelefonos texto={it.texto} />
+            </span>
           </li>
         ))}
       </ol>
