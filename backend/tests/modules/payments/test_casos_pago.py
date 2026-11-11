@@ -561,3 +561,25 @@ def test_la_misma_clave_devuelve_la_venta_como_esta_ahora() -> None:
         None,
         EstadoVenta.APROBADA,
     )
+
+
+def test_si_transbank_aprueba_otro_monto_no_se_paga_y_se_anula_lo_cobrado(caplog: pytest.LogCaptureFixture) -> None:
+    """Observación 2 del cierre del analista: el pedido no queda pagado, se alerta a operación y se anula completo."""
+
+    class OtroMonto(PasarelaFalsa):
+        def confirmar(self, token: str):  # type: ignore[no-untyped-def]
+            self.transacciones[token].monto += 1  # Transbank cobró un peso más
+            return super().confirmar(token)
+
+    escena = Escena(pasarela=OtroMonto())
+    token = escena.pagar().token
+    assert token is not None
+    escena.pasarela.pagar(token)
+    with caplog.at_level(logging.WARNING, logger="matu.payments"):
+        vuelta = escena.volver(token_ws=token)
+
+    assert (vuelta.resultado, vuelta.anulacion) == (ResultadoPago.ANULADO, EstadoAnulacion.HECHA)
+    assert escena.p.pagado_en is None and escena.p.estado == "total_confirmado"
+    assert escena.pasarela.cobrado(token) == 0  # se anuló todo lo que cobró, también el peso de más
+    assert escena.cargo().monto_cobrado == 0
+    assert [r for r in caplog.records if getattr(r, "evento", None) == "monto_distinto"]

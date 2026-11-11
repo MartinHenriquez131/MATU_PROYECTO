@@ -255,18 +255,29 @@ def decidir_aprobacion(
     pagado_en: datetime | None,
     venta: Venta,
     ahora: datetime,
+    monto_aprobado: int | None = None,
 ) -> Decision:
     """Qué hacer con un commit aprobado (D-62-4, reglas 2 y 3).
 
     Se respeta solo si el pedido sigue sin pagar, en total_confirmado o vencido, con el mismo total y el mismo
     total_confirmado_en de la venta. Si el total ya venció según el Reloj (o la fila dice vencido), es tardío. En
-    cualquier otro caso se anula completo y el pedido no cambia."""
+    cualquier otro caso se anula completo y el pedido no cambia.
+
+    Observación 2 del cierre del analista: si Transbank aprobó un monto distinto del de la venta, nunca se da por
+    pagado (nunca se cobra distinto de lo que la familia vio): se anula completo."""
+    if not monto_coincide(monto_aprobado, venta):
+        return Decision.ANULAR
     if pagado_en is not None or estado_pedido not in ESTADOS_QUE_SE_PAGAN:
         return Decision.ANULAR
     if total != venta.monto or total_confirmado_en != venta.total_confirmado_en:
         return Decision.ANULAR
     vencio = estado_pedido == "vencido" or (total_vence_en is not None and total_vence_en <= ahora)
     return Decision.RESPETAR_TARDIO if vencio else Decision.RESPETAR
+
+
+def monto_coincide(monto_aprobado: int | None, venta: Venta) -> bool:
+    """Lo que Transbank dice que cobró es el monto de la venta. Sin el monto en la respuesta, no se compara."""
+    return monto_aprobado is None or monto_aprobado == venta.monto
 
 
 def puede_reintentar_commit(commit_intentado_en: datetime | None, ahora: datetime) -> bool:

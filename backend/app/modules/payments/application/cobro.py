@@ -41,6 +41,7 @@ from app.modules.payments.domain.venta import (
     decidir_aprobacion,
     en_curso,
     final_sin_cobro,
+    monto_coincide,
     nueva_clave_pasarela,
     nueva_referencia,
     nuevo_buy_order,
@@ -201,12 +202,20 @@ def aprobar(
         pagado_en=pedido.pagado_en,
         venta=venta,
         ahora=ahora,
+        monto_aprobado=respuesta.amount,
     )
     if decision is Decision.ANULAR:
-        # Regla 3: aprobada y, en el mismo momento, la anulación total a la misma tarjeta. El pedido no cambia
+        # Regla 3: aprobada y, en el mismo momento, la anulación total a la misma tarjeta. El pedido no cambia. También
+        # si Transbank aprobó otro monto (observación 2): se anula todo lo que cobró, con el motivo de la regla 3
+        cobrado = venta.monto
+        if not monto_coincide(respuesta.amount, venta):
+            alertar("monto_distinto")
+            cobrado = respuesta.amount or venta.monto
         venta = replace(venta, anulacion_total=True, anulada_por_pago_tardio=True)
         repo.guardar_venta(venta)
-        estado = anular(unidad, pasarela, venta, venta.monto, MotivoAnulacion.PAGO_TARDIO, ahora)
+        estado = anular(
+            unidad, pasarela, venta, venta.monto, MotivoAnulacion.PAGO_TARDIO, ahora, monto_pasarela=cobrado
+        )
         _cerrar_cargo_sin_cobro(unidad, venta, ahora, vida)
         _auditar(unidad, pedido.grupo_id, AccionAuditoria.PAGO_ANULAR, cargo.id)
         repo.emitir(PAGO_ANULADO, pedido.id, ahora)
@@ -282,9 +291,14 @@ def anular(
     motivo: MotivoAnulacion,
     ahora: datetime,
     pedido_linea_id: uuid.UUID | None = None,
+    monto_pasarela: int | None = None,
 ) -> EstadoAnulacion:
     """Registra la anulación **antes** de llamar a Transbank (arquitectura 8.4) y la intenta. Si falla, queda para
-    la conciliación, que la reintenta sin devolver dos veces (D-62-6)."""
+    la conciliación, que la reintenta sin devolver dos veces (D-62-6).
+
+    ``monto_pasarela`` (observación 2): lo que se pide anular a Transbank cuando aprobó un monto distinto del de la
+    venta. El registro guarda como mucho el monto de la venta (transaccion_pago_atado); un reintento usa ese
+    registro."""
     anulacion = Anulacion(
         id=uuid.uuid4(),
         venta_id=venta.id,
@@ -298,15 +312,20 @@ def anular(
         pedido_linea_id=pedido_linea_id,
     )
     unidad.repositorio.insertar_anulacion(anulacion, nueva_clave_pasarela())
-    return intentar_anulacion(unidad, pasarela, venta, anulacion, ahora)
+    return intentar_anulacion(unidad, pasarela, venta, anulacion, ahora, monto_pasarela)
 
 
 def intentar_anulacion(
-    unidad: Unidad, pasarela: PasarelaWebpay, venta: Venta, anulacion: Anulacion, ahora: datetime
+    unidad: Unidad,
+    pasarela: PasarelaWebpay,
+    venta: Venta,
+    anulacion: Anulacion,
+    ahora: datetime,
+    monto_pasarela: int | None = None,
 ) -> EstadoAnulacion:
     assert venta.token is not None
     try:
-        respuesta = pasarela.anular(venta.token, anulacion.monto)
+        respuesta = pasarela.anular(venta.token, monto_pasarela or anulacion.monto)
     except (PasarelaNoDisponible, PasarelaRechazo):
         return _anulacion_fallida(unidad, anulacion, ahora)
     if not anulacion_hecha(respuesta):

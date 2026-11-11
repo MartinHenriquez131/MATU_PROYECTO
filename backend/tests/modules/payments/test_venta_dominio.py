@@ -243,3 +243,19 @@ def test_la_referencia_es_corta_unica_en_el_grupo_y_alarga_si_no_hay_libre() -> 
     assert nueva_referencia({"1000", "10000"}, siempre_cero) == "100000"
     with pytest.raises(RuntimeError):
         nueva_referencia({"1000", "10000", "100000"}, siempre_cero)
+
+
+@pytest.mark.parametrize("monto", [57459, 57461, 1])
+def test_un_monto_aprobado_distinto_del_de_la_venta_nunca_se_da_por_pagado(monto: int) -> None:
+    """Observación 2 del cierre del analista: nunca se cobra distinto de lo que la familia vio."""
+    assert _decidir(_venta(), CONFIRMADO + timedelta(minutes=5)) is Decision.RESPETAR
+    assert decidir_aprobacion(
+        estado_pedido="total_confirmado",
+        total=57460,
+        total_confirmado_en=CONFIRMADO,
+        total_vence_en=CONFIRMADO + VIGENCIA_TOTAL,
+        pagado_en=None,
+        venta=_venta(),
+        ahora=CONFIRMADO + timedelta(minutes=5),
+        monto_aprobado=monto,
+    ) is Decision.ANULAR
