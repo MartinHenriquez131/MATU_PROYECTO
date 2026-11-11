@@ -69,11 +69,17 @@ export function Boton({
     >
       {icono && <span className="contents angosto:hidden">{icono}</span>}
       {/* Los dos textos ocupan la misma celda: el botón mide lo que el más largo y no salta. Cada
-          texto queda al centro de la celda, que conserva la altura del más alto. */}
+          texto queda al centro de la celda, que conserva la altura del más alto. Corrección del
+          10-11 (H1 de Martín, opción A de Jorge): `break-words`, sin guionado. Las palabras bajan
+          enteras («Enviar», no «En-/viar») y solo se corta una palabra que por sí sola no cabe. La
+          celda sigue pudiendo encogerse (`min-w-0` y `minmax(0,1fr)`), y cada texto no pasa del
+          ancho de la celda (`max-w-full`): centrado, sin él mediría lo que su palabra más larga y
+          se saldría por los lados en vez de cortarla. A 320 px con el texto al 200 % nada se sale
+          (WCAG 1.4.10). */}
       <span className="grid min-w-0 grid-cols-[minmax(0,1fr)] place-items-center">
-        <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
+        <span className={`col-start-1 row-start-1 max-w-full break-words ${ocupado && textoOcupado ? 'invisible' : ''}`}>{children}</span>
         {textoOcupado && (
-          <span className={`col-start-1 row-start-1 [overflow-wrap:anywhere] hyphens-auto ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
+          <span className={`col-start-1 row-start-1 max-w-full break-words ${ocupado ? '' : 'invisible'}`} aria-hidden={!ocupado || undefined}>
             {textoOcupado}
           </span>
         )}
