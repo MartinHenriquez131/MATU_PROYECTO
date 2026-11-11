@@ -1,6 +1,7 @@
 # MATU-61 · Pedido: carrito y qué hacer si falta un producto · Especificación de diseño
 
-**Versión 1.1 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.2 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.2** (después de la revisión visual del 11-11, con las decisiones del orquestador): «No hay reserva ni cobros después.» queda como única excepción de «reserva» (secciones 1, 14 y criterio 19); el teléfono abierto tiene un solo rótulo, el `h3` (7.8.1, criterio 27); la nota «El envío y el total los ves al confirmar…» va solo en `borrador` (7.9, criterio 24).
 **Cambios de la 1.1:** las decisiones de Jorge del 11-11 sobre el contrato. Se citan **JC1** a **JC7** (en su mensaje, C1 a C7) para no confundirlas con las condiciones C1 a C25 del analista, y **JC-IVA** la del IVA: en Chile todos los precios llevan el IVA incluido, y nunca se presenta como algo que se suma. Cierra los puntos O1 a O11 (sección 0), agrega «Cambiar el pedido» (9.12) y «Vaciar la dirección» (8.7), y abre O12.
 **Historia:** MATU-61, el pedido de la familia hasta el total confirmado (RF-21, ADR-027, capa 3). Carmen junta productos del catálogo o de su lista de insumos, dice cuántos quiere y qué hacer si falta cada uno, deja la dirección una vez y ve el total confirmado antes de pagar. **La historia termina en el resumen con el total confirmado.** El botón «Pagar» es de **MATU-62**: aquí se dice dónde va y cómo se ve, nada más.
 **Dónde se construye:** `web/`, en la app de la familia, React 19, TypeScript y Tailwind CSS v4, mobile first.
@@ -58,7 +59,7 @@ O1 a O11 quedaron **resueltos** el 11-11 con las decisiones de Jorge (JC1 a JC7)
 - Comprar solas: ni el aviso de Insumos, ni «Compré», ni la lista hacen un pedido (D10).
 - Presentar el IVA como algo que se suma o que aparece después (JC-IVA). Todos los precios lo llevan incluido: el total es «Total», y «IVA» solo aparece en «Precio de ejemplo · IVA incluido».
 - Mostrar un contador que corre hacia atrás. El plazo se dice como hora (`Este total vale hasta las 16:45.`), y el aviso llega una vez, a los 2 minutos (10.5).
-- Decir «stock», «reserva», «reservar», «monto real», «tope», «estimado», «aprox.», «carro» ni «carrito». En pantalla es «tu pedido».
+- Decir «stock», «reserva», «reservar», «monto real», «tope», «estimado», «aprox.», «carro» ni «carrito». En pantalla es «tu pedido». **La única excepción** es la frase de la boleta «No hay reserva ni cobros después.» (9.4, [A4]), que niega la reserva para que quien paga sepa que no la hay. Así la exceptúa también `lenguaje.md` 31 (decisión del orquestador del 11-11, v1.2).
 
 ---
 
@@ -525,7 +526,8 @@ El hallazgo U4 de la ronda 1: ajustar la cantidad de las toallitas costó. El pr
 #### 7.8.1 Cambiar el teléfono
 
 Se abre en el lugar, con el patrón de «Agregar otro insumo» (MATU-60 4.7): el botón «Cambiar teléfono» se oculta y aparece un `form noValidate` con:
-- `CampoTexto` «Teléfono de contacto» [A4], `type="tel"`, `autoComplete="tel"`, `inputMode="tel"`, con la ayuda **antes** del campo: «Para que quien entrega pueda avisarte. Si es el de otra persona, avísale.» [A4]. Vacío al abrir, para no mostrar el celular completo.
+- El campo, `type="tel"`, `autoComplete="tel"`, `inputMode="tel"`, con la ayuda **antes** del campo: «Para que quien entrega pueda avisarte. Si es el de otra persona, avísale.» [A4]. Vacío al abrir, para no mostrar el celular completo.
+- **Un solo rótulo (v1.2).** El `h3` «Teléfono de contacto» [A4] que ya está arriba es el rótulo del campo: el campo **no lleva una etiqueta visible propia**, y se nombra con `aria-labelledby` al `id` del `h3`, y con `aria-describedby` a la ayuda (y al error, si lo hay). Así no se lee dos veces «Teléfono de contacto», una bajo la otra (revisión visual del 11-11, P3-2). El orden de lectura queda: título, ayuda, campo y error.
 - `Boton variante="secundario"` «Guardar el teléfono» **[NUEVO]** (gerundio «Guardando…») y `Boton variante="texto"` «Cancelar» [M36].
 - Error de formato: «Escribe un celular de Chile, por ejemplo +56 9 5555 0137.» [L 8].
 - Al guardar: se cierra, se ve el número nuevo sin «(tu celular)», se anuncia «Guardamos el teléfono.» **[NUEVO]** y el foco vuelve a «Cambiar teléfono». `Esc` o «Cancelar» cierran sin guardar y devuelven el foco al botón.
@@ -537,7 +539,7 @@ Se abre en el lugar, con el patrón de «Agregar otro insumo» (MATU-60 4.7): el
 | Parte | Componente y tokens | Texto |
 |---|---|---|
 | Suma | `p text-xl`, la cifra en `cifras font-bold` | «Productos: `{precio}`» **[NUEVO]**. Es la suma de los subtotales de la pantalla. **No dice «total»**: el total lleva el envío y se confirma |
-| Nota | `p max-w-prose text-base text-tenue` | «El envío y el total los ves al confirmar que haya cada producto.» **[NUEVO]**, sin «con IVA» [JC-IVA]: los precios ya lo llevan. Sin renglón de envío en el carrito (JC5) |
+| Nota | `p max-w-prose text-base text-tenue`. **Solo con el pedido en `borrador`** (v1.2): con el total confirmado o vencido ya no es cierta, y no se muestra, ni a admin y cuidador ni al pagador ni al observador (revisión visual del 11-11, P3-3) | «El envío y el total los ves al confirmar que haya cada producto.» **[NUEVO]**, sin «con IVA» [JC-IVA]: los precios ya lo llevan. Sin renglón de envío en el carrito (JC5) |
 | Principal | `Boton` principal, sin ícono. Único `turquesa` macizo | «Ver el total» [A4] |
 | En curso | Gerundio, `aria-busy`, y debajo `p role="status" text-base`: «Estamos confirmando que haya cada producto…» [A4] | «Confirmando…» **[NUEVO]** |
 | Salida | `Boton variante="textoPeligro"`, `mt-4`, abre 10. Admin y cuidador (JC3) | «Cancelar pedido» [A4] |
@@ -547,7 +549,7 @@ Se abre en el lugar, con el patrón de «Agregar otro insumo» (MATU-60 4.7): el
 - una cantidad fuera de rango: el error de 7.5 y el foco al primer campo con error;
 - sin teléfono: el error de 7.8.1 bajo el campo abierto, con el foco en él.
 
-**Con el total ya confirmado** (abrió la pestaña «Pedido» después de confirmar): el contrato solo deja cambiar las líneas en `borrador`, así que admin y cuidador ven el carrito **sin controles**, como el pagador (7.2): la cantidad como texto, «Si falta: …» como frase, sin «Sacar del pedido» y sin «Cambiar dirección» ni «Cambiar teléfono». Bajo la bajada, `Nota tono="rocio"` sin `rol`: «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».» **[NUEVO]**. En el pie, en este orden:
+**Con el total ya confirmado** (abrió la pestaña «Pedido» después de confirmar): el contrato solo deja cambiar las líneas en `borrador`, así que admin y cuidador ven el carrito **sin controles**, como el pagador (7.2): la cantidad como texto, «Si falta: …» como frase, sin «Sacar del pedido» y sin «Cambiar dirección» ni «Cambiar teléfono». Bajo la bajada, `Nota tono="rocio"` sin `rol`: «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».» **[NUEVO]**. En el pie, «Productos: `{precio}`» sin la nota del envío y el total (ver la fila «Nota»), y después, en este orden:
 - «Ver el total», principal: lleva al resumen sin volver a confirmar mientras el total siga vigente;
 - «Cambiar el pedido», `Boton variante="secundario"`, con el mismo comportamiento y textos de 9.12;
 - «Cancelar pedido», `textoPeligro`.
@@ -1242,7 +1244,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 - Mostrar «Pagar» con el total vencido.
 - Ordenar los comercios o las líneas por precio.
 - Escribir colores, tamaños o sombras a mano. La máscara de la boleta es la única clase arbitraria nueva, y es geometría.
-- Usar «stock», «carro», «carrito», «reserva», «monto real», «estimado», «aprox.» o cualquier término de `lenguaje.md` 3.
+- Usar «stock», «carro», «carrito», «reserva», «monto real», «estimado», «aprox.» o cualquier término de `lenguaje.md` 3. **Excepción:** «No hay reserva ni cobros después.» de la boleta (9.4, [A4]), que la niega, como en la sección 1 y en `lenguaje.md` 31. El `grep` del criterio 19 la descuenta.
 
 ---
 
@@ -1352,12 +1354,13 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 16. A 320 px, a 360 px y con el texto al 200 % a 320 px, `document.documentElement.scrollWidth` es igual a `clientWidth` en las cinco rutas, el diálogo y el conflicto.
 17. Ningún texto de estas pantallas mide menos de 17 px de `font-size` calculado.
 18. Nada del pedido, la dirección ni el teléfono en `localStorage`, `sessionStorage` ni en la URL: las rutas son las de 2.1, sin parámetros ni fragmento.
-19. Ninguna palabra de la lista de 14 aparece en pantalla (un `grep` sobre los textos de la pantalla).
+19. Ninguna palabra de la lista de 14 aparece en pantalla (un `grep` sobre los textos de la pantalla), salvo «No hay reserva ni cobros después.» de la boleta.
 20. En el resumen, el título de la boleta dice «Tu pedido», nunca «Boleta».
 21. **«IVA» aparece solo en «Precio de ejemplo · IVA incluido»** (JC-IVA). La boleta dice «Total», la bajada dice «El total es `{total}`.» y el carrito dice «El envío y el total los ves al confirmar…». Ningún texto dice «con IVA», «más IVA» ni «+ IVA» (un `grep` sobre los textos de la pantalla).
 22. En el resumen vigente, «Cambiar el pedido» está **después de la lista de productos y antes de «Entrega»**, en `secundario`, con su frase antes. Al tocarlo se llega a `/insumos/pedido` con el − y el + de nuevo, las mismas líneas, las mismas reglas de «Si falta» y la nota «Ya puedes cambiar tu pedido…». No hay ningún diálogo de por medio.
 23. «Volver a confirmar» del aviso de los 2 minutos, con el total todavía vigente, deja la pantalla en el resumen con una hora nueva 15 minutos después, sin pasar por el carrito ni por el vacío. Cambiar la dirección desde el resumen hace lo mismo.
-24. Con el total confirmado, el carrito no tiene el −, el +, las opciones de «Si falta» ni «Sacar del pedido», y muestra «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».».
+24. Con el total confirmado, el carrito no tiene el −, el +, las opciones de «Si falta» ni «Sacar del pedido», y muestra «Ya confirmaste el total. Para cambiar algo, toca «Cambiar el pedido».». Sin la nota «El envío y el total los ves al confirmar…», que va solo en `borrador`, tampoco en la vista del pagador ni del observador.
+27. Con el teléfono abierto (7.8.1), «Teléfono de contacto» se lee una sola vez en pantalla: el `h3` nombra el campo.
 25. «Vaciar la dirección» está solo con una dirección guardada, en `textoPeligro` y separado de «Guardar la dirección» por el borde. Su diálogo usa el mismo verbo en el título y en el botón macizo `pronto`, y «Dejarla como está» devuelve el foco a «Vaciar la dirección».
 26. El carrito no muestra el envío ni un total antes de confirmar (JC5): el único monto del pie es «Productos: `{precio}`».
 
