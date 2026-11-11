@@ -1,13 +1,12 @@
 """Las declaraciones de la autorización de pedidos (MATU-61, D1 y P13 aprobada con C7).
 
-``declaracion_pedidos_<calidad>`` lleva su huella: la SHA-256 de la plantilla que la pantalla mostró, en UTF-8 y
-con ``{nombre_pila}`` sin reemplazar. POST …/consentimientos con ``finalidad: despacho`` exige
-``huella_declaracion`` y la compara con la de esta tabla: otra huella responde 422 ``declaracion_no_vigente``.
+``declaracion_pedidos_<calidad>`` lleva su huella: la SHA-256 del texto exacto que la pantalla mostró, en UTF-8.
+POST …/consentimientos con ``finalidad: despacho`` exige ``huella_declaracion`` y la compara con la de esta tabla:
+otra huella responde 422 ``declaracion_no_vigente``.
 
-**Textos provisionales del backend.** Siguen la redacción propuesta por el analista (revisión previa de MATU-61,
-sección 4) y la forma de las de consumo (política, sección 5). Los textos definitivos los publica el analista en la
-política 0.12 (D11): si cambian, cambia la huella, y esta tabla y la pantalla se actualizan en el mismo PR. Ningún
-texto lleva un término clínico (docs/lenguaje.md).
+Los textos son los de la política de privacidad, sección 5, «La autorización para los pedidos», aprobados por Jorge el
+11-11 (docs/legal/politica-privacidad.md del repositorio MATU). Se copian sin cambiar una palabra: cambiarlos es
+publicar una versión nueva de la política, y cambia la huella. La pantalla muestra el mismo texto.
 
 Regla pura, sin I/O.
 """
@@ -20,23 +19,23 @@ from app.modules.care_circle.domain.personas import CalidadOtorgante
 FORMA_HUELLA = re.compile(r"^[0-9a-f]{64}$")
 
 _CUERPO = (
-    "a guardar los pedidos de insumos para {nombre_pila}, con los productos, la dirección de entrega, el teléfono"
-    " de contacto y el pago, para preparar, entregar y responder por cada pedido, según la política de privacidad"
-    " vigente."
+    "a guardar los pedidos de sus insumos, con los productos, la dirección de entrega, el teléfono de contacto y lo"
+    " que se pagó, para preparar, entregar y responder por cada pedido, y a enviar al comercio que lo prepara solo"
+    " los productos y las cantidades, según la política de privacidad vigente."
 )
 
 DECLARACIONES_PEDIDOS: dict[CalidadOtorgante, str] = {
     CalidadOtorgante.TITULAR: (
-        "Declaro que {nombre_pila} me dijo hoy, en persona, que autoriza a MATU "
+        "Declaro que la persona que cuido me dijo hoy, en persona, que autoriza a MATU "
         + _CUERPO
         + " Yo solo registro su decisión."
     ),
     CalidadOtorgante.REPRESENTANTE_LEGAL: (
-        "Declaro que soy representante legal de {nombre_pila} y que la referencia que indico corresponde al"
+        "Declaro que soy representante legal de la persona que cuido y que la referencia que indico corresponde al"
         " documento que lo acredita. Como su representante, autorizo a MATU " + _CUERPO
     ),
     CalidadOtorgante.CUIDADOR_DE_HECHO: (
-        "Declaro que cuido a {nombre_pila} y que no soy su representante legal. Autorizo a MATU "
+        "Declaro que cuido a esta persona y que no soy su representante legal. Autorizo a MATU "
         + _CUERPO
         + " Leí el aviso sobre el límite de esta autorización."
     ),

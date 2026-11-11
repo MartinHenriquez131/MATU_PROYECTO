@@ -63,6 +63,8 @@ def test_la_respuesta_trae_solo_fecha_e_items_con_los_siete_campos(esquema: dict
         "unidades_sugeridas",
         "unidades_por_envase",
         "envases_sugeridos",
+        # MATU-61 (decisión 215)
+        "producto_id",
     }
     assert set(linea["properties"]) == set(linea["required"]) == campos
     assert lista["additionalProperties"] is False and linea["additionalProperties"] is False

@@ -115,8 +115,8 @@ class SolicitudAutorizacionEntrada(BaseModel):
         default=None,
         pattern=r"^[0-9a-f]{64}$",
         description=(
-            "MATU-61 (P13): SHA-256 de la plantilla de declaracion_pedidos_<calidad> que se mostró, con {nombre_pila}"
-            " sin reemplazar. Obligatoria con despacho y prohibida con las otras dos (422). Otra huella: 422"
+            "MATU-61 (P13): SHA-256 del texto exacto de declaracion_pedidos_<calidad> que se mostró (política,"
+            " sección 5). Obligatoria con despacho y prohibida con las otras dos (422). Otra huella: 422"
             " declaracion_no_vigente"
         ),
     )

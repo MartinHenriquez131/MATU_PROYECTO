@@ -15,6 +15,8 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from app.main import crear_app
+from app.modules.care_circle.api.router_autorizaciones import finalidades_activas
+from app.modules.care_circle.domain.retiro import finalidades_retirables
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_clave_jwt, obtener_reloj, usuario_actual
 from app.modules.iam.api.router import obtener_pepper_email
 from app.modules.iam.api.router_politica import obtener_politica_vigente
@@ -123,6 +125,9 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     app.dependency_overrides[obtener_reloj] = lambda: reloj_fijo
     # MATU-75: la política 0.11 publicada, con un correo sintético, sin depender del .env del equipo
     app.dependency_overrides[obtener_politica_vigente] = lambda: POLITICA_PRUEBAS
+    # MATU-61 (C2): las finalidades de las capas 1 y 2, sin depender de CAPA3_HABILITADA del .env del equipo. Las
+    # pruebas del pedido encienden despacho con finalidades_activas
+    app.dependency_overrides[finalidades_activas] = lambda: finalidades_retirables(False)
 
     @app.get("/prueba/yo")
     def yo(usuario: Annotated[UsuarioActual, Depends(usuario_actual)]) -> dict[str, str]:

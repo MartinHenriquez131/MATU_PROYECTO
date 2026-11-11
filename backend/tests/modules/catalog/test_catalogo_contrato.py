@@ -23,7 +23,7 @@ ESQUEMAS = {
     "ProductoCatalogo": {
         "id", "nombre", "presentacion", "unidad", "unidades_por_envase", "retracto_pierde_al_abrir", "comercios",
     },
-    "OfertaCatalogo": {"oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible"},
+    "OfertaCatalogo": {"oferta_id", "comercio_id", "nombre_fantasia", "precio", "disponible", "ficticio"},
 }
 # Lo que nunca viaja en el catálogo (condición 3 y N4 del diseñador)
 NUNCA = {"marca", "razon_social", "rut", "direccion", "telefono", "comuna", "stock"}

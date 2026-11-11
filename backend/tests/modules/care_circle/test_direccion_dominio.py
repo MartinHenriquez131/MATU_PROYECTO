@@ -29,6 +29,7 @@ from app.modules.care_circle.domain.direccion import (
 )
 from app.modules.care_circle.domain.personas import CalidadOtorgante, OtorgamientoInvalido, evidencia
 from app.modules.care_circle.domain.retiro import FINALIDADES_RETIRABLES, finalidad_de, finalidades_retirables
+
 TERMINOS_PROHIBIDOS = ("diagnóstico", "diagnostico", "conducta", "incidente", "deterioro", "incontinencia", "paciente")
 
 pytestmark = pytest.mark.rf("RF-21")
@@ -92,7 +93,7 @@ def test_declaracion_de_pedidos_con_su_huella(calidad: CalidadOtorgante) -> None
     texto = DECLARACIONES_PEDIDOS[calidad]
     huella = huella_declaracion_pedidos(calidad)
     assert FORMA_HUELLA.match(huella)
-    assert "{nombre_pila}" in texto and "según la política de privacidad vigente" in texto
+    assert "según la política de privacidad vigente" in texto and "solo los productos y las cantidades" in texto
     assert not any(t in texto.casefold() for t in TERMINOS_PROHIBIDOS)
     validar_huella_declaracion("despacho", calidad, huella)
     datos = evidencia(calidad, "0.11", "despacho", huella)

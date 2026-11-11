@@ -1754,8 +1754,8 @@ components:
         `despacho`, con las mismas calidades, aviso del cuidador de hecho, revisión de 12 meses y 409
         `autorizacion-vigente`. La evidencia lleva la declaración `declaracion_pedidos_<calidad>` con la
         versión de la política y su huella. `huella_declaracion` es **obligatoria con `despacho`** y
-        prohibida con las otras dos (422), como `huella_politica` (decisión 182): es la SHA-256 de la
-        plantilla de la declaración que la pantalla mostró, con `{nombre_pila}` sin reemplazar. Otra
+        prohibida con las otras dos (422), como `huella_politica` (decisión 182): es la SHA-256 del
+        texto exacto de la declaración que la pantalla mostró (política, sección 5, aprobado el 11-11). Otra
         huella responde 422 `declaracion_no_vigente` (P13, aprobada por Jorge con C7). **Con la capa 3
         apagada**, `despacho` no se otorga: 422 en `finalidad` (C2, decisión 217).
       properties:
