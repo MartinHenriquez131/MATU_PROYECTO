@@ -459,9 +459,24 @@ def test_el_contrato_declara_los_codigos_y_los_campos(esquema: dict[str, Any]) -
     assert "politica_aceptada" in esquema["components"]["schemas"]["CuentaVista"]["properties"]
 
 
-def test_la_0_12_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_12_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-61 (D11): la 0.12 agrega los pedidos; la 0.11 sigue publicada para quien ya la aceptó."""
     assert {"0.11", "0.12"} <= set(PUBLICADAS)
-    assert dotenv_values(BACKEND.parent / ".env.example")["POLITICA_VERSION"] == "0.12"
     texto = texto_publicado("0.12")
     assert "La autorización para los pedidos" in texto and texto != texto_publicado("0.11")
+
+
+@pytest.mark.rf("RF-25")
+def test_la_0_13_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-62 (D11): la 0.13 agrega el pago con Transbank; la 0.11 y la 0.12 siguen publicadas."""
+    assert {"0.11", "0.12", "0.13"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.13", "2026-11-11")
+    texto = texto_publicado("0.13")
+    assert texto != texto_publicado("0.12")
+    for parte in ("pagarlo en la página de Transbank", "MATU no ve el número de tu tarjeta", "sin cobros reales"):
+        assert parte in texto, parte
+    # Las declaraciones de la autorización de pedidos (MATU-61) siguen en el texto vigente
+    from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
+
+    assert all(declaracion in texto for declaracion in DECLARACIONES_PEDIDOS.values())
