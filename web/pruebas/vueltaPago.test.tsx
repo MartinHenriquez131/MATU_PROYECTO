@@ -283,6 +283,15 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
     expect(boleta.getByText('Pedido 4821').compareDocumentPosition(datos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('decisión 249: con `correo` en null, quien pagó lee el texto del piloto; si algún día se envía, a qué correo', async () => {
+    await comprobanteDe(comprobante({ correo: null }))
+    expect(screen.getByText('En el piloto, el comprobante no se envía por correo. Imprímelo o guárdalo en PDF si lo necesitas.')).toBeVisible()
+    cleanup()
+    olvidarTodoElPago()
+    await comprobanteDe(comprobante({ correo: { destino: 'carmen@example.com', enviado: true } }))
+    expect(screen.getByText(/Te enviamos este comprobante a/)).toHaveTextContent('Te enviamos este comprobante a carmen@example.com.')
+  })
+
   it('D-62-2 y criterio 9: quien no pagó lee «Lo pagó otra persona de tu grupo.», sin tarjeta, código ni correo', async () => {
     const { boleta } = await comprobanteDe(comprobanteAjeno(), retorno(), 'admin')
     expect(boleta.getByText('Lo pagó otra persona de tu grupo.')).toBeVisible()

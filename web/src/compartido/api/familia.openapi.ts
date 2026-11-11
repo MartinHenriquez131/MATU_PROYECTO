@@ -2952,6 +2952,7 @@ export interface components {
             precios_de_ejemplo: boolean;
             /** Pago De Prueba */
             pago_de_prueba: boolean;
+            /** @description Solo quien pagó y solo si se envió. En el piloto no se envía: null (decisión 249) */
             correo: components["schemas"]["CorreoComprobante"] | null;
         };
         /** CondicionesComprobante */
@@ -2990,7 +2991,7 @@ export interface components {
             destino: string;
             /**
              * Enviado
-             * @description false en el piloto: el comprobante no se envía por correo (D-62-3)
+             * @description Si se envió. Decisión 249: mientras no se envíe, Comprobante.correo va en null (D-62-3)
              */
             enviado: boolean;
         };

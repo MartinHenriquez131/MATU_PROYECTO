@@ -765,7 +765,8 @@ function vistaPago(p: Pedido, rol: Rol, u: UsuarioPedido) {
           devoluciones,
           precios_de_ejemplo: true,
           pago_de_prueba: true,
-          correo: tuyo ? { destino: `${u.id.slice(0, 8)}@example.com`, enviado: false } : null,
+          // Decisión 249: sin envío en el piloto, `correo` va en null.
+          correo: null,
         }
       : null,
   }

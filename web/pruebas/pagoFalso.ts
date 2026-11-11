@@ -39,7 +39,8 @@ export function comprobante(cambios: Partial<Comprobante> = {}): Comprobante {
     devoluciones: [],
     precios_de_ejemplo: true,
     pago_de_prueba: true,
-    correo: { destino: 'carmen@example.com', enviado: false },
+    // Decisión 249: en el piloto el comprobante no se envía y `correo` llega en null.
+    correo: null,
     ...cambios,
   }
 }

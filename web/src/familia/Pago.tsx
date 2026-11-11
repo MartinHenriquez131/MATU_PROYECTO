@@ -625,9 +625,10 @@ function PagasteTuPedido({ pago, yaRegistrado }: { pago: PagoVista & { comproban
         <DatosDelPedido c={c} className="@3xl/main:col-start-1 @3xl/main:row-start-1" />
         <Garantias c={c} className="@3xl/main:col-start-1 @3xl/main:row-start-2" />
         <div className="flex min-w-0 flex-col items-start gap-4 @3xl/main:col-start-1 @3xl/main:row-start-3">
-          {c.pagaste_tu && c.correo && (
+          {/* Decisión 249: `correo` llega en null mientras el comprobante no se envíe (el piloto). */}
+          {c.pagaste_tu && (
             <p className="max-w-prose text-base text-tenue">
-              {c.correo.enviado ? (
+              {c.correo?.enviado ? (
                 <>
                   {PAGO.correoEnviado} <span className="break-words">{c.correo.destino}</span>.
                 </>
