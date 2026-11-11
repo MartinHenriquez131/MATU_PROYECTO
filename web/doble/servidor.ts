@@ -8,7 +8,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { ESCENARIOS, PIN_DE_EJEMPLO } from './escenarios'
 import { atenderFamilia, esLento } from './familia'
-import { atenderCondiciones } from './pedido'
+import { atenderCondiciones, atenderWebpay } from './pedido'
 import { atenderPolitica } from './politica'
 
 const COOKIE = 'matu-relevo-doble'
@@ -264,6 +264,8 @@ const idDeCookie = (req: IncomingMessage) => /(?:^|;\s*)matu-relevo-doble=([^;]+
 
 async function atender(req: IncomingMessage, res: ServerResponse, siguiente: () => void) {
   const ruta = `${req.method} ${(req.url ?? '').split('?')[0]}`
+  // MATU-62: la página falsa de Webpay, fuera de /v1.
+  if (await atenderWebpay(req, res)) return
   if (!ruta.includes(' /v1/')) return siguiente()
   const cuerpo = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' ? await leerCuerpo(req) : null
   const id = idDeCookie(req)
@@ -276,7 +278,7 @@ async function atender(req: IncomingMessage, res: ServerResponse, siguiente: () 
   // MATU-75: la política de privacidad, pública, sin mirar cookies ni token.
   if (await atenderPolitica(req.method ?? 'GET', (req.url ?? '').split('?')[0], res)) return
   // MATU-61: las condiciones del pedido, públicas como la política.
-  if (atenderCondiciones(req.method ?? 'GET', (req.url ?? '').split('?')[0], res)) return
+  if (atenderCondiciones(req.method ?? 'GET', req.url ?? '', res)) return
   // La app de la familia (MATU-39): cuentas, entrada, grupos, personas y ficha.
   if (await atenderFamilia(req, res, cuerpo, { json, problema })) return
   problema(res, 404, '/errores/no-encontrado')
