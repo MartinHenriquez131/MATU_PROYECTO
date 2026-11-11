@@ -299,7 +299,7 @@ export function ListaDeInsumos() {
         return navegar('/insumos/pedido')
       }
       try {
-        const { yaEstaban } = await agregarAlPedido(personaId, quiere.agregar, productos)
+        const { yaEstaban } = await agregarAlPedido(personaId, quiere.agregar)
         fijar({ llegadaPedido: { personaId, tono: 'ok', parrafos: parrafosDeLista(quiere, yaEstaban), deLista } })
         navegar('/insumos/pedido')
       } catch (x) {

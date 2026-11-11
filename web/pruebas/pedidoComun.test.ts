@@ -11,7 +11,6 @@ import {
   hayCambios,
   lineasParaGuardar,
   primeraOferta,
-  productosDe,
   reglasConCambio,
   sufijoDelPedido,
   telefonoEnTexto,
@@ -29,10 +28,10 @@ const PANAL: ProductoCatalogo = {
   comercios: [oferta('o-panal-a', 'c-a', 12990, false), oferta('o-panal-b', 'c-b', 13490, true)],
 }
 const CREMA: ProductoCatalogo = { ...PANAL, id: 'p-crema', nombre: 'Crema 100 g', unidad: 'g', unidades_por_envase: 100, comercios: [oferta('o-crema-a', 'c-a', 6990, true)] }
-const CATALOGO = { precios_de_ejemplo: true, categorias: [{ id: 'k', nombre: 'Higiene', orden: 1, productos: [PANAL, CREMA] }] }
 
-const linea = (producto: ProductoCatalogo, comercio: string, cantidad: number): LineaPedido => ({
+const linea = (producto: ProductoCatalogo, comercio: string, cantidad: number, ofertaId = `o-${producto.id.slice(2)}-${comercio.slice(2)}`): LineaPedido => ({
   id: `l-${producto.id}`,
+  oferta_id: ofertaId,
   producto: { id: producto.id, nombre: producto.nombre, presentacion: producto.presentacion, unidad: producto.unidad, unidades_por_envase: producto.unidades_por_envase },
   cantidad,
   comercio: { id: comercio, nombre_fantasia: comercio, ficticio: true },
@@ -72,26 +71,32 @@ describe('O3: el comercio de una línea de la lista', () => {
   })
 })
 
-describe('Las líneas para PUT …/lineas', () => {
-  const productos = productosDe(CATALOGO)
+describe('Las líneas para PUT …/lineas (decisión 222)', () => {
   const lineas = [linea(PANAL, 'c-b', 2), linea(CREMA, 'c-a', 1)]
-  it('usa la oferta del catálogo de cada línea por producto y comercio, con la cantidad cambiada', () => {
-    expect(lineasParaGuardar(lineas, productos, { cantidades: { 'p-panal': 5 } })).toEqual([
+  it('reenvía el oferta_id de cada línea, con la cantidad cambiada', () => {
+    expect(lineasParaGuardar(lineas, { cantidades: { 'p-panal': 5 } })).toEqual([
       { oferta_id: 'o-panal-b', cantidad: 5 },
       { oferta_id: 'o-crema-a', cantidad: 1 },
     ])
   })
   it('sin la línea que se saca', () => {
-    expect(lineasParaGuardar(lineas, productos, { sacar: 'p-panal' })).toEqual([{ oferta_id: 'o-crema-a', cantidad: 1 }])
+    expect(lineasParaGuardar(lineas, { sacar: 'p-panal' })).toEqual([{ oferta_id: 'o-crema-a', cantidad: 1 }])
   })
   it('O4: un producto que ya estaba queda en una sola línea, en su comercio, con la cantidad nueva', () => {
-    expect(lineasParaGuardar(lineas, productos, { nuevas: [{ producto_id: 'p-panal', oferta_id: 'o-panal-a', cantidad: 4 }] })).toEqual([
+    expect(lineasParaGuardar(lineas, { nuevas: [{ producto_id: 'p-panal', oferta_id: 'o-panal-a', cantidad: 4 }] })).toEqual([
       { oferta_id: 'o-panal-b', cantidad: 4 },
       { oferta_id: 'o-crema-a', cantidad: 1 },
     ])
   })
-  it('null si una línea ya no tiene su oferta en el catálogo', () => {
-    expect(lineasParaGuardar([linea(PANAL, 'c-z', 1)], productos)).toBeNull()
+  it('una línea cuya oferta ya no está en el catálogo se reenvía con su propio oferta_id, sin buscarlo', () => {
+    // Antes se buscaba por producto y comercio en el catálogo, y sin la oferta no se podía guardar nada.
+    expect(lineasParaGuardar([linea(PANAL, 'c-z', 3, 'o-retirada'), linea(CREMA, 'c-a', 1)], { cantidades: { 'p-crema': 2 } })).toEqual([
+      { oferta_id: 'o-retirada', cantidad: 3 },
+      { oferta_id: 'o-crema-a', cantidad: 2 },
+    ])
+  })
+  it('usa el oferta_id de la línea aunque el catálogo tenga otra oferta en el mismo comercio', () => {
+    expect(lineasParaGuardar([linea(PANAL, 'c-b', 1, 'o-carrito')])).toEqual([{ oferta_id: 'o-carrito', cantidad: 1 }])
   })
   it('las reglas de todo el pedido, con la de un producto cambiada', () => {
     expect(reglasConCambio(lineas, 'p-crema', 'quitar')).toEqual([
@@ -130,9 +135,9 @@ describe('Textos que arma la pantalla', () => {
 describe('Decisión 221: la huella de `declaracion_pedidos_<calidad>`', () => {
   // Las del backend (app/modules/care_circle/domain/declaraciones.py), calculadas sobre su texto exacto.
   it.each([
-    ['titular', 'b5ec2914afc3e4f235e25c84f6ae78fbc17000b603e692463b33faf01914b6b9'],
-    ['representante_legal', 'e9fe02da33c8c95333d34aed3e062796bdc8d2380e73b797ea4e02c56e6c16cf'],
-    ['cuidador_de_hecho', '6d3ec2469b304e868a416b63c2c07e563147e312a6735ebb2f457d6d139f8988'],
+    ['titular', 'b5ec2914afc3e4f235e25c84f6ae78fbc17000b603e692463b33faf01914b6b9'], // pragma: allowlist secret
+    ['representante_legal', 'e9fe02da33c8c95333d34aed3e062796bdc8d2380e73b797ea4e02c56e6c16cf'], // pragma: allowlist secret
+    ['cuidador_de_hecho', '6d3ec2469b304e868a416b63c2c07e563147e312a6735ebb2f457d6d139f8988'], // pragma: allowlist secret
   ] as const)('%s: el texto que se muestra tiene la huella que el backend acepta', async (calidad, huella) => {
     expect(await huellaDe(DECLARACION_PEDIDOS[calidad])).toBe(huella)
   })

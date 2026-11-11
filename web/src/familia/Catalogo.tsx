@@ -25,7 +25,6 @@ import { puedeEditar, useFamilia } from './estado'
 import { enfocar } from './insumosComun'
 import { PestanasInsumos } from './Insumos'
 import { agregarAlPedido, PedidoNoEditable, permisoPedidoDe } from './pedidoAcciones'
-import { productosDe } from './pedidoComun'
 import { navegar } from './ruteo'
 import { PEDIDO } from './textosPedido'
 import { GENERAL } from './textos'
@@ -97,7 +96,7 @@ export function Catalogo() {
     setErrAgregar(null)
     const nueva = { producto_id: producto.id, oferta_id: oferta.oferta_id, cantidad: 1 }
     try {
-      const { pedido } = await agregarAlPedido(personaId, [nueva], productosDe(catalogo))
+      const { pedido } = await agregarAlPedido(personaId, [nueva])
       setEnPedido(enElPedido(pedido))
       anunciar(PEDIDO.agregamos(producto.nombre), 'status')
       enfocar(idVerPedido(producto.id), 60)

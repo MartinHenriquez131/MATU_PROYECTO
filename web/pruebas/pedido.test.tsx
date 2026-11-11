@@ -575,3 +575,19 @@ describe('Revisión visual de MATU-61: el foco al llegar al permiso (P2-2)', () 
     await waitFor(() => expect(h1).toHaveFocus())
   })
 })
+
+describe('Decisión 222: la línea se reenvía con su propio oferta_id', () => {
+  it('una línea cuya oferta ya no está en el catálogo se guarda igual, con su oferta_id, sin buscarla en el catálogo', async () => {
+    const RETIRADA = '3c9d4e20-0000-4000-8000-0000000000o9'
+    const lineas = (n: number) => [linea(PANAL, BODEGA, n, 13490, { oferta_id: RETIRADA }), linea(TOALLITAS, BODEGA, 1, 4290)]
+    const api = apiPedido({ 'PUT /lineas$': { status: 200, cuerpo: { ...borrador({ lineas: lineas(4) }), etag: 'p2' } } }, { pedido: borrador({ lineas: lineas(2) }) })
+    abrir()
+    await cargado()
+    const campo = screen.getByRole<HTMLInputElement>('textbox', { name: 'Cantidad Pañal adulto M x30' })
+    await userEvent.click(campo)
+    await userEvent.keyboard('4')
+    await waitFor(() => expect(api.escrituras()).toHaveLength(1), { timeout: 2000 })
+    expect(api.escrituras()[0].cuerpo).toEqual({ lineas: [{ oferta_id: RETIRADA, cantidad: 4 }, { oferta_id: OFERTAS.toallitasBodega, cantidad: 1 }] })
+    expect(within(lineaDe('Pañal adulto M x30')).queryByText('No pudimos guardar la cantidad. Revisa tu conexión y vuelve a intentarlo.')).toBeNull()
+  })
+})

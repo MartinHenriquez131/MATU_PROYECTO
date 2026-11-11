@@ -15,14 +15,6 @@ export function productosDe(catalogo: Catalogo | null): Map<string, ProductoCata
   return m
 }
 
-/**
- * La oferta del catálogo de un producto en un comercio. `LineaPedido` no trae el `oferta_id` que
- * `PUT …/lineas` pide (decisión 199), así que se busca por producto y comercio. `null` si ya no está.
- */
-export function ofertaDe(productos: Map<string, ProductoCatalogo>, productoId: string, comercioId: string): OfertaCatalogo | null {
-  return productos.get(productoId)?.comercios.find((o) => o.comercio_id === comercioId) ?? null
-}
-
 /** O3: el comercio de una línea que viene de la lista es la primera oferta con «Hay», en el orden del catálogo, nunca por precio. */
 export function primeraOferta(producto: ProductoCatalogo): OfertaCatalogo | null {
   return producto.comercios.find((o) => o.disponible) ?? producto.comercios[0] ?? null
@@ -62,15 +54,14 @@ export function sufijoDelPedido(n: number, producto: { unidad?: UnidadLinea; uni
 }
 
 /**
- * Las líneas para `PUT …/lineas`: las del pedido con su oferta del catálogo, con `cantidades`
+ * Las líneas para `PUT …/lineas`: las del pedido con su propio `oferta_id` (decisión 222: la oferta
+ * del carrito, que el backend acepta aunque haya dejado de estar publicada), con `cantidades`
  * cambiadas por producto, sin `sacar` y con `nuevas` al final (o reemplazando la de su producto).
- * `null` si alguna línea ya no tiene su oferta en el catálogo.
  */
 export function lineasParaGuardar(
   lineas: readonly LineaPedido[],
-  productos: Map<string, ProductoCatalogo>,
   { cantidades = {}, sacar = null, nuevas = [] }: { cantidades?: Record<string, number>; sacar?: string | null; nuevas?: (LineaSolicitud & { producto_id: string })[] } = {},
-): LineaSolicitud[] | null {
+): LineaSolicitud[] {
   const salida: LineaSolicitud[] = []
   const nuevasPorProducto = new Map(nuevas.map((n) => [n.producto_id, n]))
   for (const l of lineas) {
@@ -78,14 +69,11 @@ export function lineasParaGuardar(
     const nueva = nuevasPorProducto.get(l.producto.id)
     if (nueva) {
       // O4: un producto que ya estaba queda en una sola línea, en su comercio, con la cantidad nueva.
-      const propia = ofertaDe(productos, l.producto.id, l.comercio.id)
-      salida.push({ oferta_id: propia?.oferta_id ?? nueva.oferta_id, cantidad: nueva.cantidad })
+      salida.push({ oferta_id: l.oferta_id, cantidad: nueva.cantidad })
       nuevasPorProducto.delete(l.producto.id)
       continue
     }
-    const oferta = ofertaDe(productos, l.producto.id, l.comercio.id)
-    if (!oferta) return null
-    salida.push({ oferta_id: oferta.oferta_id, cantidad: cantidades[l.producto.id] ?? l.cantidad })
+    salida.push({ oferta_id: l.oferta_id, cantidad: cantidades[l.producto.id] ?? l.cantidad })
   }
   for (const n of nuevasPorProducto.values()) salida.push({ oferta_id: n.oferta_id, cantidad: n.cantidad })
   return salida

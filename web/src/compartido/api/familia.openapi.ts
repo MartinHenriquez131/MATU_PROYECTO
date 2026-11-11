@@ -2571,6 +2571,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Oferta Id
+             * Format: uuid
+             * @description La oferta del carrito de esta línea, la que se reenvía en PUT …/lineas para conservarla, también si dejó de estar publicada. Es un id opaco, nunca va a la URL del navegador
+             */
+            oferta_id: string;
             producto: components["schemas"]["ProductoPedido"];
             /**
              * Cantidad
@@ -6294,15 +6300,6 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": unknown;
-                };
-            };
             /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
             422: {
                 headers: {
@@ -6672,15 +6669,6 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
-            412: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": unknown;
-                };
-            };
             /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
             422: {
                 headers: {
@@ -6845,15 +6833,6 @@ export interface operations {
             };
             /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
             409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": unknown;
-                };
-            };
-            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
-            412: {
                 headers: {
                     [name: string]: unknown;
                 };

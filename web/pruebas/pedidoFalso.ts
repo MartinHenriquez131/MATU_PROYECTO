@@ -54,8 +54,13 @@ export const CATALOGO = {
 }
 
 type Producto = typeof PANAL
+/** Decisión 222: la oferta del carrito de una línea, la del catálogo si está, o una sintética. */
+const ofertaDeLinea = (p: Producto, comercio: typeof ALMACEN) =>
+  CATALOGO.categorias.flatMap((c) => c.productos).find((x) => x.id === p.id)?.comercios.find((o) => o.comercio_id === comercio.id)?.oferta_id ?? `oferta-${p.id}-${comercio.id}`
+
 export const linea = (p: Producto, comercio: typeof ALMACEN, cantidad: number, precio: number, extra: Partial<PedidoVista['lineas'][number]> = {}): PedidoVista['lineas'][number] => ({
   id: `linea-${p.id}`,
+  oferta_id: ofertaDeLinea(p, comercio),
   producto: { id: p.id, nombre: p.nombre, presentacion: p.presentacion, unidad: p.unidad, unidades_por_envase: p.unidades_por_envase },
   cantidad,
   comercio,

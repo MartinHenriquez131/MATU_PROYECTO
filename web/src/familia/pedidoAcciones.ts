@@ -2,7 +2,6 @@
 // `type` (sección 11, nunca por `title` ni `detail`). Sin interfaz optimista: el carrito cambia con
 // la respuesta de la API. Un solo pedido sin pagar por persona (C4): si no hay, se crea el borrador;
 // si lo hay, se reemplazan sus líneas con `If-Match`.
-import type { ProductoCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   crearPedido,
@@ -38,13 +37,6 @@ export class PedidoNoEditable extends Error {
   }
 }
 
-/** Una línea de `LineaListaInsumos` ya no tiene su oferta en el catálogo. */
-export class OfertaFuera extends Error {
-  constructor() {
-    super('oferta fuera del catálogo')
-  }
-}
-
 export interface Nueva {
   producto_id: string
   oferta_id: string
@@ -56,7 +48,7 @@ export interface Nueva {
  * crearlo o cambiarlo), y reintenta una vez si se cruzó con otra (409 `pedido-abierto` o 412).
  * Devuelve el pedido y los productos que ya estaban (O4: quedan con la cantidad nueva).
  */
-export async function agregarAlPedido(personaId: string, nuevas: Nueva[], productos: Map<string, ProductoCatalogo>): Promise<{ pedido: PedidoVista; yaEstaban: string[] }> {
+export async function agregarAlPedido(personaId: string, nuevas: Nueva[]): Promise<{ pedido: PedidoVista; yaEstaban: string[] }> {
   for (let intento = 0; ; intento++) {
     const actual = await leerPedidoEnCurso(personaId)
     if (!actual) {
@@ -69,8 +61,7 @@ export async function agregarAlPedido(personaId: string, nuevas: Nueva[], produc
     }
     if (!esVistaCompleta(actual) || actual.estado !== 'borrador') throw new PedidoNoEditable()
     const yaEstaban = nuevas.filter((n) => actual.lineas.some((l) => l.producto.id === n.producto_id)).map((n) => n.producto_id)
-    const lineas = lineasParaGuardar(actual.lineas, productos, { nuevas })
-    if (!lineas) throw new OfertaFuera()
+    const lineas = lineasParaGuardar(actual.lineas, { nuevas })
     try {
       return { pedido: await reemplazarLineas(actual.id, lineas, actual.etag), yaEstaban }
     } catch (x) {

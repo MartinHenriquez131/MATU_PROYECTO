@@ -10,7 +10,7 @@
 // - La pantalla no calcula el total, el envío ni el vencimiento: la única cuenta es «Productos».
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CloudOff, Hourglass, Lock, PackageX, SearchX, ShoppingBasket, Store } from 'lucide-react'
-import { verCatalogo, type Catalogo } from '../compartido/api/catalogo'
+import { verCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
 import { leerAutorizaciones, leerCuenta, nombrePilaDe, type Cuenta, type PersonaListada, type Rol } from '../compartido/api/familia'
 import {
@@ -36,7 +36,7 @@ import { puedeEditar, useFamilia, type IntencionPedido } from './estado'
 import { enfocar, entero, esTipo, Stepper } from './insumosComun'
 import { Permiso, PestanasInsumos } from './Insumos'
 import { agregarAlPedido, cambioAjeno, parrafosDeLista, permisoPedidoDe } from './pedidoAcciones'
-import { direccionEnTexto, enRango, lineasParaGuardar, productosDe, reglasConCambio, sufijoDelPedido } from './pedidoComun'
+import { direccionEnTexto, enRango, lineasParaGuardar, reglasConCambio, sufijoDelPedido } from './pedidoComun'
 import { AvisoPiloto, DialogoCancelar, horaDeVencimiento, Retracto, siFaltaTexto, TelefonoContacto, UnaColumna } from './PiezasPedido'
 import { Resumen } from './Resumen'
 import { navegar, useRuta } from './ruteo'
@@ -78,7 +78,6 @@ export function PantallaPedido() {
   const [cargado, setCargado] = useState(false)
   const [aut, setAut] = useState<Aut>('sin-autorizacion')
   const [pedido, setPedidoEstado] = useState<Pedido | null>(null)
-  const [catalogo, setCatalogo] = useState<Catalogo | null>(null)
   const [cuenta, setCuenta] = useState<Cuenta | null>(null)
   /** 7.8.1: el teléfono escrito antes de confirmar, solo en memoria. Es del pedido, no de la persona. */
   const [telefono, setTelefono] = useState<string | null>(null)
@@ -137,7 +136,6 @@ export function PantallaPedido() {
       const despacho = auts.status === 'fulfilled' ? auts.value.find((a) => a.finalidad === 'despacho') : undefined
       setAut(despacho?.estado === 'vigente' ? 'vigente' : despacho?.estado === 'revision_vencida' ? 'revision-vencida' : 'sin-autorizacion')
       setPedido(enCurso.status === 'fulfilled' ? enCurso.value : null)
-      setCatalogo(cat.value)
       if (cu.status === 'fulfilled') setCuenta(cu.value)
       setCargado(true)
       setCarga('listo')
@@ -215,7 +213,7 @@ export function PantallaPedido() {
     if (quiere) {
       if (quiere.agregar.length) {
         try {
-          const { pedido: p, yaEstaban } = await agregarAlPedido(personaId, quiere.agregar, productosDe(catalogo))
+          const { pedido: p, yaEstaban } = await agregarAlPedido(personaId, quiere.agregar)
           setPedido(p)
           nueva = {
             tono: 'ok',
@@ -473,7 +471,6 @@ export function PantallaPedido() {
         editor={editor}
         rol={rol}
         pila={pila}
-        catalogo={catalogo}
         direccion={rol === 'observador' ? undefined : direccionDe(persona)}
         cuenta={cuenta}
         telefono={telefono}
@@ -554,7 +551,6 @@ interface PropsCarrito {
   editor: boolean
   rol: Rol
   pila: string
-  catalogo: Catalogo | null
   /** `undefined` para el observador: su vista no trae la entrega. */
   direccion: DireccionVista | null | undefined
   cuenta: Cuenta | null
@@ -576,10 +572,9 @@ type ErrCant = 'rango' | 'guardar'
 type FallaTotal = 'red' | 'nada' | 'direccion' | null
 
 function Carrito(props: PropsCarrito) {
-  const { pedido, editor, rol, pila, catalogo, direccion, cuenta, telefono, onTelefono, deLista, nota, pedidoRef, onPedido, manejar } = props
+  const { pedido, editor, rol, pila, direccion, cuenta, telefono, onTelefono, deLista, nota, pedidoRef, onPedido, manejar } = props
   const borrador = pedido.estado === 'borrador'
   const editable = editor && borrador
-  const productos = productosDe(catalogo)
   const vencido = pedido.estado === 'vencido'
 
   const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(pedido.lineas.map((l) => [l.producto.id, String(l.cantidad)])))
@@ -646,8 +641,7 @@ function Carrito(props: PropsCarrito) {
         setValores((v) => ({ ...v, ...Object.fromEntries(ids.map((id) => [id, String(p.lineas.find((l) => l.producto.id === id)!.cantidad)])) }))
         setErrCant((e) => ({ ...e, ...Object.fromEntries(ids.map((id) => [id, 'guardar' as const])) }))
       }
-      const lineas = lineasParaGuardar(p.lineas, productos, { cantidades: cambios })
-      if (!lineas) return volverAtras()
+      const lineas = lineasParaGuardar(p.lineas, { cantidades: cambios })
       try {
         onPedido(await reemplazarLineas(p.id, lineas, p.etag))
         setErrCant((e) => Object.fromEntries(Object.entries(e).filter(([id, t]) => !(t === 'guardar' && ids.includes(id)))))
@@ -707,9 +701,8 @@ function Carrito(props: PropsCarrito) {
         const n = entero(valoresRef.current[x.producto.id] ?? '')
         if (enRango(n)) cambios[x.producto.id] = n
       }
-      const lineas = lineasParaGuardar(p.lineas, productos, { sacar: pid, cantidades: cambios })
+      const lineas = lineasParaGuardar(p.lineas, { sacar: pid, cantidades: cambios })
       try {
-        if (!lineas) throw new Error('oferta')
         const nuevo = await reemplazarLineas(p.id, lineas, p.etag)
         onPedido(nuevo)
         anunciar(PEDIDO.sacamos(l.producto.nombre), 'status')

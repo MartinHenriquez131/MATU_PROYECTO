@@ -151,6 +151,8 @@ function vistaLinea(l: Linea, confirmada: boolean) {
       : null
   return {
     id: l.id,
+    // Decisión 222: la oferta del carrito, que la pantalla reenvía en PUT …/lineas.
+    oferta_id: l.oferta_id,
     producto: { id: producto.id, nombre: producto.nombre, presentacion: producto.presentacion, unidad: producto.unidad, unidades_por_envase: producto.unidades_por_envase },
     cantidad: l.cantidad,
     comercio: comercioDe(comercioId),
