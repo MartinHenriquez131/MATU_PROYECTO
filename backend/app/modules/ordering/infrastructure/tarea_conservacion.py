@@ -5,8 +5,9 @@ La corre el programador de tareas (MATU-74), desde backend/ y con SCHEDULER_DATA
     python -m app.tareas conservacion_pedidos
 
 Fija app.rol = 'operacion' y llama a pedido_conservar (migración 0023, solo la ejecuta matu_scheduler). La función,
-SECURITY DEFINER y acotada, borra y devuelve dos contadores. El log lleva solo esos contadores. Es capa 3: app.tareas
-la importa solo con CAPA3_HABILITADA.
+SECURITY DEFINER y acotada, borra y devuelve dos contadores. El log lleva solo esos contadores. Corre siempre, también
+con CAPA3_HABILITADA apagada (decisión 220, política 0.12 §10): lo no pagado se borra a los 30 días aunque los pedidos
+no estén disponibles. app.tareas la importa al correr, no al cargarse.
 """
 
 import logging
