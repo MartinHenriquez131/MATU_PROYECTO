@@ -1,6 +1,11 @@
 # MATU-84 · «Me quedan» y el alta del insumo, también en envases · Especificación de diseño
 
-**Versión 1.1 · 10/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.2 · 11/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.2** (revisión visual del 11-11, sin textos nuevos ni tokens nuevos):
+- Sección 3: con el envase conocido, un número menor que un envase deja «Envases enteros» en **0**, no vacío. Resuelve la duda entre la sección 3 y el ejemplo de 4.2, que es solo para el envase desconocido.
+- Secciones 4.1, 4.2 y 6: el resultado no se muestra mientras haya envases enteros y falte el envase o no sea válido. Antes decía «En total, no queda nada.» con «1 envases» a la vista.
+- Sección 6: los dos enlaces llevan `text-left`. Con el texto al 200 %, «Contar sueltos» ocupa dos renglones y se centraba.
 
 **Cambios de la 1.1:** Jorge aprobó la especificación completa el 10-11: las decisiones D1 a D6 y los textos nuevos, tal como se propusieron. Los textos están en `docs/lenguaje.md` del repositorio MATU, sección 30, y se marcan **[L 30]**.
 
@@ -69,7 +74,7 @@ El mismo campo tiene dos modos. Los dos existen en el panel «Me quedan» y en e
 
 **Cambiar de modo nunca pierde lo escrito:**
 
-- **De sueltos a envases:** si había un número y el envase ya se conoce, se reparte: envases = número dividido por `{u}`, entero hacia abajo, y sueltos = lo que sobra. 65 con envases de 20 son 3 envases y 5 sueltos. Si el envase todavía no se conoce, el número pasa entero a sueltos y «Envases enteros» queda vacío.
+- **De sueltos a envases:** si había un número y el envase ya se conoce, se reparte: envases = número dividido por `{u}`, entero hacia abajo, y sueltos = lo que sobra. 65 con envases de 20 son 3 envases y 5 sueltos. Si el número es menor que un envase, «Envases enteros» queda en **0**, no vacío: 5 con envases de 20 son 0 envases y 5 sueltos, y 0 son 0 y 0. Es el resultado de la cuenta que la persona ya hizo, no un número precargado, así que no choca con «los dos campos abren vacíos» (4.1). Si el envase todavía no se conoce, el número pasa entero a sueltos y «Envases enteros» queda vacío.
 - **De envases a sueltos:** el campo único recibe el total. Si los dos estaban vacíos, queda vacío.
 - **El modo se cambia solo con los enlaces.** Escribir el envase al final del formulario no cambia el modo del bloque de arriba, porque mover un campo que no se está tocando desorienta.
 - El modo no se recuerda: cada vez que se abre el panel o el formulario, se elige con la tabla de arriba.
@@ -112,7 +117,7 @@ Mismo lugar, misma forma y mismas reglas que MATU-51 3.5 y 3.6: dentro del `li`,
 - **Los dos campos abren vacíos,** como «Me quedan» hoy (MATU-51 3.5): un número precargado invita a confirmar sin contar.
 - **Un campo vacío vale 0 si el otro tiene número.** «2 envases» y sueltos vacío son 40. Solo es error si los dos están vacíos.
 - **«−» con el campo vacío deja 0,** como el `Stepper` con `min={0}`. Así «no queda nada» son dos toques: «−» en los dos, o uno, si el otro sigue vacío.
-- **El resultado** aparece apenas uno de los dos tiene número, y cambia con cada toque. Los textos están en la sección 7.
+- **El resultado** aparece apenas uno de los dos tiene número, y cambia con cada toque. Los textos están en la sección 7. **Excepción (1.2):** si «Envases enteros» es mayor que 0 y el envase falta o no es válido (4.2), el resultado no se muestra, porque la cuenta no se puede hacer. Nunca dice «no queda nada» con envases contados a la vista.
 - **«Contar sueltos» va bajo «Volver»,** no a su lado, para que no compita con las dos acciones del panel y no se toque por error con el pulgar.
 
 ### 4.2 Sin envase, a 360 px
@@ -159,7 +164,7 @@ Al tocar «Contar en envases»:
 ```
 
 - **El foco va al campo del envase,** porque hay que escribirlo una vez. Es el único dato que se escribe: los envases y los sueltos se cuentan con «+» y «−».
-- Mientras el envase está vacío o fuera de rango, el sufijo de «Envases enteros» dice solo «envases» y el resultado cuenta solo los sueltos. No se marca error hasta confirmar.
+- Mientras el envase está vacío o fuera de rango, el sufijo de «Envases enteros» dice solo «envases» y el resultado cuenta solo los sueltos, **siempre que «Envases enteros» esté vacío o en 0**. Si tiene un número mayor que 0, el resultado no se muestra hasta que el envase sea válido (4.1, excepción). No se marca error hasta confirmar.
 - **«Contar sueltos» en este caso descarta el envase escrito,** que todavía no se guardó, y vuelve al campo único con el total. Con envase ya guardado (4.1), «Contar sueltos» solo cambia la vista: el envase sigue guardado.
 
 ### 4.3 Pantalla ancha (1280 y 1920 px)
@@ -280,7 +285,7 @@ El formulario vive en la columna derecha (`2fr`) o en su marco `bg-hoja` (MATU-3
 | Sueltos | `Stepper`, `min={0}`, `max={100.000}`, sufijo `INSUMOS.sufijoStock(unidad)` |
 | Campo del envase | `CampoEnvase` de MATU-60 9.2, sin cambios de forma: `cifras min-h-12 w-32 rounded-xl bg-hoja px-4 text-xl ring-2 ring-inset ring-borde`, `inputMode="numeric"`, `maxLength={5}`. Solo cambia la ayuda en modo envases (sección 7) |
 | Resultado | `p` `text-base font-bold`, con la cifra en `cifras`. Sin color de estado: es una cuenta, no un éxito ni un error. Su `id` va en el `aria-describedby` del botón de confirmar |
-| «Contar en envases» y «Contar sueltos» | `button type="button"` con el aspecto del «Cancelar» del formulario: `inline-flex min-h-12 items-center self-start px-2 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa`. Sin ícono |
+| «Contar en envases» y «Contar sueltos» | `button type="button"` con el aspecto del «Cancelar» del formulario: `inline-flex min-h-12 items-center self-start px-2 text-left font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa`. Sin ícono |
 | Error de un campo | El del `Stepper` o de `CampoEnvase`: anillo `ring-pronto`, `aria-invalid` y `MensajeError` debajo |
 | Confirmar y Volver | Los de MATU-51 3.3, sin cambios |
 
@@ -404,6 +409,7 @@ El formulario vive en la columna derecha (`2fr`) o en su marco `bg-hoja` (MATU-3
 11. A 320 px con texto al 200 %, sin desplazamiento horizontal, con «envases de 10.000 unidades» y un nombre de 60 caracteres sin espacios.
 12. Todo lo que se toca mide al menos 48 × 48 px y el foco se ve en claro y en oscuro.
 13. Ningún texto dice «stock», «inventario» ni «exacto», ni ofrece comprar.
+14. (1.2) Con envases enteros mayor que 0 y el envase vacío o fuera de rango, no se ve el resultado. Con envase guardado de 20, «Contar sueltos» con 5 y de nuevo «Contar en envases» deja «Envases enteros» en 0 y los sueltos en 5.
 
 ---
 
