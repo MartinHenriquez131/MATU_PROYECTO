@@ -1,6 +1,8 @@
 # MATU-84 · «Me quedan» y el alta del insumo, también en envases · Especificación de diseño
 
-**Versión 1.2 · 11/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.3 · 11/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.3** (segunda vuelta de la revisión visual, 11-11): la vista previa del formulario sigue la misma regla que el resultado (5.1). Con «Envases enteros» en 1 y sin envase válido decía «Así, se acaba hoy.».
 
 **Cambios de la 1.2** (revisión visual del 11-11, sin textos nuevos ni tokens nuevos):
 - Sección 3: con el envase conocido, un número menor que un envase deja «Envases enteros» en **0**, no vacío. Resuelve la duda entre la sección 3 y el ejemplo de 4.2, que es solo para el envase desconocido.
@@ -253,7 +255,7 @@ El orden del formulario no cambia (MATU-60 9.1): nombre, cómo se cuenta, uso, *
 
 - **El campo del envase es uno solo,** con un solo valor. En modo envases se dibuja dentro del bloque de lo que queda, y en modo sueltos al final. Nunca aparece dos veces.
 - **Al volver a «Contar sueltos»** el envase escrito se queda, y el campo vuelve al final con su valor. En el formulario no se descarta, porque sigue siendo un dato del insumo que sirve a la lista.
-- **La vista previa** («Así, alcanza para…») usa el total, nunca solo uno de los dos campos.
+- **La vista previa** («Así, alcanza para…») usa el total, nunca solo uno de los dos campos. **(1.3)** Usa el mismo total que el resultado: si el resultado no se muestra (envases enteros mayor que 0 sin envase válido, 4.1), la vista previa tampoco, igual que cuando lo que queda está vacío. Nunca dice «Así, se acaba hoy.» con envases contados a la vista.
 
 ### 5.2 Edición, a 360 px
 
@@ -403,7 +405,7 @@ El formulario vive en la columna derecha (`2fr`) o en su marco `bg-hoja` (MATU-3
 5. «Contar sueltos» lleva el total al campo único sin perderlo, y «Contar en envases» con 65 y envase de 20 deja 3 y 5.
 6. En el alta, el formulario se ve como hoy hasta tocar «Contar en envases». Después, el campo del envase está en el bloque de lo que queda y no al final. Nunca aparece dos veces.
 7. En la edición de un insumo con envase guardado, el bloque abre en modo envases con el envase a la vista y los dos campos vacíos. Guardar con los dos vacíos no cambia lo que queda.
-8. La vista previa del formulario («Así, alcanza para…») usa el total.
+8. La vista previa del formulario («Así, alcanza para…») usa el total, y no se ve mientras el resultado no se ve (1.3).
 9. En un insumo en ml o en g no existe «Contar en envases».
 10. «Anotar lo que queda» o «Guardar» es el único `turquesa` macizo. Los dos enlaces son texto subrayado.
 11. A 320 px con texto al 200 %, sin desplazamiento horizontal, con «envases de 10.000 unidades» y un nombre de 60 caracteres sin espacios.
