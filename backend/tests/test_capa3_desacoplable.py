@@ -301,6 +301,16 @@ def test_routers_capa_3_solo_trae_la_capa_3() -> None:
     assert ajenos == []
 
 
+def test_routers_pago_siempre_solo_trae_la_vuelta_del_pago() -> None:
+    # MATU-62 (D-62-17): lo que se monta con la capa 3 apagada es solo la vuelta de Webpay, de payments
+    from app.main import ROUTERS_PAGO_SIEMPRE
+
+    assert [r for r, _ in ROUTERS_PAGO_SIEMPRE] == [
+        "app.modules.payments.api.router_retorno:router",
+        "app.modules.payments.api.router_retorno:router_formulario",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 5 · Lo que app.main carga no llega a la capa 3
 # ---------------------------------------------------------------------------
