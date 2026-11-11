@@ -98,7 +98,9 @@ function Rutas() {
   // catálogo y la fijan ellos: ahí no se pregunta dos veces.
   const { fase, capa3, conocerCapa3 } = s
   useEffect(() => {
-    const propia = ruta === '/insumos/catalogo' || ruta.startsWith('/insumos/pedido')
+    // Revisión P2-3: la dirección no pide el catálogo, así que al entrar directo a ella (desde Grupo
+    // familiar o al recargar) se pregunta aquí, y «Pedido» aparece activa.
+    const propia = ruta === '/insumos/catalogo' || (ruta.startsWith('/insumos/pedido') && ruta !== '/insumos/pedido/direccion')
     if (fase === 'dentro' && capa3 === null && ruta.startsWith('/insumos') && !propia) conocerCapa3()
   }, [fase, capa3, conocerCapa3, ruta])
   useEffect(() => {

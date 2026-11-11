@@ -70,6 +70,7 @@ export function TelefonoContacto({
   error: errorFuera,
   onGuardar,
   conPrefijo = false,
+  nombradoPor,
 }: {
   /** Lo que se muestra: el celular enmascarado de la cuenta o el número escrito. `null` si no hay. */
   mostrado: string | null
@@ -81,6 +82,8 @@ export function TelefonoContacto({
   onGuardar: (telefono: string) => Promise<string | null>
   /** 9.7: «Teléfono de contacto: {telefono}» en una línea, sin título aparte. */
   conPrefijo?: boolean
+  /** Revisión P3-2: el id del título que ya dice «Teléfono de contacto». El campo se nombra con él. */
+  nombradoPor?: string
 }) {
   const [abierto, setAbierto] = useState(abiertoAlInicio)
   const [valor, setValor] = useState('')
@@ -164,6 +167,7 @@ export function TelefonoContacto({
           <CampoConAyuda
             id="telefono-contacto"
             etiqueta={PEDIDO.telefono}
+            aria-labelledby={nombradoPor}
             ayuda={PEDIDO.telefonoAyuda}
             type="tel"
             autoComplete="tel"

@@ -68,16 +68,27 @@ export function CampoConAyuda({
   ayuda,
   error,
   className = '',
+  anchoCampo = 'w-full',
   ...resto
-}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: ReactNode; error?: string | null }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  etiqueta: string
+  ayuda?: ReactNode
+  error?: string | null
+  /** El ancho del `input` solo: la etiqueta y el error toman el de la columna (revisión P3-1). */
+  anchoCampo?: string
+}) {
   const generado = useId()
   const id = idPropio ?? generado
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
+  // Revisión P3-2: nombrado por un título que ya se ve (`aria-labelledby`), sin repetir la etiqueta.
+  const nombradoAfuera = !!resto['aria-labelledby']
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
-      <label htmlFor={id} className="font-bold">
-        {etiqueta}
-      </label>
+      {!nombradoAfuera && (
+        <label htmlFor={id} className="font-bold">
+          {etiqueta}
+        </label>
+      )}
       {ayuda && (
         <span id={`${id}-a`} className="text-base text-tenue">
           {ayuda}
@@ -87,7 +98,7 @@ export function CampoConAyuda({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describe}
-        className={`min-h-12 w-full min-w-0 rounded-xl bg-hoja px-4 angosto:px-2 py-2.5 ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
+        className={`min-h-12 ${anchoCampo} min-w-0 rounded-xl bg-hoja px-4 angosto:px-2 py-2.5 ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
         {...resto}
       />
       {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
@@ -249,7 +260,7 @@ export function Direccion({
               autoComplete="off"
               inputMode="text"
               maxLength={LARGOS.numero}
-              className="w-40 max-w-full @xl/main:w-auto"
+              anchoCampo="w-40 max-w-full @xl/main:w-full"
               error={errores.numero}
             />
           </div>
@@ -260,7 +271,7 @@ export function Direccion({
               onChange={(e) => cambiar('depto', e.target.value)}
               autoComplete="address-line2"
               maxLength={LARGOS.depto}
-              className="w-40 max-w-full @xl/main:w-auto"
+              anchoCampo="w-40 max-w-full @xl/main:w-full"
               error={errores.depto}
             />
             <CampoConAyuda etiqueta={PEDIDO.comuna} value={valores.comuna} onChange={(e) => cambiar('comuna', e.target.value)} autoComplete="address-level2" maxLength={LARGOS.comuna} error={errores.comuna} />

@@ -535,3 +535,43 @@ describe('Al llegar desde la lista (6.4)', () => {
     expect(within(lineaDe('Toallitas húmedas x80')).queryByText(/En tu lista/)).toBeNull()
   })
 })
+
+describe('Revisión visual de MATU-61 en el carrito', () => {
+  it('P3-2: el campo del teléfono se nombra con su título, sin una etiqueta visible que lo repita', async () => {
+    apiPedido({})
+    abrir()
+    await cargado()
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar teléfono' }))
+    const tel = screen.getByRole('textbox', { name: 'Teléfono de contacto' })
+    const titulo = screen.getByRole('heading', { level: 3, name: 'Teléfono de contacto' })
+    expect(tel).toHaveAttribute('aria-labelledby', titulo.id)
+    expect(tel).toHaveAccessibleDescription('Para que quien entrega pueda avisarte. Si es el de otra persona, avísale.')
+    // «Teléfono de contacto» se lee una sola vez: el título, sin `<label>` aparte.
+    expect(screen.getAllByText('Teléfono de contacto')).toEqual([titulo])
+    expect((tel as HTMLInputElement).labels).toHaveLength(0)
+  })
+
+  it.each<[string, () => ReturnType<typeof confirmado>]>([
+    ['confirmado', () => confirmado()],
+    ['vencido', () => confirmado({ estado: 'vencido' })],
+  ])('P3-3: con el total %s no se ve «El envío y el total los ves al confirmar…»', async (_, pedido) => {
+    apiPedido({}, { pedido: pedido() })
+    abrir()
+    await cargado()
+    expect(screen.getByText('Productos:')).toBeVisible()
+    expect(screen.queryByText('El envío y el total los ves al confirmar que haya cada producto.')).toBeNull()
+  })
+})
+
+describe('Revisión visual de MATU-61: el foco al llegar al permiso (P2-2)', () => {
+  it.each<'catalogo' | 'lista'>(['catalogo', 'lista'])('desde %s, el h1 «Antes de pedir, un permiso» recibe el foco que tenía el de «Cargando»', async (desde) => {
+    apiPedido({ 'GET /consentimientos$': { status: 200, cuerpo: { autorizaciones: [{ finalidad: 'despacho', estado: 'sin_autorizar', id: null, otorgado_en: null, revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }] } } }, { pedido: null })
+    abrir('admin', {
+      intencionPedido: { personaId: PERSONA_ID, desde, agregar: [{ producto_id: PANAL.id, oferta_id: OFERTAS.panalAlmacen, cantidad: 1, nombre: PANAL.nombre, deLista: desde === 'lista' ? '2 paquetes' : null }], fuera: [] },
+    } as never)
+    // La regla de las rutas pone el foco en el h1 que está a la vista: el de «Cargando».
+    screen.getByRole('heading', { level: 1, name: 'Tu pedido' }).focus()
+    const h1 = await screen.findByRole('heading', { level: 1, name: 'Antes de pedir, un permiso' })
+    await waitFor(() => expect(h1).toHaveFocus())
+  })
+})

@@ -183,3 +183,18 @@ describe('Vaciar la dirección (8.7, JC6)', () => {
     expect(fijar).toHaveBeenCalledWith({ aviso: { titulo: 'Vaciamos la dirección.', tono: 'ok' } })
   })
 })
+
+describe('Revisión visual de MATU-61 en la dirección (P3-1)', () => {
+  it('el ancho angosto es solo del campo: el error de Número y de Depto toman el de la columna', async () => {
+    apiPedido({})
+    abrir(null)
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar la dirección' }))
+    for (const nombre of ['Número', 'Depto (opcional)']) {
+      const campo = screen.getByRole('textbox', { name: nombre })
+      expect(campo).toHaveClass('w-40')
+      expect(campo.parentElement).not.toHaveClass('w-40')
+    }
+    const error = screen.getByText('Escribe el número. Si no tiene, escribe S/N.')
+    for (let el: HTMLElement | null = error; el; el = el.parentElement) expect(el).not.toHaveClass('w-40')
+  })
+})

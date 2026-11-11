@@ -56,6 +56,7 @@ export interface NotaPedido {
 const RUTA_DIRECCION = '/insumos/pedido/direccion'
 const RUTA_RESUMEN = '/insumos/pedido/resumen'
 const ID_AGREGAR_DIRECCION = 'agregar-direccion'
+const ID_TELEFONO_T = 'telefono-contacto-t'
 const ID_CANCELAR = 'cancelar-pedido'
 const ID_NOTA = 'nota-pedido'
 const idCantidad = (pid: string) => `cantidad-${pid}`
@@ -154,6 +155,18 @@ export function PantallaPedido() {
     if (ruta !== RUTA_RESUMEN || carga !== 'listo') return
     if (!pedido || !esVistaCompleta(pedido) || pedido.estado === 'borrador' || (editor && aut !== 'vigente')) navegar('/insumos/pedido', { reemplazar: true })
   }, [ruta, carga, pedido, editor, aut])
+
+  // 2.6 y revisión P2-2: el foco de la llegada queda en el h1 de «Cargando», que se reemplaza por el de
+  // lo que llega (el permiso, el carrito, el 404…). Si al reemplazarlo cayó al body, lo recibe el h1
+  // nuevo: así «Antes de pedir, un permiso» lo recibe al llegar desde el catálogo o la lista.
+  const cargaAntes = useRef<Carga>(carga)
+  useEffect(() => {
+    const venia = cargaAntes.current
+    cargaAntes.current = carga
+    if (venia !== 'cargando' || carga === 'cargando') return
+    const activo = document.activeElement
+    if (activo === null || activo === document.body) document.getElementById('titulo-pagina')?.focus()
+  }, [carga])
 
   /** 11.2: otra persona lo canceló, lo confirmó o lo cambió: se muestra cómo quedó. */
   const alCambioAjeno = useCallback(
@@ -846,7 +859,9 @@ function Carrito(props: PropsCarrito) {
       {/* 7.8: el pagador no ve el teléfono en el carrito: antes de confirmar es el celular de quien confirma. */}
       {editor && (
         <div className="flex flex-col items-start gap-1">
-          <h3 className="text-lg font-bold">{PEDIDO.telefono}</h3>
+          <h3 id={ID_TELEFONO_T} className="text-lg font-bold">
+            {PEDIDO.telefono}
+          </h3>
           {completa && !borrador && pedido.entrega ? (
             <TelefonoContacto
               mostrado={pedido.entrega.telefono_contacto}
@@ -861,6 +876,7 @@ function Carrito(props: PropsCarrito) {
               esTuyo={!telefono && !!cuenta?.celular_verificado}
               editable={editable}
               abiertoAlInicio={editable && !telefono && !cuenta?.celular_verificado}
+              nombradoPor={ID_TELEFONO_T}
               error={errTelefono}
               onGuardar={async (t) => {
                 onTelefono(t)
@@ -880,7 +896,8 @@ function Carrito(props: PropsCarrito) {
       <p className="text-xl">
         {PEDIDO.productos} <span className="cifras font-bold">{pesos(suma)}</span>
       </p>
-      <p className="max-w-prose text-base text-tenue">{PEDIDO.envioAlConfirmar}</p>
+      {/* Revisión P3-3: con el total confirmado o vencido, el envío y el total ya están a la vista. */}
+      {borrador && <p className="max-w-prose text-base text-tenue">{PEDIDO.envioAlConfirmar}</p>}
       {editor && (
         <>
           {falla === 'red' && (

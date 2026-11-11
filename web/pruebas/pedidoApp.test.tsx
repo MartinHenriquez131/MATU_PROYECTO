@@ -15,7 +15,10 @@ const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: PERSONA_ID, nombre: 'María Soto', nombre_pila: 'María', nivel_apoyo: 'apoyo_parcial', direccion: DIRECCION, consentimiento: null }
 const PEDRO = { id: '3c9d4e20-0000-4000-8000-0000000000bb', nombre: 'Pedro Rojas', nombre_pila: 'Pedro', nivel_apoyo: 'apoyo_parcial', direccion: null, consentimiento: null }
 
-function apiApp(rol: Rol, { capa3 = true, personas = [MARIA] as object[] } = {}) {
+function apiApp(
+  rol: Rol,
+  { capa3 = true, personas = [MARIA] as object[], despacho = 'vigente' as Parameters<typeof autorizaciones>[0], pedido = confirmado() as object | null, demora = 0 } = {},
+) {
   const pedidas: string[] = []
   const responder = (config: InternalAxiosRequestConfig, r: Respuesta): AxiosResponse => {
     const respuesta: AxiosResponse = { data: r.cuerpo ?? '', status: r.status, statusText: '', headers: r.cabeceras ?? {}, config, request: {} }
@@ -31,8 +34,12 @@ function apiApp(rol: Rol, { capa3 = true, personas = [MARIA] as object[] } = {})
     if (linea === `GET /v1/grupos/${GRUPO_ID}/personas-cuidadas`) return responder(config, { status: 200, cuerpo: personas })
     if (linea === 'GET /v1/catalogo') return responder(config, capa3 ? { status: 200, cuerpo: CATALOGO } : no)
     if (linea === 'GET /v1/cuenta') return responder(config, { status: 200, cuerpo: CUENTA })
-    if (/\/consentimientos$/.test(linea)) return responder(config, { status: 200, cuerpo: autorizaciones() })
-    if (linea === `GET /v1/personas-cuidadas/${PERSONA_ID}/pedido-en-curso`) return responder(config, capa3 ? { status: 200, cuerpo: confirmado() } : no)
+    // `demora`: la red de verdad tarda, y el h1 de «Cargando» alcanza a recibir el foco de la ruta.
+    if (demora && linea.startsWith('GET') && /\/consentimientos$/.test(linea)) await new Promise((r) => setTimeout(r, demora))
+    if (/\/consentimientos$/.test(linea)) return responder(config, { status: 200, cuerpo: autorizaciones(despacho) })
+    if (linea === `GET /v1/personas-cuidadas/${PERSONA_ID}/pedido-en-curso`) return responder(config, capa3 && pedido ? { status: 200, cuerpo: pedido } : no)
+    // Sin la autorización de pedidos, crear el pedido responde 403 (decisión 194).
+    if (linea === `POST /v1/personas-cuidadas/${PERSONA_ID}/pedidos` && despacho !== 'vigente') return responder(config, { status: 403, cuerpo: { type: '/errores/sin-autorizacion', status: 403 } })
     if (/\/consumo/.test(linea)) return responder(config, { status: 200, cuerpo: { items: [], siguiente_cursor: null } })
     return responder(config, no)
   }
@@ -103,5 +110,36 @@ describe('El pedido en la app de la familia', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/insumos/pedido'))
     expect(await screen.findByRole('heading', { level: 1, name: 'Tu pedido' })).toBeVisible()
     expect(window.location.href).not.toContain(PEDRO.id)
+  })
+})
+
+describe('Revisión visual de MATU-61', () => {
+  it('P2-2: «Agregar al pedido» sin la autorización lleva a «Antes de pedir, un permiso» con el foco en su h1', async () => {
+    apiApp('admin', { despacho: 'sin_autorizar', pedido: null, demora: 150 })
+    abrirApp('/insumos/catalogo')
+    const agregar = (await screen.findAllByRole('button', { name: /^Agregar al pedido: Pañal adulto M x30/ }, { timeout: 5000 }))[0]
+    await userEvent.click(agregar)
+    const h1 = await screen.findByRole('heading', { level: 1, name: 'Antes de pedir, un permiso' }, { timeout: 5000 })
+    expect(window.location.pathname).toBe('/insumos/pedido')
+    await waitFor(() => expect(h1).toHaveFocus())
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('P2-3: al entrar directo a la dirección, pregunta por la capa 3 y muestra «Pedido» activa', async () => {
+    const pedidas = apiApp('admin')
+    abrirApp('/insumos/pedido/direccion')
+    await screen.findByRole('navigation', { name: 'Vistas de Insumos' }, { timeout: 5000 })
+    await waitFor(() => expect(pestanas().getAllByRole('link').map((a) => a.textContent)).toEqual(['Insumos', 'Lista de insumos', 'Catálogo', 'Pedido']))
+    expect(pestanas().getByRole('link', { name: 'Pedido' })).toHaveAttribute('aria-current', 'page')
+    expect(pedidas.filter((p) => p === 'GET /v1/catalogo')).toHaveLength(1)
+  })
+
+  it('P2-3: con la capa 3 apagada, la dirección no muestra «Pedido»', async () => {
+    const pedidas = apiApp('admin', { capa3: false })
+    abrirApp('/insumos/pedido/direccion')
+    await screen.findByRole('navigation', { name: 'Vistas de Insumos' }, { timeout: 5000 })
+    await waitFor(() => expect(pedidas).toContain('GET /v1/catalogo'))
+    await new Promise((r) => setTimeout(r, 100))
+    expect(pestanas().getAllByRole('link').map((a) => a.textContent)).not.toContain('Pedido')
   })
 })
