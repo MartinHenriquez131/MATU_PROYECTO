@@ -613,9 +613,10 @@ class Fabrica:
         with self._conectar() as cx, cx.transaction():
             if grupos:
                 for sentencia in BORRAR_CONTENIDO_DE_GRUPOS:
-                    if "FROM consentimiento" in sentencia:
-                        # consentimiento no se borra (trigger consentimiento_sin_borrado, 0006): solo
-                        # para esta sentencia, el superusuario apaga los triggers con el rol de réplica
+                    if "FROM consentimiento" in sentencia or "FROM transaccion_pasarela" in sentencia:
+                        # consentimiento no se borra (trigger consentimiento_sin_borrado, 0006), ni el registro
+                        # de la pasarela (transaccion_sin_borrado, MATU-62): solo para esta sentencia, el
+                        # superusuario apaga los triggers con el rol de réplica
                         cx.execute("SET LOCAL session_replication_role = replica")
                         cx.execute(sentencia, (grupos,))
                         cx.execute("SET LOCAL session_replication_role = origin")
