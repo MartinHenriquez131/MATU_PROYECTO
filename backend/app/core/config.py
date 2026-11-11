@@ -57,7 +57,9 @@ Cada historia agrega aquí lo suyo:
   copian al código: se leen del SDK al armar el adaptador). "produccion" exige WEBPAY_CODIGO_COMERCIO y WEBPAY_LLAVE,
   que se leen del entorno. "falsa" es la PasarelaFalsa, sin red: solo con ENTORNO local o pruebas. Sin valor, pagar
   responde 503 pasarela-no-disponible y la vuelta y la conciliación no llaman a nadie. VIDA_VENTA_WEBPAY_MINUTOS
-  (10 por omisión, decisión 230 y P-62-6) fija cuánto dura un pago en curso con la venta iniciada
+  (10 por omisión, decisión 230 y P-62-6) fija cuánto dura un pago en curso con la venta iniciada.
+  PASARELA_PAGO=produccion exige además ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true (observación 9 del cierre del
+  analista): sin las dos, la configuración no carga y la API no arranca
 """
 
 import base64
@@ -244,6 +246,9 @@ class Configuracion(BaseSettings):
     # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Supuesto de trabajo
     # de 10 hasta medir la vida del token en integración
     vida_venta_webpay_minutos: int = Field(default=10, ge=1, le=30)
+    # Observación 9 del cierre del analista: cobrar dinero real exige ENTORNO=produccion y esta marca explícita, que
+    # queda en false hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66. No es un secreto
+    dinero_real_autorizado: bool = False
 
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
@@ -255,6 +260,11 @@ class Configuracion(BaseSettings):
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @field_validator("dinero_real_autorizado", mode="before")
+    @classmethod
+    def _dinero_real_vacio_es_no(cls, valor: object) -> object:
+        return False if valor == "" else valor
 
     @field_validator("diagnostico_proxy", mode="before")
     @classmethod
@@ -380,6 +390,12 @@ class Configuracion(BaseSettings):
         # producción faltan las credenciales del comercio: el mensaje nombra las variables, nunca sus valores
         if self.pasarela_pago == "falsa" and self.entorno not in ENTORNOS_PASARELA_FALSA:
             raise ValueError("PASARELA_PAGO=falsa solo se admite con ENTORNO local o pruebas")
+        if self.pasarela_pago == "produccion" and (self.entorno != "produccion" or not self.dinero_real_autorizado):
+            # Observación 9: la guarda contra el dinero real. Sin ella, una configuración copiada cobraría de verdad
+            raise ValueError(
+                "PASARELA_PAGO=produccion cobra dinero real: exige ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true,"
+                " bloqueado hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66"
+            )
         if self.pasarela_pago == "produccion" and (self.webpay_codigo_comercio is None or self.webpay_llave is None):
             raise ValueError("PASARELA_PAGO=produccion exige WEBPAY_CODIGO_COMERCIO y WEBPAY_LLAVE")
         return self
