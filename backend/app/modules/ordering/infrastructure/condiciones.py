@@ -22,7 +22,10 @@ CARPETA = Path(__file__).resolve().parents[1] / "condiciones"
 VERSION_VIGENTE = "0.1"
 
 PUBLICADAS: dict[str, tuple[date, str]] = {
-    "0.1": (date(2026, 11, 11), "966f02be1457944be712d8c064ce19aeb6cff25e9543083f96c8e21fc7f08e4f"),
+    "0.1": (
+        date(2026, 11, 11),
+        "966f02be1457944be712d8c064ce19aeb6cff25e9543083f96c8e21fc7f08e4f",  # pragma: allowlist secret
+    ),
 }
 ENLACE: Final = "/v1/condiciones-pedido"
 
