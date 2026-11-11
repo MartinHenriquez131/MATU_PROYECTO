@@ -40,7 +40,7 @@ import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta, type Ruta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
-import { envaseUtil, envaseValido, ENVASE_MAX, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe } from './enEnvases'
+import { envaseUtil, envaseValido, ENVASE_MAX, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe, totalVisible } from './enEnvases'
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
 import { CATALOGO } from './textosCatalogo'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, EN_ENVASES, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
@@ -898,7 +898,7 @@ function EnlaceModo({ children, onClick, ocupado = false }: { children: ReactNod
       onClick={() => {
         if (!ocupado) onClick()
       }}
-      className="inline-flex min-h-12 items-center self-start px-2 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa"
+      className="inline-flex min-h-12 items-center self-start px-2 text-left font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa"
     >
       {children}
     </button>
@@ -936,7 +936,8 @@ function BloqueEnvases({
   antes?: ReactNode
 }) {
   const nEnvases = entero(envases)
-  const total = totalDe(envases, sueltos, u)
+  // 1.2: sin envase válido y con envases enteros, el total no se muestra.
+  const total = totalVisible(envases, sueltos, u)
   const t = total === null ? null : EN_ENVASES.total(total, unidad)
   return (
     <>
@@ -1210,7 +1211,7 @@ function PanelRegistro({
 
   const n = entero(valor)
   // MATU-84 (8): el total va en la descripción de «Anotar lo que queda», sin región viva.
-  const hayTotal = enEnvases && totalDe(envases, sueltos, u) !== null
+  const hayTotal = enEnvases && totalVisible(envases, sueltos, u) !== null
   return (
     <div
       id={id}

@@ -2,7 +2,7 @@
 // cuenta de envases enteros más sueltos, los límites (envases hasta ⌊100.000 / u⌋, total hasta
 // 100.000, envase de 1 a 10.000), el cambio de modo sin perder lo escrito, D2, D6 y los textos [L 30].
 import { describe, expect, it } from 'vitest'
-import { envaseUtil, envaseValido, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe } from '../src/familia/enEnvases'
+import { envaseUtil, envaseValido, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe, totalVisible } from '../src/familia/enEnvases'
 import { EN_ENVASES, totalEnTexto } from '../src/familia/textosInsumos'
 
 describe('La cuenta', () => {
@@ -27,6 +27,21 @@ describe('La cuenta', () => {
     expect(totalDe('5000', '0', 20)).toBe(TOTAL_MAX)
     expect(totalDe('5000', '1', 20)! > TOTAL_MAX).toBe(true)
     expect(totalDe('11', '0', 10_000)).toBe(110_000)
+  })
+})
+
+describe('El total que se muestra (1.2, 4.1 y 4.2)', () => {
+  it('con envases enteros y sin envase válido no se muestra', () => {
+    expect(totalVisible('1', '', null)).toBeNull()
+    expect(totalVisible('2', '5', null)).toBeNull()
+  })
+
+  it('con envases en 0 o vacíos cuenta los sueltos, y con envase válido, todo', () => {
+    expect(totalVisible('0', '5', null)).toBe(5)
+    expect(totalVisible('', '5', null)).toBe(5)
+    expect(totalVisible('0', '', null)).toBe(0)
+    expect(totalVisible('2', '5', 20)).toBe(45)
+    expect(totalVisible('', '', 20)).toBeNull()
   })
 })
 

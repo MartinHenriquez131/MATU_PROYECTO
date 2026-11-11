@@ -51,3 +51,13 @@ export function juntar(envases: string, sueltos: string, u: number | null): stri
   const t = totalDe(envases, sueltos, u)
   return t === null ? '' : String(t)
 }
+
+/**
+ * El total que se muestra (1.2, 4.1 y 4.2): `null` si los dos están vacíos, o si hay envases enteros
+ * y falta un envase válido, porque la cuenta no se puede hacer. Nunca «no queda nada» con envases a la vista.
+ */
+export function totalVisible(envases: string, sueltos: string, u: number | null): number | null {
+  const e = numero(envases)
+  if (u === null && e !== null && e > 0) return null
+  return totalDe(envases, sueltos, u)
+}

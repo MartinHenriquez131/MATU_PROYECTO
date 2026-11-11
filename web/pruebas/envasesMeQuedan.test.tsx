@@ -343,6 +343,36 @@ describe('«Me quedan» sin envase (4.2)', () => {
     expect(escritas(pedidas)).toEqual([])
   })
 
+  it('1.2: con envases enteros y sin envase válido no hay total, ni en la descripción del botón (criterio 14)', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    const confirmar = screen.getByRole('button', { name: 'Anotar lo que queda' })
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    expect(grupo()).not.toHaveTextContent('En total')
+    expect(confirmar).not.toHaveAttribute('aria-describedby')
+    // Fuera de rango, igual.
+    await u.type(campoEnvase(), '0')
+    expect(grupo()).not.toHaveTextContent('En total')
+    // Con el envase válido aparece, y con envases en 0 y sin envase cuenta los sueltos.
+    await u.clear(campoEnvase())
+    await u.type(campoEnvase(), '20')
+    expect(grupo()).toHaveTextContent('En total, quedan unas 20 unidades.')
+    expect(confirmar).toHaveAccessibleDescription('En total, quedan unas 20 unidades.')
+    await u.clear(campoEnvase())
+    await u.click(screen.getByRole('button', { name: 'Uno menos: Envases enteros' }))
+    expect(envasesEnteros()).toHaveValue('0')
+    expect(grupo()).toHaveTextContent('En total, no queda nada.')
+  })
+
+  it('P3: los dos enlaces van alineados a la izquierda', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
+    expect(screen.getByRole('button', { name: 'Contar en envases' })).toHaveClass('text-left')
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    expect(screen.getByRole('button', { name: 'Contar sueltos' })).toHaveClass('text-left')
+  })
+
   it('el envase fuera de rango: «Escribe un número de 1 a 10.000.»', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
@@ -491,7 +521,8 @@ describe('El alta (5.1)', () => {
     await u.type(envasesEnteros(), '3')
     expect(bloque).toHaveTextContent('En total, quedan unas 65 unidades.')
     // La vista previa usa el total (criterio 8): 65 / 1 al día.
-    expect(screen.getByText(/^Así, alcanza para 65 días/)).toBeInTheDocument()
+    // La vista previa visible (el anuncio sr-only llega a los 500 ms y no se cuenta aquí).
+    expect(screen.getByText(/^Así, alcanza para 65 días/, { selector: 'p' })).toBeInTheDocument()
     // «Guardar» sigue siendo el único macizo (criterio 10).
     expect(macizos()).toEqual([screen.getByRole('button', { name: 'Guardar' })])
 
@@ -530,6 +561,16 @@ describe('El alta (5.1)', () => {
     expect(envases()[0]).toHaveAccessibleDescription(/Escribe cuántas unidades trae cada envase\.$/)
     expect(envases()[0]).toHaveFocus()
     expect(escritas(pedidas)).toEqual([])
+  })
+
+  it('1.2: en el alta, con envases enteros y sin envase, no hay total (criterio 14)', async () => {
+    const { u } = await abrirFormulario('/insumos/nuevo')
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    await u.type(envasesEnteros(), '3')
+    const bloque = screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(bloque).not.toHaveTextContent('En total')
+    await u.type(envases()[0], '20')
+    expect(bloque).toHaveTextContent('En total, quedan unas 60 unidades.')
   })
 
   it('el total sobre 100.000 no se envía', async () => {
