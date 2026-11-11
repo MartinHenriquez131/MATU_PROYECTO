@@ -618,4 +618,8 @@ export const LISTA = {
   errEnvase: 'Escribe un número de 1 a 10.000, o déjalo en blanco.',
   envaseConflicto: (u: string, sufijo: string) => `Cada envase trae ${u} ${sufijo}.`,
   sinEnvase: 'Sin unidades por envase.',
+  // MATU-84 (especificación matu-84-me-quedan-envases.md, 7): el mismo campo dentro de «Contar en envases» [L 30]
+  envaseAyudaEnvases: 'Lo guardamos para la próxima vez y para la lista.', // [L 30]
+  errFaltaEnvase: 'Escribe cuántas unidades trae cada envase.', // [L 30]
+  errEnvaseRango: 'Escribe un número de 1 a 10.000.', // [L 30]
 }

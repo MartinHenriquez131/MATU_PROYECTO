@@ -6,7 +6,7 @@ import { randomBytes, randomInt, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { catalogoDoble } from './catalogo'
-import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaLista, perfil, type ConsumoDoble } from './consumo'
+import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaEnvases, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, DOMINIO_NO_PERMITIDO } from './cuentas'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 
@@ -344,6 +344,15 @@ function sembrar() {
   conCompre(cuenta('compre-defectos@example.com', 'Carmen', sotoLista('admin'), 'compre-defectos'))
   conCompre(cuenta('compre-renovar@example.com', 'Carmen', sotoLista('admin', true), 'compre-renovar'))
   conCompre(cuenta('compre-lento@example.com', 'Carmen', sotoLista('admin'), 'lento'))
+  // MATU-84: «Me quedan» y el formulario en envases (especificación 13).
+  const conEnvases = (u: Usuario) => {
+    const c = insumos(u, 'vigente', false)
+    c.perfiles = listaParaEnvases({ id: u.id, nombre: u.nombre })
+    crearAlertas(c)
+  }
+  conEnvases(cuenta('envases@example.com', 'Carmen', sotoLista('admin')))
+  conEnvases(cuenta('envases-defectos@example.com', 'Carmen', sotoLista('admin'), 'envases-defectos'))
+  conEnvases(cuenta('envases-lento@example.com', 'Carmen', sotoLista('admin'), 'lento'))
   // MATU-50: las secciones complementarias, una cuenta por estado.
   const completos = () => ({ rutina: escrito(SU_DIA, yo), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, yo, 3) })
   cuenta('secciones-ninguna@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', completos())])])

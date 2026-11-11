@@ -70,6 +70,8 @@ async function abrirCambiar(escritura: (metodo: string) => Respuesta) {
   )
   const u = userEvent.setup()
   await u.click(await screen.findByRole('button', { name: 'Cambiar Pañal adulto talla M' }))
+  // MATU-84 (5.2): con envase guardado abre en envases. Este archivo prueba el campo en modo sueltos, al final.
+  await u.click(await screen.findByRole('button', { name: 'Contar sueltos' }))
   const campo = await screen.findByRole('textbox', { name: '¿Cuántas unidades trae cada envase?' })
   return { enviados, u, campo }
 }

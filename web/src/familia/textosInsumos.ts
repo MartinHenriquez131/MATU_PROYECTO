@@ -288,3 +288,41 @@ export const REGISTRO = {
   errFaltaVersion: 'No pudimos guardar este insumo. Vuelve a abrirlo y guarda de nuevo. Lo que escribiste sigue aquí.', // [L 18]
   verComoQuedo: 'Ver cómo quedó', // [L 17]
 }
+
+/**
+ * MATU-84 «Me quedan» y el alta del insumo en envases (especificación
+ * docs/diseno/matu-84-me-quedan-envases.md v1.3, sección 7). Aprobados por Jorge el 10-11, en
+ * lenguaje.md sección 30 [L 30]. Solo para insumos en unidades o en sobres. El total va siempre en la
+ * unidad del insumo y nunca nombra el producto (D1).
+ */
+export const EN_ENVASES = {
+  contarEnvases: 'Contar en envases', // [L 30]
+  contarSueltos: 'Contar sueltos', // [L 30]
+  ayudaPanel: 'Cuenta los envases enteros y, a ojo, lo suelto. Reemplaza lo que calculábamos.', // [L 30]
+  /** Alta y edición. En la edición se suma a `INSUMOS.stockAyuda` [L 18]. */
+  ayudaFormulario: 'Cuenta los envases enteros y, a ojo, lo suelto.', // [L 30]
+  envasesEnteros: 'Envases enteros', // [L 30]
+  sueltos: (unidad: Unidad) => (unidad === 'sobre' ? 'Sobres sueltos' : 'Unidades sueltas'), // [L 30]
+  /** Sufijo de «Envases enteros» mientras falta el envase o no es válido. */
+  sufijoSinEnvase: 'envases', // [L 30]
+  /**
+   * El total en vivo, en partes para poner la cifra en `cifras`: «En total, quedan unas 45
+   * unidades.», «… unos 12 sobres.», «En total, queda 1 unidad.», «En total, no queda nada.» [L 30]
+   */
+  total: (n: number, unidad: Unidad): { antes: string; cifra: string | null; despues: string } => {
+    const sobre = unidad === 'sobre'
+    if (n === 0) return { antes: 'En total, no queda nada.', cifra: null, despues: '' }
+    if (n === 1) return { antes: 'En total, queda', cifra: '1', despues: sobre ? 'sobre.' : 'unidad.' }
+    return { antes: sobre ? 'En total, quedan unos' : 'En total, quedan unas', cifra: miles(n), despues: sobre ? 'sobres.' : 'unidades.' }
+  },
+  /** Al final de la confirmación, si se anotó el envase en el panel (con 1 no aplica, D6). [L 30] */
+  tambienEnvase: (u: number, unidad: Unidad) => `También anotamos que cada envase trae ${miles(u)} ${unidad === 'sobre' ? 'sobres' : 'unidades'}.`,
+  /** [L 30] */
+  errTotal: (unidad: Unidad) => `Con eso quedarían más de 100.000 ${unidad === 'sobre' ? 'sobres' : 'unidades'}. Revisa cuántos envases y sueltos anotaste.`,
+}
+
+/** El total de `EN_ENVASES.total` en una sola cadena. */
+export const totalEnTexto = (n: number, unidad: Unidad) => {
+  const t = EN_ENVASES.total(n, unidad)
+  return t.cifra === null ? t.antes : `${t.antes} ${t.cifra} ${t.despues}`
+}

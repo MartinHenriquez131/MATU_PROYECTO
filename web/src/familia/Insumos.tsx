@@ -40,9 +40,10 @@ import { puedeEditar, useFamilia } from './estado'
 import { navegar, useRuta, type Ruta } from './ruteo'
 import { enfocar, entero, esTipo, permisoDe, soloDigitos, Stepper, unaLinea, useAncho } from './insumosComun'
 import { AUTORIZACION, FICHA, GENERAL, LISTA } from './textos'
+import { envaseUtil, envaseValido, ENVASE_MAX, juntar, maxEnvases, repartir, seCuentaEnEnvases, TOTAL_MAX, totalDe, totalVisible } from './enEnvases'
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
 import { CATALOGO } from './textosCatalogo'
-import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
+import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, EN_ENVASES, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'sin-consentimiento' | 'revision-vencida' | 'no-encontrado' | 'red'
@@ -72,7 +73,8 @@ export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumo
 type Panel = { tipo: 'compre' | 'quedan' | 'resolver'; id: string }
 
 /** La confirmación de una fila (5.3): la frase y, si la hay, la fecha, que va en `cifras` con su punto. */
-type Hecho = { texto: string; fecha: string | null }
+/** MATU-84 (4.5): `cola`, la frase que va después de la fecha si se anotó el envase en el panel. */
+type Hecho = { texto: string; fecha: string | null; cola?: string }
 
 /** Lleva el foco a un elemento y lo desplaza a la vista, sin pasar por debajo de la barra fija (4). */
 const mostrar = (id: string, ms = 40) =>
@@ -211,9 +213,14 @@ export function Insumos() {
   }
 
   /** «Compré» o «Me quedan» guardó: la fila, el bloque y la confirmación salen de la respuesta (5.3). */
-  const alAnotar = (r: PorAcabarse, texto: Hecho) => {
+  // MATU-84 D5: el `PATCH` responde el perfil sin `avisando`; la marca sale de `refrescarBloque`.
+  const alAnotar = (r: Perfil | PorAcabarse, texto: Hecho) => {
     reemplazar(r)
-    setPorAcabarse((xs) => xs && (xs.some((x) => x.id === r.id) ? xs.map((x) => (x.id === r.id ? r : x)) : r.avisando ? [...xs, r] : xs))
+    setPorAcabarse((xs) => {
+      if (!xs) return xs
+      if (!('avisando' in r)) return xs.map((x) => (x.id === r.id ? { ...x, ...r } : x))
+      return xs.some((x) => x.id === r.id) ? xs.map((x) => (x.id === r.id ? r : x)) : r.avisando ? [...xs, r] : xs
+    })
     void refrescarBloque()
     setPanel(null)
     setHecho({ id: r.id, ...texto })
@@ -791,6 +798,7 @@ function Fila({
                 <span className="cifras whitespace-nowrap">{hecho.fecha}.</span>
               </>
             )}
+            {hecho.cola && <> {hecho.cola}</>}
           </p>
         </div>
       )}
@@ -866,7 +874,7 @@ function Fila({
 // ---------------------------------------------------------------- MATU-51 «Compré» y «Me quedan»
 
 /** La confirmación de 5.3 y 8, con los días y la fecha de la respuesta, nunca calculados aquí. */
-function textoHecho(tipo: 'compre' | 'quedan', nombre: string, n: number, envase: number | null, r: PorAcabarse): Hecho {
+function textoHecho(tipo: 'compre' | 'quedan', nombre: string, n: number, envase: number | null, r: Perfil): Hecho {
   if (tipo === 'quedan' && n === 0) return { texto: REGISTRO.noQueda(nombre), fecha: null }
   const cant = enPantalla(cantidadEnTexto(n, r.unidad, envase))
   const base = tipo === 'compre' ? REGISTRO.compraAnotada(nombre, cant) : REGISTRO.quedaAnotado(nombre, cant)
@@ -880,9 +888,106 @@ function textoHecho(tipo: 'compre' | 'quedan', nombre: string, n: number, envase
 type FallaPanel = { texto: string; foco?: string }
 
 /**
+ * MATU-84 (6): «Contar en envases» y «Contar sueltos», enlaces de texto con el aspecto del
+ * «Cancelar» del formulario. Mientras guarda ignoran el toque (10).
+ */
+function EnlaceModo({ children, onClick, ocupado = false }: { children: ReactNode; onClick: () => void; ocupado?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!ocupado) onClick()
+      }}
+      className="inline-flex min-h-12 items-center self-start px-2 text-left font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa"
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * MATU-84 (4.1, 5.1 y 6): «Envases enteros» y los sueltos, uno debajo del otro, y el total en vivo.
+ * `u` es el envase válido, o `null` mientras falta. `antes` es el campo del envase, cuando se anota
+ * aquí. El total no es región viva: el panel lo pone en el `aria-describedby` de su confirmar (8).
+ */
+function BloqueEnvases({
+  id,
+  unidad,
+  u,
+  envases,
+  sueltos,
+  onEnvases,
+  onSueltos,
+  error,
+  describe,
+  soloLectura = false,
+  antes,
+}: {
+  id: string
+  unidad: Unidad
+  u: number | null
+  envases: string
+  sueltos: string
+  onEnvases: (v: string) => void
+  onSueltos: (v: string) => void
+  error?: string | null
+  describe?: string
+  soloLectura?: boolean
+  antes?: ReactNode
+}) {
+  const nEnvases = entero(envases)
+  // 1.2: sin envase válido y con envases enteros, el total no se muestra.
+  const total = totalVisible(envases, sueltos, u)
+  const t = total === null ? null : EN_ENVASES.total(total, unidad)
+  return (
+    <>
+      {antes}
+      <Stepper
+        id={`${id}-envases`}
+        etiqueta={EN_ENVASES.envasesEnteros}
+        sufijo={u === null ? EN_ENVASES.sufijoSinEnvase : sufijoCantidad(nEnvases ?? 0, unidad, u)}
+        valor={envases}
+        onCambio={onEnvases}
+        min={0}
+        max={maxEnvases(u)}
+        error={error}
+        describe={describe}
+        soloLectura={soloLectura}
+        vacioEs={0}
+      />
+      <Stepper
+        id={`${id}-sueltos`}
+        etiqueta={EN_ENVASES.sueltos(unidad)}
+        sufijo={INSUMOS.sufijoStock(unidad)}
+        valor={sueltos}
+        onCambio={onSueltos}
+        min={0}
+        max={TOTAL_MAX}
+        describe={describe}
+        soloLectura={soloLectura}
+        vacioEs={0}
+      />
+      {t && (
+        <p id={`${id}-total`} className="text-base font-bold break-words [overflow-wrap:anywhere]">
+          {t.antes}
+          {t.cifra !== null && (
+            <>
+              {' '}
+              <span className="cifras">{t.cifra}</span> {t.despues}
+            </>
+          )}
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
  * El panel de «Compré» o «Me quedan» (3.4 y 3.5), dentro de la fila. «Compré» pregunta en envases,
  * con 1 por omisión, cuando se sabe cuánto trae cada uno; si no, en la unidad del insumo y vacío.
- * «Me quedan» siempre en la unidad del insumo, vacío. La cantidad va solo en el cuerpo.
+ * MATU-84: «Me quedan», en unidades y sobres, pregunta en envases enteros más sueltos cuando el
+ * envase se conoce y es de más de 1 (D6), y si no ofrece «Contar en envases». ml y g, como siempre
+ * (D2). La cantidad va solo en el cuerpo, y siempre en la unidad del insumo.
  */
 function PanelRegistro({
   tipo,
@@ -900,7 +1005,7 @@ function PanelRegistro({
   personaId: string
   onCerrar: () => void
   onOcupado: (v: boolean) => void
-  onHecho: (r: PorAcabarse, texto: Hecho) => void
+  onHecho: (r: Perfil | PorAcabarse, texto: Hecho) => void
   onPermiso: (c: 'sin-consentimiento' | 'revision-vencida') => void
   onNoEncontrado: () => void
   onVerComoQuedo: (foco: string) => void
@@ -909,36 +1014,59 @@ function PanelRegistro({
   const compre = tipo === 'compre'
   const envase = compre ? (p.unidades_por_envase ?? null) : null
   const conEnvase = envase !== null
+  // MATU-84: «Me quedan» en envases solo en unidades y sobres, con el envase guardado de más de 1.
+  const contable = !compre && seCuentaEnEnvases(p.unidad)
+  const guardado = contable ? envaseUtil(p.unidades_por_envase) : null
   const id = `panel-${tipo}-${p.id}`
   const campo = `campo-${tipo}-${p.id}`
+  const idEnvase = `${campo}-envase`
+  const idEnvases = `${campo}-envases`
+  const idTotal = `${campo}-total`
   const idFalla = `falla-${tipo}-${p.id}`
   const sufijoUnidad = INSUMOS.sufijoStock(p.unidad)
   const [valor, setValor] = useState(conEnvase ? '1' : '')
   const [errorCampo, setErrorCampo] = useState<string | null>(null)
   const [falla, setFalla] = useState<FallaPanel | null>(null)
   const [ocupado, setOcupado] = useState(false)
+  // MATU-84 (3): el modo se elige al abrir y no se recuerda. Envases y sueltos abren vacíos (4.1).
+  const [modo, setModo] = useState<'sueltos' | 'envases'>(guardado !== null ? 'envases' : 'sueltos')
+  const [envases, setEnvases] = useState('')
+  const [sueltos, setSueltos] = useState('')
+  const [envaseEscrito, setEnvaseEscrito] = useState('')
+  const [errores, setErrores] = useState<{ envase?: string; envases?: string }>({})
+  const enEnvases = modo === 'envases'
+  // Sin envase guardado, el campo del envase se anota aquí (4.2) y se guarda con lo que queda (D5).
+  const anotaEnvase = enEnvases && guardado === null
+  const u = guardado ?? (anotaEnvase ? envaseValido(envaseEscrito) : null)
 
   // MATU-67 (G1): con una cantidad distinta de la inicial, «Recargar» del aviso de versión nueva
-  // pregunta antes. Sin `texto`: si la entrada vence, no hay nada de la ficha que mostrar.
+  // pregunta antes. Sin `texto`: si la entrada vence, no hay nada de la ficha que mostrar. MATU-84
+  // (8): el envase, envases enteros y sueltos cuentan como cambios, en ese orden.
   const { sinGuardar } = useFamilia()
-  const valorRef = useRef(valor)
-  valorRef.current = valor
+  const actual = { valor, envases, sueltos, envaseEscrito }
+  const actualRef = useRef(actual)
+  actualRef.current = actual
   useEffect(
     () =>
-      registrarSinGuardar(sinGuardar, () =>
-        valorRef.current !== (conEnvase ? '1' : '') ? { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: campo } : null,
-      ),
-    [sinGuardar, conEnvase, nombre, campo],
+      registrarSinGuardar(sinGuardar, () => {
+        const a = actualRef.current
+        const foco = a.envaseEscrito ? idEnvase : a.envases ? idEnvases : a.sueltos ? `${campo}-sueltos` : a.valor !== (conEnvase ? '1' : '') ? campo : null
+        if (!foco) return null
+        return { texto: '', titulo: AVISO_VERSION.sinGuardarInsumo(nombre), foco: document.getElementById(foco) ? foco : campo }
+      }),
+    [sinGuardar, conEnvase, nombre, campo, idEnvase, idEnvases],
   )
 
   // 4: con envase el foco va al panel (no se abre el teclado); si hay que escribir, al campo.
+  // MATU-84 D4: «Me quedan» con envase guardado, también al panel.
+  const alPanel = conEnvase || guardado !== null
   useEffect(() => {
     const t = window.setTimeout(() => {
-      document.getElementById(conEnvase ? id : campo)?.focus({ preventScroll: true })
+      document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
       document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
-  }, [conEnvase, id, campo])
+  }, [alPanel, id, campo])
 
   // Error del panel: el foco al mensaje sin desplazar, y después el panel entero a la vista (4).
   useEffect(() => {
@@ -950,22 +1078,67 @@ function PanelRegistro({
     return () => window.clearTimeout(t)
   }, [falla, id, idFalla])
 
+  /** Un error de lo que queda: bajo «Envases enteros» en modo envases (7), o bajo el campo único. */
   const errorDeCampo = (texto: string) => {
+    if (enEnvases) {
+      setErrores({ envases: texto })
+      return void enfocar(idEnvases, 0)
+    }
     setErrorCampo(texto)
+    enfocar(campo, 0)
+  }
+
+  /** MATU-84 (3): de sueltos a envases, sin perder lo escrito. El foco al envase si falta (8). */
+  const aEnvases = () => {
+    const r = repartir(valor, guardado)
+    setEnvases(r.envases)
+    setSueltos(r.sueltos)
+    setEnvaseEscrito('')
+    setErrorCampo(null)
+    setErrores({})
+    setModo('envases')
+    enfocar(guardado !== null ? idEnvases : idEnvase, 0)
+  }
+
+  /** De envases a sueltos: el total al campo único. El envase escrito aquí, que no se guardó, se descarta (4.2). */
+  const aSueltos = () => {
+    setValor(juntar(envases, sueltos, u))
+    setEnvaseEscrito('')
+    setErrorCampo(null)
+    setErrores({})
+    setModo('sueltos')
     enfocar(campo, 0)
   }
 
   /** Validación de la pantalla (5.4): el mismo texto que si lo devolviera la API. */
   const validar = (n: number | null): string | null => {
-    if (!compre) return n === null ? REGISTRO.errVacioQuedan : n > 100_000 ? REGISTRO.errTopeQuedan : null
+    if (!compre) return n === null ? REGISTRO.errVacioQuedan : n > TOTAL_MAX ? REGISTRO.errTopeQuedan : null
     if (conEnvase) return n === null || n < 1 ? REGISTRO.errVacioEnvases : n > 99 ? REGISTRO.errTopeEnvases : null
     return n === null || n < 1 ? REGISTRO.errVacio : n > 10_000 ? REGISTRO.errTope : null
+  }
+
+  /** MATU-84 (7): los errores del modo envases, en el orden del foco: el envase y envases enteros. */
+  const validarEnvases = (): { envase?: string; envases?: string } => {
+    const e: { envase?: string; envases?: string } = {}
+    const nEnvases = entero(envases)
+    if (anotaEnvase) {
+      const ev = entero(envaseEscrito)
+      if (ev === null) {
+        if (nEnvases !== null && nEnvases > 0) e.envase = LISTA.errFaltaEnvase
+      } else if (envaseValido(envaseEscrito) === null) e.envase = LISTA.errEnvaseRango
+    }
+    const t = totalDe(envases, sueltos, u)
+    if (t === null) e.envases = REGISTRO.errVacioQuedan
+    else if (!e.envase && t > TOTAL_MAX) e.envases = EN_ENVASES.errTotal(p.unidad)
+    return e
   }
 
   /** El 422 de la API en el campo de la cantidad, o `null` si va como error del panel. */
   const leer422 = (errores: { campo: string; tipo: string }[]): string | null => {
     const campos = compre ? ['envases', 'cantidad'] : ['stock_unidades']
     for (const e of errores) {
+      // El `PATCH` de MATU-84 (D5) puede responder `cobertura_maxima` sin el campo del recuento.
+      if (!compre && e.tipo === 'cobertura_maxima') return REGISTRO.errCoberturaQuedan
       if (!campos.includes(e.campo.split('.').pop() ?? e.campo)) continue
       if (e.tipo === 'cobertura_maxima') return compre ? REGISTRO.errCoberturaCompre : REGISTRO.errCoberturaQuedan
       if (e.tipo === 'stock_maximo') return REGISTRO.errStockMaximo(sufijoUnidad)
@@ -979,17 +1152,35 @@ function PanelRegistro({
   const enviar = async () => {
     if (ocupado) return
     setFalla(null)
-    const n = entero(valor)
-    const mal = validar(n)
-    if (mal) return errorDeCampo(mal)
-    setErrorCampo(null)
+    let n: number
+    let envaseNuevo: number | null = null
+    if (enEnvases) {
+      const e = validarEnvases()
+      setErrores(e)
+      if (e.envase) return void enfocar(idEnvase, 0)
+      if (e.envases) return void enfocar(idEnvases, 0)
+      n = totalDe(envases, sueltos, u)!
+      envaseNuevo = anotaEnvase ? u : null
+    } else {
+      const v = entero(valor)
+      const mal = validar(v)
+      if (mal) return errorDeCampo(mal)
+      setErrorCampo(null)
+      n = v!
+    }
     setOcupado(true)
     onOcupado(true)
     try {
       // Sin interfaz optimista (5.2): la fila no cambia hasta la respuesta.
-      const comprado: LoComprado = conEnvase ? { envases: n! } : { cantidad: n! }
-      const r = compre ? await anotarCompra(personaId, p.id, p.etag, comprado) : await anotarLoQueQueda(personaId, p.id, p.etag, n!)
-      onHecho(r, textoHecho(tipo, nombreDe(r) || nombre, n!, envase, r))
+      if (compre) {
+        const comprado: LoComprado = conEnvase ? { envases: n } : { cantidad: n }
+        const r = await anotarCompra(personaId, p.id, p.etag, comprado)
+        return onHecho(r, textoHecho(tipo, nombreDe(r) || nombre, n, envase, r))
+      }
+      // MATU-84 D5: el envase anotado aquí va con lo que queda en un solo `PATCH`. Si no, `recontar`.
+      const r = envaseNuevo !== null ? await editarPerfil(personaId, p.id, { stock_unidades: n, unidades_por_envase: envaseNuevo }, p.etag) : await anotarLoQueQueda(personaId, p.id, p.etag, n)
+      const hecho = textoHecho(tipo, nombreDe(r) || nombre, n, null, r)
+      onHecho(r, envaseNuevo !== null && envaseNuevo > 1 ? { ...hecho, cola: EN_ENVASES.tambienEnvase(envaseNuevo, p.unidad) } : hecho)
     } catch (x) {
       if (esVencida(x)) return
       const permiso = permisoDe(x)
@@ -1003,6 +1194,11 @@ function PanelRegistro({
       if (f.status === 409 && esTipo(f.tipo, 'perfil-inactivo')) return setFalla({ texto: REGISTRO.errInactivo(nombre), foco: `seguir-${p.id}` })
       if (f.status === 428) return setFalla({ texto: REGISTRO.errFaltaVersion })
       if (f.status === 422) {
+        // MATU-84 (4.4): el 422 del envase anotado aquí, bajo su campo.
+        if (anotaEnvase && f.errores.some((e) => (e.campo.split('.').pop() ?? e.campo) === 'unidades_por_envase')) {
+          setErrores({ envase: LISTA.errEnvaseRango })
+          return void enfocar(idEnvase, 0)
+        }
         const texto = leer422(f.errores)
         return texto ? errorDeCampo(texto) : setFalla({ texto: REGISTRO.errOtro422 })
       }
@@ -1014,6 +1210,8 @@ function PanelRegistro({
   }
 
   const n = entero(valor)
+  // MATU-84 (8): el total va en la descripción de «Anotar lo que queda», sin región viva.
+  const hayTotal = enEnvases && totalVisible(envases, sueltos, u) !== null
   return (
     <div
       id={id}
@@ -1035,29 +1233,89 @@ function PanelRegistro({
           void enviar()
         }}
       >
-        <Stepper
-          id={campo}
-          etiqueta={compre ? (conEnvase ? REGISTRO.preguntaEnvases : REGISTRO.pregunta(p.unidad)) : REGISTRO.preguntaQuedan}
-          ayuda={compre ? REGISTRO.ayudaCompre : REGISTRO.ayudaQuedan}
-          sufijo={conEnvase ? sufijoCantidad(n ?? 0, p.unidad, envase) : sufijoUnidad}
-          valor={valor}
-          onCambio={(v) => {
-            setValor(v)
-            setErrorCampo(null)
-          }}
-          min={compre ? 1 : 0}
-          max={compre ? (conEnvase ? 99 : 10_000) : 100_000}
-          error={errorCampo}
-          soloLectura={ocupado}
-        />
+        {enEnvases ? (
+          <>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <p id={`${campo}-l`} className="font-bold">
+                {REGISTRO.preguntaQuedan}
+              </p>
+              <span id={`${campo}-a`} className="text-base text-tenue">
+                {EN_ENVASES.ayudaPanel}
+              </span>
+            </div>
+            <BloqueEnvases
+              id={campo}
+              unidad={p.unidad}
+              u={u}
+              envases={envases}
+              sueltos={sueltos}
+              onEnvases={(v) => {
+                setEnvases(v)
+                setErrores((e) => ({ ...e, envases: undefined }))
+              }}
+              onSueltos={(v) => {
+                setSueltos(v)
+                setErrores((e) => ({ ...e, envases: undefined }))
+              }}
+              error={errores.envases}
+              describe={`${campo}-a`}
+              soloLectura={ocupado}
+              antes={
+                anotaEnvase && (
+                  <CampoEnvase
+                    id={idEnvase}
+                    valor={envaseEscrito}
+                    onCambio={(v) => {
+                      setEnvaseEscrito(v)
+                      setErrores((e) => ({ ...e, envase: undefined }))
+                    }}
+                    sufijo={sufijoUnidad}
+                    ayuda={LISTA.envaseAyudaEnvases}
+                    error={errores.envase}
+                    soloLectura={ocupado}
+                  />
+                )
+              }
+            />
+          </>
+        ) : (
+          <div className="flex min-w-0 flex-col gap-1">
+            <Stepper
+              id={campo}
+              etiqueta={compre ? (conEnvase ? REGISTRO.preguntaEnvases : REGISTRO.pregunta(p.unidad)) : REGISTRO.preguntaQuedan}
+              ayuda={compre ? REGISTRO.ayudaCompre : REGISTRO.ayudaQuedan}
+              sufijo={conEnvase ? sufijoCantidad(n ?? 0, p.unidad, envase) : sufijoUnidad}
+              valor={valor}
+              onCambio={(v) => {
+                setValor(v)
+                setErrorCampo(null)
+              }}
+              min={compre ? 1 : 0}
+              max={compre ? (conEnvase ? 99 : 10_000) : TOTAL_MAX}
+              error={errorCampo}
+              soloLectura={ocupado}
+            />
+            {contable && (
+              <EnlaceModo ocupado={ocupado} onClick={aEnvases}>
+                {EN_ENVASES.contarEnvases}
+              </EnlaceModo>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-3">
-          <Boton type="submit" ocupado={ocupado} textoOcupado={REGISTRO.guardando}>
+          <Boton type="submit" ocupado={ocupado} textoOcupado={REGISTRO.guardando} aria-describedby={hayTotal ? idTotal : undefined}>
             {compre ? REGISTRO.anotarCompra : REGISTRO.anotarQueda}
           </Boton>
           <Boton variante="secundario" disabled={ocupado} onClick={onCerrar}>
             {REGISTRO.volver}
           </Boton>
         </div>
+        {/* 4.1: «Contar sueltos» bajo «Volver», en su propio renglón. */}
+        {enEnvases && (
+          <EnlaceModo ocupado={ocupado} onClick={aSueltos}>
+            {EN_ENVASES.contarSueltos}
+          </EnlaceModo>
+        )}
       </form>
       {falla && (
         <div id={idFalla} tabIndex={-1} role="alert" className="flex flex-col items-start gap-3 outline-none">
@@ -1202,11 +1460,16 @@ export function Permiso({
 
 // ---------------------------------------------------------------- 3.4 anotar o cambiar
 
-type CampoForm = 'nombre' | 'uso' | 'cada' | 'stock' | 'aviso' | 'envase'
+type CampoForm = 'nombre' | 'uso' | 'cada' | 'stock' | 'aviso' | 'envase' | 'envases' | 'sueltos'
 // MATU-60 9.1: el envase va al final, al anotar y al cambiar.
 const ORDEN_NUEVO: CampoForm[] = ['nombre', 'uso', 'cada', 'stock', 'aviso', 'envase']
 const ORDEN_CAMBIAR: CampoForm[] = ['stock', 'uso', 'cada', 'aviso', 'nombre', 'envase']
-const ENVASE_MAX = 10_000
+/** MATU-84 D3 y 8: en modo envases, el envase, envases enteros y sueltos van en el lugar de lo que queda. */
+const ordenDe = (nuevo: boolean, enEnvases: boolean): CampoForm[] => {
+  const base = nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR
+  if (!enEnvases) return base
+  return base.filter((k) => k !== 'envase').flatMap((k): CampoForm[] => (k === 'stock' ? ['envase', 'envases', 'sueltos'] : [k]))
+}
 
 /** La vista previa, solo con datos completos (3.4.1). */
 function VistaPrevia({ stock, uso, cada }: { stock: number | null; uso: number | null; cada: number }) {
@@ -1279,20 +1542,44 @@ function Formulario({
   const [aviso, setAviso] = useState(String(perfil?.dias_aviso ?? 7))
   // MATU-60 9.2: al cambiar, con el valor guardado (el envase no envejece). Al anotar, vacío.
   const [envase, setEnvase] = useState(perfil?.unidades_por_envase != null ? String(perfil.unidades_por_envase) : '')
+  // MATU-84 (5.2): la edición de un insumo con envase de más de 1, en unidades o sobres, abre en
+  // envases. El alta abre siempre en sueltos (5.1). El modo no se recuerda (3).
+  const [modoQueda, setModoQueda] = useState<'sueltos' | 'envases'>(
+    perfil && seCuentaEnEnvases(perfil.unidad) && envaseUtil(perfil.unidades_por_envase) !== null ? 'envases' : 'sueltos',
+  )
+  const [envases, setEnvases] = useState('')
+  const [sueltos, setSueltos] = useState('')
+  const enEnvases = modoQueda === 'envases' && seCuentaEnEnvases(unidad)
+  const uForm = enEnvases ? envaseValido(envase) : null
+  // La vista previa y la API usan siempre el total (5.1).
+  const stockTotal = enEnvases ? totalDe(envases, sueltos, uForm) : entero(stock)
   const [errores, setErrores] = useState<Partial<Record<CampoForm, string>>>({})
   const [general, setGeneral] = useState<{ titulo?: string; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [conflicto, setConflicto] = useState<Perfil | null>(null)
   const [inactivo, setInactivo] = useState(false)
-  const ids: Record<CampoForm, string> = { nombre: `${uid}-nombre`, uso: `${uid}-uso`, cada: `${uid}-cada`, stock: `${uid}-stock`, aviso: `${uid}-aviso`, envase: `${uid}-envase` }
+  const ids: Record<CampoForm, string> = {
+    nombre: `${uid}-nombre`,
+    uso: `${uid}-uso`,
+    cada: `${uid}-cada`,
+    stock: `${uid}-stock`,
+    aviso: `${uid}-aviso`,
+    envase: `${uid}-envase`,
+    // MATU-84: los de BloqueEnvases, que los arma desde el id de lo que queda.
+    envases: `${uid}-stock-envases`,
+    sueltos: `${uid}-stock-sueltos`,
+  }
+  const orden = ordenDe(nuevo, enEnvases)
 
   // MATU-67 (G1): lo que cambió desde que se abrió el formulario. «Recargar» del aviso de versión
   // nueva pregunta antes, y «Seguir escribiendo» lleva al primer campo que cambió.
   const { sinGuardar } = useFamilia()
-  const valores = { nombre, unidad, frecuencia, cada, uso, stock, aviso, envase }
+  const valores = { nombre, unidad, frecuencia, cada, uso, stock, aviso, envase, envases, sueltos }
   const iniciales = useRef(valores)
   const actuales = useRef(valores)
   actuales.current = valores
+  const ordenRef = useRef(orden)
+  ordenRef.current = orden
   useEffect(
     () =>
       registrarSinGuardar(sinGuardar, () => {
@@ -1300,7 +1587,7 @@ function Formulario({
         const i = iniciales.current
         const cambiados = (Object.keys(a) as (keyof typeof a)[]).filter((k) => a[k] !== i[k])
         if (!cambiados.length) return null
-        const campo = (nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR).find((k) => cambiados.includes(k))
+        const campo = ordenRef.current.find((k) => cambiados.includes(k))
         // «Anotar un insumo» sin nombre todavía: el título genérico.
         const cual = nuevo ? unaLinea(a.nombre).trim() : perfil ? nombreDe(perfil) : ''
         return { texto: '', titulo: cual ? AVISO_VERSION.sinGuardarInsumo(cual) : null, foco: campo ? ids[campo] : null }
@@ -1329,13 +1616,25 @@ function Formulario({
       const c = entero(cada)
       if (c === null || c < 2 || c > 90) e.cada = INSUMOS.errCada
     }
+    const a = entero(aviso)
+    if (a === null || a < 0 || a > 60) e.aviso = INSUMOS.errAviso
+    const ev = entero(envase)
+    if (enEnvases) {
+      // MATU-84 (5.4 y 7): el envase es obligatorio si hay envases enteros, y va de 1 a 10.000.
+      const ne = entero(envases)
+      if (ev === null) {
+        if (ne !== null && ne > 0) e.envase = LISTA.errFaltaEnvase
+      } else if (envaseValido(envase) === null) e.envase = LISTA.errEnvaseRango
+      // Los dos vacíos: error al anotar, y sin cambio en la edición (5.2).
+      if (stockTotal === null) {
+        if (nuevo) e.envases = INSUMOS.errStock
+      } else if (!e.envase && stockTotal > TOTAL_MAX) e.envases = EN_ENVASES.errTotal(unidad)
+      return e
+    }
     const s = entero(stock)
     if (s === null && nuevo) e.stock = INSUMOS.errStock
     else if (s !== null && s > 100_000) e.stock = INSUMOS.errStockMax
-    const a = entero(aviso)
-    if (a === null || a < 0 || a > 60) e.aviso = INSUMOS.errAviso
     // Opcional: vacío no es error (9.3).
-    const ev = entero(envase)
     if (ev !== null && (ev < 1 || ev > ENVASE_MAX)) e.envase = LISTA.errEnvase
     return e
   }
@@ -1347,7 +1646,7 @@ function Formulario({
     if (perfil.nombre_libre !== null && nombreLimpio !== perfil.nombre_libre) c.nombre_libre = nombreLimpio
     if (entero(uso) !== perfil.tasa_unidades) c.tasa_unidades = entero(uso)!
     if (tasaDias !== perfil.tasa_dias) c.tasa_dias = tasaDias
-    if (entero(stock) !== null) c.stock_unidades = entero(stock)!
+    if (stockTotal !== null) c.stock_unidades = stockTotal
     if (entero(aviso) !== perfil.dias_aviso) c.dias_aviso = entero(aviso)!
     // Decisión 121: vacío se envía como `null`, que borra el dato. Solo si cambió.
     const ev = entero(envase)
@@ -1387,14 +1686,14 @@ function Formulario({
           e.nombre = tipo === 'string_too_long' ? INSUMOS.errNombreLargo : tipo === 'value_error' ? INSUMOS.errNombreLinea : INSUMOS.errNombre
         else if (c === 'tasa_unidades') e.uso = tipo.startsWith('less') ? INSUMOS.errUsoMax : INSUMOS.errUso
         else if (c === 'tasa_dias') e.cada = INSUMOS.errCada
-        else if (c === 'stock_unidades') e.stock = tipo.startsWith('less') ? INSUMOS.errStockMax : INSUMOS.errStock
+        else if (c === 'stock_unidades') e[enEnvases ? 'envases' : 'stock'] = tipo.startsWith('less') ? INSUMOS.errStockMax : INSUMOS.errStock
         else if (c === 'dias_aviso') e.aviso = INSUMOS.errAviso
-        else if (c === 'unidades_por_envase') e.envase = LISTA.errEnvase
+        else if (c === 'unidades_por_envase') e.envase = enEnvases ? LISTA.errEnvaseRango : LISTA.errEnvase
         else gen = INSUMOS.errOtro422
       }
       setErrores(e)
       if (gen || !Object.keys(e).length) setGeneral({ texto: gen ?? INSUMOS.errOtro422 })
-      const primero = (nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR).find((k) => e[k])
+      const primero = orden.find((k) => e[k])
       if (primero) enfocar(ids[primero], 0)
       return
     }
@@ -1406,7 +1705,7 @@ function Formulario({
     setGeneral(null)
     const e = validar()
     setErrores(e)
-    const primero = (nuevo ? ORDEN_NUEVO : ORDEN_CAMBIAR).find((k) => e[k])
+    const primero = orden.find((k) => e[k])
     if (primero) return void document.getElementById(ids[primero])?.focus()
     if (!nuevo && !Object.keys(cambios()).length) return onGuardadoSinCambios()
     setOcupado(true)
@@ -1417,7 +1716,7 @@ function Formulario({
           unidad,
           tasa_unidades: entero(uso)!,
           tasa_dias: tasaDias,
-          stock_unidades: entero(stock)!,
+          stock_unidades: stockTotal!,
           dias_aviso: entero(aviso)!,
           // Al anotar, vacío no se envía (9.2).
           ...(entero(envase) !== null ? { unidades_por_envase: entero(envase)! } : {}),
@@ -1507,23 +1806,67 @@ function Formulario({
       />
     </div>
   )
-  const campoStock = (
-    <Stepper
-      id={ids.stock}
-      etiqueta={INSUMOS.stock}
-      ayuda={perfil ? INSUMOS.stockAyuda(fechaCorta(perfil.stock_medido_en), cantidad(perfil.stock_unidades, perfil.unidad)) : undefined}
-      sufijo={INSUMOS.sufijoStock(unidad)}
-      valor={stock}
-      onCambio={setStock}
-      min={0}
-      max={100_000}
-      error={errores.stock}
-    />
+  const ayudaStock = perfil ? INSUMOS.stockAyuda(fechaCorta(perfil.stock_medido_en), cantidad(perfil.stock_unidades, perfil.unidad)) : undefined
+
+  /** MATU-84 (3): de sueltos a envases sin perder lo escrito. El foco al envase si falta (8). */
+  const aEnvases = () => {
+    const u = envaseUtil(envaseValido(envase))
+    const r = repartir(stock, u)
+    setEnvases(r.envases)
+    setSueltos(r.sueltos)
+    setStock('')
+    setErrores((e) => ({ ...e, stock: undefined }))
+    setModoQueda('envases')
+    enfocar(u !== null ? ids.envases : ids.envase, 0)
+  }
+  /** De envases a sueltos: el total al campo único, y el envase escrito se queda al final (5.1). */
+  const aSueltos = () => {
+    setStock(juntar(envases, sueltos, envaseValido(envase)))
+    setEnvases('')
+    setSueltos('')
+    setErrores((e) => ({ ...e, envases: undefined, envase: undefined }))
+    setModoQueda('sueltos')
+    enfocar(ids.stock, 0)
+  }
+
+  const idAyudaEnvases = `${ids.stock}-ayuda-envases`
+  const campoStock = enEnvases ? (
+    <fieldset className="flex min-w-0 flex-col gap-4">
+      <legend className="mb-1.5 font-bold">{INSUMOS.stock}</legend>
+      <span id={idAyudaEnvases} className="text-base text-tenue">
+        {ayudaStock ? `${ayudaStock} ${EN_ENVASES.ayudaFormulario}` : EN_ENVASES.ayudaFormulario}
+      </span>
+      <BloqueEnvases
+        id={ids.stock}
+        unidad={unidad}
+        u={uForm}
+        envases={envases}
+        sueltos={sueltos}
+        onEnvases={setEnvases}
+        onSueltos={setSueltos}
+        error={errores.envases}
+        describe={idAyudaEnvases}
+        antes={<CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} ayuda={LISTA.envaseAyudaEnvases} error={errores.envase} />}
+      />
+      <EnlaceModo ocupado={ocupado} onClick={aSueltos}>
+        {EN_ENVASES.contarSueltos}
+      </EnlaceModo>
+    </fieldset>
+  ) : (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Stepper id={ids.stock} etiqueta={INSUMOS.stock} ayuda={ayudaStock} sufijo={INSUMOS.sufijoStock(unidad)} valor={stock} onCambio={setStock} min={0} max={100_000} error={errores.stock} />
+      {seCuentaEnEnvases(unidad) && (
+        <EnlaceModo ocupado={ocupado} onClick={aEnvases}>
+          {EN_ENVASES.contarEnvases}
+        </EnlaceModo>
+      )}
+    </div>
   )
   const campoAviso = (
     <Stepper id={ids.aviso} etiqueta={INSUMOS.aviso} ayuda={INSUMOS.avisoAyuda} sufijo={INSUMOS.sufijoAviso} valor={aviso} onCambio={setAviso} min={0} max={60} error={errores.aviso} />
   )
-  const campoEnvase = <CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} error={errores.envase} />
+  // MATU-84 D3: en modo envases, el campo del envase está dentro del bloque de lo que queda, nunca dos veces.
+  const campoEnvase = enEnvases ? null : <CampoEnvase id={ids.envase} valor={envase} onCambio={setEnvase} sufijo={INSUMOS.sufijoStock(unidad)} error={errores.envase} />
 
   return marco(
     <>
@@ -1555,7 +1898,8 @@ function Formulario({
             {campoEnvase}
           </>
         )}
-        <VistaPrevia stock={entero(stock)} uso={entero(uso)} cada={tasaDias} />
+        {/* 1.3 (5.1): la vista previa sigue la regla del total; sin envase válido y con envases, se oculta. */}
+        <VistaPrevia stock={enEnvases ? totalVisible(envases, sueltos, uForm) : stockTotal} uso={entero(uso)} cada={tasaDias} />
         {general && (
           <Anunciado urgencia="alert" className="flex max-w-prose gap-1.5 font-bold text-pronto">
             <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
@@ -1598,7 +1942,24 @@ function Formulario({
  * MATU-60 9.2: «¿Cuántas unidades trae cada envase?», opcional, de 1 a 10.000. Sin − ni +: los
  * envases traen 20, 30 u 80. La ayuda va antes del campo y lo describe, con el error si lo hay.
  */
-function CampoEnvase({ id, valor, onCambio, sufijo, error }: { id: string; valor: string; onCambio: (v: string) => void; sufijo: string; error?: string }) {
+function CampoEnvase({
+  id,
+  valor,
+  onCambio,
+  sufijo,
+  error,
+  ayuda = LISTA.envaseAyuda,
+  soloLectura = false,
+}: {
+  id: string
+  valor: string
+  onCambio: (v: string) => void
+  sufijo: string
+  error?: string
+  /** MATU-84 (7): en modo envases, «Lo guardamos para la próxima vez y para la lista.». */
+  ayuda?: string
+  soloLectura?: boolean
+}) {
   const describe = [`${id}-a`, error ? `${id}-e` : ''].filter(Boolean).join(' ')
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -1606,7 +1967,7 @@ function CampoEnvase({ id, valor, onCambio, sufijo, error }: { id: string; valor
         {LISTA.envase}
       </label>
       <span id={`${id}-a`} className="text-base text-tenue">
-        {LISTA.envaseAyuda}
+        {ayuda}
       </span>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -1617,6 +1978,7 @@ function CampoEnvase({ id, valor, onCambio, sufijo, error }: { id: string; valor
           autoComplete="off"
           maxLength={5}
           value={valor}
+          readOnly={soloLectura || undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={describe}
           onChange={(e) => onCambio(soloDigitos(e.target.value, 5))}

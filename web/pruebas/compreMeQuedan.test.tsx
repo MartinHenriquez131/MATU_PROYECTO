@@ -258,15 +258,14 @@ describe('«Compré»', () => {
 
 describe('«Me quedan»', () => {
   it('con 0: abre vacío con el foco en el campo, envía `stock_unidades: 0` y dice que no queda', async () => {
-    const { pedidas, u } = await abrir(() => ({ status: 200, cuerpo: enBloque({ ...PANAL, stock_unidades: 0, fecha_quiebre_estimada: hoy, dias_restantes: 0, etag: '"v2"' }) }))
-    await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+    const { pedidas, u } = await abrir(() => ({ status: 200, cuerpo: enBloque({ ...TOALLITAS, stock_unidades: 0, fecha_quiebre_estimada: hoy, dias_restantes: 0, etag: '"v2"' }) }))
+    // MATU-84: sin envase, en la unidad del insumo (con envase, ver envasesMeQuedan.test.tsx).
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
     await waitFor(() => expect(campo).toHaveFocus())
     expect(campo).toHaveValue('')
     expect(campo).toHaveAccessibleDescription('Reemplaza lo que calculábamos. Si no queda nada, escribe 0.')
-    // Siempre en la unidad del insumo, aunque tenga envase.
     expect(screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveTextContent('unidades')
-    expect(screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })).not.toHaveTextContent('envase')
 
     // Vacío no se envía.
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
@@ -277,11 +276,11 @@ describe('«Me quedan»', () => {
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
 
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
-    expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/recontar`, cuerpo: { stock_unidades: 0 }, ifMatch: '"v1"' })
-    const hecho = await waitFor(() => document.getElementById(`hecho-${PANAL.id}`)!)
-    expect(hecho).toHaveTextContent('Anotamos que no queda «Pañal adulto talla M». Cuando compres, anótalo con «Compré».')
+    expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${TOALLITAS.id}/recontar`, cuerpo: { stock_unidades: 0 }, ifMatch: '"v1"' })
+    const hecho = await waitFor(() => document.getElementById(`hecho-${TOALLITAS.id}`)!)
+    expect(hecho).toHaveTextContent('Anotamos que no queda «Toallitas húmedas». Cuando compres, anótalo con «Compré».')
     await waitFor(() => expect(hecho).toHaveFocus())
-    expect(fila('Pañal adulto talla M')).toHaveTextContent('Se acaba hoy')
+    expect(fila('Toallitas húmedas')).toHaveTextContent('Se acaba hoy')
   })
 
   it('con un número: «Anotamos lo que queda…» con los días y la fecha de la respuesta; 1 día en singular', async () => {
@@ -296,7 +295,7 @@ describe('«Me quedan»', () => {
 
   it('sobre 100.000 no se envía', async () => {
     const { pedidas, u } = await abrir()
-    await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
     await u.type(campo, '100001')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
@@ -321,7 +320,7 @@ describe('Errores de «Compré» y «Me quedan»', () => {
       await u.click(screen.getByRole('button', { name: 'Compré: Pañal adulto talla M' }))
       await u.click(screen.getByRole('button', { name: 'Anotar la compra' }))
     } else {
-      await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+      await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
       await u.type(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' }), '90000')
       await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
     }
