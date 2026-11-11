@@ -342,7 +342,10 @@ function Encabezado({ tono, icono, titulo, pestanas = true }: { tono: TonoBaldos
       <div className="mt-2 flex flex-col items-start gap-5 @xl/main:flex-row @xl/main:items-center">
         <Baldosa tono={tono} icono={icono} />
         {/* Revisión visual P1: el título puede encogerse junto a la baldosa y partir en renglones. */}
-        <Titulo className="max-w-full min-w-0 text-3xl @2xl/main:text-4xl">{titulo}</Titulo>
+        {/* Revisión visual P3: a 320 px con el texto al 200 %, «confirmando» se parte con guion, en español. */}
+        <Titulo lang="es-CL" className="max-w-full min-w-0 hyphens-auto text-3xl @2xl/main:text-4xl">
+          {titulo}
+        </Titulo>
       </div>
     </>
   )

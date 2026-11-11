@@ -218,6 +218,9 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
     const h1 = await h1Confirmando()
     expect([...h1.classList]).toContain('max-w-full')
     expect([...h1.classList]).toContain('min-w-0')
+    // Revisión visual P3: la palabra larga se parte con guion, con las reglas del español.
+    expect([...h1.classList]).toContain('hyphens-auto')
+    expect(h1).toHaveAttribute('lang', 'es-CL')
   })
 
   it('7.5.2 y criterio 10: el sello del piloto dentro del comprobante, antes de los productos, con la primera frase en negrita', async () => {

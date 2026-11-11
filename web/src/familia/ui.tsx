@@ -16,9 +16,9 @@ export function Acciones({ children, className = '' }: { children: ReactNode; cl
 }
 
 /** Título de cada pantalla: recibe el foco al cambiar de ruta (2.6). */
-export function Titulo({ children, className = 'text-3xl @2xl/main:text-4xl' }: { children: ReactNode; className?: string }) {
+export function Titulo({ children, className = 'text-3xl @2xl/main:text-4xl', lang }: { children: ReactNode; className?: string; lang?: string }) {
   return (
-    <h1 id="titulo-pagina" tabIndex={-1} className={`titular angosto:text-2xl outline-none ${className}`}>
+    <h1 id="titulo-pagina" tabIndex={-1} lang={lang} className={`titular angosto:text-2xl outline-none ${className}`}>
       {children}
     </h1>
   )
