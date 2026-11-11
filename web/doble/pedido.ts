@@ -229,7 +229,7 @@ function vista(p: Pedido, rol: Rol, u: UsuarioPedido) {
           boleta: 'En este piloto no se emite boleta',
           ventana_entrega: VENTANA,
           canal_reclamo: CANAL_RECLAMO,
-          condiciones: { version: '0.1', huella: HUELLA_CONDICIONES, enlace: '/v1/condiciones-pedido' },
+          condiciones: { version: VERSION_CONDICIONES, huella: HUELLA_CONDICIONES, enlace: '/v1/condiciones-pedido' },
         }
       : null,
   }
@@ -580,13 +580,13 @@ Nunca cambiamos un producto por otra marca ni por otro producto.
 Escríbenos a ${CANAL_RECLAMO}.
 `
 const HUELLA_CONDICIONES = 'c0ffee0000000000000000000000000000000000000000000000000000000001'
-const VERSION_CONDICIONES = '0.1'
+const VERSION_CONDICIONES = '0.2'
 
 /** `GET /v1/condiciones-pedido`: pública, sin mirar cookies ni token. `true` si la ruta era suya. */
 export function atenderCondiciones(metodo: string, url: string, res: ServerResponse): boolean {
   const [ruta, query] = url.split('?')
   if (ruta !== '/v1/condiciones-pedido' || metodo !== 'GET') return false
-  // MATU-62 (decisión 240): `?version=` da esa versión publicada; el doble solo publicó la 0.1.
+  // MATU-62 (decisión 240): `?version=` da esa versión publicada; el doble solo publicó la 0.2 (la vigente).
   const version = new URLSearchParams(query ?? '').get('version')
   if (version !== null && version !== VERSION_CONDICIONES) {
     res.statusCode = 404
@@ -597,7 +597,7 @@ export function atenderCondiciones(metodo: string, url: string, res: ServerRespo
   res.statusCode = 200
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ version: '0.1', actualizada_en: '2026-11-11', huella: HUELLA_CONDICIONES, texto: TEXTO_CONDICIONES }))
+  res.end(JSON.stringify({ version: VERSION_CONDICIONES, actualizada_en: '2026-11-11', huella: HUELLA_CONDICIONES, texto: TEXTO_CONDICIONES }))
   return true
 }
 
