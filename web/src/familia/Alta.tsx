@@ -592,6 +592,7 @@ export function AQuien() {
             autoComplete="off"
             maxLength={60}
             ayuda={PERSONA.pilaAyuda}
+            ayudaGrande
             error={error === 'nombres' && !b.pila.trim() ? PERSONA.errNombres : null}
           />
         </div>
