@@ -1,4 +1,4 @@
-// MATU-84 (especificación docs/diseno/matu-84-me-quedan-envases.md v1.1, secciones 3, 7 y 10): la
+// MATU-84 (especificación docs/diseno/matu-84-me-quedan-envases.md v1.3, secciones 3, 7 y 10): la
 // cuenta de envases enteros más sueltos, los límites (envases hasta ⌊100.000 / u⌋, total hasta
 // 100.000, envase de 1 a 10.000), el cambio de modo sin perder lo escrito, D2, D6 y los textos [L 30].
 import { describe, expect, it } from 'vitest'

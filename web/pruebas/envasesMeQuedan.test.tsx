@@ -1,5 +1,5 @@
 // MATU-84: «Me quedan» y el alta y la edición del insumo, también en envases (especificación
-// docs/diseno/matu-84-me-quedan-envases.md v1.1). El panel con envase abre sin teclado (D4), la
+// docs/diseno/matu-84-me-quedan-envases.md v1.3). El panel con envase abre sin teclado (D4), la
 // cuenta en vivo sin región viva, `recontar` con el total, un solo `PATCH` si se anota el envase en
 // el panel (D5), el cambio de modo sin perder lo escrito, ml y g sin enlace (D2), el envase de 1
 // (D6), «Compré» igual y el formulario con el campo del envase dentro del bloque (D3). Textos [L 30]

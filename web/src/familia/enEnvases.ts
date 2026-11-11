@@ -1,4 +1,4 @@
-// MATU-84 (especificación docs/diseno/matu-84-me-quedan-envases.md v1.1, secciones 3, 4.4 y 10):
+// MATU-84 (especificación docs/diseno/matu-84-me-quedan-envases.md v1.3, secciones 3, 4.4 y 10):
 // contar lo que queda en envases enteros más unos sueltos. Funciones puras: la API sigue recibiendo
 // unidades (`stock_unidades`, de 0 a 100.000), y la pantalla manda `envases × u + sueltos`. Nunca se
 // guardan los envases ni los sueltos por separado.

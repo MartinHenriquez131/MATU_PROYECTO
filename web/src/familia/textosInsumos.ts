@@ -291,7 +291,7 @@ export const REGISTRO = {
 
 /**
  * MATU-84 «Me quedan» y el alta del insumo en envases (especificación
- * docs/diseno/matu-84-me-quedan-envases.md v1.1, sección 7). Aprobados por Jorge el 10-11, en
+ * docs/diseno/matu-84-me-quedan-envases.md v1.3, sección 7). Aprobados por Jorge el 10-11, en
  * lenguaje.md sección 30 [L 30]. Solo para insumos en unidades o en sobres. El total va siempre en la
  * unidad del insumo y nunca nombra el producto (D1).
  */
