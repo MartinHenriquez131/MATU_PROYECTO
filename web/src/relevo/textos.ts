@@ -96,7 +96,9 @@ export const MOSTRAR_EJEMPLO: boolean = false
 export const CAMPOS: Record<CampoFicha, { etiqueta: string; pregunta: (pila: string) => string; ejemplo: string }> = {
   rutina: {
     etiqueta: 'Su día',
-    pregunta: (pila) => `¿Cómo es un día normal para ${pila}? Puedes contar un día bueno o uno difícil.`,
+    // [lenguaje 5.1, variante del relevo] MATU-88: «Puedes contar un día bueno o uno difícil.» le habla
+    // a quien escribe la ficha, con el criterio de la 5.3. El editor de la familia la sigue mostrando.
+    pregunta: (pila) => `¿Cómo es un día normal para ${pila}?`,
     ejemplo: 'Por ejemplo: «08:00 Despierta. Le gusta que abran la cortina primero». Si empiezas con la hora, lo mostramos como línea de tiempo.',
   },
   manejo_situaciones: {
