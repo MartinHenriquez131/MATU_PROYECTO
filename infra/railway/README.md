@@ -257,8 +257,8 @@ Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van co
 | `ORIGEN_WEB` | — | — | referencia |
 
 Desde MATU-61, `borrados` corre además `conservacion_pedidos` (los pedidos no pagados a los 30 días, migración
-0023). Necesita `CAPA3_HABILITADA=true` en `matu-cron-borrados`, la misma de `matu-api`: sin ella, esa tarea queda
-`"resultado": "apagada"` y las demás corren igual. Sin variables nuevas: usa `SCHEDULER_DATABASE_URL`.
+0023). Corre siempre, con la capa 3 encendida o apagada (decisión 220): no necesita `CAPA3_HABILITADA`. Sin
+variables nuevas: usa `SCHEDULER_DATABASE_URL`.
 
 `REGISTRO_AVISOS` **ya no se carga** en el cron de avisos: con `ENTORNO=staging` el envío simulado no escribe el
 archivo, que se perdía con cada contenedor (hallazgo H4). Lo enviado queda en la tabla `notificacion`, con su

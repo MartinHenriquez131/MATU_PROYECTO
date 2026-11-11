@@ -17,7 +17,7 @@ python -m app.tareas <tarea>
 | `destruccion_fichas` | Destruye las claves de las fichas retiradas hace 90 días (MATU-44) | ver `borrados` | ver `borrados` |
 | `conservacion_consumo` | Borra los perfiles de consumo 90 días después de terminar la autorización (MATU-36) | ver `borrados` | ver `borrados` |
 | `conservacion_sesiones` | Borra sesiones y dispositivos vencidos (MATU-38) | ver `borrados` | ver `borrados` |
-| `conservacion_pedidos` | Borra los pedidos no pagados 30 días después de su último cambio y las claves de idempotencia vencidas (MATU-61, D5). Capa 3: con `CAPA3_HABILITADA` apagada queda `apagada` | ver `borrados` | ver `borrados` |
+| `conservacion_pedidos` | Borra los pedidos no pagados 30 días después de su último cambio y las claves de idempotencia vencidas (MATU-61, D5). Corre siempre, también con `CAPA3_HABILITADA` apagada (decisión 220) | ver `borrados` | ver `borrados` |
 | `borrados` | Las cuatro de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
 | `quiebres` | Recalcula los quiebres de cada grupo y conserva alertas, eventos, notificaciones y compras (MATU-37 y MATU-51) | 05:00 en horario de verano, 04:00 en invierno | `0 8 * * *` |
 | `avisos` | Publica el outbox y envía los avisos de quiebre (MATU-41) | cada 5 minutos | `*/5 * * * *` |

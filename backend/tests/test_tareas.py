@@ -373,7 +373,7 @@ def test_sin_la_conexion_de_su_rol_la_tarea_falla_y_nombra_la_variable(
     tarea: str, variable: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Nunca cae a matu_app: la fábrica de matu_app ni se abre, y la línea nombra la variable, sin su valor."""
-    config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado", "capa3_habilitada": True})
+    config = obtener_configuracion().model_copy(update={"enviador_avisos": "simulado"})
     with caplog.at_level(logging.INFO, logger="matu.tareas"):
         assert tareas.correr([tarea], _contexto(_Prohibida(), config=config)) == tareas.SALIDA_FALLO
     [registro] = _corridas(caplog)
@@ -446,7 +446,7 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
     from sqlalchemy import text
 
     config = _CONFIG.model_copy(
-        update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl", "capa3_habilitada": True}
+        update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"}
     )
     conexiones = {
         "matu_app": tareas.fabrica_tareas(config),
@@ -562,3 +562,21 @@ def test_los_readme_dicen_los_mismos_horarios() -> None:
             assert f"`{cron}`" in texto, (readme.name, tarea)
         for viejo in ("`10 6,7 * * *`", "`30 7 * * *`", "`*/15 * * * *`"):
             assert viejo not in texto, (readme.name, viejo)
+
+
+@requiere_base
+@pytest.mark.rf("RF-21")
+def test_conservacion_pedidos_corre_con_la_capa_3_apagada() -> None:
+    """MATU-61 (decisión 220, política 0.12 §10): con CAPA3_HABILITADA apagada, lo no pagado igual se borra a los 30
+    días. La tarea llama a pedido_conservar con matu_scheduler y queda ok, no apagada."""
+    config = _CONFIG.model_copy(update={"capa3_habilitada": False})
+    espia = _Espia(fabrica_scheduler())
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=_Prohibida(),  # type: ignore[arg-type]
+        reloj=RelojFijo(datetime.now(UTC)),
+        fabrica_scheduler=espia,  # type: ignore[arg-type]
+    )
+    assert tareas.correr(["conservacion_pedidos"], ctx) == tareas.SALIDA_OK
+    assert espia.sesiones
+

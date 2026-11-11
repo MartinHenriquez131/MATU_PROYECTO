@@ -10,7 +10,9 @@ Tareas:
 - conservacion_consumo: perfiles de consumo a los 90 días de terminar la autorización (MATU-36).
 - conservacion_sesiones: sesiones y dispositivos vencidos (iam, MATU-38).
 - conservacion_pedidos: los pedidos no pagados a los 30 días y las claves de idempotencia vencidas (ordering,
-  MATU-61, D5). Es capa 3: con CAPA3_HABILITADA apagada queda "apagada" y ni siquiera importa ordering.
+  MATU-61, D5). Corre siempre, también con CAPA3_HABILITADA apagada (decisión 220): solo llama a la función SQL
+  pedido_conservar, y así lo no pagado se borra a los 30 días aunque los pedidos no estén disponibles (política
+  0.12, §10).
 - quiebres: el trabajo diario de la predicción de quiebre y la conservación de alertas, eventos,
   notificaciones y compras (MATU-37 y MATU-51). Si un grupo falla, los demás se procesan igual, pero la
   corrida queda "fallo" (con sus contadores) y el proceso sale con 1.
@@ -138,13 +140,12 @@ def _conservacion_sesiones(ctx: Contexto) -> Salida:
     return Salida(OK, asdict(tarea_conservacion_sesiones.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
-# MATU-61: la tarea de la capa 3 se importa solo con la capa encendida, como ROUTERS_CAPA_3 de app/main.py
+# MATU-61: se importa al correr, no al cargar este archivo (es de ordering), pero corre siempre, con la capa 3
+# encendida o apagada: lo no pagado se borra a los 30 días aunque los pedidos no estén disponibles (decisión 220)
 TAREA_CONSERVACION_PEDIDOS = "app.modules.ordering.infrastructure.tarea_conservacion"
 
 
 def _conservacion_pedidos(ctx: Contexto) -> Salida:
-    if not ctx.config.capa3_habilitada:
-        return Salida(APAGADA, {})
     tarea = importlib.import_module(TAREA_CONSERVACION_PEDIDOS)
     return Salida(OK, asdict(tarea.ejecutar(ctx.scheduler(), ctx.reloj)))
 
