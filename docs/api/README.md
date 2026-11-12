@@ -1584,3 +1584,5 @@ Las respuestas del orquestador, por delegación de Jorge, a las preguntas Q1 a Q
 284. **C9 · `SolicitudPush` sigue solo con el endpoint** mientras el envío sea simulado (decisión 263). Cuando el envío sea real, el cuerpo cambia (`p256dh` y `auth`) y la pantalla repite el `PUT`.
 
 **Lo que cambia al implementar, frente al propuesto:** `clase` y `push_activo` (arriba). `clase` sale en `openapi.json` como un `enum` en línea, no como el componente `ClaseDispositivo` del YAML, y los errores como `application/problem+json` sin esquema, como en el resto de `openapi.json`. Las rutas y los códigos son los del propuesto.
+
+Además de las cinco pruebas de la decisión 266, otras tres leían `auditoria.ip` y se ajustaron igual (verifican que la columna ya no está): `tests/modules/care_circle/test_personas.py`, `tests/modules/care_plan/test_ficha_api.py` y `tests/modules/care_plan/test_borrado_persona_api.py`. Ningún código de la aplicación la leía.

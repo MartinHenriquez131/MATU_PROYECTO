@@ -83,8 +83,9 @@ def _completa(entorno: EntornoAbrir) -> FamiliaCreada:
 def _acciones(grupo: uuid.UUID, accion: str | None = None) -> list[tuple[Any, ...]]:
     filtro = "" if accion is None else " AND accion = %s"
     parametros: tuple[Any, ...] = (grupo,) if accion is None else (grupo, accion)
-    return _todas("SELECT accion, actor_tipo, actor_ref, entidad, entidad_id, request_id, detalle, ocurrido_en, ip"
-                  f" FROM auditoria WHERE grupo_id = %s{filtro} ORDER BY id", *parametros)
+    # MATU-55 (decisión 266): la columna ip ya no existe; to_jsonb(a) ? 'ip' lo verifica
+    return _todas("SELECT accion, actor_tipo, actor_ref, entidad, entidad_id, request_id, detalle, ocurrido_en,"
+                  f" to_jsonb(a) ? 'ip' FROM auditoria a WHERE grupo_id = %s{filtro} ORDER BY id", *parametros)
 
 
 def _persona(familia: FamiliaCreada) -> tuple[Any, ...]:
@@ -188,7 +189,7 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
         ["consentimiento.revocar"] * 2 + ["relevo.revocar"] * 2 + ["clave.destruir", "persona.borrar"])
     assert {f[1] for f in del_borrado} == {"usuario"} and {f[2] for f in del_borrado} == {_cuidador(familia).id}
     assert len({f[5] for f in del_borrado}) == 1 and del_borrado[0][5] is not None
-    assert {f[6] for f in del_borrado} == {None} and {f[8] for f in del_borrado} == {None}
+    assert {f[6] for f in del_borrado} == {None} and {f[8] for f in del_borrado} == {False}
     [persona_borrar] = [f for f in del_borrado if f[0] == "persona.borrar"]
     assert (persona_borrar[3], persona_borrar[4]) == ("persona_cuidada", familia.persona.id)
     [destruir] = [f for f in del_borrado if f[0] == "clave.destruir"]
@@ -601,4 +602,5 @@ def test_la_auditoria_del_borrado_no_lleva_nombres_ni_contadores(entorno: Entorn
     texto = " ".join(f[0] for f in filas)
     for dato in (familia.persona.nombre, familia.persona.nombre_pila, "Rosa", "Pañal", "enlaces"):
         assert dato not in texto
-    assert all('"detalle":null' in f[0] and '"ip":null' in f[0] for f in filas if '"persona.borrar"' in f[0])
+    # Sin detalle, y sin ip: la columna se borró en la 0025 (MATU-55)
+    assert all('"detalle":null' in f[0] and '"ip"' not in f[0] for f in filas if '"persona.borrar"' in f[0])
