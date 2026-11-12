@@ -15,8 +15,11 @@ info:
     Jorge (MATU-61)"), y este archivo ya las aplica:
     - **C1:** `confirmar` acepta también un total **vigente** y lo reemplaza (15 minutos nuevos), y
       `POST /v1/pedidos/{pedido_id}/cambiar` vuelve de `total_confirmado` a `borrador` («Cambiar el pedido»).
-    - **C2:** con la capa 3 apagada, el retiro de autorizaciones y el borrado de la persona siguen funcionando
-      y no tocan pedidos; `GET …/consentimientos` trae 3 ítems con la capa 3 encendida y 2 con la capa apagada.
+    - **C2:** con la capa 3 apagada, el retiro de autorizaciones y el borrado de la persona siguen funcionando;
+      `GET …/consentimientos` trae 3 ítems con la capa 3 encendida y 2 con la capa apagada. Corregido por la
+      decisión 250 (MATU-94): con la capa 3 apagada, el retiro de `despacho` y el borrado sí cancelan los pedidos
+      sin pagar; solo con la capa 3 quitada no los tocan. Con un registro de `despacho`, la vista trae 3 ítems
+      también con la capa apagada (decisión 251).
     - **C3:** admin y cuidador arman, ajustan, confirman y cancelan sin pagar; el pagador ve todo y no
       confirma; el observador ve el carrito sin la entrega ni el resumen.
     - **C4:** un solo pedido sin pagar por persona, leído con `GET …/pedido-en-curso`.

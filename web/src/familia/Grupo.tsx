@@ -40,8 +40,13 @@ import { Acciones, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 
 /** Con la autorización vigente o por renovar: hay algo que retirar. */
 const autorizada = (v: AutorizacionVista | undefined) => v?.estado === 'vigente' || v?.estado === 'revision_vencida'
-/** Retirada o ya borrada: se puede volver a autorizar. */
+/** Retirada o ya borrada. */
 const retirada = (v: AutorizacionVista | undefined) => v?.estado === 'retirada' || v?.estado === 'borrada'
+/**
+ * Retirada o ya borrada y la finalidad se otorga hoy: se puede volver a autorizar. `despacho` con la
+ * capa 3 apagada viene con `se_puede_otorgar: false`, solo para retirarla (decisión 251).
+ */
+const reautorizable = (v: AutorizacionVista | undefined) => retirada(v) && v?.se_puede_otorgar === true
 /** Lo guardado ya no vuelve (decisión 127: `borrada` aunque la tarea todavía no haya corrido). */
 const seBorro = (v: AutorizacionVista) => v.estado === 'borrada' || v.borrada
 
@@ -74,7 +79,10 @@ function ConFecha({ partes: [antes, pegado, despues], iso }: { partes: readonly 
 
 interface DatosPersona {
   persona: PersonaListada
-  /** `[plan_cuidado, consumo]`, en el orden del contrato, y `despacho` con la capa 3 (MATU-61, C2). */
+  /**
+   * `plan_cuidado` y `consumo`, y `despacho` con la capa 3 o, con la capa apagada, si tiene un registro
+   * (MATU-61, C2, decisión 251). Se pinta lo que llega, sin suponer cuántos son.
+   */
   vistas: AutorizacionVista[]
   /** 2.2: cuántos enlaces hay hoy. `null` si no se pidió o falló: la confirmación omite la frase. */
   enlaces: number | null
@@ -117,7 +125,7 @@ export function GrupoFamiliar() {
           try {
             const vistas = await leerAutorizaciones(persona.id)
             let enlaces: number | null = null
-            if (editor && autorizada(vistas[0])) {
+            if (editor && autorizada(vistas.find((v) => v.finalidad === 'plan_cuidado'))) {
               enlaces = await listarAccesos(persona.id, { estado: 'vigente', limite: 100 })
                 .then((r) => r.items.length)
                 .catch(() => null)
@@ -352,8 +360,14 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     tono = 'text-atenta'
     frase = (
       <>
-        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." /> {ficha ? T.renovarFicha : T.renovarInsumos}{' '}
-        <Fecha iso={v.revision_vence_en} fin="." />
+        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." />
+        {/* Decisión 251: con la capa 3 apagada no se puede renovar, así que no se pide renovarla. */}
+        {v.se_puede_otorgar && (
+          <>
+            {' '}
+            {ficha ? T.renovarFicha : T.renovarInsumos} <Fecha iso={v.revision_vence_en} fin="." />
+          </>
+        )}
       </>
     )
   } else if (v.estado === 'retirada') {
@@ -428,19 +442,20 @@ function Bloque({
           {T.retirar}
         </Boton>
       )}
-      {editor && retirada(v) && (
+      {editor && reautorizable(v) && (
         <Boton id={`volver-${clave}`} variante="secundario" className="self-start" aria-label={ficha ? T.volverFichaDe(pila) : pedidos ? P.volverDe(pila) : T.volverInsumosDe(pila)} onClick={onVolver}>
           {T.volverAAutorizar}
         </Boton>
       )}
-      {/* 12.1 (O12, C8): con una dirección guardada, para verla o vaciarla aunque se haya retirado el permiso. */}
+      {/* 12.1 (O12, C8): con una dirección guardada, para verla o vaciarla aunque se haya retirado el permiso.
+          También con la capa 3 apagada (`se_puede_otorgar: false`, decisión 251): la ruta se monta siempre. */}
       {editor && pedidos && conDireccion && v.estado !== 'sin_autorizar' && (
         <Boton variante="texto" className="self-start" aria-label={P.verDireccionDe(pila)} onClick={onVerDireccion}>
           {P.verDireccion}
         </Boton>
       )}
       {!editor && autorizada(v) && <p className="text-base text-tenue">{T.puedeRetirarla(pila)}</p>}
-      {!editor && retirada(v) && <p className="text-base text-tenue">{T.puedeVolverAAutorizarla(pila)}</p>}
+      {!editor && reautorizable(v) && <p className="text-base text-tenue">{T.puedeVolverAAutorizarla(pila)}</p>}
     </section>
   )
 }
@@ -834,9 +849,9 @@ function useVistaAReautorizar(finalidad: Finalidad) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 2.1: sin una autorización retirada o borrada, no hay nada que volver a dar.
+  // 2.1: sin una autorización retirada o borrada que se pueda otorgar hoy, no hay nada que volver a dar.
   useEffect(() => {
-    if (vista && !retirada(vista)) navegar('/grupo', { reemplazar: true })
+    if (vista && !reautorizable(vista)) navegar('/grupo', { reemplazar: true })
   }, [vista])
 
   return { vista, falla, pedir }
@@ -871,7 +886,7 @@ export function AutorizarFicha() {
   const pila = persona ? nombrePilaDe(persona) : ''
 
   if (fallaVista === 'no-encontrado' || falla === 'no-encontrado') return <SinAcceso />
-  const lista = vista && retirada(vista) ? vista : null
+  const lista = vista && reautorizable(vista) ? vista : null
   const enBlanco = lista ? seBorro(lista) : false
 
   const aceptar = async () => {
@@ -951,7 +966,7 @@ export function AutorizarInsumos() {
         </Nota>
       </Pagina>
     )
-  const lista = vista && retirada(vista) ? vista : null
+  const lista = vista && reautorizable(vista) ? vista : null
   const enBlanco = lista ? seBorro(lista) : false
 
   return (
@@ -987,7 +1002,7 @@ export function AutorizarPedidosDesdeGrupo() {
         </Nota>
       </Pagina>
     )
-  const lista = vista && retirada(vista) ? vista : null
+  const lista = vista && reautorizable(vista) ? vista : null
 
   return (
     <Permiso

@@ -57,7 +57,8 @@ Cada historia agrega aquí lo suyo:
   copian al código: se leen del SDK al armar el adaptador). "produccion" exige WEBPAY_CODIGO_COMERCIO y WEBPAY_LLAVE,
   que se leen del entorno. "falsa" es la PasarelaFalsa, sin red: solo con ENTORNO local o pruebas. Sin valor, pagar
   responde 503 pasarela-no-disponible y la vuelta y la conciliación no llaman a nadie. VIDA_VENTA_WEBPAY_MINUTOS
-  (10 por omisión, decisión 230 y P-62-6) fija cuánto dura un pago en curso con la venta iniciada.
+  (8 por omisión, decisión 230 y P-62-6: la venta de integración vence a los 7 minutos) fija cuánto dura un pago
+  en curso con la venta iniciada.
   PASARELA_PAGO=produccion exige además ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true (observación 9 del cierre del
   analista): sin las dos, la configuración no carga y la API no arranca
 """
@@ -243,9 +244,9 @@ class Configuracion(BaseSettings):
     pasarela_pago: Literal["integracion", "produccion", "falsa"] | None = None
     webpay_codigo_comercio: str | None = Field(default=None, pattern=r"^[0-9]{6,12}$")
     webpay_llave: SecretStr | None = Field(default=None, min_length=16)
-    # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Supuesto de trabajo
-    # de 10 hasta medir la vida del token en integración
-    vida_venta_webpay_minutos: int = Field(default=10, ge=1, le=30)
+    # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Martín midió en
+    # integración que la venta de Webpay vence a los 7 minutos; 8 deja 1 minuto de margen (Jorge, 12-11, MATU-94)
+    vida_venta_webpay_minutos: int = Field(default=8, ge=1, le=30)
     # Observación 9 del cierre del analista: cobrar dinero real exige ENTORNO=produccion y esta marca explícita, que
     # queda en false hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66. No es un secreto
     dinero_real_autorizado: bool = False

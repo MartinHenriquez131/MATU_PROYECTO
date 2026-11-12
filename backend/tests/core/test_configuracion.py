@@ -520,6 +520,23 @@ def test_la_pasarela_de_produccion_carga_con_entorno_produccion_y_la_marca(monke
 
 
 @pytest.mark.rf("RF-25")
+def test_la_vida_de_la_venta_webpay_es_de_8_minutos() -> None:
+    """MATU-94 (decisión 230, P-62-6): la venta de integración vence a los 7 minutos; 8 deja 1 de margen. La
+    configuración, el valor por omisión del repositorio y .env.example dicen lo mismo."""
+    from datetime import timedelta
+    from pathlib import Path
+
+    from dotenv import dotenv_values
+
+    from app.modules.ordering.infrastructure.repositorio_pedidos import VIDA_VENTA_POR_OMISION
+
+    assert config.Configuracion.model_fields["vida_venta_webpay_minutos"].default == 8
+    assert VIDA_VENTA_POR_OMISION == timedelta(minutes=8)
+    valores = dotenv_values(Path(__file__).resolve().parents[3] / ".env.example")
+    assert valores["VIDA_VENTA_WEBPAY_MINUTOS"] == "8"
+
+
+@pytest.mark.rf("RF-25")
 def test_el_dinero_real_queda_bloqueado_en_env_example() -> None:
     from pathlib import Path
 
