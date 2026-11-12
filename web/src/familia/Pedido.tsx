@@ -669,7 +669,13 @@ function Carrito(props: PropsCarrito) {
 
   // El pedido cambió (la respuesta de un guardado, un 412 con lo de otra persona, «Cambiar el
   // pedido»): los campos muestran lo guardado, salvo lo que se está escribiendo todavía.
+  // MATU-107 (55-H3): solo cuando llega otro pedido, nunca con el que armó el estado inicial. El
+  // efecto corre después de pintar: al montar, se colaba en lo primero que la persona escribía y le
+  // devolvía la cantidad guardada.
+  const sincronizado = useRef(pedido)
   useEffect(() => {
+    if (sincronizado.current === pedido) return
+    sincronizado.current = pedido
     setValores((v) => {
       const quieto = reloj.current === undefined && enVuelo.current === 0
       return Object.fromEntries(pedido.lineas.map((l) => [l.producto.id, quieto || v[l.producto.id] === undefined ? String(l.cantidad) : v[l.producto.id]]))
