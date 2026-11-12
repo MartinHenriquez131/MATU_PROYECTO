@@ -728,7 +728,8 @@ function PagoDelPedido({ pago }: { pago: PedidoCopia['pago'] }) {
       <p className="max-w-prose text-base break-words">
         <ConFechaHora partes={[T.loPago(nombreDe(pago.pagado_por))[0], '.']} iso={pago.pagado_en} />
       </p>
-      <p className="text-base">
+      {/* 54-H4: espacio duro a ambos lados del «·»; break-words por si el par no cabe con el texto al 200%. */}
+      <p className="text-base break-words">
         {T.cobrado}
         <span className="cifras">
           {pesos(pago.cobrado)}
@@ -736,7 +737,7 @@ function PagoDelPedido({ pago }: { pago: PedidoCopia['pago'] }) {
         </span>
         {pago.devuelto > 0 && (
           <>
-            {' · '}
+            {' · '}
             {T.devuelto}
             <span className="cifras">{pesos(pago.devuelto)}.</span>
           </>

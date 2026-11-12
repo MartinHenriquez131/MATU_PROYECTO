@@ -236,7 +236,7 @@ describe('tercera revisión (P3): el «·» de las colas nunca queda solo al com
     const compras = bloque('Compras anotadas (últimos 90 días)')
     expect(within(compras).getAllByRole('listitem')[0].textContent).toContain('10/11/2026\u00A0· Anotó Carmen Soto')
     const pedido = within(bloque('Sus pedidos')).getAllByRole('listitem')[0]
-    expect(pedido.textContent).toContain('Cobrado: $37.260 · Devuelto: $5.290.')
+    expect(pedido.textContent).toContain('Cobrado: $37.260\u00A0·\u00A0Devuelto: $5.290.')
     expect(pedido.textContent).toContain('(comercio ficticio)\u00A0· Si falta:')
     for (const nombre of ['Compras anotadas (últimos 90 días)', 'Sus pedidos', 'Quién abrió o editó la ficha']) sinPuntoSuelto(bloque(nombre))
   })
@@ -246,5 +246,32 @@ describe('tercera revisión (P3): el «·» de las colas nunca queda solo al com
     render(<TusDatos />)
     await screen.findByRole('button', { name: 'Descargar en un archivo' })
     for (const nombre of ['Últimos ingresos', 'Avisos que te enviamos', 'Tus pagos']) sinPuntoSuelto(bloque(nombre))
+  })
+})
+
+describe('54-H4 (P3): el «·» entre dos montos tampoco queda solo al final de un renglón', () => {
+  /** El «·» de los pagos lleva espacio duro (U+00A0) a ambos lados: el renglón no empieza ni termina con él. */
+  const pegadoAmbosLados = (texto: string) => {
+    expect(texto.match(/·/g)?.length ?? 0).toBeGreaterThan(0)
+    expect(texto).not.toMatch(/(^|[^\u00A0])·/)
+    expect(texto).not.toMatch(/·([^\u00A0]|$)/)
+  }
+
+  it('«Datos de María»: «Cobrado · Devuelto» del pedido', async () => {
+    await abrirPersona()
+    const pago = within(bloque('Sus pedidos')).getByText(/^Cobrado:/)
+    expect(pago.textContent).toBe('Cobrado: $37.260\u00A0·\u00A0Devuelto: $5.290.')
+    pegadoAmbosLados(pago.textContent ?? '')
+    expect(pago.className).toMatch(/\bbreak-words\b/)
+  })
+
+  it('«Tus datos»: «terminada en 4242 · 3 cuotas» y «· Sin cuotas» de cada pago', async () => {
+    apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
+    render(<TusDatos />)
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    const tarjetas = within(bloque('Tus pagos')).getAllByText(/terminada en/)
+    expect(tarjetas.length).toBe(2)
+    for (const t of tarjetas) pegadoAmbosLados(t.textContent ?? '')
+    expect(tarjetas[0].textContent).toContain('4242\u00A0·\u00A03 cuotas')
   })
 })

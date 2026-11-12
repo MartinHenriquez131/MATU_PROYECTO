@@ -316,8 +316,8 @@ export const MIS_DATOS = {
   enGrupo: (grupo: string) => ` en ${grupo}`, // [NUEVO], tras el monto
   tarjeta: (tipo: NonNullable<PagoCuentaCopia['tarjeta']>['tipo']) =>
     tipo === 'credito' ? 'Tarjeta de crédito terminada en ' : tipo === 'debito' ? 'Tarjeta de débito terminada en ' : 'Tarjeta de prepago terminada en ', // [NUEVO]
-  /** (1.2, P3-4) Con espacio duro antes del «·»: un renglón nunca empieza con el punto. [NUEVO] */
-  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'),
+  /** (1.2, P3-4 y 54-H4) Con espacio duro a ambos lados del «·»: un renglón nunca empieza ni termina con el punto. [NUEVO] */
+  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'),
   /** Con `referencia: null` (decisión 392, pago anulado por tardío). [NUEVO] */
   pagoDel: 'Pago del ',
   /** F3 (decisión 402): el mismo código que ya ve en su comprobante. [NUEVO] */
