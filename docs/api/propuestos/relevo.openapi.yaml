@@ -1,17 +1,24 @@
 openapi: 3.1.0
 info:
   title: MATU API · Acceso de relevo (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.2.0-propuesto
   summary: Compartir la ficha con un relevo, canjear el enlace con PIN, leerla como relevo, revocar y ver quién la abrió.
   description: |
+    **Implementado y sin rutas (MATU-106, 12-11): el contrato vigente de todas las rutas del relevo
+    es `docs/api/openapi.json`.** Este archivo se conserva por la explicación de las decisiones (los
+    dos tipos de actor, el token en el fragmento, lo que nunca sale ni se registra, las cabeceras y
+    la auditoría) y por los componentes, con sus descripciones y ejemplos, como `ficha.openapi.yaml`
+    (decisión 406 de `docs/api/README.md`). Si algo de aquí contradice `openapi.json`, manda
+    `openapi.json`.
+
     Contrato **propuesto** de MATU-09, parte 2. Lo implementan MATU-18 (compartir), MATU-19 (abrir
     con enlace y PIN), MATU-20 (revocar), MATU-23 (página del relevo) y MATU-25 (límite por IP).
     Ver `docs/api/README.md`.
 
-    **Rutas que ya no están aquí.** `…/plan/aperturas` pasó a `openapi.json` en MATU-45, y
-    `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha` en MATU-50, y
-    `DELETE /v1/accesos-relevo/{acceso_id}` en MATU-48: manda `openapi.json`. Siguen aquí la
-    presentación y el canje.
+    **Rutas que ya no están aquí.** `…/plan/aperturas` pasó a `openapi.json` en MATU-45,
+    `…/plan/accesos-relevo` (POST y GET) y `GET /v1/relevo/ficha` en MATU-50,
+    `DELETE /v1/accesos-relevo/{acceso_id}` en MATU-48, y `POST /v1/relevo/presentacion` y
+    `POST /v1/relevo/canje` en MATU-106: manda `openapi.json`. No queda ninguna.
 
     **Dos tipos de actor.**
 
@@ -55,174 +62,12 @@ tags:
   - name: relevo
     description: Rutas públicas que usa la página del relevo, sin cuenta
 
-paths:
-  # MATU-50 exportó a docs/api/openapi.json POST y GET …/plan/accesos-relevo y GET /v1/relevo/ficha, con
-  # los cambios de la ficha ampliada (propuestos/ficha-ampliada.openapi.yaml), y se quitaron de aquí. Los
-  # componentes que solo usaban esas rutas se conservan como referencia. MATU-48 exportó DELETE
-  # /v1/accesos-relevo/{acceso_id} (MATU-20: 204 idempotente, 401 y 404, sin exigir consentimiento) y lo
-  # quitó de aquí.
-  /v1/relevo/presentacion:
-    post:
-      tags: [relevo]
-      operationId: presentarRelevo
-      summary: Saber quién compartió la ficha y de quién es, antes del PIN
-      description: |
-        Ruta **pública** para la pantalla del PIN (decisión 28). Recibe solo el token, leído del
-        fragmento `/r#<token>`, en el cuerpo y nunca en la URL. Responde los dos nombres de pila
-        para que la página diga "Carmen te compartió la ficha de María" antes de pedir el PIN.
-
-        Jorge aceptó el riesgo: quien reciba un enlace reenviado ve los dos nombres de pila sin
-        el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.
-
-        **Orden de evaluación**, el mismo del canje hasta el estado:
-
-        1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
-           del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, **429**. Sin
-           Redis o sin `PEPPER_LIMITES`, **503**.
-        2. Cuerpo válido. Si no, **422**. Un cuerpo que no es JSON válido responde 422 antes del
-           paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el
-           paso 1, antes de validar sus campos.
-        3. El token corresponde a un acceso (`indice_token`). Si no, **410**
-           `/errores/relevo-no-disponible`.
-        4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
-           revocado → **410** `/errores/relevo-revocado`, vencido → **410**
-           `/errores/relevo-vencido`.
-        5. Bloqueado (5 PIN incorrectos) → **423**.
-        5b. Autorización de la persona no vigente (consentimiento retirado, o revisión anual del
-           cuidador de hecho vencida según el reloj del servidor) → **410** `/errores/relevo-pausado`,
-           sin decir el motivo (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión
-           de Jorge).
-        6. Si no, **200** con los dos nombres. Se leen de `acceso_relevo` con `app.rol = 'relevo'`
-           y `app.acceso_relevo_id`, igual que la sesión de relevo.
-
-        No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra
-        `relevo.abrir`: no muestra la ficha. Cada 200 registra `relevo.presentar`, sin IP
-        (decisión 30). La familia lo ve en `/plan/aperturas` (implementada en MATU-45, en `openapi.json`) como `presentacion`: una
-        presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN.
-      x-matu-historia: MATU-19, MATU-23
-      x-matu-auditoria: relevo.presentar
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SolicitudPresentacion'
-            examples:
-              presentacion:
-                summary: La página de Rosa pide los nombres con el token del enlace
-                value:
-                  token: EjemploSinteticoDeTokenDeRelevoNoValido0000
-      responses:
-        '200':
-          description: Los dos nombres de pila del acceso.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/XRequestId'
-            Cache-Control:
-              $ref: '#/components/headers/CacheControlNoStore'
-            Referrer-Policy:
-              $ref: '#/components/headers/ReferrerPolicy'
-            X-Robots-Tag:
-              $ref: '#/components/headers/XRobotsTag'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Presentacion'
-              examples:
-                carmen_maria:
-                  summary: Carmen compartió la ficha de María
-                  value:
-                    nombre_pila_comparte: Carmen
-                    nombre_pila: María
-        '410':
-          $ref: '#/components/responses/RelevoNoDisponibleCanje'
-        '422':
-          $ref: '#/components/responses/ValidacionPresentacion'
-        '423':
-          $ref: '#/components/responses/RelevoBloqueado'
-        '429':
-          $ref: '#/components/responses/DemasiadasPresentaciones'
-        '503':
-          $ref: '#/components/responses/RelevoSinServicio'
-
-  /v1/relevo/canje:
-    post:
-      tags: [relevo]
-      operationId: canjearRelevo
-      summary: Canjear el enlace y el PIN por una sesión de relevo
-      description: |
-        Ruta **pública**. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo,
-        nunca en la URL. Si son correctos, responde **204** con la cookie de sesión de relevo, y la
-        página lee la ficha con `GET /v1/relevo/ficha`.
-
-        **Orden de evaluación:**
-
-        1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
-           (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, **429**, sin
-           tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
-        2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento. Un cuerpo que
-           no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114);
-           todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
-        3. El token corresponde a un acceso (`indice_token`). Si no, **410**
-           `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
-        4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
-           `/errores/relevo-vencido`. Se decide con `indice_token.revocado_en` y `expira_en`
-           (decisión 23). Revocar no borra `indice_token`, así que un enlace revocado siempre
-           llega a este paso. No cuenta como intento.
-        5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
-        5b. Autorización de la persona no vigente → **410** `/errores/relevo-pausado` (decisión 33 en
-           el relevo). No cuenta como intento ni crea sesión. Si la familia renueva la autorización,
-           el mismo enlace vuelve a servir.
-        6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
-           responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
-           `relevo.bloqueo` y responde **423**. Un acceso bloqueado se reemplaza creando otro.
-        7. PIN correcto: vuelve el contador a 0, crea la sesión en Redis, registra `relevo.canje` y
-           responde **204** con `Set-Cookie`.
-
-        La sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso. Después,
-        el relevo vuelve a escribir el PIN.
-      x-matu-historia: MATU-19, MATU-25
-      x-matu-auditoria: relevo.canje, relevo.pin_incorrecto, relevo.bloqueo
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SolicitudCanje'
-            examples:
-              canje:
-                summary: Rosa escribe el PIN que le dictó Carmen
-                value:
-                  token: EjemploSinteticoDeTokenDeRelevoNoValido0000
-                  pin: '4821'
-      responses:
-        '204':
-          description: PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/XRequestId'
-            Set-Cookie:
-              $ref: '#/components/headers/SetCookieRelevo'
-            Cache-Control:
-              $ref: '#/components/headers/CacheControlNoStore'
-            Referrer-Policy:
-              $ref: '#/components/headers/ReferrerPolicy'
-            X-Robots-Tag:
-              $ref: '#/components/headers/XRobotsTag'
-        '401':
-          $ref: '#/components/responses/PinIncorrecto'
-        '410':
-          $ref: '#/components/responses/RelevoNoDisponibleCanje'
-        '422':
-          $ref: '#/components/responses/ValidacionCanje'
-        '423':
-          $ref: '#/components/responses/RelevoBloqueado'
-        '429':
-          $ref: '#/components/responses/DemasiadasPeticiones'
-        '503':
-          $ref: '#/components/responses/RelevoSinServicio'
+paths: {}
+  # MATU-106 exportó a docs/api/openapi.json POST /v1/relevo/presentacion y POST /v1/relevo/canje, las dos
+  # últimas rutas de este archivo, y se quitaron de aquí. Sus órdenes de evaluación quedaron en la descripción
+  # de cada operación en openapi.json. Antes, MATU-45 exportó …/plan/aperturas, MATU-50 POST y GET
+  # …/plan/accesos-relevo y GET /v1/relevo/ficha, y MATU-48 DELETE /v1/accesos-relevo/{acceso_id}. Los
+  # componentes de abajo se conservan como explicación de las decisiones (decisión 406).
 
 components:
   securitySchemes:
