@@ -1,12 +1,13 @@
 // MATU-55 (especificación docs/diseno/matu-55-donde-entraste.md v1.1, sección 3): «Tu cuenta» con la
 // entrada a «Dónde entraste», las casillas de avisos y «Este teléfono» con Web Push, sobre un
 // navegador simulado (permiso, service worker y suscripción). Solo datos sintéticos.
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AvisosCuenta } from '../src/familia/AvisosCuenta'
 import { TuCuenta } from '../src/familia/Cuenta'
 import { bytesDeClave } from '../src/familia/push'
+import { salir } from '../src/compartido/api/sesion'
 import { ACTUAL, apiCuenta, CLAVE, PC, problema, PUSH_LIBRE, type Respuesta } from './dondeEntrasteFalso'
 import { familiaFalsa } from './familiaFalsa'
 import { responderPolitica } from './politicaFalsa'
@@ -138,16 +139,27 @@ describe('Avisos: las casillas (3.3)', () => {
 
     expect(await screen.findByText('Guardando…')).toBeInTheDocument()
     expect(correo).toHaveAttribute('aria-busy', 'true')
-    expect(correo).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'En tus teléfonos' })).toBeDisabled()
+    // 1.2: `aria-disabled`, no `disabled`: el foco se queda en la casilla mientras guarda.
+    expect(correo).not.toBeDisabled()
+    expect(correo).toHaveAttribute('aria-disabled', 'true')
+    expect(correo).toHaveClass('aria-disabled:opacity-60')
+    const telefonos = screen.getByRole('checkbox', { name: 'En tus teléfonos' })
+    expect(telefonos).toHaveAttribute('aria-disabled', 'true')
+    expect(correo).toHaveFocus()
+    // Mientras guarda, otro toque no pide nada y la casilla no cambia.
+    await u().click(telefonos)
+    expect(api.de('PUT', '/v1/yo/avisos')).toHaveLength(1)
+    expect(telefonos).toBeChecked()
     expect(api.de('PUT', '/v1/yo/avisos')[0].cuerpo).toEqual({ correo: false, push: true })
 
     espera.soltar({ status: 200, cuerpo: { correo: false, push: true } })
     expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
     expect(screen.queryByText('Guardando…')).toBeNull()
     expect(correo).not.toBeChecked()
-    expect(correo).toBeEnabled()
-    await vi.waitFor(() => expect(correo).toHaveFocus())
+    expect(correo).not.toHaveAttribute('aria-disabled')
+    // Criterio 16: el foco ya está en la casilla en el mismo render, sin esperar un temporizador.
+    expect(correo).toHaveFocus()
+    expect(document.activeElement).not.toBe(document.body)
   })
 
   it('error o sin red: la casilla vuelve a lo de antes, el error y el foco en ella', async () => {
@@ -159,7 +171,8 @@ describe('Avisos: las casillas (3.3)', () => {
     const error = await screen.findByText('No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.')
     expect(error.closest('[data-aviso]')).toHaveAttribute('data-aviso', 'alert')
     expect(correo).toBeChecked()
-    await vi.waitFor(() => expect(correo).toHaveFocus())
+    expect(correo).toHaveFocus()
+    expect(document.activeElement).not.toBe(document.body)
   })
 
   it('E4: al desmarcar «En tus teléfonos», el bloque del teléfono se oculta y la inscripción no se borra', async () => {
@@ -214,7 +227,7 @@ describe('Este teléfono: los estados (3.4)', () => {
     expect(await screen.findByRole('heading', { level: 3, name: 'Este teléfono' })).toBeInTheDocument()
     const etiqueta = await screen.findByText('Sin activar')
     expect(etiqueta.querySelector('svg.lucide-circle')).not.toBeNull()
-    expect(screen.getByText('Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.')).toBeInTheDocument()
+    expect(screen.getByText('Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante, y MATU la guarda hasta que los desactives o salgas. En el piloto, MATU no le envía nada a ese servicio.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toBeInTheDocument()
     expect(n.notificacion.requestPermission).not.toHaveBeenCalled()
     expect(n.sw.register).not.toHaveBeenCalled()
@@ -290,6 +303,11 @@ describe('Este teléfono: los estados (3.4)', () => {
     const pasos = within(bloque()).getAllByRole('listitem')
     expect(pasos.map((p) => p.textContent)).toEqual(['Toca Compartir  en Safari.', 'Elige «Agregar a inicio».', 'Abre MATU desde su ícono y vuelve a Tu cuenta.'])
     expect(within(pasos[0]).getByRole('img', { name: 'Compartir' })).toHaveClass('size-5')
+    // P1 de la revisión 1.2: a 320 px con el 200 % el ícono de la nota va en la línea del título
+    // (`iconoEnLinea`), para que el título use todo el ancho. jsdom no mide: se afirma la estructura.
+    const titulo = screen.getByText('En iPhone, primero agrega MATU a tu pantalla de inicio.')
+    expect(titulo.querySelector('span[class*="angosto:inline-flex"] svg')).not.toBeNull()
+    expect(titulo.closest('.bg-rocio')!.querySelector(':scope > span[class*="angosto:hidden"]')).not.toBeNull()
     expect(within(bloque()).queryByRole('button')).toBeNull()
   })
 
@@ -330,7 +348,8 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
 
     expect(await screen.findByText('Activaste los avisos en este teléfono.')).toBeInTheDocument()
     expect(screen.getByText('Activados')).toBeInTheDocument()
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toHaveFocus())
+    // Criterio 16: en el mismo render, sin esperar un temporizador.
+    expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toHaveFocus()
     expect(n.pasos).toEqual(['requestPermission', 'register /sw.js', 'subscribe'])
     const opciones = n.pushManager.subscribe.mock.calls[0][0]
     expect(opciones.userVisibleOnly).toBe(true)
@@ -367,7 +386,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     render(<AvisosCuenta />)
     await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
     const nota = await screen.findByText('Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.')
-    await vi.waitFor(() => expect(nota.closest('[tabindex="-1"]')).toHaveFocus())
+    expect(nota.closest('[tabindex="-1"]')).toHaveFocus()
     expect(screen.queryByRole('button', { name: /Activar en este/ })).toBeNull()
   })
 
@@ -393,7 +412,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     expect(await screen.findByText('Desactivaste los avisos en este teléfono.')).toBeInTheDocument()
     expect(api.de('DELETE', '/v1/dispositivos/actual/push')).toHaveLength(1)
     expect(n.pasos).toEqual(['unsubscribe'])
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toHaveFocus()
   })
 
   it('falla el DELETE: sigue en A, el error, y la suscripción del navegador no se toca', async () => {
@@ -448,5 +467,137 @@ describe('«Tu cuenta» con MATU-55', () => {
     // La única lectura de dispositivos es la de la clase del actual (E1), para «Este teléfono».
     expect(api.de('GET', '/v1/dispositivos')).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 3, name: `Este ${ACTUAL.clase === 'telefono' ? 'teléfono' : ''}` })).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------- criterio 16: el foco, en el render
+
+describe('El foco después del render, sin temporizadores (P1 de la revisión 1.2, criterio 16)', () => {
+  // Mientras la respuesta llega, los `setTimeout` de 0 ms no corren: si el foco se moviera con un
+  // temporizador (lo que en el navegador lo dejaba en el body), la prueba lo nota. El foco tiene que
+  // llegar con el render, en un efecto.
+  async function soltarSinTemporizadores(soltar: () => void) {
+    const real = window.setTimeout
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => (ms ? real(fn, ms) : 0)) as never)
+    try {
+      await act(async () => soltar())
+    } finally {
+      espia.mockRestore()
+    }
+  }
+  it('activar: al terminar, el foco ya está en «Desactivar en este teléfono»', async () => {
+    navegador({ permiso: 'granted' })
+    const espera = enEspera()
+    const api = apiCuenta({ 'PUT ^/v1/dispositivos/actual/push$': espera.manejador })
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
+    await vi.waitFor(() => expect(api.de('PUT', '/v1/dispositivos/actual/push')).toHaveLength(1))
+    await soltarSinTemporizadores(() => espera.soltar({ status: 204 }))
+    expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toHaveFocus()
+  })
+
+  it('desactivar: al terminar, el foco ya está en «Activar en este teléfono»', async () => {
+    navegador({ permiso: 'granted', suscritoCon: CLAVE })
+    const espera = enEspera()
+    const api = apiCuenta({
+      'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: { ...PUSH_LIBRE, registrado: true } },
+      'DELETE ^/v1/dispositivos/actual/push$': espera.manejador,
+    })
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Desactivar en este teléfono' }))
+    await vi.waitFor(() => expect(api.de('DELETE', '/v1/dispositivos/actual/push')).toHaveLength(1))
+    await soltarSinTemporizadores(() => espera.soltar({ status: 204 }))
+    expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toHaveFocus()
+  })
+
+  it.each([
+    ['bien', { status: 200, cuerpo: { correo: false, push: true } }],
+    ['con error', problema(500)],
+  ])('guardar una casilla %s: el foco sigue en la casilla, nunca en el body', async (_, respuesta) => {
+    navegador()
+    const espera = enEspera()
+    apiCuenta({ 'PUT ^/v1/yo/avisos$': espera.manejador })
+    render(<AvisosCuenta />)
+    const correo = await screen.findByRole('checkbox', { name: 'Por correo' })
+    await u().click(correo)
+    await soltarSinTemporizadores(() => espera.soltar(respuesta))
+    expect(correo).toHaveFocus()
+    expect(document.activeElement).not.toBe(document.body)
+  })
+})
+
+// ---------------------------------------------------------------- P3: un mensaje a la vez
+
+describe('Avisos: los mensajes no se acumulan (P3 de la revisión 1.2)', () => {
+  it('guardar una casilla borra «Activaste…», y desactivar borra «Guardamos tus avisos.»', async () => {
+    navegador({ permiso: 'granted' })
+    apiCuenta()
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
+    expect(await screen.findByText('Activaste los avisos en este teléfono.')).toBeInTheDocument()
+
+    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
+    expect(screen.queryByText('Activaste los avisos en este teléfono.')).toBeNull()
+
+    await u().click(screen.getByRole('button', { name: 'Desactivar en este teléfono' }))
+    expect(await screen.findByText('Desactivaste los avisos en este teléfono.')).toBeInTheDocument()
+    expect(screen.queryByText('Guardamos tus avisos.')).toBeNull()
+  })
+
+  it('un error del teléfono también se borra al guardar una casilla', async () => {
+    navegador({ permiso: 'granted' })
+    apiCuenta({ 'PUT ^/v1/dispositivos/actual/push$': problema(500) })
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
+    expect(await screen.findByText('No pudimos activar los avisos. Revisa tu conexión y vuelve a intentarlo.')).toBeInTheDocument()
+    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    await screen.findByText('Guardamos tus avisos.')
+    expect(screen.queryByText(/No pudimos activar los avisos/)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------- «Salir» borra la inscripción del navegador
+
+describe('«Salir» borra la suscripción de avisos de este navegador (recomendación del analista)', () => {
+  it('después del cierre en el servidor: getSubscription y unsubscribe', async () => {
+    const n = navegador({ permiso: 'granted', suscritoCon: CLAVE })
+    apiCuenta({
+      'POST ^/v1/sesiones/cerrar$': () => {
+        n.pasos.push('POST /v1/sesiones/cerrar')
+        return { status: 204 }
+      },
+    })
+    await salir()
+    expect(n.pasos).toEqual(['POST /v1/sesiones/cerrar', 'unsubscribe'])
+    expect(n.suscripcion()).toBeNull()
+  })
+
+  it('si el cierre en el servidor falla, igual sale y borra la suscripción', async () => {
+    const n = navegador({ permiso: 'granted', suscritoCon: CLAVE })
+    apiCuenta({ 'POST ^/v1/sesiones/cerrar$': problema(503) })
+    await expect(salir()).resolves.toBeUndefined()
+    expect(n.pasos).toEqual(['unsubscribe'])
+  })
+
+  it('si borrar la suscripción falla, la salida no se bloquea', async () => {
+    const n = navegador({ permiso: 'granted', suscritoCon: CLAVE })
+    n.pushManager.getSubscription.mockRejectedValueOnce(new Error('sin acceso'))
+    apiCuenta({ 'POST ^/v1/sesiones/cerrar$': { status: 204 } })
+    await expect(salir()).resolves.toBeUndefined()
+  })
+
+  it('sin service worker o sin PushManager no hace nada', async () => {
+    navegador({ soporte: false })
+    const api = apiCuenta({ 'POST ^/v1/sesiones/cerrar$': { status: 204 } })
+    await expect(salir()).resolves.toBeUndefined()
+    expect(api.de('POST', '/v1/sesiones/cerrar')).toHaveLength(1)
+
+    sinNavegadorSimulado()
+    const n = navegador({ permiso: 'granted', suscritoCon: CLAVE, pushManager: false })
+    apiCuenta({ 'POST ^/v1/sesiones/cerrar$': { status: 204 } })
+    await salir()
+    expect(n.sw.getRegistration).not.toHaveBeenCalled()
+    expect(n.pasos).toEqual([])
   })
 })
