@@ -245,6 +245,46 @@ def test_quien_deja_de_administrar_pierde_sus_invitaciones(entorno: EntornoMiemb
 # --- Sacar y salir -------------------------------------------------------------------------------------
 
 
+def _admin_con_una_invitacion(entorno: EntornoMiembros) -> tuple[FamiliaCreada, UsuarioCreado, str, uuid.UUID]:
+    """El cuidador pasa a admin y crea una invitación que la presentación todavía muestra."""
+    familia = entorno.familia()
+    grupo = familia.grupo.id
+    fila = entorno.por_rol(familia.admin, grupo)["cuidador"]
+    assert entorno.cambiar(familia.admin, grupo, fila["id"], {"rol": "admin"}, fila["etag"]).status_code == 200
+    nuevo_admin = familia.miembros["cuidador"].usuario
+    creada = entorno.crear(nuevo_admin, grupo)
+    assert creada.status_code == 201, creada.text
+    coincide = URL.match(creada.json()["url"])
+    assert coincide
+    assert entorno.presentar(coincide.group(1)).status_code == 200
+    return familia, nuevo_admin, coincide.group(1), uuid.UUID(creada.json()["id"])
+
+
+def _quedo_anulada(entorno: EntornoMiembros, token: str, invitacion_id: uuid.UUID) -> None:
+    presentacion = entorno.presentar(token)
+    assert presentacion.status_code == 410
+    assert presentacion.json()["type"] == "/errores/invitacion-no-disponible"
+    assert [f[0] for f in _todas("SELECT accion FROM auditoria WHERE entidad_id = %s ORDER BY id", invitacion_id)] == [
+        "invitacion.crear", "invitacion.anular"]
+
+
+@pytest.mark.rf("RF-38")
+def test_sacar_a_un_admin_anula_sus_invitaciones_sin_usar(entorno: EntornoMiembros) -> None:
+    """Decisión 322 (y 307): también al sacar a quien administra, no solo al cambiarle el rol."""
+    familia, _, token, invitacion_id = _admin_con_una_invitacion(entorno)
+    fila = entorno.por_rol(familia.admin, familia.grupo.id)["otro_admin"]
+    assert entorno.sacar(familia.admin, familia.grupo.id, fila["id"]).status_code == 200
+    _quedo_anulada(entorno, token, invitacion_id)
+
+
+@pytest.mark.rf("RF-38")
+def test_salir_siendo_admin_anula_sus_invitaciones_sin_usar(entorno: EntornoMiembros) -> None:
+    """Decisión 322 (y 307): también cuando quien administra sale por su cuenta."""
+    familia, nuevo_admin, token, invitacion_id = _admin_con_una_invitacion(entorno)
+    assert entorno.salir(nuevo_admin, familia.grupo.id).status_code == 200
+    _quedo_anulada(entorno, token, invitacion_id)
+
+
 def test_sacar_a_alguien_corta_sus_enlaces_y_deja_de_ver_el_grupo(entorno: EntornoMiembros) -> None:
     familia = entorno.familia()
     grupo = familia.grupo.id
