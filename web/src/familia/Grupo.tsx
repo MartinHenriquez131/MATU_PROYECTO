@@ -209,7 +209,8 @@ export function GrupoFamiliar() {
       setBorrando(null)
       setDatos((xs) => xs.filter((x) => x.persona.id !== id))
       setAvisos((xs) => Object.fromEntries(Object.entries(xs).filter(([clave]) => !clave.startsWith(`${id}-`))))
-      setLlegada((n) => n + 1)
+      // Sin nadie más, la nota es de «¿A quién cuidas?»: aquí no se vuelve a montar (la consumiría).
+      if (quedan.length) setLlegada((n) => n + 1)
       fijar({
         personas: quedan,
         ...(era ? { personaId: quedan[0]?.id ?? null, ficha: null, autorizacion: null } : {}),
@@ -217,6 +218,9 @@ export function GrupoFamiliar() {
         ...(borradorDe(borrador, d.persona) ? { borrador: BORRADOR_VACIO } : {}),
         aviso: { titulo: aviso.texto, tono: aviso.tono, enfocar: quedan.length > 0 },
       })
+      // MATU-72 4.1: sin nadie más, a registrar a otra persona, en el mismo render. Desde MATU-53 la
+      // regla de ruta ya no lo hace sola, porque Grupo familiar se abre sin persona registrada.
+      if (!quedan.length) navegar('/empezar/persona', { reemplazar: true })
     })
   }
 
