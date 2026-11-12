@@ -53,6 +53,17 @@ class CambioDeLinea(BaseModel):
     comercio_antes: ComercioVista | None = Field(description="El comercio del carrito, si el producto pasó a otro")
 
 
+class DevolucionLinea(BaseModel):
+    """MATU-62 (decisión 239): la anulación parcial de la línea, a la misma tarjeta. La crea MATU-63. Sin los
+    últimos 4."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    monto: int = Field(gt=0, description="Pesos enteros devueltos o por devolver")
+    estado: Literal["en_curso", "hecha"]
+    hecha_en: datetime | None
+
+
 class LineaPedido(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -71,6 +82,9 @@ class LineaPedido(BaseModel):
     regla_faltante: Regla
     retracto_pierde_al_abrir: bool
     cambio: CambioDeLinea | None
+    devolucion: DevolucionLinea | None = Field(
+        description="MATU-62: la devolución de esta línea por anulación parcial. null si no se devolvió"
+    )
 
 
 class LineaSalida(BaseModel):
@@ -145,6 +159,13 @@ class PedidoVista(BaseModel):
     ventana_entrega: str
     entrega: EntregaVista | None
     resumen: ResumenAntesDePagar | None
+    pago_en_curso: bool = Field(
+        description=(
+            "MATU-62 (decisión 230): hay una venta iniciada vigente o autorizando. Mientras sea true, confirmar,"
+            " cambiar, lineas, reglas-faltante y contacto responden 409 pago-en-curso"
+        )
+    )
+    pagado_en: datetime | None = Field(description="MATU-62: cuándo se pagó. El pago se lee en GET …/pago")
     creado_en: datetime
     actualizado_en: datetime
 

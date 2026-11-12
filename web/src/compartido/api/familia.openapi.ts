@@ -1034,11 +1034,91 @@ export interface paths {
         };
         /**
          * Las condiciones del pedido vigentes, con su versión y su huella
-         * @description MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. Capa 3
+         * @description MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. MATU-62 (decisión 240): con ?version=, una versión publicada alguna vez. Capa 3
          */
         get: operations["ver_condiciones_v1_condiciones_pedido_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/pagar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceptar las condiciones y abrir el pago del total confirmado en Webpay
+         * @description MATU-62 (decisiones 224 a 230). admin y pagador, con la autorización despacho vigente. El total tiene que estar vigente (con el total vencido, 409 estado-pedido con vencido, sin llamar a la pasarela). If-Match e Idempotency-Key obligatorios. Un solo pago en curso por pedido (409 pago-en-curso). Guarda la aceptación de las condiciones, crea o reutiliza el cargo y abre la venta de Webpay Plus por el total confirmado; el cuerpo no trae montos. Registra pago.iniciar. Capa 3
+         */
+        post: operations["pagar_v1_pedidos__pedido_id__pagar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/pago": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El estado del pago del pedido, sus devoluciones y el comprobante
+         * @description MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3
+         */
+        get: operations["ver_pago_v1_pedidos__pedido_id__pago_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedido-pagado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El último pedido pagado de la persona, con su comprobante
+         * @description MATU-62 (decisión 237). El pedido de pagado_en más reciente de la persona, con las vistas por rol de GET …/pago. 404 si no hay pedido pagado. No pide despacho. MATU-63 la reemplaza por el seguimiento. Capa 3
+         */
+        get: operations["ver_pedido_pagado_v1_personas_cuidadas__persona_id__pedido_pagado_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pagos/retorno": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * La vuelta de Webpay que manda la app; hace el commit y responde el resultado
+         * @description MATU-62 (decisiones 231 a 235). Pública e idempotente por token; la sesión es opcional y la vuelta nunca responde 401. token_ws de una venta iniciada: commit. Retorno repetido: no llama a Transbank (ya_registrado). TBK_TOKEN: sin commit, status y abandonado. Solo TBK_ORDEN_COMPRA y TBK_ID_SESION: tiempo_agotado. Valores que no son de MATU: 404. Sin montos ni tarjeta. No se apaga con la capa 3 (decisión 241)
+         */
+        post: operations["retorno_v1_pagos_retorno_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2609,6 +2689,8 @@ export interface components {
             /** Retracto Pierde Al Abrir */
             retracto_pierde_al_abrir: boolean;
             cambio: components["schemas"]["CambioDeLinea"] | null;
+            /** @description MATU-62: la devolución de esta línea por anulación parcial. null si no se devolvió */
+            devolucion: components["schemas"]["DevolucionLinea"] | null;
         };
         /** LineaSalida */
         LineaSalida: {
@@ -2687,6 +2769,16 @@ export interface components {
             ventana_entrega: string;
             entrega: components["schemas"]["EntregaVista"] | null;
             resumen: components["schemas"]["ResumenAntesDePagar"] | null;
+            /**
+             * Pago En Curso
+             * @description MATU-62 (decisión 230): hay una venta iniciada vigente o autorizando. Mientras sea true, confirmar, cambiar, lineas, reglas-faltante y contacto responden 409 pago-en-curso
+             */
+            pago_en_curso: boolean;
+            /**
+             * Pagado En
+             * @description MATU-62: cuándo se pagó. El pago se lee en GET …/pago
+             */
+            pagado_en: string | null;
             /**
              * Creado En
              * Format: date-time
@@ -2827,6 +2919,331 @@ export interface components {
         SolicitudReglasFaltante: {
             /** Reglas */
             reglas: components["schemas"]["ReglaProducto"][];
+        };
+        /**
+         * Comprobante
+         * @description La confirmación escrita del pago (R4, decisión 238). **No es una boleta.**
+         */
+        Comprobante: {
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /** Lineas */
+            lineas: components["schemas"]["LineaComprobante"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number;
+            /** Pagaste Tu */
+            pagaste_tu: boolean;
+            tarjeta: components["schemas"]["Tarjeta"] | null;
+            /** Codigo Autorizacion */
+            codigo_autorizacion: string | null;
+            /**
+             * Vendedor
+             * @constant
+             */
+            vendedor: "MATU, piloto académico, sin persona jurídica";
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            /** Canal Reclamo */
+            canal_reclamo: string;
+            condiciones: components["schemas"]["CondicionesComprobante"];
+            /** Tardio */
+            tardio: boolean;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["Devolucion"][];
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+            /** @description Solo quien pagó y solo si se envió. En el piloto no se envía: null (decisión 249) */
+            correo: components["schemas"]["CorreoComprobante"] | null;
+        };
+        /** CondicionesComprobante */
+        CondicionesComprobante: {
+            /** Version */
+            version: string;
+            /**
+             * Aceptadas En
+             * Format: date-time
+             */
+            aceptadas_en: string;
+            /** Huella */
+            huella: string;
+            /**
+             * Enlace
+             * @description La versión aceptada, no la vigente (decisión 240)
+             */
+            enlace: string;
+        };
+        /** CondicionesQueSeAceptan */
+        CondicionesQueSeAceptan: {
+            /** Version */
+            version: string;
+            /**
+             * Huella
+             * @description SHA-256 del texto exacto, desde «## 1. Quién vende» (decisión 221)
+             */
+            huella: string;
+        };
+        /** CorreoComprobante */
+        CorreoComprobante: {
+            /**
+             * Destino
+             * @description El correo de la cuenta de quien pagó
+             */
+            destino: string;
+            /**
+             * Enviado
+             * @description Si se envió. Decisión 249: mientras no se envíe, Comprobante.correo va en null (D-62-3)
+             */
+            enviado: boolean;
+        };
+        /**
+         * Devolucion
+         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado.
+         */
+        Devolucion: {
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            /** Monto */
+            monto: number;
+            producto: components["schemas"]["ProductoPedido"] | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /**
+             * Solicitada En
+             * Format: date-time
+             */
+            solicitada_en: string;
+            /** Hecha En */
+            hecha_en: string | null;
+            /**
+             * Ultimos4
+             * @description Solo para quien pagó (D-62-2)
+             */
+            ultimos4: string | null;
+        };
+        /**
+         * DevolucionLinea
+         * @description MATU-62 (decisión 239): la anulación parcial de la línea, a la misma tarjeta. La crea MATU-63. Sin los
+         *     últimos 4.
+         */
+        DevolucionLinea: {
+            /**
+             * Monto
+             * @description Pesos enteros devueltos o por devolver
+             */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /** Hecha En */
+            hecha_en: string | null;
+        };
+        /**
+         * InicioPago
+         * @description La venta abierta (decisiones 228 y 229). Sin datos de tarjeta. La pantalla envía un formulario POST a ``url``
+         *     con el campo token_ws = ``token``; el token nunca va en la URL de la app.
+         */
+        InicioPago: {
+            /**
+             * Intento Id
+             * Format: uuid
+             */
+            intento_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "iniciada" | "autorizando" | "aprobada" | "rechazada" | "error";
+            /**
+             * Monto
+             * @description El total confirmado, en pesos enteros con IVA, envío incluido
+             */
+            monto: number;
+            /**
+             * Total Confirmado En
+             * Format: date-time
+             */
+            total_confirmado_en: string;
+            /**
+             * Url
+             * @description El action del formulario de Webpay. null si la venta ya no está iniciada
+             */
+            url: string | null;
+            /**
+             * Token
+             * @description El valor de token_ws. null con url null
+             */
+            token: string | null;
+        };
+        /** IntentoPago */
+        IntentoPago: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "aprobado" | "aprobado_tardio" | "no_aprobado" | "abandonado" | "tiempo_agotado" | "pendiente" | "anulado" | "en_webpay";
+            /**
+             * Iniciado En
+             * Format: date-time
+             */
+            iniciado_en: string;
+            /** Cerrado En */
+            cerrado_en: string | null;
+            /** Es Tuyo */
+            es_tuyo: boolean;
+        };
+        /** LineaComprobante */
+        LineaComprobante: {
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /** Precio Unitario */
+            precio_unitario: number;
+            /** Subtotal */
+            subtotal: number;
+        };
+        /**
+         * PagoVista
+         * @description El pago del pedido para admin, cuidador y pagador (decisión 236).
+         */
+        PagoVista: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "sin_intento" | "pendiente" | "aprobado" | "no_aprobado" | "devuelto_parcial" | "anulado";
+            /** Pago En Curso */
+            pago_en_curso: boolean;
+            intento: components["schemas"]["IntentoPago"] | null;
+            comprobante: components["schemas"]["Comprobante"] | null;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["Devolucion"][];
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello de un pago anulado (diseño 7.9)
+             */
+            pago_de_prueba: boolean;
+        };
+        /**
+         * PagoVistaObservador
+         * @description Lo que ve el observador: solo si está pagado (D-62-2, decisión 127).
+         */
+        PagoVistaObservador: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pagado" | "sin_pagar";
+        };
+        /**
+         * ResultadoRetorno
+         * @description El resultado de la vuelta (decisiones 232 a 234). Sin montos ni tarjeta, con o sin sesión.
+         */
+        ResultadoRetorno: {
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "aprobado" | "aprobado_tardio" | "no_aprobado" | "abandonado" | "tiempo_agotado" | "pendiente" | "anulado";
+            /** Ya Registrado */
+            ya_registrado: boolean;
+            /** Anulacion */
+            anulacion: ("en_curso" | "hecha") | null;
+            /** Volver A Preguntar En */
+            volver_a_preguntar_en: number | null;
+            /**
+             * Grupo Id
+             * @description Solo con la sesión de un admin, cuidador o pagador del grupo
+             */
+            grupo_id: string | null;
+            /** Persona Cuidada Id */
+            persona_cuidada_id: string | null;
+            /** Pedido Id */
+            pedido_id: string | null;
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)
+             */
+            pago_de_prueba: boolean;
+        };
+        /**
+         * SolicitudPago
+         * @description Lo que quien paga aceptó (R5, D6, D-62-16). **No lleva montos**: el monto sale del pedido, y If-Match asegura
+         *     que es el que la pantalla mostró (decisión 226).
+         */
+        SolicitudPago: {
+            /**
+             * Acepta Condiciones
+             * @description La casilla marcada por quien paga. Con false o sin ella, 422
+             * @constant
+             */
+            acepta_condiciones: true;
+            condiciones: components["schemas"]["CondicionesQueSeAceptan"];
+        };
+        /**
+         * SolicitudRetorno
+         * @description Lo que trajo la dirección de la vuelta, con los nombres de Transbank (decisión 232). Al menos uno.
+         */
+        SolicitudRetorno: {
+            /** Token Ws */
+            token_ws?: string | null;
+            /** Tbk Token */
+            TBK_TOKEN?: string | null;
+            /** Tbk Orden Compra */
+            TBK_ORDEN_COMPRA?: string | null;
+            /** Tbk Id Sesion */
+            TBK_ID_SESION?: string | null;
+        };
+        /**
+         * Tarjeta
+         * @description Lo que Transbank devuelve y MATU guarda (R14). Solo la ve quien pagó (D-62-2).
+         */
+        Tarjeta: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "credito" | "debito" | "prepago";
+            /** Ultimos4 */
+            ultimos4: string;
+            /**
+             * Cuotas
+             * @description 0 o 1: sin cuotas. Las cuotas las reparte el banco
+             */
+            cuotas: number;
         };
     };
     responses: never;
@@ -6302,7 +6719,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6487,7 +6904,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6579,7 +6996,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6671,7 +7088,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6754,7 +7171,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6842,7 +7259,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6912,7 +7329,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso */
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6943,7 +7360,9 @@ export interface operations {
     };
     ver_condiciones_v1_condiciones_pedido_get: {
         parameters: {
-            query?: never;
+            query?: {
+                version?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6961,8 +7380,272 @@ export interface operations {
                     "application/json": components["schemas"]["CondicionesPedidoVista"];
                 };
             };
+            /** @description MATU-62: esa versión nunca se publicó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description MATU-62: version no tiene la forma MAYOR.MENOR */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
             /** @description El texto publicado no está o no calza con su huella */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    pagar_v1_pedidos__pedido_id__pagar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPago"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InicioPago"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, cuidador u observador, pedido de otro grupo, inexistente o de una persona eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado; con el total vencido, vencido), /errores/pago-en-curso, /errores/condiciones-cambiaron (con version_vigente) o /errores/idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual. No se cobró nada */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos, o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia o /errores/falta-version */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/pasarela-no-disponible, con Retry-After: Webpay no respondió y no se cobró nada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_pago_v1_pedidos__pedido_id__pago_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagoVista"] | components["schemas"]["PagoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Un identificador que no es UUID responde 404; 422 queda para la forma */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_pedido_pagado_v1_personas_cuidadas__persona_id__pedido_pagado_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagoVista"] | components["schemas"]["PagoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Un identificador que no es UUID responde 404; 422 queda para la forma */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    retorno_v1_pagos_retorno_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRetorno"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoRetorno"];
+                };
+            };
+            /** @description Los valores no son de ninguna venta de MATU */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No trae ninguno de los cuatro campos, o uno no tiene la forma de Transbank */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -6,6 +6,7 @@ import { PaginaRelevo } from './relevo/PaginaRelevo'
 import { PaginaPrivacidad } from './privacidad/PaginaPrivacidad'
 import { PaginaCondiciones } from './privacidad/PaginaCondiciones'
 import { RegionesVivas } from './compartido/ui/Anuncios'
+import { capturarRetorno } from './familia/vueltaPago'
 
 const raiz = createRoot(document.getElementById('raiz')!)
 const ruta = window.location.pathname
@@ -48,6 +49,9 @@ if (/^\/r\/?$/.test(ruta)) {
     ),
   )
 } else {
+  // MATU-62 (7.1 y 11): si es la vuelta de Webpay, sus valores pasan a la memoria y salen de la
+  // dirección con `history.replaceState` antes de dibujar nada.
+  capturarRetorno()
   raiz.render(
     <StrictMode>
       <RegionesVivas />

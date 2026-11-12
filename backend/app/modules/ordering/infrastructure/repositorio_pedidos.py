@@ -42,7 +42,7 @@ BYTES_REFERENCIA = 16
 
 _PEDIDO = (
     "SELECT p.id, p.grupo_id, p.persona_cuidada_id, p.estado, p.version, p.costo_envio, p.total_confirmado_en,"
-    " p.total_vence_en, p.creado_en, p.actualizado_en"
+    " p.total_vence_en, p.creado_en, p.actualizado_en, p.pagado_en"
     " FROM pedido p JOIN persona_cuidada pc ON pc.id = p.persona_cuidada_id AND pc.grupo_id = p.grupo_id"
     " WHERE p.id = :pedido_id AND p.grupo_id = :grupo_id AND pc.eliminado_en IS NULL"
 )
@@ -55,7 +55,10 @@ _LINEAS = text(
     " pr.retracto_pierde_al_abrir,"
     " c.id AS comercio_id, c.nombre_fantasia, c.ficticio,"
     " cc.id AS carrito_comercio_id, cc.nombre_fantasia AS carrito_nombre, cc.ficticio AS carrito_ficticio,"
-    " r.accion"
+    " r.accion, l.monto_devuelto, l.devuelta_en,"
+    # MATU-62: la anulación parcial de la línea que todavía no termina. RLS: el observador no la ve (queda en NULL)
+    " (SELECT t.monto FROM transaccion_pasarela t WHERE t.pedido_linea_id = l.id AND t.tipo = 'anulacion'"
+    "  AND t.estado <> 'aprobada' ORDER BY t.creado_en DESC LIMIT 1) AS devolucion_en_curso"
     " FROM pedido_linea l"
     " JOIN producto pr ON pr.id = l.producto_id"
     " JOIN oferta o ON o.id = l.oferta_id JOIN comercio c ON c.id = o.comercio_id"
@@ -154,6 +157,14 @@ _DIRECCION = text(
     " WHERE p.id = :persona_id AND p.grupo_id = :grupo_id AND p.eliminado_en IS NULL"
 )
 _CELULAR = text("SELECT telefono FROM usuario WHERE id = app_usuario() AND celular_verificado_en IS NOT NULL")
+# MATU-62 (D-62-4, regla 1): una venta autorizando, o iniciada hace menos de VIDA_VENTA_WEBPAY (desde)
+_PAGO_EN_CURSO = text(
+    "SELECT EXISTS (SELECT 1 FROM cargo c JOIN transaccion_pasarela t ON t.cargo_id = c.id"
+    " WHERE c.pedido_id = :pedido_id AND t.tipo = 'venta'"
+    " AND (t.estado = 'autorizando' OR (t.estado = 'iniciada' AND t.creado_en > :desde)))"
+)
+# Vida de una venta iniciada por omisión: la de app/core/config.py (VIDA_VENTA_WEBPAY_MINUTOS)
+VIDA_VENTA_POR_OMISION = timedelta(minutes=10)
 
 
 def _comercio(id_: uuid.UUID, nombre: str, ficticio: bool) -> Comercio:
@@ -194,13 +205,19 @@ def _linea(f: Row[Any]) -> Linea:
         precio_unitario=int(f.precio_unitario),
         salio=f.estado_linea == ESTADO_LINEA_SALIO,
         retracto_copiado=f.retracto_copiado,
+        monto_devuelto=int(f.monto_devuelto),
+        devuelta_en=f.devuelta_en,
+        devolucion_en_curso=None if f.devolucion_en_curso is None else int(f.devolucion_en_curso),
     )
 
 
 class RepositorioPedidosSQL:
-    def __init__(self, sesion: Session, grupo_id: uuid.UUID) -> None:
+    def __init__(
+        self, sesion: Session, grupo_id: uuid.UUID, vida_venta: timedelta = VIDA_VENTA_POR_OMISION
+    ) -> None:
         self._sesion = sesion
         self._grupo_id = grupo_id
+        self._vida_venta = vida_venta
 
     # --- Lectura
 
@@ -262,6 +279,7 @@ class RepositorioPedidosSQL:
             actualizado_en=f.actualizado_en,
             lineas=lineas,
             entrega=entrega,
+            pagado_en=f.pagado_en,
         )
 
     def ofertas(self, oferta_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, Oferta]:
@@ -290,6 +308,10 @@ class RepositorioPedidosSQL:
     def celular_verificado(self) -> str | None:
         f = self._sesion.execute(_CELULAR).first()
         return None if f is None or f.telefono is None else normalizar_celular(f.telefono)
+
+    def pago_en_curso(self, pedido_id: uuid.UUID, ahora: datetime) -> bool:
+        desde = ahora - self._vida_venta
+        return bool(self._sesion.execute(_PAGO_EN_CURSO, {"pedido_id": pedido_id, "desde": desde}).scalar())
 
     # --- Escritura
 

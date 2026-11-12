@@ -21,6 +21,7 @@ python -m app.tareas <tarea>
 | `borrados` | Las cuatro de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
 | `quiebres` | Recalcula los quiebres de cada grupo y conserva alertas, eventos, notificaciones y compras (MATU-37 y MATU-51) | 05:00 en horario de verano, 04:00 en invierno | `0 8 * * *` |
 | `avisos` | Publica el outbox y envía los avisos de quiebre (MATU-41) | cada 5 minutos | `*/5 * * * *` |
+| `conciliacion_pagos` | Cierra las ventas de Webpay sin respuesta y reintenta las anulaciones que no terminaron (MATU-62, D-62-5 y D-62-6). Corre siempre, también con `CAPA3_HABILITADA` apagada (D-62-17). Sin `PASARELA_PAGO` no llama a nadie | cada 5 minutos | `*/5 * * * *` |
 | `todas_diarias` | `borrados` y después `quiebres`, en ese orden | a mano | — |
 
 Los horarios viven en `HORARIOS` de `app/tareas.py`, y `tests/test_tareas.py` verifica cada día de un año que

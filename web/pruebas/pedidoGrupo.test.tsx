@@ -176,7 +176,7 @@ describe('MATU-94 (decisión 251): la capa 3 apagada con un registro de pedidos'
 })
 
 describe('Retirar el permiso de los pedidos (12.2)', () => {
-  it('la confirmación con sus seis puntos, el de los pedidos sin pagar en negrita, y la nota después', async () => {
+  it('la confirmación con sus siete puntos (MATU-62 suma el del pago en curso), el de los pedidos sin pagar en negrita, y la nota después', async () => {
     const { api } = abrir('admin', 'vigente', {
       rutas: { 'POST /consentimientos/despacho/retiro$': { status: 200, cuerpo: { autorizacion: autorizaciones('retirada').autorizaciones[2], enlaces_cortados: 0, pedidos_cancelados: 1 } } },
     })
@@ -187,6 +187,7 @@ describe('Retirar el permiso de los pedidos (12.2)', () => {
     expect(puntos.map((p) => p.textContent)).toEqual([
       'Ya no se pueden hacer pedidos para María desde MATU, desde ahora.',
       'Cancelamos sin costo los pedidos sin pagar y borramos la dirección y el teléfono que se copiaron en ellos.',
+      'Si hay un pago en curso y se aprueba, lo anulamos completo el mismo día.',
       'Los pedidos ya pagados siguen hasta que se entreguen.',
       'La dirección de entrega de María queda guardada para cuando vuelvas a autorizar. Puedes vaciarla cuando quieras.',
       'La lista de insumos se puede seguir imprimiendo y compartiendo.',

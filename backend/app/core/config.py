@@ -52,6 +52,14 @@ Cada historia agrega aquí lo suyo:
   tarea que las necesita falla con un error que nombra la variable, sin caer a matu_app. El envío simulado de avisos
   escribe REGISTRO_AVISOS solo con ENTORNO en ENTORNOS_REGISTRO_AVISOS (local y pruebas): en staging el registro de
   los avisos es la tabla notificacion
+- MATU-62 (ADR-027): PASARELA_PAGO, la pasarela del pago. "integracion" usa Webpay Plus en el ambiente de integración
+  de Transbank con el código de comercio y la llave públicas que publica su SDK (no son secretos de MATU y no se
+  copian al código: se leen del SDK al armar el adaptador). "produccion" exige WEBPAY_CODIGO_COMERCIO y WEBPAY_LLAVE,
+  que se leen del entorno. "falsa" es la PasarelaFalsa, sin red: solo con ENTORNO local o pruebas. Sin valor, pagar
+  responde 503 pasarela-no-disponible y la vuelta y la conciliación no llaman a nadie. VIDA_VENTA_WEBPAY_MINUTOS
+  (10 por omisión, decisión 230 y P-62-6) fija cuánto dura un pago en curso con la venta iniciada.
+  PASARELA_PAGO=produccion exige además ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true (observación 9 del cierre del
+  analista): sin las dos, la configuración no carga y la API no arranca
 """
 
 import base64
@@ -95,6 +103,9 @@ ENTORNOS_SOLO_DOMINIOS_RESERVADOS: frozenset[str] = frozenset({"staging"})
 # Entornos donde el envío simulado de avisos escribe REGISTRO_AVISOS (MATU-74, hallazgo H4). En staging el archivo
 # se perdía con cada contenedor del cron, y el registro de lo enviado ya es la tabla notificacion (estado y enviada_en)
 ENTORNOS_REGISTRO_AVISOS: frozenset[str] = frozenset({"local", "pruebas"})
+
+# Entornos donde se admite PASARELA_PAGO=falsa (MATU-62): aprueba sin red, solo para desarrollar y probar
+ENTORNOS_PASARELA_FALSA: frozenset[str] = frozenset({"local", "pruebas"})
 
 # Entornos donde se admite DIAGNOSTICO_PROXY encendido (MATU-25, decisión 114, punto 7). Otra lista más:
 # produccion, o un valor nuevo, quedan fuera
@@ -227,16 +238,33 @@ class Configuracion(BaseSettings):
     # preparen varios comercios (ADR-027). El valor de ejemplo de la arquitectura 8.2. No es un secreto
     costo_envio: int = Field(default=3990, ge=0, le=100_000)
 
+    # MATU-62 (ADR-027, decisión 228): la pasarela del pago. Ver la cabecera de este archivo. Las credenciales de
+    # producción viven solo en el entorno (Railway): nunca en el código, el repositorio ni los logs
+    pasarela_pago: Literal["integracion", "produccion", "falsa"] | None = None
+    webpay_codigo_comercio: str | None = Field(default=None, pattern=r"^[0-9]{6,12}$")
+    webpay_llave: SecretStr | None = Field(default=None, min_length=16)
+    # Decisión 230 (P-62-6): una venta iniciada cuenta como pago en curso durante estos minutos. Supuesto de trabajo
+    # de 10 hasta medir la vida del token en integración
+    vida_venta_webpay_minutos: int = Field(default=10, ge=1, le=30)
+    # Observación 9 del cierre del analista: cobrar dinero real exige ENTORNO=produccion y esta marca explícita, que
+    # queda en false hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66. No es un secreto
+    dinero_real_autorizado: bool = False
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
-        "politica_actualizada_en", "correo_privacidad",
+        "politica_actualizada_en", "correo_privacidad", "pasarela_pago", "webpay_codigo_comercio", "webpay_llave",
         mode="before",
     )
     @classmethod
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @field_validator("dinero_real_autorizado", mode="before")
+    @classmethod
+    def _dinero_real_vacio_es_no(cls, valor: object) -> object:
+        return False if valor == "" else valor
 
     @field_validator("diagnostico_proxy", mode="before")
     @classmethod
@@ -354,6 +382,22 @@ class Configuracion(BaseSettings):
         # MATU-41 (decisión 112): los avisos simulados no llegan a nadie. Misma lista que el envío de códigos
         if self.enviador_avisos == "simulado" and self.entorno not in ENTORNOS_ENVIO_SIMULADO:
             raise ValueError("ENVIADOR_AVISOS=simulado solo se admite con ENTORNO local, pruebas o staging")
+        return self
+
+    @model_validator(mode="after")
+    def _pasarela_de_pago_coherente(self) -> "Configuracion":
+        # MATU-62: la PasarelaFalsa aprueba sin cobrar; fuera de local y pruebas la configuración no carga. En
+        # producción faltan las credenciales del comercio: el mensaje nombra las variables, nunca sus valores
+        if self.pasarela_pago == "falsa" and self.entorno not in ENTORNOS_PASARELA_FALSA:
+            raise ValueError("PASARELA_PAGO=falsa solo se admite con ENTORNO local o pruebas")
+        if self.pasarela_pago == "produccion" and (self.entorno != "produccion" or not self.dinero_real_autorizado):
+            # Observación 9: la guarda contra el dinero real. Sin ella, una configuración copiada cobraría de verdad
+            raise ValueError(
+                "PASARELA_PAGO=produccion cobra dinero real: exige ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true,"
+                " bloqueado hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66"
+            )
+        if self.pasarela_pago == "produccion" and (self.webpay_codigo_comercio is None or self.webpay_llave is None):
+            raise ValueError("PASARELA_PAGO=produccion exige WEBPAY_CODIGO_COMERCIO y WEBPAY_LLAVE")
         return self
 
     @model_validator(mode="after")

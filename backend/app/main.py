@@ -60,6 +60,16 @@ ROUTERS_CAPA_3: tuple[str, ...] = (
     # MATU-61: el pedido sin pagar y las condiciones del pedido (decisión 188)
     "app.modules.ordering.api.router:router",
     "app.modules.ordering.api.router_condiciones:router",
+    # MATU-62: pagar y las lecturas del pago (decisión 241)
+    "app.modules.payments.api.router:router",
+)
+
+# MATU-62 (D-62-17, decisión 241): la vuelta de Webpay no se apaga con CAPA3_HABILITADA. Un pago que el banco ya aprobó
+# se registra o se anula igual. Se importa al armar la app, nunca arriba, y se monta si su paquete existe: con la capa 3
+# quitada de verdad (tests/capa3.py) no está y la API arranca igual. Como ("paquete:atributo", prefijo)
+ROUTERS_PAGO_SIEMPRE: tuple[tuple[str, str], ...] = (
+    ("app.modules.payments.api.router_retorno:router", "/v1"),
+    ("app.modules.payments.api.router_retorno:router_formulario", ""),
 )
 
 # MATU-61 (D1 y D2) y MATU-94 (decisión 250): el efecto del retiro de despacho y del borrado sobre los pedidos, como
@@ -104,6 +114,21 @@ def registrar_efectos_capa_3(capa3: bool) -> None:
         registrar_efecto(finalidad, fabrica)
 
 
+def incluir_vuelta_del_pago(app: FastAPI) -> None:
+    """Monta ROUTERS_PAGO_SIEMPRE con la capa 3 encendida o apagada. Si un paquete de la app no está (la capa 3
+    quitada), no la monta y lo deja en el log; cualquier otro error de importación sube."""
+    for referencia, prefijo in ROUTERS_PAGO_SIEMPRE:
+        modulo, _, atributo = referencia.partition(":")
+        try:
+            importado = importlib.import_module(modulo)
+        except ModuleNotFoundError as error:
+            if error.name and error.name.startswith("app.modules."):
+                log.warning("la vuelta del pago no se monta: falta su paquete")
+                return
+            raise
+        app.include_router(getattr(importado, atributo), prefix=prefijo)
+
+
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     config = obtener_configuracion()
     configurar_logs(config.log_nivel, stream_logs)
@@ -140,7 +165,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-61 (C17): el pedido, también sus errores. La dirección ya va bajo /v1/personas-cuidadas/
     for prefijo in (
         "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/",
-        "/v1/pedidos",
+        "/v1/pedidos", "/v1/pagos",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
@@ -173,6 +198,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # nunca dependen de ella
     if config.capa3_habilitada:
         incluir_capa_3(app)
+    # MATU-62 (D-62-17): la vuelta de Webpay, también con la capa 3 apagada
+    incluir_vuelta_del_pago(app)
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)
