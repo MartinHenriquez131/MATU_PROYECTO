@@ -67,8 +67,29 @@ def sesion_de_grupo(
     Commit si la ruta termina bien, rollback si lanza. ErrorMATU(404) si no hay grupo válido o el
     usuario no es miembro activo de él.
     """
+    yield from _contexto_de_grupo(request, usuario, fabrica, x_grupo_id)
+
+
+def sesion_de_grupo_coherente(
+    request: Request,
+    usuario: Annotated[UsuarioActual, Depends(usuario_actual)],
+    fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)],
+    x_grupo_id: Annotated[str | None, Header(alias="X-Grupo-Id")] = None,
+) -> Iterator[ContextoGrupo]:
+    """Como sesion_de_grupo, en una transacción REPEATABLE READ: toda la ruta lee la misma foto de la base. Solo la
+    copia de los datos de la persona (MATU-54, C8, decisión 348)."""
+    yield from _contexto_de_grupo(request, usuario, fabrica, x_grupo_id, aislamiento="REPEATABLE READ")
+
+
+def _contexto_de_grupo(
+    request: Request,
+    usuario: UsuarioActual,
+    fabrica: sessionmaker[Session],
+    x_grupo_id: str | None,
+    aislamiento: str | None = None,
+) -> Iterator[ContextoGrupo]:
     grupo_id = _grupo_de_cabecera(x_grupo_id)
-    with sesion_tenant(fabrica, usuario_id=usuario.id, grupo_id=grupo_id) as sesion:
+    with sesion_tenant(fabrica, usuario_id=usuario.id, grupo_id=grupo_id, aislamiento=aislamiento) as sesion:
         membresia = membresia_activa(sesion, usuario.id, grupo_id)
         if membresia is None:
             # El mismo 404 por omisión que un grupo inexistente o una ruta que no existe
@@ -87,3 +108,5 @@ def sesion_de_grupo(
 # scope="function": la transacción se cierra (commit o rollback) antes de enviar la respuesta,
 # para que un commit fallido no llegue al cliente como un 200
 SesionDeGrupo = Annotated[ContextoGrupo, Depends(sesion_de_grupo, scope="function")]
+# MATU-54: la copia de los datos de la persona, en una sola foto de la base
+SesionDeGrupoCoherente = Annotated[ContextoGrupo, Depends(sesion_de_grupo_coherente, scope="function")]

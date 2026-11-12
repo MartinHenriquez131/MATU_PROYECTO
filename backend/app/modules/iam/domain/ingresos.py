@@ -35,6 +35,9 @@ class TipoEventoCuenta(StrEnum):
     AVISOS_CAMBIADOS = "avisos_cambiados"
     AVISOS_ACTIVADOS = "avisos_activados"
     AVISOS_DESACTIVADOS = "avisos_desactivados"
+    # MATU-54 (C-2 y C-3, decisión 376): «Pediste una copia de tus datos». Solo la de la cuenta: la de una persona va
+    # con su grupo y nunca entra aquí
+    PEDISTE_UNA_COPIA = "pediste_una_copia"
 
 
 # La lista cerrada (decisión 254). Una acción que no está aquí no se muestra nunca
@@ -49,6 +52,7 @@ TIPO_POR_ACCION: dict[AccionAuditoria, TipoEventoCuenta] = {
     AccionAuditoria.AVISOS_PREFERENCIA: TipoEventoCuenta.AVISOS_CAMBIADOS,
     AccionAuditoria.DISPOSITIVO_PUSH_REGISTRAR: TipoEventoCuenta.AVISOS_ACTIVADOS,
     AccionAuditoria.DISPOSITIVO_PUSH_BORRAR: TipoEventoCuenta.AVISOS_DESACTIVADOS,
+    AccionAuditoria.CUENTA_DATOS_DESCARGAR: TipoEventoCuenta.PEDISTE_UNA_COPIA,
 }
 
 # Las que nunca entran, aunque sean de la cuenta (D1): los fallidos y el pedido del código del celular (Q5)
@@ -68,6 +72,7 @@ TIPOS_SIN_DISPOSITIVO = frozenset(
         TipoEventoCuenta.CELULAR_CONFIRMADO,
         TipoEventoCuenta.CODIGO_RECUPERACION_PEDIDO,
         TipoEventoCuenta.AVISOS_CAMBIADOS,
+        TipoEventoCuenta.PEDISTE_UNA_COPIA,
     }
 )
 

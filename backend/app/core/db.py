@@ -44,6 +44,9 @@ def obtener_fabrica_sesiones() -> sessionmaker[Session]:
 # Valores de app.rol que el helper acepta (db/02_rls.sql). Sin rol, app_rol() es 'ninguno'.
 ROLES_CONTEXTO = frozenset({"sistema", "relevo", "operacion"})
 
+# MATU-54 (decisión 348): la copia de los datos lee en una sola foto de la base
+AISLAMIENTOS = frozenset({"REPEATABLE READ"})
+
 _SET_CONFIG = text("SELECT set_config(:clave, :valor, true)")
 
 
@@ -57,6 +60,7 @@ def sesion_tenant(
     repartidor_id: uuid.UUID | None = None,
     acceso_relevo_id: uuid.UUID | None = None,
     rol: str | None = None,
+    aislamiento: str | None = None,
 ) -> Iterator[Session]:
     """Abre una sesión con una transacción y fija el contexto de tenant (arquitectura, sección 7.7).
 
@@ -71,10 +75,16 @@ def sesion_tenant(
     No verifica la membresía: core no conoce la tabla membresia. Lo hace la dependencia de
     care_circle (sesion_de_grupo), dentro de este mismo contexto.
 
-    Lanza ValueError si rol no está en ROLES_CONTEXTO, o si la sesión es de relevo (rol 'relevo'
-    o acceso_relevo_id) y además trae grupo_id: el relevo nunca fija app.grupo_id, porque
-    heredaría todas las políticas de familia (modelo de datos, sección 5.4, hallazgo 2).
+    ``aislamiento`` (MATU-54, decisión 348): el nivel de la transacción, solo ``REPEATABLE READ``. Se fija antes de
+    la primera consulta, que es la de set_config, para que toda la copia de los datos vea el mismo instante de la base.
+    Sin él, el nivel por omisión de la conexión.
+
+    Lanza ValueError si rol no está en ROLES_CONTEXTO, si el aislamiento no es uno de AISLAMIENTOS, o si la
+    sesión es de relevo (rol 'relevo' o acceso_relevo_id) y además trae grupo_id: el relevo nunca fija
+    app.grupo_id, porque heredaría todas las políticas de familia (modelo de datos, sección 5.4, hallazgo 2).
     """
+    if aislamiento is not None and aislamiento not in AISLAMIENTOS:
+        raise ValueError(f"aislamiento no permitido: {aislamiento!r}")
     if rol is not None and rol not in ROLES_CONTEXTO:
         raise ValueError(f"rol de contexto no permitido: {rol!r}")
     if grupo_id is not None and (acceso_relevo_id is not None or rol == "relevo"):
@@ -89,6 +99,9 @@ def sesion_tenant(
         ("app.rol", rol),
     )
     with fabrica() as sesion, sesion.begin():
+        if aislamiento is not None:
+            # La primera conexión de la transacción, antes de cualquier consulta
+            sesion.connection(execution_options={"isolation_level": aislamiento})
         for clave, valor in contexto:
             if valor is not None:
                 sesion.execute(_SET_CONFIG, {"clave": clave, "valor": str(valor)})

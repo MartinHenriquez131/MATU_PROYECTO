@@ -1187,9 +1187,9 @@ def test_0025_auditoria_de_la_cuenta_y_baja_al_esquema_de_0024(base_desechable):
     [(definicion, validada)] = consultar(
         "SELECT pg_get_constraintdef(oid), convalidated FROM pg_constraint WHERE conname = 'auditoria_cuenta_acotada'")
     assert validada is True
-    # La lista del CHECK es la de ACCIONES_DE_CUENTA (decisión 258)
+    # La lista del CHECK es la de ACCIONES_DE_CUENTA (decisión 258), sin la copia de la cuenta que suma la 0028
     assert set(definicion.split("ARRAY[", 1)[1].split("]", 1)[0].replace("::text", "").replace("'", "")
-               .replace(" ", "").split(",")) == {a.value for a in ACCIONES_DE_CUENTA}
+               .replace(" ", "").split(",")) == {a.value for a in ACCIONES_DE_CUENTA} - {"cuenta.datos_descargar"}
     assert consultar("SELECT count(*) FROM information_schema.columns WHERE table_name = 'auditoria'"
                      " AND column_name = 'ip'") == [(0,)]
     assert consultar("SELECT count(*) FROM auditoria") == [(2,)]
@@ -1401,4 +1401,101 @@ def test_0027_telefono_del_relevo_y_baja_al_esquema_de_0026(base_desechable):
     for parte, filas in esquema_0026.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     assert consultar("SELECT id::text, otorgado_a_telefono FROM acceso_relevo") == [(ACC27_VIGENTE, "+56955550127")]
+    alembic("upgrade", "head")
+
+
+# MATU-54 (0028): la persona de cada fila de auditoría. Otro grupo con su persona, para la clave foránea compuesta
+G28, U28, P28 = ("00000000-0000-0000-0000-0000000028" + s for s in ("0a", "a1", "b1"))
+FILAS_OTRO_GRUPO_0028 = f"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U28}', 'b28@correo.ejemplo', 'Persona B', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G28}', 'Familia B', '{U28}');
+INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VALUES
+ ('{P28}', '{G28}', 'Persona Cuidada B', 'Persona', 'apoyo_total');
+"""
+
+
+def _lista_del_check(nombre: str) -> set[str]:
+    [(definicion,)] = consultar(f"SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = '{nombre}'")
+    return set(definicion.split("ARRAY[", 1)[1].split("]", 1)[0].replace("::text", "").replace("'", "")
+               .replace(" ", "").split(","))
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_0028_auditoria_con_persona_y_baja_al_esquema_de_0027(base_desechable):
+    from app.shared.auditoria import ACCIONES_DE_CUENTA, ACCIONES_DE_PERSONA
+
+    alembic("upgrade", "0027")
+    esquema_0027 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_ACCESO + FILAS_OTRO_GRUPO_0028)
+        # Una fila anterior, sin persona: se queda tal cual
+        c.execute(f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                  f" VALUES ('{G}', 'usuario', '{U}', 'plan.leer', 'plan_cuidado', '{PLAN}')")
+
+    alembic("upgrade", "0028")
+    columnas = dict(consultar("SELECT column_name, is_nullable FROM information_schema.columns"
+                              " WHERE table_name = 'auditoria' AND column_name = 'persona_cuidada_id'"))
+    assert columnas == {"persona_cuidada_id": "YES"}
+    # Sin relleno: la fila anterior sigue sin persona
+    assert consultar("SELECT count(*) FROM auditoria WHERE persona_cuidada_id IS NULL") == [(1,)]
+    validadas = dict(consultar(
+        "SELECT conname, convalidated FROM pg_constraint WHERE conname IN ('auditoria_persona_fk',"
+        " 'auditoria_persona_con_grupo', 'auditoria_persona_obligatoria', 'auditoria_cuenta_acotada',"
+        " 'persona_cuidada_id_grupo_uq')"))
+    # La de las acciones de persona queda NOT VALID a propósito: las filas anteriores no tienen persona
+    assert validadas == {"auditoria_persona_fk": True, "auditoria_persona_con_grupo": True,
+                         "auditoria_persona_obligatoria": False, "auditoria_cuenta_acotada": True,
+                         "persona_cuidada_id_grupo_uq": True}
+    # Las listas de los dos CHECK son las del código
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA}
+    assert consultar("SELECT indexdef LIKE '%WHERE (persona_cuidada_id IS NOT NULL)' FROM pg_indexes"
+                     " WHERE indexname = 'auditoria_persona_ix'") == [(True,)]
+    # plan_destruir_claves conserva su dueño y su permiso (solo matu_scheduler, 0022) y escribe la persona
+    [(acl, definicion)] = consultar("SELECT proacl::text, pg_get_functiondef(oid) FROM pg_proc"
+                                    " WHERE proname = 'plan_destruir_claves'")
+    assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", "matu_scheduler=X/matu_owner"}
+    assert "d.persona_cuidada_id FROM destruidas" in definicion
+
+    with psycopg.connect(_dsn(BASE)) as c:
+        # Una acción de persona nueva sin persona: la base la rechaza
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute(f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+                      f" VALUES ('{G}', 'usuario', '{U}', 'plan.leer', 'plan_cuidado')")
+        # La persona de otro grupo: la clave foránea compuesta la rechaza
+        with pytest.raises(psycopg.errors.ForeignKeyViolation), c.transaction():
+            c.execute(f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                      f" VALUES ('{G}', 'usuario', '{U}', 'plan.leer', 'plan_cuidado', '{P28}')")
+        # Persona sin grupo: el CHECK lo rechaza (con MATCH SIMPLE escaparía a la FK)
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute(f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                      f" VALUES ('usuario', '{U}', 'cuenta.datos_descargar', 'usuario', '{P}')")
+        # La copia de la cuenta va sin grupo
+        c.execute(f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                  f" VALUES ('usuario', '{U}', 'cuenta.datos_descargar', 'usuario', '{U}')")
+
+    # Sin filas con persona, la bajada pasa, y el CHECK de la cuenta vuelve NOT VALID porque hay una copia de la cuenta
+    alembic("downgrade", "0027")
+    despues = catalogo()
+    for parte, filas in esquema_0027.items():
+        if parte == "restricciones":
+            filas = [f for f in filas if "auditoria_cuenta_acotada" not in str(f)]
+            despues_parte = [f for f in despues[parte] if "auditoria_cuenta_acotada" not in str(f)]
+            assert despues_parte == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues_parte)}"
+        else:
+            assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT convalidated FROM pg_constraint WHERE conname = 'auditoria_cuenta_acotada'") == [(False,)]
+    assert consultar("SELECT count(*) FROM auditoria") == [(2,)]
+
+    # Con una fila con persona, la bajada se detiene: nunca borra un registro de auditoría
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("SET session_replication_role = replica")
+        c.execute("DELETE FROM auditoria WHERE accion = 'cuenta.datos_descargar'")
+    alembic("upgrade", "0028")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                  f" VALUES ('{G}', 'usuario', '{U}', 'persona.datos_descargar', 'persona_cuidada', '{P}')")
+    assert "la bajada de la 0028 no borra registros" in _alembic_falla("downgrade", "0027")
+    assert consultar("SELECT count(*) FROM auditoria WHERE persona_cuidada_id IS NOT NULL") == [(1,)]
     alembic("upgrade", "head")
