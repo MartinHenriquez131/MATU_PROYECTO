@@ -256,12 +256,12 @@ components:
     ContentDispositionCuenta:
       description: |
         Como `ContentDispositionPersona`, con otro nombre para que las dos copias del mismo día no se
-        confundan en las descargas: `matu-tus-datos-AAAA-MM-DD.json` (pregunta abierta 7 del README).
+        confundan en las descargas: `matu-cuenta-AAAA-MM-DD.json` (P7 del diseñador, pregunta abierta 7 del README).
       required: true
       schema:
         type: string
-        pattern: '^inline; filename="matu-tus-datos-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json"$'
-      example: inline; filename="matu-tus-datos-2026-11-12.json"
+        pattern: '^inline; filename="matu-cuenta-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json"$'
+      example: inline; filename="matu-cuenta-2026-11-12.json"
 
   schemas:
     ErrorCampo:
@@ -329,7 +329,7 @@ components:
       const: Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.
       description: |
         Texto fijo con que empieza la copia (C10). Lo propone este contrato: el texto definitivo es de
-        `lenguaje.md`, sección 34 (pregunta abierta 12 del README). Va igual en las dos copias.
+        `lenguaje.md`, sección 35 (pregunta abierta 12 del README; la 34 ya es de MATU-42, P12 del diseñador). Va igual en las dos copias.
 
     PersonaNombrada:
       type: object
@@ -631,11 +631,12 @@ components:
         - compartido_por
         - usos
         - ultimo_uso_en
+        - aperturas
       description: |
         Un enlace de relevo (decisión 353). **Sin el teléfono del relevo** (D-54-4 a, aunque todavía esté
         guardado), sin token, sin PIN ni sus huellas, sin intentos. Va aunque la ficha esté retirada: dice
-        a quién se comunicaron los datos (Ley 19.628, art. 12). Las veces que se abrió están en el
-        `historial`.
+        a quién se comunicaron los datos (Ley 19.628, art. 12). Las veces que el relevo vio o abrió el
+        enlace van en `aperturas`, y no se repiten en el `historial` (P6 del diseñador, decisión 353).
       properties:
         nombre_relevo:
           type: string
@@ -674,6 +675,39 @@ components:
         ultimo_uso_en:
           oneOf:
             - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        aperturas:
+          type: array
+          description: |
+            **Todas** las veces que el relevo vio el enlace, abrió la ficha, se equivocó de PIN o quedó
+            bloqueado, de la más reciente a la más antigua, como `AperturaVista` de `…/plan/aperturas`
+            (MATU-45) sin el acceso. Lo que el rol puede leer por RLS: admin y cuidador las ven todas
+            (`auditoria_aperturas_relevo`, 0010). La pantalla muestra las de los últimos 90 días con
+            `LineaApertura` y «Ver más».
+          items:
+            $ref: '#/components/schemas/AperturaCopia'
+
+    AperturaCopia:
+      type: object
+      additionalProperties: false
+      required: [tipo, ocurrido_en, secciones]
+      description: Una apertura de un enlace. Sin `request_id`, `actor_ref` ni `entidad_id`.
+      properties:
+        tipo:
+          type: string
+          enum: [presentacion, apertura, pin_incorrecto, bloqueo]
+          description: |
+            `relevo.presentar`, `relevo.abrir`, `relevo.pin_incorrecto` o `relevo.bloqueo`, como
+            `TipoApertura` (MATU-45). `relevo.canje` no entra: lo sigue la apertura.
+        ocurrido_en:
+          $ref: '#/components/schemas/Instante'
+        secciones:
+          description: En `apertura`, las secciones complementarias que vio (`detalle.secciones`). `null` en los demás.
+          oneOf:
+            - type: array
+              items:
+                type: string
+                enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
             - type: 'null'
 
     InsumosCopia:
@@ -1028,7 +1062,7 @@ components:
       type: string
       description: |
         Qué pasó, de una lista cerrada (decisión 356). Es un nombre de la API, **no** la acción de
-        auditoría, que no sale. La pantalla arma el texto con `lenguaje.md`, sección 34, e ignora un `tipo`
+        auditoría, que no sale. La pantalla arma el texto con `lenguaje.md`, sección 35, e ignora un `tipo`
         que no conoce.
 
         | `tipo` | Acción de auditoría |
@@ -1041,10 +1075,6 @@ components:
         | `retiro_una_autorizacion` | `consentimiento.revocar` |
         | `compartio_la_ficha` | `relevo.compartir` |
         | `corto_un_enlace` | `relevo.revocar` |
-        | `relevo_vio_el_enlace` | `relevo.presentar` |
-        | `relevo_abrio_la_ficha` | `relevo.abrir` (con `secciones`) |
-        | `relevo_pin_incorrecto` | `relevo.pin_incorrecto` |
-        | `relevo_bloqueado` | `relevo.bloqueo` |
         | `agrego_un_insumo` | `consumo.crear` |
         | `edito_un_insumo` | `consumo.editar` |
         | `dejo_de_seguir_un_insumo` | `consumo.desactivar` |
@@ -1064,7 +1094,11 @@ components:
         | `pago_anulado` | `pago.anular` (actor MATU) |
         | `pidio_una_copia` | `persona.datos_descargar` (C21: «Pidió una copia de los datos») |
 
-        **No entran:** `relevo.canje` (repite la apertura) ni `persona.borrar` (una persona borrada
+        `abrio_la_ficha` es la ficha abierta por un miembro del grupo en la app (`plan.leer`, MATU-14), no
+        por el relevo (P6 del diseñador).
+
+        **No entran:** lo del relevo (`relevo.presentar`, `.canje`, `.abrir`, `.pin_incorrecto` y
+        `.bloqueo`), que va en `aperturas` de cada enlace, ni `persona.borrar` (una persona borrada
         responde 404). Las acciones del grupo (`invitacion.*`, `membresia.*`) no son de una persona.
       enum:
         - abrio_la_ficha
@@ -1075,10 +1109,6 @@ components:
         - retiro_una_autorizacion
         - compartio_la_ficha
         - corto_un_enlace
-        - relevo_vio_el_enlace
-        - relevo_abrio_la_ficha
-        - relevo_pin_incorrecto
-        - relevo_bloqueado
         - agrego_un_insumo
         - edito_un_insumo
         - dejo_de_seguir_un_insumo
@@ -1103,13 +1133,12 @@ components:
       additionalProperties: false
       required: [tipo, nombre, activo]
       description: |
-        Quién lo hizo: una persona del grupo (`nombre` y `activo`, como `PersonaNombrada`), un relevo (el
-        nombre que se le dio al compartir, `activo: null`) o MATU (`nombre: null`, `activo: null`, para lo
+        Quién lo hizo: una persona del grupo (`nombre` y `activo`, como `PersonaNombrada`) o MATU (`nombre: null`, `activo: null`, para lo
         que hace el sistema: la clave destruida, un aviso de insumo, la vuelta del pago).
       properties:
         tipo:
           type: string
-          enum: [persona, relevo, matu]
+          enum: [persona, matu]
         nombre:
           type: [string, 'null']
         activo:
@@ -1118,7 +1147,7 @@ components:
     HechoCopia:
       type: object
       additionalProperties: false
-      required: [tipo, ocurrido_en, quien, campo, seccion, secciones]
+      required: [tipo, ocurrido_en, quien, campo, seccion]
       description: |
         Un hecho del historial. **Solo** estos campos: ni el texto, ni `id`, `request_id`, `actor_ref`,
         `entidad_id`, `detalle` en bruto o el motivo de un enlace (que ya está en `enlaces_relevo`).
@@ -1143,14 +1172,6 @@ components:
           oneOf:
             - type: string
               enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
-            - type: 'null'
-        secciones:
-          description: En `relevo_abrio_la_ficha`, las secciones complementarias que vio (`detalle.secciones`).
-          oneOf:
-            - type: array
-              items:
-                type: string
-                enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
             - type: 'null'
 
     # ---------------------------------------------------------------- copia de la cuenta
@@ -1522,6 +1543,13 @@ components:
             compartido_por: Carmen
             usos: 1
             ultimo_uso_en: '2026-11-02T11:15:00-03:00'
+            aperturas:
+              - tipo: apertura
+                ocurrido_en: '2026-11-02T11:15:00-03:00'
+                secciones: []
+              - tipo: presentacion
+                ocurrido_en: '2026-11-02T11:14:00-03:00'
+                secciones: null
         insumos:
           estado: disponible
           borrado_el: null
@@ -1564,16 +1592,14 @@ components:
                 activo: true
               campo: null
               seccion: null
-              secciones: null
-            - tipo: relevo_abrio_la_ficha
-              ocurrido_en: '2026-11-02T11:15:00-03:00'
+            - tipo: compartio_la_ficha
+              ocurrido_en: '2026-11-02T10:00:00-03:00'
               quien:
-                tipo: relevo
-                nombre: Pedro
-                activo: null
+                tipo: persona
+                nombre: Carmen Soto
+                activo: true
               campo: null
               seccion: null
-              secciones: []
             - tipo: edito_la_ficha
               ocurrido_en: '2026-11-01T09:12:00-03:00'
               quien:
@@ -1582,7 +1608,6 @@ components:
                 activo: true
               campo: rutina
               seccion: null
-              secciones: null
           hay_hechos_sin_asociar: false
 
     CopiaPersonaRetirada:
