@@ -296,7 +296,7 @@ export function GrupoFamiliar() {
     )
 
   return (
-    <Pagina titulo={T.titulo} bajada={grupo ? M.bajada(grupo.nombre) : undefined}>
+    <Pagina titulo={T.titulo} bajada={grupo ? ((enMemoria ?? []).length ? M.bajada(grupo.nombre) : M.bajadaSinPersona(grupo.nombre)) : undefined}>
       <div className="flex max-w-5xl flex-col gap-10">
         <div>
           <AvisoDeLlegada key={llegada} />

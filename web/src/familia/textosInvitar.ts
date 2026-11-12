@@ -81,6 +81,8 @@ export const cortamos = (n: number) => (n <= 0 ? '' : enlaces(n, 'Cortamos 1 enl
 
 export const MIEMBROS = {
   bajada: (grupo: string) => `Quiénes forman ${grupo}, a quién cuidan y qué permisos dieron.`, // [NUEVO]
+  /** 5.10 (v1.3): sin persona registrada. [NUEVO v1.3] */
+  bajadaSinPersona: (grupo: string) => `Quiénes forman ${grupo}. Todavía no registran a la persona que cuidan.`,
   titulo: 'Quiénes forman el grupo', // [ANALISTA]
   tu: '(tú)', // [ANALISTA]
   seUnio: 'Se unió el', // [NUEVO] «Se unió el {fecha}.»

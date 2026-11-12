@@ -80,6 +80,9 @@ describe('Grupo familiar sin persona registrada', () => {
     expect(screen.queryByRole('region', { name: 'Borrar sus datos' })).toBeNull()
     expect(screen.queryByText(/Permiso para/)).toBeNull()
     expect(screen.queryByText(/No encontramos/)).toBeNull()
+    // 5.10 (v1.3): la bajada sin persona registrada.
+    expect(screen.getByText('Quiénes forman Familia Soto. Todavía no registran a la persona que cuidan.')).toBeVisible()
+    expect(screen.queryByText(/a quién cuidan y qué permisos dieron/)).toBeNull()
   })
 
   it('salir funciona: sin el punto de la ficha (5.10), y sin grupos lleva a crear uno con el aviso', async () => {
