@@ -150,6 +150,24 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'pago-tardio@example.com', que: 'Pago: pago tardío respetado (7.6)' },
   { email: 'pago-observador@example.com', que: 'Pago: observador con un pedido pagado: solo «Pedido pagado» y «Pagado»' },
   { email: 'pedido-retirada@example.com', que: 'Pedido: la autorización de pedidos retirada; Grupo familiar con «Ver la dirección de entrega» y «Volver a autorizar»' },
+  // MATU-42 y MATU-53: invitar y quiénes forman el grupo (/grupo, /grupo/invitar). Familia Soto: Carmen y
+  // Tomás administran, Rodrigo paga, Rosa cuida y Pedro se informa (según la cuenta).
+  { email: 'miembros-admin@example.com', que: 'Grupo: admin con otra persona que administra (Tomás): «Cambiar tu rol», cambiar el rol, el permiso de Rodrigo, sacar y salir. Invitaciones sin usar: una suya, una bloqueada creada por alguien que ya no está y una de Tomás que al anularla responde 409 invitacion-cerrada (ya se usó). «Invitar a alguien» crea una de verdad: su enlace abre /invitacion' },
+  { email: 'miembros-unico-admin@example.com', que: 'Grupo: la única persona que administra: «Eres la única persona que administra el grupo…» en su fila y en «Salir del grupo», sin botón' },
+  { email: 'miembros-cuidador@example.com', que: 'Grupo: cuidadora (Rosa): la lista sin botones, «Solo quien administra…» y «Salir del grupo» («Hoy abren 2.»)' },
+  { email: 'miembros-pagador@example.com', que: 'Grupo: pagador sin la ficha: «No ve la ficha» solo en su fila' },
+  { email: 'miembros-pagador-ve@example.com', que: 'Grupo: pagador con la ficha: «Puede ver la ficha» en su fila' },
+  { email: 'miembros-observador@example.com', que: 'Grupo: se informa (Pedro): la lista sin botones y «Salir del grupo»' },
+  { email: 'miembros-sin-persona@example.com', que: 'Grupo sin persona registrada (5.10): admin con Rodrigo (paga), Rosa y Pedro. «Dejar que vea la ficha» dice «la persona que cuidan» y «Salir del grupo» no trae el punto de la ficha. Se abre /grupo directo: las demás rutas llevan a «¿A quién cuidas?» (MATU-39 5.4)' },
+  { email: 'miembros-sola@example.com', que: 'Grupo: la única persona del grupo: «Por ahora solo estás tú…» y «Eres la única persona de Familia Soto, así que no puedes salir…»' },
+  { email: 'miembros-conflicto@example.com', que: 'Grupo: el primer cambio de rol o de permiso de cada persona responde 412 (otra persona que administra la cambió antes): el diálogo se queda con «Ahora» en el rol nuevo' },
+  { email: 'miembros-ultimo-admin@example.com', que: 'Grupo: bajar de rol a quien administra, sacarlo o salir responde 409 ultimo-admin («El grupo necesita alguien que lo administre…»)' },
+  { email: 'miembros-falla@example.com', que: 'Grupo: cambiar el rol, el permiso, sacar, salir, anular e invitar responden 500 (los errores de cada diálogo y de invitar)' },
+  { email: 'miembros-lista-falla@example.com', que: 'Grupo: la lista de miembros responde 500 («No pudimos traer quiénes forman el grupo…» y «Volver a intentar»); las personas cuidadas se ven igual' },
+  { email: 'miembros-ya-no-admin@example.com', que: 'Grupo: la primera gestión (cambiar, sacar, anular o invitar) responde 404 porque otra persona la bajó a cuidadora: «Ya no administras el grupo.»' },
+  { email: 'miembros-tope@example.com', que: 'Invitar responde 429 tope-invitaciones («Ya creaste muchas invitaciones hoy…»)' },
+  { email: 'miembros-lento@example.com', que: 'Grupo: cada respuesta tarda 2 s («Guardando el cambio…», «Sacando del grupo…», «Creando la invitación…»)' },
+  { email: 'miembros-autor-salio@example.com', que: 'D-42-9 y D-42-10: «Su día» y «Quién es» los escribió alguien que ya no está, un enlace lo creó alguien que ya no está, la invitación sin usar también, y las autorizaciones de María muestran «La autorización la dio alguien que ya no está en el grupo. Sigue vigente.»' },
   // MATU-55: Dónde entraste (/cuenta/donde-entraste) y los avisos de Tu cuenta. Todas las cuentas tienen, la primera vez que entran, dos computadores o teléfonos más (Chrome en Windows y Safari en iPhone) y una historia con los diez tipos posibles: un código pedido, una salida por seguridad y un ingreso desde un teléfono que ya no está en la lista. Entra en dos navegadores para cerrar uno desde el otro
   { email: 'ingresos-muchos@example.com', que: 'Dónde entraste: más de 20 ingresos en 90 días (hay_mas): «Mostramos los 20 más recientes…»' },
   { email: 'ingresos-vacio@example.com', que: 'Dónde entraste: solo este navegador y ningún ingreso: «No hay ingresos en los últimos 90 días.»' },
@@ -158,6 +176,27 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'avisos-falla@example.com', que: 'Tu cuenta: los avisos y el push de este teléfono responden 500 (errores con «Volver a intentar»; la nota del piloto se ve igual)' },
   { email: 'avisos-guardar-falla@example.com', que: 'Tu cuenta: guardar una casilla, activar y desactivar responden 500' },
   { email: 'push-sin-clave@example.com', que: 'Tu cuenta: el servidor no tiene clave pública (clave_publica null): «Por ahora no se pueden activar los avisos en este…» (estado F)' },
+]
+
+/** MATU-42: el código de las invitaciones de ejemplo (`/invitacion#…`). */
+export const CODIGO_INVITACION_DE_EJEMPLO = '4729'
+
+/** Los fragmentos de ejemplo de `/invitacion#…`, uno por estado (doble/grupo.ts). */
+export const INVITACIONES_DE_EJEMPLO: { token: string; que: string }[] = [
+  { token: 'inv-cuidar', que: 'Carmen te invita, para cuidar. Familia Soto, María. Cada código incorrecto descuenta un intento; el quinto la bloquea' },
+  { token: 'inv-administrar', que: 'Para administrar el grupo' },
+  { token: 'inv-pagar', que: 'Para pagar, con María y Pedro' },
+  { token: 'inv-informarte', que: 'Para informarte, con María, Pedro y Elena' },
+  { token: 'inv-sin-personas', que: 'El grupo todavía no registra a nadie («Todavía no registran a la persona que cuidan.»)' },
+  { token: 'inv-queda-1', que: 'Un código incorrecto: «Te queda 1 intento»; el siguiente la bloquea' },
+  { token: 'inv-usada', que: 'Presentación 410 invitacion-usada' },
+  { token: 'inv-vencida', que: 'Presentación 410 invitacion-vencida' },
+  { token: 'inv-anulada', que: 'Presentación 410 invitacion-no-disponible (igual que cualquier token desconocido)' },
+  { token: 'inv-bloqueada', que: 'Presentación 423 invitacion-bloqueada: «Pídele a Carmen una nueva.»' },
+  { token: 'inv-espera', que: 'Presentación 429 con Retry-After: 120 («Espera un momento», 2 minutos)' },
+  { token: 'inv-error', que: 'Presentación 500: «No pudimos completar esto.» y «Volver a intentar»' },
+  { token: 'inv-ya-eres-parte', que: 'Con sesión, al unirse responde 409 ya-eres-parte' },
+  { token: 'inv-largos', que: 'Nombres largos, para el texto al 200 %' },
 ]
 
 /**

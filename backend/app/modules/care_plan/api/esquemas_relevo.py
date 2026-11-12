@@ -118,7 +118,10 @@ class AutorAccesoVista(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
-    nombre: str
+    nombre: str | None = Field(
+        description="null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)"
+    )
+    autor_activo: bool = Field(description="false si ya no está en el grupo: «Alguien que ya no está en el grupo»")
 
 
 class AccesoResumenVista(BaseModel):

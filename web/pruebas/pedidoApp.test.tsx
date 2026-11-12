@@ -9,6 +9,7 @@ import type { Rol } from '../src/compartido/api/familia'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { AppFamilia } from '../src/familia/AppFamilia'
+import { respuestaDelGrupo } from './miembrosFalsos'
 import { autorizaciones, CATALOGO, confirmado, CUENTA, DIRECCION, PERSONA_ID, type Respuesta } from './pedidoFalso'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
@@ -43,6 +44,9 @@ function apiApp(
     // Sin la autorización de pedidos, crear el pedido responde 403 (decisión 194).
     if (linea === `POST /v1/personas-cuidadas/${PERSONA_ID}/pedidos` && despacho !== 'vigente') return responder(config, { status: 403, cuerpo: { type: '/errores/sin-autorizacion', status: 403 } })
     if (/\/consumo/.test(linea)) return responder(config, { status: 200, cuerpo: { items: [], siguiente_cursor: null } })
+    // MATU-42/53: Grupo familiar pide quiénes lo forman; con un 404 la app entiende que la sacaron del grupo.
+    const delGrupo = respuestaDelGrupo(linea)
+    if (delGrupo) return responder(config, delGrupo)
     return responder(config, no)
   }
   return pedidas

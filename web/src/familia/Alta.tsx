@@ -16,6 +16,7 @@ import { DistintivoPiloto, Marca } from '../compartido/ui/Marca'
 import { APOYOS, AVISO_CUIDADOR, CALIDADES, PATRON_CELULAR } from './datos'
 import { BORRADOR_VACIO, useFamilia } from './estado'
 import { AvisoDeLlegada } from './Ficha'
+import { NotaVuelvesALaInvitacion } from './Invitacion'
 import { navegar, type Ruta } from './ruteo'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 import { AUTORIZACION, CUENTA, ENTRAR, ESPERA_CONEXION, FRASE, GENERAL, GRUPO, PASOS, PERSONA, pasoDe } from './textos'
@@ -158,7 +159,7 @@ function CasillaPolitica({
 }
 
 export function CrearCuenta() {
-  const { alEntrar, fijar, anunciar } = useFamilia()
+  const { alEntrar, fijar, anunciar, invitacion } = useFamilia()
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [celular, setCelular] = useState('')
@@ -224,7 +225,8 @@ export function CrearCuenta() {
       await entrar(email.trim(), clave)
       await alEntrar()
       anunciar(CUENTA.creada)
-      navegar('/empezar/grupo', { reemplazar: true })
+      // MATU-53 (2.1): con una invitación en memoria, vuelve a «Te unes a…», nunca a crear un grupo.
+      navegar(invitacion?.verificacion ? '/invitacion' : '/empezar/grupo', { reemplazar: true })
     } catch (x) {
       const f = leerFallo(x)
       const espera = esperaDe(f)
@@ -263,6 +265,7 @@ export function CrearCuenta() {
 
   return (
     <MarcoAlta paso={1}>
+      <NotaVuelvesALaInvitacion />
       <Encabezado paso={1} bajada={CUENTA.bajada}>
         {CUENTA.titulo}
       </Encabezado>
@@ -405,6 +408,7 @@ export function Entrar() {
 
   return (
     <MarcoAlta>
+      <NotaVuelvesALaInvitacion />
       <Encabezado>{ENTRAR.titulo}</Encabezado>
       {avisoEntrar === 'clave-cambiada' ? (
         <Nota tono="ok" rol="status">
@@ -520,6 +524,8 @@ export function CrearGrupo() {
 
   return (
     <MarcoAlta paso={2}>
+      {/* MATU-53 (7.2): «Saliste de {grupo}.» cuando no queda otro grupo. */}
+      <AvisoDeLlegada className="" />
       <Encabezado paso={2} bajada={GRUPO.bajada}>
         {GRUPO.titulo}
       </Encabezado>

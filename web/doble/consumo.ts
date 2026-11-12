@@ -100,7 +100,7 @@ function vista(p: PerfilDoble) {
     fecha_quiebre_estimada: quiebre,
     dias_restantes: entre(hoy(), quiebre),
     activo: p.activo,
-    actualizado_por: p.autor,
+    actualizado_por: p.autor ? { ...p.autor, autor_activo: true } : null,
     unidades_por_envase: p.unidades_por_envase ?? null,
     etag: `"v${p.version}"`,
   }

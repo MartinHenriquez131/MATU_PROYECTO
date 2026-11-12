@@ -2630,6 +2630,8 @@ FUNCIONES_SCHEDULER = {
     "pedido_conservar": "SELECT * FROM pedido_conservar(now() - interval '30 days', now())",
     # MATU-62 (D-62-5): la conciliación, solo ids
     "pagos_por_conciliar": "SELECT * FROM pagos_por_conciliar(now(), 10)",
+    # MATU-42 (D-42-6): las invitaciones cerradas a los 30 días
+    "invitacion_conservar": "SELECT invitacion_conservar(now() - interval '30 days', now())",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -3440,3 +3442,467 @@ def test_una_fila_sin_grupo_es_siempre_de_la_cuenta(cx, accion, acepta):
 def test_la_auditoria_ya_no_tiene_ip(cx):
     """Decisión 266 (D7)."""
     assert contar(cx, "information_schema.columns", "table_name = 'auditoria' AND column_name = 'ip'") == 0
+
+
+# ------------------------------------------------------------------ MATU-42: invitaciones y miembros (0026)
+
+INV_42 = uuid.UUID("00000000-0000-0000-0000-0000000042e1")
+TOKEN_42 = b"t" * 32
+CODIGO_42 = b"c" * 32
+
+
+def _invitacion(cx, grupo=G_A, invitado_por=U_ADMIN_A, invitacion_id=INV_42, token=TOKEN_42, rol="cuidador"):
+    """Una invitación con su indice_token, como superusuario. token_hash y codigo_hash son 32 bytes fijos."""
+    cx.execute(
+        "INSERT INTO invitacion (id, grupo_id, rol, token_hash, codigo_hash, invitado_por, nombre_pila_invita,"
+        " creada_en, expira_en) VALUES (%s, %s, %s, %s, %s, %s, 'Admin', now(), now() + interval '1 day')",
+        (invitacion_id, grupo, rol, token, CODIGO_42, invitado_por))
+    cx.execute(
+        "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en)"
+        " VALUES (%s, 'invitacion', %s, %s, now() + interval '1 day')", (token, grupo, invitacion_id))
+
+
+def _membresia_id(cx, usuario, grupo=G_A):
+    return cx.execute("SELECT id FROM membresia WHERE usuario_id = %s AND grupo_id = %s AND estado <> 'retirada'",
+                      (usuario, grupo)).fetchone()[0]
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A])
+def test_quien_no_administra_no_cambia_membresias_ni_se_sube_a_admin(cx, usuario):
+    propia, otra = _membresia_id(cx, usuario), _membresia_id(cx, U_PAG2_A)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute("UPDATE membresia SET rol = 'admin' WHERE id = %s RETURNING id", (propia,)).fetchall() == []
+    assert cx.execute("UPDATE membresia SET puede_ver_plan = false WHERE id = %s RETURNING id", (otra,)
+                      ).fetchall() == []
+    # membresia_retirar sobre otra persona sin ser admin: no hace nada
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (otra,)).fetchone() == (None,)
+
+
+@pytest.mark.rf("RF-38")
+def test_membresia_retirar_solo_la_propia_o_siendo_admin_del_grupo(cx):
+    otra, de_a = _membresia_id(cx, U_PAG2_A), _membresia_id(cx, U_OBS_A)
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (de_a,)).fetchone() == (None,)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (otra,)).fetchone() == ("pagador",)
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (de_a,)).fetchone() == ("observador",)
+
+
+@pytest.mark.rf("RF-38")
+def test_nadie_borra_membresias(cx):
+    otra = _membresia_id(cx, U_PAG2_A)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM membresia WHERE id = %s", (otra,))
+
+
+@pytest.mark.rf("RF-38")
+def test_el_admin_no_retira_con_un_update_de_estado(cx):
+    otra = _membresia_id(cx, U_PAG2_A)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE membresia SET estado = 'retirada' WHERE id = %s", (otra,))
+
+
+@pytest.mark.rf("RF-38")
+def test_el_admin_cambia_roles_y_el_ultimo_admin_no_se_degrada(cx):
+    pagador, propia = _membresia_id(cx, U_PAG_A), _membresia_id(cx, U_ADMIN_A)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE membresia SET rol = 'cuidador', version = version + 1 WHERE id = %s RETURNING rol",
+                      (pagador,)).fetchall() == [("cuidador",)]
+    with pytest.raises(errors.CheckViolation) as error:
+        cx.execute("UPDATE membresia SET rol = 'cuidador' WHERE id = %s", (propia,))
+    assert error.value.diag.constraint_name == "membresia_ultimo_admin"
+
+
+@pytest.mark.rf("RF-38")
+def test_el_ultimo_admin_tampoco_se_retira_como_superusuario(cx):
+    propia = _membresia_id(cx, U_ADMIN_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE membresia SET estado = 'retirada' WHERE id = %s", (propia,))
+
+
+@pytest.mark.rf("RF-38")
+def test_quien_salio_no_ve_a_sus_excompaneros(cx):
+    cx.execute("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", (U_OBS_A, G_A))
+    # sesion_de_grupo ya no le fija el grupo (no es miembro activo): solo ve su propia membresía y su propia cuenta
+    como(cx, usuario_id=U_OBS_A)
+    assert [r[0] for r in cx.execute("SELECT usuario_id FROM membresia").fetchall()] == [U_OBS_A]
+    assert [r[0] for r in cx.execute("SELECT id FROM usuario").fetchall()] == [U_OBS_A]
+    assert contar(cx, "grupo_familiar") == 0
+    # Quien sigue no ve su nombre ni su membresía retirada
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "usuario", f"id = '{U_OBS_A}'") == 0
+    assert contar(cx, "membresia", f"usuario_id = '{U_OBS_A}'") == 0
+
+
+@pytest.mark.rf("RF-38")
+def test_solo_admin_lee_y_anula_invitaciones_y_b_no_ve_las_de_a(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_PAG2_A, grupo_id=G_A)
+    assert contar(cx, "invitacion") == 0
+    assert cx.execute("UPDATE invitacion SET revocada_en = now() WHERE id = %s RETURNING id", (INV_42,)
+                      ).fetchall() == []
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "invitacion") == 0
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "invitacion") == 1
+    assert cx.execute("UPDATE invitacion SET revocada_en = now() WHERE id = %s RETURNING id", (INV_42,)
+                      ).fetchall() == [(INV_42,)]
+
+
+@pytest.mark.rf("RF-38")
+def test_quien_no_administra_no_crea_invitaciones(cx):
+    como(cx, usuario_id=U_PAG2_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute(
+            "INSERT INTO invitacion (grupo_id, rol, token_hash, codigo_hash, invitado_por, nombre_pila_invita,"
+            " expira_en) VALUES (%s, 'admin', %s, %s, %s, 'Pag2', now() + interval '1 day')",
+            (G_A, b"u" * 32, CODIGO_42, U_PAG2_A))
+
+
+@pytest.mark.rf("RF-38")
+def test_lo_que_define_una_invitacion_no_lo_cambia_la_app(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("UPDATE invitacion SET rol = 'admin' WHERE id = %s", (INV_42,))
+
+
+@pytest.mark.rf("RF-38")
+def test_una_anulada_no_se_reabre(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    cx.execute("UPDATE invitacion SET revocada_en = now() WHERE id = %s", (INV_42,))
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("UPDATE invitacion SET revocada_en = now() + interval '1 hour' WHERE id = %s", (INV_42,))
+
+
+@pytest.mark.rf("RF-38")
+def test_matu_app_no_borra_invitaciones(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM invitacion WHERE id = %s", (INV_42,))
+
+
+@pytest.mark.rf("RF-38")
+def test_las_funciones_de_la_invitacion_no_admiten_grupo_en_el_contexto(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_NUEVO, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM invitacion_presentar(%s, now())", (TOKEN_42,))
+
+
+@pytest.mark.rf("RF-38")
+def test_la_aceptacion_exige_una_cuenta(cx):
+    _invitacion(cx)
+    como(cx)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM invitacion_aceptar(%s, %s, now(), NULL)", (TOKEN_42, CODIGO_42))
+
+
+@pytest.mark.rf("RF-38")
+def test_matu_app_no_corre_la_conservacion_de_invitaciones(cx):
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT invitacion_conservar(now() - interval '30 days', now())")
+
+
+@pytest.mark.rf("RF-38")
+def test_el_codigo_cuenta_intentos_y_bloquea(cx):
+    _invitacion(cx)
+    como(cx)
+    presentacion = cx.execute("SELECT resultado, nombre_pila_invita, rol FROM invitacion_presentar(%s, now())",
+                              (TOKEN_42,)).fetchone()
+    assert presentacion == ("ok", "Admin", "cuidador")
+    # Sin contexto no ve la invitación ni el grupo por su cuenta: solo lo que devuelve la función
+    assert contar(cx, "invitacion") == 0 and contar(cx, "grupo_familiar") == 0
+    resultados = [cx.execute("SELECT resultado, intentos_restantes FROM invitacion_verificar(%s, %s, now(), NULL)",
+                             (TOKEN_42, b"x" * 32)).fetchone() for _ in range(5)]
+    assert resultados == [("codigo_incorrecto", 4), ("codigo_incorrecto", 3), ("codigo_incorrecto", 2),
+                          ("codigo_incorrecto", 1), ("bloqueada", None)]
+    assert cx.execute("SELECT resultado FROM invitacion_verificar(%s, %s, now(), NULL)", (TOKEN_42, CODIGO_42)
+                      ).fetchone() == ("bloqueada",)
+    # El marcador de las políticas TO matu_owner no queda puesto
+    assert cx.execute("SELECT coalesce(current_setting('app.funcion', true), '')").fetchone() == ("",)
+
+
+@pytest.mark.rf("RF-38")
+def test_aceptar_une_una_sola_vez(cx):
+    _invitacion(cx)
+    como(cx, usuario_id=U_NUEVO)
+    fila = cx.execute("SELECT resultado, grupo_id, rol FROM invitacion_aceptar(%s, %s, now(), NULL)",
+                      (TOKEN_42, CODIGO_42)).fetchone()
+    assert fila == ("ok", G_A, "cuidador")
+    assert cx.execute("SELECT resultado, grupo_id FROM invitacion_aceptar(%s, %s, now(), NULL)",
+                      (TOKEN_42, CODIGO_42)).fetchone() == ("ya_eres_parte", G_A)
+    como(cx, usuario_id=U_ADMIN_B)
+    assert cx.execute("SELECT resultado FROM invitacion_aceptar(%s, %s, now(), NULL)", (TOKEN_42, CODIGO_42)
+                      ).fetchone() == ("usada",)
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT rol, estado, puede_ver_plan, invitado_por FROM membresia WHERE usuario_id = %s",
+                      (U_NUEVO,)).fetchall() == [("cuidador", "activa", False, U_ADMIN_A)]
+    assert cx.execute("SELECT accion, detalle FROM auditoria WHERE entidad_id = %s", (INV_42,)).fetchall() == [
+        ("invitacion.aceptar", {"rol": "cuidador"})]
+
+
+@pytest.mark.rf("RF-38")
+def test_volver_a_invitar_a_quien_salio_crea_otra_membresia(cx):
+    cx.execute("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", (U_OBS_A, G_A))
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_OBS_A))
+    assert contar(cx, "membresia", f"usuario_id = '{U_OBS_A}' AND grupo_id = '{G_A}'") == 2
+    with pytest.raises(errors.UniqueViolation):
+        cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_OBS_A))
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG2_A])
+def test_solo_admin_y_cuidador_escriben_la_direccion(cx, usuario):
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert contar(cx, "direccion") == 1
+    assert cx.execute("UPDATE direccion SET calle = 'Otra' RETURNING id").fetchall() == []
+    assert cx.execute("DELETE FROM direccion RETURNING id").fetchall() == []
+
+
+@pytest.mark.rf("RF-38")
+def test_quien_no_escribe_la_direccion_no_la_crea(cx):
+    como(cx, usuario_id=U_OBS_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO direccion (grupo_id, calle, numero, comuna) VALUES (%s, 'X', '1', 'Y')", (G_A,))
+
+
+@pytest.mark.rf("RF-38")
+def test_el_admin_escribe_la_direccion_y_b_no_ve_la_de_a(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert len(cx.execute("UPDATE direccion SET referencia = 'Portón verde' RETURNING id").fetchall()) == 1
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert contar(cx, "direccion") == 0
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_PAG_A])
+def test_solo_admin_cambia_el_nombre_del_grupo(cx, usuario):
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    assert cx.execute("UPDATE grupo_familiar SET nombre = 'Otro' RETURNING id").fetchall() == []
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE grupo_familiar SET nombre = 'Familia A' RETURNING id").fetchall() == [(G_A,)]
+
+
+@pytest.mark.rf("RF-38")
+def test_nadie_borra_el_grupo(cx):
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM grupo_familiar WHERE id = %s", (G_A,))
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize(("detalle", "acepta"), [
+    ('{"rol": "pagador"}', True),
+    ('{"rol": "jefe"}', False),
+    ('{"rol": 1}', False),
+    ('{"rol": "admin", "email": "x@y.cl"}', False),
+])
+def test_la_auditoria_solo_admite_un_rol_de_la_lista(cx, detalle, acepta):
+    insertar = ("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle)"
+                " VALUES (%s, 'usuario', %s, 'membresia.cambiar_rol', 'membresia', %s::jsonb)")
+    if acepta:
+        cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+    else:
+        with pytest.raises(errors.CheckViolation):
+            cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+
+
+# --- MATU-42: dos a la vez, con datos confirmados en un grupo propio que se borra al final
+
+G_42 = uuid.UUID("00000000-0000-0000-0000-00000000042c")
+U_42 = tuple(uuid.UUID(f"00000000-0000-0000-0000-00000000042{i}") for i in "abcd")
+TOKEN_G_42 = b"z" * 32
+
+
+@pytest.fixture
+def grupo_42():
+    with psycopg.connect(DSN, autocommit=True) as c:
+        for i, usuario in enumerate(U_42):
+            c.execute("INSERT INTO usuario (id, email, nombre, password_hash) VALUES (%s, %s, 'Sintética', 'h')",
+                      (usuario, f"u42.{i}@x.cl"))
+        c.execute("INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES (%s, 'Familia 42', %s)", (G_42, U_42[0]))
+        c.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin'), (%s, %s, 'admin')",
+                  (G_42, U_42[0], G_42, U_42[1]))
+        _invitacion(c, grupo=G_42, invitado_por=U_42[0], invitacion_id=uuid.UUID(int=42), token=TOKEN_G_42)
+    try:
+        yield
+    finally:
+        with psycopg.connect(DSN, autocommit=True) as c:
+            c.execute("SET session_replication_role = replica")
+            c.execute("DELETE FROM indice_token WHERE grupo_id = %s", (G_42,))
+            c.execute("DELETE FROM invitacion WHERE grupo_id = %s", (G_42,))
+            c.execute("DELETE FROM membresia WHERE grupo_id = %s", (G_42,))
+            c.execute("DELETE FROM auditoria WHERE grupo_id = %s", (G_42,))
+            c.execute("DELETE FROM grupo_familiar WHERE id = %s", (G_42,))
+            c.execute("DELETE FROM usuario WHERE id = ANY(%s)", (list(U_42),))
+
+
+def _en_paralelo(primera, segunda):
+    """primera en una conexión que confirma solo después de que segunda empezó y quedó esperando su bloqueo."""
+    import threading
+    import time
+
+    resultados: dict[str, object] = {}
+    with psycopg.connect(DSN) as uno, psycopg.connect(DSN) as dos:
+        resultados["primera"] = primera(uno)
+
+        def correr():
+            try:
+                resultados["segunda"] = segunda(dos)
+                dos.commit()
+            except psycopg.Error as error:
+                resultados["segunda"] = error
+                dos.rollback()
+
+        hilo = threading.Thread(target=correr)
+        hilo.start()
+        time.sleep(0.5)
+        assert "segunda" not in resultados, "la segunda no esperó el bloqueo"
+        uno.commit()
+        hilo.join(timeout=10)
+    return resultados
+
+
+@pytest.mark.rf("RF-38")
+def test_dos_degradaciones_a_la_vez_dejan_un_admin(grupo_42):
+    def degradar(usuario):
+        def paso(c):
+            como(c, usuario_id=usuario, grupo_id=G_42)
+            return c.execute("UPDATE membresia SET rol = 'cuidador' WHERE usuario_id = %s AND grupo_id = %s"
+                             " RETURNING rol", (usuario, G_42)).fetchall()
+        return paso
+
+    resultados = _en_paralelo(degradar(U_42[0]), degradar(U_42[1]))
+    assert resultados["primera"] == [("cuidador",)]
+    assert isinstance(resultados["segunda"], errors.CheckViolation)
+    with psycopg.connect(DSN) as c:
+        assert c.execute("SELECT count(*) FROM membresia WHERE grupo_id = %s AND rol = 'admin'", (G_42,)
+                         ).fetchone() == (1,)
+
+
+@pytest.mark.rf("RF-38")
+def test_dos_aceptaciones_a_la_vez_unen_a_una_sola_persona(grupo_42):
+    def aceptar(usuario):
+        def paso(c):
+            como(c, usuario_id=usuario)
+            return c.execute("SELECT resultado FROM invitacion_aceptar(%s, %s, now(), NULL)", (TOKEN_G_42, CODIGO_42)
+                             ).fetchone()
+        return paso
+
+    resultados = _en_paralelo(aceptar(U_42[2]), aceptar(U_42[3]))
+    assert resultados == {"primera": ("ok",), "segunda": ("usada",)}
+    with psycopg.connect(DSN) as c:
+        assert c.execute("SELECT usuario_id FROM membresia WHERE grupo_id = %s AND rol = 'cuidador'", (G_42,)
+                         ).fetchall() == [(U_42[2],)]
+
+
+# --- MATU-42, cierre del analista: O1 (el instante, decisión 340) y O2 (el marcador app.funcion, decisión 341)
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("corrido", ["now() - interval '1 day'", "now() - interval '6 minutes'",
+                                     "now() + interval '6 minutes'"])
+def test_las_funciones_de_la_0026_exigen_el_instante_actual(cx, corrido):
+    """O1: con un ahora del pasado se podría aceptar una invitación vencida o fechar retirado_en hacia atrás."""
+    _invitacion(cx)
+    otra = _membresia_id(cx, U_PAG2_A)
+    llamadas = [
+        (dict(), f"SELECT * FROM invitacion_presentar(%s, {corrido})", (TOKEN_42,)),
+        (dict(), f"SELECT * FROM invitacion_verificar(%s, %s, {corrido}, NULL)", (TOKEN_42, CODIGO_42)),
+        (dict(usuario_id=U_NUEVO), f"SELECT * FROM invitacion_aceptar(%s, %s, {corrido}, NULL)", (TOKEN_42, CODIGO_42)),
+        (dict(usuario_id=U_ADMIN_A, grupo_id=G_A), f"SELECT membresia_retirar(%s, {corrido})", (otra,)),
+    ]
+    for contexto, sql, parametros in llamadas:
+        cx.execute("SAVEPOINT antes")
+        como(cx, **contexto)
+        with pytest.raises(errors.InvalidParameterValue):
+            cx.execute(sql, parametros)
+        cx.execute("ROLLBACK TO SAVEPOINT antes")
+
+
+@pytest.mark.rf("RF-38")
+def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
+    """O1: la invitación venció hace una hora; un ahora de hace dos días la haría pasar por vigente."""
+    _invitacion(cx)
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE invitacion SET creada_en = now() - interval '3 days', expira_en = now() - interval '1 hour'"
+               " WHERE id = %s", (INV_42,))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    cx.execute("SAVEPOINT antes")
+    como(cx, usuario_id=U_NUEVO)
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT * FROM invitacion_aceptar(%s, %s, now() - interval '2 days', NULL)", (TOKEN_42, CODIGO_42))
+    cx.execute("ROLLBACK TO SAVEPOINT antes")
+    como(cx, usuario_id=U_NUEVO)
+    assert cx.execute("SELECT resultado FROM invitacion_aceptar(%s, %s, now(), NULL)", (TOKEN_42, CODIGO_42)
+                      ).fetchone() == ("vencida",)
+
+
+MARCAS_0026 = ("invitacion", "membresia_retirar")
+
+
+def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
+    como(cx, usuario_id=usuario_id, grupo_id=grupo_id)
+    return {tabla: contar(cx, tabla) for tabla in
+            ("invitacion", "membresia", "grupo_familiar", "persona_cuidada", "auditoria", "usuario")}
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("marca", MARCAS_0026)
+@pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
+def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
+    """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
+    _invitacion(cx)
+    sin_marca = _lo_que_ve(cx, **contexto)
+    cx.execute("SELECT set_config('app.funcion', %s, true)", (marca,))
+    assert {tabla: contar(cx, tabla) for tabla in sin_marca} == sin_marca
+    assert cx.execute("UPDATE invitacion SET revocada_en = now() WHERE id = %s RETURNING id", (INV_42,)
+                      ).fetchall() == []
+    assert cx.execute("UPDATE membresia SET rol = 'admin' WHERE grupo_id = %s RETURNING id", (G_A,)).fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("marca", MARCAS_0026)
+def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
+    """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
+    0026 lo pisan con el suyo y lo limpian al salir."""
+    _invitacion(cx)
+    otra = _membresia_id(cx, U_PAG2_A)
+    consultas = [
+        ({"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}, "SELECT relevo_autorizacion_vigente(now())", ()),
+        ({"usuario_id": U_OBS_A}, "SELECT * FROM iam_credencial(%s)", (U_OBS_A,)),
+        ({"rol": "sistema"}, "SELECT * FROM pago_resolver_venta(NULL, 'MATU-0001', 'x')", ()),
+        ({}, "SELECT resultado, nombre_pila_invita FROM invitacion_presentar(%s, now())", (TOKEN_42,)),
+        # Un observador no retira a otra persona aunque traiga la marca de membresia_retirar
+        ({"usuario_id": U_OBS_A, "grupo_id": G_A}, "SELECT membresia_retirar(%s, now())", (otra,)),
+    ]
+    for contexto, sql, parametros in consultas:
+        como(cx, **contexto)
+        esperado = cx.execute(sql, parametros).fetchall()
+        cx.execute("SELECT set_config('app.funcion', %s, true)", (marca,))
+        assert cx.execute(sql, parametros).fetchall() == esperado, sql
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (otra,)).fetchone() == (None,)
+    assert cx.execute("SELECT coalesce(current_setting('app.funcion', true), '')").fetchone() == ("",)
+
+
+@pytest.mark.rf("RF-38")
+def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu_app_estan_revisadas(cx):
+    """O2, por catálogo: toda política que mira app.funcion es TO matu_owner, y una función SECURITY DEFINER nueva que
+    matu_app pueda ejecutar hace fallar esta prueba hasta revisar que no lea esas tablas con el marcador puesto."""
+    politicas = cx.execute("SELECT policyname, roles::text FROM pg_policies"
+                           " WHERE coalesce(qual, '') || coalesce(with_check, '') LIKE '%app.funcion%'").fetchall()
+    assert politicas and {roles for _, roles in politicas} == {"{matu_owner}"}
+    ejecuta = {f for (f,) in cx.execute(
+        "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef"
+        " AND has_function_privilege('matu_app', oid, 'EXECUTE')").fetchall()}
+    assert ejecuta == {"relevo_autorizacion_vigente", "iam_credencial", "pago_resolver_venta", "membresia_retirar",
+                       "invitacion_presentar", "invitacion_verificar", "invitacion_aceptar"}

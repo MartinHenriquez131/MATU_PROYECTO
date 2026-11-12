@@ -8,6 +8,7 @@ import { SECCIONES } from './datos'
 import { puedeEditar } from './estado'
 import { navegar } from './ruteo'
 import { CONFLICTO, FICHA, MAS } from './textos'
+import { nombreDeAutor } from './autor'
 import { AvisoRemedios, Cuando, TextoSeccion, type SeccionEnHoja } from './ui'
 
 /** Las secciones agregadas, en el orden fijo, para la hoja (3.2). Una sección sin texto no existe. */
@@ -51,7 +52,7 @@ export function MasSobre({ ficha, pila, rol }: { ficha: Ficha; pila: string; rol
                 <TextoSeccion texto={e.texto} recortar className="renglones text-base leading-7" />
                 {e.actualizado_en && (
                   <p className="text-base text-tenue">
-                    {FICHA.loEscribio(e.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={e.actualizado_en} />
+                    {FICHA.loEscribio(nombreDeAutor(e.actualizado_por) ?? CONFLICTO.otraPersona)} <Cuando iso={e.actualizado_en} />
                   </p>
                 )}
                 {botones && (

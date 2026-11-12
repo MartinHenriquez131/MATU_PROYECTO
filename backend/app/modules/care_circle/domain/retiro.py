@@ -109,6 +109,13 @@ class AutorizacionRegistrada:
     revocado_en: datetime | None
     # retiro, renovacion o borrado (migración 0016 y 0018). None si no está revocada
     revocacion_motivo: str | None = None
+    # MATU-42 (D-42-9 a, decisión 311): si quien la registró sigue como miembro activo del grupo. Nunca quién es
+    otorgante_activo: bool = True
+
+
+def autorizo_alguien_que_ya_no_esta(autorizacion: AutorizacionRegistrada | None) -> bool:
+    """True si la autorización no está retirada y quien la registró ya no es miembro activo (P10). Sigue vigente."""
+    return autorizacion is not None and autorizacion.revocado_en is None and not autorizacion.otorgante_activo
 
 
 def exigir_retirable(actual: AutorizacionRegistrada, ahora: datetime) -> None:

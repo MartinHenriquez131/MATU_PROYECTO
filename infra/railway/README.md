@@ -263,6 +263,9 @@ Desde MATU-61, `borrados` corre además `conservacion_pedidos` (los pedidos no p
 0023). Corre siempre, con la capa 3 encendida o apagada (decisión 220): no necesita `CAPA3_HABILITADA`. Sin
 variables nuevas: usa `SCHEDULER_DATABASE_URL`.
 
+Desde MATU-42, `borrados` corre además `conservacion_invitaciones` (las invitaciones al grupo cerradas hace 30
+días, migración 0026, D-42-6). Sin variables nuevas: usa `SCHEDULER_DATABASE_URL`.
+
 Desde MATU-62, `matu-cron-conciliacion` cierra los pagos de Webpay sin respuesta y reintenta las anulaciones
 (D-62-5 y D-62-6), también con la capa 3 apagada (D-62-17). Lleva las variables de `borrados`
 (`SCHEDULER_DATABASE_URL` para `pagos_por_conciliar`, `DATABASE_URL` para cerrar cada venta) más

@@ -112,7 +112,8 @@ def test_if_match_desactualizado_412(entorno_ficha: EntornoFicha) -> None:
     problema = _es_412(pierde, "rutina")
     assert problema["actual"]["texto"] == del_cuidador
     assert problema["actual"]["etag"] == '"v2"' == pierde.headers["etag"]
-    assert problema["actual"]["actualizado_por"] == {"id": str(cuidador.id), "nombre": cuidador.nombre}
+    assert problema["actual"]["actualizado_por"] == {
+        "id": str(cuidador.id), "nombre": cuidador.nombre, "autor_activo": True}
     assert problema["actual"]["actualizado_en"] is not None
     assert problema["detail"].startswith(cuidador.nombre)
     assert de_la_admin not in pierde.text
@@ -224,7 +225,7 @@ def test_primera_escritura_concurrente_412(entorno_ficha: EntornoFicha) -> None:
     problema = _es_412(segunda, "red_apoyo")
     assert problema["actual"]["texto"] == de_la_admin
     assert problema["actual"]["etag"] == '"v1"' == segunda.headers["etag"]
-    assert problema["actual"]["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre}
+    assert problema["actual"]["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
     assert del_cuidador not in segunda.text
     assert _seccion(persona, "red_apoyo") == (1, admin.id)
     assert _contar("SELECT count(*) FROM plan_cuidado WHERE persona_cuidada_id = %s", persona) == 1

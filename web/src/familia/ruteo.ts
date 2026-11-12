@@ -41,6 +41,9 @@ export type Ruta =
   | '/grupo/autorizar-ficha'
   | '/grupo/autorizar-insumos'
   | '/grupo/autorizar-pedidos'
+  | '/grupo/invitar'
+  | '/grupo/invitar/listo'
+  | '/invitacion'
 
 export const RUTAS: readonly Ruta[] = [
   '/',
@@ -81,6 +84,9 @@ export const RUTAS: readonly Ruta[] = [
   '/grupo/autorizar-ficha',
   '/grupo/autorizar-insumos',
   '/grupo/autorizar-pedidos',
+  '/grupo/invitar',
+  '/grupo/invitar/listo',
+  '/invitacion',
 ]
 
 /** Las que se ven sin haber entrado. */

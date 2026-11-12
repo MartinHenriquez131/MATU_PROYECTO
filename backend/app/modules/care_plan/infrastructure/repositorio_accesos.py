@@ -51,11 +51,12 @@ _ESTADO = (
 )
 
 # Quien compartió: su id y el nombre de pila copiado en el acceso, nunca el nombre completo ni el email
-# (decisión 35). Una cuenta eliminada o que RLS no muestra queda en null
+# (decisión 35). Una cuenta eliminada o que RLS no muestra (ya no es miembro activo) queda con su id y sin nombre
+# (MATU-42, decisión 309)
 _LISTAR = text(
     "SELECT a.id, a.otorgado_a_nombre, a.otorgado_a_telefono, a.secciones_permitidas, a.motivo, a.creado_en,"
     " a.expira_en, a.revocado_en, a.pin_intentos_fallidos, a.usos, a.ultimo_uso_en,"
-    " u.id AS autor_id, a.nombre_pila_comparte AS autor_nombre"
+    " a.otorgado_por AS autor_id, CASE WHEN u.id IS NOT NULL THEN a.nombre_pila_comparte END AS autor_nombre"
     " FROM acceso_relevo a LEFT JOIN usuario u ON u.id = a.otorgado_por AND u.eliminado_en IS NULL"
     " WHERE a.plan_id = :plan_id AND a.grupo_id = :grupo_id"
     f" AND (CAST(:estado AS text) IS NULL OR {_ESTADO} = CAST(:estado AS text))"

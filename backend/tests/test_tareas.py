@@ -129,6 +129,7 @@ def test_una_tarea_que_falla_no_detiene_a_las_demas_y_el_log_no_lleva_su_mensaje
         ("conservacion_consumo", "fallo"),
         ("conservacion_sesiones", "ok"),
         ("conservacion_pedidos", "ok"),
+        ("conservacion_invitaciones", "ok"),
         ("quiebres", "ok"),
     ]
     fallo = lineas[1]
@@ -366,6 +367,7 @@ class _Prohibida:
         ("conservacion_consumo", "SCHEDULER_DATABASE_URL"),
         ("conservacion_sesiones", "SCHEDULER_DATABASE_URL"),
         ("conservacion_pedidos", "SCHEDULER_DATABASE_URL"),
+        ("conservacion_invitaciones", "SCHEDULER_DATABASE_URL"),
         ("quiebres", "SCHEDULER_DATABASE_URL"),
         ("avisos", "PUBLISHER_DATABASE_URL"),
         # MATU-62: pagos_por_conciliar es solo de matu_scheduler
@@ -474,6 +476,7 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
         "conservacion_consumo": {"matu_scheduler"},
         "conservacion_sesiones": {"matu_scheduler"},
         "conservacion_pedidos": {"matu_scheduler"},
+        "conservacion_invitaciones": {"matu_scheduler"},
         "quiebres": {"matu_app", "matu_scheduler"},
         "avisos": {"matu_app", "matu_publisher"},
         # MATU-62: pagos_por_conciliar con matu_scheduler; sin ventas por cerrar no abre matu_app

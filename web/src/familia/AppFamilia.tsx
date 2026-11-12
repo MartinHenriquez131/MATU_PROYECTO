@@ -12,12 +12,14 @@ import { useRevisarVersion } from '../compartido/version'
 import { Abriendo, ErrorAlAbrir, SinPersona, TextoPerdido } from './Estados'
 import { AutorizarFicha, AutorizarInsumos, AutorizarPedidosDesdeGrupo, GrupoFamiliar } from './Grupo'
 import { Insumos } from './Insumos'
+import { PaginaInvitacion } from './Invitacion'
+import { InvitacionLista, Invitar } from './Invitar'
 import { ListaDeInsumos } from './ListaInsumos'
 import { PantallaPedido } from './Pedido'
 import { PantallaPago, VueltaSinSesion } from './Pago'
 import { hayVuelta, RUTA_PAGO } from './vueltaPago'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
-import { Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
+import { AvisoDeLlegada, Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
 import { CambiarConCodigo, PedirCodigo } from './Recuperar'
 import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
@@ -44,6 +46,8 @@ function inicio(s: ReturnType<typeof useFamilia>): Ruta {
 
 /** La redirección que corresponde, o `null` si la ruta se muestra tal cual. */
 function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | null {
+  // MATU-53 (2.1): la invitación se ve igual con sesión y sin ella, con grupo o sin él.
+  if (ruta === '/invitacion') return null
   if (!esRuta(ruta) || ruta === '/') return inicio(s)
   // MATU-62 (7.10): la vuelta de Webpay se muestra aunque no se recupere la sesión, sin montos ni tarjeta.
   if (s.fase !== 'dentro' && ruta === RUTA_PAGO && hayVuelta()) return null
@@ -57,8 +61,11 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // 5.3: sin grupo, toda sección lleva a crear el grupo.
   if (!s.grupos.length) return '/empezar/grupo'
   if (ruta === '/empezar/persona' || ruta === '/empezar/autorizacion') return editor ? null : inicio(s)
+  // MATU-53 (decisión del 12-11): Grupo familiar se alcanza sin persona registrada, para todos los
+  // roles, para ver quiénes forman el grupo y poder salir. Invitar, solo admin (más abajo).
+  const delGrupo = ruta === '/grupo' || ruta === '/grupo/invitar' || ruta === '/grupo/invitar/listo'
   // 5.4: sin persona, el admin y el cuidador van a registrarla.
-  if (!s.personas.length && editor) return '/empezar/persona'
+  if (!s.personas.length && editor && !delGrupo) return '/empezar/persona'
   // MATU-48 2.1: crear y ver el PIN, solo admin y cuidador. La lista de enlaces también la ve el
   // pagador con `puede_ver_plan`, sin teléfono ni «Cortar».
   if ((ruta === '/compartir' || ruta === '/compartir/listo') && !puedeCompartir(s.rol)) return inicio(s)
@@ -72,6 +79,8 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   }
   // MATU-61 2.1: la dirección es de admin y cuidador, y el observador no llega al resumen (su vista
   // no lo trae). Quien no puede ver una ruta del pedido llega a «Tu pedido».
+  // MATU-53 (2): invitar es solo de quien administra; los demás roles vuelven a Grupo familiar.
+  if ((ruta === '/grupo/invitar' || ruta === '/grupo/invitar/listo') && s.rol !== 'admin') return '/grupo'
   if (ruta === '/insumos/pedido/direccion' && !editor) return '/insumos/pedido'
   if (ruta === '/insumos/pedido/resumen' && s.rol === 'observador') return '/insumos/pedido'
   // MATU-62 2.1: el observador llega a «Tu pedido». Con una vuelta de Webpay no: el grupo elegido al
@@ -146,6 +155,9 @@ function Rutas() {
       </MarcoSimple>
     )
 
+  // MATU-53 (2.1): la página de la persona invitada, sin el `Shell`, con su marco público.
+  if (ruta === '/invitacion') return <PaginaInvitacion />
+
   switch (ruta) {
     case '/crear-cuenta':
       return <CrearCuenta />
@@ -173,6 +185,10 @@ function Rutas() {
   else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
   // MATU-62: la vuelta de Webpay fija ella la persona del pedido (7.1), así que no depende de la elegida.
   else if (ruta === RUTA_PAGO && (s.persona || hayVuelta())) pantalla = <PantallaPago />
+  // MATU-53: Grupo familiar y lo de invitar no dependen de la persona elegida.
+  else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
+  else if (ruta === '/grupo/invitar') pantalla = <Invitar />
+  else if (ruta === '/grupo/invitar/listo') pantalla = <InvitacionLista />
   else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo || seccion) {
@@ -185,10 +201,17 @@ function Rutas() {
   // MATU-61: las tres rutas del pedido son una sola pantalla, que conserva el pedido en memoria al
   // pasar del carrito a la dirección y al resumen (la `key` de abajo no cambia entre ellas).
   else if (ruta.startsWith('/insumos/pedido')) pantalla = <PantallaPedido />
-  else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
   else if (ruta === '/grupo/autorizar-ficha') pantalla = <AutorizarFicha />
   else if (ruta === '/grupo/autorizar-insumos') pantalla = <AutorizarInsumos />
   else if (ruta === '/grupo/autorizar-pedidos') pantalla = <AutorizarPedidosDesdeGrupo />
+  // MATU-53 (4.6 y 7.2): «Ya eres parte de…» y «Saliste de…» al llegar al inicio del pagador o del observador.
+  else if (ruta === '/insumos')
+    pantalla = (
+      <>
+        <AvisoDeLlegada />
+        <Insumos />
+      </>
+    )
   else pantalla = <Insumos />
 
   return (

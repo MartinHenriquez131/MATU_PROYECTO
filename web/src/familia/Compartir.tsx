@@ -41,6 +41,7 @@ import { navegar, type Ruta } from './ruteo'
 import { seccionesEnHoja } from './Secciones'
 import { ConfirmacionRemedios, ElegirSecciones, seccionesAgregadas, useEleccionSecciones } from './SeccionesCompartir'
 import { COMPARTIR as T, COMPARTIR_SECCIONES, FICHA, GENERAL, loQueVeAcceso, QUIEN } from './textos'
+import { nombreDeAutor } from './autor'
 import { GRUPO_FAMILIAR } from './textosGrupo'
 import { Acciones, CampoTexto, Etiqueta, GrupoOpciones, HojaFicha, MensajeError, Nota, Pagina, Pestanas, Stepper, Titulo } from './ui'
 
@@ -440,7 +441,7 @@ function PinPerdido() {
 }
 
 /** La URL cortada: origen, `/r#` y los seis primeros caracteres del token. Nunca el token completo. */
-function urlCorta(url: string) {
+export function urlCorta(url: string) {
   const [base, token = ''] = url.split('#')
   return `${base.replace(/^https?:\/\//, '')}#${token.slice(0, 6)}…`
 }
@@ -816,7 +817,7 @@ function Detalle({ a }: { a: AccesoResumen }) {
   if (a.estado === 'vencido') return <FechaHora iso={a.expira_en} partes={T.vencio} />
   return (
     <>
-      {a.otorgado_por ? `${T.loCreo(a.otorgado_por.nombre)} ` : ''}
+      {a.otorgado_por ? `${T.loCreo(nombreDeAutor(a.otorgado_por) ?? '')} ` : ''}
       <FechaHora iso={a.expira_en} partes={T.vence} />
     </>
   )

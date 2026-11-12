@@ -163,10 +163,17 @@ def precondicion_de(if_match: str | None, if_none_match: str | None) -> Precondi
 
 @dataclass(frozen=True)
 class Autor:
-    """Quién guardó un campo: su id y su nombre, nunca su email (analista normativo, condición 6)."""
+    """Quién guardó un campo: su id y su nombre, nunca su email (analista normativo, condición 6).
+
+    nombre es None si esa persona ya no es miembro activo del grupo o eliminó su cuenta (MATU-42, decisión 309): RLS
+    (usuario_comiembro) ya no muestra su cuenta, pero el id sigue en la fila."""
 
     id: uuid.UUID
-    nombre: str
+    nombre: str | None
+
+    @property
+    def activo(self) -> bool:
+        return self.nombre is not None
 
 
 @dataclass(frozen=True)

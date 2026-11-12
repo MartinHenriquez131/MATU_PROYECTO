@@ -219,9 +219,10 @@ export type EstadoAutorizacion = S['EstadoVista']
 /**
  * `GET …/consentimientos` (decisión 127): `AutorizacionVista` para admin y cuidador y
  * `AutorizacionVistaResumen` (sin `calidad_otorgante`) para pagador y observador. La pantalla usa
- * solo lo que tienen en común, así que nunca muestra la calidad.
+ * solo lo que tienen en común, así que nunca muestra la calidad. MATU-42 (decisión 311):
+ * `autorizo_alguien_que_ya_no_esta` llega solo a admin y cuidador; para los otros roles no viene.
  */
-export type AutorizacionVista = S['AutorizacionVistaResumen']
+export type AutorizacionVista = S['AutorizacionVistaResumen'] & Partial<Pick<S['AutorizacionVista'], 'autorizo_alguien_que_ya_no_esta'>>
 export interface RetiroAutorizacion {
   autorizacion: AutorizacionVista
   enlaces_cortados: number
@@ -239,6 +240,7 @@ const sinCalidad = (a: AutorizacionVista): AutorizacionVista => ({
   borrado_en: a.borrado_en,
   borrada: a.borrada,
   se_puede_otorgar: a.se_puede_otorgar,
+  ...(a.autorizo_alguien_que_ya_no_esta === true ? { autorizo_alguien_que_ya_no_esta: true } : {}),
 })
 
 const rutaConsentimientos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/consentimientos`
@@ -274,6 +276,97 @@ export type BorradoPersona = S['BorradoPersona']
  */
 export async function borrarPersona(personaId: string): Promise<BorradoPersona> {
   return (await apiFamilia.post<BorradoPersona>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/borrado`)).data
+}
+
+// ---------------------------------------------------------------- MATU-42: invitar y quiénes forman el grupo
+
+/** `GET …/miembros` (decisión 302): nunca el correo, el celular ni el id de la cuenta. */
+export type Miembro = S['MiembroVista']
+/** El 201 de crear: la `url` y el `codigo` salen una sola vez y viven solo en la memoria de la pantalla. */
+export type InvitacionCreada = S['InvitacionCreada']
+export type InvitacionPendiente = S['InvitacionVista']
+export type PresentacionInvitacion = S['PresentacionInvitacion']
+/** Sin `intentos_restantes`: van solo en el 422 `codigo-incorrecto` (decisión 325). */
+export type VerificacionInvitacion = S['VerificacionInvitacion']
+export type Union = S['Union']
+export type CambioMiembro = S['SolicitudCambioMiembro']
+
+const rutaGrupo = (grupoId: string) => `/v1/grupos/${encodeURIComponent(grupoId)}`
+const conGrupo = (grupoId: string) => ({ headers: { 'X-Grupo-Id': grupoId } })
+
+/** `POST …/invitaciones` (decisiones 294 a 297): solo el rol. Sin `Idempotency-Key` (decisión 296). */
+export async function crearInvitacion(grupoId: string, rol: Rol): Promise<InvitacionCreada> {
+  const cuerpo: S['SolicitudInvitacion'] = { rol }
+  return (await apiFamilia.post<InvitacionCreada>(`${rutaGrupo(grupoId)}/invitaciones`, cuerpo, conGrupo(grupoId))).data
+}
+
+/** `GET …/invitaciones`: las pendientes y bloqueadas, solo para quien administra (C10). */
+export async function listarInvitaciones(grupoId: string): Promise<InvitacionPendiente[]> {
+  const lista = (await apiFamilia.get<S['ListaInvitaciones']>(`${rutaGrupo(grupoId)}/invitaciones`, conGrupo(grupoId))).data?.invitaciones
+  if (!Array.isArray(lista)) throw new Error('Respuesta sin invitaciones')
+  return lista
+}
+
+/** `DELETE …/invitaciones/{id}`: 204, o 409 `invitacion-cerrada` con `estado` (decisión 308). */
+export async function anularInvitacion(grupoId: string, invitacionId: string): Promise<void> {
+  await apiFamilia.delete(`${rutaGrupo(grupoId)}/invitaciones/${encodeURIComponent(invitacionId)}`, conGrupo(grupoId))
+}
+
+export async function listarMiembros(grupoId: string): Promise<Miembro[]> {
+  const lista = (await apiFamilia.get<S['ListaMiembros']>(`${rutaGrupo(grupoId)}/miembros`, conGrupo(grupoId))).data?.miembros
+  // Una respuesta sin la lista es un error al traerla (5.9), no un grupo vacío.
+  if (!Array.isArray(lista)) throw new Error('Respuesta sin miembros')
+  return lista
+}
+
+/**
+ * `PATCH …/miembros/{id}` con `If-Match` (decisión 303): el rol, el permiso del pagador o los dos.
+ * 412 trae la membresía vigente en `actual` (`leerConflictoMiembro`). El `etag` nuevo viaja en el
+ * cuerpo y en la cabecera; manda la cabecera.
+ */
+export async function cambiarMiembro(grupoId: string, miembro: Pick<Miembro, 'id' | 'etag'>, cambio: CambioMiembro): Promise<S['ResultadoCambioMiembro']> {
+  const r = await apiFamilia.patch<S['ResultadoCambioMiembro']>(`${rutaGrupo(grupoId)}/miembros/${encodeURIComponent(miembro.id)}`, cambio, {
+    headers: { 'X-Grupo-Id': grupoId, 'If-Match': miembro.etag },
+  })
+  const cabecera = r.headers?.etag
+  return { ...r.data, miembro: { ...r.data.miembro, etag: typeof cabecera === 'string' && cabecera ? cabecera : r.data.miembro.etag } }
+}
+
+/** El 412 de `PATCH …/miembros/{id}`: la membresía como quedó, o `null` si no viene. */
+export function leerConflictoMiembro(error: unknown): Miembro | null {
+  if (!isAxiosError(error) || error.response?.status !== 412) return null
+  const actual = (error.response.data as { actual?: Miembro | null } | undefined)?.actual
+  return actual && typeof actual.id === 'string' && typeof actual.rol === 'string' ? actual : null
+}
+
+/** `DELETE …/miembros/{id}`: 200 con `enlaces_cortados` (decisión 305). Una retirada es 404. */
+export async function sacarMiembro(grupoId: string, membresiaId: string): Promise<S['ResultadoSalida']> {
+  return (await apiFamilia.delete<S['ResultadoSalida']>(`${rutaGrupo(grupoId)}/miembros/${encodeURIComponent(membresiaId)}`, conGrupo(grupoId))).data
+}
+
+/** `POST …/salida`: 200 con `enlaces_cortados`; 409 `ultimo-admin` o `unica-persona` (decisión 304). */
+export async function salirDelGrupo(grupoId: string): Promise<S['ResultadoSalida']> {
+  return (await apiFamilia.post<S['ResultadoSalida']>(`${rutaGrupo(grupoId)}/salida`, null, conGrupo(grupoId))).data
+}
+
+/**
+ * La persona invitada (decisión 299). El token y el código van solo en el cuerpo, nunca en la URL ni
+ * en una cabecera. La presentación y la verificación van sin sesión y la aceptación con ella; ninguna
+ * lleva `X-Grupo-Id` (sesion.ts).
+ */
+export async function presentarInvitacion(token: string): Promise<PresentacionInvitacion> {
+  const cuerpo: S['SolicitudPresentacionInvitacion'] = { token }
+  return (await apiFamilia.post<PresentacionInvitacion>('/v1/invitaciones/presentacion', cuerpo)).data
+}
+
+export async function verificarInvitacion(token: string, codigo: string): Promise<VerificacionInvitacion> {
+  const cuerpo: S['SolicitudCanjeInvitacion'] = { token, codigo }
+  return (await apiFamilia.post<VerificacionInvitacion>('/v1/invitaciones/verificacion', cuerpo)).data
+}
+
+export async function aceptarInvitacion(token: string, codigo: string): Promise<Union> {
+  const cuerpo: S['SolicitudCanjeInvitacion'] = { token, codigo }
+  return (await apiFamilia.post<Union>('/v1/invitaciones/aceptacion', cuerpo)).data
 }
 
 // ---------------------------------------------------------------- MATU-55: dónde entraste y los avisos

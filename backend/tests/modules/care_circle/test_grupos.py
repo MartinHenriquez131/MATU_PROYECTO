@@ -154,7 +154,10 @@ def test_fundador_retirado_no_ve_su_grupo(entorno_grupo: EntornoGrupo) -> None:
     # Dado un grupo creado por A, cuya membresía después queda retirada
     a = entorno_grupo.cuenta()
     grupo_id = uuid.UUID(entorno_grupo.crear_grupo(a.token, {"nombre": "Familia Sintética"}).json()["id"])
-    with psycopg.connect(DSN, autocommit=True) as cx:
+    with psycopg.connect(DSN) as cx, cx.transaction():
+        # Desde la 0026 (MATU-42) el trigger membresia_nunca_sin_admin no deja al grupo sin admin: el superusuario lo
+        # apaga solo para sembrar este estado, que la API ya no puede producir
+        cx.execute("SET LOCAL session_replication_role = replica")
         cx.execute("UPDATE membresia SET estado = 'retirada' WHERE grupo_id = %s AND usuario_id = %s", (grupo_id, a.id))
     # (el grupo sigue creado por A: la política grupo_creador_ver se lo dejaría ver)
     fila = _fila_grupo(grupo_id)

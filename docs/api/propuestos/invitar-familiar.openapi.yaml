@@ -1,0 +1,1795 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Invitar a un familiar y ver el grupo (propuesto)
+  version: 0.3.0-implementado
+  summary: Invitar con un enlace de un solo uso y un código, ver quiénes forman el grupo, cambiar roles, dar al pagador el permiso de ver la ficha, sacar a alguien y salir del grupo (MATU-42 y MATU-53, RF-38 y RF-42).
+  description: |
+    **Implementado en MATU-42 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `pedido.openapi.yaml`, `pago.openapi.yaml` y
+    `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 318 a 331 del README (las
+    respuestas a las nueve preguntas abiertas y lo que fijó la migración 0026): sacar y salir van por
+    `membresia_retirar`, `SECURITY DEFINER` (decisión 327); el trigger del último admin serializa con un
+    bloqueo consultivo (328); las funciones de la persona invitada reciben el `request_id` (329), y
+    `intentos_restantes` va solo en el 422 `codigo-incorrecto` (325). La versión 0.3.0 lo aplica.
+
+    Contrato **propuesto** de MATU-42 (backend) y MATU-53 (su pantalla), escrito el 12-11 **antes de
+    implementar** (arquitectura 15.5, regla 1), con:
+    - las decisiones **D-42-1 a D-42-13 y D-42-C20** de Jorge (12-11) sobre la revisión previa del
+      analista normativo (`docs/legal/revision-previa-matu-42-53.md` del repositorio MATU, sección
+      «Decisiones de Jorge»);
+    - las respuestas del orquestador, por delegación de Jorge, a las preguntas **P1 a P14** del diseñador
+      (`docs/diseno/matu-53-invitar-grupo.md`, secciones 0.3 y 0.4). La versión 0.2.0 las aplica.
+
+    Las decisiones de este contrato son las **290 a 317** de `docs/api/README.md`, sección «MATU-42 y
+    MATU-53». Parten de la 290 para no chocar con MATU-55, que usa de la 252 a la 289 en su rama.
+
+    **Qué cubre:**
+    - **Invitar** (solo `admin`): `POST /v1/grupos/{grupo_id}/invitaciones` crea una invitación con un
+      rol y devuelve **una sola vez** `url` (`/invitacion#<token>`), `codigo` (4 dígitos, que se dicta
+      aparte) y `expira_en` (D-42-1 a, D-42-2 a, P9). MATU no guarda el correo ni el teléfono de nadie y
+      no envía mensajes. Vale **7 días** (D-42-3).
+    - **Ver y anular las invitaciones sin usar** (solo `admin`, C10, P7 y P8).
+    - **La persona invitada**, en tres pasos (P1): `POST /v1/invitaciones/presentacion` (sin sesión:
+      quién invita, el rol y el vencimiento, D-42-4 a, P2), `POST /v1/invitaciones/verificacion` (sin
+      sesión, con el código: el grupo y a quién cuidan, C2, P3) y, ya con su cuenta, `POST
+      /v1/invitaciones/aceptacion` (con sesión, el token y el código otra vez: se une, un solo uso).
+      «No quiero unirme» no llama al servidor (P12).
+    - **Quiénes forman el grupo**: `GET /v1/grupos/{grupo_id}/miembros`, todo miembro activo, solo los
+      activos, sin email, celular ni `usuario_id` (C9, D-42-10 a), con `enlaces_vigentes` (P5, P13).
+    - **Cambiar el rol y el permiso del pagador** (solo `admin`): `PATCH …/miembros/{membresia_id}`, con
+      `If-Match` y 412 (P6). El último admin no se degrada (409, C11 y C12). Dejar de ser `admin` o
+      `cuidador` corta los enlaces de relevo que esa persona compartió (C19, D-42-7 a).
+    - **Sacar a alguien** (solo `admin`): `DELETE …/miembros/{membresia_id}`, que corta sus enlaces de
+      relevo al tiro (D-42-7 a) y devuelve `enlaces_cortados` (P13).
+    - **Salir del grupo** por cuenta propia: `POST /v1/grupos/{grupo_id}/salida` (D-42-13, P13, P14).
+    - **Cambios a rutas de `openapi.json`:** `autorizo_alguien_que_ya_no_esta` en las autorizaciones
+      (D-42-9 a, P10, `CambioAutorizacionVista`) y el autor que ya no está como `nombre: null` y
+      `autor_activo: false` (D-42-10 a, P11, `CambioAutor`).
+
+    **RF-42, llenado asistido** (decisión 313): no tiene ruta propia. Un `admin` o `cuidador` que entró
+    con una invitación completa o corrige la ficha con las rutas que ya existen (`PUT …/plan/ficha/{campo}`
+    y `PUT …/plan/secciones/{seccion}`), y la autoría queda en el `autor` de cada campo y en la auditoría
+    `plan.editar`, con su cuenta como actor. MATU-42 lo cierra con una prueba de integración.
+
+    **Contexto de la familia.** Las rutas `/v1/grupos/{grupo_id}/…` usan `bearerAuth` y `X-Grupo-Id` con
+    `sesion_de_grupo`, como `…/personas-cuidadas` de MATU-07: el `grupo_id` del path tiene que ser el de
+    la cabecera. Un grupo, una invitación o una membresía de otro grupo, un rol que no alcanza o un id
+    que no es UUID responden **404**, nunca 403 (CLAUDE.md, agente 2, punto 4; decisión 4 del contrato).
+    **Este contrato no tiene 403:** en la capa 1 el 403 queda para la autorización de la persona
+    cuidada, y aquí ninguna ruta la pide (C7: unirse nunca registra ni exige una autorización).
+
+    **Las rutas de la persona invitada** no llevan `X-Grupo-Id`: el grupo sale del token. Las resuelven
+    funciones `SECURITY DEFINER` (D-42-12 a, migración 0026), que devuelven solo lo que cada paso puede
+    mostrar.
+
+    **El token de la invitación viaja como el del relevo** (C21): 256 bits aleatorios, en el fragmento
+    (`/invitacion#<token>`), que nunca llega al servidor; la página lo lee, lo borra con
+    `history.replaceState` y lo manda **en el cuerpo de un POST**, nunca en la URL ni en una query. La
+    base guarda solo su SHA-256 (`invitacion.token_hash` e `indice_token`). El token y el código quedan en
+    memoria mientras la persona entra o crea su cuenta, nunca en `sessionStorage` ni `localStorage`
+    (C25). El código se guarda como HMAC-SHA256 con `PEPPER_PIN` (decisión 297).
+
+    **`Cache-Control: no-store` en todas las respuestas**, 2xx y errores. Las tres rutas de la persona
+    invitada llevan además `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex` (C23).
+
+    **Lo que nunca sale ni se registra** (C24): el token, el código, sus huellas, la IP, el correo y el
+    celular nunca van a logs, errores, auditoría ni eventos. La auditoría lleva como único detalle el
+    `rol` (D-42-8 b).
+
+    Los componentes comunes (`ErrorCampo`, `Problema`, `ProblemaValidacion`, `XGrupoId`, `bearerAuth`,
+    `XRequestId`, `CacheControlNoStore` y `WWWAuthenticateBearer`) son copias idénticas de
+    `pago.openapi.yaml`; `ReferrerPolicy`, `XRobotsTag` y `RetryAfter`, de `relevo.openapi.yaml`. La
+    descripción de `CacheControlNoStore` habla de la ficha y del relevo, y aquí vale igual para el grupo
+    y las invitaciones.
+
+    Todos los datos de los ejemplos son sintéticos. Los tokens de los ejemplos no son válidos.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: invitaciones
+    description: Invitar a alguien al grupo y las invitaciones sin usar (solo admin, MATU-42)
+  - name: invitacion-publica
+    description: Lo que usa la persona invitada desde el enlace (MATU-42)
+  - name: miembros
+    description: Quiénes forman el grupo, sus roles y salir (MATU-42)
+
+paths:
+  /v1/grupos/{grupo_id}/invitaciones:
+    parameters:
+      - $ref: '#/components/parameters/GrupoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [invitaciones]
+      operationId: crearInvitacion
+      summary: Crear una invitación con un rol
+      description: |
+        **Solo `admin`** (RF-38, arquitectura 11.2). Los demás roles reciben **404**.
+
+        Crea una invitación de **un solo uso** que vence a los **7 días** según el `Reloj` (D-42-3; el
+        `CHECK invitacion_vigencia` ya fija ese máximo). El cuerpo trae **solo el rol** (C8): nunca el
+        correo ni el teléfono de la persona invitada (D-42-1 a) ni el permiso del pagador para ver la
+        ficha, que se da después con `PATCH …/miembros/{membresia_id}`. Se pueden dar los cuatro roles,
+        también `admin` (D-42-5); la advertencia la muestra la pantalla.
+
+        La respuesta trae **una sola vez** `url` (`{ORIGEN_WEB}/invitacion#<token>`), `codigo` (4
+        dígitos) y `expira_en` (P9). Ninguna otra ruta vuelve a entregar la `url` ni el `codigo`: si se
+        pierden, se anula la invitación y se crea otra. Por eso **no lleva `Idempotency-Key`** (decisión
+        296): guardar la respuesta para repetirla obligaría a guardar el token y el código. Un doble
+        toque crea dos invitaciones, y la lista de pendientes deja anular la que sobra.
+
+        La respuesta es siempre la misma forma: nunca se busca a la persona invitada entre las cuentas
+        (C26), porque MATU no sabe quién es.
+
+        **Orden:** 401, 404 (grupo, membresía y rol), 422 (cuerpo), 429 `tope-invitaciones` (20
+        invitaciones por admin y grupo en 24 horas, C31, P9), 503 (sin Redis, sin `PEPPER_LIMITES` o
+        sin `PEPPER_PIN`) y 201.
+
+        En una transacción: `invitacion` (con `nombre_pila_invita`, el nombre de pila de quien invita
+        copiado de su cuenta, como `acceso_relevo.nombre_pila_comparte`), `indice_token` con
+        `tipo = 'invitacion'` y la auditoría `invitacion.crear` con `{"rol": …}`.
+      x-matu-historia: MATU-42
+      x-matu-auditoria: invitacion.crear
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudInvitacion'
+            examples:
+              cuidador:
+                summary: Carmen invita a alguien para que cuide
+                value:
+                  rol: cuidador
+      responses:
+        '201':
+          description: La invitación, con el enlace y el código. Es la única vez que salen.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitacionCreada'
+              examples:
+                cuidador:
+                  summary: Invitación para cuidar, vence en 7 días
+                  value:
+                    id: 3c4d5e60-0000-4000-8000-0000000000e1
+                    rol: cuidador
+                    url: https://matu.example/invitacion#EjemploSinteticoDeTokenDeInvitacionNoValido0
+                    codigo: '4827'
+                    creada_en: '2026-11-12T21:30:00-03:00'
+                    expira_en: '2026-11-19T21:30:00-03:00'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+        '422':
+          $ref: '#/components/responses/ValidacionGrupo'
+        '429':
+          $ref: '#/components/responses/TopeInvitaciones'
+        '503':
+          $ref: '#/components/responses/SinServicioInvitacion'
+    get:
+      tags: [invitaciones]
+      operationId: listarInvitaciones
+      summary: Ver las invitaciones sin usar
+      description: |
+        **Solo `admin`** (C10). Los demás roles reciben **404**.
+
+        Las invitaciones del grupo que todavía no se usan, no se anulan y no vencen según el `Reloj`,
+        incluidas las **bloqueadas** por 5 códigos incorrectos (para que quien administra sepa que tiene
+        que crear otra). De la más nueva a la más antigua. Cada una trae el rol, `creada_en`, `expira_en`,
+        el estado y quién la creó, con su nombre de pila (P7). Nunca el token, el código, sus huellas ni
+        los intentos.
+
+        No se audita (D-42-8: las lecturas no se auditan).
+      x-matu-historia: MATU-42, MATU-53
+      responses:
+        '200':
+          description: Las invitaciones sin usar.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaInvitaciones'
+              examples:
+                una:
+                  summary: Una invitación pendiente que creó Carmen
+                  value:
+                    invitaciones:
+                      - id: 3c4d5e60-0000-4000-8000-0000000000e1
+                        rol: cuidador
+                        estado: pendiente
+                        creada_en: '2026-11-12T21:30:00-03:00'
+                        expira_en: '2026-11-19T21:30:00-03:00'
+                        invitada_por:
+                          nombre: Carmen
+                          autor_activo: true
+                          eres_tu: true
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+
+  /v1/grupos/{grupo_id}/invitaciones/{invitacion_id}:
+    parameters:
+      - $ref: '#/components/parameters/GrupoId'
+      - $ref: '#/components/parameters/XGrupoId'
+      - $ref: '#/components/parameters/InvitacionId'
+    delete:
+      tags: [invitaciones]
+      operationId: anularInvitacion
+      summary: Anular una invitación
+      description: |
+        **Solo `admin`.** Los demás roles reciben **404**. «Anular» en pantalla (`lenguaje.md`: sin
+        «revocar»).
+
+        Fija `invitacion.revocada_en` e `indice_token.revocado_en` con el mismo instante del `Reloj`, en
+        una transacción, como `DELETE /v1/accesos-relevo/{acceso_id}`. Desde ese momento la presentación,
+        la verificación y la aceptación responden 410 `invitacion-no-disponible` (C28). No borra la fila:
+        la borra la conservación a los 30 días (D-42-6).
+
+        - Una invitación **pendiente o bloqueada**: la anula, **204**, y registra `invitacion.anular` con
+          `{"rol": …}`.
+        - Una **ya anulada**: **204** sin cambiar nada (idempotente, como cortar un relevo).
+        - Una **ya usada o vencida**: **409 `invitacion-cerrada`** con `estado` (`usada` o `vencida`), sin
+          cambiar nada (P8). Puede pasar si se usó o venció mientras la pantalla mostraba la lista.
+
+        **Orden:** 401, 404 (grupo, membresía, rol, invitación inexistente o de otro grupo), 409 y 204.
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: invitacion.anular
+      responses:
+        '204':
+          description: La invitación quedó anulada, o ya lo estaba.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+        '409':
+          $ref: '#/components/responses/InvitacionCerrada'
+
+  /v1/invitaciones/presentacion:
+    post:
+      tags: [invitacion-publica]
+      operationId: presentarInvitacion
+      summary: Saber quién invita y para qué rol, antes del código
+      description: |
+        Ruta **pública** de la página `/invitacion` (C1, D-42-4 a, P2). Recibe el token leído del
+        fragmento, en el cuerpo. Responde **solo** el nombre de pila de quien invita, el rol y el
+        vencimiento: nunca el nombre del grupo, el de la persona cuidada ni nada del grupo, que se ven
+        después del código (`…/verificacion`).
+
+        **Orden de evaluación** (decisión 299), el mismo de la verificación hasta el bloqueo:
+
+        1. Límite por IP de MATU-25: **30 presentaciones por hora**, en un contador propio, con la huella
+           HMAC de la IP (decisión 27). Si se supera, **429**. Sin Redis o sin `PEPPER_LIMITES`, **503**.
+           Un cuerpo que no es JSON válido responde 422 antes y no cuenta.
+        2. Cuerpo válido. Si no, **422**.
+        3. El token no es de ninguna invitación, está cortado, la anularon o ya se borró: **410
+           `invitacion-no-disponible`** (C28: inexistente y anulada dan lo mismo).
+        4. Ya se usó: **410 `invitacion-usada`** (P4).
+        5. Venció según el `Reloj`: **410 `invitacion-vencida`** (P4).
+        6. Bloqueada por 5 códigos incorrectos: **423 `invitacion-bloqueada`**, con `nombre_pila_invita`
+           (P2).
+        7. Si no, **200**.
+
+        Lo resuelve `invitacion_presentar(token_hash, ahora)`, `SECURITY DEFINER` (D-42-12 a). No cuenta
+        como intento de código, no cambia nada y no se audita (las lecturas no se auditan, D-42-8).
+      x-matu-historia: MATU-42, MATU-53
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudPresentacionInvitacion'
+            examples:
+              presentacion:
+                summary: La página pide quién invita con el token del enlace
+                value:
+                  token: EjemploSinteticoDeTokenDeInvitacionNoValido0
+      responses:
+        '200':
+          description: Quién invita, para qué rol y hasta cuándo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresentacionInvitacion'
+              examples:
+                carmen:
+                  summary: Carmen invita para cuidar
+                  value:
+                    nombre_pila_invita: Carmen
+                    rol: cuidador
+                    expira_en: '2026-11-19T21:30:00-03:00'
+        '410':
+          $ref: '#/components/responses/InvitacionNoSirve'
+        '422':
+          $ref: '#/components/responses/ValidacionInvitacionPublica'
+        '423':
+          $ref: '#/components/responses/InvitacionBloqueada'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticionesInvitacion'
+        '503':
+          $ref: '#/components/responses/SinServicioInvitacionPublica'
+
+  /v1/invitaciones/verificacion:
+    post:
+      tags: [invitacion-publica]
+      operationId: verificarCodigoInvitacion
+      summary: Verificar el código y ver a qué grupo se une, antes de pedir la cuenta
+      description: |
+        Ruta **pública, sin sesión** (P1): el código va **antes** de pedir la cuenta. Quien recibe
+        confirma que la invitación es para ella sin crear nada, y quien tiene un enlace reenviado se
+        detiene aquí.
+
+        Verifica el código y responde lo que C2 pide mostrar antes de «Unirme al grupo» (P3): el nombre
+        de pila de quien invita, el nombre del grupo, los nombres de pila de las personas cuidadas
+        activas, el rol y el vencimiento. **No une a nadie** y no consume la invitación. Qué permite cada
+        rol lo pone la pantalla, desde `lenguaje.md`. Después, si no tiene sesión, la página le pide
+        entrar o crear su cuenta, con el token y el código **en memoria** (C25), y llama a
+        `…/aceptacion`.
+
+        **Orden de evaluación** (decisión 299):
+
+        1. Límite por IP: **20 por hora**, en un contador «canje de invitación» que comparten la
+           verificación y la aceptación (decisión 301). Si se supera, **429**. Sin Redis o sin
+           `PEPPER_LIMITES`, **503**.
+        2. Cuerpo válido: `token` y `codigo` de 4 dígitos. Si no, **422 `validacion`**, que no cuenta
+           como intento.
+        3. a 6. Lo mismo que la presentación: 410 `invitacion-no-disponible`, 410 `invitacion-usada`,
+           410 `invitacion-vencida` y 423 `invitacion-bloqueada`.
+        7. Sin `PEPPER_PIN`: **503**, sin contar el intento.
+        8. Código incorrecto: suma un intento y responde **422 `codigo-incorrecto`** con
+           `intentos_restantes` (1 a 4, P3). El **5.º** bloquea la invitación (`bloqueada_en`) y
+           responde **423**, también si después llega el correcto (C30, como el PIN, decisión 11). Un
+           código correcto antes del bloqueo vuelve el contador a 0.
+        9. Si no, **200** (el contador volvió a 0). Sin `intentos_restantes` (decisión 325).
+
+        Sin sesión no se puede saber si quien pregunta ya es parte del grupo: eso lo responde la
+        aceptación (`ya-eres-parte`, C27).
+
+        Lo resuelve `invitacion_verificar(token_hash, codigo_hash, ahora)`, `SECURITY DEFINER`, que toma
+        la invitación con `FOR UPDATE` para contar los intentos sin carreras y escribe la auditoría en
+        la misma transacción: `invitacion.codigo_incorrecto` y `invitacion.bloqueo`, con `{"rol": …}` y
+        actor `sistema` con `actor_ref` vacío, como el inicio de sesión fallido de MATU-38, porque no hay
+        cuenta (decisión 312). En la aceptación, el actor es la cuenta. Un 200 no se audita.
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: invitacion.codigo_incorrecto, invitacion.bloqueo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCanjeInvitacion'
+            examples:
+              verificacion:
+                summary: Rosa escribe el código que le dictó Carmen
+                value:
+                  token: EjemploSinteticoDeTokenDeInvitacionNoValido0
+                  codigo: '4827'
+      responses:
+        '200':
+          description: El código es correcto. A qué grupo se une, a quién cuidan y con qué rol.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificacionInvitacion'
+              examples:
+                familia_soto:
+                  summary: El grupo de la familia Soto, que cuida a María
+                  value:
+                    nombre_pila_invita: Carmen
+                    grupo: Familia Soto
+                    personas: [María]
+                    rol: cuidador
+                    expira_en: '2026-11-19T21:30:00-03:00'
+        '410':
+          $ref: '#/components/responses/InvitacionNoSirve'
+        '422':
+          $ref: '#/components/responses/CodigoIncorrectoOValidacion'
+        '423':
+          $ref: '#/components/responses/InvitacionBloqueada'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticionesInvitacion'
+        '503':
+          $ref: '#/components/responses/SinServicioInvitacionPublica'
+
+  /v1/invitaciones/aceptacion:
+    post:
+      tags: [invitacion-publica]
+      operationId: aceptarInvitacion
+      summary: Unirse al grupo con la invitación y el código
+      description: |
+        **Con sesión**, **sin `X-Grupo-Id`**. «Unirme al grupo». Vuelve a mandar el token y el código
+        (P1) y evalúa **lo mismo y en el mismo orden** que `…/verificacion`, con el mismo contador por
+        IP, los mismos intentos y el mismo bloqueo, con dos diferencias:
+
+        - **Antes de todo, la sesión:** sin ella, **401**.
+        - **Ya usada por esta misma cuenta**, que sigue activa en el grupo: **409 `ya-eres-parte`** con
+          `grupo_id` en vez del 410 `invitacion-usada` (un doble toque, o volver con «Atrás»). Usada por
+          otra cuenta, o por esta y ya salió: 410 `invitacion-usada`.
+        - **Después del código correcto**, si la cuenta ya es miembro activo del grupo por otra vía:
+          **409 `ya-eres-parte`**, sin consumir la invitación (C27: solo lo sabe quien tiene el enlace,
+          el código y una sesión).
+
+        **Un solo uso** (C22). `invitacion_aceptar(token_hash, codigo_hash, ahora)`, `SECURITY DEFINER`
+        (D-42-12 a), en una transacción y con la invitación tomada con `FOR UPDATE`:
+        - inserta la `membresia` `activa` con el rol de la invitación, `puede_ver_plan = false`,
+          `invitado_por` y `unido_en`;
+        - fija `invitacion.aceptada_en` y `aceptada_por`, e `indice_token.revocado_en`;
+        - escribe la auditoría `invitacion.aceptar` con `{"rol": …}` y la cuenta como actor;
+        - devuelve solo el `grupo_id`, el `membresia_id`, el nombre del grupo y el rol.
+
+        **Dos aceptaciones a la vez:** gana una (201) y la otra espera el bloqueo y responde 410
+        `invitacion-usada` (o 409 `ya-eres-parte`, si es la misma cuenta). Una membresía `retirada` de
+        la misma cuenta no estorba: volver a invitar crea una fila nueva (D-42-11 a, índice único
+        parcial).
+
+        **Unirse no crea, copia ni cambia autorizaciones** (C7): la persona nueva ve lo que su rol
+        permite y solo con la autorización vigente de cada finalidad. Desde la petición siguiente, `GET
+        /v1/grupos` trae el grupo con su rol. Si la invitación la creó alguien que después dejó de ser
+        `admin`, ya está anulada (decisión 307) y responde 410 `invitacion-no-disponible`. Ningún evento
+        ni aviso en el semestre (decisión 310).
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: invitacion.aceptar, invitacion.codigo_incorrecto, invitacion.bloqueo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCanjeInvitacion'
+            examples:
+              aceptar:
+                summary: Rosa se une al grupo
+                value:
+                  token: EjemploSinteticoDeTokenDeInvitacionNoValido0
+                  codigo: '4827'
+      responses:
+        '201':
+          description: Ya es parte del grupo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Referrer-Policy:
+              $ref: '#/components/headers/ReferrerPolicy'
+            X-Robots-Tag:
+              $ref: '#/components/headers/XRobotsTag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Union'
+              examples:
+                rosa:
+                  summary: Rosa entra como cuidadora
+                  value:
+                    grupo_id: 5a7c9e10-0000-4000-8000-0000000000a1
+                    membresia_id: 6b8d0f20-0000-4000-8000-0000000000b2
+                    grupo: Familia Soto
+                    rol: cuidador
+                    puede_ver_plan: true
+        '401':
+          $ref: '#/components/responses/NoAutenticadoInvitacion'
+        '409':
+          $ref: '#/components/responses/YaEresParte'
+        '410':
+          $ref: '#/components/responses/InvitacionNoSirve'
+        '422':
+          $ref: '#/components/responses/CodigoIncorrectoOValidacion'
+        '423':
+          $ref: '#/components/responses/InvitacionBloqueada'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticionesInvitacion'
+        '503':
+          $ref: '#/components/responses/SinServicioInvitacionPublica'
+
+  /v1/grupos/{grupo_id}/miembros:
+    parameters:
+      - $ref: '#/components/parameters/GrupoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    get:
+      tags: [miembros]
+      operationId: listarMiembros
+      summary: Quiénes forman el grupo
+      description: |
+        **Todo miembro activo** (C6), con la misma vista para todos salvo `enlaces_vigentes`.
+
+        **Solo los miembros activos** (D-42-10 a). Quien salió o fue sacado no aparece. Cada miembro
+        trae solo el id de la membresía, el nombre, el rol, si puede ver la ficha (solo el pagador),
+        cuándo se unió, `eres_tu` y su `etag`: **nunca el email, el celular ni el `usuario_id`** (C9),
+        con `additionalProperties: false` en el esquema y `extra="forbid"` en Pydantic, y una prueba que
+        falla si aparecen.
+
+        `enlaces_vigentes` cuenta los accesos de relevo **no cortados y no vencidos** que esa persona
+        compartió en el grupo (`acceso_relevo.otorgado_por`). Lo recibe **quien administra, en todas las
+        filas** (P5), y **cada persona en su propia fila**, para la confirmación de «Salir del grupo»
+        (P13). En las demás filas es `null`. Es el `{n}` de «Se cortan `{n}` enlaces de relevo» (D-42-7).
+
+        **Orden:** por `unido_en`, de la más antigua a la más nueva. No se audita.
+      x-matu-historia: MATU-42, MATU-53
+      responses:
+        '200':
+          description: Los miembros activos del grupo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListaMiembros'
+              examples:
+                vista_admin:
+                  summary: Lo que ve Carmen, que administra
+                  value:
+                    miembros:
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b1
+                        nombre: Carmen Soto
+                        rol: admin
+                        puede_ver_plan: null
+                        unido_en: '2026-10-20T10:00:00-03:00'
+                        eres_tu: true
+                        etag: '"v1"'
+                        enlaces_vigentes: 1
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b3
+                        nombre: Jaime Soto
+                        rol: pagador
+                        puede_ver_plan: false
+                        unido_en: '2026-11-01T09:15:00-03:00'
+                        eres_tu: false
+                        etag: '"v2"'
+                        enlaces_vigentes: 0
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b2
+                        nombre: Rosa Pérez
+                        rol: cuidador
+                        puede_ver_plan: null
+                        unido_en: '2026-11-12T22:05:00-03:00'
+                        eres_tu: false
+                        etag: '"v1"'
+                        enlaces_vigentes: 2
+                vista_cuidador:
+                  summary: Lo que ve Rosa, que cuida
+                  value:
+                    miembros:
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b1
+                        nombre: Carmen Soto
+                        rol: admin
+                        puede_ver_plan: null
+                        unido_en: '2026-10-20T10:00:00-03:00'
+                        eres_tu: false
+                        etag: '"v1"'
+                        enlaces_vigentes: null
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b3
+                        nombre: Jaime Soto
+                        rol: pagador
+                        puede_ver_plan: false
+                        unido_en: '2026-11-01T09:15:00-03:00'
+                        eres_tu: false
+                        etag: '"v2"'
+                        enlaces_vigentes: null
+                      - id: 6b8d0f20-0000-4000-8000-0000000000b2
+                        nombre: Rosa Pérez
+                        rol: cuidador
+                        puede_ver_plan: null
+                        unido_en: '2026-11-12T22:05:00-03:00'
+                        eres_tu: true
+                        etag: '"v1"'
+                        enlaces_vigentes: 2
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+
+  /v1/grupos/{grupo_id}/miembros/{membresia_id}:
+    parameters:
+      - $ref: '#/components/parameters/GrupoId'
+      - $ref: '#/components/parameters/XGrupoId'
+      - $ref: '#/components/parameters/MembresiaId'
+    patch:
+      tags: [miembros]
+      operationId: cambiarMiembro
+      summary: Cambiar el rol de alguien o el permiso del pagador para ver la ficha
+      description: |
+        **Solo `admin`** (RF-38). Los demás roles reciben **404**. También sobre la propia membresía.
+
+        El cuerpo trae `rol`, `puede_ver_plan` o los dos (D-42-5, el faltante de la revisión previa: hoy
+        no hay ruta que dé `puede_ver_plan`):
+        - **`puede_ver_plan: true`** solo si el rol que queda es `pagador`; si no, **422** con `tipo:
+          permiso_solo_pagador` (el `CHECK membresia_permiso_plan` lo exige igual).
+        - **Al dejar de ser `pagador`**, `puede_ver_plan` vuelve a `false` en la misma sentencia (C18).
+          Al pasar a `pagador` queda en `false` salvo que el cuerpo diga `true`.
+        - **El último admin no se degrada** (C11, C12): si el cambio deja al grupo sin ningún `admin`
+          activo, **409 `ultimo-admin`** y no cambia nada. El trigger de la 0026 lo garantiza también por
+          SQL y con dos cambios a la vez.
+        - **Dejar de ser `admin` o `cuidador`** (pasar a `pagador` u `observador`) corta en la misma
+          transacción los accesos de relevo vigentes que esa persona compartió en el grupo (C19, D-42-7
+          a, decisión 305), con `relevo.revocar` por acceso, como el retiro de MATU-44. Un `pagador` con
+          permiso ve la ficha pero no la comparte ni la corta, así que no podría cortarlos después.
+        - **Dejar de ser `admin`** anula sus invitaciones sin usar (decisión 307).
+        - **Un pago en curso no se anula** (D-42-C20): el rol nuevo vale desde la petición siguiente.
+
+        Sin cambios reales (el mismo rol y el mismo permiso) responde **200** con `enlaces_cortados: 0`,
+        sin subir la versión ni auditar.
+
+        **Condicional** (P6, decisión 303): `If-Match` con el `etag` de la membresía, en el cambio de rol
+        y en el del permiso. Sin él, vacío o `*`, **428 `falta-version`**; desactualizado, **412
+        `version-desactualizada`** con la membresía en `actual`. Así dos personas que administran no se
+        pisan.
+
+        **Orden:** 401, 404 (grupo, membresía de quien pide, rol, membresía destino inexistente,
+        retirada o de otro grupo), 428, 422, 412, 409 y 200.
+
+        **Auditoría** (D-42-8 b), entidad `membresia`: `membresia.cambiar_rol` con el rol nuevo y
+        `membresia.permiso_ficha` cuando cambia `puede_ver_plan`, con `{"rol": "pagador"}`.
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: membresia.cambiar_rol, membresia.permiso_ficha, relevo.revocar, invitacion.anular
+      parameters:
+        - $ref: '#/components/parameters/IfMatchMembresia'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCambioMiembro'
+            examples:
+              permiso_ficha:
+                summary: Carmen deja que Jaime, que paga, vea la ficha
+                value:
+                  puede_ver_plan: true
+              a_observador:
+                summary: Rosa pasa a solo informarse
+                value:
+                  rol: observador
+      responses:
+        '200':
+          description: La membresía como quedó, y cuántos enlaces de relevo se cortaron.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            ETag:
+              $ref: '#/components/headers/ETagMembresia'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoCambioMiembro'
+              examples:
+                a_observador:
+                  summary: Rosa quedó como observadora y se cortaron los dos enlaces que había compartido
+                  value:
+                    miembro:
+                      id: 6b8d0f20-0000-4000-8000-0000000000b2
+                      nombre: Rosa Pérez
+                      rol: observador
+                      puede_ver_plan: null
+                      unido_en: '2026-11-12T22:05:00-03:00'
+                      eres_tu: false
+                      etag: '"v2"'
+                      enlaces_vigentes: 0
+                    enlaces_cortados: 2
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+        '409':
+          $ref: '#/components/responses/UltimoAdmin'
+        '412':
+          $ref: '#/components/responses/VersionMembresia'
+        '422':
+          $ref: '#/components/responses/ValidacionGrupo'
+        '428':
+          $ref: '#/components/responses/FaltaVersionMembresia'
+    delete:
+      tags: [miembros]
+      operationId: sacarMiembro
+      summary: Sacar a alguien del grupo
+      description: |
+        **Solo `admin`.** Los demás roles reciben **404**.
+
+        En una transacción, con un solo instante del `Reloj`:
+        1. corta los accesos de relevo vigentes que esa persona compartió en el grupo
+           (`acceso_relevo.revocado_en` e `indice_token.revocado_en`, con `relevo.revocar` por acceso),
+           **antes** de retirar la membresía (C13, D-42-7 a);
+        2. si era `admin`, anula sus invitaciones sin usar (decisión 307);
+        3. deja la membresía `retirada`, con `retirado_en` y `puede_ver_plan = false`. **No la borra**
+           (C14): la nombra la auditoría.
+
+        Responde **200** con `enlaces_cortados` (P13). Deja de ver el grupo en su petición siguiente
+        (`membresia_activa` se consulta en cada una), y sus avisos se cortan solos (C15). Lo que escribió
+        en la ficha queda, con el autor como «alguien que ya no está» (C16, D-42-10 a, P11). Se le puede
+        volver a invitar (C17, D-42-11 a). La autorización que haya dado sigue vigente (D-42-9 a, P10).
+
+        **La propia membresía** se trata como `POST …/salida` (decisión 306), con su auditoría y sus 409.
+
+        **No es idempotente:** una membresía ya retirada, inexistente o de otro grupo responde **404**
+        («Esa persona ya no estaba en el grupo»). El último admin responde **409 `ultimo-admin`**.
+
+        **Orden:** 401, 404, 409 y 200. Registra `membresia.sacar` con `{"rol": …}` (el que tenía).
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: membresia.sacar, relevo.revocar, invitacion.anular
+      responses:
+        '200':
+          description: La persona ya no está en el grupo, y sus enlaces de relevo quedaron cortados.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoSalida'
+              examples:
+                rosa:
+                  summary: Se sacó a Rosa y se cortaron sus dos enlaces
+                  value:
+                    enlaces_cortados: 2
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+        '409':
+          $ref: '#/components/responses/NoPuedeSalir'
+
+  /v1/grupos/{grupo_id}/salida:
+    parameters:
+      - $ref: '#/components/parameters/GrupoId'
+      - $ref: '#/components/parameters/XGrupoId'
+    post:
+      tags: [miembros]
+      operationId: salirDelGrupo
+      summary: Salir del grupo por cuenta propia
+      description: |
+        **Todo miembro activo** (D-42-13). Hace lo mismo que sacar a alguien, sobre la propia membresía:
+        corta los enlaces de relevo que compartió, anula sus invitaciones sin usar si era `admin` y deja
+        la membresía `retirada`. Deja de ver el grupo en ese momento. Responde **200** con
+        `enlaces_cortados` (P13); la cuenta previa la trae la propia fila de `GET …/miembros`.
+
+        **Dos 409 distintos** (C12, P14), para que la pantalla diga lo que corresponde:
+        - **`ultimo-admin`**: es la única persona que administra y hay otras en el grupo. «Primero da ese
+          rol a otra persona.»
+        - **`unica-persona`**: es la única persona del grupo. No puede salir, porque el grupo no puede
+          quedar sin nadie que lo administre, y cerrar un grupo no está en ninguna historia. La pantalla
+          la lleva a «Borrar sus datos» (MATU-72, `POST …/borrado`).
+
+        Sin cuerpo. **Orden:** 401, 404, 409 y 200. Registra `membresia.salir` con `{"rol": …}`.
+      x-matu-historia: MATU-42, MATU-53
+      x-matu-auditoria: membresia.salir, relevo.revocar, invitacion.anular
+      responses:
+        '200':
+          description: Ya no está en el grupo.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoSalida'
+              examples:
+                sin_enlaces:
+                  summary: Jaime salió y no había compartido enlaces
+                  value:
+                    enlaces_cortados: 0
+        '401':
+          $ref: '#/components/responses/NoAutenticadoGrupo'
+        '404':
+          $ref: '#/components/responses/NoEncontradoGrupo'
+        '409':
+          $ref: '#/components/responses/NoPuedeSalir'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    GrupoId:
+      name: grupo_id
+      in: path
+      required: true
+      description: |
+        El grupo, que tiene que ser el mismo de `X-Grupo-Id`, como en `…/personas-cuidadas` de MATU-07
+        (`contexto_del_grupo`). Distinto, o que no es un UUID: **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    InvitacionId:
+      name: invitacion_id
+      in: path
+      required: true
+      description: La invitación. Si no es un UUID, no existe o es de otro grupo, **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 3c4d5e60-0000-4000-8000-0000000000e1
+    MembresiaId:
+      name: membresia_id
+      in: path
+      required: true
+      description: |
+        La membresía (el `id` de `MiembroVista`, nunca el `usuario_id`). Si no es un UUID, no existe, es
+        de otro grupo o está retirada, **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 6b8d0f20-0000-4000-8000-0000000000b2
+    IfMatchMembresia:
+      name: If-Match
+      in: header
+      required: false
+      description: |
+        `etag` de la membresía tal como se leyó, por ejemplo `"v1"`. **Obligatorio**: sin él, vacío o
+        `*`, 428 `falta-version`; otro valor, 412 `version-desactualizada` con la membresía en `actual`.
+      schema:
+        type: string
+      example: '"v1"'
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    ReferrerPolicy:
+      description: El navegador no envía la URL de la página del relevo como `Referer` a nadie.
+      required: true
+      schema:
+        type: string
+        const: no-referrer
+    XRobotsTag:
+      description: Ningún buscador indexa las respuestas del relevo.
+      required: true
+      schema:
+        type: string
+        const: noindex
+    RetryAfter:
+      description: Segundos que faltan para que se abra la ventana del límite por IP.
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ETagMembresia:
+      description: La versión de la membresía, `"v<version>"`. Es el mismo valor de `MiembroVista.etag`.
+      required: true
+      schema:
+        type: string
+        pattern: '^"v[0-9]+"$'
+
+  schemas:
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    ProblemaValidacion:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/validacion
+            status:
+              const: 422
+            errores:
+              minItems: 1
+
+    # ---------------------------------------------------------------- dominio
+
+    Rol:
+      type: string
+      enum: [admin, cuidador, pagador, observador]
+      description: |
+        Los cuatro roles de `membresia.rol` (arquitectura 11.2). En pantalla: «Administra el grupo»,
+        «Cuida», «Paga» y «Se informa» (`lenguaje.md`), nunca «observador».
+
+    Token:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: |
+        Lo que viene después de `#` en el enlace. No se valida su forma: un token desconocido o cortado
+        responde 410 `invitacion-no-disponible`, igual que en el relevo. Nunca va a la URL, a los logs
+        ni a la auditoría.
+
+    # ---------------------------------------------------------------- invitaciones
+
+    SolicitudInvitacion:
+      type: object
+      additionalProperties: false
+      required: [rol]
+      description: Solo el rol (C8). Sin correo, teléfono ni `puede_ver_plan` (D-42-1 a).
+      properties:
+        rol:
+          $ref: '#/components/schemas/Rol'
+
+    InvitacionCreada:
+      type: object
+      additionalProperties: false
+      required: [id, rol, url, codigo, creada_en, expira_en]
+      description: |
+        La invitación recién creada (P9). **`url` y `codigo` salen solo aquí y una sola vez.** La
+        pantalla los muestra, ofrece «Enviar el enlace» y «Copiar el enlace», y nunca los guarda en el
+        almacenamiento del navegador.
+      properties:
+        id:
+          type: string
+          format: uuid
+        rol:
+          $ref: '#/components/schemas/Rol'
+        url:
+          type: string
+          format: uri
+          description: '`{ORIGEN_WEB}/invitacion#<token>`, con el token de 256 bits en el fragmento (C21).'
+        codigo:
+          type: string
+          pattern: '^[0-9]{4}$'
+          description: |
+            4 dígitos aleatorios (de `0000` a `9999`), que se dictan aparte y nunca van en el mensaje
+            del enlace (D-42-2 a, C33). Se guarda solo su HMAC.
+        creada_en:
+          type: string
+          format: date-time
+        expira_en:
+          type: string
+          format: date-time
+          description: '`creada_en` más 7 días (D-42-3).'
+
+    EstadoInvitacion:
+      type: string
+      enum: [pendiente, bloqueada]
+      description: |
+        Solo las que todavía no se usan, no se anulan y no vencen. `bloqueada`: 5 códigos incorrectos;
+        ya no sirve y conviene anularla y crear otra.
+
+    InvitadaPor:
+      type: object
+      additionalProperties: false
+      required: [nombre, autor_activo, eres_tu]
+      description: |
+        Quién creó la invitación (P7), con la forma del autor de P11. `nombre` es el **nombre de pila**
+        copiado en la invitación (`nombre_pila_invita`), o `null` si esa persona ya no es miembro activo.
+      properties:
+        nombre:
+          type: [string, 'null']
+        autor_activo:
+          type: boolean
+        eres_tu:
+          type: boolean
+
+    InvitacionVista:
+      type: object
+      additionalProperties: false
+      required: [id, rol, estado, creada_en, expira_en, invitada_por]
+      description: Una invitación sin usar, para quien administra. Nunca el token, el código ni los intentos.
+      properties:
+        id:
+          type: string
+          format: uuid
+        rol:
+          $ref: '#/components/schemas/Rol'
+        estado:
+          $ref: '#/components/schemas/EstadoInvitacion'
+        creada_en:
+          type: string
+          format: date-time
+        expira_en:
+          type: string
+          format: date-time
+        invitada_por:
+          $ref: '#/components/schemas/InvitadaPor'
+
+    ListaInvitaciones:
+      type: object
+      additionalProperties: false
+      required: [invitaciones]
+      properties:
+        invitaciones:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/InvitacionVista'
+
+    SolicitudPresentacionInvitacion:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+
+    PresentacionInvitacion:
+      type: object
+      additionalProperties: false
+      required: [nombre_pila_invita, rol, expira_en]
+      description: Lo único que se ve antes del código (C1, D-42-4 a, P2).
+      properties:
+        nombre_pila_invita:
+          type: string
+          description: Nombre de pila de quien invita, copiado en la invitación al crearla.
+        rol:
+          $ref: '#/components/schemas/Rol'
+        expira_en:
+          type: string
+          format: date-time
+
+    SolicitudCanjeInvitacion:
+      type: object
+      additionalProperties: false
+      required: [token, codigo]
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+        codigo:
+          type: string
+          pattern: '^[0-9]{4}$'
+          description: |
+            Los 4 dígitos que dictó quien invita. Otra forma responde 422 `validacion` y **no** cuenta
+            como intento. Nunca va a los logs ni a la auditoría.
+
+    VerificacionInvitacion:
+      type: object
+      additionalProperties: false
+      required: [nombre_pila_invita, grupo, personas, rol, expira_en]
+      description: |
+        Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin apellidos de la persona cuidada, sin
+        datos de los demás miembros y sin nada de la ficha.
+      properties:
+        nombre_pila_invita:
+          type: string
+        grupo:
+          type: string
+          description: El nombre del grupo (`grupo_familiar.nombre`).
+        personas:
+          type: array
+          maxItems: 20
+          description: |
+            Los nombres de pila (`persona_cuidada.nombre_pila`) de las personas activas y no eliminadas
+            del grupo, en el orden en que se dieron de alta. Puede ir vacío si el grupo todavía no da de
+            alta a nadie.
+          items:
+            type: string
+        rol:
+          $ref: '#/components/schemas/Rol'
+        expira_en:
+          type: string
+          format: date-time
+
+    Union:
+      type: object
+      additionalProperties: false
+      required: [grupo_id, membresia_id, grupo, rol, puede_ver_plan]
+      description: |
+        El grupo al que se unió, para fijar `X-Grupo-Id` en memoria. `puede_ver_plan` es el de
+        `GrupoRespuesta` (decisión 66): `true` para `admin` y `cuidador`, `false` para `pagador` (todavía
+        sin permiso) y `observador`.
+      properties:
+        grupo_id:
+          type: string
+          format: uuid
+        membresia_id:
+          type: string
+          format: uuid
+        grupo:
+          type: string
+        rol:
+          $ref: '#/components/schemas/Rol'
+        puede_ver_plan:
+          type: boolean
+
+    # ---------------------------------------------------------------- miembros
+
+    MiembroVista:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, rol, puede_ver_plan, unido_en, eres_tu, etag, enlaces_vigentes]
+      description: |
+        Un miembro activo (C9). **Nunca el email, el celular ni el `usuario_id`.**
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: El id de la membresía, que usan `PATCH` y `DELETE …/miembros/{membresia_id}`.
+        nombre:
+          type: string
+          description: '`usuario.nombre`, el mismo que se muestra como autor.'
+        rol:
+          $ref: '#/components/schemas/Rol'
+        puede_ver_plan:
+          type: [boolean, 'null']
+          description: |
+            Solo para el `pagador`: si quien administra le dio permiso de ver la ficha. `null` para los
+            demás roles, que la ven siempre (`admin`, `cuidador`) o nunca (`observador`).
+        unido_en:
+          type: string
+          format: date-time
+        eres_tu:
+          type: boolean
+        etag:
+          type: string
+          pattern: '^"v[0-9]+"$'
+          description: '`"v<membresia.version>"`, para el `If-Match` de `PATCH` (decisión 303).'
+        enlaces_vigentes:
+          type: [integer, 'null']
+          minimum: 0
+          description: |
+            Accesos de relevo vigentes que esta persona compartió en el grupo (P5, P13). Para quien
+            administra, en todas las filas; para los demás, solo en la propia (`eres_tu`). Si no, `null`.
+
+    ListaMiembros:
+      type: object
+      additionalProperties: false
+      required: [miembros]
+      properties:
+        miembros:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/MiembroVista'
+
+    SolicitudCambioMiembro:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: |
+        `rol`, `puede_ver_plan` o los dos. `puede_ver_plan: true` solo con el rol `pagador` (el que
+        queda), si no 422 `permiso_solo_pagador`. `null` en cualquiera de los dos es 422.
+      properties:
+        rol:
+          $ref: '#/components/schemas/Rol'
+        puede_ver_plan:
+          type: boolean
+
+    ResultadoCambioMiembro:
+      type: object
+      additionalProperties: false
+      required: [miembro, enlaces_cortados]
+      properties:
+        miembro:
+          $ref: '#/components/schemas/MiembroVista'
+        enlaces_cortados:
+          type: integer
+          minimum: 0
+          description: Accesos de relevo que el cambio cortó (C19). 0 si el rol sigue siendo `admin` o `cuidador`.
+
+    ResultadoSalida:
+      type: object
+      additionalProperties: false
+      required: [enlaces_cortados]
+      description: Sacar a alguien o salir del grupo (P13).
+      properties:
+        enlaces_cortados:
+          type: integer
+          minimum: 0
+          description: Accesos de relevo que esa persona había compartido y que se cortaron.
+
+    # ---------------------------------------------------------------- cambios a openapi.json
+
+    CambioAutorizacionVista:
+      description: |
+        **Cambio aditivo** a `AutorizacionVista` de `GET /v1/personas-cuidadas/{persona_id}/consentimientos`
+        (`openapi.json`, MATU-44, decisión 127), que ven `admin` y `cuidador`, en las tres finalidades
+        (`plan_cuidado`, `consumo` y `despacho`). No cambia `AutorizacionVistaResumen` (pagador y
+        observador). Sigue sin decir quién la dio (decisión 127, D-42-10 a): solo si esa persona ya no
+        está, para el aviso de D-42-9 a (P10). **No hay renovación en esta historia:** va en MATU-69, en
+        el Product Backlog.
+      type: object
+      required: [autorizo_alguien_que_ya_no_esta]
+      properties:
+        autorizo_alguien_que_ya_no_esta:
+          type: boolean
+          description: |
+            `true` si la autorización no está retirada y quien la registró (`consentimiento.otorgado_por`)
+            ya no es miembro activo del grupo. `false` en todo otro caso, también sin autorización (`id:
+            null`). Con `true`, la pantalla muestra «La autorización la dio alguien que ya no está en el
+            grupo. Sigue vigente.».
+
+    CambioAutor:
+      description: |
+        **Cambio a `AutorVista`, `AutorAccesoVista` y `AutorPerfilVista`** de `openapi.json` (el autor de
+        la ficha, de las secciones, de los accesos de relevo y de los perfiles de consumo), por D-42-10 a
+        y P11. Hoy, un autor que RLS no deja ver llega como `autor: null`. Desde la 0026,
+        `usuario_comiembro` deja ver solo a los miembros activos, y quien ya no está llega así,
+        **igual en todas las rutas**:
+        - `id`: el `usuario_id` que ya guardaba la fila (`actualizado_por`, `otorgado_por`), como hoy;
+        - `nombre: null` (deja de ser `string` obligatorio y pasa a `string | null`);
+        - `autor_activo: false` (nuevo, obligatorio; `true` cuando el autor es miembro activo).
+
+        Lo mismo para una cuenta eliminada. `autor: null` queda solo para una fila sin autor
+        (`actualizado_por` nulo). El texto «Alguien que ya no está en el grupo» lo pone la pantalla.
+        **No es solo aditivo:** `nombre` se vuelve anulable, y la exportación de `openapi.json` lo
+        muestra (decisión 309). Los pedidos y el pago no muestran el nombre de nadie, solo `es_tuyo`, así
+        que no cambian.
+      type: object
+      required: [id, nombre, autor_activo]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: [string, 'null']
+        autor_activo:
+          type: boolean
+
+    # ---------------------------------------------------------------- problemas
+
+    ProblemaUltimoAdmin:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/ultimo-admin
+            status:
+              const: 409
+
+    ProblemaUnicaPersona:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              const: /errores/unica-persona
+            status:
+              const: 409
+
+    ProblemaInvitacionNoSirve:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          properties:
+            type:
+              enum: [/errores/invitacion-no-disponible, /errores/invitacion-usada, /errores/invitacion-vencida]
+            status:
+              const: 410
+
+    ProblemaYaEresParte:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [grupo_id]
+          properties:
+            type:
+              const: /errores/ya-eres-parte
+            status:
+              const: 409
+            grupo_id:
+              type: string
+              format: uuid
+              description: |
+                El grupo, para que la app lo abra con `X-Grupo-Id`. Quien lo recibe ya es miembro activo
+                de él, así que no revela nada nuevo.
+
+    ProblemaInvitacionBloqueada:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [nombre_pila_invita]
+          properties:
+            type:
+              const: /errores/invitacion-bloqueada
+            status:
+              const: 423
+            nombre_pila_invita:
+              type: string
+              description: |
+                El nombre de pila de quien invitó, que la presentación ya mostró (P2), para «Pídele a
+                `{nombre_pila_invita}` una nueva».
+
+    ProblemaCodigoIncorrecto:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [intentos_restantes]
+          properties:
+            type:
+              const: /errores/codigo-incorrecto
+            status:
+              const: 422
+            intentos_restantes:
+              type: integer
+              minimum: 1
+              maximum: 4
+              description: Intentos que quedan antes del bloqueo.
+
+    ProblemaInvitacionCerrada:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [estado]
+          properties:
+            type:
+              const: /errores/invitacion-cerrada
+            status:
+              const: 409
+            estado:
+              type: string
+              enum: [usada, vencida]
+
+    ProblemaVersionMembresia:
+      allOf:
+        - $ref: '#/components/schemas/Problema'
+        - type: object
+          required: [actual]
+          properties:
+            type:
+              const: /errores/version-desactualizada
+            status:
+              const: 412
+            actual:
+              $ref: '#/components/schemas/MiembroVista'
+
+  responses:
+    NoAutenticadoGrupo:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`). La app renueva una vez y repite.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoAutenticadoInvitacion:
+      description: |
+        Aceptación sin sesión o con un access token inválido. La página tiene el token y el código **en
+        memoria**, lleva a entrar o crear la cuenta y vuelve a llamar (C25). Si se recarga, se pierden:
+        «Vuelve a abrir el enlace que te enviaron».
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoEncontradoGrupo:
+      description: |
+        El mismo 404 para todo, sin revelar qué existe: falta `X-Grupo-Id`, no es un UUID o no es el del
+        path; no es miembro activo; su rol no alcanza (no es `admin` en las rutas de invitaciones,
+        `PATCH` y `DELETE` de miembros); la invitación o la membresía no existen, son de otro grupo o la
+        membresía está retirada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+
+    ValidacionGrupo:
+      description: |
+        Cuerpo o cabecera inválidos. `errores[]` nombra el campo y nunca repite el valor. En `PATCH`,
+        `tipo: permiso_solo_pagador` cuando `puede_ver_plan: true` no deja al rol `pagador`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+
+    ValidacionInvitacionPublica:
+      description: El cuerpo no trae un `token` de 1 a 128 caracteres. No cuenta como intento.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaValidacion'
+
+    CodigoIncorrectoOValidacion:
+      description: |
+        Dos casos. `/errores/validacion`: el cuerpo no trae un `token` válido o el `codigo` no son 4
+        dígitos; no cuenta como intento. `/errores/codigo-incorrecto`: el código no coincide, del 1.º
+        al 4.º intento, con `intentos_restantes` (decisión 298: 422 y no 401, porque la aceptación lleva
+        una sesión válida y un 401 haría que la app intente renovarla; la verificación usa el mismo
+        para que la pantalla trate igual los dos pasos).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ProblemaValidacion'
+              - $ref: '#/components/schemas/ProblemaCodigoIncorrecto'
+          examples:
+            codigo_incorrecto:
+              summary: Segundo código incorrecto
+              value:
+                type: /errores/codigo-incorrecto
+                title: Código incorrecto
+                status: 422
+                detail: El código no coincide
+                errores: []
+                request_id: 0f1e2d3c-0000-4000-8000-000000000001
+                intentos_restantes: 3
+
+    InvitacionNoSirve:
+      description: |
+        **Tres `type` de 410** (P4, decisión 300), ninguno cuenta como intento:
+        - `/errores/invitacion-no-disponible`: el token no es de ninguna invitación, está cortado, la
+          anularon o ya se borró. Inexistente y anulada dan lo mismo (C28).
+        - `/errores/invitacion-usada`: ya se usó (en la aceptación, por otra cuenta o por esta si ya
+          salió del grupo).
+        - `/errores/invitacion-vencida`: pasaron los 7 días.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaInvitacionNoSirve'
+
+    YaEresParte:
+      description: |
+        La cuenta ya es miembro activo del grupo: aceptó esta misma invitación (un doble toque) o entró
+        por otra vía (solo después de un código correcto, C27). No consume la invitación ni cuenta como
+        intento. Trae `grupo_id` para «Ir a MATU».
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaYaEresParte'
+
+    InvitacionBloqueada:
+      description: |
+        5 códigos incorrectos bloquearon la invitación (C30). Responde 423 aunque después llegue el
+        código correcto, con `nombre_pila_invita` (P2).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaInvitacionBloqueada'
+
+    InvitacionCerrada:
+      description: La invitación ya se usó o venció, y no se anula (P8). `estado` dice cuál.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaInvitacionCerrada'
+
+    UltimoAdmin:
+      description: |
+        El cambio dejaría al grupo sin nadie que lo administre (C11, C12). No cambia nada. «El grupo
+        necesita alguien que lo administre. Primero da ese rol a otra persona.»
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaUltimoAdmin'
+
+    NoPuedeSalir:
+      description: |
+        No cambia nada. Dos `type` (C12, P14):
+        - `/errores/ultimo-admin`: es la única persona que administra y hay otras en el grupo.
+        - `/errores/unica-persona`: es la única persona del grupo (solo en la salida, o al sacarse a sí
+          misma). La pantalla la lleva a «Borrar sus datos» (MATU-72).
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ProblemaUltimoAdmin'
+              - $ref: '#/components/schemas/ProblemaUnicaPersona'
+
+    VersionMembresia:
+      description: La membresía cambió desde que la pantalla la leyó. `actual` trae la vigente. No cambió nada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        ETag:
+          $ref: '#/components/headers/ETagMembresia'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemaVersionMembresia'
+
+    FaltaVersionMembresia:
+      description: '`PATCH` sin `If-Match`, vacío o con `*` (`/errores/falta-version`).'
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/falta-version
+                  status:
+                    const: 428
+
+    TopeInvitaciones:
+      description: |
+        Quien administra ya creó 20 invitaciones en este grupo en las últimas 24 horas (C31, P9), en un
+        contador de Redis con la huella HMAC de la cuenta y el grupo y TTL de 24 horas. No crea nada.
+        Tiene su propio `type` para que la pantalla no lo confunda con el límite por IP.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/tope-invitaciones
+                  status:
+                    const: 429
+
+    DemasiadasPeticionesInvitacion:
+      description: |
+        Se superó el límite por IP (MATU-25, C29): 30 presentaciones por hora, o 20 verificaciones y
+        aceptaciones por hora en el contador «canje de invitación». La clave es la huella HMAC de la IP
+        (decisión 27), con TTL de 1 hora. No cuenta como intento de código.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/demasiadas-peticiones
+                  status:
+                    const: 429
+
+    SinServicioInvitacion:
+      description: Sin Redis, sin `PEPPER_LIMITES` o sin `PEPPER_PIN`. No se creó nada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+
+    SinServicioInvitacionPublica:
+      description: |
+        Sin Redis o sin `PEPPER_LIMITES` para el límite por IP, o sin `PEPPER_PIN` para verificar el
+        código (verificación y aceptación). No cuenta como intento y no cambia nada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Referrer-Policy:
+          $ref: '#/components/headers/ReferrerPolicy'
+        X-Robots-Tag:
+          $ref: '#/components/headers/XRobotsTag'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503
+
+security:
+  - bearerAuth: []

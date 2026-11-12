@@ -77,7 +77,7 @@ def test_crear_responde_201_con_etag_location_y_no_store(e: Entorno) -> None:
     assert respuesta.status_code == 201, respuesta.text
     cuerpo = respuesta.json()
     assert cuerpo["fecha_quiebre_estimada"] == "2026-11-12" and cuerpo["dias_restantes"] == 12
-    assert cuerpo["actualizado_por"] == {"id": str(CARMEN), "nombre": "Carmen"}
+    assert cuerpo["actualizado_por"] == {"id": str(CARMEN), "nombre": "Carmen", "autor_activo": True}
     assert respuesta.headers["ETag"] == '"v1"' and respuesta.headers["Cache-Control"] == "no-store"
     assert respuesta.headers["Location"] == f"{RUTA}/{cuerpo['id']}"
 

@@ -144,10 +144,15 @@ def _peticion(request: Request, autorizado: Any) -> PeticionConsumo:
 def _vista(leido: PerfilLeido, reloj: Reloj) -> PerfilConsumoVista:
     p = leido.perfil
     producto = leido.producto
+    # MATU-42 (decisión 309): quien ya no está en el grupo llega con su id, sin nombre y con autor_activo false
     autor = (
         None
-        if p.actualizado_por is None or leido.actualizado_por_nombre is None
-        else AutorPerfilVista(id=p.actualizado_por, nombre=leido.actualizado_por_nombre)
+        if p.actualizado_por is None
+        else AutorPerfilVista(
+            id=p.actualizado_por,
+            nombre=leido.actualizado_por_nombre,
+            autor_activo=leido.actualizado_por_nombre is not None,
+        )
     )
     return PerfilConsumoVista(
         id=p.id,
@@ -383,7 +388,7 @@ def editar(
         raise _error_422("stock_unidades", "cobertura_maxima") from None
     if isinstance(resultado, VersionDesactualizada):
         actual = _vista(resultado.actual, reloj)
-        quien = actual.actualizado_por.nombre if actual.actualizado_por is not None else "Otra persona"
+        quien = (actual.actualizado_por.nombre if actual.actualizado_por is not None else None) or "Otra persona"
         return respuesta_problema(
             request,
             status.HTTP_412_PRECONDITION_FAILED,

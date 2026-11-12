@@ -2,7 +2,7 @@
 // del diseñador (especificación MATU-23, sección 8). main.tsx lo carga bajo import.meta.env.DEV,
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
-import { CONTRASENA_DE_EJEMPLO, CORREOS_CREAR_CUENTA, CUENTAS } from '../../doble/cuentas'
+import { CODIGO_INVITACION_DE_EJEMPLO, CONTRASENA_DE_EJEMPLO, CORREOS_CREAR_CUENTA, CUENTAS, INVITACIONES_DE_EJEMPLO } from '../../doble/cuentas'
 import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 
 export function Ejemplos() {
@@ -33,6 +33,21 @@ export function Ejemplos() {
           <li key={c.email} className="flex flex-col">
             <b className="digitos">{c.email}</b>
             <span className="text-base text-tenue">{c.que}</span>
+          </li>
+        ))}
+      </ul>
+      <h2 className="text-xl font-bold">Invitación a un grupo (MATU-42 y MATU-53)</h2>
+      <p className="text-tenue">
+        Código correcto en todos: <b className="digitos">{CODIGO_INVITACION_DE_EJEMPLO}</b>. Ábrelas sin entrar (crea una cuenta o entra con una de arriba
+        desde la invitación) o con una cuenta ya abierta. Las de ejemplo vuelven a servir después de unirse.
+      </p>
+      <ul className="flex flex-col gap-3">
+        {INVITACIONES_DE_EJEMPLO.map((e) => (
+          <li key={e.token} className="flex flex-col">
+            <a className="inline-flex min-h-12 items-center font-bold text-turquesa underline underline-offset-4" href={`/invitacion#${e.token}`} target="_blank" rel="noopener noreferrer">
+              /invitacion#{e.token}
+            </a>
+            <span className="text-base text-tenue">{e.que}</span>
           </li>
         ))}
       </ul>

@@ -16,6 +16,7 @@ import { puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado
 import { navegar } from './ruteo'
 import { Acciones, BarraCampos, camposListos, Cuando, HojaFicha, horaDe, Listo, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 import { COMPARTIR, CONFLICTO, ESTADOS, FICHA, GENERAL, MAS } from './textos'
+import { nombreDeAutor } from './autor'
 import { GRUPO_FAMILIAR } from './textosGrupo'
 import { useDemora } from './Estados'
 import { UltimasAperturas } from './QuienLaVio'
@@ -306,7 +307,7 @@ export function TuFicha() {
                     <p className={`line-clamp-2 whitespace-pre-line ${ok ? '' : 'text-tenue'}`}>{ok ? f.texto : c.pregunta(pila)}</p>
                     {ok && f.actualizado_en && (
                       <p className="text-base text-tenue">
-                        {FICHA.loEscribio(f.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={f.actualizado_en} />
+                        {FICHA.loEscribio(nombreDeAutor(f.actualizado_por) ?? CONFLICTO.otraPersona)} <Cuando iso={f.actualizado_en} />
                       </p>
                     )}
                     {/* El pagador no sabe de antemano si puede editar (D3): el botón está y un 404 lleva a 5.6. */}

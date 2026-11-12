@@ -117,9 +117,13 @@ export function GrupoOpciones<T extends string>({
   children,
   nombradoPor,
   describe,
+  describirOpciones = false,
+  deshabilitada = false,
+  errorArriba = false,
 }: {
   leyenda: string
-  opciones: { valor: T; texto: string; detalle?: string }[]
+  /** MATU-53 (6.2): `extra` va junto al nombre de la opción («Ahora»), como palabra y no como color. */
+  opciones: { valor: T; texto: string; detalle?: string; extra?: ReactNode }[]
   valor: T | null
   onCambio: (v: T) => void
   nombre: string
@@ -135,6 +139,15 @@ export function GrupoOpciones<T extends string>({
   nombradoPor?: string
   /** MATU-61 (O9): ids que también lo describen («Nunca lo cambiamos por otra marca…»). */
   describe?: string
+  /**
+   * MATU-53 (9): cada opción se nombra solo con su texto y se describe con su detalle (y su `extra`),
+   * con `aria-labelledby` y `aria-describedby`, en vez de leer todo junto como nombre.
+   */
+  describirOpciones?: boolean
+  /** MATU-53 (3.7): mientras se crea la invitación, las opciones no cambian. */
+  deshabilitada?: boolean
+  /** MATU-53 (3.2): el error va bajo la leyenda, antes de las opciones. */
+  errorArriba?: boolean
 }) {
   const id = useId()
   if (forma === 'chips')
@@ -174,29 +187,50 @@ export function GrupoOpciones<T extends string>({
       <legend id={`${id}-l`} className="mb-2 font-bold">
         {leyenda}
       </legend>
+      {error && errorArriba && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
       <div className={`grid grid-cols-1 gap-2 ${columnas ? '@2xl/main:grid-cols-3' : ''}`}>
         {opciones.map((o) => {
           const on = o.valor === valor
+          const idOpcion = `${id}-${o.valor}`
+          const describe = [o.detalle ? `${idOpcion}-d` : '', o.extra ? `${idOpcion}-x` : ''].filter(Boolean).join(' ') || undefined
           return (
             <label
               key={o.valor}
-              className={`flex min-h-12 cursor-pointer items-start gap-3 angosto:flex-col angosto:gap-2 rounded-xl px-4 angosto:px-3 py-3 ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
-                on ? 'bg-rocio ring-turquesa' : error ? 'bg-hoja ring-pronto' : 'bg-hoja ring-borde hover:ring-turquesa/40'
-              }`}
+              className={`flex min-h-12 items-start gap-3 angosto:flex-col angosto:gap-2 rounded-xl px-4 angosto:px-3 py-3 ring-2 ring-inset has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-turquesa ${
+                deshabilitada ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+              } ${on ? 'bg-rocio ring-turquesa' : error ? 'bg-hoja ring-pronto' : 'bg-hoja ring-borde hover:ring-turquesa/40'}`}
             >
-              <input type="radio" name={nombre} className="sr-only" checked={on} onChange={() => onCambio(o.valor)} />
+              <input
+                type="radio"
+                name={nombre}
+                className="sr-only"
+                checked={on}
+                disabled={deshabilitada || undefined}
+                aria-labelledby={describirOpciones ? `${idOpcion}-t` : undefined}
+                aria-describedby={describirOpciones ? describe : undefined}
+                onChange={() => onCambio(o.valor)}
+              />
               <span aria-hidden className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ring-2 ring-inset ${on ? 'ring-turquesa' : 'ring-tenue'}`}>
                 {on && <span className="size-3 rounded-full bg-turquesa" />}
               </span>
               <span className="flex min-w-0 flex-col">
-                <span className="font-bold leading-snug">{o.texto}</span>
-                {o.detalle && <span className="text-base text-tenue">{o.detalle}</span>}
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span id={`${idOpcion}-t`} className="min-w-0 font-bold leading-snug break-words">
+                    {o.texto}
+                  </span>
+                  {o.extra && <span id={`${idOpcion}-x`}>{o.extra}</span>}
+                </span>
+                {o.detalle && (
+                  <span id={`${idOpcion}-d`} className="text-base text-tenue">
+                    {o.detalle}
+                  </span>
+                )}
               </span>
             </label>
           )
         })}
       </div>
-      {error && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
+      {error && !errorArriba && <MensajeError id={`${id}-e`}>{error}</MensajeError>}
       {children}
     </fieldset>
   )

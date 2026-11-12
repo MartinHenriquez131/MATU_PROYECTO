@@ -14,6 +14,7 @@ import { BORRADOR_VACIO } from '../src/familia/estado'
 import { GrupoFamiliar } from '../src/familia/Grupo'
 import type { RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { respuestaDelGrupo } from './miembrosFalsos'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: '3c9d4e20-0000-4000-8000-0000000000aa', nombre: 'María Soto', nombre_pila: 'María' }
@@ -66,8 +67,10 @@ function api(atender: Atender) {
       data: config.data,
       grupo: config.headers?.get?.('X-Grupo-Id') as string | undefined,
     }
-    pedidas.push(p)
-    const r = await atender(p)
+    // MATU-53: quiénes forman el grupo, que Grupo familiar pide aparte (miembrosFalsos.ts).
+    const delGrupo = respuestaDelGrupo(p.linea)
+    if (!delGrupo) pedidas.push(p)
+    const r = delGrupo ?? (await atender(p))
     const respuesta: AxiosResponse = { data: r.cuerpo ?? '', status: r.status, statusText: '', headers: r.cabeceras ?? {}, config, request: {} }
     if (r.status >= 400) throw new AxiosError(`HTTP ${r.status}`, AxiosError.ERR_BAD_REQUEST, config, {}, respuesta)
     return respuesta
@@ -192,7 +195,8 @@ describe('El bloque «Borrar sus datos», por rol', () => {
     const persona = pantalla.getByRole('region', { name: 'María Soto' })
     expect(persona.lastElementChild).toBe(seccion)
     expect(seccion.closest('.grid')).toBeNull()
-    expect(document.querySelector('.bg-turquesa')).toBeNull()
+    // MATU-53 (10.1): el único turquesa macizo es «Invitar a alguien», solo para admin.
+    await waitFor(() => expect([...document.querySelectorAll('.bg-turquesa')].map((b) => b.textContent)).toEqual(rol === 'admin' ? ['Invitar a alguien'] : []))
   })
 
   it.each(['pagador', 'observador'] as const)('el %s ve solo el título y quién puede (A2), sin botón ni «puedes borrar»', async (rol) => {

@@ -17,8 +17,12 @@ from app.modules.care_circle.domain.retiro import MOTIVO_RETIRO, AutorizacionReg
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.puertos import RegistroAuditoria
 
+# MATU-42 (decisión 311): si quien la registró sigue como miembro activo, sin decir quién. membresia_familia_leer solo
+# muestra las activas del grupo
 _COLUMNAS = (
-    "SELECT id, finalidad, calidad_otorgante, otorgado_en, revision_vence_en, revocado_en, revocacion_motivo"
+    "SELECT id, finalidad, calidad_otorgante, otorgado_en, revision_vence_en, revocado_en, revocacion_motivo,"
+    " EXISTS (SELECT 1 FROM membresia m WHERE m.grupo_id = consentimiento.grupo_id"
+    "         AND m.usuario_id = consentimiento.usuario_id AND m.estado = 'activa') AS otorgante_activo"
     " FROM consentimiento"
 )
 _DE_LA_PERSONA = " WHERE grupo_id = :grupo_id AND persona_cuidada_id = :persona_id AND finalidad = :finalidad"
@@ -57,6 +61,7 @@ def registrada_de(fila: Row[Any]) -> AutorizacionRegistrada:
         revision_vence_en=_utc(fila.revision_vence_en),
         revocado_en=_utc(fila.revocado_en),
         revocacion_motivo=fila.revocacion_motivo,
+        otorgante_activo=bool(getattr(fila, "otorgante_activo", True)),
     )
 
 
