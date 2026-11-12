@@ -1,11 +1,12 @@
 # MATU-107 · Correcciones del 12/11 · Especificación de diseño
 
-**Versión 2 · 12/11/2026** · diseñador (agente 6). La versión 2 viene de la revisión visual y suma el `iconoEnLinea` de la nota G (2.2) y las secciones 4 y 5. Puntos:
+**Versión 3 · 12/11/2026** · diseñador (agente 6). La versión 2 viene de la revisión visual y suma el `iconoEnLinea` de la nota G (2.2) y las secciones 4 y 5. La versión 3 suma la sección 6, que decidió el orquestador por delegación de Jorge. Puntos:
 
 1. la barra inferior de la app de la familia (hallazgo 42-H2 de Martín, P3);
 2. «Recibir avisos en este teléfono» cuando la cuenta no puede activarlos (C14, `permitido: false`);
 4. las colas con «·» (54-H4);
-5. la ayuda del límite de copias (54-H3).
+5. la ayuda del límite de copias (54-H3);
+6. la `Etiqueta` sin figura en el modo `angosto`.
 
 Fuentes: `Demo/DISENO.md` (secciones 2, 3 y 4), `docs/diseno/matu-39-app-familia.md` (2.1), `docs/diseno/matu-55-donde-entraste.md` (3.4) y el contrato `docs/api/openapi.json` (`GET` y `PUT /v1/dispositivos/actual/push`).
 
@@ -221,6 +222,32 @@ Para las colas que hoy son texto (`anoto`, `llegoConPedido`, `siFalta`, `cuotas`
 - Es información de apoyo, constante, y no un estado. Por eso no va en una `Nota`, que se reserva para lo que cambia o pide atención.
 - Se ve también cuando la página muestra el 429 («Abriste o descargaste los datos varias veces…»), donde más sirve.
 - Medido: `tenue` sobre `papel` da 6,4:1 en claro, y en oscuro supera 7:1. Mide 17 px. A 320 px con el texto al 200 % no desborda.
+
+## 6. La `Etiqueta` sin figura en el modo `angosto`
+
+**Lo que se vio (segunda revisión, 12/11).** En «Datos de María», en la tarjeta del enlace de Pedro, a 320 px con el texto al 200 %, la etiqueta `atenta` corta la palabra: «Bloquead⏎o». El ícono le quita a la palabra el ancho que necesita (**P2**, viene de MATU-54).
+
+**Decisión.** Es una regla general del componente `Etiqueta` (`web/src/familia/ui.tsx`). En el modo `angosto`, la etiqueta oculta su figura y deja solo la palabra.
+- Ya se hacía en el estado del celular de «Tu cuenta», y desde ahora vale para todas.
+- El estado sigue sin depender del color, porque la palabra queda siempre: toda `Etiqueta` lleva palabra.
+- Fuera de `angosto` no cambia nada.
+
+**Cómo:**
+
+| Dónde | Cambio |
+|---|---|
+| `Etiqueta`, clase del `span` | Se agrega `angosto:[&>svg]:hidden`, que oculta todo ícono que sea hijo directo. Hoy, en las 25 etiquetas de `web/src`, el ícono es hijo directo |
+| `Cuenta.tsx`, los dos íconos del estado del celular | Se quita su `angosto:hidden`, que ahora lo hace el componente |
+| Una etiqueta futura | Su figura va como hijo directo (un `svg` de `lucide-react`). Si alguna vez tiene que ir envuelta, el envoltorio lleva `angosto:hidden` |
+
+El `gap-1.5` puede quedar: sin el ícono no hay un segundo hijo y no deja espacio. Sin tokens nuevos.
+
+**Criterios verificables:**
+1. A 320 px con el texto al 200 %, en «Datos de María» (`datos-admin`, enlaces), la etiqueta dice «Bloqueado» completa en un renglón, sin ícono, en `atenta` sobre `atenta-fondo`.
+2. A 320 px con el texto al 200 %, ninguna `Etiqueta` de «Datos de…», «Tus datos», «Dónde entraste», «Tu cuenta», «Compartir», «Insumos» y «Catálogo» muestra su ícono, y ninguna palabra de una etiqueta queda partida.
+3. A 360, 1280 y 1920 px, todas las etiquetas siguen con su ícono, igual que antes.
+4. El estado del celular de «Tu cuenta» se ve igual que antes en todos los anchos.
+5. El ancho de desplazamiento es igual al ancho de la pantalla en todos los casos.
 
 ## 3. Para el orquestador
 
