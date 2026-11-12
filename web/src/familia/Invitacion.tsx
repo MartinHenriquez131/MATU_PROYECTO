@@ -359,7 +359,8 @@ function Baldosa({ icono: Icono, tono }: { icono: typeof MailOpen; tono: keyof t
   )
 }
 
-const TITULO = 'text-3xl @2xl/main:text-4xl break-words'
+// 7 (v1.2): con `hyphens-auto` un nombre largo se parte por sílabas, no a mitad de cualquier letra.
+const TITULO = 'text-3xl @2xl/main:text-4xl break-words hyphens-auto'
 
 /** «Ese código no es. Te quedan {n} intentos. Después, la invitación se bloquea.», la primera oración en negrita. */
 function CodigoMalo({ intentos }: { intentos: number | null }) {
@@ -460,8 +461,12 @@ function PasoConfirmar({
   onUnirme: () => void
   onNoQuiero: () => void
 }) {
-  const { capa3 } = useFamilia()
+  const { capa3, conocerCapa3 } = useFamilia()
   const [yo, setYo] = useState<string | null>(null)
+  // 5 (v1.2): «Paga» se describe igual que en /grupo/invitar: con los pedidos solo con la capa 3.
+  useEffect(() => {
+    if (capa3 === null) conocerCapa3?.()
+  }, [capa3, conocerCapa3])
   // «Te unes como {tu nombre}.» sirve en un teléfono compartido. Si no se puede pedir, no aparece.
   useEffect(() => {
     let vivo = true

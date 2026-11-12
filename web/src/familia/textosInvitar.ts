@@ -4,11 +4,11 @@
 // - [NUEVO]: de la especificación, aprobado por el orquestador por delegación de Jorge (0.4). Ninguno
 //   está todavía en lenguaje.md: entran en su sección 33 con el PR de documentos (decisión 326).
 // - [L n]: ya está en lenguaje.md, sección n.
-// - [PROVISIONAL]: la especificación no lo trae (la remite a una sección que no existe). Lo usa la
-//   pantalla mientras el diseñador lo define; está en el informe al orquestador.
+// - [NUEVO v1.2]: los seis vacíos de la v1.1, decididos tras la revisión visual (sección 0.5).
 // En la interfaz nunca se dice «token», «usuario», «observador», «revocar», «rechazar», «invitado» ni
 // «invitada», y ningún texto asume el género de nadie (criterio 16).
 import type { Rol } from '../compartido/api/familia'
+import { CORREO_CONTACTO } from '../compartido/contacto'
 
 /** Une nombres con «y»: «María», «María y Pedro», «María, Pedro y Elena» (4.5). */
 export function unirNombres(nombres: readonly string[]): string {
@@ -22,7 +22,7 @@ export const YA_NO_ESTA = {
   medio: 'alguien que ya no está en el grupo', // [NUEVO]
 }
 
-/** Cuando no hay persona registrada, donde la frase pide su nombre de pila. [PROVISIONAL] */
+/** 5.10: sin persona registrada, donde la frase pide su nombre de pila. [NUEVO v1.2] */
 const SIN_PERSONA = 'la persona que cuidan'
 const pilasO = (pilas: readonly string[]) => (pilas.length ? unirNombres(pilas) : SIN_PERSONA)
 
@@ -40,6 +40,14 @@ export const ROL_INFINITIVO: Record<Rol, string> = {
   cuidador: 'cuidar',
   pagador: 'pagar',
   observador: 'informarte',
+}
+
+/** 6.4 (v1.2): el rol propio en segunda persona. [NUEVO v1.2] */
+const ROL_TU: Record<Rol, string> = {
+  admin: 'administras el grupo',
+  cuidador: 'cuidas',
+  pagador: 'pagas',
+  observador: 'te informas',
 }
 
 /** 6.4: «Ahora Rosa cuida.» El rol en minúscula. [ANALISTA] */
@@ -100,6 +108,9 @@ export const MIEMBROS = {
   invitaciones: 'Invitaciones sin usar', // [ANALISTA]
   /** «{rol} · vence el {fecha} a las {hora}.» [ANALISTA, con la hora] */
   vence: ['· vence el', 'a las'] as const,
+  /** 5.4 (v1.2): la invitación bloqueada. [NUEVO v1.2] */
+  seBloqueo: '· se bloqueó.',
+  bloqueada: 'El código se escribió mal cinco veces. Ya no sirve.',
   laCreo: (nombre: string) => `La creó ${nombre}.`, // [NUEVO]
   anular: 'Anular la invitación', // [ANALISTA]
   anulada: 'Invitación anulada.', // [ANALISTA]
@@ -112,14 +123,14 @@ export const MIEMBROS = {
 // ---------------------------------------------------------------- 8.4 Anular (la especificación no la trae)
 
 export const ANULAR = {
-  pregunta: '¿Anular la invitación?', // [PROVISIONAL]
-  texto: 'El enlace deja de servir, también con el código. Si quieres que esa persona se una, crea una invitación nueva.', // [PROVISIONAL]
+  pregunta: '¿Anular la invitación?', // [NUEVO v1.2]
+  texto: 'El enlace deja de servir, también con el código. Si quieres que esa persona se una, crea una invitación nueva.', // [NUEVO v1.2]
   boton: 'Anular la invitación', // [ANALISTA]
-  no: 'No anular', // [PROVISIONAL]
-  ocupado: 'Anulando…', // [PROVISIONAL]
-  errRed: 'No pudimos anular la invitación. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.', // [PROVISIONAL]
+  no: 'No anular', // [NUEVO v1.2]
+  ocupado: 'Anulando la invitación…', // [NUEVO v1.2]
+  errRed: 'No pudimos anular la invitación. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.', // [NUEVO v1.2]
   cerrada: (estado: string | null) =>
-    estado === 'usada' ? 'Esa invitación ya se usó.' : estado === 'vencida' ? 'Esa invitación ya venció.' : 'Esa invitación ya no está sin usar.', // [PROVISIONAL]
+    estado === 'usada' ? 'Esa invitación ya se usó.' : estado === 'vencida' ? 'Esa invitación ya venció.' : 'Esa invitación ya no se puede anular.', // [NUEVO v1.2]
 }
 
 // ---------------------------------------------------------------- 6 Cambiar el rol
@@ -138,10 +149,14 @@ export const CAMBIAR_ROL = {
   },
   comoPaga: 'Como paga, no verá la ficha hasta que le des permiso.', // [NUEVO]
   dejasDeAdministrar: 'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo.', // [NUEVO]
+  /** 6.3 (v1.3): otra persona deja de administrar y sigue viendo la ficha (de admin a cuida). [NUEVO v1.3] */
+  dejaraDeAdministrar: (nombre: string) => `${nombre} dejará de administrar el grupo.`,
   guardar: 'Guardar el cambio', // [ANALISTA]
   noCambiar: 'No cambiar', // [ANALISTA]
   guardando: 'Guardando el cambio…', // [NUEVO]
   hecho: (nombre: string, rol: Rol, n: number) => [`Ahora ${nombre} ${ROL_MINUSCULA[rol]}.`, cortamos(n)].filter(Boolean).join(' '), // [ANALISTA] + [NUEVO]
+  /** 6.4 (v1.2): mi propio rol, en segunda persona y sin mi nombre. «Ahora administras…» no ocurre. [NUEVO v1.2] */
+  hechoPropio: (rol: Rol, n: number) => [`Ahora ${ROL_TU[rol]}.`, cortamos(n)].filter(Boolean).join(' '),
   errRed: 'No pudimos guardar el cambio. Todo sigue como estaba.', // [ANALISTA]
   conflicto: (nombre: string, rol: Rol) =>
     `Otra persona del grupo cambió lo que puede hacer ${nombre} mientras lo mirabas. Ahora ${nombre} ${ROL_MINUSCULA[rol]}. Revisa y vuelve a elegir.`, // [NUEVO]
@@ -191,15 +206,32 @@ export const SALIR = {
   dejarasDeVerlo: 'Dejarás de verlo ahora.', // [ANALISTA]
   seCortan: 'Se cortan los enlaces de relevo que compartiste.', // [ANALISTA]
   // «Hoy abren {n}.» es GRUPO_FAMILIAR.hoyAbren [L 22].
+  /** 5.10: sin persona registrada no hay ficha, y el punto no aparece (lo decide la pantalla). [NUEVO] */
   fichaQueda: (pilas: readonly string[]) => `Lo que escribiste en la ficha queda, porque es parte del cuidado de ${pilasO(pilas)}.`, // [NUEVO]
   paraVolver: 'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.', // [NUEVO]
   quedarme: 'Quedarme', // [ANALISTA]
+  /** 7.2 (v1.3): bajo la lista, para todos los roles. El correo va como texto, sin enlace. [NUEVO v1.3] */
+  pideloA: (capa3: boolean) =>
+    capa3
+      ? `Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a ${CORREO_CONTACTO}.`
+      : `Si después necesitas lo que hiciste en el grupo, pídelo a ${CORREO_CONTACTO}.`,
   ocupado: 'Saliendo del grupo…', // [NUEVO]
   hecho: (grupo: string, n: number) => [`Saliste de ${grupo}.`, cortamos(n)].filter(Boolean).join(' '), // [NUEVO]
   errRed: 'No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo.', // [NUEVO]
   unicoAdmin: (grupo: string) => `Eres la única persona que administra ${grupo}. Para salir, primero da ese rol a otra persona.`, // [NUEVO]
+  /** 7.3; sin persona registrada (5.10, v1.2), solo la primera oración. [NUEVO] */
   unicaPersona: (grupo: string, pilas: readonly string[]) =>
-    `Eres la única persona de ${grupo}, así que no puedes salir. Si ya no usan MATU para cuidar a ${pilasO(pilas)}, puedes borrar sus datos en «Borrar sus datos», más arriba.`, // [NUEVO]
+    pilas.length
+      ? `Eres la única persona de ${grupo}, así que no puedes salir. Si ya no usan MATU para cuidar a ${unirNombres(pilas)}, puedes borrar sus datos en «Borrar sus datos», más arriba.`
+      : `Eres la única persona de ${grupo}, así que no puedes salir.`,
+}
+
+// ---------------------------------------------------------------- 0.6 (v1.3) quien deja de administrar
+
+/** O4: el backend anula sus invitaciones sin usar (decisión 322). Genérico: la API no dice cuántas. [NUEVO v1.3] */
+export const INVITACIONES_SE_ANULAN = {
+  otra: 'Si creó invitaciones que nadie ha usado, se anulan.',
+  propia: 'Si creaste invitaciones que nadie ha usado, se anulan.',
 }
 
 // ---------------------------------------------------------------- 3 Invitar

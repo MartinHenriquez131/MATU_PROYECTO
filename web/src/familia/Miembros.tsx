@@ -10,7 +10,7 @@
 // - Ninguna ruta lleva el id de una membresía ni de una invitación: el elegido vive en el estado del diálogo.
 // - El foco se mueve en un efecto, después del render que dibuja su destino. Sin `setTimeout`.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CloudOff, Eye, EyeOff, Phone } from 'lucide-react'
+import { CloudOff, Eye, EyeOff, Lock, Phone } from 'lucide-react'
 import { isAxiosError } from 'axios'
 import { leerFallo } from '../compartido/api/cliente'
 import {
@@ -35,7 +35,7 @@ import { esTipo } from './insumosComun'
 import { DialogoGrupo, FechaYHora, Puntos, SoloFecha } from './PiezasInvitar'
 import { navegar } from './ruteo'
 import { GRUPO_FAMILIAR } from './textosGrupo'
-import { ANULAR, CAMBIAR_ROL as CR, descripcionRol, MIEMBROS as M, PERMISO_FICHA as PF, ROL, SACAR, SALIR } from './textosInvitar'
+import { ANULAR, CAMBIAR_ROL as CR, descripcionRol, INVITACIONES_SE_ANULAN as SE_ANULAN, MIEMBROS as M, PERMISO_FICHA as PF, ROL, SACAR, SALIR } from './textosInvitar'
 import { Etiqueta, GrupoOpciones, MensajeError, Nota } from './ui'
 
 const ROLES: Rol[] = ['admin', 'cuidador', 'pagador', 'observador']
@@ -111,7 +111,20 @@ export function useMiembros() {
     void cargar()
   }, [cargar])
 
-  return { carga, miembros, setMiembros, invitaciones, setInvitaciones, cargar, refrescarRol, meSacaron }
+  /**
+   * v1.3 (O4): quien deja de administrar pierde sus invitaciones sin usar (decisión 322). Se vuelven a
+   * pedir solas, sin «Cargando…»: la lista de miembros y su nota no se desmontan.
+   */
+  const recargarInvitaciones = useCallback(async () => {
+    if (!grupoId || !admin) return
+    try {
+      setInvitaciones(await listarInvitaciones(grupoId))
+    } catch {
+      // Si falla, la lista queda como estaba; la próxima carga la corrige.
+    }
+  }, [grupoId, admin])
+
+  return { carga, miembros, setMiembros, invitaciones, setInvitaciones, cargar, recargarInvitaciones, refrescarRol, meSacaron }
 }
 
 export type DatosMiembros = ReturnType<typeof useMiembros>
@@ -127,7 +140,7 @@ type Dialogo =
 export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: readonly string[] }) {
   const { grupo, rol } = useFamilia()
   const admin = rol === 'admin'
-  const { carga, miembros, setMiembros, invitaciones, setInvitaciones, cargar, refrescarRol } = datos
+  const { carga, miembros, setMiembros, invitaciones, setInvitaciones, cargar, recargarInvitaciones, refrescarRol } = datos
   const [dialogo, setDialogo] = useState<Dialogo | null>(null)
   const [nota, setNota] = useState<NotaMiembros | null>(null)
   const [notaInvitaciones, setNotaInvitaciones] = useState<{ tono: 'ok' | 'rocio'; texto: string } | null>(null)
@@ -166,7 +179,10 @@ export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: r
 
   const cambiado = (m: Miembro, texto: string) => {
     setDialogo(null)
+    const antes = miembros.find((x) => x.id === m.id)
     setMiembros((xs) => xs.map((x) => (x.id === m.id ? m : x)))
+    // v1.3 (O4): si dejó de administrar, sus invitaciones sin usar ya no están.
+    if (antes?.rol === 'admin' && m.rol !== 'admin' && !m.eres_tu) void recargarInvitaciones()
     if (m.eres_tu) {
       // 6.4: mi propio rol. La página se vuelve a dibujar con el rol nuevo y la nota va arriba.
       void refrescarRol()
@@ -241,8 +257,14 @@ export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: r
               {invitaciones.map((i) => (
                 <li key={i.id} className="flex flex-col gap-1 px-4 angosto:px-2 py-4">
                   <p id={`invitacion-${i.id}`} className="text-base font-bold">
-                    {ROL[i.rol]} <FechaYHora iso={i.expira_en} partes={M.vence} />
+                    <LineaInvitacion i={i} />
                   </p>
+                  {i.estado === 'bloqueada' && (
+                    <p className="flex gap-2 text-base">
+                      <Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
+                      <span className="min-w-0">{M.bloqueada}</span>
+                    </p>
+                  )}
                   <p className="text-base text-tenue">{M.laCreo(nombreDeAutor(i.invitada_por) ?? '')}</p>
                   <Boton
                     id={`anular-${i.id}`}
@@ -265,7 +287,7 @@ export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: r
           miembro={dialogo.miembro}
           pilas={pilas}
           onCancelar={() => cerrarYVolver(`cambiar-${dialogo.miembro.id}`)}
-          onHecho={(m, n) => cambiado(m, CR.hecho(m.nombre, m.rol, n))}
+          onHecho={(m, n) => cambiado(m, m.eres_tu ? CR.hechoPropio(m.rol, n) : CR.hecho(m.nombre, m.rol, n))}
           onUltimoAdmin={() => void cargar()}
           onNoEncontrado={() => void noEncontrado()}
         />
@@ -289,6 +311,8 @@ export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: r
             const m = dialogo.miembro
             setDialogo(null)
             setMiembros((xs) => xs.filter((x) => x.id !== m.id))
+            // v1.3 (O4): sacar a quien administra anula sus invitaciones sin usar.
+            if (m.rol === 'admin') void recargarInvitaciones()
             // 9: la fila ya no existe; el foco va a la nota de arriba de la lista.
             conNota({ tono: 'ok', texto: SACAR.hecho(m.nombre, n), fila: null })
           }}
@@ -307,12 +331,27 @@ export function QuienesForman({ datos, pilas }: { datos: DatosMiembros; pilas: r
             setInvitaciones((xs) => xs.filter((x) => x.id !== id))
             setNotaInvitaciones(nota)
             setEnfocar({ id: 'nota-invitaciones' })
-            if (nota.tono === 'rocio') void cargar()
+            // 5.4.1: el 409 vuelve a pedir la lista, que desmonta y vuelve a montar la nota. El foco se
+            // le da otra vez cuando terminó, en el efecto del render que la monta: nunca queda en el body.
+            if (nota.tono === 'rocio') void cargar().then(() => setEnfocar({ id: 'nota-invitaciones' }))
           }}
           onNoEncontrado={() => void noEncontrado()}
         />
       )}
     </div>
+  )
+}
+
+/** 5.4 y 5.4.1: «{rol} · vence el {fecha} a las {hora}.» o, bloqueada, «{rol} · se bloqueó.» (v1.2). */
+function LineaInvitacion({ i }: { i: InvitacionPendiente }) {
+  return i.estado === 'bloqueada' ? (
+    <>
+      {ROL[i.rol]} {M.seBloqueo}
+    </>
+  ) : (
+    <>
+      {ROL[i.rol]} <FechaYHora iso={i.expira_en} partes={M.vence} />
+    </>
   )
 }
 
@@ -437,16 +476,28 @@ function DialogoRol({
   const mismo = elegido === actual
   const dejoDeAdministrar = propia && actual === 'admin' && elegido !== 'admin'
   const pierdeFicha = !propia && ((editaFicha(actual) && !editaFicha(elegido)) || (actual === 'pagador' && miembro.puede_ver_plan === true && elegido === 'observador'))
+  // v1.3 (O4): otra persona que administra pasa a «Cuida»: deja de administrar y sigue viendo la ficha.
+  const otraDejaDeAdministrar = !propia && actual === 'admin' && elegido !== 'admin'
+  // Mi propia fila: si además pierdo la ficha, la frase de los enlaces va antes que la de las invitaciones.
+  const pierdoFicha = dejoDeAdministrar && !editaFicha(elegido)
+  const misEnlaces = miembro.enlaces_vigentes === null ? '' : GRUPO_FAMILIAR.hoyAbren(miembro.enlaces_vigentes)
   const avisos: string[] = mismo
     ? []
     : dejoDeAdministrar
-      ? [CR.dejasDeAdministrar]
+      ? [CR.dejasDeAdministrar, ...(pierdoFicha ? [[SALIR.seCortan, misEnlaces].filter(Boolean).join(' ')] : []), SE_ANULAN.propia]
       : !propia && elegido === 'admin'
         ? [CR.seraAdmin(miembro.nombre)]
         : pierdeFicha
-          ? [CR.pierdeFicha(miembro.nombre, editaFicha(actual) ? miembro.enlaces_vigentes : 0), ...(elegido === 'pagador' && editaFicha(actual) ? [CR.comoPaga] : [])]
-          : []
-  const quita = dejoDeAdministrar || pierdeFicha
+          ? [
+              CR.pierdeFicha(miembro.nombre, editaFicha(actual) ? miembro.enlaces_vigentes : 0),
+              ...(elegido === 'pagador' && editaFicha(actual) ? [CR.comoPaga] : []),
+              // La nota termina con las invitaciones (v1.3).
+              ...(actual === 'admin' ? [SE_ANULAN.otra] : []),
+            ]
+          : otraDejaDeAdministrar
+            ? [CR.dejaraDeAdministrar(miembro.nombre), SE_ANULAN.otra]
+            : []
+  const quita = dejoDeAdministrar || pierdeFicha || otraDejaDeAdministrar
 
   const guardar = () =>
     correr(async () => {
@@ -529,11 +580,7 @@ function DialogoRol({
       <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
         {avisos.length > 0 && (
           <Nota tono="atenta" className="max-w-none">
-            {avisos.map((t) => (
-              <span key={t} className="block">
-                {t}
-              </span>
-            ))}
+            {avisos.join(' ')}
           </Nota>
         )}
       </div>
@@ -674,8 +721,11 @@ function DialogoSacar({
       <Puntos
         puntos={[
           { texto: SACAR.dejaraDeVerlo },
-          { texto: SACAR.enlaces(miembro.enlaces_vigentes), fuerte: true },
+          // 7.1 (v1.2): lo que no vuelve va en negrita; «No tiene enlaces…» (n = 0) no corta nada.
+          { texto: SACAR.enlaces(miembro.enlaces_vigentes), fuerte: miembro.enlaces_vigentes !== 0 },
           { texto: SACAR.fichaQueda },
+          // v1.3 (O4): solo si administra, sin negrita, antes de «Para volver…».
+          ...(miembro.rol === 'admin' ? [{ texto: SE_ANULAN.otra }] : []),
           { texto: SACAR.paraVolver(miembro.nombre) },
         ]}
       />
@@ -732,7 +782,7 @@ function DialogoAnular({
       confirmar={{ texto: ANULAR.boton, textoOcupado: ANULAR.ocupado, variante: 'peligroPrincipal', onClick: () => void anular() }}
     >
       <p className="font-bold">
-        {ROL[invitacion.rol]} <FechaYHora iso={invitacion.expira_en} partes={M.vence} />
+        <LineaInvitacion i={invitacion} />
       </p>
       <p>{ANULAR.texto}</p>
     </DialogoGrupo>
@@ -783,6 +833,7 @@ export function SalirDelGrupo({ datos, pilas }: { datos: DatosMiembros; pilas: r
           grupo={grupo.nombre}
           enlaces={yo?.enlaces_vigentes ?? null}
           pilas={pilas}
+          admin={rol === 'admin'}
           onCancelar={(foco) => {
             setAbierto(false)
             setEnfocar({ id: foco })
@@ -812,6 +863,7 @@ function DialogoSalir({
   grupo,
   enlaces,
   pilas,
+  admin,
   onCancelar,
   onHecho,
   onNoEncontrado,
@@ -819,12 +871,15 @@ function DialogoSalir({
   grupoId: string
   grupo: string
   enlaces: number | null
+  /** v1.3: quien sale administra (sus invitaciones sin usar se anulan). */
+  admin: boolean
   pilas: readonly string[]
   /** Con el id adonde va el foco: el botón que lo abrió, o «borrar» tras un 409 `unica-persona` (7.3). */
   onCancelar: (foco: string) => void
   onHecho: (enlacesCortados: number) => void
   onNoEncontrado: () => void
 }) {
+  const { capa3 } = useFamilia()
   const [error, setError] = useState<ReactNode>(null)
   const [sola, setSola] = useState(false)
   const { enCurso, ocupado, correr } = usePeticion()
@@ -865,10 +920,15 @@ function DialogoSalir({
         puntos={[
           { texto: SALIR.dejarasDeVerlo },
           { texto: [SALIR.seCortan, enlacesHoy].filter(Boolean).join(' '), fuerte: true },
-          { texto: SALIR.fichaQueda(pilas) },
+          // 5.10 (v1.2): sin persona registrada no hay ficha, y el punto no aparece.
+          ...(pilas.length ? [{ texto: SALIR.fichaQueda(pilas) }] : []),
+          // v1.3 (O4): solo si administro, sin negrita, antes de «Para volver…».
+          ...(admin ? [{ texto: SE_ANULAN.propia }] : []),
           { texto: SALIR.paraVolver },
         ]}
       />
+      {/* 7.2 (v1.3): para todos los roles, el correo como texto, sin enlace. */}
+      <p className="text-base text-tenue break-words">{SALIR.pideloA(capa3 === true)}</p>
     </DialogoGrupo>
   )
 }
