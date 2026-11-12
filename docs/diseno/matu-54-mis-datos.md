@@ -1,6 +1,22 @@
 # MATU-54 · Ver y descargar los datos («Datos de {nombre}» y «Tus datos») · Especificación de diseño
 
-**Versión 1.1 · 12-11-2026 · agente 6 UI/UX.** Se escribió antes de construir. La 1.0 se escribió sin contrato. La 1.1 sigue al contrato propuesto `docs/api/propuestos/mis-datos.openapi.yaml` (decisiones 342 a 365 del README, commits eee495b y e94ee52) y a las respuestas del orquestador a P1 a P12, por delegación de Jorge (sección 0). **El frontend no inventa campos:** usa los nombres del YAML, que esta versión ya cita.
+**Versión 1.2 · 12-11-2026 · agente 6 UI/UX.** La 1.2 sale de la revisión visual de lo construido (HEAD a12f8b5, sección 12) y de las decisiones 366 a 400 del README.
+
+**Qué cambia de la 1.1 a la 1.2:**
+- **Reflujo** (hallazgos P1-1, P1-2 y P2-1 de la revisión, 3.4):
+  - las `li` de los bloques ya no van con `items-start`: solo la `Etiqueta` y los botones llevan `self-start`;
+  - las `Nota` dentro de una tarjeta llevan `iconoEnLinea`;
+  - los `h2` y los `h3` de las dos páginas llevan `hyphens-auto`.
+- **F1** (decisión 384): las frases del historial con `finalidad` y `referencia` (3.4.9, tipos 5, 6 y 19 a 25).
+- **F5** (decisión 386): las compras dicen su unidad (3.4.6).
+- **F2** (decisión 385): la copia no dice quién retiró una autorización, por minimización. Queda como en la 1.1.
+- **Las autorizaciones son tarjetas separadas**, como las construyó el frontend (3.4.2).
+- **El nombre completo para el pagador y el observador**, que no reciben `nombre_pila` (2).
+- **Las aperturas de cada enlace** usan la fecha completa (`completa` de `LineaApertura`), sin «hoy» (3.4.4).
+- **El 503** cambia `WifiOff` por `CloudOff` (3.6).
+- **C-1 y C-2 quedan resueltas** por las decisiones 383 y 376 (10.1).
+
+**Versión 1.1 · 12-11-2026.** Se escribió antes de construir. La 1.0 se escribió sin contrato. La 1.1 sigue al contrato propuesto `docs/api/propuestos/mis-datos.openapi.yaml` (decisiones 342 a 365 del README, commits eee495b y e94ee52) y a las respuestas del orquestador a P1 a P12, por delegación de Jorge (sección 0). **El frontend no inventa campos:** usa los nombres del YAML, que esta versión ya cita.
 
 **Qué cambia de la 1.0 a la 1.1:**
 - **Un solo GET por copia** (P1 (A), decisión 343). La pantalla pide el JSON como texto, y «Descargar» guarda ese mismo texto. Sale el estado «Descargando», con su error y su 429 dentro del diálogo. El nombre del archivo viene de `Content-Disposition` (3.7).
@@ -100,6 +116,7 @@ Las rutas son cuatro:
 | Texto, admin y cuidador | Todo lo que MATU guarda de {nombre_pila}. Si {nombre_pila} o su representante legal te lo pide, puedes mostrárselo o darle una copia. **[ANALISTA]** | `p text-base max-w-prose` |
 | Botón, admin y cuidador | Ver los datos de {nombre_pila} **[ANALISTA]** | `Boton variante="secundario"`, `self-start`, `angosto:self-stretch`. Fija la persona en memoria y navega a `/grupo/datos`. Su `id` es `datos-{persona.id}`, para devolverle el foco al volver |
 | Pagador y observador | Los puede ver quien administra el grupo o quien cuida a {nombre_pila}. **[ANALISTA]** | `p text-base text-tenue`, sin botón. Es el mismo molde de `B.quienPuede` |
+| **(1.2) Sin `nombre_pila`** | El pagador y el observador no reciben `nombre_pila` de la API, así que el título y la frase usan el `nombre` completo: «Datos de María Soto Pérez» y «… quien cuida a María Soto Pérez.». **Se confirma** lo que construyó el frontend: el nombre completo es cierto, y el cliente nunca recorta un nombre para inventar uno de pila | — |
 
 - La sección es `section aria-labelledby` con `mt-4 flex flex-col gap-3 border-t border-linea pt-6`, igual que `BloqueBorrar`. **No es una tarjeta:** va sin fondo ni anillo, como «Borrar sus datos».
 - **No es macizo.** El único macizo de `/grupo` sigue siendo «Invitar a alguien» (MATU-53, 5.2).
@@ -273,6 +290,9 @@ Reglas comunes:
 - El dinero (`Pesos`) va como `$69.000` en `cifras`, siempre con IVA incluido y **nunca con una línea de IVA** (D-54-14).
 - **Quien salió del grupo** llega como `PersonaNombrada` con `nombre: null` y `activo: false`. Se nombra «Alguien que ya no está en el grupo», o «alguien que ya no está en el grupo» dentro de una oración (MATU-53, 5.7), con el mismo peso y color del nombre al que reemplaza. Un `escrito_por` o un `anotada_por` en `null` se trata igual.
 - **Un bloque sin filas** muestra una frase en `p text-base text-tenue`, sin ícono grande ni botón: es una copia y no hay nada que empezar (tabla de 3.6).
+- **(1.2) Reflujo dentro de una fila.** Una `li` de bloque es `flex flex-col gap-2`, **sin `items-start`**: así sus hijos tienen el ancho de la fila, y `break-words` puede partir una palabra que no cabe. Con `items-start`, cada hijo toma el ancho de su contenido, y un nombre de una sola palabra larga lo ensancha más allá de la pantalla (P1-1). Solo la `Etiqueta` y los botones llevan `self-start`.
+- **(1.2) Las notas dentro de una tarjeta** (la del representante legal, las de 3.5 y la de `lo_tuyo`) llevan `iconoEnLinea`, como en MATU-44 y MATU-55. Con el ícono al lado, a 320 px con el texto al 200 % «representante» no cabe, y la nota se sale 32 px de su tarjeta (P1-2).
+- **(1.2) Títulos largos.** Los `h2` y los `h3` de las dos páginas llevan `hyphens-auto`. El `html` es `lang="es-CL"`, así que una palabra que no cabe se corta con guion en una sílaba («Autoriza-ciones») y no en la última letra («Autorizacione / s», P2-1). Si el navegador no tiene el diccionario, sigue `break-words`.
 - **Los enumerados** se muestran con la palabra de esta especificación o de `lenguaje.md`, nunca con el valor del contrato. Un valor que el cliente no conoce no rompe la pantalla: la fila se muestra sin esa palabra.
 
 #### 3.4.1 Sus datos (`persona`)
@@ -291,7 +311,9 @@ Bajo el `dl`, siempre: «Si algo está mal, escribe a {correo} desde el correo d
 
 #### 3.4.2 Autorizaciones (`autorizaciones`)
 
-Una `ul` con una `li` por autorización, en el orden del servidor (de la más reciente a la más antigua, también las retiradas y las reemplazadas). Cada `li` va en `flex flex-col items-start gap-2 py-4`:
+Una `ul` con una `li` por autorización, en el orden del servidor (de la más reciente a la más antigua, también las retiradas y las reemplazadas).
+
+**(1.2) Cada autorización es su propia tarjeta**, como la construyó el frontend, y no una fila de una superficie común: la `ul` es `flex flex-col gap-4`, y cada `li` es `flex flex-col gap-2 rounded-xl bg-hoja px-4 angosto:px-2 py-4` con `ring-1 ring-linea`. La retirada cambia el anillo por `border-2 border-dashed border-borde`. **Se confirma** porque el borde punteado es la forma que dice «retirada» (MATU-44), y en una fila con separadores no tendría un contorno propio que cambiar. Además, cada autorización es un documento aparte, con su fecha y su versión. Las demás listas siguen en una sola superficie con separadores.
 
 | Parte | Texto | Componente |
 |---|---|---|
@@ -300,7 +322,7 @@ Una `ul` con una `li` por autorización, en el orden del servidor (de la más re
 | Quién la da | Según `calidad_otorgante`: «La da {nombre_pila}, por su cuenta.» · «La da su representante legal.» · «La da quien la cuida, sin ser su representante legal.» **[NUEVO]**. Son las calidades de L 25.4, dichas en tercera persona | `p text-base` |
 | Quién y cuándo | La registró {registrada_por} el {otorgada_en}. **[NUEVO]** | `p text-base` |
 | Renovación | Hay que renovarla el {revision_vence_en}. **[NUEVO]** Solo con `vigente` y `revision_vence_en` presente. Con `revision_vencida`: «Había que renovarla el {revision_vence_en}.» **[NUEVO]** | `p text-base` |
-| Retiro | Se retiró el {retirada_en}. **[NUEVO]** Con `reemplazada`: «Se renovó el {retirada_en}.» **[NUEVO]**. **El contrato no trae quién la retiró ni el motivo**, así que la 1.0 pierde «La retiró {nombre}» y «Motivo: …» (10.2) | `p text-base` |
+| Retiro | Se retiró el {retirada_en}. **[NUEVO]** Con `reemplazada`: «Se renovó el {retirada_en}.» **[NUEVO]**. La copia no dice quién la retiró ni el motivo, por minimización (decisión 385) | `p text-base` |
 | Lo aceptado | Lo que se aceptó: política de privacidad {version_politica}, declaración {declaracion.version} y aviso {aviso.version}. **[NUEVO]** Si `declaracion` o `aviso` es `null`, esa parte se omite con su coma o su «y». Las versiones van en `cifras`. El identificador y la huella **no se muestran**: van en el archivo y no le dicen nada a una persona | `p text-base text-tenue` |
 | Representante legal | Hay una referencia al documento del representante legal. Si la necesitas, pídela a {correo}. **[ANALISTA, ajustado: el correo sale de la política]** Solo con `hay_documento_representante: true` | `Nota tono="rocio"` con `FileText`, el correo en `EnlaceEnFrase` |
 
@@ -334,7 +356,7 @@ Una `ul` con una `li` por enlace, en el orden del servidor:
 | Quién y cuándo | Lo compartió {compartido_por} el {creado_en}. **[NUEVO]** `compartido_por` es el nombre de pila que vio el relevo. Es texto y no `PersonaNombrada`, así que nunca dice «alguien que ya no está en el grupo» |
 | Hasta cuándo | Con `vigente`: «Vence el {vence_en}.» Con `vencido`: «Venció el {vence_en}.» Con `revocado` o `bloqueado` y `cortado_en`: «Se cortó el {cortado_en}.» **[NUEVO]** |
 | Uso | Con `usos` 0: «No se ha abierto.» Con 1: «Se abrió una vez, el {ultimo_uso_en}.» Con más: «Se abrió {usos} veces. La última, el {ultimo_uso_en}.» **[NUEVO]** |
-| Aperturas | Un `ol` de `LineaApertura` (MATU-45) con `notas={false}` y sin acciones, con las `aperturas` de los últimos 90 días. Son los cuatro tipos de MATU-45 (`presentacion`, `apertura`, `pin_incorrecto` y `bloqueo`), con sus frases e íconos de L 15. Si hay más de 5, se ven 5 y «Ver más» (3.4.10). Sin aperturas en 90 días, no hay lista |
+| Aperturas | Un `ol` de `LineaApertura` (MATU-45) con `notas={false}`, `completa` y sin acciones. **(1.2) `completa`** hace que la hora diga «el {DD/MM/AAAA} a las {HH:MM}» y no «hoy a las…»: en la misma tarjeta, «Se abrió una vez, el 12/11/2026» y «hoy a las 10:09» se leían como dos fechas distintas (P3-1). Lleva con las `aperturas` de los últimos 90 días. Son los cuatro tipos de MATU-45 (`presentacion`, `apertura`, `pin_incorrecto` y `bloqueo`), con sus frases e íconos de L 15. Si hay más de 5, se ven 5 y «Ver más» (3.4.10). Sin aperturas en 90 días, no hay lista |
 
 #### 3.4.5 Sus insumos (`insumos.lista`)
 
@@ -355,7 +377,7 @@ Si el frontend ya tiene una frase de L 18 o L 21 que dice lo mismo, usa esa y lo
 #### 3.4.6 Compras anotadas (últimos 90 días) (`insumos.compras`)
 
 El título es **[ANALISTA]** y ya dice el plazo: el contrato confirma que las compras declaradas se borran a los 90 días, así que no lleva la frase de los 90 días. Un `ol`, en el orden del servidor, con una `li` por compra:
-- «{unidades} de {insumo}» en `font-bold`, con la unidad del insumo si el frontend la tiene en `lista`;
+- **(1.2)** «{unidades} {unidad} de {insumo}» en `font-bold`, con `unidad` de la compra (decisión 386) y la palabra de L 21 en singular o plural: «20 unidades de Pañal adulto talla M», «2 sobres de Champú en sobre». Nunca se cruza con `lista` por el nombre;
 - con `origen: declarada`: «El {el} · Anotó {anotada_por}» **[NUEVO]**;
 - con `origen: pedido_matu`: «El {el} · Llegó con un pedido de MATU» **[NUEVO]**;
 - todo en `text-base text-tenue`.
@@ -472,7 +494,7 @@ Todas son **[NUEVO]** y van con el verbo de ADR-027, «devolver».
 - El orden es el del servidor. El cliente no reordena.
 - **Todos los círculos van en `rocio`.** Ningún hecho es una alarma: es lo que pasó. El tipo lo dicen la frase y la forma del ícono.
 
-**Los 26 tipos** (`TipoHecho`). Ninguno trae el objeto (qué insumo, qué relevo ni qué permiso): el contrato solo trae `campo` o `seccion` en los de la ficha. Por eso las frases son generales. El detalle está en los otros bloques de la misma página.
+**Los 26 tipos** (`TipoHecho`). Los de la ficha traen `campo` o `seccion`. **(1.2)** Los de autorizaciones traen `finalidad`, y los de pedidos y pagos traen `referencia` (decisión 384). Los de insumos y enlaces no traen el objeto, así que su frase es general, y el detalle está en los otros bloques de la misma página.
 
 | # | `tipo` | Quién | Frase | Ícono lucide |
 |---|---|---|---|---|
@@ -480,8 +502,8 @@ Todas son **[NUEVO]** y van con el verbo de ADR-027, «devolver».
 | 2 | `edito_la_ficha` | Persona | Con `campo` o `seccion`: Editó «{nombre}» **[ANALISTA]**, con el nombre de L 14.1. Con los dos `null`: Editó la ficha **[NUEVO, decisión 356]** | `PencilLine` |
 | 3 | `quito_una_seccion` | Persona | Con `seccion`: Quitó «{nombre}» **[ANALISTA]**. Sin ella: Quitó una sección de la ficha **[NUEVO]** | `Eraser` |
 | 4 | `ficha_borrada` | MATU | MATU borró lo escrito en la ficha **[README Q15]** | `Trash2` |
-| 5 | `dio_una_autorizacion` | Persona | Dio una autorización **[NUEVO]** | `ShieldCheck` |
-| 6 | `retiro_una_autorizacion` | Persona | Retiró una autorización **[NUEVO]** | `ShieldOff` |
+| 5 | `dio_una_autorizacion` | Persona | **(1.2)** Según `finalidad`: Dio la autorización de la ficha · Dio la autorización de los insumos · Dio la autorización de los pedidos **[NUEVO]**. Con `null`: Dio una autorización | `ShieldCheck` |
+| 6 | `retiro_una_autorizacion` | Persona | **(1.2)** Retiró la autorización de la ficha · de los insumos · de los pedidos **[NUEVO]**, el molde de las notas de 3.5. Con `null`: Retiró una autorización | `ShieldOff` |
 | 7 | `compartio_la_ficha` | Persona | Compartió la ficha con un relevo **[NUEVO]** | `Share2` |
 | 8 | `corto_un_enlace` | Persona | Cortó un enlace de relevo **[NUEVO]** | `Unlink` |
 | 9 | `agrego_un_insumo` | Persona | Agregó un insumo **[NUEVO]** | `PackagePlus` |
@@ -494,18 +516,20 @@ Todas son **[NUEVO]** y van con el verbo de ADR-027, «devolver».
 | 16 | `descarto_un_aviso` | Persona | Descartó un aviso de insumo **[NUEVO]** | `BellOff` |
 | 17 | `resolvio_un_aviso` | Persona | Resolvió un aviso de insumo **[NUEVO]**, el verbo de «Ya lo resolví» | `CircleCheck` |
 | 18 | `cambio_la_direccion` | Persona | Cambió la dirección **[NUEVO]** | `MapPin` |
-| 19 | `creo_un_pedido` | Persona | Armó un pedido **[NUEVO]**, el verbo de MATU-53 5.7 | `ShoppingCart` |
-| 20 | `confirmo_un_pedido` | Persona | Confirmó un pedido **[NUEVO]** | `ClipboardCheck` |
-| 21 | `cancelo_un_pedido` | Persona | Canceló un pedido **[NUEVO]** | `CircleX` |
-| 22 | `cambio_que_hacer_si_falta` | Persona | Cambió qué hacer si falta un producto **[NUEVO]** | `Replace` |
-| 23 | `inicio_un_pago` | Persona | Empezó a pagar un pedido **[NUEVO]** | `CreditCard` |
-| 24 | `pago_aprobado` | MATU | Se aprobó el pago de un pedido **[README Q15, ajustado: «de un pedido», porque la línea no dice cuál]** | `BadgeCheck` |
-| 25 | `pago_anulado` | MATU | Se devolvió dinero de un pago **[README Q15, ajustado: el README dice «Se anuló el pago». `pago.anular` es la anulación parcial de ADR-027, y «anuló el pago» se lee como si se hubiera deshecho el pago entero]** | `Undo2` |
+| 19 | `creo_un_pedido` | Persona | **(1.2)** Armó el pedido {referencia} · sin referencia: Armó un pedido **[NUEVO]**, el verbo de MATU-53 5.7 | `ShoppingCart` |
+| 20 | `confirmo_un_pedido` | Persona | **(1.2)** Confirmó el pedido {referencia} · Confirmó un pedido **[NUEVO]** | `ClipboardCheck` |
+| 21 | `cancelo_un_pedido` | Persona | **(1.2)** Canceló el pedido {referencia} · Canceló un pedido **[NUEVO]** | `CircleX` |
+| 22 | `cambio_que_hacer_si_falta` | Persona | **(1.2)** Cambió qué hacer si falta un producto en el pedido {referencia} · Cambió qué hacer si falta un producto **[NUEVO]** | `Replace` |
+| 23 | `inicio_un_pago` | Persona | **(1.2)** Empezó a pagar el pedido {referencia} · Empezó a pagar un pedido **[NUEVO]** | `CreditCard` |
+| 24 | `pago_aprobado` | MATU | **(1.2)** Se aprobó el pago del pedido {referencia} · Se aprobó el pago de un pedido **[README Q15, ajustado]** | `BadgeCheck` |
+| 25 | `pago_anulado` | MATU | **(1.2)** Se devolvió dinero del pago del pedido {referencia} · Se devolvió dinero de un pago **[README Q15, ajustado: el README dice «Se anuló el pago». `pago.anular` es la anulación parcial de ADR-027, y «anuló el pago» se lee como si se hubiera deshecho el pago entero]** | `Undo2` |
 | 26 | `pidio_una_copia` | Persona | Pidió una copia de los datos **[ANALISTA]** | `Download` |
 | — | Un `tipo` que el cliente no conoce | — | No se muestra, y la pantalla no se rompe | — |
 
 - Si un tipo de persona llega con `quien.tipo: matu`, o al revés, la frase no cambia y la cola sigue a `quien`. Es un defecto del servidor, no de la pantalla.
-- Si el contrato suma la finalidad o el objeto (10.2), las frases 5, 6, 9 a 14, 16 y 17 se pueden precisar: «Autorizó la ficha», «Agregó Pañal adulto M»… **No se construye nada de eso sin el campo.**
+- **(1.2) Cómo se elige la frase.** Con `finalidad` o `referencia`, la frase precisa; con `null`, la general de la 1.1. La `referencia` va en `cifras`, porque es un número que se dicta («el pedido 4821»). Es la misma del título del pedido en «Sus pedidos» (3.4.8) y del comprobante, así que la persona la encuentra en la misma página.
+- `referencia` es `null` en un pedido que no se pagó o que ya no existe (decisión 384): en un borrador, «Armó un pedido» y «Confirmó un pedido» son lo normal.
+- Los de insumos (9 a 14, 16 y 17) y los de enlaces (7 y 8) siguen generales: el contrato no trae el nombre, y no se pide (minimización).
 
 **`hay_hechos_sin_asociar: true`.** Al final de la lista, después de «Ver más», va una `Nota tono="rocio"` con `Info`: «Hay cambios antiguos que no podemos mostrar aquí ni en el archivo. Si los necesitas, pídelos a {correo}.» **[ANALISTA, ajustado]**. El texto del analista decía «…que no podemos mostrar aquí.», pero esos hechos tampoco van en el archivo (decisión 356), y la persona creería que están en la descarga. El correo va en `EnlaceEnFrase`, y sin correo configurado queda solo la primera oración. Con `false`, la nota no aparece. Se ve igual con `alcance` `todo` o `lo_tuyo`.
 
@@ -554,7 +578,7 @@ En lugar del contenido de «Su ficha» o de «Sus insumos» va una `Nota`, con e
 | Cargando | El `Volver` y el `h1`, que ya se puede armar con el nombre de pila que está en memoria, sin la bajada (la hora la da `generado_en`). Debajo, «Cargando…» **[L 26]** en `p role="status"` después de la demora de `useDemora`. Sin esqueletos (DISENO 6) | En el `h1` desde el principio |
 | Listo | Lo de 3.2. La bajada usa `generado_en` | En el `h1` (`tabIndex={-1}`) |
 | Error, sin red o 500 | Bajo el `Volver`, `Nota tono="pronto" rol="alert"` con `WifiOff`: «No pudimos traer los datos. Revisa tu conexión y vuelve a intentarlo.» **[ANALISTA]** y `Boton variante="secundario"` «Volver a intentar» **[L 26]**. Sin panel de descarga | A la nota (`enfocable`) |
-| 503 (`servicio-no-disponible`) | La misma nota, con «No pudimos traer los datos en este momento. Vuelve a intentarlo en unos minutos.» **[NUEVO]**: no es la conexión de la persona, y decirle que la revise la manda a buscar un problema que no tiene. Con «Volver a intentar» | A la nota |
+| 503 (`servicio-no-disponible`) | La misma nota, **(1.2) con `CloudOff` y no `WifiOff`**: el ícono del wifi dice lo mismo que el texto que se quitó. Con «No pudimos traer los datos en este momento. Vuelve a intentarlo en unos minutos.» **[NUEVO]**: no es la conexión de la persona, y decirle que la revise la manda a buscar un problema que no tiene. Con «Volver a intentar» | A la nota |
 | 404 | La persona ya no es accesible: se borró, a quien la abre le cambiaron el rol a pagador u observador, o salió del grupo. `Nota tono="rocio"` con `Lock` y el 404 general **[L 8]**, igual que Grupo familiar (MATU-44), y «Volver a Grupo familiar». Al volver, Grupo familiar se vuelve a pedir | A la nota |
 | 429 (`tope-copias`) | `Nota tono="atenta" rol="alert"` con `Clock`: «Ya pediste los datos varias veces. Vuelve a intentarlo a las {HH:MM}.» **[ANALISTA, ajustado: la hora sale de `Retry-After`, sumada a la hora de la respuesta. «En una hora» es falso si quedan 5 minutos]**. Sin `Retry-After` legible, el texto del analista: «… Vuelve a intentarlo en una hora.». **Sin «Volver a intentar»**, porque daría otro 429. Solo «Volver a Grupo familiar» | A la nota |
 | 401 | Lo resuelve el cliente de la app | — |
@@ -802,7 +826,7 @@ Con `pagos: null` y `condiciones_aceptadas: null` (la capa 3 quitada), los dos �
 | Título | Pago {referencia} **[NUEVO]**, con la referencia del comprobante en `cifras` |
 | Cuándo | {pagado_en}, en `text-tenue` |
 | Monto | {cobrado} en {grupo} **[NUEVO]**: lo cobrado, con IVA incluido y sin línea de IVA. Nunca la persona (P5) |
-| Tarjeta | Según `tarjeta.tipo`: «Tarjeta de crédito terminada en {ultimos4}», «Tarjeta de débito terminada en {ultimos4}» o «Tarjeta de prepago terminada en {ultimos4}» **[NUEVO]**, y « · {cuotas} cuotas» si `cuotas` es 2 o más, o « · Sin cuotas» **[NUEVO]**. Los cuatro dígitos en `cifras`. Con `tarjeta: null`: «Sin datos de la tarjeta.» **[NUEVO]** |
+| Tarjeta | Según `tarjeta.tipo`: «Tarjeta de crédito terminada en {ultimos4}», «Tarjeta de débito terminada en {ultimos4}» o «Tarjeta de prepago terminada en {ultimos4}» **[NUEVO]**, y « · {cuotas} cuotas» si `cuotas` es 2 o más, o « · Sin cuotas» **[NUEVO]**. Los cuatro dígitos en `cifras`. Con `tarjeta: null`: «Sin datos de la tarjeta.» **[NUEVO]**. **(1.2)** El espacio antes del «·» es no separable, para que un renglón nunca empiece con el punto (P3-4) |
 | Devolución | Devuelto: {devuelto} **[NUEVO]**, solo si es mayor que 0 |
 | Piloto | Con `pago_de_prueba: true`: «Pago de prueba: no se cobró dinero real.» (3.4.8), en `font-bold` |
 
@@ -918,6 +942,9 @@ El diálogo «Antes de descargar» es el de 3.7, con este texto: «El archivo tr
 21. Al imprimir cualquiera de las dos páginas sale solo «Esta pantalla no se imprime.».
 22. Después de descargar, de «Ver más» o de volver a la página anterior, `document.activeElement` nunca es el `body`.
 23. En el tema oscuro, las notas de la retirada, del 429 y del piloto mantienen su borde, su ícono y su palabra, y todo texto cumple 4,5:1, porque son tokens con contraste ya medido.
+24. **(1.2)** A 360 px sin zoom no hay desplazamiento horizontal, ni con un insumo de una sola palabra de 60 letras (`datos-admin`): `scrollWidth` es igual a `clientWidth`.
+25. **(1.2)** A 320 px con el texto al 200 %, ninguna nota se sale de su tarjeta, y ningún título se parte en su última letra.
+26. **(1.2)** Las frases del historial con `finalidad` o `referencia` dicen cuál («Dio la autorización de la ficha», «Confirmó el pedido 4821»). Sin ellas, dicen la general.
 
 ---
 
@@ -963,12 +990,12 @@ Cambia la última oración: el YAML dice «queda en tu teléfono», que no vale 
 
 ## 10. Preguntas abiertas para el orquestador
 
-### 10.1 Contradicciones que no resuelvo yo
+### 10.1 Contradicciones (1.2: resueltas)
 
 | # | Contradicción | Lo que hace esta versión |
 |---|---|---|
-| C-1 | **«Ver más» y los 90 días.** D-54-9 (a) de Jorge dice «90 días en pantalla y todo en el archivo», y la (b) descartada era «todo en pantalla». La decisión 357 del contrato, y la descripción de `hechos` y `eventos` en el YAML, dicen que «Ver más» muestra el resto, también lo anterior a 90 días. En la práctica eso es la (b) | Sigue a D-54-9: «Ver más» pagina dentro de los 90 días, y lo anterior queda solo en el archivo (3.4.10). Si Jorge acepta la lectura del contrato, el cambio es de una línea. Lo tiene que decir Jorge, o el analista con C24 |
-| C-2 | **`pediste_una_copia` en «Dónde entraste».** El orquestador lo pide en `/v1/yo/ingresos`. El README, en la Q11, dice que esa ruta **no** lo suma: es un cambio de contrato de MATU-55 | La frase está lista (5.5), y el frontend la agrega a la tabla. Se ve en «Dónde entraste» solo si el backend cambia `GET /v1/yo/ingresos` y su YAML. El backend tiene que saberlo |
+| C-1 | **«Ver más» y los 90 días.** D-54-9 (a) de Jorge dice «90 días en pantalla y todo en el archivo», y la (b) descartada era «todo en pantalla». La decisión 357 del contrato, y la descripción de `hechos` y `eventos` en el YAML, dicen que «Ver más» muestra el resto, también lo anterior a 90 días. En la práctica eso es la (b) | **Resuelta** por la decisión 383: la pantalla filtra a 90 días y «Ver más» pagina dentro de ellos. Verificado en la revisión: con `datos-historial`, «Ver más» se detiene en 85 líneas y la más vieja es del 26/09/2026 |
+| C-2 | **`pediste_una_copia` en «Dónde entraste».** El orquestador lo pide en `/v1/yo/ingresos`. El README, en la Q11, dice que esa ruta **no** lo suma: es un cambio de contrato de MATU-55 | **Resuelta** por la decisión 376: `GET /v1/yo/ingresos` suma `pediste_una_copia`, solo para la copia de «Tus datos». Verificado en «Dónde entraste» (12) |
 | C-3 | **«… de los datos de {nombre}».** El orquestador lo propone como variante. Con el contrato no se puede: la lista de la cuenta solo trae `cuenta.datos_descargar`, y nombrar a la persona en «Tus datos» choca con la sección 3 del analista («nada de una persona cuidada») | Solo «Pediste una copia de tus datos». La copia de la persona ya se ve en su historial («Pidió una copia de los datos») |
 
 ### 10.2 P2: lo que el contrato todavía no trae
@@ -977,11 +1004,11 @@ Crucé la lista de la 1.0 con el YAML. Trae `generado_en`, los enumerados de est
 
 | # | Falta | Efecto en la pantalla | Lo que recomiendo |
 |---|---|---|---|
-| F1 | **El objeto de cada hecho del historial** (qué permiso, qué insumo, qué relevo, qué pedido) | Las frases 5 a 25 son generales: «Agregó un insumo», «Dio una autorización». Una persona que revisa no sabe cuál | Sumar a `HechoCopia` un `finalidad` en las autorizaciones y, si la auditoría lo permite sin texto cifrado, la `referencia` del pedido. El nombre del insumo o del relevo puede no estar en la auditoría: si no está, se queda general |
-| F2 | **Quién retiró la autorización y el motivo** | La 1.0 decía «La retiró {nombre}» y «Motivo: …». La 1.1 dice solo «Se retiró el {fecha}» | Si `consentimiento` guarda quién revocó, sumarlo como `retirada_por: PersonaNombrada`. El motivo no hace falta en pantalla |
+| F1 | **(1.2: `finalidad` y `referencia`, decisión 384)** El objeto de cada hecho del historial (qué permiso, qué insumo, qué relevo, qué pedido) | Las frases 5 a 25 son generales: «Agregó un insumo», «Dio una autorización». Una persona que revisa no sabe cuál | Sumar a `HechoCopia` un `finalidad` en las autorizaciones y, si la auditoría lo permite sin texto cifrado, la `referencia` del pedido. El nombre del insumo o del relevo puede no estar en la auditoría: si no está, se queda general |
+| F2 | **(1.2: no va, decisión 385)** Quién retiró la autorización y el motivo | La 1.0 decía «La retiró {nombre}» y «Motivo: …». La 1.1 dice solo «Se retiró el {fecha}» | Si `consentimiento` guarda quién revocó, sumarlo como `retirada_por: PersonaNombrada`. El motivo no hace falta en pantalla |
 | F3 | **Quién cortó un enlace** | La 1.1 dice «Se cortó el {fecha}», sin quién | Lo puede ver en el historial («Cortó un enlace de relevo · Carmen»). No hace falta campo nuevo |
 | F4 | **`actual` en los dispositivos y en los eventos de «Tus datos»** | No se marca «Este teléfono» ni «(este teléfono)» | No lo pido: es una copia y no hace falta. Lo dejo dicho para que el frontend no lo busque |
-| F5 | **La unidad de cada compra** | «{unidades} de {insumo}» sin la unidad, salvo que el frontend la cruce con `lista` por nombre | Sumar `unidad` a `CompraCopia`. Cruzar por nombre falla con dos insumos del mismo nombre |
+| F5 | **(1.2: `unidad`, decisión 386)** La unidad de cada compra | «{unidades} de {insumo}» sin la unidad, salvo que el frontend la cruce con `lista` por nombre | Sumar `unidad` a `CompraCopia`. Cruzar por nombre falla con dos insumos del mismo nombre |
 | F6 | **Si hay algo anterior a 90 días** | Lo calcula la pantalla (Q18) | Basta, sin cambio |
 
 ### 10.3 Otras preguntas
@@ -1009,3 +1036,77 @@ La voy a revisar funcionando, con capturas a 360, 1280 y 1920 px, en tema claro 
 10. Imprimir las dos páginas.
 
 En el iPhone real lo prueba Martín (P10): la descarga en Safari. Si Safari abre una vista previa del JSON en vez de guardarlo, el texto de éxito suma «En iPhone, toca Compartir y elige «Guardar en Archivos».» **[NUEVO]**, solo en iOS.
+
+
+---
+
+## 12. Revisión visual del 12-11-2026 (HEAD a12f8b5)
+
+**Cómo se miró.**
+- La app de `wt62/web` corrió en una instancia propia (puerto 5193), con el doble, para que el límite de 10 copias por hora no se cruzara con quien usaba el 5183.
+- **Chrome 157**, con Playwright: 360, 1280 y 1920 px en tema claro y oscuro, y 320 px con el texto al 200 % aplicado al cargar (`html{font-size:212,5 %}`), también en los dos temas.
+- **Firefox 160**, con el Firefox instalado y WebDriver BiDi (Puppeteer): las mismas medidas y la misma matriz.
+  - El Firefox de Playwright no corre en este equipo («Permission denied» al ejecutarlo).
+  - Por BiDi no se puede emular el tema, así que todas las capturas de Firefox salieron en el tema oscuro del sistema. El tema claro se miró solo en Chrome.
+- Las capturas quedan en el scratchpad (`capturas54/`), no en el repositorio.
+
+**Lo que pasa** (sin hallazgo):
+- 17 px en todo lo nuevo, en los dos navegadores. Lo único bajo 17 px es «Cuidas a» de la cabecera, que es de la app y no de esta historia.
+- 48 px en todo lo que se toca. Los enlaces del índice miden 51 px, y el correo usa el `::after`.
+- El diálogo:
+  - abre con el foco en «Antes de descargar»;
+  - Esc y «No descargar» devuelven el foco a «Descargar en un archivo»;
+  - **descargar no hace ninguna petición** (cero GET nuevos a `/datos`);
+  - el archivo se llama `matu-datos-2026-11-12.json`, y es JSON válido con `formato: matu-datos/1`;
+  - el foco queda en «Te entregamos el archivo…».
+- Nada en `localStorage`, `sessionStorage` ni `history.state`. El título es «Datos guardados · MATU».
+- «Ver más» lleva el foco a la primera línea nueva y se detiene dentro de los 90 días.
+- El 429 dice la hora con `Retry-After` («a las 12:01»), va en `atenta` con `Clock`, no tiene «Volver a intentar» y se lleva el foco.
+- El 503 dice «… en este momento…» y tiene «Volver a intentar». El 404 (simulado con una ruta interceptada) muestra el 404 general con `Lock`.
+- Con `datos-lento`, «Cargando…» aparece con el `h1` ya armado y el foco en el `h1`.
+- `retirada`, `en_pausa`, `borrada` y `sin_autorizar` se ven con su ícono, su borde y su texto. Con los insumos sin autorizar, compras y avisos salen también del índice. Sin capa 3, no hay «Sus pedidos».
+- `lo_tuyo` muestra su nota, y `hay_hechos_sin_asociar` la suya.
+- Al volver, el foco va a «Ver los datos de María» y a «Ver tus datos».
+- En Grupo familiar:
+  - el bloque va entre los permisos y «Borrar sus datos»;
+  - el pagador y el observador ven la frase sin botón;
+  - «Cómo pedir» tiene el texto del analista.
+- «Pediste una copia de tus datos» aparece en «Dónde entraste» después de abrir «Tus datos».
+- En «Tus datos», el celular sale enmascarado con «Completo en el archivo.», el aviso simulado dice «En el piloto no salió» y la tarjeta muestra solo el tipo, los 4 dígitos y las cuotas.
+
+### «Datos de María» (`/grupo/datos`)
+
+| Pantalla y ancho | Hallazgo | Sev. | Corrección |
+|---|---|---|---|
+| 360 px, sin zoom, claro y oscuro, Chrome y Firefox | **Desplazamiento horizontal de 273 px** (`scrollWidth` 633 en 360). El `h3` del insumo «ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60» mide 599 px. Su `li` es `flex-col items-start`, así que el `h3` toma el ancho de su contenido y `break-words` nunca se aplica. Captura `chrome-z320-insumo-largo.png` | **P1** | Quitar `items-start` de las `li` de los bloques y poner `self-start` solo en la `Etiqueta` y los botones (3.4, 1.2). Con eso basta. Si se quiere dejar `items-start`, `max-w-full` en el `h3` y en los `p` |
+| 320 px con el texto al 200 %, Chrome y Firefox | **La nota del representante legal se sale 32 px de su tarjeta y 15 px de la pantalla** (nota de 301 px, con su borde derecho en 320 sobre una tarjeta que termina en 288). Es el ícono al lado más «representante» en una línea. Captura `chrome-z320-nota-rep.png` | **P1** | `iconoEnLinea` en la `Nota`, y que la nota no herede el `items-start` de la `li` (3.4, 1.2) |
+| 320 px con el texto al 200 % | **«Autorizaciones» se parte en «Autorizacione / s».** El `h2`, de 42,5 px, no cabe en 286 px. Lo mismo puede pasar con «Condiciones de compra…» y otros títulos. Captura `chrome-z320-h2.png` | **P2** | `hyphens-auto` en los `h2` y los `h3` de las dos páginas (`lang="es-CL"` ya está) |
+| 360 px, «Enlaces de relevo» | Las aperturas dicen «hoy a las 10:09» y, en la misma tarjeta, «Se abrió una vez, el 12/11/2026 a las 10:09». Son dos formas de la misma fecha | P3 | `completa` en `LineaApertura` (3.4.4, 1.2) |
+| 360 px, «Compras anotadas» | «20 de Pañal adulto talla M»: falta la unidad, que el contrato ya trae (decisión 386) | P3 | «{unidades} {unidad} de {insumo}» (3.4.6, 1.2) |
+| 360 px, «Su ficha» | Los campos dicen «Lo escribió Carmen Soto» y las secciones «Lo escribió Carmen» | P3 | Usar `escrito_por.nombre` en los dos. Si el doble manda distinto, corregir el doble |
+| Todos, error | El 503 usa `WifiOff`, que dice «revisa tu conexión», lo mismo que su texto evita decir | P3 | `CloudOff` (3.6, 1.2) |
+| 360 px, historial | Las frases de autorizaciones y pedidos son las generales, aunque el contrato ya trae `finalidad` y `referencia` | P3 | Las frases de 3.4.9 (1.2) |
+| Todos | Los estados del pedido usan todos la misma figura (`Circle`) | P3 | No bloquea, porque la palabra dice el estado. Si se quiere forma, `Check` para «Entregado» y `CircleX` para «Cancelado» y «Venció sin pagar». Queda a criterio del frontend, sin texto nuevo |
+
+**Veredicto: CAMBIOS REQUERIDOS** (dos P1 de reflujo y un P2).
+
+### «Tus datos» (`/cuenta/datos`)
+
+| Pantalla y ancho | Hallazgo | Sev. | Corrección |
+|---|---|---|---|
+| 360 px, «Tus pagos» | «Tarjeta de crédito terminada en 4242» y, en el renglón siguiente, «· 3 cuotas»: el renglón empieza con el punto | P3 | Espacio no separable antes del «·» (5.4, 1.2) |
+| 360 px, «Avisos que te enviamos» | El aviso `pendiente` del 12/11 sale después de uno del 07/11. La pantalla respeta el orden del servidor, así que es el orden del doble | P3 | Revisar el orden del doble. El frontend no reordena |
+
+Sin desplazamiento horizontal a 360 ni a 320 px con el texto al 200 %, en los dos navegadores. **Veredicto: APROBADA.** Los P3 se arreglan en la misma vuelta.
+
+### Las entradas y «Dónde entraste»
+
+| Pantalla | Veredicto |
+|---|---|
+| Grupo familiar, bloque «Datos de {nombre}» (admin, pagador y observador) | **APROBADA** |
+| Tu cuenta, tarjeta «Tus datos» y «Cómo pedir» | **APROBADA** |
+| Dónde entraste, «Pediste una copia de tus datos» | **APROBADA** |
+
+**Lo que queda por mirar después de la corrección:**
+- «Datos de María» a 360 px sin zoom y a 320 px con el texto al 200 %, en los dos navegadores;
+- la descarga en un iPhone real, que la prueba Martín (P10).
