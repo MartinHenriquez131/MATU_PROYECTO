@@ -69,6 +69,8 @@ def test_tus_datos_trae_la_cuenta_sus_grupos_y_sus_eventos_sin_nada_de_la_person
 ) -> None:
     familia = _familia(fabrica_iam)
     admin = familia.admin
+    # Una persona con un nombre que ninguna cuenta sintética tiene: los nombres de la fábrica pueden repetirse
+    persona = fabrica_iam.persona_cuidada(familia.grupo, nombre="Zulema Copia Cincuentaicuatro", nombre_pila="Zulema")
     token = _token(entorno_iam, admin)
 
     # X-Grupo-Id se ignora
@@ -89,7 +91,7 @@ def test_tus_datos_trae_la_cuenta_sus_grupos_y_sus_eventos_sin_nada_de_la_person
     # Con la capa 3 registrada, los pagos van (vacíos)
     assert cuerpo["pagos"] == [] and cuerpo["condiciones_aceptadas"] == []
     # Nada de la persona cuidada (sección 3 de la revisión previa)
-    assert familia.persona.nombre not in respuesta.text and familia.persona.nombre_pila not in respuesta.text
+    assert persona.nombre not in respuesta.text and persona.nombre_pila not in respuesta.text
     assert not _claves(cuerpo) & PROHIBIDOS
 
 

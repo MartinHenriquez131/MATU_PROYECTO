@@ -80,8 +80,11 @@ def test_tus_datos_de_quien_pago_trae_su_pago_y_sus_condiciones(
     assert pago["tarjeta"] == {"tipo": "credito", "ultimos4": "2032", "cuotas": 0}
     [condiciones] = cuerpo["condiciones_aceptadas"]
     assert condiciones["referencia"] == pago["referencia"] and condiciones["version"] == "0.2"
-    # Nada de la persona cuidada ni de la venta
-    assert familia.persona.nombre not in respuesta.text and familia.persona.nombre_pila not in respuesta.text
+    # Nada de la persona cuidada ni de la venta. Los nombres de la fábrica pueden repetirse: se busca el de la persona
+    # solo si no es también el de quien pide o el del grupo
+    for nombre in (familia.persona.nombre, familia.persona.nombre_pila):
+        if nombre not in familia.admin.nombre and nombre not in familia.grupo.nombre:
+            assert nombre not in respuesta.text
     assert token not in respuesta.text and not _claves(cuerpo) & DE_LA_VENTA
 
 
