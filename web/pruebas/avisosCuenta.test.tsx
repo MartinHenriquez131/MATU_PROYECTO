@@ -333,6 +333,99 @@ describe('Este teléfono: los estados (3.4)', () => {
   })
 })
 
+// ---------------------------------------------------------------- MATU-107, estado G (C14)
+
+const G = 'En el piloto, los avisos en el teléfono solo se prueban en los teléfonos del equipo de MATU.'
+const SIN_PERMISO = { ...PUSH_LIBRE, permitido: false }
+
+describe('MATU-107: estado G, la cuenta no está en el equipo del piloto (2.2, 2.3 y 2.6)', () => {
+  it('criterios 1 a 3 y 6: la nota G en rocío con su ícono, sin botón ni etiqueta ni D o F, y el permiso no se pide', async () => {
+    const n = navegador()
+    apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: SIN_PERMISO } })
+    render(<AvisosCuenta />)
+    const texto = await screen.findByText(G)
+    const nota = texto.closest('[tabindex="-1"]') as HTMLElement
+    expect(nota).not.toBeNull()
+    expect(nota.className).toMatch(/\bbg-rocio\b/)
+    expect(nota.querySelector('svg.lucide-info')).not.toBeNull()
+    expect(nota.textContent).toBe(G)
+    // Al cargar en G no se anuncia: solo después del 409.
+    expect(nota).not.toHaveAttribute('data-aviso')
+    const b = bloque()
+    expect(within(b).getByRole('heading', { level: 3, name: 'Este teléfono' })).toBeInTheDocument()
+    expect(within(b).queryByRole('button')).toBeNull()
+    expect(screen.queryByText('Sin activar')).toBeNull()
+    expect(screen.queryByText('Activados')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/Este navegador no puede recibir avisos|Por ahora no se pueden activar/)
+    expect(n.notificacion.requestPermission).not.toHaveBeenCalled()
+    expect(n.sw.register).not.toHaveBeenCalled()
+    expect(screen.getAllByText('En el piloto los avisos se prueban sin enviarse: no te llegará nada.')).toHaveLength(1)
+  })
+
+  it('manda sobre D (sin soporte) y sobre F (sin clave), y en un computador dice lo mismo', async () => {
+    navegador({ soporte: false })
+    apiCuenta({
+      'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: { ...SIN_PERMISO, clave_publica: null } },
+      'GET ^/v1/dispositivos$': { status: 200, cuerpo: { items: [{ ...PC, actual: true }] } },
+    })
+    render(<AvisosCuenta />)
+    expect(await screen.findByText(G)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Este computador' })).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/Este navegador no puede recibir avisos|Por ahora no se pueden activar/)
+  })
+
+  it('las casillas se guardan igual con permitido false', async () => {
+    navegador()
+    const api = apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: SIN_PERMISO } })
+    render(<AvisosCuenta />)
+    await screen.findByText(G)
+    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
+    expect(api.de('PUT', '/v1/yo/avisos')).toHaveLength(1)
+  })
+
+  it('caso borde: permitido false y registrado true, la nota G con «Desactivar…»; al terminar queda solo G con el foco', async () => {
+    const n = navegador({ permiso: 'granted', suscritoCon: CLAVE })
+    const api = apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: { ...SIN_PERMISO, registrado: true } } })
+    render(<AvisosCuenta />)
+    expect(await screen.findByText(G)).toBeInTheDocument()
+    expect(screen.queryByText('Activados')).toBeNull()
+    await u().click(within(bloque()).getByRole('button', { name: 'Desactivar en este teléfono' }))
+    const hecho = await screen.findByText('Desactivaste los avisos en este teléfono.')
+    expect(hecho.closest('[data-aviso]')).toHaveAttribute('data-aviso', 'status')
+    expect(api.de('DELETE', '/v1/dispositivos/actual/push')).toHaveLength(1)
+    expect(n.pasos).toEqual(['unsubscribe'])
+    await vi.waitFor(() => expect(screen.getByText(G).closest('[tabindex="-1"]')).toHaveFocus())
+    expect(within(bloque()).queryByRole('button')).toBeNull()
+  })
+
+  it('criterio 4: el PUT responde 409 push-no-permitido: pasa a G, sin alert, el foco en la nota, se anuncia por status y sin suscripción', async () => {
+    const n = navegador()
+    apiCuenta({ 'PUT ^/v1/dispositivos/actual/push$': problema(409, 'push-no-permitido') })
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
+    const texto = await screen.findByText(G)
+    const nota = texto.closest('[tabindex="-1"]') as HTMLElement
+    await vi.waitFor(() => expect(nota).toHaveFocus())
+    expect(nota).toHaveAttribute('data-aviso', 'status')
+    expect(document.querySelector('[data-aviso="alert"]')).toBeNull()
+    expect(screen.queryByText('No pudimos activar los avisos. Revisa tu conexión y vuelve a intentarlo.')).toBeNull()
+    expect(within(bloque()).queryByRole('button')).toBeNull()
+    expect(screen.queryByText('Sin activar')).toBeNull()
+    expect(n.pasos).toEqual(['requestPermission', 'register /sw.js', 'subscribe', 'unsubscribe'])
+    expect(n.suscripcion()).toBeNull()
+  })
+
+  it('otro 409 del PUT no es G: el error de siempre', async () => {
+    navegador()
+    apiCuenta({ 'PUT ^/v1/dispositivos/actual/push$': problema(409, 'otra-cosa') })
+    render(<AvisosCuenta />)
+    await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
+    expect(await screen.findByText('No pudimos activar los avisos. Revisa tu conexión y vuelve a intentarlo.')).toBeInTheDocument()
+    expect(screen.queryByText(G)).toBeNull()
+  })
+})
+
 // ---------------------------------------------------------------- 3.4 activar y desactivar
 
 describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
