@@ -55,7 +55,12 @@ LIMITE_CANJE = LimitePorIp("canje-ip", 10)
 # RF-06: presentación del relevo, más alto por CGNAT (decisión 29)
 LIMITE_PRESENTACION = LimitePorIp("presentacion-ip", 30)
 
-LIMITES = (LIMITE_REGISTRO, LIMITE_CANJE, LIMITE_PRESENTACION)
+# MATU-42 (C29, decisión 301): la presentación de la invitación, 30 por hora, y un contador común de canje para la
+# verificación y la aceptación, 20 por hora (una unión legítima usa dos llamadas; decisión 324)
+LIMITE_PRESENTACION_INVITACION = LimitePorIp("presentacion-invitacion-ip", 30)
+LIMITE_CANJE_INVITACION = LimitePorIp("canje-invitacion-ip", 20)
+
+LIMITES = (LIMITE_REGISTRO, LIMITE_CANJE, LIMITE_PRESENTACION, LIMITE_PRESENTACION_INVITACION, LIMITE_CANJE_INVITACION)
 
 
 def excedido(conteo: int, limite: LimitePorIp) -> bool:

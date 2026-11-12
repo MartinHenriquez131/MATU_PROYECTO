@@ -87,6 +87,16 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "pago.anular",
         # MATU-55 (decisión 259)
         "avisos.preferencia",
+        # MATU-42 (decisiones 312 y 318): sin invitacion.cerrar
+        "invitacion.crear",
+        "invitacion.anular",
+        "invitacion.aceptar",
+        "invitacion.codigo_incorrecto",
+        "invitacion.bloqueo",
+        "membresia.cambiar_rol",
+        "membresia.permiso_ficha",
+        "membresia.sacar",
+        "membresia.salir",
     }
 
 
@@ -111,6 +121,8 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "direccion",
         "pedido",
         "cargo",
+        "invitacion",
+        "membresia",
     }
 
 
@@ -159,6 +171,8 @@ def test_entrada_solo_lleva_identificadores_sin_ip_ni_contenido() -> None:
         # MATU-50: el tipo de una sección complementaria y la lista de los mostrados, nunca texto
         "seccion",
         "secciones",
+        # MATU-42: el rol, en las acciones de invitación y membresía
+        "rol",
     }
     assert "ip" not in nombres
     # El momento lo pone el adaptador con el Reloj, no quien llama
@@ -288,3 +302,19 @@ def test_detalle_y_grupo_fuera_de_lo_acotado_se_rechazan(cambio: dict[str, Any])
     campos.update(cambio)
     with pytest.raises(TypeError):
         EntradaAuditoria(**campos)
+
+
+@pytest.mark.rf("RF-38")
+def test_las_acciones_del_grupo_llevan_siempre_y_solo_el_rol() -> None:
+    """MATU-42 (D-42-8 b): el único detalle es uno de los cuatro roles. Nunca el token, el código ni contacto."""
+    campos = _campos(accion=AccionAuditoria.MEMBRESIA_SACAR, entidad=EntidadAuditoria.MEMBRESIA)
+    assert EntradaAuditoria(**campos, rol="cuidador").detalle() == {"rol": "cuidador"}
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**campos)
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**campos, rol="jefe")
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**_campos(), rol="admin")
+    sistema = _campos(actor_tipo=ActorTipo.SISTEMA, actor_ref=None, accion=AccionAuditoria.INVITACION_BLOQUEO,
+                      entidad=EntidadAuditoria.INVITACION)
+    assert EntradaAuditoria(**sistema, rol="pagador").detalle() == {"rol": "pagador"}

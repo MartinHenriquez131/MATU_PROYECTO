@@ -93,6 +93,19 @@ class AccionAuditoria(StrEnum):
     # MATU-55 (decisión 259): cambiar la preferencia propia de avisos, sin los valores (ni el canal, ni si se prendió o
     # se apagó) y solo si cambió. De la cuenta: sin grupo
     AVISOS_PREFERENCIA = "avisos.preferencia"
+    # MATU-42 (decisión 312, D-42-8 b): invitar, unirse y cambiar quién forma el grupo. El único detalle es el rol.
+    # Nunca el token, el código, sus huellas, la IP ni datos de contacto. codigo_incorrecto y bloqueo de la
+    # verificación van con actor sistema y actor_ref vacío; los de la aceptación, con la cuenta. invitacion.cerrar no
+    # existe (decisión 318)
+    INVITACION_CREAR = "invitacion.crear"
+    INVITACION_ANULAR = "invitacion.anular"
+    INVITACION_ACEPTAR = "invitacion.aceptar"
+    INVITACION_CODIGO_INCORRECTO = "invitacion.codigo_incorrecto"
+    INVITACION_BLOQUEO = "invitacion.bloqueo"
+    MEMBRESIA_CAMBIAR_ROL = "membresia.cambiar_rol"
+    MEMBRESIA_PERMISO_FICHA = "membresia.permiso_ficha"
+    MEMBRESIA_SACAR = "membresia.sacar"
+    MEMBRESIA_SALIR = "membresia.salir"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
@@ -131,6 +144,23 @@ SECCIONES_AUDITABLES = frozenset({"quien_es", "preferencias", "alimentacion", "m
 # Las acciones que llevan el tipo de una sección, y la que lleva la lista de tipos mostrados (MATU-50)
 ACCIONES_CON_SECCION = frozenset({AccionAuditoria.PLAN_EDITAR, AccionAuditoria.PLAN_QUITAR_SECCION})
 ACCION_CON_SECCIONES = AccionAuditoria.RELEVO_ABRIR
+
+# MATU-42 (D-42-8 b): los roles que admite el detalle (CHECK auditoria_detalle_acotado de la 0026) y las acciones que lo
+# llevan, siempre. Una prueba verifica que coinciden con los de care_circle
+ROLES_AUDITABLES = frozenset({"admin", "cuidador", "pagador", "observador"})
+ACCIONES_CON_ROL = frozenset(
+    {
+        AccionAuditoria.INVITACION_CREAR,
+        AccionAuditoria.INVITACION_ANULAR,
+        AccionAuditoria.INVITACION_ACEPTAR,
+        AccionAuditoria.INVITACION_CODIGO_INCORRECTO,
+        AccionAuditoria.INVITACION_BLOQUEO,
+        AccionAuditoria.MEMBRESIA_CAMBIAR_ROL,
+        AccionAuditoria.MEMBRESIA_PERMISO_FICHA,
+        AccionAuditoria.MEMBRESIA_SACAR,
+        AccionAuditoria.MEMBRESIA_SALIR,
+    }
+)
 
 
 class MotivoAuditoria(StrEnum):
@@ -176,6 +206,9 @@ class EntidadAuditoria(StrEnum):
     PEDIDO = "pedido"
     # MATU-62
     CARGO = "cargo"
+    # MATU-42
+    INVITACION = "invitacion"
+    MEMBRESIA = "membresia"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:
@@ -201,6 +234,7 @@ class EntradaAuditoria:
     - ``seccion``: solo en plan.editar y plan.quitar_seccion, el tipo de una sección complementaria.
     - ``secciones``: solo en relevo.abrir, los tipos de las secciones complementarias mostradas, sin
       repetir (puede ser vacía).
+    - ``rol``: solo y siempre en ACCIONES_CON_ROL (MATU-42), uno de los cuatro roles.
 
     grupo_id puede faltar solo en ACCIONES_DE_CUENTA, y actor_ref solo con el actor SISTEMA.
 
@@ -219,6 +253,7 @@ class EntradaAuditoria:
     sesiones_revocadas: int | None = None
     seccion: str | None = None
     secciones: tuple[str, ...] | None = None
+    rol: str | None = None
 
     def __post_init__(self) -> None:
         _exigir("accion", self.accion, AccionAuditoria)
@@ -253,6 +288,10 @@ class EntradaAuditoria:
                 or len(set(self.secciones)) != len(self.secciones)
             ):
                 raise TypeError("secciones solo va en relevo.abrir, como tupla de tipos complementarios sin repetir")
+        if (self.rol is not None) != (self.accion in ACCIONES_CON_ROL) or (
+            self.rol is not None and (not isinstance(self.rol, str) or self.rol not in ROLES_AUDITABLES)
+        ):
+            raise TypeError("rol va solo y siempre en las acciones de invitación y membresía, con uno de los 4 roles")
 
     def detalle(self) -> dict[str, object] | None:
         """El contenido de la columna auditoria.detalle, o None si la entrada no lleva detalle."""
@@ -263,4 +302,6 @@ class EntradaAuditoria:
             datos["seccion"] = self.seccion
         if self.secciones is not None:
             datos["secciones"] = list(self.secciones)
+        if self.rol is not None:
+            datos["rol"] = self.rol
         return datos or None

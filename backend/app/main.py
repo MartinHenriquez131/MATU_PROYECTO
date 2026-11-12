@@ -28,15 +28,20 @@ from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
 from app.modules.care_circle.api.router_borrado import router as router_borrado
 from app.modules.care_circle.api.router_direccion import router as router_direccion
+from app.modules.care_circle.api.router_invitaciones import router as router_invitaciones
+from app.modules.care_circle.api.router_invitaciones import router_publico as router_invitacion_publica
+from app.modules.care_circle.api.router_miembros import router as router_miembros
 from app.modules.care_circle.api.router_personas import router as router_personas
 from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, FINALIDAD_DESPACHO, FINALIDAD_PLAN_CUIDADO
 from app.modules.care_circle.infrastructure.efectos_retiro import registrar_efecto
+from app.modules.care_circle.infrastructure.enlaces_relevo import registrar_enlaces
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
 from app.modules.care_plan.api.router_secciones import router as router_secciones
 from app.modules.care_plan.infrastructure.efecto_retiro import EfectoRetiroFicha
+from app.modules.care_plan.infrastructure.enlaces_otorgados import EnlacesOtorgados
 from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.consumption.api.router_lista import router as router_lista
@@ -125,6 +130,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # ni consumption: aquí se arman. Sin el efecto de una finalidad, su retiro falla cerrado
     registrar_efecto(FINALIDAD_PLAN_CUIDADO, EfectoRetiroFicha)
     registrar_efecto(FINALIDAD_CONSUMO, EfectoRetiroConsumo)
+    # MATU-42 (decisión 305): sacar, salir y dejar de compartir cortan los enlaces de relevo de esa persona. care_circle
+    # no importa care_plan: se arma aquí. Sin él, esas rutas fallan cerradas
+    registrar_enlaces(EnlacesOtorgados)
 
     # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
     # existen y responden 404 RFC 7807, sin caer en la app de familia
@@ -139,6 +147,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     registrar_manejadores(app)
     # MATU-19 (C11): no-store, no-referrer y noindex en toda respuesta bajo /v1/relevo/, también errores
     app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=PREFIJO_RELEVO, cabeceras=CABECERAS_RELEVO)
+    # MATU-42 (C23): las rutas de la persona invitada, como las del relevo: no-store, no-referrer y noindex
+    app.add_middleware(MiddlewareCabecerasPrefijo, prefijo="/v1/invitaciones/", cabeceras=CABECERAS_RELEVO)
     # MATU-38: no-store en toda respuesta de sesión y dispositivos, también en los 401, 422 y 429
     # MATU-36: también bajo /v1/personas-cuidadas/ (autorización, consumo y ficha), en los 403 y 404
     # MATU-57: también la recuperación del acceso y la cuenta. MATU-41: la preferencia de avisos (/v1/yo/)
@@ -146,6 +156,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     for prefijo in (
         "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/",
         "/v1/pedidos", "/v1/pagos",
+        # MATU-42 (decisión 315): el grupo, sus miembros y sus invitaciones, también los errores
+        "/v1/grupos",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
@@ -167,6 +179,10 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_borrado, prefix="/v1")
     # MATU-61: la dirección de la persona es de care_circle y existe también sin la capa 3 (C8)
     app.include_router(router_direccion, prefix="/v1")
+    # MATU-42: invitar, la persona invitada y quiénes forman el grupo
+    app.include_router(router_invitaciones, prefix="/v1")
+    app.include_router(router_invitacion_publica, prefix="/v1")
+    app.include_router(router_miembros, prefix="/v1")
     # Antes que router_consumo: por-acabarse, alertas y lista (MATU-60) son rutas fijas que {perfil_id} capturaría
     app.include_router(router_alertas, prefix="/v1")
     app.include_router(router_lista, prefix="/v1")
