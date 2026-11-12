@@ -9,7 +9,7 @@
 //   de retirar la ficha, la que estaba en memoria se descarta.
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { CloudOff, Hourglass, Lock, ShieldCheck, ShieldOff, ShieldQuestion } from 'lucide-react'
+import { CloudOff, Hourglass, Info, Lock, ShieldCheck, ShieldOff, ShieldQuestion } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   autorizar,
@@ -36,6 +36,8 @@ import { navegar } from './ruteo'
 import { AUTORIZACION, GENERAL } from './textos'
 import { BORRAR_DATOS as B, GRUPO_FAMILIAR as T } from './textosGrupo'
 import { GRUPO_PEDIDOS as P } from './textosPedido'
+import { MIEMBROS as M } from './textosInvitar'
+import { QuienesForman, SalirDelGrupo, useMiembros } from './Miembros'
 import { Acciones, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 
 /** Con la autorización vigente o por renovar: hay algo que retirar. */
@@ -91,8 +93,15 @@ function borradorDe(b: BorradorPersona, p: PersonaListada) {
 }
 
 export function GrupoFamiliar() {
-  const { grupo, rol, personaId: elegidaId, personas: enMemoria, borrador, fijar, reautorizar } = useFamilia()
+  const { grupo, rol, personaId: elegidaId, personas: enMemoria, borrador, fijar, reautorizar, capa3, conocerCapa3 } = useFamilia()
   const editor = puedeEditar(rol)
+  // MATU-53 (5): quiénes forman el grupo, arriba, y salir del grupo, al final, con la misma lista.
+  const miembros = useMiembros()
+  const pilas = (enMemoria ?? []).map(nombrePilaDe)
+  // 6.3: la descripción de «Paga» nombra los pedidos solo con la capa 3 encendida.
+  useEffect(() => {
+    if (capa3 === null) conocerCapa3?.()
+  }, [capa3, conocerCapa3])
   const [carga, setCarga] = useState<'cargando' | 'lista' | 'red'>('cargando')
   const [datos, setDatos] = useState<DatosPersona[]>([])
   const [avisos, setAvisos] = useState<Record<string, AvisoBloque>>({})
@@ -281,10 +290,14 @@ export function GrupoFamiliar() {
     )
 
   return (
-    <Pagina titulo={T.titulo} bajada={grupo ? T.bajada(grupo.nombre) : undefined}>
-      <div className="max-w-5xl">
-        <AvisoDeLlegada key={llegada} />
+    <Pagina titulo={T.titulo} bajada={grupo ? M.bajada(grupo.nombre) : undefined}>
+      <div className="flex max-w-5xl flex-col gap-10">
+        <div>
+          <AvisoDeLlegada key={llegada} />
+          <QuienesForman datos={miembros} pilas={pilas} />
+        </div>
         {cuerpo}
+        <SalirDelGrupo datos={miembros} pilas={pilas} />
       </div>
       {borrando && (
         <DialogoBorrar
@@ -423,6 +436,12 @@ function Bloque({
         </Nota>
       )}
       <EstadoBloque v={v} editor={editor} />
+      {/* MATU-53 5.6 (D-42-9): quien autorizó ya no está en el grupo. Solo admin y cuidador, sin renovar (MATU-69). */}
+      {editor && v.autorizo_alguien_que_ya_no_esta === true && (
+        <Nota tono="rocio" icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+          {M.autorizoQuienYaNoEsta}
+        </Nota>
+      )}
       {editor && autorizada(v) && (
         <Boton id={`retirar-${clave}`} variante="peligro" className="self-start" aria-label={ficha ? T.retirarFichaDe(pila) : pedidos ? P.retirarDe(pila) : T.retirarInsumosDe(pila)} onClick={onRetirar}>
           {T.retirar}

@@ -10,7 +10,9 @@ import {
   type Finalidad,
   type Grupo,
   type PersonaListada,
+  type PresentacionInvitacion,
   type Rol,
+  type VerificacionInvitacion,
 } from '../compartido/api/familia'
 import { verCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
@@ -59,6 +61,20 @@ export interface BorradorPersona {
 }
 export const BORRADOR_VACIO: BorradorPersona = { nombre: '', pila: '', apoyo: null }
 
+/**
+ * MATU-53 (2.1): la invitación que se está abriendo en `/invitacion`. El token sale del fragmento y el
+ * código de lo que se escribió; los dos viven solo aquí, en memoria, mientras la persona crea su cuenta
+ * o entra (que son navegaciones de la misma app, sin recargar). Nunca van al almacenamiento del
+ * navegador, a `history.state`, al `<title>` ni a la URL.
+ */
+export interface InvitacionEnMemoria {
+  token: string
+  presentacion: PresentacionInvitacion | null
+  /** El código, después de verificarlo (4.3). La aceptación lo vuelve a mandar. */
+  codigo: string | null
+  verificacion: VerificacionInvitacion | null
+}
+
 interface Estado {
   fase: Fase
   grupos: Grupo[]
@@ -105,6 +121,8 @@ interface Estado {
   llegadaPedido: LlegadaPedido | null
   /** MATU-61 (12.1): «Ver la dirección de entrega» de Grupo familiar; la dirección vuelve allá. */
   direccionDesdeGrupo: boolean
+  /** MATU-53 (2.1): la invitación que se está abriendo. */
+  invitacion: InvitacionEnMemoria | null
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -156,6 +174,7 @@ const INICIAL: Estado = {
   intencionPedido: null,
   llegadaPedido: null,
   direccionDesdeGrupo: false,
+  invitacion: null,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {
@@ -206,7 +225,9 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
 
   const olvidar = useCallback((aviso: AvisoEntrar, textoPerdido: string | null = null) => {
     fijarGrupo(null)
-    setS((x) => ({ ...INICIAL, fase: 'fuera', avisoEntrar: aviso, destino: x.destino, textoPerdido }))
+    // MATU-53 (2.1): si la entrada vence a mitad de una invitación, la invitación sigue en memoria. Al
+    // salir a propósito (o desde otra pestaña) se olvida: el teléfono puede ser de otra persona.
+    setS((x) => ({ ...INICIAL, fase: 'fuera', avisoEntrar: aviso, destino: x.destino, textoPerdido, invitacion: aviso === 'vencida' ? x.invitacion : null }))
   }, [])
 
   const salir = useCallback(async () => {
