@@ -277,7 +277,6 @@ function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
             maxLength={60}
             autoComplete="off"
             ayuda={T.nombreAyuda}
-            ayudaGrande
             error={errores.nombre}
             onChange={(e) => {
               setNombre(e.target.value)
@@ -292,7 +291,6 @@ function Formulario({ personaId, pila }: { personaId: string; pila: string }) {
             value={telefono}
             autoComplete="off"
             ayuda={T.telefonoAyuda}
-            ayudaGrande
             error={errores.telefono}
             onChange={(e) => setTelefono(e.target.value)}
           />

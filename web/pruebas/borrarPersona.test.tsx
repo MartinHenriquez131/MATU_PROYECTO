@@ -90,6 +90,7 @@ const vista = (finalidad: 'plan_cuidado' | 'consumo', estado: AutorizacionVista[
   revocado_en: null,
   borrado_en: null,
   borrada: false,
+  se_puede_otorgar: true,
   ...extra,
 })
 const VIGENTES = [vista('plan_cuidado', 'vigente'), vista('consumo', 'vigente')]

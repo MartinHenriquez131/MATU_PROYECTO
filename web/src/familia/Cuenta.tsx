@@ -399,7 +399,7 @@ export function ConfirmarCelular() {
               <Boton variante="texto" className="justify-start! text-left" disabled={reenvioEn || esperando || ocupado} onClick={() => void enviarCodigo()}>
                 {CELULAR.otro}
               </Boton>
-              {reenvioEn && <p className="text-sm text-tenue">{CELULAR.enUnMinuto}</p>}
+              {reenvioEn && <p className="text-base text-tenue">{CELULAR.enUnMinuto}</p>}
               {ahoraNo}
             </div>
           </>

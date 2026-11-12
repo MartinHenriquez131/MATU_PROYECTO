@@ -91,6 +91,7 @@ const vista = (finalidad: 'plan_cuidado' | 'consumo', estado: AutorizacionVista[
   revocado_en: null,
   borrado_en: null,
   borrada: false,
+  se_puede_otorgar: true,
   ...extra,
 })
 const RETIRADA = { revocado_en: '2026-11-06T15:00:00Z', borrado_en: '2027-02-04T15:00:00Z' }

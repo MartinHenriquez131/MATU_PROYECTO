@@ -49,7 +49,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 pytestmark = pytest.mark.rf("RF-25")
 
 AHORA = datetime(2026, 11, 12, 14, 2, 11, tzinfo=UTC)
-VIDA = timedelta(minutes=10)
+VIDA = timedelta(minutes=8)  # VIDA_VENTA_WEBPAY_MINUTOS por omisión (MATU-94)
 VIGENTES = Aceptacion("0.2", "a" * 64)
 RETURN_URL = "https://localhost/insumos/pedido/pago"
 TOTAL = 57460

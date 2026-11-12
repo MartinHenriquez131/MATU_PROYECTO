@@ -126,7 +126,7 @@ export function BotonDictar({ d, deshabilitado }: { d: ReturnType<typeof useDict
           </>
         )}
       </button>
-      <p role="status" className="text-sm text-tenue">
+      <p role="status" className="text-base text-tenue">
         {d.fallo && !d.escuchando ? FICHA.sinMicrofono : ''}
       </p>
     </div>

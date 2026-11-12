@@ -13,6 +13,7 @@ Sin I/O y sin reloj del sistema: el instante llega como argumento (puerto Reloj)
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -36,6 +37,33 @@ def finalidades_retirables(capa3: bool) -> tuple[str, ...]:
     """Las finalidades activas, en el orden de la vista: con la capa 3, también despacho (tres ítems); sin ella,
     las dos de siempre (C2)."""
     return FINALIDADES_RETIRABLES + FINALIDADES_CAPA_3 if capa3 else FINALIDADES_RETIRABLES
+
+
+def finalidades_que_se_retiran(activas: tuple[str, ...], con_efecto: Iterable[str]) -> tuple[str, ...]:
+    """Las que se retiran y se borran (MATU-94, decisión 250): las activas y, aunque la capa 3 esté apagada, despacho
+    si su efecto está registrado. Retirar o borrar cancela los pedidos sin pagar y borra su entrega (política, §4 y
+    §10): es una protección de datos, no una función de la capa 3. Sin el efecto (la capa 3 quitada), lo de siempre."""
+    registradas = frozenset(con_efecto)
+    return activas + tuple(f for f in FINALIDADES_CAPA_3 if f not in activas and f in registradas)
+
+
+def candidatas_de_la_vista(activas: tuple[str, ...], retirables: tuple[str, ...]) -> tuple[str, ...]:
+    """Las finalidades que puede traer la vista, en su orden: las activas y, después, las que se retiran sin estar
+    activas (despacho con la capa 3 apagada, decisión 251). Cuáles se muestran lo decide se_muestra_en_la_vista."""
+    return activas + tuple(f for f in retirables if f not in activas)
+
+
+def se_muestra_en_la_vista(finalidad: str, activas: tuple[str, ...], hay_registro: bool) -> bool:
+    """MATU-94 (decisión 251): una activa se muestra siempre, también sin autorizar. Una que no está activa (despacho
+    con la capa 3 apagada) se muestra solo si la persona tiene un registro de ella, vigente o retirado: retirarla
+    tiene que ser igual de fácil que darla. Si nunca se autorizó, la vista sigue con las activas (decisión 217)."""
+    return finalidad in activas or hay_registro
+
+
+def se_puede_otorgar(finalidad: str, activas: tuple[str, ...]) -> bool:
+    """Solo las activas se otorgan (decisión 217): despacho con la capa 3 apagada responde 422 al otorgar, y la
+    pantalla no ofrece «Volver a autorizar» (decisión 251)."""
+    return finalidad in activas
 
 ROLES_QUE_RETIRAN = frozenset({"admin", "cuidador"})
 
@@ -145,6 +173,8 @@ class EstadoDeAutorizacion:
     autorizacion: AutorizacionRegistrada | None
     borrado_en: datetime | None
     borrada: bool
+    # MATU-94 (decisión 251): False si la finalidad no se otorga ahora (despacho con la capa 3 apagada)
+    se_puede_otorgar: bool = True
 
 
 def estado_de(

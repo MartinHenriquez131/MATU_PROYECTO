@@ -567,7 +567,6 @@ function DialogoRol({
         onCambio={(v) => {
           if (!enCurso.current) setElegido(v)
         }}
-        detalleGrande
         describirOpciones
         opciones={ROLES.map((r) => ({
           valor: r,

@@ -22,6 +22,18 @@ if TYPE_CHECKING:
 os.environ["ENTORNO"] = "pruebas"
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """MATU-94: antes de recolectar, toda conexión de la suite apunta a una base de pruebas (tests/proteccion_base.py).
+    Primero se carga el .env, como lo harán tests/base_datos.py y la configuración; si algo apunta a otra base, pytest
+    termina sin correr nada y sin mostrar la cadena de conexión."""
+    import tests.base_datos  # noqa: F401 - carga el .env en os.environ
+    from tests.proteccion_base import exigir_bases_de_prueba
+
+    rechazo = exigir_bases_de_prueba()
+    if rechazo is not None:
+        raise pytest.UsageError(rechazo)
+
+
 @pytest.fixture
 def reloj_fijo() -> RelojFijo:
     """Un reloj detenido en un instante sintético. La prueba lo hace avanzar con avanzar()."""

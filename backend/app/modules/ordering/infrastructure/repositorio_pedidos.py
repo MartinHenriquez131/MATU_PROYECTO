@@ -164,7 +164,7 @@ _PAGO_EN_CURSO = text(
     " AND (t.estado = 'autorizando' OR (t.estado = 'iniciada' AND t.creado_en > :desde)))"
 )
 # Vida de una venta iniciada por omisión: la de app/core/config.py (VIDA_VENTA_WEBPAY_MINUTOS)
-VIDA_VENTA_POR_OMISION = timedelta(minutes=10)
+VIDA_VENTA_POR_OMISION = timedelta(minutes=8)
 
 
 def _comercio(id_: uuid.UUID, nombre: str, ficticio: bool) -> Comercio:

@@ -38,6 +38,7 @@ const vigente = (finalidad: 'plan_cuidado' | 'consumo', extra: Partial<Autorizac
   revocado_en: null,
   borrado_en: null,
   borrada: false,
+  se_puede_otorgar: true,
   ...extra,
 })
 

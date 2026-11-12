@@ -71,7 +71,7 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `PROXY_SALTOS` | Vacía al principio (0). `1` en Railway, en el paso 5 |
 | `DIAGNOSTICO_PROXY` | **No se carga**, salvo durante la verificación del paso 5: `true` y después se borra |
 | `PASARELA_PAGO` | MATU-62: `integracion` en staging. Webpay Plus en el ambiente de integración de Transbank, con el código de comercio y la llave públicas que trae su SDK: no se cargan. Sin la variable, pagar responde 503 y no se cobra nada. `falsa` no carga fuera de local y pruebas |
-| `VIDA_VENTA_WEBPAY_MINUTOS` | MATU-62: opcional, `10` por omisión (decisión 230). Cuánto dura un pago en curso con la venta iniciada |
+| `VIDA_VENTA_WEBPAY_MINUTOS` | MATU-62: opcional, `8` por omisión (decisión 230; MATU-94: la venta de integración vence a los 7 minutos). Cuánto dura un pago en curso con la venta iniciada. Va en `matu-api` y en los cron |
 
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
 `ADMIN_DATABASE_URL` (solo se usa en tu computador, en el paso 3), `WEB_DIST` y `PORT` (los fijan la

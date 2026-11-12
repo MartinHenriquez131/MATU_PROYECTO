@@ -10,7 +10,8 @@ Qué protege cada prueba:
 1. Arranque: con la capa 3 bloqueada, app.main se importa, crea la API y no carga nada de la capa 3.
 2. Contrato: el OpenAPI trae la ficha, el relevo, el consumo, las alertas y la lista, y ninguna ruta del despacho.
 3. Respuestas: las rutas de las capas 1 y 2 llegan a su código (401, 422), no a un 404 de ruteo ni a un 500.
-4. Interruptor: CAPA3_HABILITADA monta ROUTERS_CAPA_3, y apagado ni siquiera los importa.
+4. Interruptor: CAPA3_HABILITADA monta ROUTERS_CAPA_3, y apagado ni siquiera los importa. El efecto de despacho
+   (EFECTOS_CAPA_3) se registra siempre, también apagado, sin montar rutas; quitado, se omite (MATU-94, decisión 250).
 5. Importaciones: nada de lo que app.main carga, siguiendo sus importaciones, llega a la capa 3.
    Complementa a test_arquitectura.py, que revisa cada importación suelta pero exime a main.py y a
    backoffice: aquí se sigue la cadena completa desde el punto de entrada.
@@ -291,6 +292,72 @@ def test_capa_3_apagada_por_omision(configuracion_sin_env: None) -> None:
     from app.core.config import obtener_configuracion
 
     assert obtener_configuracion().capa3_habilitada is False
+
+
+def _sin_efecto_de_despacho(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Olvida el efecto de despacho que otra prueba del proceso ya registró: el registro es del proceso."""
+    from app.modules.care_circle.infrastructure import efectos_retiro
+
+    monkeypatch.delitem(efectos_retiro._FABRICAS, "despacho", raising=False)
+
+
+@pytest.mark.rf("RF-21")
+def test_capa_3_apagada_registra_el_efecto_de_despacho_sin_montar_rutas(capa3: pytest.MonkeyPatch) -> None:
+    """MATU-94 (decisión 250): retirar despacho y borrar a la persona cancelan los pedidos sin pagar también con la
+    capa 3 apagada. Falla sin la corrección: antes, el efecto se registraba solo dentro de incluir_capa_3."""
+    from app.main import crear_app
+    from app.modules.care_circle.infrastructure.efectos_retiro import _FABRICAS, finalidades_registradas
+    from app.modules.ordering.infrastructure.efecto_retiro import EfectoRetiroPedidos
+
+    _sin_efecto_de_despacho(capa3)
+    capa3.setenv("CAPA3_HABILITADA", "false")
+
+    app = crear_app(stream_logs=io.StringIO())
+
+    assert "despacho" in finalidades_registradas()
+    assert _FABRICAS["despacho"] is EfectoRetiroPedidos
+    # Ninguna ruta de pedidos por esto: ni las del despacho ni el router de ROUTERS_CAPA_3. La única de la capa 3 que
+    # queda es la vuelta del pago, que MATU-62 monta siempre (ROUTERS_PAGO_SIEMPRE, decisión 241), no el efecto
+    rutas = sorted(app.openapi()["paths"])
+    assert [r for r in rutas if r.startswith(PREFIJOS_CAPA_3)] == ["/v1/pagos/retorno"]
+    assert TestClient(app, raise_server_exceptions=False).get("/v1/pedidos-de-prueba").status_code == 404
+
+
+@pytest.mark.rf("RF-21")
+def test_el_efecto_de_un_paquete_quitado_se_omite_solo_con_la_capa_apagada(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+    from app.modules.care_circle.infrastructure.efectos_retiro import finalidades_registradas
+
+    _sin_efecto_de_despacho(monkeypatch)
+    monkeypatch.setattr(main, "EFECTOS_CAPA_3", (("despacho", "app.modules.ordering.no_existe_matu94:Efecto"),))
+
+    # Apagada y quitada (ADR-002): la API arranca sin el efecto, como en la decisión 217
+    main.registrar_efectos_capa_3(False)
+    assert "despacho" not in finalidades_registradas()
+
+    # Encendida, el efecto es obligatorio: no arranca
+    with pytest.raises(ModuleNotFoundError):
+        main.registrar_efectos_capa_3(True)
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize(
+    ("faltante", "omitir"),
+    [
+        ("app.modules.ordering", True),
+        ("app.modules.ordering.infrastructure.efecto_retiro", True),
+        # Lo que falta es otra cosa: un defecto, no la capa 3 quitada. No se esconde
+        ("app.modules.ordering.infra", False),
+        ("sqlalchemy_no_existe", False),
+        (None, False),
+    ],
+)
+def test_solo_se_omite_si_falta_el_paquete_del_efecto(faltante: str | None, omitir: bool) -> None:
+    from app.main import _falta_el_paquete
+
+    error = ModuleNotFoundError("falta", name=faltante)
+
+    assert _falta_el_paquete(error, "app.modules.ordering.infrastructure.efecto_retiro") is omitir
 
 
 def test_routers_capa_3_solo_trae_la_capa_3() -> None:
