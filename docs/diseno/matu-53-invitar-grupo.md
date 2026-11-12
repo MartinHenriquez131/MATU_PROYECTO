@@ -1,6 +1,6 @@
 # MATU-53 · App de familia: invitar a un familiar y ver el grupo · Especificación de diseño
 
-**Versión 1.2 · 12 de noviembre de 2026** (los seis vacíos que encontró el frontend, decididos tras la revisión visual: sección 0.5) · v1.1: decisiones del orquestador, por delegación de Jorge (0.4) · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
+**Versión 1.3 · 12 de noviembre de 2026** (el cierre del analista, O4: las invitaciones que se anulan al dejar de administrar y lo que se pide por correo al salir; sección 0.6) · v1.2: los seis vacíos que encontró el frontend (0.5) · v1.1: decisiones del orquestador, por delegación de Jorge (0.4) · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
 
 **Fuentes, en este orden:**
 - `Demo/DISENO.md`, con la regla de MATU-93 («ningún texto bajo 17 px», PR MATU_PROYECTO #87, todavía no en esta rama: ver 0.2).
@@ -96,6 +96,22 @@ El frontend los llenó con textos **[PROVISIONAL]** mientras se decidían. Queda
 | 4 | «Cuéntale» con varias personas | Se acepta el plural: «Si María y Pedro pueden comprenderlo, cuéntales que invitaste a otra persona.» | 3.2 |
 | 5 | El nombre de pila propio en la vista previa | Se acepta la primera palabra del nombre, **porque es la misma regla del backend** (`nombre_pila()` en `care_circle/domain/invitaciones.py`): la vista previa dice exactamente lo que verá la persona. Si la regla cambia en el backend, cambia aquí | 3.2 |
 | 6 | El cambio del rol propio («Ahora Carmen Soto cuida.») | En la fila propia, en segunda persona: «Ahora cuidas.», «Ahora pagas.», «Ahora te informas.» | 6.4 |
+
+### 0.6 El cierre del analista, O4 (12-11, v1.3)
+
+**Las invitaciones de quien deja de administrar.** Cuando alguien deja de administrar (le cambian el rol, lo sacan siendo admin o sale siendo admin), el backend anula sus invitaciones sin usar (decisión 322). La API no dice cuántas, así que el texto es **genérico y condicional**: es cierto también si no creó ninguna, y la pantalla no tiene que contar nada.
+
+| Quién deja de administrar | Texto **[NUEVO v1.3]** |
+|---|---|
+| Otra persona | «Si creó invitaciones que nadie ha usado, se anulan.» |
+| Yo | «Si creaste invitaciones que nadie ha usado, se anulan.» |
+
+- **Sin negrita.** En estos diálogos la negrita marca lo que corta ahora el acceso de otra persona (los enlaces de relevo). Una invitación sin usar todavía no le da nada a nadie, y quien administra puede crear otra.
+- **Siempre después de lo que cambia y antes de «Para volver…»**, nunca sola: acompaña a lo que pasa con el rol.
+- **Después de guardar, sacar o salir**, la lista de «Invitaciones sin usar» se vuelve a pedir, para que las anuladas desaparezcan. La nota de hecho no las nombra: sin número, «Anulamos sus invitaciones» podría ser falso.
+- Dónde va en cada diálogo: 6.3, 7.1 y 7.2.
+
+**Lo que se pide por correo al salir: entra**, como párrafo bajo la lista del diálogo de salir, para todos los roles (7.2). Quien sale pierde el acceso a lo que hizo en el grupo y, si pagó, a sus comprobantes, que puede necesitar después (es un derecho de la política, sección 10, y le sirve como consumidor). Va en el diálogo y no en la sección de la página, porque es el momento en que se decide. Es una sola oración, en `text-base text-tenue`, sin negrita: es información, no una advertencia.
 
 ---
 
@@ -765,9 +781,10 @@ En pantalla ancha, el mismo diálogo centrado, con los dos botones en una fila.
 |---|---|---|
 | Sigue con el mismo rol | Ninguna | «Guardar el cambio» `aria-disabled`, con la frase «Elige otro rol para guardar.» **[NUEVO]** al lado |
 | Pasa a «Administra el grupo» | `atenta`: «`{nombre}` podrá invitar, cambiar permisos y sacar a otras personas, también a ti.» **[ANALISTA, con el nombre]** | «Guardar el cambio» **[ANALISTA]**, principal |
-| Pierde la ficha (de admin o cuidador a pagador u observador, o de pagador con permiso a observador) | `atenta`: «`{nombre}` dejará de ver la ficha. Se cortan `{n}` enlaces de relevo que compartió.» **[ANALISTA]**. Con 1: «Se corta 1 enlace de relevo que compartió.» Con 0: solo «`{nombre}` dejará de ver la ficha.» **[NUEVO, las formas de n]** | «Guardar el cambio», `peligroPrincipal`: quita algo |
+| Pierde la ficha (de admin o cuidador a pagador u observador, o de pagador con permiso a observador) | `atenta`: «`{nombre}` dejará de ver la ficha. Se cortan `{n}` enlaces de relevo que compartió.» **[ANALISTA]**. Con 1: «Se corta 1 enlace de relevo que compartió.» Con 0: solo «`{nombre}` dejará de ver la ficha.» **[NUEVO, las formas de n]**. **Si era admin (v1.3)**, la nota termina con «Si creó invitaciones que nadie ha usado, se anulan.» | «Guardar el cambio», `peligroPrincipal`: quita algo |
 | Pasa a «Paga» desde admin o cuidador | Además: «Como paga, no verá la ficha hasta que le des permiso.» **[NUEVO]** | Igual que arriba |
-| Mi propia fila, dejo de administrar | `atenta`: «Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo.» **[NUEVO]** | `peligroPrincipal` |
+| Otra persona deja de administrar y sigue viendo la ficha (de admin a cuida) · v1.3 | `atenta`: «`{nombre}` dejará de administrar el grupo. Si creó invitaciones que nadie ha usado, se anulan.» **[NUEVO v1.3]** | `peligroPrincipal`: quita algo |
+| Mi propia fila, dejo de administrar | `atenta`: «Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo. Si creaste invitaciones que nadie ha usado, se anulan.» **[NUEVO; la última oración, v1.3]**. Si además pierdo la ficha, la frase de los enlaces va antes que la de las invitaciones | `peligroPrincipal` |
 | Cualquier otro | Ninguna | principal |
 
 - La descripción de «Paga» sin capa 3: «Ve los insumos. Ve la ficha solo si quien administra le da permiso.» **[NUEVO, ajuste de Jorge]**. Con capa 3, la del analista.
@@ -837,7 +854,8 @@ Error sin red, en los dos: «No pudimos guardar el cambio. Todo sigue como estab
 
 - h2: «¿Sacar a `{nombre}` del grupo?» **[ANALISTA]**.
 - Puntos: «Dejará de verlo ahora.» · «Se cortan `{n}` enlaces de relevo que compartió.» · «Lo que escribió en la ficha queda.» **[ANALISTA, partido en puntos]**. Las formas de n de 6.3. Con 0 enlaces, el punto dice «No tiene enlaces de relevo que abran ahora.» **[NUEVO]**.
-- Cuarto punto: «Para volver, tendrías que invitar a `{nombre}` de nuevo.» **[NUEVO]**. Sin pronombre, porque MATU no guarda el género (A3 de MATU-72).
+- **Solo si administra (v1.3)**, un punto más, después de «Lo que escribió en la ficha queda.» y sin negrita: «Si creó invitaciones que nadie ha usado, se anulan.» **[NUEVO v1.3]**.
+- Último punto: «Para volver, tendrías que invitar a `{nombre}` de nuevo.» **[NUEVO]**. Sin pronombre, porque MATU no guarda el género (A3 de MATU-72).
 - Botones: «Sacar del grupo» · «No sacar» **[ANALISTA]**. Sacando: «Sacando del grupo…» **[NUEVO]**.
 - Hecho, `Nota tono="ok"` arriba de la lista, con el foco: «`{nombre}` ya no está en el grupo.» **[ANALISTA]**, más «Cortamos `{n}` enlaces.» si hubo **[NUEVO]**.
 - Sin red: «No pudimos sacar a `{nombre}` del grupo. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.» **[NUEVO]**. 404: 5.9.
@@ -862,9 +880,16 @@ La sección va al final de `/grupo`, después de las personas cuidadas, separada
 │ • Lo que escribiste en la ficha    │
 │   queda, porque es parte del       │
 │   cuidado de María.                │
+│ • Si creaste invitaciones que      │  solo si administras (v1.3),
+│   nadie ha usado, se anulan.       │  sin negrita
 │ • Para volver, alguien que         │
 │   administra el grupo tiene que    │
 │   invitarte de nuevo.              │
+│                                    │
+│ Si después necesitas lo que hiciste│  text-base text-tenue
+│ en el grupo o los comprobantes de  │  break-words (v1.3)
+│ tus pagos, pídelos a               │
+│ cuidaconmatu@gmail.com.            │
 │                                    │
 │ [ Salir del grupo ]                │  peligroPrincipal
 │ Quedarme                           │  texto
@@ -872,7 +897,11 @@ La sección va al final de `/grupo`, después de las personas cuidadas, separada
 ```
 
 - h2: «¿Salir de `{grupo}`?» **[ANALISTA]**.
-- Puntos: «Dejarás de verlo ahora.» · «Se cortan los enlaces de relevo que compartiste.» **[ANALISTA, partido]**, seguido de «Hoy abren `{n}`.» **[L 22, `hoyAbren`]**, con los enlaces vigentes propios de la lista. · «Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`.» **[NUEVO, de la política §4]** · «Para volver, alguien que administra el grupo tiene que invitarte de nuevo.» **[NUEVO]**.
+- Puntos: «Dejarás de verlo ahora.» · «Se cortan los enlaces de relevo que compartiste.» **[ANALISTA, partido]**, seguido de «Hoy abren `{n}`.» **[L 22, `hoyAbren`]**, con los enlaces vigentes propios de la lista. · «Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`.» **[NUEVO, de la política §4]** · **solo si administras (v1.3)**, sin negrita: «Si creaste invitaciones que nadie ha usado, se anulan.» **[NUEVO v1.3]** · «Para volver, alguien que administra el grupo tiene que invitarte de nuevo.» **[NUEVO]**.
+- **Bajo la lista (v1.3)**, un párrafo `text-base text-tenue break-words`, para todos los roles:
+  - Con la capa 3 encendida: «Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a cuidaconmatu@gmail.com.» **[NUEVO v1.3]**
+  - Sin la capa 3: «Si después necesitas lo que hiciste en el grupo, pídelo a cuidaconmatu@gmail.com.» **[NUEVO v1.3]**
+  - El correo es el de la política, sección 10. Sale de una sola constante, compartida con la página del relevo (hoy está escrito dentro de un texto en `relevo/textos.ts`): si cambia, cambia en un solo lugar. Va como texto, **sin enlace `mailto:`**: dentro del diálogo, abrir la aplicación de correo saca a la persona de una decisión a medio tomar. Se puede seleccionar y copiar.
 - Botones: «Salir del grupo» · «Quedarme» **[ANALISTA]**. Saliendo: «Saliendo del grupo…» **[NUEVO]**.
 - **Después:** la app vuelve a pedir los grupos. Si queda otro, lleva a su inicio. Si no queda ninguno, a `/empezar/grupo`. En los dos casos, el aviso de llegada `tono="ok"`: «Saliste de `{grupo}`.» **[NUEVO]**, más «Cortamos `{n}` enlaces.» si hubo.
 - Sin red: «No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo.» **[NUEVO]**. 409 último admin: 7.3.
@@ -948,6 +977,8 @@ Nada escrito a mano: ni colores, ni sombras, ni tamaños fuera de la escala, ni 
 18. Una invitación bloqueada se distingue de una pendiente sin mirar el color: dice «se bloqueó» y lleva `Lock` (v1.2).
 19. Después de anular, con éxito o con 409, el foco está en una nota, nunca en el `body` (v1.2).
 20. La nota del cambio del rol propio está en segunda persona y no lleva el nombre propio (v1.2).
+21. Cada vez que alguien deja de administrar (cambio de rol, sacar a un admin, salir siendo admin), su diálogo dice, sin negrita, que se anulan las invitaciones que nadie ha usado. Si la persona no administra, la frase no aparece (v1.3).
+22. El diálogo de salir dice a qué correo pedir lo hecho en el grupo, sin enlace y sin negrita (v1.3).
 
 ---
 
@@ -982,6 +1013,8 @@ Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEV
 | Sin persona (v1.2) | la persona que cuidan (en «Se informa», en la confidencialidad de confirmar y al dar la ficha) |
 | Varias personas (v1.2) | Si `{nombres_pila}` pueden comprenderlo, cuéntales que invitaste a otra persona. |
 | Mi propio rol (v1.2) | Ahora cuidas. · Ahora pagas. · Ahora te informas. |
+| Dejar de administrar (v1.3) | Si creó invitaciones que nadie ha usado, se anulan. · Si creaste invitaciones que nadie ha usado, se anulan. · `{nombre}` dejará de administrar el grupo. |
+| Salir, lo que se pide por correo (v1.3) | Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a `{correo}`. · Si después necesitas lo que hiciste en el grupo, pídelo a `{correo}`. |
 | Salir | Dejarás de ver `{grupo}` y se cortan los enlaces de relevo que compartiste. · Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`. · Para volver, alguien que administra el grupo tiene que invitarte de nuevo. · Saliendo del grupo… · Saliste de `{grupo}`. · No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo. · Eres la única persona que administra `{grupo}`. Para salir, primero da ese rol a otra persona. · Eres la única persona de `{grupo}`, así que no puedes salir. Si ya no usan MATU para cuidar a `{nombres_pila}`, puedes borrar sus datos en «Borrar sus datos», más arriba. |
 
 **Ajustes a textos del analista:** «Con tu rol podrás: `{descripción}`.» pasa a «Tu rol: `{rol}`. `{descripción}`» (0.2). «Ese código no es. Te quedan `{n}` intentos.» suma «Después, la invitación se bloquea.» (4.3). El aviso D-42-9 va sin el nombre y sin «renuévala» (5.6, aprobado). «Código: `{codigo}`.» sale del texto, porque los dígitos ya están a la vista (3.4).
