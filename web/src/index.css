@@ -179,6 +179,8 @@
  *             achica lo que va en tamaño de título. Nunca se activa a 320 px sin zoom.
  *   telefono  la pantalla mide menos de 40 rem y la app no está en modo angosto. La usará la
  *             barra de secciones de la familia. La página del relevo no la necesita.
+ *   estrecho  la barra inferior del teléfono no deja 17 px a «Compartir»: app entre 16 y 21 rem
+ *             (320 a 356 px con el texto normal). Solo la usa el rótulo de la barra (MATU-107).
  */
 @custom-variant angosto {
   @container app (width < 16rem) {
@@ -188,6 +190,13 @@
 @custom-variant telefono {
   @media (width < 40rem) {
     @container app (width >= 16rem) {
+      @slot;
+    }
+  }
+}
+@custom-variant estrecho {
+  @media (width < 40rem) {
+    @container app (16rem <= width < 21rem) {
       @slot;
     }
   }
