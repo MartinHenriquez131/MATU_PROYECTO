@@ -316,9 +316,10 @@ def test_capa_3_apagada_registra_el_efecto_de_despacho_sin_montar_rutas(capa3: p
 
     assert "despacho" in finalidades_registradas()
     assert _FABRICAS["despacho"] is EfectoRetiroPedidos
-    # Ninguna ruta de pedidos por esto: ni las del despacho ni el router de ROUTERS_CAPA_3
+    # Ninguna ruta de pedidos por esto: ni las del despacho ni el router de ROUTERS_CAPA_3. La única de la capa 3 que
+    # queda es la vuelta del pago, que MATU-62 monta siempre (ROUTERS_PAGO_SIEMPRE, decisión 241), no el efecto
     rutas = sorted(app.openapi()["paths"])
-    assert [r for r in rutas if r.startswith(PREFIJOS_CAPA_3)] == []
+    assert [r for r in rutas if r.startswith(PREFIJOS_CAPA_3)] == ["/v1/pagos/retorno"]
     assert TestClient(app, raise_server_exceptions=False).get("/v1/pedidos-de-prueba").status_code == 404
 
 
