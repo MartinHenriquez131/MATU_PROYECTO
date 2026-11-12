@@ -1212,3 +1212,101 @@ def test_0025_auditoria_de_la_cuenta_y_baja_al_esquema_de_0024(base_desechable):
         c.execute("SET session_replication_role = replica")
         c.execute("DELETE FROM auditoria WHERE grupo_id IS NULL AND accion = 'plan.leer'")
     alembic("upgrade", "head")
+
+
+# MATU-42 (0026): invitaciones, membresías y el grupo que nunca queda sin admin. Filas como superusuario
+G26, U26A, U26B, U26C = ("00000000-0000-0000-0000-0000000026" + s for s in ("0a", "a1", "a2", "a3"))
+FILAS_0025_GRUPO = f"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES
+ ('{U26A}', 'a26@correo.ejemplo', 'Persona A', 'h'), ('{U26B}', 'b26@correo.ejemplo', 'Persona B', 'h'),
+ ('{U26C}', 'c26@correo.ejemplo', 'Persona C', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G26}', 'Familia A', '{U26A}');
+INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES ('{G26}', '{U26A}', 'admin'), ('{G26}', '{U26B}', 'cuidador');
+"""
+FUNCIONES_0026 = {
+    "invitacion_presentar": "matu_app",
+    "invitacion_verificar": "matu_app",
+    "invitacion_aceptar": "matu_app",
+    "membresia_retirar": "matu_app",
+    "invitacion_conservar": "matu_scheduler",
+}
+
+
+def _invitacion_0026(invitacion_id: str, token: str, cerrada_hace: str | None) -> str:
+    """Una invitación de la 0026 con su indice_token; cerrada_hace la deja anulada hace ese intervalo."""
+    revocada = "NULL" if cerrada_hace is None else f"now() - interval '{cerrada_hace}'"
+    creada = "now()" if cerrada_hace is None else f"now() - interval '{cerrada_hace}' - interval '1 day'"
+    return (
+        "INSERT INTO invitacion (id, grupo_id, rol, token_hash, codigo_hash, invitado_por, nombre_pila_invita,"
+        f" creada_en, expira_en, revocada_en) VALUES ('{invitacion_id}', '{G26}', 'cuidador', sha256('{token}'),"
+        f" sha256('c'), '{U26A}', 'Persona', {creada}, {creada} + interval '7 days', {revocada});"
+        "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en)"
+        f" VALUES (sha256('{token}'), 'invitacion', '{G26}', '{invitacion_id}', {creada} + interval '7 days');"
+    )
+
+
+@pytest.mark.rf("RF-38")
+def test_0026_invitaciones_y_miembros_y_baja_al_esquema_de_0025(base_desechable):
+    alembic("upgrade", "0025")
+    esquema_0025 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_0025_GRUPO)
+        # Una invitación del modelo anterior hace fallar la subida con un mensaje claro (ninguna ruta las creó)
+        c.execute(f"INSERT INTO invitacion (grupo_id, destino_email, rol, token_hash, invitado_por, expira_en) VALUES"
+                  f" ('{G26}', 'x@correo.ejemplo', 'cuidador', sha256('v'), '{U26A}', now() + interval '1 day')")
+    assert "la 0026 exige la tabla invitacion vacía" in _alembic_falla("upgrade", "0026")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("DELETE FROM invitacion")
+
+    alembic("upgrade", "0026")
+    # Ninguna política FOR ALL en membresia, invitacion ni direccion; en el grupo, solo la de operación
+    politicas = consultar("SELECT tablename, policyname, cmd FROM pg_policies WHERE tablename IN"
+                          " ('membresia', 'invitacion', 'direccion', 'grupo_familiar')")
+    assert {(t, p) for t, p, cmd in politicas if cmd == "ALL"} == {("grupo_familiar", "grupo_operacion")}
+    # Sin DELETE para la API, y UPDATE solo de las columnas que cambia
+    assert not {g for g in _tablas_de("matu_app") if g[0] in ("membresia", "invitacion", "grupo_familiar")
+                and g[1] in ("UPDATE", "DELETE")}
+    assert _columnas_con("membresia", "UPDATE") == {"rol", "puede_ver_plan", "version"}
+    assert _columnas_con("invitacion", "UPDATE") == {"revocada_en"}
+    assert _columnas_con("grupo_familiar", "UPDATE") == {"nombre", "actualizado_en"}
+    # Las funciones, solo para su rol
+    nombres = ", ".join(f"'{f}'" for f in FUNCIONES_0026)
+    acl = {n: set(a.strip("{}").split(",")) for n, a in consultar(
+        f"SELECT proname, proacl::text FROM pg_proc WHERE proname IN ({nombres})")}
+    for nombre, rol in FUNCIONES_0026.items():
+        assert f"{rol}=X/matu_owner" in acl[nombre], nombre
+        assert len(acl[nombre]) == 2 and not any(e.startswith("=") for e in acl[nombre]), (nombre, acl[nombre])
+    # La invitación ya no guarda contacto
+    columnas = {c for (c,) in consultar("SELECT column_name FROM information_schema.columns"
+                                        " WHERE table_name = 'invitacion'")}
+    assert not {"destino_email", "destino_telefono"} & columnas
+    assert {"nombre_pila_invita", "codigo_hash", "codigo_intentos_fallidos", "bloqueada_en"} <= columnas
+    # El grupo nunca queda sin admin, también para el superusuario
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE membresia SET rol = 'cuidador' WHERE usuario_id = '{U26A}'")
+    # La conservación: la anulada hace 31 días se va con su indice_token; la pendiente se queda
+    vieja, nueva = "00000000-0000-0000-0000-0000000026e1", "00000000-0000-0000-0000-0000000026e2"
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(_invitacion_0026(vieja, "t1", "31 days") + _invitacion_0026(nueva, "t2", None))
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("SET ROLE matu_scheduler")
+        c.execute("SELECT set_config('app.rol', 'operacion', false)")
+        assert c.execute("SELECT invitacion_conservar(now() - interval '30 days', now())").fetchone() == (1,)
+    assert consultar("SELECT id::text FROM invitacion") == [(nueva,)]
+    assert consultar("SELECT referencia_id::text FROM indice_token WHERE tipo = 'invitacion'") == [(nueva,)]
+    # Volver a invitar a quien salió: una fila nueva. Con ella, la bajada falla con un mensaje claro
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE membresia SET estado = 'retirada' WHERE usuario_id = '{U26B}'")
+        c.execute(f"INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES ('{G26}', '{U26B}', 'observador')")
+    assert "una cuenta tiene dos membresías en el mismo grupo" in _alembic_falla("downgrade", "0025")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"DELETE FROM membresia WHERE usuario_id = '{U26B}' AND estado = 'retirada'")
+        c.execute("DELETE FROM indice_token WHERE tipo = 'invitacion'")
+        c.execute("DELETE FROM invitacion")
+
+    alembic("downgrade", "0025")
+    despues = catalogo()
+    for parte, filas in esquema_0025.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM membresia") == [(2,)]
+    alembic("upgrade", "head")

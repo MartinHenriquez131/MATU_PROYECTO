@@ -111,5 +111,7 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-42: las invitaciones del grupo (su indice_token ya cayó arriba, por grupo_id)
+    "DELETE FROM invitacion WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM membresia WHERE grupo_id = ANY(%s::uuid[])",
 )

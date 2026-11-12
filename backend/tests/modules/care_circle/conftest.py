@@ -108,6 +108,9 @@ def entorno_grupo(entorno_iam: EntornoIam) -> Iterator[EntornoGrupo]:
                 (entorno.grupos, entorno_iam.creados),
             ).fetchall()
             ids = [fila[0] for fila in grupos]
+            # MATU-42: las invitaciones y su indice_token, antes del grupo y de las cuentas que las crearon
+            cx.execute("DELETE FROM indice_token WHERE tipo = 'invitacion' AND grupo_id = ANY(%s::uuid[])", (ids,))
+            cx.execute("DELETE FROM invitacion WHERE grupo_id = ANY(%s::uuid[])", (ids,))
             cx.execute("DELETE FROM membresia WHERE grupo_id = ANY(%s::uuid[])", (ids,))
             cx.execute("DELETE FROM grupo_familiar WHERE id = ANY(%s::uuid[])", (ids,))
 
