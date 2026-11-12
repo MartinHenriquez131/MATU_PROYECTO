@@ -394,6 +394,7 @@ export const TITULOS: Record<string, string> = {
   '/entrar/recuperar/codigo': RECUPERAR.tituloCodigo,
   '/cuenta': CUENTA_PROPIA.titulo,
   '/cuenta/celular': CELULAR.titulo,
+  '/cuenta/donde-entraste': 'Dónde entraste', // [lenguaje 13.3] MATU-55
   '/empezar/grupo': GRUPO.titulo,
   '/empezar/persona': PERSONA.titulo,
   '/empezar/autorizacion': AUTORIZACION.titulo,

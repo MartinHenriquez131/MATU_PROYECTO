@@ -10,6 +10,7 @@ export type Ruta =
   | '/entrar/recuperar/codigo'
   | '/cuenta'
   | '/cuenta/celular'
+  | '/cuenta/donde-entraste'
   | '/empezar/grupo'
   | '/empezar/persona'
   | '/empezar/autorizacion'
@@ -49,6 +50,7 @@ export const RUTAS: readonly Ruta[] = [
   '/entrar/recuperar/codigo',
   '/cuenta',
   '/cuenta/celular',
+  '/cuenta/donde-entraste',
   '/empezar/grupo',
   '/empezar/persona',
   '/empezar/autorizacion',
