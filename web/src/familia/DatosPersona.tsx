@@ -266,7 +266,7 @@ function Autorizaciones({ lista, pila, correo }: { lista: AutorizacionCopia[]; p
         ]
         return (
           <li key={`${a.finalidad}-${a.otorgada_en}-${i}`} className={`flex min-w-0 flex-col gap-2 rounded-xl px-4 angosto:px-2 py-4 ${forma}`}>
-            <h3 className="text-lg font-bold break-words hyphens-auto">{T.finalidad[a.finalidad] ?? ''}</h3>
+            <h3 className="text-lg font-bold break-words">{T.finalidad[a.finalidad] ?? ''}</h3>
             {T.estadoAutorizacion[a.estado] && (
               <Etiqueta className="self-start" tono={TONO_AUTORIZACION[a.estado]}>
                 <Icono aria-hidden className="size-4 shrink-0" />
@@ -359,7 +359,7 @@ function SuFicha({ ficha, pila }: { ficha: FichaCopia; pila: string }) {
     <ul className={SUPERFICIE}>
       {filas.map((f) => (
         <li key={f.clave} className="flex flex-col gap-2 py-4">
-          <h3 className="text-lg font-bold break-words hyphens-auto">{f.titulo}</h3>
+          <h3 className="text-lg font-bold break-words">{f.titulo}</h3>
           {f.escrito ? (
             <>
               {/* Tal cual se escribió, con los nombres y teléfonos de «A quién llamar» (D-54-4). */}
@@ -416,7 +416,7 @@ function Enlace({ e, generadoEn }: { e: EnlaceRelevoCopia; generadoEn: string })
   const mas = useVerMas(aperturas.length, 5)
   return (
     <li className="flex min-w-0 flex-col gap-2 py-4">
-      <h3 className="text-lg font-bold break-words hyphens-auto">{e.nombre_relevo}</h3>
+      <h3 className="text-lg font-bold break-words">{e.nombre_relevo}</h3>
       {T.estadoEnlace[e.estado] && (
         <Etiqueta className="self-start" tono={e.estado === 'vigente' ? 'activo' : e.estado === 'bloqueado' ? 'atenta' : 'neutro'}>
           <Icono aria-hidden className="size-4 shrink-0" />
@@ -489,7 +489,7 @@ function SusInsumos({ insumos, pila }: { insumos: InsumosCopia; pila: string }) 
 function Insumo({ x }: { x: InsumoCopia }) {
   return (
     <li className="flex min-w-0 flex-col gap-1 py-4">
-      <h3 className="text-lg font-bold break-words hyphens-auto">{x.nombre}</h3>
+      <h3 className="text-lg font-bold break-words">{x.nombre}</h3>
       {!x.se_sigue && (
         <Etiqueta className="self-start">
           <Circle aria-hidden className="size-3.5 shrink-0" strokeWidth={2.5} />
@@ -520,11 +520,20 @@ function Insumo({ x }: { x: InsumoCopia }) {
 // ---------------------------------------------------------------- 3.4.6 Compras anotadas
 
 function Compras({ compras, generadoEn }: { compras: CompraCopia[]; generadoEn: string }) {
-  const { dentro } = enNoventaDias(compras, (c) => c.anotada_en, generadoEn)
+  const { dentro, hayAnterior } = enNoventaDias(compras, (c) => c.anotada_en, generadoEn)
   const mas = useVerMas(dentro.length, 10)
-  if (!dentro.length) return <Vacio>{T.sinCompras}</Vacio>
+  // 1.3 (decisión 403): el título ya dice el plazo; solo si hay algo anterior se dice dónde está.
+  const anteriores = hayAnterior && <p className="max-w-prose text-base text-tenue">{T.comprasAnteriores}</p>
+  if (!dentro.length)
+    return (
+      <>
+        {anteriores}
+        <Vacio>{T.sinCompras}</Vacio>
+      </>
+    )
   return (
     <>
+      {anteriores}
       <ol className={SUPERFICIE}>
         {dentro.slice(0, mas.visibles).map((c, i) => (
           <li key={`${c.anotada_en}-${i}`} ref={mas.foco(i)} tabIndex={mas.foco(i) ? -1 : undefined} className="flex flex-col gap-0.5 py-3 outline-none">
@@ -604,6 +613,8 @@ function Pedidos({ pedidos, generadoEn }: { pedidos: PedidoCopia[]; generadoEn: 
   )
 }
 
+const FILA_MONTO = 'grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 angosto:grid-cols-1'
+
 function Monto({ n }: { n: number }) {
   return <span className="cifras">{pesos(n)}</span>
 }
@@ -614,7 +625,7 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
   const pago = p.pago
   return (
     <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex min-w-0 flex-col gap-2 py-4 outline-none">
-      <h3 className="text-lg font-bold break-words hyphens-auto">
+      <h3 className="text-lg font-bold break-words">
         {p.referencia ? (
           <>
             {T.pedido('')}
@@ -641,7 +652,8 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
           {p.lineas.map((l, i) => (
             <div key={`${l.producto}-${i}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 angosto:grid-cols-1">
               <dt className="min-w-0 break-words">
-                {l.producto}, {l.presentacion} × <span className="cifras">{l.cantidad}</span>
+                {l.producto}, {l.presentacion} ×{' '}
+                <span className="cifras">{l.cantidad}</span>
               </dt>
               <dd className="text-right angosto:text-left">
                 <Monto n={l.subtotal} />
@@ -654,23 +666,24 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
           ))}
         </dl>
       )}
+      {/* 1.3 (P2): en modo angosto, el rótulo y el monto en una columna, como las líneas. */}
       <dl className="flex w-full max-w-prose flex-col gap-1">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4">
+        <div className={FILA_MONTO}>
           <dt>{T.productos}</dt>
-          <dd className="text-right">
+          <dd className="text-right angosto:text-left">
             <Monto n={p.subtotal_productos} />
           </dd>
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4">
+        <div className={FILA_MONTO}>
           <dt>{T.envio}</dt>
-          <dd className="text-right">
+          <dd className="text-right angosto:text-left">
             <Monto n={p.costo_envio} />
           </dd>
         </div>
         {p.total !== null && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 font-bold">
+          <div className={`${FILA_MONTO} font-bold`}>
             <dt>{T.total}</dt>
-            <dd className="text-right">
+            <dd className="text-right angosto:text-left">
               <Monto n={p.total} />
             </dd>
           </div>

@@ -72,7 +72,7 @@ export const MIS_DATOS = {
   // ------------------------------------------------ 3.4 los bloques de la persona
   bloques: {
     persona: 'Sus datos', // [ANALISTA]
-    autorizaciones: 'Autorizaciones', // [ANALISTA]
+    autorizaciones: 'Autoriza­ciones', // [ANALISTA], 1.3: con guion suave (P2-1)
     ficha: 'Su ficha', // [ANALISTA]
     enlaces: 'Enlaces de relevo', // [ANALISTA]
     insumos: 'Sus insumos', // [ANALISTA]
@@ -173,6 +173,8 @@ export const MIS_DATOS = {
 
   // 3.4.6 Compras anotadas
   sinCompras: 'No hay compras anotadas en los últimos 90 días.', // [NUEVO]
+  /** 1.3 (decisión 403): las de un pedido de MATU quedan más de 90 días y van en el archivo. [NUEVO] */
+  comprasAnteriores: 'Lo anterior va en el archivo.',
   /** (1.2) «{unidades} {unidad} de {insumo}» [NUEVO], con la unidad de la compra (decisión 386) en las palabras de L 21. */
   compra: (n: number, unidad: CompraCopia['unidad'], insumo: string) => {
     const palabra = unidad === 'sobre' ? (n === 1 ? 'sobre' : 'sobres') : unidad === 'ml' ? 'ml' : unidad === 'g' ? 'g' : n === 1 ? 'unidad' : 'unidades'
@@ -270,12 +272,12 @@ export const MIS_DATOS = {
     cuenta: 'Tu cuenta', // [ANALISTA]
     politica: 'Política de privacidad', // [ANALISTA]
     grupos: 'Tus grupos', // [ANALISTA]
-    dispositivos: 'Tus teléfonos y computadores', // [MATU-55]
+    dispositivos: 'Tus teléfonos y compu­tadores', // [MATU-55], 1.3: con guion suave (P2-1)
     eventos: 'Últimos ingresos', // [MATU-55]
     avisos: 'Tus avisos', // [ANALISTA]
     avisosEnviados: 'Avisos que te enviamos', // [ANALISTA]
     pagos: 'Tus pagos', // [ANALISTA, D-54-16]
-    condiciones: 'Condiciones de compra que aceptaste', // [NUEVO]
+    condiciones: 'Condiciones de compra que acep­taste', // [NUEVO], 1.3: con guion suave (P2-1)
   },
   tuNombre: 'Tu nombre', // [NUEVO]
   // «Tu correo» y «Tu celular» son de CUENTA_PROPIA [L 29]

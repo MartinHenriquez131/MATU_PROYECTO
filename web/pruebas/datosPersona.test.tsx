@@ -77,7 +77,7 @@ describe('«Datos de María»: la copia (3.1 a 3.3)', () => {
     expect(screen.getByText(/Lo que MATU guarda hoy de María, al/)).toHaveTextContent('Lo que MATU guarda hoy de María, al 12/11/2026 a las 10:14.')
     const nombres = [
       'Sus datos',
-      'Autorizaciones',
+      'Autoriza­ciones',
       'Su ficha',
       'Enlaces de relevo',
       'Sus insumos',
@@ -145,7 +145,7 @@ describe('«Datos de María»: los bloques (3.4)', () => {
   it('Autorizaciones: título, estado con palabra e ícono, quién la da, cuándo, renovación, retiro y lo aceptado', async () => {
     abrir()
     await listo()
-    const items = within(bloque('Autorizaciones')).getAllByRole('listitem')
+    const items = within(bloque('Autoriza­ciones')).getAllByRole('listitem')
     expect(items).toHaveLength(3)
     const [vigente, retirada, renovada] = items
     expect(within(vigente).getByRole('heading', { level: 3 })).toHaveTextContent('Permiso para guardar su ficha')
@@ -174,8 +174,8 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(renovada).toHaveTextContent('Se renovó el 02/11/2026 a las 18:20.')
     expect(renovada).toHaveTextContent('Lo que se aceptó: política de privacidad 0.9 y declaración 0.9.')
     // Nunca la huella ni el identificador: van en el archivo.
-    expect(bloque('Autorizaciones')).not.toHaveTextContent('declaracion_cuidador_de_hecho')
-    expect(bloque('Autorizaciones')).not.toHaveTextContent('aaaaaaaa')
+    expect(bloque('Autoriza­ciones')).not.toHaveTextContent('declaracion_cuidador_de_hecho')
+    expect(bloque('Autoriza­ciones')).not.toHaveTextContent('aaaaaaaa')
   })
 
   it('Su ficha: los tres campos en orden y las secciones, el texto tal cual (con los teléfonos) y «Sin escribir.»', async () => {
@@ -466,7 +466,7 @@ describe('«Datos de María»: quién abrió o editó la ficha (3.4.9 y 3.4.10)'
       autorizaciones: [],
     })
     await listo()
-    expect(bloque('Autorizaciones')).toHaveTextContent('Todavía no hay autorizaciones.')
+    expect(bloque('Autoriza­ciones')).toHaveTextContent('Todavía no hay autorizaciones.')
     expect(bloque('Enlaces de relevo')).toHaveTextContent('Todavía no hay enlaces de relevo.')
     expect(bloque('Sus insumos')).toHaveTextContent('Todavía no hay insumos.')
     expect(bloque('Compras anotadas (últimos 90 días)')).toHaveTextContent('No hay compras anotadas en los últimos 90 días.')

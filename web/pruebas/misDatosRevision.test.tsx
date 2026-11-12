@@ -1,4 +1,4 @@
-// MATU-54, especificación v1.2 (revisión visual del 12-11, sección 12): el reflujo (P1-1, P1-2 y P2-1),
+// MATU-54, especificación v1.2 y v1.3 (revisiones visuales del 12-11, secciones 12 y 13): el reflujo (P1-1, P1-2 y P2-1),
 // las aperturas con la fecha completa, el 503 con CloudOff, las frases del historial con finalidad y
 // referencia (F1), y en «Tus datos» los grupos que dejaste (F2) y el código de autorización (F3).
 // jsdom no mide anchos: los P1 se verifican por la estructura de clases. Solo datos sintéticos.
@@ -44,7 +44,7 @@ function sinEncoger(li: HTMLElement) {
   if (c.includes('angosto:flex-col') && c.includes('items-start')) expect(c).toContain('angosto:items-stretch')
 }
 
-describe('1.2, reflujo (P1-1, P1-2 y P2-1)', () => {
+describe('1.2 y 1.3, reflujo (P1-1, P1-2, P2-1 y los montos)', () => {
   it('P1-1: ninguna fila de bloque lleva `items-start`; la Etiqueta va con `self-start`, y el nombre largo puede partirse', async () => {
     const c = copiaPersona()
     const largo = 'ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60'
@@ -67,7 +67,7 @@ describe('1.2, reflujo (P1-1, P1-2 y P2-1)', () => {
       historial: { ...c.historial, alcance: 'lo_tuyo', hay_hechos_sin_asociar: true },
     })
     const notas = [
-      within(bloque('Autorizaciones')).getByText(/Hay una referencia al documento del representante legal/),
+      within(bloque('Autoriza­ciones')).getByText(/Hay una referencia al documento del representante legal/),
       within(bloque('Su ficha')).getByText(/La autorización de la ficha está retirada/),
       within(bloque('Quién abrió o editó la ficha')).getByText(/Aquí ves solo lo que hiciste tú/),
       within(bloque('Quién abrió o editó la ficha')).getByText(/Hay cambios antiguos/),
@@ -80,22 +80,51 @@ describe('1.2, reflujo (P1-1, P1-2 y P2-1)', () => {
     }
   })
 
-  it('P2-1: los h2 y los h3 de las dos páginas llevan `hyphens-auto`', async () => {
+  it('P2-1 (1.3): «Autorizaciones» lleva un guion suave (U+00AD) y ningún título usa `hyphens-auto`', async () => {
     await abrirPersona()
-    const titulos = screen.getAllByRole('heading').filter((h) => h.tagName === 'H2' || h.tagName === 'H3')
-    const deBloques = titulos.filter((h) => h.closest('section[aria-labelledby]') && h.id !== 'indice-datos-ancho-t')
-    expect(deBloques.length).toBeGreaterThan(15)
-    for (const h of deBloques) expect(h.className).toMatch(/\bhyphens-auto\b/)
+    const h2 = document.getElementById('autorizaciones-t')!
+    expect(h2.textContent).toBe('Autoriza\u00ADciones')
+    // El índice usa el mismo texto.
+    const enlaces = [...document.querySelectorAll('#indice-datos a')].map((a) => a.textContent)
+    expect(enlaces).toContain('Autoriza\u00ADciones')
+    for (const h of document.querySelectorAll('h2, h3')) expect(h.className).not.toMatch(/\bhyphens-auto\b/)
   })
 
-  it('P2-1 en «Tus datos»', async () => {
+  it('P2-1 (1.3) en «Tus datos»: «compu­tadores» y «acep­taste» con guion suave', async () => {
     apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
     render(<TusDatos />)
     await screen.findByRole('button', { name: 'Descargar en un archivo' })
-    const deBloques = screen.getAllByRole('heading').filter((h) => (h.tagName === 'H2' || h.tagName === 'H3') && h.closest('section[aria-labelledby]') && h.id !== 'indice-datos-ancho-t')
-    expect(deBloques.length).toBeGreaterThan(9)
-    for (const h of deBloques) expect(h.className).toMatch(/\bhyphens-auto\b/)
+    expect(document.getElementById('tus-dispositivos-t')!.textContent).toBe('Tus teléfonos y compu\u00ADtadores')
+    expect(document.getElementById('condiciones-t')!.textContent).toBe('Condiciones de compra que acep\u00ADtaste')
+    for (const h of document.querySelectorAll('h2, h3')) expect(h.className).not.toMatch(/\bhyphens-auto\b/)
     filasDeBloques().forEach(sinEncoger)
+  })
+
+  it('P2 (1.3): las filas de los montos del pedido pasan a una columna en modo angosto; P3: «×» y la cantidad juntos', async () => {
+    await abrirPersona()
+    const pedido = within(bloque('Sus pedidos')).getAllByRole('listitem')[0]
+    const montos = [...pedido.querySelectorAll('dl')].at(-1)!
+    const filas = [...montos.children] as HTMLElement[]
+    expect(filas.map((f) => f.querySelector('dt')!.textContent)).toEqual(['Productos', 'Envío', 'Total'])
+    for (const f of filas) {
+      expect(f.className.split(/\s+/)).toContain('angosto:grid-cols-1')
+      expect(f.querySelector('dd')!.className.split(/\s+/)).toContain('angosto:text-left')
+    }
+    expect(pedido.querySelector('dl dt')!.textContent).toContain('paquete de 30 ×\u00A02')
+  })
+
+  it('compras (1.3, decisión 403): con una de un pedido de MATU de más de 90 días, «Lo anterior va en el archivo.»; sin ella, nada', async () => {
+    const c = copiaPersona()
+    const vieja = { insumo: 'Toallitas húmedas', unidad: 'unidad' as const, unidades: 80, el: '2026-07-01', origen: 'pedido_matu' as const, anotada_en: '2026-07-01T08:00:00-04:00', anotada_por: null }
+    await abrirPersona({ ...c, insumos: { ...c.insumos, compras: [...c.insumos.compras!, vieja] } })
+    const b = bloque('Compras anotadas (últimos 90 días)')
+    expect(within(b).getByText('Lo anterior va en el archivo.')).toHaveClass('text-tenue')
+    expect(within(b).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('compras sin nada anterior a 90 días: sin la frase', async () => {
+    await abrirPersona()
+    expect(within(bloque('Compras anotadas (últimos 90 días)')).queryByText('Lo anterior va en el archivo.')).toBeNull()
   })
 })
 
@@ -174,12 +203,11 @@ describe('1.2, «Tus datos»: F2 y F3', () => {
     expect(filas[2]).toHaveTextContent('Un grupo del que salisteCuidaTe uniste el 01/09/2026.Saliste el 15/10/2026.')
   })
 
-  it('F2: sin grupos activos, la frase de vacío y debajo los que dejaste', async () => {
+  it('F2: sin grupos activos, la frase de vacío arriba y debajo los que dejaste (5.3, 1.3)', async () => {
     apiCopia(copiaComoRespuesta(copiaCuenta({ grupos: [] }), 'matu-cuenta-2026-11-12.json'))
     render(<TusDatos />)
     await screen.findByRole('button', { name: 'Descargar en un archivo' })
-    expect(bloque('Tus grupos')).toHaveTextContent('Un grupo del que saliste')
-    expect(bloque('Tus grupos')).toHaveTextContent('No estás en ningún grupo.')
+    expect(bloque('Tus grupos')).toHaveTextContent('No estás en ningún grupo.Un grupo del que salisteCuidaTe uniste el 01/09/2026.Saliste el 15/10/2026.')
   })
 
   it('F3: el código de autorización en cifras, solo en el pago que lo trae', async () => {

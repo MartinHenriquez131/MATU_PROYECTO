@@ -59,12 +59,12 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
       'Tu cuenta',
       'Política de privacidad',
       'Tus grupos',
-      'Tus teléfonos y computadores',
+      'Tus teléfonos y compu­tadores',
       'Últimos ingresos',
       'Tus avisos',
       'Avisos que te enviamos',
       'Tus pagos',
-      'Condiciones de compra que aceptaste',
+      'Condiciones de compra que acep­taste',
     ]
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Índice')).toEqual(nombres)
     expect(within(screen.getAllByRole('navigation', { name: 'Índice' })[0]).getAllByRole('link').map((a) => a.textContent)).toEqual(nombres)
@@ -120,7 +120,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
   it('los teléfonos y computadores, sin acciones ni el actual, con el cerrado en palabra y figura', async () => {
     abrir()
     await listo()
-    const b = bloque('Tus teléfonos y computadores')
+    const b = bloque('Tus teléfonos y compu­tadores')
     const [android, linux] = within(b).getAllByRole('listitem')
     expect(android).toHaveTextContent('Chrome en AndroidDesde el 20/10/2026.Última vez: 12/11/2026 a las 10:00Recibe avisos.')
     expect(android).not.toHaveTextContent('Este teléfono')
@@ -176,7 +176,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     expect(debito).toHaveTextContent('Tarjeta de débito terminada en 0019 · Sin cuotas')
     expect(debito).not.toHaveTextContent('Devuelto')
     expect(bloque('Tus pagos')).not.toHaveTextContent('María')
-    const [pagadas, sinPagar] = within(bloque('Condiciones de compra que aceptaste')).getAllByRole('listitem')
+    const [pagadas, sinPagar] = within(bloque('Condiciones de compra que acep­taste')).getAllByRole('listitem')
     expect(pagadas).toHaveTextContent('Versión 1.0, el 08/11/2026 a las 11:20.En Familia Soto, para el pedido 4821.')
     expect(sinPagar).toHaveTextContent('En Familia Soto, para un pedido que no se pagó.')
   })
@@ -185,10 +185,10 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     abrir(copiaCuenta({ pagos: null, condiciones_aceptadas: null, grupos: [], dispositivos: [], eventos: [], avisos_enviados: [] }))
     await listo()
     expect(screen.queryByRole('region', { name: 'Tus pagos' })).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Condiciones de compra que aceptaste' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Condiciones de compra que acep­taste' })).toBeNull()
     expect(within(screen.getAllByRole('navigation', { name: 'Índice' })[0]).queryByRole('link', { name: 'Tus pagos' })).toBeNull()
     expect(bloque('Tus grupos')).toHaveTextContent('No estás en ningún grupo.')
-    expect(bloque('Tus teléfonos y computadores')).toHaveTextContent('Todavía no hay teléfonos ni computadores.')
+    expect(bloque('Tus teléfonos y compu­tadores')).toHaveTextContent('Todavía no hay teléfonos ni computadores.')
     expect(bloque('Últimos ingresos')).toHaveTextContent('No hay ingresos en los últimos 90 días.')
     expect(bloque('Avisos que te enviamos')).toHaveTextContent('No hay avisos en los últimos 90 días.')
   })
@@ -197,7 +197,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     abrir(copiaCuenta({ pagos: [], condiciones_aceptadas: [] }))
     await listo()
     expect(screen.queryByRole('region', { name: 'Tus pagos' })).toBeNull()
-    expect(screen.queryByRole('region', { name: 'Condiciones de compra que aceptaste' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Condiciones de compra que acep­taste' })).toBeNull()
   })
 })
 

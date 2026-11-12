@@ -134,6 +134,8 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
         )}
       </Bloque>
       <Bloque id="tus-grupos" titulo={B.grupos}>
+        {/* 1.3 (5.3): con solo grupos dejados, la frase de vacío va arriba de ellos. */}
+        {!datos.grupos.length && <Vacio>{T.sinGrupos}</Vacio>}
         {datos.grupos.length || datos.grupos_que_dejaste.length ? (
           <ul className={SUPERFICIE}>
             {datos.grupos.map((g, i) => (
@@ -171,7 +173,6 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
             ))}
           </ul>
         ) : null}
-        {!datos.grupos.length && <Vacio>{T.sinGrupos}</Vacio>}
       </Bloque>
       <Bloque id="tus-dispositivos" titulo={B.dispositivos}>
         {datos.dispositivos.length ? (
@@ -395,7 +396,7 @@ function AvisosEnviados({ avisos, simulado, generadoEn }: { avisos: AvisoEnviado
 function Pago({ p }: { p: PagoCuentaCopia }) {
   return (
     <li className="flex min-w-0 flex-col gap-1 py-4">
-      <h3 className="text-lg font-bold break-words hyphens-auto">
+      <h3 className="text-lg font-bold break-words">
         {p.referencia ? (
           <>
             {T.pago('')}

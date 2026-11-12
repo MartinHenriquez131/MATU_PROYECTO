@@ -337,7 +337,7 @@ export function PorDia<I>({ items, instante, linea }: { items: I[]; instante: (i
     <div className="flex max-w-prose flex-col">
       {grupos.map((g, n) => (
         <Fragment key={`${g.dia}-${g.desde}`}>
-          <h3 className={`text-lg font-bold break-words hyphens-auto ${n ? 'mt-6' : ''}`}>{g.dia}</h3>
+          <h3 className={`text-lg font-bold break-words ${n ? 'mt-6' : ''}`}>{g.dia}</h3>
           <ol className="flex flex-col">{g.lineas.map((it, j) => linea(it, g.desde + j))}</ol>
         </Fragment>
       ))}
@@ -438,8 +438,8 @@ export const SUPERFICIE = 'flex min-w-0 flex-col divide-y divide-linea rounded-x
 export function Bloque({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-t`} className="flex min-w-0 scroll-mt-6 flex-col gap-3">
-      {/* 1.2 (P2-1): con `lang="es-CL"`, una palabra que no cabe se corta en una sílaba. */}
-      <h2 id={`${id}-t`} tabIndex={-1} className="text-xl font-bold leading-snug break-words hyphens-auto outline-none">
+      {/* 1.3 (P2-1): los títulos fijos traen un guion suave (U+00AD) en sus palabras largas. */}
+      <h2 id={`${id}-t`} tabIndex={-1} className="text-xl font-bold leading-snug break-words outline-none">
         {titulo}
       </h2>
       {children}
