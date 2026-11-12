@@ -26,7 +26,9 @@ anotan con sus productos. Cada cuenta tiene su propio correo (example.com o exam
 propio celular de la serie +56 9 0000 00xx, que no se asigna a nadie.
 
 Solo dos escrituras no tienen caso de uso, y van como matu_app, nunca como superusuario:
-- la membresía del resto de los miembros, porque las invitaciones aún no existen (contexto del admin y su grupo);
+- ninguna para las membresías desde MATU-42: el resto de los miembros entra con una invitación (contexto del admin y su
+  grupo) que cada cuenta acepta con su código (su propio contexto), y el permiso del pagador lo da el admin con el caso
+  de uso de PATCH …/miembros;
 - el celular de una cuenta que ya existía con otro (contexto de la propia cuenta, política usuario_propio_editar): las
   semillas anteriores a MATU-64 daban a todas el mismo.
 La ficha, los insumos, la alerta, el relevo y el restablecer pasan por los casos de uso.
@@ -98,11 +100,15 @@ from app.modules.care_circle.application.autorizaciones import (  # noqa: E402
 )
 from app.modules.care_circle.application.borrado import SolicitudBorrado, borrar_persona  # noqa: E402
 from app.modules.care_circle.application.grupos import crear_grupo, listar_grupos  # noqa: E402
+from app.modules.care_circle.application.invitaciones import Actor, aceptar, crear_invitacion  # noqa: E402
+from app.modules.care_circle.application.miembros import Puertos, cambiar_miembro  # noqa: E402
 from app.modules.care_circle.application.personas import SolicitudAlta, dar_de_alta, listar_personas  # noqa: E402
 from app.modules.care_circle.application.ports import DatosDireccion  # noqa: E402
 from app.modules.care_circle.application.retiro import EfectoDelRetiro  # noqa: E402
 from app.modules.care_circle.domain.avisos import AVISO_CUIDADOR_DE_HECHO  # noqa: E402
 from app.modules.care_circle.domain.declaraciones import huella_declaracion_pedidos  # noqa: E402
+from app.modules.care_circle.domain.invitaciones import ResultadoCanje  # noqa: E402
+from app.modules.care_circle.domain.miembros import etag  # noqa: E402
 from app.modules.care_circle.domain.personas import (  # noqa: E402
     FINALIDAD_CONSUMO,
     FINALIDAD_DESPACHO,
@@ -114,12 +120,19 @@ from app.modules.care_circle.domain.personas import (  # noqa: E402
 )
 from app.modules.care_circle.domain.retiro import finalidades_retirables  # noqa: E402
 from app.modules.care_circle.infrastructure.autorizacion import persona_con_autorizacion  # noqa: E402
+from app.modules.care_circle.infrastructure.canje_invitaciones import CanjeInvitacionesSQL  # noqa: E402
+from app.modules.care_circle.infrastructure.credenciales_invitacion import (  # noqa: E402
+    CredencialesInvitacionHmac,
+    huella_de_texto,
+)
 from app.modules.care_circle.infrastructure.membresia import rol_activo  # noqa: E402
 from app.modules.care_circle.infrastructure.repositorio_autorizaciones import (  # noqa: E402
     RepositorioAutorizacionesSQL,
 )
 from app.modules.care_circle.infrastructure.repositorio_borrado import RepositorioBorradoSQL  # noqa: E402
 from app.modules.care_circle.infrastructure.repositorio_grupos import RepositorioGruposSQL  # noqa: E402
+from app.modules.care_circle.infrastructure.repositorio_invitaciones import RepositorioInvitacionesSQL  # noqa: E402
+from app.modules.care_circle.infrastructure.repositorio_miembros import RepositorioMiembrosSQL  # noqa: E402
 from app.modules.care_circle.infrastructure.repositorio_personas import RepositorioPersonasSQL  # noqa: E402
 from app.modules.care_circle.infrastructure.repositorio_retiros import RepositorioRetirosSQL  # noqa: E402
 from app.modules.care_plan.api.esquemas import SolicitudCampo  # noqa: E402
@@ -138,6 +151,7 @@ from app.modules.care_plan.infrastructure.custodia_kek_entorno import (  # noqa:
     CustodiaNoPermitida,
 )
 from app.modules.care_plan.infrastructure.efecto_retiro import EfectoRetiroFicha  # noqa: E402
+from app.modules.care_plan.infrastructure.enlaces_otorgados import EnlacesOtorgados  # noqa: E402
 from app.modules.care_plan.infrastructure.repositorio_accesos import RepositorioAccesosSQL  # noqa: E402
 from app.modules.care_plan.infrastructure.repositorio_claves import RepositorioClavesSQL  # noqa: E402
 from app.modules.care_plan.infrastructure.repositorio_ficha import RepositorioFichaSQL  # noqa: E402
@@ -441,10 +455,9 @@ class GeneradorCredencialesDemo:
         return self._pin if self._pin is not None else self._real.pin()
 
 
-_MEMBRESIA = text("SELECT rol, puede_ver_plan FROM membresia WHERE grupo_id = :grupo_id AND usuario_id = :usuario_id")
-_INSERTAR_MEMBRESIA = text(
-    "INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan, invitado_por)"
-    " VALUES (:grupo_id, :usuario_id, :rol, :puede_ver_plan, :invitado_por)"
+_MEMBRESIA = text(
+    "SELECT rol, puede_ver_plan FROM membresia WHERE grupo_id = :grupo_id AND usuario_id = :usuario_id"
+    " AND estado = 'activa'"
 )
 _TELEFONO = text("SELECT telefono FROM usuario WHERE id = :id")
 # El trigger usuario_celular_cambia (0012) deja el celular sin verificar
@@ -537,26 +550,44 @@ class Sembradora:
         return _contexto_admin(self.fabrica, admin_id, grupo_id)
 
     def membresia(self, admin_id: uuid.UUID, grupo_id: uuid.UUID, usuario_id: uuid.UUID, cuenta: CuentaDemo) -> None:
-        """La membresía del miembro, escrita como matu_app en el contexto del admin y su grupo.
+        """La membresía del miembro, por la invitación de MATU-42: el admin la crea en su grupo y la cuenta la acepta
+        con su código, cada uno en su contexto, y el permiso del pagador lo da el admin como PATCH …/miembros.
 
-        Reemplaza a la invitación, que aún no existe. Si ya hay una con otro rol, se detiene.
+        Si ya hay una activa con otro rol, se detiene. El token y el código no salen de esta función.
         """
+        actor = Actor(usuario_id=admin_id, grupo_id=grupo_id, rol="admin")
+        credenciales = CredencialesInvitacionHmac(self.pepper_pin)
         with self._contexto_admin(admin_id, grupo_id) as sesion:
             existente = sesion.execute(_MEMBRESIA, {"grupo_id": grupo_id, "usuario_id": usuario_id}).first()
             if existente is not None:
                 if (existente.rol, existente.puede_ver_plan) != (cuenta.rol, cuenta.puede_ver_plan):
                     raise SemillaInconsistente("Un miembro de la semilla ya está en el grupo con otro rol")
                 return
-            sesion.execute(
-                _INSERTAR_MEMBRESIA,
-                {
-                    "grupo_id": grupo_id,
-                    "usuario_id": usuario_id,
-                    "rol": cuenta.rol,
-                    "puede_ver_plan": cuenta.puede_ver_plan,
-                    "invitado_por": admin_id,
-                },
+            registro = RegistroAuditoriaSql(sesion, self.reloj)
+            invitacion = crear_invitacion(
+                cuenta.rol, actor, RepositorioInvitacionesSQL(sesion, grupo_id, registro), credenciales, self.reloj
             )
+        with sesion_tenant(self.fabrica, usuario_id=usuario_id) as sesion:
+            union = aceptar(
+                huella_de_texto(invitacion.token), invitacion.codigo, CanjeInvitacionesSQL(sesion), credenciales,
+                self.reloj, None,
+            )
+        if union.resultado is not ResultadoCanje.OK or union.membresia_id is None:
+            raise SemillaInconsistente("Un miembro de la semilla no pudo aceptar su invitación")
+        if not cuenta.puede_ver_plan:
+            return
+        with self._contexto_admin(admin_id, grupo_id) as sesion:
+            registro = RegistroAuditoriaSql(sesion, self.reloj)
+            puertos = Puertos(
+                miembros=RepositorioMiembrosSQL(sesion, grupo_id, registro),
+                enlaces=EnlacesOtorgados(sesion, grupo_id, registro),
+                invitaciones=RepositorioInvitacionesSQL(sesion, grupo_id, registro),
+                reloj=self.reloj,
+            )
+            destino = puertos.miembros.activo(union.membresia_id, bloquear=True)
+            if destino is None:
+                raise SemillaInconsistente("Un miembro de la semilla no quedó en el grupo")
+            cambiar_miembro(destino, etag(destino.version), None, True, actor, puertos)
 
     def persona(self, admin_id: uuid.UUID, grupo_id: uuid.UUID, persona: PersonaDemo) -> tuple[uuid.UUID, bool]:
         """Da de alta a la persona con su autorización para la ficha (MATU-07), si el grupo no la tiene ya."""
