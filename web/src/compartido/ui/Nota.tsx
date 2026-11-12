@@ -43,7 +43,8 @@ export function Nota({
   enfocable?: boolean
   /**
    * MATU-44 (revisión del 07-11): en modo angosto el ícono va en la primera línea del título, como
-   * en `MensajeError`, para que el título use todo el ancho y una palabra larga no se salga.
+   * en `MensajeError`, para que el título use todo el ancho y una palabra larga no se salga. Sin
+   * título (MATU-54), en la primera línea del texto.
    */
   iconoEnLinea?: boolean
 }) {
@@ -58,7 +59,7 @@ export function Nota({
       tabIndex={enfocable ? -1 : undefined}
       className={`flex max-w-prose gap-3 angosto:gap-2 rounded-xl px-4 angosto:px-2 py-3 ${FONDO_NOTA[tono]} ${linea} ${enfocable ? 'outline-none' : ''} ${className}`}
     >
-      {iconoEnLinea && titulo ? <span className="contents angosto:hidden">{icono ?? ICONO_NOTA[tono]}</span> : (icono ?? ICONO_NOTA[tono])}
+      {iconoEnLinea ? <span className="contents angosto:hidden">{icono ?? ICONO_NOTA[tono]}</span> : (icono ?? ICONO_NOTA[tono])}
       <div className="min-w-0">
         {titulo && (
           <p className="mb-0.5 font-bold">
@@ -66,7 +67,13 @@ export function Nota({
             {titulo}
           </p>
         )}
-        {children && <div className="text-base leading-relaxed">{children}</div>}
+        {children && (
+          <div className="text-base leading-relaxed">
+            {/* MATU-54 (1.2, P1-2): sin título, el ícono va al comienzo del texto en modo angosto. */}
+            {iconoEnLinea && !titulo && <span className="hidden angosto:me-1.5 angosto:inline-flex angosto:align-middle">{icono ?? ICONO_NOTA[tono]}</span>}
+            {children}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -27,7 +27,7 @@ import type { EntradaIndice } from '../compartido/ui/Indice'
 import { useCorreoPrivacidad } from './Cuenta'
 import { APOYOS, CAMPOS } from './datos'
 import { useFamilia } from './estado'
-import { cantidad, INSUMOS } from './textosInsumos'
+import { INSUMOS } from './textosInsumos'
 import { pesos } from './textosCatalogo'
 import { AvisoPiloto } from './PiezasPedido'
 import { LineaApertura } from './QuienLaVio'
@@ -265,10 +265,10 @@ function Autorizaciones({ lista, pila, correo }: { lista: AutorizacionCopia[]; p
             : []),
         ]
         return (
-          <li key={`${a.finalidad}-${a.otorgada_en}-${i}`} className={`flex min-w-0 flex-col items-start gap-2 rounded-xl px-4 angosto:px-2 py-4 ${forma}`}>
-            <h3 className="text-lg font-bold break-words">{T.finalidad[a.finalidad] ?? ''}</h3>
+          <li key={`${a.finalidad}-${a.otorgada_en}-${i}`} className={`flex min-w-0 flex-col gap-2 rounded-xl px-4 angosto:px-2 py-4 ${forma}`}>
+            <h3 className="text-lg font-bold break-words hyphens-auto">{T.finalidad[a.finalidad] ?? ''}</h3>
             {T.estadoAutorizacion[a.estado] && (
-              <Etiqueta tono={TONO_AUTORIZACION[a.estado]}>
+              <Etiqueta className="self-start" tono={TONO_AUTORIZACION[a.estado]}>
                 <Icono aria-hidden className="size-4 shrink-0" />
                 <span className="min-w-0">{T.estadoAutorizacion[a.estado]}</span>
               </Etiqueta>
@@ -305,7 +305,7 @@ function Autorizaciones({ lista, pila, correo }: { lista: AutorizacionCopia[]; p
               .
             </p>
             {a.hay_documento_representante && (
-              <Nota tono="rocio" icono={<FileText aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+              <Nota tono="rocio" iconoEnLinea icono={<FileText aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
                 <FraseConCorreo partes={T.documentoRepresentante} correo={correo} sinCorreo={T.documentoRepresentanteSinCorreo} />
               </Nota>
             )}
@@ -336,7 +336,7 @@ function textoEstado(que: 'ficha' | 'insumos', estado: Exclude<EstadoBloque, 'di
 function NotaEstado({ que, estado, pila, borradoEl }: { que: 'ficha' | 'insumos'; estado: Exclude<EstadoBloque, 'disponible'>; pila: string; borradoEl: string | null }) {
   const { icono: Icono, punteado } = NOTA_ESTADO[estado] ?? NOTA_ESTADO.sin_autorizar
   return (
-    <Nota tono="rocio" className={punteado ? 'border-2 border-dashed border-borde' : ''} icono={<Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+    <Nota tono="rocio" iconoEnLinea className={punteado ? 'border-2 border-dashed border-borde' : ''} icono={<Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
       {textoEstado(que, estado, pila, borradoEl)}
     </Nota>
   )
@@ -359,7 +359,7 @@ function SuFicha({ ficha, pila }: { ficha: FichaCopia; pila: string }) {
     <ul className={SUPERFICIE}>
       {filas.map((f) => (
         <li key={f.clave} className="flex flex-col gap-2 py-4">
-          <h3 className="text-lg font-bold break-words">{f.titulo}</h3>
+          <h3 className="text-lg font-bold break-words hyphens-auto">{f.titulo}</h3>
           {f.escrito ? (
             <>
               {/* Tal cual se escribió, con los nombres y teléfonos de «A quién llamar» (D-54-4). */}
@@ -415,10 +415,10 @@ function Enlace({ e, generadoEn }: { e: EnlaceRelevoCopia; generadoEn: string })
   const aperturas = dentro.map((a, i) => ({ tipo: a.tipo, ocurrido_en: a.ocurrido_en, acceso: { id: `${e.creado_en}-${i}`, nombre_relevo: e.nombre_relevo } }))
   const mas = useVerMas(aperturas.length, 5)
   return (
-    <li className="flex min-w-0 flex-col items-start gap-2 py-4">
-      <h3 className="text-lg font-bold break-words">{e.nombre_relevo}</h3>
+    <li className="flex min-w-0 flex-col gap-2 py-4">
+      <h3 className="text-lg font-bold break-words hyphens-auto">{e.nombre_relevo}</h3>
       {T.estadoEnlace[e.estado] && (
-        <Etiqueta tono={e.estado === 'vigente' ? 'activo' : e.estado === 'bloqueado' ? 'atenta' : 'neutro'}>
+        <Etiqueta className="self-start" tono={e.estado === 'vigente' ? 'activo' : e.estado === 'bloqueado' ? 'atenta' : 'neutro'}>
           <Icono aria-hidden className="size-4 shrink-0" />
           <span className="min-w-0">{T.estadoEnlace[e.estado]}</span>
         </Etiqueta>
@@ -461,7 +461,7 @@ function Enlace({ e, generadoEn }: { e: EnlaceRelevoCopia; generadoEn: string })
         <>
           <ol className="flex w-full max-w-prose flex-col">
             {aperturas.slice(0, mas.visibles).map((a, i) => (
-              <LineaApertura key={`${a.ocurrido_en}-${i}`} a={a} sinAbrir={false} completa notas={false} foco={mas.foco(i)} />
+              <LineaApertura key={`${a.ocurrido_en}-${i}`} a={a} sinAbrir={false} completa="fecha" notas={false} foco={mas.foco(i)} />
             ))}
           </ol>
           {mas.hayMas && <BotonVerMas onClick={mas.mas} />}
@@ -488,10 +488,10 @@ function SusInsumos({ insumos, pila }: { insumos: InsumosCopia; pila: string }) 
 
 function Insumo({ x }: { x: InsumoCopia }) {
   return (
-    <li className="flex min-w-0 flex-col items-start gap-1 py-4">
-      <h3 className="text-lg font-bold break-words">{x.nombre}</h3>
+    <li className="flex min-w-0 flex-col gap-1 py-4">
+      <h3 className="text-lg font-bold break-words hyphens-auto">{x.nombre}</h3>
       {!x.se_sigue && (
-        <Etiqueta>
+        <Etiqueta className="self-start">
           <Circle aria-hidden className="size-3.5 shrink-0" strokeWidth={2.5} />
           <span className="min-w-0">{T.yaNoSeSigue}</span>
         </Etiqueta>
@@ -528,7 +528,7 @@ function Compras({ compras, generadoEn }: { compras: CompraCopia[]; generadoEn: 
       <ol className={SUPERFICIE}>
         {dentro.slice(0, mas.visibles).map((c, i) => (
           <li key={`${c.anotada_en}-${i}`} ref={mas.foco(i)} tabIndex={mas.foco(i) ? -1 : undefined} className="flex flex-col gap-0.5 py-3 outline-none">
-            <span className="font-bold break-words">{T.compra(cantidad(c.unidades, c.unidad), c.insumo)}</span>
+            <span className="font-bold break-words">{T.compra(c.unidades, c.unidad, c.insumo)}</span>
             <span className="text-base text-tenue break-words">
               {T.el}
               <Dia dia={c.el} />
@@ -613,8 +613,8 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
   const siFalta = (s: 'otro_comercio' | 'quitar') => (s === 'quitar' ? PEDIDO.quitar : PEDIDO.otroComercio).toLocaleLowerCase('es-CL')
   const pago = p.pago
   return (
-    <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex min-w-0 flex-col items-start gap-2 py-4 outline-none">
-      <h3 className="text-lg font-bold break-words">
+    <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex min-w-0 flex-col gap-2 py-4 outline-none">
+      <h3 className="text-lg font-bold break-words hyphens-auto">
         {p.referencia ? (
           <>
             {T.pedido('')}
@@ -628,7 +628,7 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
         )}
       </h3>
       {estado && (
-        <Etiqueta>
+        <Etiqueta className="self-start">
           <Circle aria-hidden className="size-3.5 shrink-0" strokeWidth={2.5} />
           <span className="min-w-0">{estado}</span>
         </Etiqueta>
@@ -744,7 +744,7 @@ function Historial({ datos, correo }: { datos: CopiaDatosPersona; correo: string
     <>
       <FraseNoventa hayAnterior={hayAnterior} />
       {h.alcance === 'lo_tuyo' && (
-        <Nota tono="rocio" icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+        <Nota tono="rocio" iconoEnLinea icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
           {T.loTuyo}
         </Nota>
       )}
@@ -755,7 +755,7 @@ function Historial({ datos, correo }: { datos: CopiaDatosPersona; correo: string
       )}
       {mas.hayMas && <BotonVerMas onClick={mas.mas} />}
       {h.hay_hechos_sin_asociar && (
-        <Nota tono="rocio" icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
+        <Nota tono="rocio" iconoEnLinea icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
           <FraseConCorreo partes={T.sinAsociar} correo={correo} sinCorreo={T.sinAsociarSinCorreo} />
         </Nota>
       )}

@@ -134,10 +134,10 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
         )}
       </Bloque>
       <Bloque id="tus-grupos" titulo={B.grupos}>
-        {datos.grupos.length ? (
+        {datos.grupos.length || datos.grupos_que_dejaste.length ? (
           <ul className={SUPERFICIE}>
             {datos.grupos.map((g, i) => (
-              <li key={`${g.nombre}-${i}`} className="flex min-w-0 flex-col items-start gap-1 py-4">
+              <li key={`${g.nombre}-${i}`} className="flex min-w-0 flex-col gap-1 py-4">
                 <p className="font-bold break-words">{g.nombre}</p>
                 {ROL[g.rol] && <p className="text-base">{ROL[g.rol]}</p>}
                 <p className="text-base text-tenue">
@@ -152,10 +152,26 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
                 )}
               </li>
             ))}
+            {/* F2 (decisión 401): los grupos de los que salió, sin el nombre, que ya no puede leer. */}
+            {datos.grupos_que_dejaste.map((g, i) => (
+              <li key={`dejaste-${g.unido_en}-${i}`} className="flex min-w-0 flex-col gap-1 py-4">
+                <p className="font-bold break-words">{T.grupoQueDejaste}</p>
+                {ROL[g.rol] && <p className="text-base">{ROL[g.rol]}</p>}
+                <p className="text-base text-tenue">
+                  {T.teUniste[0]}
+                  <DiaDeInstante iso={g.unido_en} fin={T.teUniste[1]} />
+                </p>
+                {g.retirado_en && (
+                  <p className="text-base text-tenue">
+                    {T.saliste[0]}
+                    <DiaDeInstante iso={g.retirado_en} fin={T.saliste[1]} />
+                  </p>
+                )}
+              </li>
+            ))}
           </ul>
-        ) : (
-          <Vacio>{T.sinGrupos}</Vacio>
-        )}
+        ) : null}
+        {!datos.grupos.length && <Vacio>{T.sinGrupos}</Vacio>}
       </Bloque>
       <Bloque id="tus-dispositivos" titulo={B.dispositivos}>
         {datos.dispositivos.length ? (
@@ -235,12 +251,12 @@ function TuCuenta({ datos }: { datos: CopiaDatosCuenta }) {
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="cifras font-bold angosto:whitespace-normal">{enmascararCelular(c.celular)}</span>
               {c.celular_confirmado ? (
-                <Etiqueta tono="ok">
+                <Etiqueta className="self-start" tono="ok">
                   <Check aria-hidden className="size-4 angosto:hidden" strokeWidth={3} />
                   {CUENTA_PROPIA.confirmado}
                 </Etiqueta>
               ) : (
-                <Etiqueta>
+                <Etiqueta className="self-start">
                   <Circle aria-hidden className="size-3.5 angosto:hidden" strokeWidth={2.5} />
                   {CUENTA_PROPIA.sinConfirmar}
                 </Etiqueta>
@@ -271,12 +287,12 @@ function TuCuenta({ datos }: { datos: CopiaDatosCuenta }) {
 function FilaDispositivoCopia({ d }: { d: DispositivoCopia }) {
   const Icono = iconoClase(d.clase)
   return (
-    <li className="flex items-start gap-3 py-4 angosto:flex-col angosto:gap-2">
+    <li className="flex items-start gap-3 py-4 angosto:flex-col angosto:items-stretch angosto:gap-2">
       <Icono aria-hidden className="mt-0.5 size-6 shrink-0 text-tenue" />
-      <div className="flex min-w-0 flex-col items-start gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <p className="max-w-full font-bold break-words">{d.nombre}</p>
         {d.cerrado_en && (
-          <Etiqueta>
+          <Etiqueta className="self-start">
             <Circle aria-hidden className="size-3.5 shrink-0" strokeWidth={2.5} />
             {T.cerrado}
           </Etiqueta>
@@ -378,10 +394,19 @@ function AvisosEnviados({ avisos, simulado, generadoEn }: { avisos: AvisoEnviado
 
 function Pago({ p }: { p: PagoCuentaCopia }) {
   return (
-    <li className="flex min-w-0 flex-col items-start gap-1 py-4">
-      <h3 className="text-lg font-bold break-words">
-        {T.pago('')}
-        <span className="cifras">{p.referencia}</span>
+    <li className="flex min-w-0 flex-col gap-1 py-4">
+      <h3 className="text-lg font-bold break-words hyphens-auto">
+        {p.referencia ? (
+          <>
+            {T.pago('')}
+            <span className="cifras">{p.referencia}</span>
+          </>
+        ) : (
+          <>
+            {T.pagoDel}
+            <DiaDeInstante iso={p.pagado_en} />
+          </>
+        )}
       </h3>
       <p className="text-base text-tenue">
         <FechaHora iso={p.pagado_en} />
@@ -407,6 +432,13 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
           <span className="cifras">{pesos(p.devuelto)}</span>
         </p>
       )}
+      {/* F3 (decisión 402): el mismo código de su comprobante. */}
+      {p.codigo_autorizacion && (
+        <p className="text-base">
+          {T.codigoAutorizacion}
+          <span className="cifras">{p.codigo_autorizacion}</span>
+        </p>
+      )}
       {p.pago_de_prueba && <p className="max-w-prose text-base font-bold">{T.pagoDePrueba}</p>}
     </li>
   )
@@ -414,7 +446,7 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
 
 function Condiciones({ c }: { c: CondicionesCopia }) {
   return (
-    <li className="flex min-w-0 flex-col items-start gap-1 py-4">
+    <li className="flex min-w-0 flex-col gap-1 py-4">
       <p className="font-bold">
         {T.versionEl(c.version)[0]}
         <FechaHora iso={c.aceptadas_en} fin="." />

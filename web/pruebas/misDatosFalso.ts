@@ -253,6 +253,7 @@ export function copiaCuenta(cambios: Partial<CopiaDatosCuenta> = {}): CopiaDatos
       { nombre: 'Familia Soto', rol: 'pagador', unido_en: '2026-10-21T10:00:00-03:00', puede_ver_ficha: false },
       { nombre: 'Familia Pérez', rol: 'admin', unido_en: '2026-10-22T10:00:00-03:00', puede_ver_ficha: null },
     ],
+    grupos_que_dejaste: [{ rol: 'cuidador', unido_en: '2026-09-01T10:00:00-03:00', retirado_en: '2026-10-15T10:00:00-03:00' }],
     dispositivos: [
       { nombre: 'Chrome en Android', clase: 'telefono', creado_en: '2026-10-20T18:20:00-03:00', ultimo_uso_en: '2026-11-12T10:00:00-03:00', cerrado_en: null, avisos_activos: true },
       { nombre: 'Firefox en Linux', clase: 'computador', creado_en: '2026-11-01T18:20:00-03:00', ultimo_uso_en: '2026-11-02T18:20:00-03:00', cerrado_en: '2026-11-03T09:00:00-03:00', avisos_activos: false },
@@ -270,8 +271,9 @@ export function copiaCuenta(cambios: Partial<CopiaDatosCuenta> = {}): CopiaDatos
     ],
     envio_simulado: true,
     pagos: [
-      { grupo: 'Familia Soto', referencia: '4821', pagado_en: '2026-11-08T11:24:00-03:00', cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, pago_de_prueba: true },
-      { grupo: 'Familia Soto', referencia: '4910', pagado_en: '2026-11-09T11:24:00-03:00', cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, pago_de_prueba: false },
+      { grupo: 'Familia Soto', referencia: '4821', pagado_en: '2026-11-08T11:24:00-03:00', cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
+      { grupo: 'Familia Soto', referencia: '4910', pagado_en: '2026-11-09T11:24:00-03:00', cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: null, pago_de_prueba: false },
+      { grupo: 'Familia Soto', referencia: null, pagado_en: '2026-11-10T11:24:00-03:00', cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
     ],
     condiciones_aceptadas: [
       { grupo: 'Familia Soto', referencia: '4821', version: '1.0', huella: 'c'.repeat(64), aceptadas_en: '2026-11-08T11:20:00-03:00' },

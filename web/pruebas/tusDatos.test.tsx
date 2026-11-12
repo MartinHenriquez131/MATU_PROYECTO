@@ -164,9 +164,15 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
   it('tus pagos: el grupo y la tarjeta en sus últimos 4, nunca la persona; y las condiciones aceptadas', async () => {
     abrir()
     await listo()
-    const [credito, debito] = within(bloque('Tus pagos')).getAllByRole('listitem')
+    const [credito, debito, sinReferencia] = within(bloque('Tus pagos')).getAllByRole('listitem')
     expect(within(credito).getByRole('heading', { level: 3 })).toHaveTextContent('Pago 4821')
-    expect(credito).toHaveTextContent('08/11/2026 a las 11:24$37.260 en Familia SotoTarjeta de crédito terminada en 4242 · 3 cuotasDevuelto: $5.290Pago de prueba: no se cobró dinero real.')
+    expect(credito).toHaveTextContent('08/11/2026 a las 11:24$37.260 en Familia SotoTarjeta de crédito terminada en 4242 · 3 cuotasDevuelto: $5.290Código de autorización: 1213Pago de prueba: no se cobró dinero real.')
+    // 1.2 (P3-4): espacio duro antes del «·», para que un renglón nunca empiece con el punto.
+    expect(credito.textContent).toContain('4242 · 3 cuotas')
+    // F3 (decisión 402): el código solo si lo hay.
+    expect(debito).not.toHaveTextContent('Código de autorización')
+    expect(within(sinReferencia).getByRole('heading', { level: 3 })).toHaveTextContent('Pago del 10/11/2026')
+    expect(sinReferencia).toHaveTextContent('Sin datos de la tarjeta.')
     expect(debito).toHaveTextContent('Tarjeta de débito terminada en 0019 · Sin cuotas')
     expect(debito).not.toHaveTextContent('Devuelto')
     expect(bloque('Tus pagos')).not.toHaveTextContent('María')

@@ -392,7 +392,7 @@ function copiaPersona(p: PersonaParaCopia, rol: Rol, u: CuentaParaCopia, generad
   })
   const secciones = (Object.keys(p.secciones) as SeccionApi[]).map((s) => {
     const c = p.secciones[s]!
-    return { seccion: s, texto: c.texto ?? '', escrito_por: nombrada(c.autor), creada_en: chile(c.en ?? hace(DIA)), actualizado_en: chile(c.en ?? hace(DIA)) }
+    return { seccion: s, texto: c.texto ?? '', escrito_por: nombrada(c.autor, c.autor?.nombre ? `${c.autor.nombre} Soto` : undefined), creada_en: chile(c.en ?? hace(DIA)), actualizado_en: chile(c.en ?? hace(DIA)) }
   })
   const listos = campos.filter((c) => c.texto).length
   const ficha =
@@ -450,12 +450,14 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
     { creado_en: chile(hace(20)), enviado_en: null, canal: 'correo', resultado: 'pendiente' },
   ]
   if (modo === 'datos-historial') for (let i = 0; i < 30; i++) avisos.push({ creado_en: chile(hace(6 * DIA + i * 3 * DIA)), enviado_en: chile(hace(6 * DIA + i * 3 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' })
+  // Del más reciente al más antiguo, como el servidor (revisión del 12-11, P3).
+  avisos.sort((a, b) => new Date(b.enviado_en ?? b.creado_en).getTime() - new Date(a.enviado_en ?? a.creado_en).getTime())
   const pagos = [
-    { grupo: 'Familia Soto', referencia: '4821', pagado_en: chile(hace(4 * DIA + 150)), cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, pago_de_prueba: true },
+    { grupo: 'Familia Soto', referencia: '4821', pagado_en: chile(hace(4 * DIA + 150)), cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
     ...(modo === 'datos-pedidos'
       ? [
-          { grupo: 'Familia Soto', referencia: '4910', pagado_en: chile(hace(3 * DIA - 10)), cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, pago_de_prueba: true },
-          { grupo: 'Familia Soto', referencia: '4650', pagado_en: chile(hace(20 * DIA - 40)), cobrado: 10_480, devuelto: 10_480, tarjeta: null, pago_de_prueba: false },
+          { grupo: 'Familia Soto', referencia: '4910', pagado_en: chile(hace(3 * DIA - 10)), cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: '4407', pago_de_prueba: true },
+          { grupo: 'Familia Soto', referencia: '4650', pagado_en: chile(hace(20 * DIA - 40)), cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
         ]
       : []),
   ]
@@ -471,6 +473,8 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
     cuenta: { nombre: `${u.nombre} Soto`, correo: u.email, celular: u.telefono, celular_confirmado: u.celularVerificado, canal_codigos: u.canal, creada_en: chile(hace(40 * DIA)) },
     politica: u.politica ? { version: u.politica.version, huella: u.politica.huella, aceptada_en: chile(u.politica.aceptada_en) } : null,
     grupos: u.grupos.map((g) => ({ nombre: g.nombre, rol: g.rol, unido_en: chile(hace(30 * DIA)), puede_ver_ficha: g.rol === 'pagador' ? g.puede_ver_plan : null })),
+    // F2 (decisión 401): un grupo del que salió, sin nombre. Solo en las cuentas de MATU-54 que no son el vacío.
+    grupos_que_dejaste: modo?.startsWith('datos-') && modo !== 'datos-vacio' ? [{ rol: 'cuidador', unido_en: chile(hace(80 * DIA)), retirado_en: chile(hace(45 * DIA)) }] : [],
     dispositivos: desde.dispositivos,
     preferencia_avisos: desde.preferencia_avisos,
     eventos: desde.eventos,

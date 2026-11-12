@@ -12,6 +12,7 @@ import {
   CirclePlay,
   CircleX,
   ClipboardCheck,
+  CloudOff,
   Clock,
   CreditCard,
   Download,
@@ -49,7 +50,7 @@ import { DialogoConfirmar } from './DialogoConfirmar'
 import { useDemora } from './Estados'
 import { useFamilia } from './estado'
 import { GENERAL, QUIEN } from './textos'
-import { FRASE_HECHO, MIS_DATOS as T } from './textosMisDatos'
+import { FRASE_CON_REFERENCIA, FRASE_HECHO, MIS_DATOS as T } from './textosMisDatos'
 import { Nota } from './ui'
 
 // ---------------------------------------------------------------- pedir la copia
@@ -169,7 +170,14 @@ export function AvisoDeCarga({ e, reintentar }: { e: EstadoCopia<unknown>; reint
     )
   return (
     <div className="flex max-w-prose flex-col items-start gap-4">
-      <Nota id={ID_AVISO_COPIA} tono="pronto" rol="alert" enfocable icono={<WifiOff aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" />}>
+      <Nota
+        id={ID_AVISO_COPIA}
+        tono="pronto"
+        rol="alert"
+        enfocable
+        // 1.2: el 503 no es la conexión de la persona, así que no lleva el wifi.
+        icono={e.estado === 'no-disponible' ? <CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" /> : <WifiOff aria-hidden className="mt-0.5 size-5 shrink-0 text-pronto" />}
+      >
         {e.estado === 'no-disponible' ? T.errNoDisponible : T.errCarga}
       </Nota>
       <Boton variante="secundario" onClick={reintentar}>
@@ -329,7 +337,7 @@ export function PorDia<I>({ items, instante, linea }: { items: I[]; instante: (i
     <div className="flex max-w-prose flex-col">
       {grupos.map((g, n) => (
         <Fragment key={`${g.dia}-${g.desde}`}>
-          <h3 className={`text-lg font-bold ${n ? 'mt-6' : ''}`}>{g.dia}</h3>
+          <h3 className={`text-lg font-bold break-words hyphens-auto ${n ? 'mt-6' : ''}`}>{g.dia}</h3>
           <ol className="flex flex-col">{g.lineas.map((it, j) => linea(it, g.desde + j))}</ol>
         </Fragment>
       ))}
@@ -378,6 +386,22 @@ function objetoDe(h: HechoCopia): string | null {
   return null
 }
 
+/**
+ * La frase de un hecho (3.4.9, 1.2): con `referencia`, la de ese pedido y el número en `cifras`; sin
+ * ella, la general. Con `finalidad`, la de esa autorización.
+ */
+function FraseHecho({ h }: { h: HechoCopia & { tipo: TipoHecho } }) {
+  const conReferencia = FRASE_CON_REFERENCIA[h.tipo]
+  if (conReferencia && h.referencia)
+    return (
+      <>
+        {conReferencia}
+        <span className="cifras">{h.referencia}</span>
+      </>
+    )
+  return <>{FRASE_HECHO[h.tipo]({ nombre: objetoDe(h), finalidad: h.finalidad ?? null })}</>
+}
+
 /** `LineaHistorial`: el molde de `LineaIngreso` (MATU-55, 2.5), con la cola «a las {HH:MM} · {nombre}». */
 export function LineaHistorial({ h, foco }: { h: HechoCopia & { tipo: TipoHecho }; foco?: Ref<HTMLLIElement> }) {
   const Icono = ICONO_HECHO[h.tipo]
@@ -385,12 +409,14 @@ export function LineaHistorial({ h, foco }: { h: HechoCopia & { tipo: TipoHecho 
   // MATU no lleva nombre: la frase ya dice quién. Quien salió del grupo, «alguien que ya no está…».
   const cola = h.quien.tipo === 'matu' ? '' : ` · ${h.quien.nombre ?? T.yaNoEsta}`
   return (
-    <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex items-start gap-3 border-b border-linea py-3 outline-none last:border-0 angosto:flex-col angosto:gap-2">
+    <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex items-start gap-3 border-b border-linea py-3 outline-none last:border-0 angosto:flex-col angosto:items-stretch angosto:gap-2">
       <span aria-hidden className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-rocio text-turquesa">
         <Icono className="size-5" />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="font-bold leading-snug break-words">{FRASE_HECHO[h.tipo](objetoDe(h))}</span>
+        <span className="font-bold leading-snug break-words">
+          <FraseHecho h={h} />
+        </span>
         <span className="text-base text-tenue tabular-nums break-words">
           {T.aLas}{' '}
           <time dateTime={h.ocurrido_en} title={`${fecha} ${hora}`} className="cifras">
@@ -412,7 +438,8 @@ export const SUPERFICIE = 'flex min-w-0 flex-col divide-y divide-linea rounded-x
 export function Bloque({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-t`} className="flex min-w-0 scroll-mt-6 flex-col gap-3">
-      <h2 id={`${id}-t`} tabIndex={-1} className="text-xl font-bold leading-snug break-words outline-none">
+      {/* 1.2 (P2-1): con `lang="es-CL"`, una palabra que no cabe se corta en una sílaba. */}
+      <h2 id={`${id}-t`} tabIndex={-1} className="text-xl font-bold leading-snug break-words hyphens-auto outline-none">
         {titulo}
       </h2>
       {children}

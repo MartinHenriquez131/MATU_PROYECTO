@@ -243,7 +243,9 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     await listo()
     const compras = within(bloque('Compras anotadas (últimos 90 días)')).getAllByRole('listitem')
     expect(compras[0]).toHaveTextContent('20 sobres de Champú en sobreEl 10/11/2026 · Anotó Carmen Soto')
-    expect(compras[1]).toHaveTextContent('80 de Toallitas húmedasEl 08/11/2026 · Llegó con un pedido de MATU')
+    expect(compras[1]).toHaveTextContent('80 unidades de Toallitas húmedasEl 08/11/2026 · Llegó con un pedido de MATU')
+    // 1.2: la unidad de la compra (decisión 386), con espacio duro entre la cifra y su palabra.
+    expect(compras[0].querySelector('.font-bold')!.textContent).toBe('20 sobres de Champú en sobre')
     const avisos = bloque('Avisos de insumos')
     expect(within(avisos).getByText('Los de los últimos 90 días.')).toBeInTheDocument()
     const [resuelta, pendiente] = within(avisos).getAllByRole('listitem')

@@ -3971,6 +3971,8 @@ export interface components {
             /** Devuelto */
             devuelto: number;
             tarjeta: components["schemas"]["TarjetaCopia"] | null;
+            /** Codigo Autorizacion */
+            codigo_autorizacion: string | null;
             /** Pago De Prueba */
             pago_de_prueba: boolean;
         };
@@ -4360,6 +4362,8 @@ export interface components {
             politica: components["schemas"]["PoliticaCopia"] | null;
             /** Grupos */
             grupos: components["schemas"]["GrupoCopia"][];
+            /** Grupos Que Dejaste */
+            grupos_que_dejaste: components["schemas"]["GrupoQueDejasteCopia"][];
             /** Dispositivos */
             dispositivos: components["schemas"]["DispositivoCopia"][];
             preferencia_avisos: components["schemas"]["PreferenciaAvisosCopia"];
@@ -4437,6 +4441,22 @@ export interface components {
             ultimo_uso_en: string | null;
             /** Aperturas */
             aperturas: components["schemas"]["AperturaCopia"][];
+        };
+        /**
+         * GrupoQueDejasteCopia
+         * @description F2 del cierre del analista (decisión 401): una membresía retirada, sin el nombre del grupo, que ya no se puede
+         *     leer. La pantalla la muestra como «Un grupo del que saliste».
+         */
+        GrupoQueDejasteCopia: {
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Unido En */
+            unido_en: string;
+            /** Retirado En */
+            retirado_en: string | null;
         };
     };
     responses: never;

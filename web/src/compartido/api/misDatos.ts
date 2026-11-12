@@ -58,6 +58,8 @@ export type HechoCopia = Omit<S['HechoCopia'], 'tipo'> & { tipo: TipoHecho | (st
 export type CopiaDatosCuenta = S['CopiaDatosCuenta']
 export type CuentaCopia = S['CuentaCopia']
 export type GrupoCopia = S['GrupoCopia']
+/** F2 (decisión 401): un grupo del que la cuenta salió, sin su nombre. */
+export type GrupoQueDejasteCopia = S['GrupoQueDejasteCopia']
 export type DispositivoCopia = S['DispositivoCopia']
 export type EventoCuentaCopia = S['EventoCuentaCopia']
 export type AvisoEnviadoCopia = S['AvisoEnviadoCopia']

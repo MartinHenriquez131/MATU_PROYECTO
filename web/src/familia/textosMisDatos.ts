@@ -7,6 +7,7 @@ import type {
   AutorizacionCopia,
   AvisoEnviadoCopia,
   AvisoInsumoCopia,
+  CompraCopia,
   DevolucionCopia,
   EnlaceRelevoCopia,
   EstadoPedidoCopia,
@@ -14,6 +15,7 @@ import type {
   PagoCuentaCopia,
   TipoHecho,
 } from '../compartido/api/misDatos'
+import { miles } from './textoLista'
 import { GRUPO_FAMILIAR } from './textosGrupo'
 import { GRUPO_PEDIDOS } from './textosPedido'
 
@@ -171,8 +173,12 @@ export const MIS_DATOS = {
 
   // 3.4.6 Compras anotadas
   sinCompras: 'No hay compras anotadas en los últimos 90 días.', // [NUEVO]
-  /** «{unidades} de {insumo}» [NUEVO] */
-  compra: (cantidad: string, insumo: string) => `${cantidad} de ${insumo}`,
+  /** (1.2) «{unidades} {unidad} de {insumo}» [NUEVO], con la unidad de la compra (decisión 386) en las palabras de L 21. */
+  compra: (n: number, unidad: CompraCopia['unidad'], insumo: string) => {
+    const palabra = unidad === 'sobre' ? (n === 1 ? 'sobre' : 'sobres') : unidad === 'ml' ? 'ml' : unidad === 'g' ? 'g' : n === 1 ? 'unidad' : 'unidades'
+    // Espacio duro entre la cifra y su unidad: al cortar la línea no quedan separadas.
+    return `${miles(n)} ${palabra} de ${insumo}`
+  },
   anoto: (nombre: string) => ` · Anotó ${nombre}`, // [NUEVO]
   llegoConPedido: ' · Llegó con un pedido de MATU', // [NUEVO]
   el: 'El ', // [NUEVO]
@@ -308,24 +314,42 @@ export const MIS_DATOS = {
   enGrupo: (grupo: string) => ` en ${grupo}`, // [NUEVO], tras el monto
   tarjeta: (tipo: NonNullable<PagoCuentaCopia['tarjeta']>['tipo']) =>
     tipo === 'credito' ? 'Tarjeta de crédito terminada en ' : tipo === 'debito' ? 'Tarjeta de débito terminada en ' : 'Tarjeta de prepago terminada en ', // [NUEVO]
-  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'), // [NUEVO]
+  /** (1.2, P3-4) Con espacio duro antes del «·»: un renglón nunca empieza con el punto. [NUEVO] */
+  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'),
+  /** Con `referencia: null` (decisión 392, pago anulado por tardío). [NUEVO] */
+  pagoDel: 'Pago del ',
+  /** F3 (decisión 402): el mismo código que ya ve en su comprobante. [NUEVO] */
+  codigoAutorizacion: 'Código de autorización: ',
+  /** F2 (decisión 401): sin el nombre del grupo, que la cuenta ya no puede leer. [NUEVO] */
+  grupoQueDejaste: 'Un grupo del que saliste',
+  saliste: ['Saliste el ', '.'] as Partes, // [NUEVO]
   sinTarjeta: 'Sin datos de la tarjeta.', // [NUEVO]
   versionEl: (version: string) => [`Versión ${version}, el `, '.'] as const, // [NUEVO]
   paraPedido: (grupo: string, referencia: string) => `En ${grupo}, para el pedido ${referencia}.`, // [NUEVO]
   paraPedidoSinPagar: (grupo: string) => `En ${grupo}, para un pedido que no se pagó.`, // [NUEVO]
 }
 
+/** Lo que precisa la frase de un hecho: el nombre del campo o la sección (L 14.1), la finalidad y la referencia. */
+export interface ObjetoHecho {
+  nombre: string | null
+  finalidad: FinalidadCopia | null
+}
+/** (1.2, F1) Las de autorizaciones, según `finalidad` [NUEVO]. */
+const DE_LA_FINALIDAD: Record<FinalidadCopia, string> = { plan_cuidado: 'de la ficha', consumo: 'de los insumos', despacho: 'de los pedidos' }
+
 /**
  * 3.4.9: los 26 tipos del historial. `campo` y `seccion` ya vienen con su nombre de L 14.1. Las
- * marcadas MATU son del sistema: su cola no lleva nombre.
+ * marcadas MATU son del sistema: su cola no lleva nombre. Las de pedidos y pagos tienen dos formas
+ * (1.2, F1): `FRASE_CON_REFERENCIA` termina en la referencia, que la pantalla pone en `cifras`, y
+ * sin referencia se usa la general de aquí.
  */
-export const FRASE_HECHO: Record<TipoHecho, (nombre: string | null) => string> = {
+export const FRASE_HECHO: Record<TipoHecho, (o: ObjetoHecho) => string> = {
   abrio_la_ficha: () => 'Abrió la ficha', // [ANALISTA]
-  edito_la_ficha: (n) => (n ? `Editó «${n}»` : 'Editó la ficha'), // [ANALISTA] y [NUEVO, decisión 356]
-  quito_una_seccion: (n) => (n ? `Quitó «${n}»` : 'Quitó una sección de la ficha'), // [ANALISTA] y [NUEVO]
+  edito_la_ficha: ({ nombre: n }) => (n ? `Editó «${n}»` : 'Editó la ficha'), // [ANALISTA] y [NUEVO, decisión 356]
+  quito_una_seccion: ({ nombre: n }) => (n ? `Quitó «${n}»` : 'Quitó una sección de la ficha'), // [ANALISTA] y [NUEVO]
   ficha_borrada: () => 'MATU borró lo escrito en la ficha', // [README Q15]
-  dio_una_autorizacion: () => 'Dio una autorización', // [NUEVO]
-  retiro_una_autorizacion: () => 'Retiró una autorización', // [NUEVO]
+  dio_una_autorizacion: ({ finalidad: f }) => (f && DE_LA_FINALIDAD[f] ? `Dio la autorización ${DE_LA_FINALIDAD[f]}` : 'Dio una autorización'), // [NUEVO]
+  retiro_una_autorizacion: ({ finalidad: f }) => (f && DE_LA_FINALIDAD[f] ? `Retiró la autorización ${DE_LA_FINALIDAD[f]}` : 'Retiró una autorización'), // [NUEVO]
   compartio_la_ficha: () => 'Compartió la ficha con un relevo', // [NUEVO]
   corto_un_enlace: () => 'Cortó un enlace de relevo', // [NUEVO]
   agrego_un_insumo: () => 'Agregó un insumo', // [NUEVO]
@@ -346,4 +370,15 @@ export const FRASE_HECHO: Record<TipoHecho, (nombre: string | null) => string> =
   pago_aprobado: () => 'Se aprobó el pago de un pedido', // [README Q15, ajustado]
   pago_anulado: () => 'Se devolvió dinero de un pago', // [README Q15, ajustado]
   pidio_una_copia: () => 'Pidió una copia de los datos', // [ANALISTA]
+}
+
+/** (1.2, F1) Con `referencia`: la frase sin el número, que la pantalla agrega en `cifras`. [NUEVO] */
+export const FRASE_CON_REFERENCIA: Partial<Record<TipoHecho, string>> = {
+  creo_un_pedido: 'Armó el pedido ',
+  confirmo_un_pedido: 'Confirmó el pedido ',
+  cancelo_un_pedido: 'Canceló el pedido ',
+  cambio_que_hacer_si_falta: 'Cambió qué hacer si falta un producto en el pedido ',
+  inicio_un_pago: 'Empezó a pagar el pedido ',
+  pago_aprobado: 'Se aprobó el pago del pedido ',
+  pago_anulado: 'Se devolvió dinero del pago del pedido ',
 }
