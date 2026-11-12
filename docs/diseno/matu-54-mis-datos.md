@@ -1,6 +1,15 @@
 # MATU-54 · Ver y descargar los datos («Datos de {nombre}» y «Tus datos») · Especificación de diseño
 
-**Versión 1.2 · 12-11-2026 · agente 6 UI/UX.** La 1.2 sale de la revisión visual de lo construido (HEAD a12f8b5, sección 12) y de las decisiones 366 a 400 del README.
+**Versión 1.3 · 12-11-2026 · agente 6 UI/UX.** La 1.3 sale de la segunda revisión visual (HEAD 83bf2cc, sección 13) y de las decisiones 401 a 403 del README.
+
+**Qué cambia de la 1.2 a la 1.3:**
+- **Los títulos largos llevan un guion suave escrito en el texto** («Autoriza\u00ADciones»), y no `hyphens-auto` (3.4). En la revisión, `hyphens-auto` no hizo nada: Chrome en Windows no trae diccionario de guiones, y Firefox no corta las palabras con mayúscula inicial. «Autorizacione / s» siguió igual en los dos (P2-1).
+- **Los montos del pedido van en una columna en el modo `angosto`**, como las líneas: «Productos» se partía en «Prod / uctos» (3.4.8, P2-2).
+- **Un espacio no separable entre «×» y la cantidad** (3.4.8, P3).
+- **«Un grupo del que saliste»** (F2, decisión 401) y **«Código de autorización»** (F3, decisión 402), con sus textos (5.3 y 5.4).
+- **Las compras con pedido de MATU anteriores a 90 días** (decisión 403) no se muestran, y la frase de los 90 días vuelve bajo el título si las hay (3.4.6).
+
+**Versión 1.2 · 12-11-2026.** La 1.2 sale de la revisión visual de lo construido (HEAD a12f8b5, sección 12) y de las decisiones 366 a 400 del README.
 
 **Qué cambia de la 1.1 a la 1.2:**
 - **Reflujo** (hallazgos P1-1, P1-2 y P2-1 de la revisión, 3.4):
@@ -292,7 +301,11 @@ Reglas comunes:
 - **Un bloque sin filas** muestra una frase en `p text-base text-tenue`, sin ícono grande ni botón: es una copia y no hay nada que empezar (tabla de 3.6).
 - **(1.2) Reflujo dentro de una fila.** Una `li` de bloque es `flex flex-col gap-2`, **sin `items-start`**: así sus hijos tienen el ancho de la fila, y `break-words` puede partir una palabra que no cabe. Con `items-start`, cada hijo toma el ancho de su contenido, y un nombre de una sola palabra larga lo ensancha más allá de la pantalla (P1-1). Solo la `Etiqueta` y los botones llevan `self-start`.
 - **(1.2) Las notas dentro de una tarjeta** (la del representante legal, las de 3.5 y la de `lo_tuyo`) llevan `iconoEnLinea`, como en MATU-44 y MATU-55. Con el ícono al lado, a 320 px con el texto al 200 % «representante» no cabe, y la nota se sale 32 px de su tarjeta (P1-2).
-- **(1.2) Títulos largos.** Los `h2` y los `h3` de las dos páginas llevan `hyphens-auto`. El `html` es `lang="es-CL"`, así que una palabra que no cabe se corta con guion en una sílaba («Autoriza-ciones») y no en la última letra («Autorizacione / s», P2-1). Si el navegador no tiene el diccionario, sigue `break-words`.
+- **(1.3) Títulos largos: el guion suave va en el texto.** `hyphens-auto` no sirve aquí: Chrome en Windows no trae diccionario de guiones, y Firefox no corta una palabra con mayúscula inicial, que es justo la primera palabra de un título (revisión del 12-11, sección 13). Por eso:
+  - los títulos fijos que tienen una palabra de 12 letras o más llevan un guion suave (U+00AD) en una sílaba, escrito en `textosMisDatos.ts`. Hoy son estos: «Autoriza\u00ADciones» (`h2`), «Tus teléfonos y compu\u00ADtadores» (`h2`) y «Condiciones de compra que acep\u00ADtaste» (`h2`). Si cabe, el guion suave no se ve. Si no cabe, el navegador corta ahí y dibuja el guion, en Chrome y en Firefox, sin diccionario;
+  - los lectores de pantalla y la búsqueda del navegador ignoran el guion suave, así que el texto se lee igual;
+  - en lo que escribió la familia (nombres de insumos, de relevos o de productos) no se agrega nada: sigue `break-words`, que corta sin guion. No se cambia ningún carácter de lo que escribió la familia;
+  - `hyphens-auto` se puede quitar, porque no ayuda ni estorba.
 - **Los enumerados** se muestran con la palabra de esta especificación o de `lenguaje.md`, nunca con el valor del contrato. Un valor que el cliente no conoce no rompe la pantalla: la fila se muestra sin esa palabra.
 
 #### 3.4.1 Sus datos (`persona`)
@@ -376,7 +389,7 @@ Si el frontend ya tiene una frase de L 18 o L 21 que dice lo mismo, usa esa y lo
 
 #### 3.4.6 Compras anotadas (últimos 90 días) (`insumos.compras`)
 
-El título es **[ANALISTA]** y ya dice el plazo: el contrato confirma que las compras declaradas se borran a los 90 días, así que no lleva la frase de los 90 días. Un `ol`, en el orden del servidor, con una `li` por compra:
+El título es **[ANALISTA]** y ya dice el plazo. **(1.3)** Las compras `declarada` se borran a los 90 días, pero las `pedido_matu` quedan más tiempo (decisión 403). La pantalla muestra solo las de los últimos 90 días, como todo historial. Si la respuesta trae alguna más antigua, bajo el título va «Lo anterior va en el archivo.» **[NUEVO, la segunda oración de la frase de los 90 días]**, en `p text-base text-tenue`. Si no, no va nada, porque el título ya dice el plazo. Un `ol`, en el orden del servidor, con una `li` por compra:
 - **(1.2)** «{unidades} {unidad} de {insumo}» en `font-bold`, con `unidad` de la compra (decisión 386) y la palabra de L 21 en singular o plural: «20 unidades de Pañal adulto talla M», «2 sobres de Champú en sobre». Nunca se cruza con `lista` por el nombre;
 - con `origen: declarada`: «El {el} · Anotó {anotada_por}» **[NUEVO]**;
 - con `origen: pedido_matu`: «El {el} · Llegó con un pedido de MATU» **[NUEVO]**;
@@ -434,8 +447,8 @@ Bajo el `h2`, la frase de los 90 días. Una `ul` con una `li` por pedido, en el 
 | Título | Con `referencia`: «Pedido {referencia}» **[NUEVO]**, en `cifras`: es el número del comprobante (MATU-62). Sin ella: «Pedido del {creado_en}» **[NUEVO]** |
 | Estado | La palabra de `estado`, en `Etiqueta`, según la tabla que sigue |
 | Cuándo | Lo armaron el {creado_en}. **[NUEVO]** |
-| Líneas | Por cada `lineas[]`: «{producto}, {presentacion} × {cantidad}» y `subtotal`, en un `dl` de dos columnas (`grid grid-cols-[minmax(0,1fr)_auto] gap-x-4`), con el precio a la derecha en `cifras`. Debajo, en `text-tenue`: «En {comercio} · Si falta: {si_falta}», con los textos de `textosPedido` (`otroComercio` y `quitar`) en minúscula. En el modo `angosto`, el precio baja bajo el producto (`angosto:grid-cols-1`) |
-| Montos | «Productos» **[NUEVO]** con `subtotal_productos`, «Envío» **[L 27]** con `costo_envio` y «Total» **[L 27]** con `total` en `font-bold`. Si `total` es `null` (borrador), la fila del total no aparece. Nunca «IVA» ni «Neto» |
+| Líneas | Por cada `lineas[]`: «{producto}, {presentacion} ×\u00A0{cantidad}» (**1.3:** con espacio no separable entre «×» y la cantidad, para que el número no quede solo en un renglón) y `subtotal`, en un `dl` de dos columnas (`grid grid-cols-[minmax(0,1fr)_auto] gap-x-4`), con el precio a la derecha en `cifras`. Debajo, en `text-tenue`: «En {comercio} · Si falta: {si_falta}», con los textos de `textosPedido` (`otroComercio` y `quitar`) en minúscula. En el modo `angosto`, el precio baja bajo el producto (`angosto:grid-cols-1`) |
+| Montos | «Productos» **[NUEVO]** con `subtotal_productos`, «Envío» **[L 27]** con `costo_envio` y «Total» **[L 27]** con `total` en `font-bold`. Si `total` es `null` (borrador), la fila del total no aparece. Nunca «IVA» ni «Neto». **(1.3)** El `dl` de los montos usa la misma grilla que las líneas y también pasa a una columna en el modo `angosto` (`angosto:grid-cols-1`): el rótulo arriba y el monto debajo, alineado a la izquierda. Con dos columnas, a 320 px con el texto al 200 %, la del rótulo medía 82 px y «Productos» (151 px) se partía en «Prod / uctos» (P2-2) |
 | Pago | Según `pago` (tabla de pago, más abajo). Con `pago: null`, «Sin pagar.» **[NUEVO]** |
 | Devoluciones | Por cada `devoluciones[]` (ver más abajo) |
 | Entrega | Entrega: {calle} {numero}, {depto}, {comuna}, {region} **[NUEVO]**, en `text-tenue`, con `entrega`. Si es `null`, la línea no aparece |
@@ -775,6 +788,7 @@ Con `pagos: null` y `condiciones_aceptadas: null` (la capa 3 quitada), los dos �
 | **Tu cuenta** (`cuenta`) | Nombre, correo, celular, si está confirmado, el canal de los códigos y la creación | `dl` como el de «Tu cuenta», con `dt text-base text-tenue`. Rótulos: «Tu nombre» **[NUEVO]**, «Tu correo» y «Tu celular» **[L 29, los de «Tu cuenta»]**, «Los códigos te llegan» **[NUEVO]** con «Por SMS» o «Por WhatsApp» **[NUEVO, con las palabras de L 19]**, y «Cuenta creada» **[NUEVO]** con el día de `creada_en`. **El celular, enmascarado** (P3): la API lo manda completo en E.164, y la pantalla lo muestra como «Tu cuenta», con `celularEnPantalla` (MATU-57), su `Etiqueta` de confirmado según `celular_confirmado` y «Completo en el archivo.» **[NUEVO]** en `text-tenue` debajo. Con `celular: null`, el texto de «Tu cuenta» (`CUENTA_PROPIA.sinCelular`) y sin la frase del archivo |
 | **Política de privacidad** (`politica`) | Versión, fecha y huella | «Aceptaste la versión {version} el {aceptada_en}.» **[NUEVO]**. «Huella: {huella}» **[NUEVO]** en `text-base text-tenue` con `break-all`: es una cadena sin palabras, y aquí sí se puede partir en cualquier punto. Con `politica: null`: «No hay una aceptación registrada.» **[NUEVO]** |
 | **Tus grupos** (`grupos`) | Nombre, rol, fecha de unión y el permiso del pagador | `ul`, una `li` por grupo: el `nombre` en `font-bold break-words`; el `rol` en palabra, «Administra el grupo» · «Cuida» · «Paga» · «Se informa» **[MATU-53, 5.3]**; «Te uniste el {unido_en}.» **[NUEVO]**; y, si `puede_ver_ficha` no es `null`, «Puede ver la ficha» o «No ve la ficha» con `Eye` o `EyeOff` **[MATU-53, 5.3]** |
+| **(1.3) Los grupos de los que saliste** (`grupos_que_dejaste`, F2, decisión 401) | Rol, fecha de unión y fecha de salida, **sin el nombre del grupo**, que la cuenta ya no puede leer | En la misma `ul` de «Tus grupos», después de los grupos activos, una `li` por cada uno, con la misma forma. En el lugar del nombre: «Un grupo del que saliste» **[NUEVO]**, en `font-bold`. No es un nombre inventado: dice qué es, y por eso va en el mismo lugar y con el mismo peso. Debajo, el rol en palabra **[MATU-53, 5.3]**, «Te uniste el {unido_en}.» y «Saliste el {retirado_en}.» **[NUEVO]**, los dos en `text-tenue`. No lleva «Puede ver la ficha», porque ya no ve nada. Si hay más de uno, cada uno dice lo mismo: los distinguen sus fechas. Si la cuenta solo tiene grupos de los que salió, «No estás en ningún grupo.» (5.6) va arriba de ellos |
 | **Tus teléfonos y computadores** (`dispositivos`) | Todos los guardados, también los cerrados | La `ul` de `FilaDispositivo` (MATU-55, 2.4), **sin acciones y sin la marca del actual**: el contrato no trae `actual`, y aquí no se cierra nada. El ícono sale de `clase`. Debajo del nombre: «Desde el {creado_en}.» **[NUEVO]**, «Última vez: {ultimo_uso_en}» **[L 13.3]** con la fecha absoluta, y si `cerrado_en` no es `null`, «Se cerró el {cerrado_en}.» **[NUEVO]** con `Etiqueta` neutra y `Circle`. Con `avisos_activos: true`: «Recibe avisos.» **[NUEVO]** con `Bell`. Al pie, `Boton variante="texto"` «Ver dónde entraste» **[MATU-55, 3.5]** a `/cuenta/donde-entraste`, para quien quiera cerrar alguno |
 | **Últimos ingresos** (`eventos`) | Los eventos de seguridad, más `pediste_una_copia` | La frase de los 90 días (3.4.9) y el `ol` de `LineaIngreso` (MATU-55, 2.5), agrupado por día, con «Ver más» (3.4.10). Los diez tipos de MATU-55 con sus frases, y `pediste_una_copia` con la fila de 5.5. **Sin «(este teléfono)»**, porque el contrato no trae `actual`. **Sin** la ayuda «¿No reconoces un ingreso?»: vive en «Dónde entraste» |
 | **Tus avisos** (`preferencia_avisos`) | La preferencia | Un `dl` con «Por correo» y «En tus teléfonos» **[L 20, con el ajuste de MATU-55]**, y «Sí» o «No» **[NUEVO]**. Al pie, «Puedes cambiarlos en Tu cuenta.» **[NUEVO]** |
@@ -828,9 +842,10 @@ Con `pagos: null` y `condiciones_aceptadas: null` (la capa 3 quitada), los dos �
 | Monto | {cobrado} en {grupo} **[NUEVO]**: lo cobrado, con IVA incluido y sin línea de IVA. Nunca la persona (P5) |
 | Tarjeta | Según `tarjeta.tipo`: «Tarjeta de crédito terminada en {ultimos4}», «Tarjeta de débito terminada en {ultimos4}» o «Tarjeta de prepago terminada en {ultimos4}» **[NUEVO]**, y « · {cuotas} cuotas» si `cuotas` es 2 o más, o « · Sin cuotas» **[NUEVO]**. Los cuatro dígitos en `cifras`. Con `tarjeta: null`: «Sin datos de la tarjeta.» **[NUEVO]**. **(1.2)** El espacio antes del «·» es no separable, para que un renglón nunca empiece con el punto (P3-4) |
 | Devolución | Devuelto: {devuelto} **[NUEVO]**, solo si es mayor que 0 |
+| **(1.3) Código de autorización** (F3, decisión 402) | Código de autorización: {codigo_autorizacion} **[NUEVO]**, en `text-base`, con el código en `cifras`. Va después de la devolución y antes del rótulo del piloto. Es el mismo código que la persona ya vio en su comprobante (D-62-2), y sirve para reclamar al banco. Con `codigo_autorizacion: null`, la línea no aparece. **Solo en «Tus datos»**: nunca en «Datos de» |
 | Piloto | Con `pago_de_prueba: true`: «Pago de prueba: no se cobró dinero real.» (3.4.8), en `font-bold` |
 
-**Nunca** el token, la orden, la sesión de pago ni el código de autorización (D-54-16). El contrato no los trae.
+**Nunca** el token, la orden ni la sesión de pago (D-54-16). **(1.3)** El código de autorización sí va, solo aquí (decisión 402).
 
 **Condiciones de compra que aceptaste** (`condiciones_aceptadas`). Una `ul` con una `li` por aceptación:
 - «Versión {version}, el {aceptadas_en}.» **[NUEVO]** en `font-bold`;
@@ -932,7 +947,7 @@ El diálogo «Antes de descargar» es el de 3.7, con este texto: «El archivo tr
 11. Con `hay_hechos_sin_asociar: true` se ve la nota «Hay cambios antiguos que no podemos mostrar aquí ni en el archivo…». Con `false` no se ve.
 12. Ningún aviso simulado dice «Salió». Todos dicen «En el piloto no salió», y la nota del piloto se ve una sola vez.
 13. Ningún precio va sin IVA, ni hay una línea «IVA» o «Neto». En «Datos de», ningún pedido muestra la tarjeta, las cuotas, los dígitos ni el teléfono de contacto. `PreciosDeEjemplo` se ve una sola vez en el bloque.
-14. En «Tus datos», un pago muestra solo el tipo de tarjeta, las cuotas y los últimos 4 dígitos, nunca una orden, un token o un código, y nunca el nombre de la persona cuidada.
+14. En «Tus datos», un pago muestra de la tarjeta solo el tipo, las cuotas y los últimos 4 dígitos, y además el código de autorización (1.3, decisión 402). Nunca una orden, un token ni el nombre de la persona cuidada. En «Datos de» no aparece ningún código de autorización.
 15. En la pantalla de «Tus datos», el celular se ve enmascarado, con «Completo en el archivo.».
 16. Ningún bloque muestra el teléfono de un relevo, ni el correo o el celular de otra persona del grupo. «A quién llamar» se ve tal cual se escribió.
 17. Con `alcance: lo_tuyo` se ve la nota «Aquí ves solo lo que hiciste tú…». Con `todo` no se ve.
@@ -945,6 +960,8 @@ El diálogo «Antes de descargar» es el de 3.7, con este texto: «El archivo tr
 24. **(1.2)** A 360 px sin zoom no hay desplazamiento horizontal, ni con un insumo de una sola palabra de 60 letras (`datos-admin`): `scrollWidth` es igual a `clientWidth`.
 25. **(1.2)** A 320 px con el texto al 200 %, ninguna nota se sale de su tarjeta, y ningún título se parte en su última letra.
 26. **(1.2)** Las frases del historial con `finalidad` o `referencia` dicen cuál («Dio la autorización de la ficha», «Confirmó el pedido 4821»). Sin ellas, dicen la general.
+27. **(1.3)** A 320 px con el texto al 200 %, en Chrome y en Firefox, «Autorizaciones» se corta como «Autoriza- / ciones», y «Productos» no se parte.
+28. **(1.3)** «Un grupo del que saliste» aparece en «Tus grupos» con su rol, «Te uniste el…» y «Saliste el…», y sin ningún nombre de grupo.
 
 ---
 
@@ -1110,3 +1127,55 @@ Sin desplazamiento horizontal a 360 ni a 320 px con el texto al 200 %, en los do
 **Lo que queda por mirar después de la corrección:**
 - «Datos de María» a 360 px sin zoom y a 320 px con el texto al 200 %, en los dos navegadores;
 - la descarga en un iPhone real, que la prueba Martín (P10).
+
+
+---
+
+## 13. Segunda revisión visual, 12-11-2026 (HEAD 83bf2cc)
+
+**Cómo se miró.**
+- La misma instancia propia en el puerto 5193, detenida al terminar. Varias cuentas, para no pasar del límite.
+- **Chrome 157**, con Playwright: «Datos de María» a 360, 1280 y 1920 px, y a 320 px con el texto al 200 %, en claro y oscuro. «Tus datos» a 360 y 1280 px y a 320 px con el texto al 200 %.
+- **Firefox 160**, el instalado, con BiDi. **Esta vez también en tema claro**, con la preferencia `layout.css.prefers-color-scheme.content-override` de Firefox, que cambia el `prefers-color-scheme` real. Se miró «Datos de María» a 360, 1280 y 320 px con el texto al 200 %, y «Tus datos» a 360 y 320 px con el texto al 200 %, en claro, y dos de esas medidas en oscuro.
+
+**Lo corregido:**
+
+| Hallazgo de la 1.2 | Resultado | Captura |
+|---|---|---|
+| P1-1, el insumo de una palabra a 360 px | **Corregido.** `scrollWidth` 360 = `clientWidth` en Chrome y Firefox, en claro y oscuro. El nombre se parte dentro de su fila | `r2-chrome-360-insumo-largo.png`, `r2-chrome-320x200-claro-insumo-largo.png` |
+| P1-2, la nota del representante a 320 px con el texto al 200 % | **Corregido.** La nota cabe en su tarjeta, con el ícono en la primera línea. Sin desplazamiento horizontal en los dos navegadores | `r2-chrome-320x200-claro-nota-rep.png` |
+| P2-1, «Autorizacione / s» | **Sigue.** El `h2` tiene `hyphens: auto` y `lang="es-CL"`, pero ningún navegador corta. Una prueba aislada lo confirma: Chrome no corta ni «representatives» en inglés (no trae diccionario en Windows), y Firefox corta en inglés pero no «Autorizaciones», porque no corta palabras con mayúscula inicial | `r2-chrome-320x200-claro-h2.png`, `r2-firefox-datos-320x200-claro-autorizaciones.png` |
+| P3, la fecha de las aperturas | **Corregido.** «Rosa abrió la ficha · el 12/11/2026 a las 12:09» | `r2-chrome-360-enlaces.png` |
+| P3, la unidad de las compras | **Corregido.** «20 unidades de Pañal adulto talla M», «1 unidad de…» | `r2-chrome-360-compras.png` |
+| P3, el nombre en la ficha | **Corregido.** Los cinco dicen el nombre completo («Lo escribió Carmen Soto…») | `r2-chrome-360-ficha.png` |
+| P3, el ícono del 503 | **Corregido.** `CloudOff` | `r2-chrome-503.png` |
+| P3, F1 en el historial | **Corregido.** Aparecen «Confirmó el pedido 4821», «Empezó a pagar el pedido 4821», «Se aprobó el pago del pedido 4821», «Se devolvió dinero del pago del pedido 4821», «Canceló el pedido 4821», «Dio la autorización de la ficha», «Retiró la autorización de los insumos» y «Dio la autorización de los insumos». «Armó un pedido» queda general porque ese borrador no tiene referencia | `r2-chrome-360-historial-completo.png` |
+| P3, «· cuotas» | **Corregido.** El carácter antes del «·» es U+00A0 | `r2-chrome-tus-360-claro-Tus_pagos.png` |
+
+**Lo nuevo:**
+- «Un grupo del que saliste» (`datos-pagador` y `datos-observador`) se ve con «Cuida», «Te uniste el 24/08/2026.» y «Saliste el 28/09/2026.», sin nombre de grupo. Capturas `r2-chrome-tus-360-claro-Tus_grupos.png` y `r2-firefox-tus-360-claro-grupos.png`. La cuenta existe: el doble pone ese grupo en todas las cuentas `datos-*` salvo `datos-vacio`.
+- «Código de autorización: 1213» en «Tus pagos». Captura `r2-chrome-tus-360-claro-Tus_pagos.png`.
+- Las compras de `datos-historial` llegan hasta el 03/09/2026, dentro de los 90 días.
+
+### «Datos de María» (`/grupo/datos`)
+
+| Pantalla y ancho | Hallazgo | Sev. | Corrección |
+|---|---|---|---|
+| 320 px con el texto al 200 %, Chrome y Firefox, claro y oscuro | «Autorizaciones» sigue partida en «Autorizacione / s». `hyphens-auto` no actúa en ninguno de los dos (ver arriba) | **P2** | El guion suave en el texto: «Autoriza\u00ADciones», y lo mismo en «compu\u00ADtadores» y «acep\u00ADtaste» (3.4, 1.3) |
+| 320 px con el texto al 200 %, «Sus pedidos» | «Productos» se parte en «Prod / uctos»: en el `dl` de los montos, la columna del rótulo mide 82 px y la palabra 151 px. Captura `r2-chrome-320x200-montos.png` | **P2** | `angosto:grid-cols-1` también en los montos (3.4.8, 1.3) |
+| 320 px con el texto al 200 %, «Sus pedidos» | «paquete de 80 ×» y, en el renglón siguiente, «1». Captura `r2-chrome-320x200-pedido.png` | P3 | Espacio no separable entre «×» y la cantidad (3.4.8, 1.3) |
+| 320 px con el texto al 200 %, la nota del representante | El punto final, después del correo, queda solo en el último renglón | P3 | Se acepta. El correo tiene que poder partirse en cualquier punto, y no hay forma limpia de pegarle el punto sin impedirlo |
+
+No hay ningún P1. **Veredicto: CAMBIOS REQUERIDOS**, por dos P2 de reflujo a 320 px con el texto al 200 %. No es un P1, así que según CLAUDE.md, sección 4, paso 5, la historia no vuelve obligatoriamente al paso 4. El orquestador decide si los corrige antes del QA o en la misma vuelta. Son dos cambios de clases y tres caracteres en los textos.
+
+### «Tus datos» (`/cuenta/datos`)
+
+Sin desplazamiento horizontal en ninguna medida, en Chrome ni en Firefox, en claro ni en oscuro. Ningún texto bajo 17 px, y todo lo que se toca mide 48 px o más. Lo nuevo de F2 y F3 se ve como pide la 1.3. A 320 px con el texto al 200 %, «Tus teléfonos y computadores» y «Condiciones de compra que aceptaste» cortan entre palabras, pero el guion suave de la 1.3 los protege si cambia el tamaño.
+
+**Veredicto: APROBADA.**
+
+### Las entradas y «Dónde entraste»
+
+El commit 83bf2cc no toca `Grupo.tsx`, `Cuenta.tsx` ni `DondeEntraste.tsx`, así que siguen **APROBADAS** (sección 12). Toca dos piezas compartidas, que revisé en el código:
+- `Nota`: `iconoEnLinea` sin título ahora pone el ícono en el texto, en el modo `angosto`. Todos los demás usos de `iconoEnLinea` en la app llevan título, así que no cambian;
+- `LineaApertura`: `completa="fecha"` es un valor nuevo. Quién la vio sigue con `true` o sin `completa`.
