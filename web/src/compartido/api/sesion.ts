@@ -138,9 +138,15 @@ export async function salir(): Promise<void> {
 
 // ---------------------------------------------------------------- interceptores
 
+// MATU-42 (decisión 291): las rutas de la persona invitada no llevan `X-Grupo-Id`, porque el grupo
+// sale de la invitación. La presentación y la verificación son públicas: tampoco llevan la entrada.
+const SIN_GRUPO = /^\/v1\/invitaciones\//
+const PUBLICAS = new Set(['/v1/invitaciones/presentacion', '/v1/invitaciones/verificacion'])
+
 apiFamilia.interceptors.request.use((config) => {
-  if (accessToken) config.headers.set('Authorization', `Bearer ${accessToken}`)
-  if (grupoActual && !config.headers.has('X-Grupo-Id')) config.headers.set('X-Grupo-Id', grupoActual)
+  const url = config.url ?? ''
+  if (accessToken && !PUBLICAS.has(url)) config.headers.set('Authorization', `Bearer ${accessToken}`)
+  if (grupoActual && !config.headers.has('X-Grupo-Id') && !SIN_GRUPO.test(url)) config.headers.set('X-Grupo-Id', grupoActual)
   return config
 })
 
