@@ -39,6 +39,15 @@ class GrupoCopia(_Cerrado):
     puede_ver_ficha: bool | None
 
 
+class GrupoQueDejasteCopia(_Cerrado):
+    """F2 del cierre del analista (decisión 401): una membresía retirada, sin el nombre del grupo, que ya no se puede
+    leer. La pantalla la muestra como «Un grupo del que saliste»."""
+
+    rol: Literal["admin", "cuidador", "pagador", "observador"]
+    unido_en: Instante
+    retirado_en: Instante | None
+
+
 Clase = Literal["telefono", "computador", "otro"]
 
 
@@ -91,6 +100,8 @@ class PagoCuentaCopia(_Cerrado):
     cobrado: int
     devuelto: int
     tarjeta: TarjetaCopia | None
+    # F3 del cierre del analista (decisión 402): solo en «Tus datos» de quien pagó, que ya lo ve en su comprobante
+    codigo_autorizacion: str | None
     pago_de_prueba: bool
 
 
@@ -112,6 +123,7 @@ class CopiaDatosCuenta(_Cerrado):
     cuenta: CuentaCopia
     politica: PoliticaCopia | None
     grupos: list[GrupoCopia]
+    grupos_que_dejaste: list[GrupoQueDejasteCopia]
     dispositivos: list[DispositivoCopia]
     preferencia_avisos: PreferenciaAvisosCopia
     eventos: list[EventoCuentaCopia]

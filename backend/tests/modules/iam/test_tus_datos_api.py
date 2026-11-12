@@ -25,7 +25,7 @@ RUTA = "/v1/yo/datos"
 PROHIBIDOS = {
     "id", "usuario_id", "grupo_id", "persona_id", "request_id", "ip", "actor_ref", "entidad_id", "detalle",
     "password_hash", "contrasena", "mfa_secreto_cifrado", "email_hash", "token_hash", "push_token", "plataforma",
-    "plantilla", "error", "evento_id", "token", "buy_order", "session_id", "codigo_autorizacion", "actual",
+    "plantilla", "error", "evento_id", "token", "buy_order", "session_id", "actual",
 }
 
 
@@ -84,6 +84,7 @@ def test_tus_datos_trae_la_cuenta_sus_grupos_y_sus_eventos_sin_nada_de_la_person
     assert cuerpo["cuenta"]["nombre"] == admin.nombre and cuerpo["cuenta"]["correo"] == admin.email
     [grupo] = cuerpo["grupos"]
     assert (grupo["nombre"], grupo["rol"], grupo["puede_ver_ficha"]) == (familia.grupo.nombre, "admin", None)
+    assert cuerpo["grupos_que_dejaste"] == []
     assert len(cuerpo["dispositivos"]) == 1
     tipos = [e["tipo"] for e in cuerpo["eventos"]]
     assert tipos[0] == "pediste_una_copia" and "entraste" in tipos
@@ -205,3 +206,24 @@ def test_los_logs_no_llevan_la_copia(entorno_iam: EntornoIam, fabrica_iam: Fabri
 
     logs = entorno_iam.texto_log()
     assert usuario.email not in logs and usuario.nombre not in logs
+
+
+@pytest.mark.rf("RF-38")
+def test_un_grupo_del_que_saliste_va_sin_su_nombre(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:
+    """F2 del cierre del analista (decisión 401): la membresía retirada, leída con membresia_propia: rol, unido_en y
+    retirado_en, sin el nombre del grupo, que grupo_mis_grupos ya no deja leer."""
+    familia = _familia(fabrica_iam)
+    otro = fabrica_iam.grupo(nombre="Grupo Sintético Que Dejó 54")
+    miembro = fabrica_iam.membresia(otro, familia.admin, "cuidador")
+    with psycopg.connect(DSN) as cx:
+        cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE id = %s", (miembro.id,))
+
+    respuesta = _pedir(entorno_iam, _token(entorno_iam, familia.admin))
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert [g["nombre"] for g in cuerpo["grupos"]] == [familia.grupo.nombre]
+    [dejado] = cuerpo["grupos_que_dejaste"]
+    assert set(dejado) == {"rol", "unido_en", "retirado_en"} and dejado["rol"] == "cuidador"
+    assert dejado["retirado_en"] is not None
+    assert "Grupo Sintético Que Dejó 54" not in respuesta.text

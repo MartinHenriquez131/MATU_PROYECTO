@@ -29,12 +29,13 @@ RUTA = "/v1/personas-cuidadas/{}/datos"
 RUTINA = "Desayuna a las 08:30 con té. Marca sintética de la copia MATU-54"
 RED = "Llamar a Rosa Sintética +56 9 0000 0154"
 TELEFONO_RELEVO = "+56 9 5555 0154"
-# Lo que nunca sale en la copia (C4, D-54-4 a, D-54-16 a)
+# Lo que nunca sale en la copia (C4, D-54-4 a, D-54-16 a). codigo_autorizacion va solo en «Tus datos» de quien pagó
+# (F3, decisión 402): aquí sigue prohibido, también ultimos4, tarjeta y cuotas
 PROHIBIDOS = {
     "id", "usuario_id", "grupo_id", "persona_id", "persona_cuidada_id", "acceso_id", "plan_id", "request_id", "ip",
     "actor_ref", "entidad_id", "detalle", "evidencia", "referencia_documento", "push_token", "token", "token_hash",
     "pin", "pin_hash", "telefono", "telefono_relevo", "telefono_contacto", "otorgado_a_telefono", "email", "correo",
-    "celular", "buy_order", "session_id", "codigo_autorizacion", "etag",
+    "celular", "buy_order", "session_id", "codigo_autorizacion", "etag", "tarjeta", "ultimos4", "cuotas",
 }
 
 

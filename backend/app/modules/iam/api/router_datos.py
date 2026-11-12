@@ -97,7 +97,7 @@ def ver_datos_propios(
                 "aviso": AVISO_COPIA,
                 "cuenta": datos_cuenta,
                 "politica": copia.politica(ctx),
-                "grupos": grupos(ctx),
+                **grupos(ctx),
                 "dispositivos": copia.dispositivos(ctx),
                 "preferencia_avisos": de_avisos["preferencia_avisos"],
                 "eventos": copia.eventos(ctx),

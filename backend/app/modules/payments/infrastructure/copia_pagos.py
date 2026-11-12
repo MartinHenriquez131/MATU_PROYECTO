@@ -146,6 +146,7 @@ _FIJAR_GRUPO = text("SELECT set_config('app.grupo_id', :grupo_id, true)")
 # Lo cobrado es lo que se aprobó en la tarjeta; lo devuelto, las anulaciones aprobadas de esa venta
 _MIS_PAGOS = text(
     "SELECT pe.referencia, t.cerrada_en, t.creado_en, t.monto, t.tipo_tarjeta, t.ultimos4, t.cuotas,"
+    " t.codigo_autorizacion,"
     " (SELECT COALESCE(sum(a.monto), 0) FROM transaccion_pasarela a WHERE a.venta_id = t.id"
     "  AND a.tipo = 'anulacion' AND a.estado = 'aprobada') AS devuelto"
     " FROM transaccion_pasarela t JOIN participacion pa ON pa.id = t.participacion_id"
@@ -184,6 +185,8 @@ def pagos_de_la_cuenta(ctx: ContextoCopiaCuenta) -> dict[str, Any]:
                         "cobrado": int(f.monto),
                         "devuelto": int(f.devuelto),
                         "tarjeta": tarjeta,
+                        # F3 (decisión 402): el de su propio pago, como en su comprobante. Nunca en «Datos de»
+                        "codigo_autorizacion": f.codigo_autorizacion,
                         "pago_de_prueba": prueba,
                     }
                 )
