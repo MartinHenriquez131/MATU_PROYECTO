@@ -97,6 +97,14 @@ export function AvisosCuenta() {
   const [pendiente, setPendiente] = useState<{ canal: Canal; valor: boolean } | null>(null)
   const [aviso, setAviso] = useState<'guardando' | 'guardado' | 'error' | null>(null)
   const casillas = useRef<Partial<Record<Canal, HTMLInputElement | null>>>({})
+  // 1.2 (criterio 16): el foco vuelve a la casilla después del render que termina de guardar.
+  const [focoCasilla, setFocoCasilla] = useState<{ canal: Canal } | null>(null)
+  // P3: cada bloque borra el mensaje del otro. Sube cuando se toca una casilla.
+  const [casillaTocada, setCasillaTocada] = useState(0)
+
+  useEffect(() => {
+    if (focoCasilla) casillas.current[focoCasilla.canal]?.focus()
+  }, [focoCasilla])
 
   const base = guardada ?? (preferencia.carga.estado === 'lista' ? preferencia.carga.datos : null)
   const ver = base && pendiente ? { ...base, [pendiente.canal]: pendiente.valor } : base
@@ -105,6 +113,7 @@ export function AvisosCuenta() {
     if (!base || pendiente) return
     setPendiente({ canal, valor })
     setAviso('guardando')
+    setCasillaTocada((n) => n + 1)
     try {
       const r = await guardarAvisos({ ...base, [canal]: valor })
       setGuardada(esPreferencia(r) ? r : { ...base, [canal]: valor })
@@ -115,8 +124,7 @@ export function AvisosCuenta() {
       setAviso('error')
     } finally {
       setPendiente(null)
-      // Mientras guarda las casillas quedan `disabled` y pierden el foco: vuelve a la que se tocó.
-      window.setTimeout(() => casillas.current[canal]?.focus(), 0)
+      setFocoCasilla({ canal })
     }
   }
 
@@ -124,17 +132,20 @@ export function AvisosCuenta() {
   const piloto = push.carga.estado !== 'lista' || push.carga.datos.envio_simulado
 
   const casilla = (canal: Canal, texto: string) => (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 angosto:items-start font-bold has-disabled:cursor-not-allowed">
+    <label className="flex min-h-12 cursor-pointer items-center gap-3 angosto:items-start font-bold has-aria-disabled:cursor-not-allowed">
       <input
         ref={(n) => {
           casillas.current[canal] = n
         }}
         type="checkbox"
         checked={ver?.[canal] ?? false}
-        disabled={pendiente !== null}
+        // 1.2: `aria-disabled` y no `disabled`, que saca el foco de la casilla y lo deja en el body.
+        aria-disabled={pendiente !== null || undefined}
         aria-busy={pendiente?.canal === canal || undefined}
-        onChange={(e) => void cambiar(canal, e.target.checked)}
-        className="size-6 shrink-0 accent-turquesa disabled:opacity-60 angosto:mt-0.5"
+        onChange={(e) => {
+          if (pendiente === null) void cambiar(canal, e.target.checked)
+        }}
+        className="size-6 shrink-0 accent-turquesa aria-disabled:opacity-60 angosto:mt-0.5"
       />
       {texto}
     </label>
@@ -161,7 +172,7 @@ export function AvisosCuenta() {
           {casilla('push', AVISOS.push)}
           {/* E4: al desmarcar «En tus teléfonos», el bloque se oculta y la inscripción no se borra. */}
           <div hidden={!ver.push}>
-            <EsteTelefono push={push.carga} clase={clase} reintentar={() => void push.cargar()} />
+            <EsteTelefono push={push.carga} clase={clase} reintentar={() => void push.cargar()} casillaTocada={casillaTocada} onAccion={() => setAviso(null)} />
           </div>
           {aviso === 'guardando' && (
             <Anunciado urgencia="status" como="p" className="mt-2 text-base text-tenue">
@@ -196,13 +207,36 @@ export function AvisosCuenta() {
 const ID_ACTIVAR = 'push-activar'
 const ID_DESACTIVAR = 'push-desactivar'
 const ID_BLOQUEADO = 'push-bloqueado'
-const enfocar = (id: string) => window.setTimeout(() => document.getElementById(id)?.focus(), 0)
 
-export function EsteTelefono({ push, clase, reintentar }: { push: Carga<PushActual>; clase: ClaseDispositivo | null | undefined; reintentar: () => void }) {
+export function EsteTelefono({
+  push,
+  clase,
+  reintentar,
+  casillaTocada = 0,
+  onAccion,
+}: {
+  push: Carga<PushActual>
+  clase: ClaseDispositivo | null | undefined
+  reintentar: () => void
+  /** P3: sube al tocar una casilla, y entonces se borra el mensaje de este bloque. */
+  casillaTocada?: number
+  /** P3: al activar o desactivar, el bloque de las casillas borra el suyo. */
+  onAccion?: () => void
+}) {
   const [estado, setEstado] = useState<EstadoPush | null>(null)
   const [ocupado, setOcupado] = useState<'activar' | 'desactivar' | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 1.2 (criterio 16): el foco va al botón que aparece, o a la nota de C, después del render.
+  const [foco, setFoco] = useState<{ id: string } | null>(null)
+  useEffect(() => {
+    if (foco) document.getElementById(foco.id)?.focus()
+  }, [foco])
+  useEffect(() => {
+    if (!casillaTocada) return
+    setMensaje(null)
+    setError(null)
+  }, [casillaTocada])
   const s = sustantivo(clase)
 
   const datos = push.estado === 'lista' ? push.datos : null
@@ -220,15 +254,16 @@ export function EsteTelefono({ push, clase, reintentar }: { push: Carga<PushActu
     setOcupado('activar')
     setMensaje(null)
     setError(null)
+    onAccion?.()
     try {
       const r = await activarPush(datos.clave_publica)
       if (r === 'activados') {
         setEstado('activados')
         setMensaje(PUSH.activaste(s))
-        enfocar(ID_DESACTIVAR)
+        setFoco({ id: ID_DESACTIVAR })
       } else if (r === 'bloqueado') {
         setEstado('bloqueado')
-        enfocar(ID_BLOQUEADO)
+        setFoco({ id: ID_BLOQUEADO })
       } else setMensaje(PUSH.noActivamos)
     } catch (e) {
       if (!esVencida(e)) setError(PUSH.errActivar)
@@ -242,11 +277,12 @@ export function EsteTelefono({ push, clase, reintentar }: { push: Carga<PushActu
     setOcupado('desactivar')
     setMensaje(null)
     setError(null)
+    onAccion?.()
     try {
       await desactivarPush()
       setEstado('sin-activar')
       setMensaje(PUSH.desactivaste(s))
-      enfocar(ID_ACTIVAR)
+      setFoco({ id: ID_ACTIVAR })
     } catch (e) {
       if (!esVencida(e)) setError(PUSH.errDesactivar)
     } finally {
@@ -259,7 +295,7 @@ export function EsteTelefono({ push, clase, reintentar }: { push: Carga<PushActu
   else if (!estado || clase === undefined) cuerpo = <Cargando />
   else if (estado === 'ios-sin-instalar')
     cuerpo = (
-      <Nota tono="rocio" titulo={PUSH.iosTitulo}>
+      <Nota tono="rocio" titulo={PUSH.iosTitulo} iconoEnLinea>
         <ol className="list-decimal ps-5">
           <li>
             {PUSH.iosPaso1[0]} <Share role="img" aria-label={PUSH.iosCompartir} className="inline size-5 align-text-bottom" /> {PUSH.iosPaso1[1]}

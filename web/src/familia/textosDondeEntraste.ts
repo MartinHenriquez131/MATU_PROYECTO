@@ -97,8 +97,9 @@ export const PUSH = {
   sinActivar: 'Sin activar', // [nuevo]
   desactivar: (s: string) => `Desactivar en este ${s}`, // [nuevo]
   activar: (s: string) => `Activar en este ${s}`, // [nuevo]
-  /** [nuevo, de la línea de la política 0.14, D6] [analista-cierre] */
-  ayudaActivar: 'Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.',
+  /** [lenguaje 33, PR MATU #81] La misma línea de la política 0.14. */
+  ayudaActivar:
+    'Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante, y MATU la guarda hasta que los desactives o salgas. En el piloto, MATU no le envía nada a ese servicio.',
   bloqueado: 'Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.', // [analista]
   sinSoporte: 'Este navegador no puede recibir avisos.', // [analista]
   porCorreo: 'Puedes recibirlos por correo.', // [nuevo]
