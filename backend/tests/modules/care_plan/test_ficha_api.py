@@ -156,7 +156,8 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
             assert set(cuerpo["campos"][campo]) == CLAVES_CAMPO
             assert cuerpo["campos"][campo]["texto"] == textos[campo]
             assert cuerpo["campos"][campo]["etag"] == '"v1"'
-            assert cuerpo["campos"][campo]["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
+            assert cuerpo["campos"][campo]["actualizado_por"] == {
+                "id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
         assert admin.email not in ficha.text
 
 

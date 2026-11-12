@@ -38,7 +38,8 @@ def test_canje_diez_y_presentacion_treinta_por_hora() -> None:
 def test_cada_contador_tiene_su_prefijo_distinto_tambien_de_la_demora() -> None:
     prefijos = [limite.prefijo for limite in LIMITES] + [demora.PREFIJO_IP, demora.PREFIJO_EMAIL]
     assert len(set(prefijos)) == len(prefijos)
-    assert [limite.prefijo for limite in LIMITES] == ["usuarios-ip", "canje-ip", "presentacion-ip"]
+    assert [limite.prefijo for limite in LIMITES] == [
+        "usuarios-ip", "canje-ip", "presentacion-ip", "presentacion-invitacion-ip", "canje-invitacion-ip"]
 
 
 @pytest.mark.rf("RF-06")

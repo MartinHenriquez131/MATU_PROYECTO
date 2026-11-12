@@ -112,7 +112,8 @@ def test_if_match_desactualizado_412(entorno_ficha: EntornoFicha) -> None:
     problema = _es_412(pierde, "rutina")
     assert problema["actual"]["texto"] == del_cuidador
     assert problema["actual"]["etag"] == '"v2"' == pierde.headers["etag"]
-    assert problema["actual"]["actualizado_por"] == {"id": str(cuidador.id), "nombre": cuidador.nombre, "autor_activo": True}
+    assert problema["actual"]["actualizado_por"] == {
+        "id": str(cuidador.id), "nombre": cuidador.nombre, "autor_activo": True}
     assert problema["actual"]["actualizado_en"] is not None
     assert problema["detail"].startswith(cuidador.nombre)
     assert de_la_admin not in pierde.text

@@ -270,7 +270,9 @@ def test_el_estado_lo_ven_los_cuatro_roles_y_la_calidad_solo_admin_y_cuidador(
 
     assert respuesta.status_code == 200 and respuesta.headers["cache-control"] == "no-store"
     plan, consumo = respuesta.json()["autorizaciones"]
-    campos = CAMPOS_RESUMEN | {"calidad_otorgante"} if con_calidad else CAMPOS_RESUMEN
+    # MATU-42 (decisión 311): admin y cuidador ven además si la dio alguien que ya no está
+    solo_admin_y_cuidador = {"calidad_otorgante", "autorizo_alguien_que_ya_no_esta"}
+    campos = CAMPOS_RESUMEN | solo_admin_y_cuidador if con_calidad else CAMPOS_RESUMEN
     assert set(plan) == set(consumo) == campos
     assert (plan["finalidad"], plan["estado"], plan["borrada"]) == ("plan_cuidado", "retirada", False)
     assert plan["borrado_en"] is not None and consumo["estado"] == "sin_autorizar"
@@ -366,14 +368,14 @@ def test_estado_de_las_dos_autorizaciones(entorno: EntornoAbrir) -> None:
     assert (plan["revocado_en"], plan["borrado_en"], plan["borrada"]) == (None, None, False)
     assert consumo == {"finalidad": "consumo", "estado": "sin_autorizar", "id": None, "calidad_otorgante": None,
                        "otorgado_en": None, "revision_vence_en": None, "revocado_en": None, "borrado_en": None,
-                       "borrada": False}
+                       "borrada": False, "autorizo_alguien_que_ya_no_esta": False}
 
     retiro = _retirar(entorno, familia).json()["autorizacion"]
     despues = _estado(entorno, familia).json()["autorizaciones"][0]
     assert despues == retiro and despues["estado"] == "retirada"
-    # Sin la referencia, la evidencia, la versión de la política ni quién la dio
+    # Sin la referencia, la evidencia, la versión de la política ni quién la dio (MATU-42: solo si ya no está)
     assert set(despues) == {"finalidad", "estado", "id", "calidad_otorgante", "otorgado_en", "revision_vence_en",
-                            "revocado_en", "borrado_en", "borrada"}
+                            "revocado_en", "borrado_en", "borrada", "autorizo_alguien_que_ya_no_esta"}
 
 
 # --- La carrera con compartir (condición 7) ------------------------------------------------------------------
