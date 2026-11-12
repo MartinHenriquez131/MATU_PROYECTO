@@ -252,7 +252,7 @@ def test_pagador_y_observador_no_retiran_ni_autorizan_404_y_nada_cambia(
 
 
 CAMPOS_RESUMEN = {"finalidad", "estado", "id", "otorgado_en", "revision_vence_en", "revocado_en", "borrado_en",
-                  "borrada"}
+                  "borrada", "se_puede_otorgar"}  # se_puede_otorgar: MATU-94 (decisión 251)
 
 
 @pytest.mark.parametrize(("etiqueta", "con_calidad"), [
