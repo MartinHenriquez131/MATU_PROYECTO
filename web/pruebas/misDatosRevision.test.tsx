@@ -236,7 +236,7 @@ describe('tercera revisión (P3): el «·» de las colas nunca queda solo al com
     const compras = bloque('Compras anotadas (últimos 90 días)')
     expect(within(compras).getAllByRole('listitem')[0].textContent).toContain('10/11/2026\u00A0· Anotó Carmen Soto')
     const pedido = within(bloque('Sus pedidos')).getAllByRole('listitem')[0]
-    expect(pedido.textContent).toContain('$37.260.\u00A0· Devuelto: $5.290.'.replace('.\u00A0', '\u00A0'))
+    expect(pedido.textContent).toContain('Cobrado: $37.260 · Devuelto: $5.290.')
     expect(pedido.textContent).toContain('(comercio ficticio)\u00A0· Si falta:')
     for (const nombre of ['Compras anotadas (últimos 90 días)', 'Sus pedidos', 'Quién abrió o editó la ficha']) sinPuntoSuelto(bloque(nombre))
   })
