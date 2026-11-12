@@ -19,6 +19,8 @@ import { useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Acciones, Etiqueta, GrupoOpciones, Nota, Pagina, Volver } from './ui'
 import { CELULAR, CUENTA_PROPIA, GENERAL, RECUPERAR } from './textos'
+import { AvisosCuenta } from './AvisosCuenta'
+import { ENTRADA_DONDE } from './textosDondeEntraste'
 
 type Carga = { estado: 'cargando' } | { estado: 'error' } | { estado: 'lista'; cuenta: Cuenta }
 
@@ -81,7 +83,7 @@ function EstadoCelular({ verificado }: { verificado: boolean }) {
  * El correo de contacto (`correo_contacto` de `GET /v1/politica`, pública y sin cookies). `null`
  * mientras no llega, si no está configurado o si la petición falla: el párrafo no se muestra.
  */
-function useCorreoPrivacidad() {
+export function useCorreoPrivacidad() {
   const [correo, setCorreo] = useState<string | null>(null)
   useEffect(() => {
     let vigente = true
@@ -101,7 +103,7 @@ function FilaPolitica({ aceptada }: { aceptada: PoliticaAceptada | null | undefi
   const fecha = instante && !Number.isNaN(instante.getTime()) ? fechaYHoraDeChile(instante).fecha : null
   return (
     <div className="flex flex-col gap-2 py-4">
-      <dt className="text-sm text-tenue">{POLITICA.fila}</dt>
+      <dt className="text-base text-tenue">{POLITICA.fila}</dt>
       <dd className="flex flex-col items-start gap-2 text-base">
         {aceptada && fecha ? (
           <p>
@@ -145,11 +147,11 @@ export function TuCuenta() {
         <>
           <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 angosto:px-2 ring-1 ring-linea">
             <div className="flex flex-col gap-0.5 py-4">
-              <dt className="text-sm text-tenue">{CUENTA_PROPIA.correo}</dt>
+              <dt className="text-base text-tenue">{CUENTA_PROPIA.correo}</dt>
               <dd className="font-bold break-words">{carga.cuenta.email}</dd>
             </div>
             <div className="flex flex-col gap-2 py-4">
-              <dt className="text-sm text-tenue">{CUENTA_PROPIA.celular}</dt>
+              <dt className="text-base text-tenue">{CUENTA_PROPIA.celular}</dt>
               {carga.cuenta.celular_enmascarado ? (
                 <dd className="flex flex-col items-start gap-3">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -174,6 +176,20 @@ export function TuCuenta() {
             </div>
             <FilaPolitica aceptada={carga.cuenta.politica_aceptada} />
           </dl>
+          {/* MATU-55 (3.5): la entrada a «Dónde entraste». No pide nada a la API. */}
+          <section aria-labelledby="donde-entraste-t" className="mt-6 flex max-w-xl flex-col items-start gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
+            <h2 id="donde-entraste-t" className="text-xl font-bold leading-snug">
+              {ENTRADA_DONDE.titulo}
+            </h2>
+            <p className="max-w-prose text-base text-tenue">{ENTRADA_DONDE.bajada}</p>
+            <Boton variante="secundario" className="angosto:self-stretch" onClick={() => navegar('/cuenta/donde-entraste')}>
+              {ENTRADA_DONDE.ver}
+            </Boton>
+          </section>
+          {/* MATU-55 (3.3 y 3.4): los avisos, para todos los grupos, y este teléfono. */}
+          <div className="mt-6">
+            <AvisosCuenta />
+          </div>
           <ComoPedir correo={correo} />
         </>
       )}

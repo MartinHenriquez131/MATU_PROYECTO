@@ -28,7 +28,8 @@ d) invitacion: falla si tiene filas. Salen destino_email, destino_telefono e inv
    invitacion_familia (ALL) se divide en invitacion_admin_leer, _crear y _anular, solo admin. REVOKE UPDATE, DELETE
    y GRANT UPDATE (revocada_en) a matu_app.
 e) invitacion_presentar, invitacion_verificar e invitacion_aceptar, SECURITY DEFINER, dueño matu_owner, EXECUTE solo
-   para matu_app. Exigen que no haya app.grupo_id y un ahora que no esté en el futuro; aceptar exige app.usuario_id.
+   para matu_app. Exigen que no haya app.grupo_id y un ahora a no más de 5 minutos del de la base, hacia adelante
+   o hacia atrás (decisión 340); aceptar exige app.usuario_id.
    Leen y escriben con políticas TO matu_owner acotadas al marcador app.funcion = 'invitacion', que cada función fija
    con set_config al entrar y limpia al salir (como app.conservacion de la 0024), sobre invitacion, membresia,
    grupo_familiar, persona_cuidada y auditoria. Reciben además p_request_id para la auditoría (decisión 329).
@@ -126,8 +127,10 @@ _EXIGIR = """
     IF public.app_grupo() IS NOT NULL THEN
         RAISE EXCEPTION '{nombre} no admite app.grupo_id' USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF p_ahora IS NULL OR p_ahora > now() + interval '5 minutes' THEN
-        RAISE EXCEPTION 'ahora no puede estar en el futuro' USING ERRCODE = 'invalid_parameter_value';
+    -- Decisión 340: el instante del Reloj de la API, a lo más 5 minutos del de la base, hacia adelante o hacia atrás.
+    -- Un ahora del pasado aceptaría una invitación vencida o fecharía retirado_en hacia atrás
+    IF p_ahora IS NULL OR p_ahora > now() + interval '5 minutes' OR p_ahora < now() - interval '5 minutes' THEN
+        RAISE EXCEPTION 'ahora tiene que ser el instante actual' USING ERRCODE = 'invalid_parameter_value';
     END IF;
 """
 
@@ -231,8 +234,10 @@ BEGIN
         RAISE EXCEPTION 'membresia_retirar exige app.grupo_id y app.usuario_id'
             USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF p_ahora IS NULL OR p_ahora > now() + interval '5 minutes' THEN
-        RAISE EXCEPTION 'ahora no puede estar en el futuro' USING ERRCODE = 'invalid_parameter_value';
+    -- Decisión 340: el instante del Reloj de la API, a lo más 5 minutos del de la base, hacia adelante o hacia atrás.
+    -- Un ahora del pasado aceptaría una invitación vencida o fecharía retirado_en hacia atrás
+    IF p_ahora IS NULL OR p_ahora > now() + interval '5 minutes' OR p_ahora < now() - interval '5 minutes' THEN
+        RAISE EXCEPTION 'ahora tiene que ser el instante actual' USING ERRCODE = 'invalid_parameter_value';
     END IF;
     PERFORM set_config('app.funcion', 'membresia_retirar', true);
     SELECT m.rol, m.usuario_id INTO v_rol, v_usuario FROM public.membresia m

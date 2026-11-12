@@ -123,7 +123,8 @@ export async function entrar(email: string, contrasena: string): Promise<void> {
 
 /**
  * `POST /v1/sesiones/cerrar`. Pase lo que pase (204, error o sin red), borra todo lo que está en
- * memoria y avisa a las otras pestañas (especificación 2.4).
+ * memoria y avisa a las otras pestañas (especificación 2.4). MATU-55 (recomendación del analista):
+ * después borra también la suscripción de avisos de este navegador.
  */
 export async function salir(): Promise<void> {
   try {
@@ -134,13 +135,37 @@ export async function salir(): Promise<void> {
     olvidarTodo()
     canal?.postMessage('salio')
   }
+  await olvidarSuscripcionPush()
+}
+
+/**
+ * MATU-55: al salir, la inscripción de avisos del navegador se borra (el servidor ya borró el
+ * endpoint al cerrar la sesión, decisión 47). Sin service worker o sin `PushManager` no hace nada, y
+ * si falla, la salida sigue igual: nunca lanza.
+ */
+export async function olvidarSuscripcionPush(): Promise<void> {
+  try {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !navigator.serviceWorker) return
+    if (typeof window === 'undefined' || !('PushManager' in window)) return
+    const registro = await navigator.serviceWorker.getRegistration('/')
+    const sub = await registro?.pushManager.getSubscription()
+    await sub?.unsubscribe()
+  } catch {
+    // No bloquea la salida.
+  }
 }
 
 // ---------------------------------------------------------------- interceptores
 
+// MATU-42 (decisión 291): las rutas de la persona invitada no llevan `X-Grupo-Id`, porque el grupo
+// sale de la invitación. La presentación y la verificación son públicas: tampoco llevan la entrada.
+const SIN_GRUPO = /^\/v1\/invitaciones\//
+const PUBLICAS = new Set(['/v1/invitaciones/presentacion', '/v1/invitaciones/verificacion'])
+
 apiFamilia.interceptors.request.use((config) => {
-  if (accessToken) config.headers.set('Authorization', `Bearer ${accessToken}`)
-  if (grupoActual && !config.headers.has('X-Grupo-Id')) config.headers.set('X-Grupo-Id', grupoActual)
+  const url = config.url ?? ''
+  if (accessToken && !PUBLICAS.has(url)) config.headers.set('Authorization', `Bearer ${accessToken}`)
+  if (grupoActual && !config.headers.has('X-Grupo-Id') && !SIN_GRUPO.test(url)) config.headers.set('X-Grupo-Id', grupoActual)
   return config
 })
 

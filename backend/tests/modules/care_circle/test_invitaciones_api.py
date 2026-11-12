@@ -8,7 +8,7 @@ import re
 import secrets
 import uuid
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import psycopg
@@ -17,10 +17,19 @@ from fastapi import FastAPI
 
 from app.modules.care_circle.api.dependencias_grupo import obtener_pepper_codigo
 from tests.base_datos import DSN, requiere_base
+from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import Fabrica, FamiliaCreada, UsuarioCreado
 from tests.modules.conftest import EntornoIam
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-38")]
+
+
+@pytest.fixture
+def reloj_fijo() -> RelojFijo:
+    """El reloj parte de la hora real: las funciones de la 0026 rechazan un ahora a más de 5 minutos del de la base
+    (decisión 340)."""
+    return RelojFijo(datetime.now(UTC).replace(microsecond=0))
+
 
 PROBLEMA = "application/problem+json"
 URL = re.compile(r"^https://[^/#]+/invitacion#([A-Za-z0-9_-]{43})$")
@@ -290,9 +299,13 @@ def test_los_tres_410(entorno: Entorno) -> None:
     assert anular.status_code == 204
     assert entorno.presentar(token).json()["type"] == "/errores/invitacion-no-disponible"
     assert entorno.aceptar(entorno.nueva_cuenta(), token, codigo).json()["type"] == "/errores/invitacion-no-disponible"
-    # Vencida: a los 7 días según el Reloj
-    token, codigo, _ = entorno.invitar(familia)
-    entorno.iam.reloj.avanzar(timedelta(days=7))
+    # Vencida: a los 7 días. La función no admite un ahora corrido (decisión 340): la invitación se corre 8 días
+    # hacia atrás como superusuario, con los triggers apagados solo para esta siembra
+    token, codigo, creada = entorno.invitar(familia)
+    with psycopg.connect(DSN) as cx, cx.transaction():
+        cx.execute("SET LOCAL session_replication_role = replica")
+        cx.execute("UPDATE invitacion SET creada_en = creada_en - interval '8 days',"
+                   " expira_en = expira_en - interval '8 days' WHERE id = %s", (uuid.UUID(creada["id"]),))
     for respuesta in (entorno.presentar(token), entorno.verificar(token, codigo)):
         assert respuesta.status_code == 410 and respuesta.json()["type"] == "/errores/invitacion-vencida"
 

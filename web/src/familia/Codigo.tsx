@@ -1,11 +1,11 @@
 // Piezas compartidas de MATU-57 (especificación 3 y 7): el campo del código de 6 números y la
 // espera de un 429 sin cuenta regresiva. El código vive solo en el estado del formulario.
-import { useEffect, useId, useState, type ClipboardEvent, type Ref } from 'react'
+import { useEffect, useId, useState, type ClipboardEvent, type ReactNode, type Ref } from 'react'
 import { ESPERA_SIN_CABECERA, minutosDeEspera } from '../compartido/api/cliente'
 import { MensajeError } from './ui'
 
-/** Solo los números, hasta 6: acepta pegar «123 456» o «123-456». */
-export const limpiarCodigo = (texto: string) => texto.replace(/\D/g, '').slice(0, 6)
+/** Solo los números, hasta `largo` (6): acepta pegar «123 456» o «123-456». */
+export const limpiarCodigo = (texto: string, largo = 6) => texto.replace(/\D/g, '').slice(0, largo)
 
 /** Un solo input, nunca seis cajas: teclado numérico y autocompletado del SMS. */
 export function CampoCodigo({
@@ -15,19 +15,22 @@ export function CampoCodigo({
   error,
   disabled,
   ref,
+  largo = 6,
 }: {
   etiqueta: string
   valor: string
   onCambio: (v: string) => void
-  error?: string | null
+  error?: ReactNode
   disabled?: boolean
   ref?: Ref<HTMLInputElement>
+  /** MATU-53 (4.2): el código de una invitación tiene 4 números; el de recuperar y del celular, 6. */
+  largo?: 4 | 6
 }) {
   const id = useId()
   const pegar = (e: ClipboardEvent<HTMLInputElement>) => {
     // `maxLength` cortaría «123-456» antes de limpiarlo: se limpia aquí.
     e.preventDefault()
-    onCambio(limpiarCodigo(e.clipboardData.getData('text')))
+    onCambio(limpiarCodigo(e.clipboardData.getData('text'), largo))
   }
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -42,13 +45,13 @@ export function CampoCodigo({
         inputMode="numeric"
         autoComplete="one-time-code"
         pattern="[0-9]*"
-        maxLength={6}
+        maxLength={largo}
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
         disabled={disabled}
         value={valor}
-        onChange={(e) => onCambio(limpiarCodigo(e.target.value))}
+        onChange={(e) => onCambio(limpiarCodigo(e.target.value, largo))}
         onPaste={pegar}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-e` : undefined}

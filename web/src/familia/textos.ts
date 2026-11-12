@@ -6,6 +6,7 @@
 // Nunca se muestra `title`, `detail` ni `mensaje` de la API.
 
 import type { Unidad } from '../compartido/api/consumo'
+import { INVITACION, INVITAR } from './textosInvitar'
 
 export const GENERAL = {
   /** [lenguaje 8] Cualquier otro, o sin respuesta. */
@@ -394,6 +395,7 @@ export const TITULOS: Record<string, string> = {
   '/entrar/recuperar/codigo': RECUPERAR.tituloCodigo,
   '/cuenta': CUENTA_PROPIA.titulo,
   '/cuenta/celular': CELULAR.titulo,
+  '/cuenta/donde-entraste': 'Dónde entraste', // [lenguaje 13.3] MATU-55
   '/empezar/grupo': GRUPO.titulo,
   '/empezar/persona': PERSONA.titulo,
   '/empezar/autorizacion': AUTORIZACION.titulo,
@@ -419,6 +421,10 @@ export const TITULOS: Record<string, string> = {
   '/grupo/autorizar-ficha': 'Grupo familiar',
   '/grupo/autorizar-insumos': 'Grupo familiar',
   '/grupo/autorizar-pedidos': 'Permiso para pedir sus insumos', // MATU-61 2.1
+  // MATU-53 2: sin nombres ni el token. En /invitacion, un estado que no sigue cambia el título (2.1).
+  '/grupo/invitar': INVITAR.titulo,
+  '/grupo/invitar/listo': INVITAR.lista,
+  '/invitacion': INVITACION.tituloPestana,
 }
 
 /**

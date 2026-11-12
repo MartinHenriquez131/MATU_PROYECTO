@@ -220,7 +220,7 @@ function Encabezado() {
  * (`textoPerdido`), que una recarga también borra (revisión visual del 09-11). «Recargar» pregunta
  * antes lo que el formulario a la vista tiene sin guardar.
  */
-function AvisoVersionFamilia({ className }: { className?: string }) {
+export function AvisoVersionFamilia({ className }: { className?: string }) {
   const { sinGuardar, textoPerdido } = useFamilia()
   const ruta = useRuta()
   return (

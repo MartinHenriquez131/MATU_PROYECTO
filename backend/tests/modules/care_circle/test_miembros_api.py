@@ -17,7 +17,9 @@ from fastapi import FastAPI
 from app.modules.care_circle.api.dependencias_grupo import obtener_pepper_codigo
 from tests.base_datos import DSN, requiere_base
 from tests.fabricas import Fabrica, FamiliaCreada, UsuarioCreado
-from tests.modules.care_circle.test_invitaciones_api import URL, Entorno
+
+# reloj_fijo parte de la hora real (decisión 340)
+from tests.modules.care_circle.test_invitaciones_api import URL, Entorno, reloj_fijo  # noqa: F401
 from tests.modules.conftest import EntornoIam
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-38")]

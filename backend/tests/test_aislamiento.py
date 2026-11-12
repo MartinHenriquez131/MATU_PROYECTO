@@ -3806,6 +3806,110 @@ def test_dos_aceptaciones_a_la_vez_unen_a_una_sola_persona(grupo_42):
                          ).fetchall() == [(U_42[2],)]
 
 
+# --- MATU-42, cierre del analista: O1 (el instante, decisión 340) y O2 (el marcador app.funcion, decisión 341)
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("corrido", ["now() - interval '1 day'", "now() - interval '6 minutes'",
+                                     "now() + interval '6 minutes'"])
+def test_las_funciones_de_la_0026_exigen_el_instante_actual(cx, corrido):
+    """O1: con un ahora del pasado se podría aceptar una invitación vencida o fechar retirado_en hacia atrás."""
+    _invitacion(cx)
+    otra = _membresia_id(cx, U_PAG2_A)
+    llamadas = [
+        (dict(), f"SELECT * FROM invitacion_presentar(%s, {corrido})", (TOKEN_42,)),
+        (dict(), f"SELECT * FROM invitacion_verificar(%s, %s, {corrido}, NULL)", (TOKEN_42, CODIGO_42)),
+        (dict(usuario_id=U_NUEVO), f"SELECT * FROM invitacion_aceptar(%s, %s, {corrido}, NULL)", (TOKEN_42, CODIGO_42)),
+        (dict(usuario_id=U_ADMIN_A, grupo_id=G_A), f"SELECT membresia_retirar(%s, {corrido})", (otra,)),
+    ]
+    for contexto, sql, parametros in llamadas:
+        cx.execute("SAVEPOINT antes")
+        como(cx, **contexto)
+        with pytest.raises(errors.InvalidParameterValue):
+            cx.execute(sql, parametros)
+        cx.execute("ROLLBACK TO SAVEPOINT antes")
+
+
+@pytest.mark.rf("RF-38")
+def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
+    """O1: la invitación venció hace una hora; un ahora de hace dos días la haría pasar por vigente."""
+    _invitacion(cx)
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE invitacion SET creada_en = now() - interval '3 days', expira_en = now() - interval '1 hour'"
+               " WHERE id = %s", (INV_42,))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    cx.execute("SAVEPOINT antes")
+    como(cx, usuario_id=U_NUEVO)
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute("SELECT * FROM invitacion_aceptar(%s, %s, now() - interval '2 days', NULL)", (TOKEN_42, CODIGO_42))
+    cx.execute("ROLLBACK TO SAVEPOINT antes")
+    como(cx, usuario_id=U_NUEVO)
+    assert cx.execute("SELECT resultado FROM invitacion_aceptar(%s, %s, now(), NULL)", (TOKEN_42, CODIGO_42)
+                      ).fetchone() == ("vencida",)
+
+
+MARCAS_0026 = ("invitacion", "membresia_retirar")
+
+
+def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
+    como(cx, usuario_id=usuario_id, grupo_id=grupo_id)
+    return {tabla: contar(cx, tabla) for tabla in
+            ("invitacion", "membresia", "grupo_familiar", "persona_cuidada", "auditoria", "usuario")}
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("marca", MARCAS_0026)
+@pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
+def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
+    """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
+    _invitacion(cx)
+    sin_marca = _lo_que_ve(cx, **contexto)
+    cx.execute("SELECT set_config('app.funcion', %s, true)", (marca,))
+    assert {tabla: contar(cx, tabla) for tabla in sin_marca} == sin_marca
+    assert cx.execute("UPDATE invitacion SET revocada_en = now() WHERE id = %s RETURNING id", (INV_42,)
+                      ).fetchall() == []
+    assert cx.execute("UPDATE membresia SET rol = 'admin' WHERE grupo_id = %s RETURNING id", (G_A,)).fetchall() == []
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
+
+
+@pytest.mark.rf("RF-38")
+@pytest.mark.parametrize("marca", MARCAS_0026)
+def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
+    """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
+    0026 lo pisan con el suyo y lo limpian al salir."""
+    _invitacion(cx)
+    otra = _membresia_id(cx, U_PAG2_A)
+    consultas = [
+        ({"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}, "SELECT relevo_autorizacion_vigente(now())", ()),
+        ({"usuario_id": U_OBS_A}, "SELECT * FROM iam_credencial(%s)", (U_OBS_A,)),
+        ({"rol": "sistema"}, "SELECT * FROM pago_resolver_venta(NULL, 'MATU-0001', 'x')", ()),
+        ({}, "SELECT resultado, nombre_pila_invita FROM invitacion_presentar(%s, now())", (TOKEN_42,)),
+        # Un observador no retira a otra persona aunque traiga la marca de membresia_retirar
+        ({"usuario_id": U_OBS_A, "grupo_id": G_A}, "SELECT membresia_retirar(%s, now())", (otra,)),
+    ]
+    for contexto, sql, parametros in consultas:
+        como(cx, **contexto)
+        esperado = cx.execute(sql, parametros).fetchall()
+        cx.execute("SELECT set_config('app.funcion', %s, true)", (marca,))
+        assert cx.execute(sql, parametros).fetchall() == esperado, sql
+    assert cx.execute("SELECT membresia_retirar(%s, now())", (otra,)).fetchone() == (None,)
+    assert cx.execute("SELECT coalesce(current_setting('app.funcion', true), '')").fetchone() == ("",)
+
+
+@pytest.mark.rf("RF-38")
+def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu_app_estan_revisadas(cx):
+    """O2, por catálogo: toda política que mira app.funcion es TO matu_owner, y una función SECURITY DEFINER nueva que
+    matu_app pueda ejecutar hace fallar esta prueba hasta revisar que no lea esas tablas con el marcador puesto."""
+    politicas = cx.execute("SELECT policyname, roles::text FROM pg_policies"
+                           " WHERE coalesce(qual, '') || coalesce(with_check, '') LIKE '%app.funcion%'").fetchall()
+    assert politicas and {roles for _, roles in politicas} == {"{matu_owner}"}
+    ejecuta = {f for (f,) in cx.execute(
+        "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef"
+        " AND has_function_privilege('matu_app', oid, 'EXECUTE')").fetchall()}
+    assert ejecuta == {"relevo_autorizacion_vigente", "iam_credencial", "pago_resolver_venta", "membresia_retirar",
+                       "invitacion_presentar", "invitacion_verificar", "invitacion_aceptar"}
+
+
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
 
 ACC_B_46 = uuid.UUID("00000000-0000-0000-0000-0000000046b1")
