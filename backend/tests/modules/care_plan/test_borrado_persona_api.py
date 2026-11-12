@@ -127,6 +127,10 @@ def _acceso(acceso_id: uuid.UUID) -> tuple[Any, ...]:
     return fila
 
 
+def _telefono(acceso_id: uuid.UUID) -> tuple[Any, ...] | None:
+    return _una("SELECT otorgado_a_telefono, telefono_borrado_en FROM acceso_relevo WHERE id = %s", acceso_id)
+
+
 def _sin_cambios(familia: FamiliaCreada, nombre_antes: tuple[Any, ...]) -> None:
     assert _persona(familia) == nombre_antes
     assert all(c[2] is None for c in _consentimientos(familia))
@@ -172,6 +176,9 @@ def test_borrar_borra_todo_al_tiro_en_una_transaccion_y_un_instante(entorno: Ent
     for acceso in (vigente, bloqueado):
         assert _acceso(acceso) == (ahora, ahora, "borrada")
     assert _acceso(vencido) == (None, None, "borrada")
+    # MATU-46 (D-46-3 a): el teléfono del relevo, vacío desde el mismo instante en los tres
+    for acceso in (vigente, bloqueado, vencido):
+        assert _telefono(acceso) == (None, ahora)
     # C6: la clave destruida y ninguna fila de la ficha; el plan se conserva en 0 de 3
     assert _clave(familia) == [(clave_id, True, ahora)]
     assert _secciones(familia) == 0
@@ -366,6 +373,58 @@ def test_otras_personas_y_otros_grupos_no_se_tocan(entorno: EntornoAbrir) -> Non
     assert entorno.abrir(token_b, pin_b).status_code == 200
 
 
+@pytest.mark.rf("RF-05")
+def test_borrar_persona_anonimiza_accesos(entorno: EntornoAbrir) -> None:
+    """MATU-46, C8 y D-46-2 a): el borrado anonimiza todos los accesos de la persona, también uno cortado hace meses,
+    y vacía su teléfono al tiro (D-46-3 a). Un teléfono que la tarea ya vació conserva su instante. Los accesos de
+    otra persona del mismo grupo no se tocan. Un segundo borrado (409) no cambia nada."""
+    familia = entorno.familia_con_ficha()
+    hermana = entorno.ficha.fabrica.persona_cuidada(familia.grupo)
+    entorno.ficha.fabrica.ficha(hermana, actualizado_por=familia.admin.id, custodia=entorno.ficha.custodia,
+                                textos={"rutina": RUTINA})
+    vigente, _, _ = entorno.compartir(familia)
+    cortado_hace_meses, _, _ = entorno.compartir(familia)
+    ya_sin_telefono, _, _ = entorno.compartir(familia)
+    for acceso in (cortado_hace_meses, ya_sin_telefono):
+        _ejecutar("UPDATE acceso_relevo SET creado_en = now() - interval '121 days',"
+                  " expira_en = now() - interval '120 days', revocado_en = now() - interval '121 days' + interval"
+                  " '1 hour' WHERE id = %s", acceso)
+    # Como si la tarea de los 30 días ya hubiera corrido sobre este
+    _ejecutar("UPDATE acceso_relevo SET otorgado_a_telefono = NULL, telefono_borrado_en = now() - interval '90 days'"
+              " WHERE id = %s", ya_sin_telefono)
+    [(borrado_por_la_tarea,)] = _todas("SELECT telefono_borrado_en FROM acceso_relevo WHERE id = %s", ya_sin_telefono)
+    de_la_hermana = entorno.ficha.iam.cliente.post(
+        PERSONA.format(hermana.id) + "/plan/accesos-relevo", headers=_cab(entorno, familia.admin, familia),
+        json={"nombre_relevo": "Rosa", "telefono_relevo": "+56 9 5555 0137", "motivo": "otro",
+              "relevo_informado": True})
+    assert de_la_hermana.status_code == 201, de_la_hermana.text
+    acceso_hermana = uuid.UUID(de_la_hermana.json()["id"])
+    hermana_antes = _una("SELECT * FROM acceso_relevo WHERE id = %s", acceso_hermana)
+    entorno.reloj.avanzar(timedelta(minutes=1))
+    ahora = entorno.reloj.ahora()
+
+    assert _borrar(entorno, familia).status_code == 200
+
+    assert _acceso(vigente) == (ahora, ahora, "borrada") and _telefono(vigente) == (None, ahora)
+    # El cortado hace meses conserva su corte, y pierde el nombre y el teléfono ahora
+    corte, _, nombre = _acceso(cortado_hace_meses)
+    assert corte is not None and corte < ahora - timedelta(days=100) and nombre == "borrada"
+    assert _telefono(cortado_hace_meses) == (None, ahora)
+    assert _acceso(ya_sin_telefono)[2] == "borrada"
+    assert _telefono(ya_sin_telefono) == (None, borrado_por_la_tarea)
+    # D-46-2 a): el acceso de la hermana sigue igual, con su nombre de pila y su teléfono
+    assert _una("SELECT * FROM acceso_relevo WHERE id = %s", acceso_hermana) == hermana_antes
+    assert _acceso(acceso_hermana)[2] == hermana.nombre_pila
+    assert _telefono(acceso_hermana) == ("+56955550137", None)
+
+    despues = {a: _una("SELECT * FROM acceso_relevo WHERE id = %s", a)
+               for a in (vigente, cortado_hace_meses, ya_sin_telefono, acceso_hermana)}
+    segunda = _borrar(entorno, familia)
+    assert segunda.status_code == 409, segunda.text
+    for acceso, fila in despues.items():
+        assert _una("SELECT * FROM acceso_relevo WHERE id = %s", acceso) == fila
+
+
 # --- Si algo falla, nada (C13) ---------------------------------------------------------------------------------
 
 
@@ -393,6 +452,8 @@ def test_si_falla_el_corte_de_un_acceso_nada_queda_escrito(
     _sin_cambios(familia, antes)
     assert _acceso(primero)[:2] == (None, None) and _acceso(segundo)[:2] == (None, None)
     assert _acceso(primero)[2] == familia.persona.nombre_pila
+    # MATU-46: el teléfono tampoco se vació
+    assert _telefono(primero) == ("+56955550137", None) and _telefono(segundo) == ("+56955550137", None)
     assert _una("SELECT 1 FROM direccion WHERE id = %s", familia.persona.direccion_id) == (1,)
     assert _acciones(familia.grupo.id, "consentimiento.revocar") == []
     assert _acciones(familia.grupo.id, "relevo.revocar") == []
