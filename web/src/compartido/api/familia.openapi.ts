@@ -1317,6 +1317,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/yo/datos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * «Tus datos»: todo lo que MATU guarda de la propia cuenta
+         * @description MATU-54 (D-54-2 a, D-54-16 a). Cualquier cuenta. La copia completa de la cuenta, para la pantalla y para el archivo (Content-Disposition inline). Nada de una persona cuidada. 10 copias por hora por cuenta, sumando «Datos de» (429 tope-copias). Registra cuenta.datos_descargar. Orden: 401, 503, 429 y 200
+         */
+        get: operations["verDatosPropios"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/datos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * «Datos de {nombre_pila}»: todo lo que MATU guarda de la persona cuidada
+         * @description MATU-54 (D-54-1 a D-54-15). Admin y cuidador. La copia completa, para la pantalla y para el archivo (Content-Disposition inline). Sin la autorización vigente, la ficha y los insumos van solo con su estado. 10 copias por hora por cuenta (429 tope-copias). Registra persona.datos_descargar. Orden: 401, 404, 503, 429 y 200
+         */
+        get: operations["verDatosPersona"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3529,10 +3569,10 @@ export interface components {
         EventoCuentaVista: {
             /**
              * Tipo
-             * @description Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce
+             * @description Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce. MATU-54 (decisión 376): pediste_una_copia es la copia de «Tus datos»; la de una persona no entra
              * @enum {string}
              */
-            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados";
+            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados" | "pediste_una_copia";
             /**
              * Ocurrido En
              * Format: date-time
@@ -3778,6 +3818,625 @@ export interface components {
              * Format: date-time
              */
             expira_en: string;
+        };
+        /** AperturaCopia */
+        AperturaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            /** Secciones */
+            secciones: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios")[] | null;
+        };
+        /** TarjetaCopia */
+        TarjetaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "credito" | "debito" | "prepago";
+            /** Ultimos4 */
+            ultimos4: string;
+            /** Cuotas */
+            cuotas: number;
+        };
+        /** CompraCopia */
+        CompraCopia: {
+            /** Insumo */
+            insumo: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades */
+            unidades: number;
+            /** El */
+            el: string;
+            /**
+             * Origen
+             * @enum {string}
+             */
+            origen: "declarada" | "pedido_matu";
+            /** Anotada En */
+            anotada_en: string;
+            anotada_por: components["schemas"]["PersonaNombrada"] | null;
+        };
+        /** InsumoCopia */
+        InsumoCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Del Catalogo */
+            del_catalogo: boolean;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Usa Unidades */
+            usa_unidades: number;
+            /** Cada Dias */
+            cada_dias: number;
+            /** Quedaban Unidades */
+            quedaban_unidades: number;
+            /** Quedaban El */
+            quedaban_el: string;
+            /** Se Acaba El */
+            se_acaba_el: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /** Unidades Por Envase */
+            unidades_por_envase: number | null;
+            /** Se Sigue */
+            se_sigue: boolean;
+            /** Agregado En */
+            agregado_en: string;
+            /** Actualizado En */
+            actualizado_en: string;
+            actualizado_por: components["schemas"]["PersonaNombrada"] | null;
+        };
+        /** TextoMostrado */
+        TextoMostrado: {
+            /** Identificador */
+            identificador: string;
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string | null;
+        };
+        /** DireccionCopia */
+        DireccionCopia: {
+            /** Etiqueta */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** FichaCopia */
+        FichaCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "disponible" | "retirada" | "en_pausa" | "borrada" | "sin_autorizar";
+            /** Borrado El */
+            borrado_el: string | null;
+            /** Completitud */
+            completitud: (0 | 33 | 67 | 100) | null;
+            /** Campos */
+            campos: components["schemas"]["CampoCopia"][] | null;
+            /** Secciones */
+            secciones: components["schemas"]["SeccionCopia"][] | null;
+        };
+        /** AvisoInsumoCopia */
+        AvisoInsumoCopia: {
+            /** Insumo */
+            insumo: string;
+            /** Fecha Prevista */
+            fecha_prevista: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "notificada" | "resuelta" | "descartada";
+            /** Creado En */
+            creado_en: string;
+            /** Notificado En */
+            notificado_en: string | null;
+            /** Cerrado En */
+            cerrado_en: string | null;
+        };
+        /** PagoCuentaCopia */
+        PagoCuentaCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Pagado En */
+            pagado_en: string;
+            /** Cobrado */
+            cobrado: number;
+            /** Devuelto */
+            devuelto: number;
+            tarjeta: components["schemas"]["TarjetaCopia"] | null;
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+        };
+        /** CampoCopia */
+        CampoCopia: {
+            /**
+             * Campo
+             * @enum {string}
+             */
+            campo: "rutina" | "manejo_situaciones" | "red_apoyo";
+            /** Texto */
+            texto: string | null;
+            escrito_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Actualizado En */
+            actualizado_en: string | null;
+        };
+        /** DispositivoDelEventoCopia */
+        DispositivoDelEventoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Clase
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+        };
+        /** QuienCopia */
+        QuienCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "persona" | "matu";
+            /** Nombre */
+            nombre: string | null;
+            /** Activo */
+            activo: boolean | null;
+        };
+        /** CuentaCopia */
+        CuentaCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Correo */
+            correo: string;
+            /** Celular */
+            celular: string | null;
+            /** Celular Confirmado */
+            celular_confirmado: boolean;
+            /**
+             * Canal Codigos
+             * @enum {string}
+             */
+            canal_codigos: "sms" | "whatsapp";
+            /** Creada En */
+            creada_en: string;
+        };
+        /** AvisoEnviadoCopia */
+        AvisoEnviadoCopia: {
+            /** Creado En */
+            creado_en: string;
+            /** Enviado En */
+            enviado_en: string | null;
+            /**
+             * Canal
+             * @enum {string}
+             */
+            canal: "correo" | "push" | "sms";
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "salio" | "no_salio" | "pendiente" | "en_el_piloto_no_salio";
+        };
+        /** LineaPedidoCopia */
+        LineaPedidoCopia: {
+            /** Producto */
+            producto: string;
+            /** Presentacion */
+            presentacion: string;
+            /** Comercio */
+            comercio: string;
+            /** Cantidad */
+            cantidad: number;
+            /** Precio Unitario */
+            precio_unitario: number;
+            /** Subtotal */
+            subtotal: number;
+            /**
+             * Si Falta
+             * @enum {string}
+             */
+            si_falta: "otro_comercio" | "quitar";
+        };
+        /** CondicionesCopia */
+        CondicionesCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /** Aceptadas En */
+            aceptadas_en: string;
+        };
+        /** GrupoCopia */
+        GrupoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Unido En */
+            unido_en: string;
+            /** Puede Ver Ficha */
+            puede_ver_ficha: boolean | null;
+        };
+        /**
+         * CopiaDatosPersona
+         * @description Respuesta de GET /v1/personas-cuidadas/{persona_id}/datos (MATU-54, decisión 350).
+         */
+        CopiaDatosPersona: {
+            /**
+             * Formato
+             * @constant
+             */
+            formato: "matu-datos/1";
+            /**
+             * Tipo
+             * @constant
+             */
+            tipo: "persona_cuidada";
+            /** Generado En */
+            generado_en: string;
+            /**
+             * Aviso
+             * @constant
+             */
+            aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.";
+            persona: components["schemas"]["DatosPersonaCopia"];
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionCopia"][];
+            ficha: components["schemas"]["FichaCopia"];
+            /** Enlaces Relevo */
+            enlaces_relevo: components["schemas"]["EnlaceRelevoCopia"][];
+            insumos: components["schemas"]["InsumosCopia"];
+            /** Pedidos */
+            pedidos: components["schemas"]["PedidoCopia"][] | null;
+            historial: components["schemas"]["HistorialCopia"];
+        };
+        /** PreferenciaAvisosCopia */
+        PreferenciaAvisosCopia: {
+            /** Correo */
+            correo: boolean;
+            /** Push */
+            push: boolean;
+        };
+        /** EventoCuentaCopia */
+        EventoCuentaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados" | "pediste_una_copia";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            dispositivo: components["schemas"]["DispositivoDelEventoCopia"] | null;
+        };
+        /** PagoPedidoCopia */
+        PagoPedidoCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "sin_intento" | "pendiente" | "aprobado" | "no_aprobado" | "devuelto_parcial" | "anulado";
+            /** Pagado En */
+            pagado_en: string | null;
+            pagado_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Cobrado */
+            cobrado: number;
+            /** Devuelto */
+            devuelto: number;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["DevolucionCopia"][];
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+        };
+        /** EntregaCopia */
+        EntregaCopia: {
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** PedidoCopia */
+        PedidoCopia: {
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "borrador" | "total_confirmado" | "vencido" | "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "asignado" | "sin_repartidor" | "retirado" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cerrado" | "cancelado" | "cancelado_con_devolucion";
+            /** Creado En */
+            creado_en: string;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedidoCopia"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number | null;
+            entrega: components["schemas"]["EntregaCopia"] | null;
+            pago: components["schemas"]["PagoPedidoCopia"] | null;
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+        };
+        /** PoliticaCopia */
+        PoliticaCopia: {
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /** Aceptada En */
+            aceptada_en: string;
+        };
+        /** AutorizacionCopia */
+        AutorizacionCopia: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "vigente" | "revision_vencida" | "retirada" | "reemplazada";
+            /**
+             * Calidad Otorgante
+             * @enum {string}
+             */
+            calidad_otorgante: "titular" | "representante_legal" | "cuidador_de_hecho";
+            /** Version Politica */
+            version_politica: string;
+            declaracion: components["schemas"]["TextoMostrado"] | null;
+            aviso: components["schemas"]["TextoMostrado"] | null;
+            registrada_por: components["schemas"]["PersonaNombrada"];
+            /** Otorgada En */
+            otorgada_en: string;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Hay Documento Representante */
+            hay_documento_representante: boolean;
+        };
+        /** DevolucionCopia */
+        DevolucionCopia: {
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            /** Producto */
+            producto: string | null;
+            /** Monto */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /** Solicitada En */
+            solicitada_en: string;
+            /** Hecha En */
+            hecha_en: string | null;
+        };
+        /** SeccionCopia */
+        SeccionCopia: {
+            /**
+             * Seccion
+             * @enum {string}
+             */
+            seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            /** Texto */
+            texto: string;
+            escrito_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Creada En */
+            creada_en: string;
+            /** Actualizado En */
+            actualizado_en: string;
+        };
+        /** DatosPersonaCopia */
+        DatosPersonaCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+            /**
+             * Nivel Apoyo
+             * @enum {string}
+             */
+            nivel_apoyo: "autovalente_con_supervision" | "apoyo_parcial" | "apoyo_total";
+            direccion: components["schemas"]["DireccionCopia"] | null;
+            /** Alta En */
+            alta_en: string;
+        };
+        /** InsumosCopia */
+        InsumosCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "disponible" | "retirada" | "en_pausa" | "borrada" | "sin_autorizar";
+            /** Borrado El */
+            borrado_el: string | null;
+            /** Lista */
+            lista: components["schemas"]["InsumoCopia"][] | null;
+            /** Compras */
+            compras: components["schemas"]["CompraCopia"][] | null;
+            /** Avisos */
+            avisos: components["schemas"]["AvisoInsumoCopia"][] | null;
+        };
+        /** DispositivoCopia */
+        DispositivoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Clase
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /** Creado En */
+            creado_en: string;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            /** Cerrado En */
+            cerrado_en: string | null;
+            /** Avisos Activos */
+            avisos_activos: boolean;
+        };
+        /** PersonaNombrada */
+        PersonaNombrada: {
+            /** Nombre */
+            nombre: string | null;
+            /** Activo */
+            activo: boolean;
+        };
+        /**
+         * CopiaDatosCuenta
+         * @description Respuesta de GET /v1/yo/datos (MATU-54, decisiones 358 a 360).
+         */
+        CopiaDatosCuenta: {
+            /**
+             * Formato
+             * @constant
+             */
+            formato: "matu-datos/1";
+            /**
+             * Tipo
+             * @constant
+             */
+            tipo: "cuenta";
+            /** Generado En */
+            generado_en: string;
+            /**
+             * Aviso
+             * @constant
+             */
+            aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.";
+            cuenta: components["schemas"]["CuentaCopia"];
+            politica: components["schemas"]["PoliticaCopia"] | null;
+            /** Grupos */
+            grupos: components["schemas"]["GrupoCopia"][];
+            /** Dispositivos */
+            dispositivos: components["schemas"]["DispositivoCopia"][];
+            preferencia_avisos: components["schemas"]["PreferenciaAvisosCopia"];
+            /** Eventos */
+            eventos: components["schemas"]["EventoCuentaCopia"][];
+            /** Avisos Enviados */
+            avisos_enviados: components["schemas"]["AvisoEnviadoCopia"][];
+            /** Envio Simulado */
+            envio_simulado: boolean;
+            /** Pagos */
+            pagos: components["schemas"]["PagoCuentaCopia"][] | null;
+            /** Condiciones Aceptadas */
+            condiciones_aceptadas: components["schemas"]["CondicionesCopia"][] | null;
+        };
+        /** HechoCopia */
+        HechoCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            quien: components["schemas"]["QuienCopia"];
+            /** Campo */
+            campo: ("rutina" | "manejo_situaciones" | "red_apoyo") | null;
+            /** Seccion */
+            seccion: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios") | null;
+            /** Finalidad */
+            finalidad: ("plan_cuidado" | "consumo" | "despacho") | null;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** HistorialCopia */
+        HistorialCopia: {
+            /**
+             * Alcance
+             * @enum {string}
+             */
+            alcance: "todo" | "lo_tuyo";
+            /** Hechos */
+            hechos: components["schemas"]["HechoCopia"][];
+            /** Hay Hechos Sin Asociar */
+            hay_hechos_sin_asociar: boolean;
+        };
+        /** EnlaceRelevoCopia */
+        EnlaceRelevoCopia: {
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
+            /** Campos */
+            campos: ("rutina" | "manejo_situaciones" | "red_apoyo")[];
+            /** Secciones */
+            secciones: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios")[];
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "vigente" | "vencido" | "revocado" | "bloqueado";
+            /** Creado En */
+            creado_en: string;
+            /** Vence En */
+            vence_en: string;
+            /** Cortado En */
+            cortado_en: string | null;
+            /** Compartido Por */
+            compartido_por: string;
+            /** Usos */
+            usos: number;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            /** Aperturas */
+            aperturas: components["schemas"]["AperturaCopia"][];
         };
     };
     responses: never;
@@ -8948,6 +9607,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verDatosPropios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description inline; filename="matu-cuenta-AAAA-MM-DD.json": el nombre con que la pantalla guarda el archivo */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopiaDatosCuenta"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description tope-copias: 10 copias por hora por cuenta, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis o sin PEPPER_LIMITES: el límite falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verDatosPersona: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description inline; filename="matu-datos-AAAA-MM-DD.json": el nombre con que la pantalla guarda el archivo */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopiaDatosPersona"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin grupo, rol pagador u observador, o persona de otro grupo o borrada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description tope-copias: 10 copias por hora por cuenta, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };

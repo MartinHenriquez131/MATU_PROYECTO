@@ -5,11 +5,11 @@ import { StrictMode } from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CopiaDatosPersona, HechoCopia } from '../src/compartido/api/misDatos'
+import type { CopiaDatosPersona, TipoHecho } from '../src/compartido/api/misDatos'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { DatosDePersona } from '../src/familia/DatosPersona'
 import { familiaFalsa } from './familiaFalsa'
-import { A_QUIEN, antes, apiCopia, copiaComoRespuesta, copiaPersona, dialogoDeJsdom, diferida, fijarAhora, MARIA, problemaCopia } from './misDatosFalso'
+import { A_QUIEN, antes, apiCopia, hecho, copiaComoRespuesta, copiaPersona, dialogoDeJsdom, diferida, fijarAhora, MARIA, problemaCopia } from './misDatosFalso'
 import { responderPolitica } from './politicaFalsa'
 
 const fijar = vi.fn()
@@ -103,7 +103,7 @@ describe('«Datos de María»: la copia (3.1 a 3.3)', () => {
     await listo()
     const indice = elIndice()
     await u().click(within(indice).getByRole('link', { name: 'Sus pedidos' }))
-    expect(screen.getByRole('heading', { level: 2, name: 'Sus pedidos' })).toHaveFocus()
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Sus pedidos' })).toHaveFocus())
     expect(window.location.pathname + window.location.hash).toBe('/grupo/datos')
   })
 
@@ -357,7 +357,7 @@ describe('«Datos de María»: quién abrió o editó la ficha (3.4.9 y 3.4.10)'
   })
 
   it('los 26 tipos tienen su frase y su ícono', async () => {
-    const tipos: HechoCopia['tipo'][] = [
+    const tipos: TipoHecho[] = [
       'abrio_la_ficha',
       'edito_la_ficha',
       'quito_una_seccion',
@@ -385,7 +385,7 @@ describe('«Datos de María»: quién abrió o editó la ficha (3.4.9 y 3.4.10)'
       'pago_anulado',
       'pidio_una_copia',
     ]
-    const hechos = tipos.map((tipo, i) => ({ tipo, ocurrido_en: antes(0, i), quien: { tipo: 'persona' as const, nombre: 'Rosa', activo: true }, campo: null, seccion: null }))
+    const hechos = tipos.map((tipo, i) => hecho(tipo, antes(0, i), { tipo: 'persona', nombre: 'Rosa', activo: true }))
     abrir(copiaPersona({ historial: { alcance: 'todo', hechos, hay_hechos_sin_asociar: false } }))
     await listo()
     const b = bloque('Quién abrió o editó la ficha')
@@ -426,8 +426,8 @@ describe('«Datos de María»: quién abrió o editó la ficha (3.4.9 y 3.4.10)'
   })
 
   it('solo los últimos 90 días: «Ver más» de a 20 dentro de ellos, el foco en la primera nueva y lo anterior en el archivo', async () => {
-    const recientes = Array.from({ length: 45 }, (_, i) => ({ tipo: 'abrio_la_ficha', ocurrido_en: antes(i, 5), quien: { tipo: 'persona' as const, nombre: 'Carmen Soto', activo: true }, campo: null, seccion: null }))
-    const viejos = Array.from({ length: 3 }, (_, i) => ({ tipo: 'abrio_la_ficha', ocurrido_en: antes(91 + i), quien: { tipo: 'persona' as const, nombre: 'Carmen Soto', activo: true }, campo: null, seccion: null }))
+    const recientes = Array.from({ length: 45 }, (_, i) => hecho('abrio_la_ficha', antes(i, 5)))
+    const viejos = Array.from({ length: 3 }, (_, i) => hecho('abrio_la_ficha', antes(91 + i)))
     abrir(copiaPersona({ historial: { alcance: 'todo', hechos: [...recientes, ...viejos], hay_hechos_sin_asociar: false } }))
     await listo()
     const b = bloque('Quién abrió o editó la ficha')

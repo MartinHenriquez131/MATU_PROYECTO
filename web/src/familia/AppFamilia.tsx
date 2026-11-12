@@ -130,8 +130,12 @@ function Rutas() {
   useEffect(() => {
     if (s.fase === 'cargando') return
     // MATU-54 (2 y 4): al volver de «Datos de…» o de «Tus datos», la pantalla devuelve el foco al botón
-    // que la abrió cuando ya lo pintó; aquí no se lleva al `h1`.
-    if (s.focoAlVolver) return
+    // que la abrió cuando ya lo pintó; aquí no se lleva al `h1`. Si se fue a otra ruta antes de que
+    // esa pantalla cargara, el foco pendiente se olvida y vale la regla de siempre.
+    if (s.focoAlVolver) {
+      if (ruta === '/grupo' || ruta === '/cuenta') return
+      s.fijar({ focoAlVolver: null })
+    }
     const t = window.setTimeout(() => (document.getElementById(ID_AVISO_LLEGADA) ?? document.getElementById('titulo-pagina'))?.focus({ preventScroll: false }), 0)
     return () => window.clearTimeout(t)
   }, [ruta, s.fase, s.personaId])

@@ -3,7 +3,7 @@
 // Solo datos sintéticos: nombres de ejemplo, teléfonos de la serie 5555 y correos en example.org.
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { vi } from 'vitest'
-import type { CopiaDatosCuenta, CopiaDatosPersona, HechoCopia } from '../src/compartido/api/misDatos'
+import type { CopiaDatosCuenta, CopiaDatosPersona } from '../src/compartido/api/misDatos'
 import { apiFamilia } from '../src/compartido/api/sesion'
 
 /** 12/11/2026 a las 10:14 de Chile (UTC−3 en verano). */
@@ -25,13 +25,20 @@ export function antes(dias: number, min = 0): string {
   return `${t.toISOString().slice(0, 19)}-03:00`
 }
 
-const hecho = (tipo: string, dias: number, min: number, quien: HechoCopia['quien'] = { tipo: 'persona', ...yo }, campo: HechoCopia['campo'] = null, seccion: HechoCopia['seccion'] = null): HechoCopia => ({
-  tipo,
-  ocurrido_en: antes(dias, min),
+/** Un hecho del historial, como lo manda la API. `tipo` admite uno desconocido, para probar que no rompe nada. */
+export type Hecho = CopiaDatosPersona['historial']['hechos'][number]
+export const hecho = (tipo: string, ocurrido_en: string, quien: Hecho['quien'] = { tipo: 'persona', ...yo }, campo: Hecho['campo'] = null, seccion: Hecho['seccion'] = null): Hecho => ({
+  tipo: tipo as Hecho['tipo'],
+  ocurrido_en,
   quien,
   campo,
   seccion,
+  finalidad: null,
+  referencia: null,
 })
+
+/** El texto fijo con que empieza toda copia (decisión 377). */
+export const AVISO = 'Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.'
 const MATU = { tipo: 'matu' as const, nombre: null, activo: null }
 
 /** «A quién llamar» con los teléfonos tal como se escribieron (D-54-4). */
@@ -42,7 +49,7 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
     formato: 'matu-datos/1',
     tipo: 'persona_cuidada',
     generado_en: '2026-11-12T10:14:00-03:00',
-    aviso: 'Esta es una copia de los datos que MATU guarda.',
+    aviso: AVISO,
     persona: {
       nombre: 'María Soto Pérez',
       nombre_pila: 'María',
@@ -170,8 +177,8 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
         },
       ],
       compras: [
-        { insumo: 'Champú en sobre', unidades: 20, el: '2026-11-10', origen: 'declarada', anotada_en: '2026-11-10T08:00:00-03:00', anotada_por: yo },
-        { insumo: 'Toallitas húmedas', unidades: 80, el: '2026-11-08', origen: 'pedido_matu', anotada_en: '2026-11-08T08:00:00-03:00', anotada_por: null },
+        { insumo: 'Champú en sobre', unidad: 'sobre', unidades: 20, el: '2026-11-10', origen: 'declarada', anotada_en: '2026-11-10T08:00:00-03:00', anotada_por: yo },
+        { insumo: 'Toallitas húmedas', unidad: 'unidad', unidades: 80, el: '2026-11-08', origen: 'pedido_matu', anotada_en: '2026-11-08T08:00:00-03:00', anotada_por: null },
       ],
       avisos: [
         { insumo: 'Toallitas húmedas', fecha_prevista: '2026-11-04', estado: 'resuelta', creado_en: '2026-10-28T08:00:00-03:00', notificado_en: '2026-10-28T08:00:00-03:00', cerrado_en: '2026-11-01T08:00:00-03:00' },
@@ -220,13 +227,13 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
     historial: {
       alcance: 'todo',
       hechos: [
-        hecho('pidio_una_copia', 0, 0),
-        hecho('edito_la_ficha', 0, 34, undefined, 'rutina'),
-        hecho('edito_la_ficha', 0, 50, { tipo: 'persona', ...salio }),
-        hecho('un_tipo_que_no_existe', 0, 60),
-        hecho('ficha_borrada', 1, 0, MATU),
-        hecho('quito_una_seccion', 1, 30, undefined, null, 'movilidad'),
-        hecho('pago_anulado', 3, 0, MATU),
+        hecho('pidio_una_copia', antes(0, 0)),
+        hecho('edito_la_ficha', antes(0, 34), undefined, 'rutina'),
+        hecho('edito_la_ficha', antes(0, 50), { tipo: 'persona', ...salio }),
+        hecho('un_tipo_que_no_existe', antes(0, 60)),
+        hecho('ficha_borrada', antes(1, 0), MATU),
+        hecho('quito_una_seccion', antes(1, 30), undefined, null, 'movilidad'),
+        hecho('pago_anulado', antes(3, 0), MATU),
       ],
       hay_hechos_sin_asociar: false,
     },
@@ -239,7 +246,7 @@ export function copiaCuenta(cambios: Partial<CopiaDatosCuenta> = {}): CopiaDatos
     formato: 'matu-datos/1',
     tipo: 'cuenta',
     generado_en: '2026-11-12T10:14:00-03:00',
-    aviso: 'Esta es una copia de los datos que MATU guarda.',
+    aviso: AVISO,
     cuenta: { nombre: 'Rodrigo Soto', correo: 'rodrigo.soto@example.org', celular: '+56955550137', celular_confirmado: true, canal_codigos: 'whatsapp', creada_en: '2026-10-20T18:20:00-03:00' },
     politica: { version: '0.16', huella: 'f'.repeat(64), aceptada_en: '2026-10-20T18:15:00-03:00' },
     grupos: [

@@ -97,8 +97,9 @@ const sumarDias = (dia: string, n: number) => {
 
 // ---------------------------------------------------------------- límite y lo que se registra
 
+/** El texto fijo de toda copia (decisión 377, especificación 9). */
 const AVISO =
-  'Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.'
+  'Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.'
 
 /** Las copias pedidas por cuenta en la última hora, las dos rutas juntas (decisión 346). */
 const pedidas = new Map<string, number[]>()
@@ -176,8 +177,10 @@ function insumosDe(p: PersonaParaCopia, modo: string | undefined, nombre: string
   const n = modo === 'datos-historial' ? 24 : 4
   const compras = Array.from({ length: n }, (_, i) => {
     const en = hace(i * 3 * DIA + 200 + i * 37)
+    const n = i % Math.max(1, lista.length)
     return {
-      insumo: nombres[i % Math.max(1, nombres.length)] ?? 'Pañal adulto talla M',
+      insumo: lista[n]?.nombre ?? 'Pañal adulto talla M',
+      unidad: lista[n]?.unidad ?? 'unidad',
       unidades: [20, 1, 6, 30][i % 4],
       el: diaChile(en),
       origen: i % 4 === 3 ? 'pedido_matu' : 'declarada',
@@ -323,7 +326,8 @@ const TIPOS: [string, 'persona' | 'matu' | 'salio', string | null, string | null
 function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo: string) {
   const todo = rol === 'admin'
   const otro = 'Rodrigo Soto'
-  const hechos: { tipo: string; ocurrido_en: string; quien: { tipo: 'persona' | 'matu'; nombre: string | null; activo: boolean | null }; campo: string | null; seccion: string | null }[] = []
+  type Hecho = { tipo: string; ocurrido_en: string; quien: { tipo: 'persona' | 'matu'; nombre: string | null; activo: boolean | null }; campo: string | null; seccion: string | null; finalidad?: string | null; referencia?: string | null }
+  const hechos: Hecho[] = []
   const quien = (q: 'persona' | 'matu' | 'salio', i: number) =>
     q === 'matu' ? { tipo: 'matu' as const, nombre: null, activo: null } : q === 'salio' ? { tipo: 'persona' as const, nombre: null, activo: false } : { tipo: 'persona' as const, nombre: todo && i % 3 === 1 ? otro : yo, activo: true }
   const pasos = modo === 'datos-historial' ? 3 : 1
@@ -337,7 +341,16 @@ function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo
   // El cuidador ve solo sus filas (D-54-6): ni las de otros ni las de MATU.
   const visibles = todo ? hechos : hechos.filter((h) => h.quien.tipo === 'persona' && h.quien.nombre === yo)
   visibles.sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
-  return { alcance: todo ? 'todo' : 'lo_tuyo', hechos: visibles.map((h) => ({ ...h, ocurrido_en: chile(h.ocurrido_en) })), hay_hechos_sin_asociar: modo === 'datos-sin-asociar' }
+  // F1 (decisión 384): la finalidad en los hechos de autorizaciones y la referencia en los de pedidos y pagos.
+  const AUTORIZACION = new Set(['dio_una_autorizacion', 'retiro_una_autorizacion'])
+  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado'])
+  const conObjeto = (h: Hecho, i: number) => ({
+    ...h,
+    ocurrido_en: chile(h.ocurrido_en),
+    finalidad: AUTORIZACION.has(h.tipo) ? (i % 2 ? 'consumo' : 'plan_cuidado') : null,
+    referencia: PEDIDO.has(h.tipo) ? (h.tipo === 'creo_un_pedido' || h.tipo === 'cambio_que_hacer_si_falta' ? null : '4821') : null,
+  })
+  return { alcance: todo ? 'todo' : 'lo_tuyo', hechos: visibles.map(conObjeto), hay_hechos_sin_asociar: modo === 'datos-sin-asociar' }
 }
 
 function copiaPersona(p: PersonaParaCopia, rol: Rol, u: CuentaParaCopia, generado: string) {

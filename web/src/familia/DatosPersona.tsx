@@ -150,7 +150,7 @@ function Copia({ datos, correo }: { datos: CopiaDatosPersona; correo: string | n
       {insumosVisibles && (
         <>
           <Bloque id="compras-anotadas" titulo={T.bloques.compras}>
-            <Compras compras={datos.insumos.compras ?? []} lista={datos.insumos.lista ?? []} generadoEn={datos.generado_en} />
+            <Compras compras={datos.insumos.compras ?? []} generadoEn={datos.generado_en} />
           </Bloque>
           <Bloque id="avisos-de-insumos" titulo={T.bloques.avisosInsumos}>
             <AvisosInsumos avisos={datos.insumos.avisos ?? []} generadoEn={datos.generado_en} />
@@ -519,21 +519,16 @@ function Insumo({ x }: { x: InsumoCopia }) {
 
 // ---------------------------------------------------------------- 3.4.6 Compras anotadas
 
-function Compras({ compras, lista, generadoEn }: { compras: CompraCopia[]; lista: InsumoCopia[]; generadoEn: string }) {
+function Compras({ compras, generadoEn }: { compras: CompraCopia[]; generadoEn: string }) {
   const { dentro } = enNoventaDias(compras, (c) => c.anotada_en, generadoEn)
   const mas = useVerMas(dentro.length, 10)
   if (!dentro.length) return <Vacio>{T.sinCompras}</Vacio>
-  // La unidad, solo si el nombre es de un único insumo de la lista (F5): con dos del mismo nombre, sin unidad.
-  const unidadDe = (nombre: string) => {
-    const iguales = lista.filter((x) => x.nombre === nombre)
-    return iguales.length === 1 ? iguales[0].unidad : 'unidad'
-  }
   return (
     <>
       <ol className={SUPERFICIE}>
         {dentro.slice(0, mas.visibles).map((c, i) => (
           <li key={`${c.anotada_en}-${i}`} ref={mas.foco(i)} tabIndex={mas.foco(i) ? -1 : undefined} className="flex flex-col gap-0.5 py-3 outline-none">
-            <span className="font-bold break-words">{T.compra(cantidad(c.unidades, unidadDe(c.insumo)), c.insumo)}</span>
+            <span className="font-bold break-words">{T.compra(cantidad(c.unidades, c.unidad), c.insumo)}</span>
             <span className="text-base text-tenue break-words">
               {T.el}
               <Dia dia={c.el} />
