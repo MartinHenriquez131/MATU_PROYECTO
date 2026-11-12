@@ -181,8 +181,8 @@ export const MIS_DATOS = {
     // Espacio duro entre la cifra y su unidad: al cortar la línea no quedan separadas.
     return `${miles(n)} ${palabra} de ${insumo}`
   },
-  anoto: (nombre: string) => ` · Anotó ${nombre}`, // [NUEVO]
-  llegoConPedido: ' · Llegó con un pedido de MATU', // [NUEVO]
+  anoto: (nombre: string) => ` · Anotó ${nombre}`, // [NUEVO]; espacio duro antes del «·» (P3 de la tercera revisión)
+  llegoConPedido: ' · Llegó con un pedido de MATU', // [NUEVO]
   el: 'El ', // [NUEVO]
 
   // 3.4.7 Avisos de insumos
@@ -201,7 +201,7 @@ export const MIS_DATOS = {
   pedidoDel: 'Pedido del ', // [NUEVO] + fecha
   loArmaron: ['Lo armaron el ', '.'] as Partes, // [NUEVO]
   enComercio: (comercio: string) => `En ${comercio}`, // [NUEVO]
-  siFalta: (que: string) => ` · Si falta: ${que}`, // [NUEVO]
+  siFalta: (que: string) => ` · Si falta: ${que}`, // [NUEVO]
   productos: 'Productos', // [NUEVO]
   envio: 'Envío', // [L 27]
   total: 'Total', // [L 27]

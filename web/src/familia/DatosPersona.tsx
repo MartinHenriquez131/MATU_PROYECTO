@@ -736,7 +736,7 @@ function PagoDelPedido({ pago }: { pago: PedidoCopia['pago'] }) {
         </span>
         {pago.devuelto > 0 && (
           <>
-            {' · '}
+            {' · '}
             {T.devuelto}
             <span className="cifras">{pesos(pago.devuelto)}.</span>
           </>

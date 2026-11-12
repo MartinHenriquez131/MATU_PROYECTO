@@ -407,7 +407,7 @@ export function LineaHistorial({ h, foco }: { h: HechoCopia & { tipo: TipoHecho 
   const Icono = ICONO_HECHO[h.tipo]
   const { fecha, hora } = fechaYHoraDeChile(new Date(h.ocurrido_en))
   // MATU no lleva nombre: la frase ya dice quién. Quien salió del grupo, «alguien que ya no está…».
-  const cola = h.quien.tipo === 'matu' ? '' : ` · ${h.quien.nombre ?? T.yaNoEsta}`
+  const cola = h.quien.tipo === 'matu' ? '' : ` · ${h.quien.nombre ?? T.yaNoEsta}`
   return (
     <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex items-start gap-3 border-b border-linea py-3 outline-none last:border-0 angosto:flex-col angosto:items-stretch angosto:gap-2">
       <span aria-hidden className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-rocio text-turquesa">

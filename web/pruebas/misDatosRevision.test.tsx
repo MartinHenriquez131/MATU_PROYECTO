@@ -221,3 +221,30 @@ describe('1.2, «Tus datos»: F2 y F3', () => {
     expect(debito).not.toHaveTextContent('Código de autorización')
   })
 })
+
+describe('tercera revisión (P3): el «·» de las colas nunca queda solo al comienzo de un renglón', () => {
+  /** Cada «·» del texto va precedido de un espacio duro (U+00A0), nunca de un espacio común. */
+  const sinPuntoSuelto = (raiz: Element) => {
+    const texto = raiz.textContent ?? ''
+    expect(texto.match(/·/g)?.length ?? 0).toBeGreaterThan(0)
+    expect(texto).not.toMatch(/ ·/)
+    expect(texto).not.toMatch(/(^|[^\u00A0])·/)
+  }
+
+  it('«Datos de María»: compras, líneas y montos del pedido, aperturas e historial', async () => {
+    await abrirPersona()
+    const compras = bloque('Compras anotadas (últimos 90 días)')
+    expect(within(compras).getAllByRole('listitem')[0].textContent).toContain('10/11/2026\u00A0· Anotó Carmen Soto')
+    const pedido = within(bloque('Sus pedidos')).getAllByRole('listitem')[0]
+    expect(pedido.textContent).toContain('$37.260.\u00A0· Devuelto: $5.290.'.replace('.\u00A0', '\u00A0'))
+    expect(pedido.textContent).toContain('(comercio ficticio)\u00A0· Si falta:')
+    for (const nombre of ['Compras anotadas (últimos 90 días)', 'Sus pedidos', 'Quién abrió o editó la ficha']) sinPuntoSuelto(bloque(nombre))
+  })
+
+  it('«Tus datos»: ingresos, avisos enviados y cuotas', async () => {
+    apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
+    render(<TusDatos />)
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    for (const nombre of ['Últimos ingresos', 'Avisos que te enviamos', 'Tus pagos']) sinPuntoSuelto(bloque(nombre))
+  })
+})

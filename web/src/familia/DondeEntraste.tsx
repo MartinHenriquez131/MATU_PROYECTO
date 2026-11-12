@@ -166,7 +166,8 @@ export function LineaIngreso({ e, foco }: { e: EventoCuenta; foco?: React.Ref<HT
   const { fecha, hora } = fechaYHoraDeChile(new Date(e.ocurrido_en))
   let cola = ''
   if (CON_COLA.has(e.tipo)) {
-    cola = e.dispositivo ? ` · ${e.dispositivo.nombre}` : ` · en ${DONDE.yaNoEnLista}`
+    // MATU-54 (tercera revisión, P3): espacio duro antes del «·», que nunca queda solo al comienzo de un renglón.
+    cola = e.dispositivo ? ` · ${e.dispositivo.nombre}` : ` · en ${DONDE.yaNoEnLista}`
     if (e.dispositivo?.actual) cola += ` ${DONDE.esteEntreParentesis(e.dispositivo.clase)}`
   }
   return (

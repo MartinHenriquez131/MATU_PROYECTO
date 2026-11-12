@@ -377,7 +377,7 @@ function AvisosEnviados({ avisos, simulado, generadoEn }: { avisos: AvisoEnviado
                 <Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
                 <span className="min-w-0 text-base tabular-nums break-words">
                   <FechaHora iso={a.enviado_en ?? a.creado_en} />
-                  {` · ${T.canalAviso[a.canal] ?? ''} · ${T.resultadoAviso[a.resultado]}`}
+                  {` · ${T.canalAviso[a.canal] ?? ''} · ${T.resultadoAviso[a.resultado]}`}
                 </span>
               </li>
             )
