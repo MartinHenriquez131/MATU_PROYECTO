@@ -241,7 +241,8 @@ def test_412_trae_el_actual_y_quien_guardo_y_428_sin_if_match(entorno_consumo: E
     assert conflicto.headers["content-type"].startswith(PROBLEMA) and conflicto.headers["ETag"] == '"v2"'
     actual = conflicto.json()["actual"]
     assert actual["stock_unidades"] == 18 and actual["etag"] == '"v2"'
-    assert actual["actualizado_por"] == {"id": str(cuidadora.id), "nombre": cuidadora.nombre.split()[0]}
+    assert actual["actualizado_por"] == {
+        "id": str(cuidadora.id), "nombre": cuidadora.nombre.split()[0], "autor_activo": True}
     assert cuidadora.nombre.split()[0] in conflicto.json()["detail"]
     for valor in (None, "", "*"):
         if valor is None:

@@ -46,10 +46,11 @@ _CREAR_PLAN = text(
     " ON CONFLICT (persona_cuidada_id) DO NOTHING"
 )
 
-# El autor: id y nombre, nunca el email. Una cuenta eliminada o que RLS no muestra queda sin autor
+# El autor: id y nombre, nunca el email. Desde MATU-42 (decisión 309) el id sale de la fila: una cuenta eliminada o que
+# RLS no muestra (ya no es miembro activo) queda con su id y sin nombre
 _SELECT_SECCION = (
     "SELECT s.tipo, s.contenido_cifrado, s.nonce, s.tag_auth, s.kek_version, s.version, s.actualizado_en,"
-    " u.id AS autor_id, u.nombre AS autor_nombre"
+    " s.actualizado_por AS autor_id, u.nombre AS autor_nombre"
     " FROM plan_seccion s LEFT JOIN usuario u ON u.id = s.actualizado_por AND u.eliminado_en IS NULL"
 )
 

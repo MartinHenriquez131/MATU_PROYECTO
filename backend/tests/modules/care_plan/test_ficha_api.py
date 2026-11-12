@@ -131,7 +131,7 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
         assert cuerpo["etag"] == respuesta.headers["etag"] == '"v1"'
         assert respuesta.headers["cache-control"] == "no-store"
         # El autor lleva id y nombre, nunca el email
-        assert cuerpo["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre}
+        assert cuerpo["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
         assert admin.email not in respuesta.text
 
     # El plan nació una sola vez, en la primera escritura, en modo ficha_relevo, con una sola DEK
@@ -156,7 +156,7 @@ def test_ficha_tres_campos(entorno_ficha: EntornoFicha) -> None:
             assert set(cuerpo["campos"][campo]) == CLAVES_CAMPO
             assert cuerpo["campos"][campo]["texto"] == textos[campo]
             assert cuerpo["campos"][campo]["etag"] == '"v1"'
-            assert cuerpo["campos"][campo]["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre}
+            assert cuerpo["campos"][campo]["actualizado_por"] == {"id": str(admin.id), "nombre": admin.nombre, "autor_activo": True}
         assert admin.email not in ficha.text
 
 

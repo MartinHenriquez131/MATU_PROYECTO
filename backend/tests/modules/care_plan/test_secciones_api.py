@@ -105,7 +105,7 @@ def test_agregar_leer_editar_y_quitar_una_seccion(entorno_ficha: EntornoFicha) -
         "seccion": "comunicacion",
         "texto": texto,
         "etag": '"v1"',
-        "actualizado_por": {"id": str(cuidador.id), "nombre": cuidador.nombre},
+        "actualizado_por": {"id": str(cuidador.id), "nombre": cuidador.nombre, "autor_activo": True},
         "actualizado_en": "2026-10-20T12:00:00Z",
     }
 

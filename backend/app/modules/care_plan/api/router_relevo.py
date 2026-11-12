@@ -274,7 +274,9 @@ def listar_accesos(
             "ultimo_uso_en": a.ultimo_uso_en,
             "otorgado_por": None
             if a.otorgado_por is None
-            else AutorAccesoVista(id=a.otorgado_por.id, nombre=a.otorgado_por.nombre),
+            else AutorAccesoVista(
+                id=a.otorgado_por.id, nombre=a.otorgado_por.nombre, autor_activo=a.otorgado_por.activo
+            ),
         }
         if con_telefono:
             datos["telefono_relevo"] = a.telefono_relevo

@@ -66,6 +66,7 @@ from app.modules.care_circle.domain.retiro import (
     EstadoVista,
     RetiroNoPermitido,
     YaRetirada,
+    autorizo_alguien_que_ya_no_esta,
     finalidad_de,
     finalidades_retirables,
 )
@@ -304,6 +305,12 @@ class AutorizacionVista(BaseModel):
     revocado_en: datetime | None
     borrado_en: datetime | None
     borrada: bool
+    autorizo_alguien_que_ya_no_esta: bool = Field(
+        description=(
+            "MATU-42 (D-42-9 a, decisión 311): true si no está retirada y quien la registró ya no es miembro activo."
+            " Sigue vigente. No dice quién"
+        )
+    )
 
 
 class AutorizacionesPersona(BaseModel):
@@ -362,6 +369,7 @@ def _vista(estado: EstadoDeAutorizacion) -> AutorizacionVista:
         revocado_en=None if a is None else a.revocado_en,
         borrado_en=estado.borrado_en,
         borrada=estado.borrada,
+        autorizo_alguien_que_ya_no_esta=autorizo_alguien_que_ya_no_esta(a),
     )
 
 
@@ -380,7 +388,9 @@ def persona_para_ver(
 
 def _resumen(estado: EstadoDeAutorizacion) -> AutorizacionVistaResumen:
     completa = _vista(estado)
-    return AutorizacionVistaResumen.model_validate(completa.model_dump(exclude={"calidad_otorgante"}))
+    return AutorizacionVistaResumen.model_validate(
+        completa.model_dump(exclude={"calidad_otorgante", "autorizo_alguien_que_ya_no_esta"})
+    )
 
 
 @router.get(

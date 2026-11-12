@@ -246,7 +246,7 @@ def _completitud(valor: int) -> Completitud:
 
 
 def _autor(autor: Autor | None) -> AutorVista | None:
-    return None if autor is None else AutorVista(id=autor.id, nombre=autor.nombre)
+    return None if autor is None else AutorVista(id=autor.id, nombre=autor.nombre, autor_activo=autor.activo)
 
 
 def estado_seccion(seccion: EstadoCampo) -> EstadoSeccionVista:
@@ -305,7 +305,7 @@ def _version_desactualizada(request: Request, conflicto: CampoEnConflicto) -> JS
     if actual.version is None:
         detalle = "Este campo no tiene una versión guardada. Vuelve a abrirlo antes de guardar"
     else:
-        quien = actual.actualizado_por.nombre if actual.actualizado_por is not None else "Otra persona"
+        quien = (actual.actualizado_por.nombre if actual.actualizado_por is not None else None) or "Otra persona"
         detalle = f"{quien} guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya"
     cabeceras = {"Cache-Control": NO_STORE}
     if actual.version is not None:
@@ -402,7 +402,11 @@ def guardar(
         campo=guardado.campo.value,
         texto=estado.texto,
         etag=etag_nuevo,
-        actualizado_por=AutorVista(id=estado.actualizado_por.id, nombre=estado.actualizado_por.nombre),
+        actualizado_por=AutorVista(
+            id=estado.actualizado_por.id,
+            nombre=estado.actualizado_por.nombre,
+            autor_activo=estado.actualizado_por.activo,
+        ),
         actualizado_en=estado.actualizado_en,
         completitud=_completitud(guardado.completitud),
     )

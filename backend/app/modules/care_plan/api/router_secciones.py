@@ -266,7 +266,7 @@ def _version_desactualizada(request: Request, conflicto: SeccionEnConflicto) -> 
         cuerpo_actual = None
     else:
         assert actual.version is not None
-        quien = actual.actualizado_por.nombre if actual.actualizado_por is not None else "Otra persona"
+        quien = (actual.actualizado_por.nombre if actual.actualizado_por is not None else None) or "Otra persona"
         detalle = f"{quien} guardó esta sección mientras la editabas. Revisa su versión antes de guardar la tuya"
         cabeceras["ETag"] = etag(actual.version)
         cuerpo_actual = estado_seccion(actual).model_dump(mode="json")
@@ -354,7 +354,11 @@ def guardar(
         seccion=guardada.seccion,
         texto=estado.texto,
         etag=etag_nuevo,
-        actualizado_por=AutorVista(id=estado.actualizado_por.id, nombre=estado.actualizado_por.nombre),
+        actualizado_por=AutorVista(
+            id=estado.actualizado_por.id,
+            nombre=estado.actualizado_por.nombre,
+            autor_activo=estado.actualizado_por.activo,
+        ),
         actualizado_en=estado.actualizado_en,
     )
 

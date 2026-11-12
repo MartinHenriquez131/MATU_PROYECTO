@@ -360,7 +360,8 @@ def test_lista_con_estado_telefono_por_rol_y_cursor(entorno: EntornoRelevo) -> N
     primero = items[0]
     assert primero["telefono_relevo"] == "+56955550137"
     # Solo el nombre de pila de quien compartió (decisión 35)
-    assert primero["otorgado_por"] == {"id": str(familia.admin.id), "nombre": familia.admin.nombre.split()[0]}
+    assert primero["otorgado_por"] == {
+        "id": str(familia.admin.id), "nombre": familia.admin.nombre.split()[0], "autor_activo": True}
     assert primero["usos"] == 0 and primero["ultimo_uso_en"] is None
 
     # El pagador con permiso ve la lista sin la propiedad telefono_relevo
