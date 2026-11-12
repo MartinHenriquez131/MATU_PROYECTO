@@ -166,10 +166,18 @@ describe('Tu pedido: el carrito (7)', () => {
     abrir()
     await cargado()
     const campo = screen.getByRole('textbox', { name: 'Cantidad Pañal adulto M x30' })
-    await userEvent.clear(campo)
+    // 55-H3: recién pintado el carrito, React todavía puede deberle el efecto que copia las cantidades
+    // del pedido a los campos (corre después de pintar). Bajo carga ese efecto se cuela en el mismo
+    // borrado y devuelve el «2». Después del primer borrado ya corrió, y no vuelve a correr mientras
+    // el pedido no cambie: se borra hasta ver el campo vacío, y recién entonces se sale.
+    await waitFor(async () => {
+      await userEvent.clear(campo)
+      expect(campo).toHaveValue('')
+    })
     await userEvent.tab()
     expect(campo).toBeInvalid()
     expect(campo).toHaveAccessibleDescription('Escribe una cantidad de 1 a 99.')
+    // Más que los 600 ms del guardado automático (7.5): si se fuera a enviar, ya se habría pedido.
     await new Promise((r) => setTimeout(r, 700))
     expect(api.escrituras()).toEqual([])
   })
