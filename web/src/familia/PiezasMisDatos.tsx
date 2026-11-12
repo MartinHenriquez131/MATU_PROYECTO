@@ -280,10 +280,20 @@ export function useVerMas(total: number, paso: number) {
   const [nueva, setNueva] = useState<number | null>(null)
   const enfocar = useRef(false)
   const nodo = useRef<HTMLLIElement | null>(null)
+  // La primera línea nueva toma el foco cuando React la inserta (su ref), y el efecto queda de
+  // respaldo si ya estaba. Sin `setTimeout`: en las pruebas, solo con el efecto el foco a veces se
+  // quedaba en «Ver más» (la ref aún no apuntaba a la línea cuando el efecto corría).
+  const alInsertar = useCallback((li: HTMLLIElement | null) => {
+    nodo.current = li
+    if (li && enfocar.current) {
+      enfocar.current = false
+      li.focus()
+    }
+  }, [])
   useEffect(() => {
-    if (!enfocar.current) return
+    if (!enfocar.current || !nodo.current) return
     enfocar.current = false
-    nodo.current?.focus()
+    nodo.current.focus()
   }, [visibles])
   const mas = () => {
     const n = Math.min(paso, total - visibles)
@@ -293,7 +303,7 @@ export function useVerMas(total: number, paso: number) {
     setVisibles(visibles + n)
     anunciar(QUIEN.seAgregaron(n))
   }
-  const foco = (i: number): Ref<HTMLLIElement> | undefined => (i === nueva ? nodo : undefined)
+  const foco = (i: number): Ref<HTMLLIElement> | undefined => (i === nueva ? alInsertar : undefined)
   return { visibles: Math.min(visibles, total), hayMas: visibles < total, mas, foco }
 }
 
