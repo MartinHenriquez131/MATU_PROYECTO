@@ -18,6 +18,8 @@ RUN npm ci --no-audit --no-fund
 COPY web/index.html web/tsconfig.json web/vite.config.ts ./
 COPY web/src ./src
 COPY web/doble ./doble
+# MATU-55: manifest, íconos de la pantalla de inicio y sw.js. Vite los copia a la raíz de dist
+COPY web/public ./public
 RUN npm run build
 
 # --- 2. La API ------------------------------------------------------------------------------------------
