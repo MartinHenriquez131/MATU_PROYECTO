@@ -15,6 +15,8 @@ Tareas:
   0.12, §10).
 - conservacion_invitaciones: las invitaciones al grupo cerradas hace 30 días (care_circle, MATU-42, D-42-6), con
   invitacion_conservar.
+- conservacion_relevo: el teléfono del relevo 30 días después de que el acceso vence o se corta (care_plan, MATU-46,
+  decisión 25), con relevo_conservar. Corre siempre: no es de la capa 3.
 - quiebres: el trabajo diario de la predicción de quiebre y la conservación de alertas, eventos,
   notificaciones y compras (MATU-37 y MATU-51). Si un grupo falla, los demás se procesan igual, pero la
   corrida queda "fallo" (con sus contadores) y el proceso sale con 1.
@@ -24,15 +26,15 @@ Tareas:
   reintenta las anulaciones que no terminaron. Cada 5 minutos. Corre siempre, también con CAPA3_HABILITADA apagada
   (D-62-17): un pago que el banco ya aprobó se registra o se anula igual. Usa SCHEDULER_DATABASE_URL para
   pagos_por_conciliar (solo ids) y DATABASE_URL para cerrar cada venta con app.rol = 'sistema' y su grupo.
-- borrados: las cinco de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones,
-  conservacion_pedidos y conservacion_invitaciones).
+- borrados: las seis de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones,
+  conservacion_pedidos, conservacion_invitaciones y conservacion_relevo).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
 
 Conexiones (hallazgo H2 de Martín, migración 0022). Cada tarea reutiliza el ``ejecutar`` de su módulo:
 
 - SCHEDULER_DATABASE_URL, como matu_scheduler: enumera los grupos activos y llama a plan_destruir_claves,
-  consumo_conservar, iam_conservar, quiebre_conservar, pedido_conservar (MATU-61) e invitacion_conservar (MATU-42),
-  con app.rol = 'operacion'.
+  consumo_conservar, iam_conservar, quiebre_conservar, pedido_conservar (MATU-61), invitacion_conservar (MATU-42) y
+  relevo_conservar (MATU-46), con app.rol = 'operacion'.
 - PUBLISHER_DATABASE_URL, como matu_publisher: llama a las funciones outbox_* con app.rol = 'operacion'.
 - DATABASE_URL, como matu_app: el trabajo de cada grupo (los quiebres y el consumidor de avisos), con
   app.rol = 'sistema' y app.grupo_id, que necesita RLS.
@@ -67,7 +69,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Configuracion, obtener_configuracion
 from app.core.logs import configurar_logs, request_id_actual
 from app.modules.care_circle.infrastructure import tarea_conservacion_invitaciones
-from app.modules.care_plan.infrastructure import tarea_destruccion
+from app.modules.care_plan.infrastructure import tarea_conservacion_relevo, tarea_destruccion
 from app.modules.consumption.infrastructure import tarea_conservacion as tarea_conservacion_consumo
 from app.modules.consumption.infrastructure import tarea_quiebres
 from app.modules.iam.infrastructure import tarea_conservacion as tarea_conservacion_sesiones
@@ -162,6 +164,10 @@ def _conservacion_invitaciones(ctx: Contexto) -> Salida:
     return Salida(OK, asdict(tarea_conservacion_invitaciones.ejecutar(ctx.scheduler(), ctx.reloj)))
 
 
+def _conservacion_relevo(ctx: Contexto) -> Salida:
+    return Salida(OK, asdict(tarea_conservacion_relevo.ejecutar(ctx.scheduler(), ctx.reloj)))
+
+
 def _quiebres(ctx: Contexto) -> Salida:
     trabajo, conservacion = tarea_quiebres.ejecutar(ctx.fabrica, ctx.scheduler(), ctx.reloj)
     # Un grupo que falla no detiene a los demás, pero la corrida queda fallida para que el cron lo muestre
@@ -195,6 +201,7 @@ TAREAS: dict[str, Tarea] = {
     "conservacion_sesiones": _conservacion_sesiones,
     "conservacion_pedidos": _conservacion_pedidos,
     "conservacion_invitaciones": _conservacion_invitaciones,
+    "conservacion_relevo": _conservacion_relevo,
     "quiebres": _quiebres,
     "avisos": _avisos,
     "conciliacion_pagos": _conciliacion_pagos,
@@ -206,6 +213,8 @@ BORRADOS_DIARIOS: tuple[str, ...] = (
     "conservacion_sesiones",
     "conservacion_pedidos",
     "conservacion_invitaciones",
+    # MATU-46: corre siempre, también con CAPA3_HABILITADA apagada, como conservacion_pedidos
+    "conservacion_relevo",
 )
 # Los borrados antes que los quiebres: el trabajo diario no recalcula lo que ya debía borrarse
 DIARIAS: tuple[str, ...] = (*BORRADOS_DIARIOS, "quiebres")

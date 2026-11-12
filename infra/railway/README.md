@@ -266,6 +266,11 @@ variables nuevas: usa `SCHEDULER_DATABASE_URL`.
 Desde MATU-42, `borrados` corre además `conservacion_invitaciones` (las invitaciones al grupo cerradas hace 30
 días, migración 0026, D-42-6). Sin variables nuevas: usa `SCHEDULER_DATABASE_URL`.
 
+Desde MATU-46, `borrados` corre además `conservacion_relevo` (el teléfono del relevo 30 días después de que el
+acceso vence o se corta, migración 0027). Corre siempre, con la capa 3 encendida o apagada. Sin variables nuevas: usa
+`SCHEDULER_DATABASE_URL`. Si se restaura una copia de respaldo, corre `python -m app.tareas borrados` antes de
+reabrir la base (C14 del analista).
+
 Desde MATU-62, `matu-cron-conciliacion` cierra los pagos de Webpay sin respuesta y reintenta las anulaciones
 (D-62-5 y D-62-6), también con la capa 3 apagada (D-62-17). Lleva las variables de `borrados`
 (`SCHEDULER_DATABASE_URL` para `pagos_por_conciliar`, `DATABASE_URL` para cerrar cada venta) más

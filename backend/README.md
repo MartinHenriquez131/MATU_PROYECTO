@@ -19,7 +19,8 @@ python -m app.tareas <tarea>
 | `conservacion_sesiones` | Borra sesiones y dispositivos vencidos (MATU-38) | ver `borrados` | ver `borrados` |
 | `conservacion_pedidos` | Borra los pedidos no pagados 30 días después de su último cambio y las claves de idempotencia vencidas (MATU-61, D5). Corre siempre, también con `CAPA3_HABILITADA` apagada (decisión 220) | ver `borrados` | ver `borrados` |
 | `conservacion_invitaciones` | Borra las invitaciones al grupo aceptadas, anuladas, bloqueadas o vencidas hace 30 días, con su `indice_token` (MATU-42, D-42-6) | ver `borrados` | ver `borrados` |
-| `borrados` | Las cinco de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
+| `conservacion_relevo` | Borra el teléfono del relevo 30 días después de que el acceso vence o se corta, lo que ocurra primero. El nombre, el motivo y las fechas se quedan (MATU-46, decisión 25). Corre siempre | ver `borrados` | ver `borrados` |
+| `borrados` | Las seis de borrado, una tras otra | 03:00 en horario de verano, 02:00 en invierno | `0 6 * * *` |
 | `quiebres` | Recalcula los quiebres de cada grupo y conserva alertas, eventos, notificaciones y compras (MATU-37 y MATU-51) | 05:00 en horario de verano, 04:00 en invierno | `0 8 * * *` |
 | `avisos` | Publica el outbox y envía los avisos de quiebre (MATU-41) | cada 5 minutos | `*/5 * * * *` |
 | `conciliacion_pagos` | Cierra las ventas de Webpay sin respuesta y reintenta las anulaciones que no terminaron (MATU-62, D-62-5 y D-62-6). Corre siempre, también con `CAPA3_HABILITADA` apagada (D-62-17). Sin `PASARELA_PAGO` no llama a nadie | cada 5 minutos | `*/5 * * * *` |
