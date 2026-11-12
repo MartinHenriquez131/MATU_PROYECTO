@@ -235,8 +235,18 @@ class PushActualVista(BaseModel):
             description=(
                 "Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87"
                 " caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no"
-                " está configurada"
+                " está configurada, o si la cuenta no puede activar los avisos push (permitido false)"
             ),
+        ),
+    ]
+    permitido: Annotated[
+        bool,
+        Field(
+            description=(
+                "MATU-107 (C14): si esta cuenta puede activar los avisos push en este teléfono. Durante el piloto,"
+                " fuera del ambiente local y de pruebas, solo las cuentas del equipo. Con false, clave_publica es null"
+                " y el PUT responde 409 push-no-permitido"
+            )
         ),
     ]
     registrado: Annotated[

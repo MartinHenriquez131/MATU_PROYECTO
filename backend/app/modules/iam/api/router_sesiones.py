@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
+from app.core.push_piloto import PoliticaPush, politica_push
 from app.core.vapid import clave_publica
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_emisor_tokens, obtener_reloj, usuario_actual
 from app.modules.iam.api.esquemas import (
@@ -58,6 +59,7 @@ ClienteWeb = Annotated[
     ),
 ]
 Usuario = Annotated[UsuarioActual, Depends(usuario_actual)]
+PoliticaPushDep = Annotated[PoliticaPush, Depends(politica_push)]
 RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
 
 _NO_STORE = {"Cache-Control": {"description": "no-store", "schema": {"type": "string"}}}
@@ -81,6 +83,18 @@ def _sesion_expirada() -> ErrorMATU:
 
 def _no_encontrado() -> ErrorMATU:
     return ErrorMATU(404, headers={"Cache-Control": "no-store"})
+
+
+# MATU-107 (C14, C-107-1): el detalle es fijo. Nunca repite el push_token ni dice qué cuentas están en la lista
+_DETALLE_PUSH_NO_PERMITIDO = (
+    "Durante el piloto, los avisos en el teléfono solo se pueden activar en teléfonos del equipo"
+)
+
+
+def _push_no_permitido() -> ErrorMATU:
+    return ErrorMATU(
+        409, tipo="push-no-permitido", detalle=_DETALLE_PUSH_NO_PERMITIDO, headers={"Cache-Control": "no-store"}
+    )
 
 
 @router.post(
@@ -229,8 +243,10 @@ ENVIO_PUSH_SIMULADO = True
     description=(
         "Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública"
         " VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca"
-        " lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y"
-        " del `DELETE`. No se audita. Orden: 401, 404 y 200."
+        " lo devuelve) y si el envío es simulado. Desde MATU-107 (C14), `permitido` dice si la cuenta puede activar"
+        " los avisos push: durante el piloto, fuera del ambiente local y de pruebas, solo las cuentas del equipo."
+        " Con `permitido` false, `clave_publica` es `null`. Sin `did`, o con el dispositivo revocado, el mismo 404"
+        " del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200."
     ),
     responses={200: {"headers": _NO_STORE}, **_NO_AUTENTICADO, **_NO_ENCONTRADO},
 )
@@ -239,13 +255,21 @@ def ver_push_actual(
     usuario: Usuario,
     unidad: UnidadDep,
     clave: Annotated[str | None, Depends(obtener_clave_publica_vapid)],
+    politica: PoliticaPushDep,
 ) -> PushActualVista:
     try:
         registrado = push_registrado(usuario_id=usuario.id, dispositivo_id=usuario.dispositivo_id, unidad=unidad)
     except DispositivoNoEncontrado:
         raise _no_encontrado() from None
+    # C-107-2: sin permiso, la pantalla no recibe la clave con que suscribirse
+    permitido = politica.permite(usuario.id)
     respuesta.headers["Cache-Control"] = "no-store"
-    return PushActualVista(clave_publica=clave, registrado=registrado, envio_simulado=ENVIO_PUSH_SIMULADO)
+    return PushActualVista(
+        clave_publica=clave if permitido else None,
+        permitido=permitido,
+        registrado=registrado,
+        envio_simulado=ENVIO_PUSH_SIMULADO,
+    )
 
 
 @router.put(
@@ -256,12 +280,18 @@ def ver_push_actual(
     description=(
         "Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una"
         " respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar`"
-        " solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204."
+        " solo si el endpoint guardado cambió (MATU-55, decisión 260). Desde MATU-107 (C14), si la cuenta no puede"
+        " activar los avisos push (`permitido` false en el `GET`), responde 409 `push-no-permitido`, no guarda nada"
+        " y no audita. Orden: 401, 404, 422, 409 y 204."
     ),
     responses={
         204: {"headers": _NO_STORE},
         **_NO_AUTENTICADO,
         **_NO_ENCONTRADO,
+        409: {
+            "description": "push-no-permitido: durante el piloto, esta cuenta no puede activar los avisos push (C14)",
+            **PROBLEMA,
+        },
         422: {"description": "push_token inválido o de un servicio no admitido (push_no_admitido)", **PROBLEMA},
     },
 )
@@ -271,7 +301,12 @@ def guardar_push_actual(
     unidad: UnidadDep,
     _actual: Annotated[None, Depends(exigir_dispositivo_actual)],
     solicitud: SolicitudPush,
+    politica: PoliticaPushDep,
 ) -> Response:
+    if not politica.permite(usuario.id):
+        # C-107-1 y C-107-8: no se guarda ni se audita. La línea de la petición lleva el usuario_id, nada más
+        request.state.usuario_id = str(usuario.id)
+        raise _push_no_permitido()
     return _push(request, usuario, unidad, solicitud.push_token)
 
 
