@@ -1,9 +1,15 @@
 openapi: 3.1.0
 info:
   title: MATU API · Dónde entraste (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.1.0-implementado
   summary: Los últimos ingresos y eventos de seguridad de la propia cuenta, la clave pública de push y la auditoría de la preferencia de avisos (MATU-55, RF-37, RF-39).
   description: |
+    **Implementado en MATU-55 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `pedido.openapi.yaml` y `pago.openapi.yaml`. Al implementar se sumaron
+    las decisiones 272 a 284 del README (las respuestas del orquestador a Q1 a Q9 del backend y a C1 a C9 del
+    diseñador): `clase` en `DispositivoEvento` y en `DispositivoVista` (C7), `push_activo` en
+    `DispositivoVista` (C5) y, en `cerraste_en_dispositivo`, solo el teléfono que se cerró (C3).
+
     Contrato **propuesto** de MATU-55, escrito el 12-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con:
     - la revisión previa del analista normativo (`docs/legal/revision-previa-matu-55.md` del repositorio
@@ -26,6 +32,7 @@ info:
     - `PUT /v1/yo/avisos` audita `avisos.preferencia`, sin los valores, solo si la preferencia cambió (C7
       y C8, decisión 259).
     - `PUT` y `DELETE /v1/dispositivos/actual/push` auditan solo si el endpoint cambió (decisión 260).
+    - `GET /v1/dispositivos` suma `clase` y `push_activo` a cada dispositivo (C5 y C7, decisiones 279 y 280).
 
     **Rutas que la pantalla usa tal como están en `openapi.json`** (no se repiten aquí):
     - `GET /v1/dispositivos` (`ver_dispositivos_v1_dispositivos_get`): la lista «En tus teléfonos».
@@ -279,19 +286,31 @@ components:
         - avisos_activados
         - avisos_desactivados
 
+    ClaseDispositivo:
+      type: string
+      enum: [telefono, computador, otro]
+      description: |
+        Qué sustantivo usa la pantalla (C7 del diseñador, decisión 280): «teléfono», «computador» o
+        «navegador». La deduce el servidor del sistema del nombre, que MATU sacó del agente de usuario al
+        entrar (decisión 47): Android e iPhone son `telefono`; Windows, Mac, Linux y ChromeOS, `computador`;
+        iPad y «Navegador web», `otro`. El agente de usuario no se guarda, y la clase tampoco: se calcula al
+        leer.
+
     DispositivoEvento:
       type: object
       additionalProperties: false
-      required: [nombre, actual]
+      required: [nombre, clase, actual]
       description: |
         El teléfono o computador del evento (C3). Solo el nombre grueso (navegador y sistema, de la lista
-        cerrada de MATU-38, por ejemplo «Chrome en Android») y si es el de esta sesión. **Nunca** el id, la
-        plataforma, el `push_token`, la IP ni el agente de usuario.
+        cerrada de MATU-38, por ejemplo «Chrome en Android»), su clase y si es el de esta sesión. **Nunca** el
+        id, la plataforma, el `push_token`, la IP ni el agente de usuario.
       properties:
         nombre:
           type: string
           maxLength: 60
           examples: [Chrome en Android]
+        clase:
+          $ref: '#/components/schemas/ClaseDispositivo'
         actual:
           type: boolean
           description: |
@@ -317,12 +336,13 @@ components:
           examples: ['2026-11-12T13:05:00Z']
         dispositivo:
           description: |
-            El dispositivo del evento, o `null`:
+            El dispositivo del evento, o `null`. En `cerraste_en_dispositivo` es **el que se cerró**; el de
+            origen no se registra ni se muestra (C3, decisión 279). Es `null`:
             - siempre en los eventos de la cuenta (`contrasena_cambiada`, `celular_confirmado`,
               `codigo_recuperacion_pedido` y `avisos_cambiados`), que no son de un dispositivo;
             - en los demás, si el dispositivo ya no existe porque la conservación lo borró (90 días sin
-              uso, decisión 59). La pantalla dice entonces que ese teléfono ya no está en la lista
-              (pregunta abierta Q6 del README).
+              uso, decisión 59). La pantalla lo muestra como «un teléfono o computador que ya no está en
+              tu lista» (especificación v1.1 del diseñador).
           oneOf:
             - $ref: '#/components/schemas/DispositivoEvento'
             - type: 'null'
@@ -382,6 +402,20 @@ components:
         los mismos valores responde 200 y no audita. Un 422 no audita. El `GET` no se audita (C10).
       properties: {}
 
+    CambioVerDispositivos:
+      type: object
+      x-matu-se-suma-a: [ver_dispositivos_v1_dispositivos_get]
+      description: |
+        **Cambio a `GET /v1/dispositivos`** (MATU-38), sin cambiar la ruta ni los códigos: cada
+        `DispositivoVista` suma `clase` (C7, decisión 280) y `push_activo` (C5, decisión 281), los dos
+        obligatorios. `push_activo` dice si el dispositivo tiene un endpoint de push guardado («Avisos
+        activados»), nunca el endpoint.
+      properties:
+        clase:
+          $ref: '#/components/schemas/ClaseDispositivo'
+        push_activo:
+          type: boolean
+
     CambioGuardarPush:
       type: object
       x-matu-se-suma-a:
@@ -406,6 +440,7 @@ components:
             ocurrido_en: '2026-11-12T13:05:00Z'
             dispositivo:
               nombre: Chrome en Android
+              clase: telefono
               actual: true
           - tipo: avisos_cambiados
             ocurrido_en: '2026-11-10T22:41:00Z'
@@ -414,6 +449,7 @@ components:
             ocurrido_en: '2026-11-08T15:20:00Z'
             dispositivo:
               nombre: Safari en iPhone
+              clase: telefono
               actual: false
         hay_mas: false
 

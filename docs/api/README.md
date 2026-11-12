@@ -19,7 +19,8 @@ docs/api/
                                   pago, el pedido pagado y el comprobante (implementado en MATU-62, decisiones 223 a
                                   249; se conserva como explicación y manda openapi.json)
     └── donde-entraste.openapi.yaml  MATU-55: los últimos ingresos de la propia cuenta, la clave pública de push y
-                                  la auditoría de la preferencia de avisos (propuesto, decisiones 252 a 271)
+                                  la auditoría de la preferencia de avisos (implementado en MATU-55, decisiones
+                                  252 a 284; se conserva como explicación y manda openapi.json)
 ```
 
 ## Propuestos e implementados
@@ -53,7 +54,7 @@ docs/api/
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
 | `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
-| `GET /v1/dispositivos` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
+| `GET /v1/dispositivos` | MATU-38 | Implementado. En `openapi.json` desde MATU-38. MATU-55 suma `clase` y `push_activo` (decisiones 280 y 281) |
 | `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
@@ -101,8 +102,8 @@ docs/api/
 | `GET /v1/pedidos/{pedido_id}/pago` | MATU-62 (R4, D-62-2) | Implementado. En `openapi.json` desde MATU-62 (decisiones 236, 238, 239, 248 y 249). Estado, devoluciones y comprobante. Capa 3 |
 | `GET /v1/personas-cuidadas/{persona_id}/pedido-pagado` | MATU-62 (P2 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 237). El último pedido pagado, con su comprobante. Capa 3 |
 | `GET /v1/condiciones-pedido?version=` | MATU-62 (P4 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 240). Cambio aditivo a la ruta de MATU-61 |
-| `GET /v1/yo/ingresos` | MATU-55 (RF-37, D1 y D2) | Propuesto (decisiones 253 a 256). Contrato en `propuestos/donde-entraste.openapi.yaml` |
-| `GET /v1/dispositivos/actual/push` | MATU-55 (D6) | Propuesto (decisión 261). Contrato en `propuestos/donde-entraste.openapi.yaml` |
+| `GET /v1/yo/ingresos` | MATU-55 (RF-37, D1 y D2) | Implementado. En `openapi.json` desde MATU-55 (decisiones 253 a 256 y 279 a 283) |
+| `GET /v1/dispositivos/actual/push` | MATU-55 (D6) | Implementado. En `openapi.json` desde MATU-55 (decisiones 261, 262 y 272) |
 
 Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). Desde MATU-67, `/version.json` entrega el identificador del build con `Cache-Control: no-store`, y 404 RFC 7807 si no está en el build, nunca el `index.html` (decisión 172). Desde MATU-62 (implementado, decisión 231), `POST /insumos/pedido/pago` recibe la vuelta de Webpay por POST y responde 303 a la misma pantalla con los valores en el fragmento; está declarada en `propuestos/pago.openapi.yaml` con `x-matu-fuera-de-openapi-json`. `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
@@ -1560,3 +1561,26 @@ Lo que no calza o queda abierto. Ninguna pregunta cambia el alcance por sí sola
    - la arquitectura, 11.8;
    - las secciones 0 a 2 de la revisión previa, que todavía dicen 0024.
 9. **Q9 · CSP del frontend.** Si la etiqueta meta del build trae una `Content-Security-Policy` con `worker-src` o `script-src` estrictos, tiene que admitir `'self'` para `/sw.js`. Es del frontend, no de la API.
+
+### Decisiones al implementar MATU-55 (12-11)
+
+Las respuestas del orquestador, por delegación de Jorge, a las preguntas Q1 a Q9 de arriba y a las preguntas C1 a C9 del diseñador (`docs/diseno/matu-55-donde-entraste.md`), con el ajuste del orquestador del 12-11 a la especificación v1.1 del diseñador (C3 y C7). Q6 y Q8 siguen abiertas: son de otros documentos.
+
+272. **Q1 · `GET /v1/dispositivos/actual/push`, con sesión** (decisión 261), confirmado. No se abre `GET /v1/config/push`.
+273. **Q2 · El `CHECK auditoria_cuenta_acotada`**, confirmado (decisión 258), con `NOT VALID` y `VALIDATE` en la 0025. **Antes de desplegar en staging**, Martín revisa que ninguna fila lo rompa, con `SELECT accion, count(*) FROM auditoria WHERE grupo_id IS NULL GROUP BY accion`: toda acción que salga debe estar en `ACCIONES_DE_CUENTA`. Si alguna no está, la migración falla con el nombre del `CHECK` y no despliega. Va en «Para desplegar» del PR.
+274. **Q3 · El push audita solo si cambia** (decisión 260), confirmado. La prueba de MATU-38 que esperaba dos `dispositivo.push_borrar` por dos `DELETE` seguidos (`test_push_solo_se_escribe_y_respeta_la_lista_cerrada`) ahora espera uno. El endpoint anterior se compara dentro de la base (`UPDATE … FROM previo … RETURNING previo.push_token IS DISTINCT FROM …`) y nunca sale de ella.
+275. **Q4 · La política más estrecha queda** (decisión 257). La confirma el analista en la revisión de cierre.
+276. **Q5 · `cuenta.celular_solicitar` queda fuera** (decisión 254).
+277. **Q7 · La clave VAPID se genera con `python scripts/generar_vapid.py`**, desde `backend/`. Imprime en la salida estándar, solo a quien lo corre, `VAPID_CLAVE_PRIVADA=<clave>` en el formato que espera la configuración (el escalar P-256 de 32 bytes en base64url sin relleno) y la pública que derivará la API. No escribe archivos ni usa `logging`. La derivación vive en `app/core/vapid.py`, que también valida la clave al cargar la configuración. Va en «Para desplegar».
+278. **Q9 · CSP del build.** Si la etiqueta meta de la `Content-Security-Policy` del build trae `worker-src` (o un `script-src` estricto sin `worker-src`), tiene que admitir `'self'` para `/sw.js`. Es del frontend; la API no cambia.
+279. **C2 y C3 · Lo recorta el servidor, y en «Cerraste MATU en…» va solo el teléfono que se cerró.**
+    - El servidor recorta a 90 días y 20 eventos y excluye los fallidos (decisiones 254 y 255): la pantalla no filtra.
+    - No se agrega `objetivo`. En `cerraste_en_dispositivo`, `dispositivo` es el teléfono que se cerró, como dice la decisión 256. El de origen no se registra en la auditoría (`dispositivo.sacar` guarda el cerrado en `entidad_id`) y no se muestra: un solo campo, menos datos.
+    - `dispositivo` puede ser `null`: siempre en los cuatro eventos de la cuenta y, en los de un dispositivo, si la conservación ya lo borró. La pantalla lo muestra como «un teléfono o computador que ya no está en tu lista» (especificación v1.1).
+280. **C7 · `clase: telefono | computador | otro`** en `DispositivoVista` y en el `dispositivo` de cada evento, obligatoria. La deduce el servidor (`clase_dispositivo`, `app/modules/iam/domain/dispositivo.py`) del sistema del nombre del dispositivo, que ya es lo que MATU dedujo del agente de usuario al entrar (decisión 47): Android e iPhone son `telefono`; Windows, Mac, Linux y ChromeOS, `computador`; iPad y «Navegador web», `otro`. No se guarda el agente de usuario ni la clase, y la 0025 no agrega columnas. Una tablet Android sale como `telefono`: el nombre no distingue el formato.
+281. **C5 · `push_activo` en `DispositivoVista`**, obligatorio: si el dispositivo tiene un endpoint de push guardado (`push_token IS NOT NULL`, leído en la base). Nunca el endpoint.
+282. **C6 · Con la sesión abierta no hay cambio de contraseña.** El frontend quita «Cambiar mi contraseña»; MATU-55 no agrega una ruta.
+283. **C8 · `Cache-Control: no-store`** en `GET /v1/dispositivos`, `GET /v1/yo/ingresos` y `GET /v1/dispositivos/actual/push`, también en sus errores (middleware de `/v1/dispositivos` y `/v1/yo/`, y repetido en cada ruta).
+284. **C9 · `SolicitudPush` sigue solo con el endpoint** mientras el envío sea simulado (decisión 263). Cuando el envío sea real, el cuerpo cambia (`p256dh` y `auth`) y la pantalla repite el `PUT`.
+
+**Lo que cambia al implementar, frente al propuesto:** `clase` y `push_activo` (arriba). `clase` sale en `openapi.json` como un `enum` en línea, no como el componente `ClaseDispositivo` del YAML, y los errores como `application/problem+json` sin esquema, como en el resto de `openapi.json`. Las rutas y los códigos son los del propuesto.
