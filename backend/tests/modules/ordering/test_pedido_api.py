@@ -12,6 +12,7 @@ from typing import Any
 import psycopg
 import pytest
 
+from app.modules.ordering.infrastructure.condiciones import VERSION_VIGENTE
 from tests.base_datos import DSN, requiere_base
 from tests.modules.ordering.conftest import COSTO_ENVIO, DIRECCION, TELEFONO, EntornoPedido
 
@@ -103,7 +104,8 @@ def test_las_condiciones_del_pedido_son_publicas_y_calzan_con_el_resumen(entorno
     respuesta = entorno_pedido.iam.cliente.get("/v1/condiciones-pedido")
     assert respuesta.status_code == 200 and respuesta.headers["Cache-Control"] == "no-cache"
     assert respuesta.json()["huella"] == pedido["resumen"]["condiciones"]["huella"]
-    assert respuesta.json()["version"] == "0.1"
+    # MATU-62: la vigente es la 0.2
+    assert respuesta.json()["version"] == VERSION_VIGENTE == "0.2"
 
 
 # --- Si falta un producto (C5) --------------------------------------------------------------------------------------

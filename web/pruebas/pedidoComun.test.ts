@@ -38,6 +38,7 @@ const linea = (producto: ProductoCatalogo, comercio: string, cantidad: number, o
   precio_unitario: 1000,
   subtotal: 1000 * cantidad,
   regla_faltante: 'otro_comercio',
+  devolucion: null,
   retracto_pierde_al_abrir: true,
   cambio: null,
 })

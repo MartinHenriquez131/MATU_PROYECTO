@@ -18,6 +18,10 @@ Tareas:
   corrida queda "fallo" (con sus contadores) y el proceso sale con 1.
 - avisos: el publicador del outbox con el consumidor de avisos (MATU-41). Sin ENVIADOR_AVISOS no toma
   ningún evento y la corrida queda como "apagada".
+- conciliacion_pagos: la conciliación de los pagos (payments, MATU-62, D-62-5): cierra las ventas sin respuesta y
+  reintenta las anulaciones que no terminaron. Cada 5 minutos. Corre siempre, también con CAPA3_HABILITADA apagada
+  (D-62-17): un pago que el banco ya aprobó se registra o se anula igual. Usa SCHEDULER_DATABASE_URL para
+  pagos_por_conciliar (solo ids) y DATABASE_URL para cerrar cada venta con app.rol = 'sistema' y su grupo.
 - borrados: las cuatro de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones y
   conservacion_pedidos).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
@@ -166,6 +170,17 @@ def _avisos(ctx: Contexto) -> Salida:
     return Salida(APAGADA, {}) if resultado is None else Salida(OK, asdict(resultado))
 
 
+# MATU-62: se importa al correr, no al cargar este archivo (es de payments), y corre con la capa 3 encendida o apagada
+TAREA_CONCILIACION_PAGOS = "app.modules.payments.infrastructure.tarea_conciliacion"
+
+
+def _conciliacion_pagos(ctx: Contexto) -> Salida:
+    tarea = importlib.import_module(TAREA_CONCILIACION_PAGOS)
+    scheduler = ctx.scheduler()
+    resultado = tarea.ejecutar(ctx.config, ctx.fabrica, scheduler, ctx.reloj)
+    return Salida(FALLO if resultado.fallidas > 0 else OK, asdict(resultado))
+
+
 TAREAS: dict[str, Tarea] = {
     "destruccion_fichas": _destruccion_fichas,
     "conservacion_consumo": _conservacion_consumo,
@@ -173,6 +188,7 @@ TAREAS: dict[str, Tarea] = {
     "conservacion_pedidos": _conservacion_pedidos,
     "quiebres": _quiebres,
     "avisos": _avisos,
+    "conciliacion_pagos": _conciliacion_pagos,
 }
 
 BORRADOS_DIARIOS: tuple[str, ...] = (
@@ -198,6 +214,9 @@ HORARIOS: dict[str, str] = {
     BORRADOS: "0 6 * * *",
     "quiebres": "0 8 * * *",
     "avisos": "*/5 * * * *",
+    # MATU-62 (D-62-5): cada 5 minutos, el mínimo de Railway. Con la vida de la venta (10 minutos), una vuelta perdida
+    # se cierra en menos de 15
+    "conciliacion_pagos": "*/5 * * * *",
 }
 
 # Tope de espera para abrir una conexión, en segundos (connect_timeout de libpq). Sin él, con la base

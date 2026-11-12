@@ -478,3 +478,77 @@ def test_un_diagnostico_del_proxy_invalido_no_carga_ni_repite_el_valor(monkeypat
     with pytest.raises(ValidationError) as error:
         cargar()
     assert "quizas-xyz" not in str(error.value)
+
+
+# --- MATU-62 (observación 9 del cierre del analista): la guarda contra el dinero real -------------------------------
+
+LLAVE_SINTETICA = "llave-sintetica-de-prueba-0000"  # pragma: allowlist secret
+
+
+def _produccion(monkeypatch: pytest.MonkeyPatch, entorno: str, autorizado: str | None) -> None:
+    monkeypatch.setenv("ENTORNO", entorno)
+    monkeypatch.setenv("POLITICA_VERSION", "0.13")
+    monkeypatch.setenv("PASARELA_PAGO", "produccion")
+    monkeypatch.setenv("WEBPAY_CODIGO_COMERCIO", "000000000000")
+    monkeypatch.setenv("WEBPAY_LLAVE", LLAVE_SINTETICA)
+    if autorizado is not None:
+        monkeypatch.setenv("DINERO_REAL_AUTORIZADO", autorizado)
+
+
+@pytest.mark.rf("RF-25")
+@pytest.mark.parametrize(
+    ("entorno", "autorizado"),
+    [("produccion", None), ("produccion", "false"), ("produccion", ""), ("staging", "true"), ("local", "true")],
+)
+def test_la_pasarela_de_produccion_no_carga_sin_entorno_produccion_y_la_marca(
+    monkeypatch: pytest.MonkeyPatch, entorno: str, autorizado: str | None
+) -> None:
+    _produccion(monkeypatch, entorno, autorizado)
+    with pytest.raises(ValidationError) as error:
+        cargar()
+    mensaje = str(error.value)
+    assert "DINERO_REAL_AUTORIZADO" in mensaje and "CL-54" in mensaje
+    # Sin secretos en el mensaje
+    assert LLAVE_SINTETICA not in mensaje and "000000000000" not in mensaje
+
+
+@pytest.mark.rf("RF-25")
+def test_la_pasarela_de_produccion_carga_con_entorno_produccion_y_la_marca(monkeypatch: pytest.MonkeyPatch) -> None:
+    _produccion(monkeypatch, "produccion", "true")
+    configuracion = cargar()
+    assert (configuracion.pasarela_pago, configuracion.dinero_real_autorizado) == ("produccion", True)
+
+
+@pytest.mark.rf("RF-25")
+def test_la_vida_de_la_venta_webpay_es_de_8_minutos() -> None:
+    """MATU-94 (decisión 230, P-62-6): la venta de integración vence a los 7 minutos; 8 deja 1 de margen. La
+    configuración, el valor por omisión del repositorio y .env.example dicen lo mismo."""
+    from datetime import timedelta
+    from pathlib import Path
+
+    from dotenv import dotenv_values
+
+    from app.modules.ordering.infrastructure.repositorio_pedidos import VIDA_VENTA_POR_OMISION
+
+    assert config.Configuracion.model_fields["vida_venta_webpay_minutos"].default == 8
+    assert VIDA_VENTA_POR_OMISION == timedelta(minutes=8)
+    valores = dotenv_values(Path(__file__).resolve().parents[3] / ".env.example")
+    assert valores["VIDA_VENTA_WEBPAY_MINUTOS"] == "8"
+
+
+@pytest.mark.rf("RF-25")
+def test_el_dinero_real_queda_bloqueado_en_env_example() -> None:
+    from pathlib import Path
+
+    from dotenv import dotenv_values
+
+    valores = dotenv_values(Path(__file__).resolve().parents[3] / ".env.example")
+    assert valores["DINERO_REAL_AUTORIZADO"] == "false" and valores["PASARELA_PAGO"] in ("", None)
+
+
+@pytest.mark.rf("RF-25")
+def test_integracion_no_pide_la_marca(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENTORNO", "staging")
+    monkeypatch.setenv("POLITICA_VERSION", "0.13")
+    monkeypatch.setenv("PASARELA_PAGO", "integracion")
+    assert cargar().dinero_real_autorizado is False

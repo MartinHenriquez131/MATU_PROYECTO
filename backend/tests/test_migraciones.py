@@ -23,13 +23,22 @@ from dotenv import load_dotenv
 from psycopg.conninfo import make_conninfo
 from sqlalchemy.engine import make_url
 
+from tests.proteccion_base import nombre_de_la_base
+
 BACKEND = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND.parent / ".env")
-DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
+# MATU-94: sin valor por omisión (antes, dbname=matu). La base desechable BASE se crea desde la de origen, que
+# tests/conftest.py exige que sea de pruebas
+DSN = os.environ.get("MATU_TEST_DSN", "")
 URL_MIGRACIONES = os.environ.get("MIGRATIONS_DATABASE_URL")
-BASE = "matu_prueba_migraciones"
+# La base desechable. MATU_BASE_MIGRACIONES (MATU-62) fuerza un nombre. Por omisión (MATU-94) lleva el nombre de la
+# de origen y termina en _test: antes era una sola, matu_prueba_migraciones, para todas las copias del repositorio en
+# el mismo servidor, y dos corridas a la vez (wt94 y wt62, el 11-11) se la borraban una a la otra
+BASE = os.environ.get("MATU_BASE_MIGRACIONES") or f"{nombre_de_la_base(DSN) or 'matu'}_migraciones_test"
 
-pytestmark = pytest.mark.skipif(not URL_MIGRACIONES, reason="MIGRATIONS_DATABASE_URL no está definida")
+pytestmark = pytest.mark.skipif(
+    not URL_MIGRACIONES or not DSN, reason="MIGRATIONS_DATABASE_URL o MATU_TEST_DSN no está definida"
+)
 
 CATALOGO = {
     "columnas": """
@@ -1053,4 +1062,94 @@ def test_0022_roles_de_las_tareas_y_baja_al_esquema_de_0021(base_desechable):
     for parte, filas in esquema_0021.items():
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     assert _acl_funciones() == acl_0021
+    alembic("upgrade", "head")
+
+
+# ---- 0024 (MATU-62): el pago con Webpay Plus
+
+TABLAS_DEL_PAGO = ("cargo", "participacion", "transaccion_pasarela")
+FUNCIONES_0024 = {"pagos_por_conciliar": "matu_scheduler", "pago_resolver_venta": "matu_app"}
+
+# Filas de la 0023: un pedido pagado con su cobro (con la respuesta de Transbank guardada y unos últimos 4 que no son
+# cifras, que la 0024 vacía) y un pedido sin pagar. Como superusuario
+G24, U24, P24, P24B = ("00000000-0000-0000-0000-0000000024" + s for s in ("0a", "a1", "1a", "1b"))
+PED24, PED24B, CAR24, PAR24 = ("00000000-0000-0000-0000-0000000024" + s for s in ("d1", "d2", "c1", "e1"))
+FILAS_0023 = f"""
+INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U24}', 'a24@correo.ejemplo', 'Persona A', 'h');
+INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G24}', 'Familia A', '{U24}');
+INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VALUES
+ ('{P24}', '{G24}', 'Persona Cuidada', 'Persona', 'apoyo_total'), ('{P24B}', '{G24}', 'Otra', 'Otra', 'apoyo_total');
+INSERT INTO pedido (id, grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,
+                    total_confirmado_en, total_vence_en, creado_por) VALUES
+ ('{PED24}', '{G24}', '{P24}', 'total_confirmado', 12990, 2990, 15980, now(), now() + interval '15 minutes', '{U24}'),
+ ('{PED24B}', '{G24}', '{P24B}', 'borrador', 0, 0, 0, NULL, NULL, '{U24}');
+UPDATE pedido SET estado = 'pagado', pagado_en = now(), condiciones_version = '0.1', condiciones_aceptadas_en = now(),
+                  condiciones_huella = repeat('a', 64) WHERE id = '{PED24}';
+INSERT INTO cargo (id, pedido_id, estado, monto_cobrado) VALUES ('{CAR24}', '{PED24}', 'pagado', 15980);
+INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, estado, monto_cobrado)
+    VALUES ('{PAR24}', '{CAR24}', '{U24}', 10000, 'pagada', 15980);
+INSERT INTO transaccion_pasarela (participacion_id, proveedor, tipo, buy_order, monto, estado, idempotency_key,
+                                  ultimos4, payload_respuesta)
+    VALUES ('{PAR24}', 'webpay_plus', 'venta', 'MATU-24-0001', 15980, 'aprobada', 'k24', 'xx12', '{{"vci": "TSY"}}');
+"""
+
+
+def _acl_0024() -> dict[str, set[str]]:
+    nombres = ", ".join(f"'{f}'" for f in FUNCIONES_0024)
+    filas = consultar(f"SELECT proname, proacl::text FROM pg_proc WHERE proname IN ({nombres})")
+    return {nombre: set(acl.strip("{}").split(",")) for nombre, acl in filas}
+
+
+@pytest.mark.rf("RF-25")
+def test_0024_pago_y_baja_al_esquema_de_0023(base_desechable):
+    alembic("upgrade", "0023")
+    esquema_0023 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_0023)
+
+    alembic("upgrade", "0024")
+    # Las políticas del pago son por operación y por rol: ninguna FOR ALL
+    politicas = consultar(
+        "SELECT tablename, policyname, cmd, roles::text FROM pg_policies WHERE tablename IN"
+        " ('cargo', 'participacion', 'transaccion_pasarela')")
+    assert politicas and not [p for p in politicas if p[2] == "ALL"]
+    assert ("cargo", "cargo_conservacion_borrar", "DELETE", "{matu_owner}") in politicas
+    # Nadie de la API borra el pago
+    assert not [g for g in _tablas_de("matu_app") if g[0] in TABLAS_DEL_PAGO and g[1] == "DELETE"]
+    # Las funciones nuevas, solo para su rol
+    for nombre, entradas in _acl_0024().items():
+        assert f"{FUNCIONES_0024[nombre]}=X/matu_owner" in entradas, nombre
+        assert len(entradas) == 2 and not any(e.startswith("=") for e in entradas), (nombre, entradas)
+    # Las filas: la venta con su cargo y su total, y sin la respuesta de Transbank ni unos últimos 4 que no son cifras
+    assert consultar("SELECT cargo_id::text, total_confirmado_en IS NOT NULL, payload_respuesta, ultimos4"
+                     " FROM transaccion_pasarela") == [(CAR24, True, None, None)]
+    # pedido_pago_con_condiciones queda validada (ninguna fila la viola); la de las condiciones completas, no: el
+    # pedido pagado de la 0023 no tiene quién aceptó
+    restricciones = dict(consultar(
+        "SELECT conname, convalidated FROM pg_constraint WHERE conname IN"
+        " ('pedido_pago_con_condiciones', 'pedido_condiciones_completas')"))
+    assert restricciones == {"pedido_pago_con_condiciones": True, "pedido_condiciones_completas": False}
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute("UPDATE transaccion_pasarela SET payload_respuesta = '{}'")
+    # Lo pagado y lo aceptado no se reabren
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE pedido SET condiciones_version = '0.2' WHERE id = '{PED24}'")
+    # La conservación: el borrador sin cobro se borra a los 30 días; el pagado no
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("SET session_replication_role = replica")
+        # Solo el borrador: el pedido pagado de la 0023 no tiene quién aceptó, y pedido_condiciones_completas
+        # (NOT VALID)
+        # rechaza cualquier escritura nueva de esa fila. Lo pagado no se conserva por fecha
+        c.execute(f"UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = '{PED24B}'")
+        c.execute("SET session_replication_role = origin")
+        c.execute("SET ROLE matu_scheduler")
+        c.execute("SELECT set_config('app.rol', 'operacion', false)")
+        c.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())")
+    assert consultar("SELECT id::text FROM pedido") == [(PED24,)]
+
+    alembic("downgrade", "0023")
+    despues = catalogo()
+    for parte, filas in esquema_0023.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM transaccion_pasarela") == [(1,)]
     alembic("upgrade", "head")

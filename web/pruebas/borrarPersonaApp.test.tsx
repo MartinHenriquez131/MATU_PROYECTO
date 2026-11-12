@@ -45,6 +45,7 @@ const VIGENTES = ['plan_cuidado', 'consumo'].map((finalidad) => ({
   revocado_en: null,
   borrado_en: null,
   borrada: false,
+  se_puede_otorgar: true,
   calidad_otorgante: 'titular',
 }))
 

@@ -70,7 +70,8 @@ def _corridas(caplog: pytest.LogCaptureFixture) -> list[logging.LogRecord]:
 def test_todas_diarias_corre_los_borrados_antes_que_los_quiebres() -> None:
     assert tareas.nombres_de("todas_diarias") == tareas.DIARIAS
     assert tareas.DIARIAS[-1] == "quiebres"
-    assert set(tareas.DIARIAS) == set(tareas.TAREAS) - {"avisos"}
+    # avisos y conciliacion_pagos (MATU-62) corren cada 5 minutos, no en la corrida diaria
+    assert set(tareas.DIARIAS) == set(tareas.TAREAS) - {"avisos", "conciliacion_pagos"}
     assert tareas.nombres_de("borrados") == tareas.DIARIAS[:-1]
 
 
@@ -367,6 +368,8 @@ class _Prohibida:
         ("conservacion_pedidos", "SCHEDULER_DATABASE_URL"),
         ("quiebres", "SCHEDULER_DATABASE_URL"),
         ("avisos", "PUBLISHER_DATABASE_URL"),
+        # MATU-62: pagos_por_conciliar es solo de matu_scheduler
+        ("conciliacion_pagos", "SCHEDULER_DATABASE_URL"),
     ],
 )
 def test_sin_la_conexion_de_su_rol_la_tarea_falla_y_nombra_la_variable(
@@ -446,7 +449,12 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
     from sqlalchemy import text
 
     config = _CONFIG.model_copy(
-        update={"enviador_avisos": "simulado", "registro_avisos": tmp_path / "avisos.jsonl"}
+        update={
+            "enviador_avisos": "simulado",
+            "registro_avisos": tmp_path / "avisos.jsonl",
+            # MATU-62: con una pasarela, la conciliación lista lo pendiente con matu_scheduler
+            "pasarela_pago": "falsa",
+        }
     )
     conexiones = {
         "matu_app": tareas.fabrica_tareas(config),
@@ -468,6 +476,8 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
         "conservacion_pedidos": {"matu_scheduler"},
         "quiebres": {"matu_app", "matu_scheduler"},
         "avisos": {"matu_app", "matu_publisher"},
+        # MATU-62: pagos_por_conciliar con matu_scheduler; sin ventas por cerrar no abre matu_app
+        "conciliacion_pagos": {"matu_scheduler"},
     }
     for tarea, esperadas in usa.items():
         espias = {rol: _Espia(f) for rol, f in conexiones.items()}
@@ -479,7 +489,12 @@ def test_cada_tarea_se_conecta_con_su_rol(fabrica: Fabrica, tmp_path: Path) -> N
             fabrica_publisher=espias["matu_publisher"],  # type: ignore[arg-type]
         )
         assert tareas.correr([tarea], ctx) == tareas.SALIDA_OK, tarea
-        assert {rol for rol, e in espias.items() if e.sesiones} == esperadas, tarea
+        usadas = {rol for rol, e in espias.items() if e.sesiones}
+        if tarea == "conciliacion_pagos":
+            # Si quedara una venta por cerrar en la base, también abre matu_app (app.rol = 'sistema') para cerrarla
+            assert "matu_scheduler" in usadas and usadas <= {"matu_app", "matu_scheduler"}, tarea
+        else:
+            assert usadas == esperadas, tarea
 
 
 # --- MATU-74, hallazgo H4: en staging el registro de los avisos es la tabla notificacion ---------------------------

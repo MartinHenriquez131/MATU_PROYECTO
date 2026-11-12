@@ -12,6 +12,7 @@ from app.modules.ordering.api.esquemas import (
     CambioDeLinea,
     ComercioVista,
     CondicionesVigentes,
+    DevolucionLinea,
     EntregaVista,
     LineaPedido,
     LineaSalida,
@@ -36,6 +37,8 @@ from app.modules.ordering.domain.pedido import (
 from app.modules.ordering.infrastructure.condiciones import ENLACE, Condiciones
 
 CON_ENTREGA = frozenset({Estado.TOTAL_CONFIRMADO, Estado.VENCIDO})
+# El observador no ve el pago (D-62-2): ni la devolución de una línea
+CON_PAGO = frozenset({"admin", "cuidador", "pagador"})
 
 
 def _utc(instante: datetime | None) -> datetime | None:
@@ -56,7 +59,16 @@ def _producto(p: Producto) -> ProductoPedido:
     )
 
 
-def _linea(linea: Linea, confirmado: bool) -> LineaPedido:
+def _devolucion(linea: Linea) -> DevolucionLinea | None:
+    """MATU-62 (decisión 239): hecha si la línea ya está devuelta; en curso si su anulación todavía no termina."""
+    if linea.monto_devuelto > 0:
+        return DevolucionLinea(monto=linea.monto_devuelto, estado="hecha", hecha_en=_utc(linea.devuelta_en))
+    if linea.devolucion_en_curso is not None and linea.devolucion_en_curso > 0:
+        return DevolucionLinea(monto=linea.devolucion_en_curso, estado="en_curso", hecha_en=None)
+    return None
+
+
+def _linea(linea: Linea, confirmado: bool, ve_pago: bool = True) -> LineaPedido:
     cambio = cambio_de(linea, confirmado)
     return LineaPedido(
         id=linea.id,
@@ -74,10 +86,13 @@ def _linea(linea: Linea, confirmado: bool) -> LineaPedido:
             precio_antes=cambio.precio_antes,
             comercio_antes=None if cambio.comercio_antes is None else _comercio(cambio.comercio_antes),
         ),
+        devolucion=_devolucion(linea) if ve_pago else None,
     )
 
 
-def _comunes(pedido: Pedido, ahora: datetime, costo_envio_vigente: int, precios_de_ejemplo: bool) -> dict[str, object]:
+def _comunes(
+    pedido: Pedido, ahora: datetime, costo_envio_vigente: int, precios_de_ejemplo: bool, ve_pago: bool
+) -> dict[str, object]:
     estado = estado_visible(pedido.estado, pedido.total_vence_en, ahora)
     confirmado = pedido.confirmado
     lineas = pedido.lineas_que_quedan() if confirmado else pedido.lineas
@@ -86,7 +101,7 @@ def _comunes(pedido: Pedido, ahora: datetime, costo_envio_vigente: int, precios_
         "persona_cuidada_id": pedido.persona_id,
         "estado": estado,
         "precios_de_ejemplo": precios_de_ejemplo,
-        "lineas": [_linea(linea, confirmado) for linea in lineas],
+        "lineas": [_linea(linea, confirmado, ve_pago) for linea in lineas],
         "salieron": [
             LineaSalida(producto=_producto(x.producto), cantidad=x.cantidad, comercio=_comercio(x.comercio_carrito))
             for x in pedido.salieron()
@@ -116,13 +131,15 @@ def vista_pedido(
     precios_de_ejemplo: bool,
     condiciones: Condiciones,
     celular_de_quien_lee: str | None,
+    pago_en_curso: bool = False,
 ) -> PedidoVista | PedidoVistaObservador:
-    comunes = _comunes(pedido, ahora, costo_envio_vigente, precios_de_ejemplo)
+    comunes = _comunes(pedido, ahora, costo_envio_vigente, precios_de_ejemplo, rol in CON_PAGO)
     if not ve_entrega(rol):
         return PedidoVistaObservador.model_validate(comunes)
     estado = comunes["estado"]
     entrega = None
-    if pedido.entrega is not None and estado in CON_ENTREGA:
+    # MATU-62: pagado (y los siguientes) traen la copia de la entrega
+    if pedido.entrega is not None and (estado in CON_ENTREGA or pedido.pagado_en is not None):
         e = pedido.entrega
         de_cuenta = e.telefono_origen == ORIGEN_CELULAR_CUENTA
         entrega = EntregaVista(
@@ -152,5 +169,7 @@ def vista_pedido(
             "vigencia_segundos": vigencia_segundos(estado, pedido.total_vence_en, ahora),  # type: ignore[arg-type]
             "entrega": entrega,
             "resumen": resumen,
+            "pago_en_curso": pago_en_curso,
+            "pagado_en": _utc(pedido.pagado_en),
         }
     )

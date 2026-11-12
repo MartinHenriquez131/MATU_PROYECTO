@@ -27,6 +27,7 @@ import {
   type PedidoVista,
   type Regla,
 } from '../compartido/api/pedido'
+import { esPagoCompleto, leerPedidoPagado, type Pago, type PagoVista } from '../compartido/api/pago'
 import { esVencida } from '../compartido/api/sesion'
 import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
@@ -35,14 +36,17 @@ import { useDemora } from './Estados'
 import { puedeEditar, useFamilia, type IntencionPedido } from './estado'
 import { enfocar, entero, esTipo, Stepper } from './insumosComun'
 import { Permiso, PestanasInsumos } from './Insumos'
-import { agregarAlPedido, cambioAjeno, parrafosDeLista, permisoPedidoDe } from './pedidoAcciones'
+import { agregarAlPedido, cambioAjeno, pagoEnCursoDe, parrafosDeLista, permisoPedidoDe } from './pedidoAcciones'
 import { direccionEnTexto, enRango, lineasParaGuardar, reglasConCambio, sufijoDelPedido } from './pedidoComun'
 import { AvisoPiloto, DialogoCancelar, horaDeVencimiento, Retracto, siFaltaTexto, TelefonoContacto, UnaColumna } from './PiezasPedido'
+import { BloquePedidoPagado, NotaPagoEnCurso } from './Pago'
 import { Resumen } from './Resumen'
 import { navegar, useRuta } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
+import { PAGO } from './textosPago'
 import { PEDIDO } from './textosPedido'
+import { fijarComprobante, RUTA_PAGO } from './vueltaPago'
 import { Acciones, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'red' | 'apagado' | 'no-encontrado'
@@ -59,6 +63,7 @@ const ID_AGREGAR_DIRECCION = 'agregar-direccion'
 const ID_TELEFONO_T = 'telefono-contacto-t'
 const ID_CANCELAR = 'cancelar-pedido'
 const ID_NOTA = 'nota-pedido'
+export const ID_PAGO_EN_CURSO = 'pago-en-curso'
 const idCantidad = (pid: string) => `cantidad-${pid}`
 const idProducto = (pid: string) => `producto-${pid}`
 
@@ -92,6 +97,11 @@ export function PantallaPedido() {
   const [acepto, setAcepto] = useState(false)
   /** 8.6: el error de volver a confirmar después de cambiar la dirección, que se ve en el resumen. */
   const [errResumen, setErrResumen] = useState<'red' | 'nada' | null>(null)
+  /** MATU-62 (8): el último pedido pagado de la persona, para el bloque «Pedido pagado». */
+  const [pagado, setPagado] = useState<Pago | null>(null)
+  /** MATU-62 (6): un 409 `pago-en-curso` al intentar algo. La nota se anuncia y recibe el foco. */
+  const [alertaPago, setAlertaPago] = useState(false)
+  const [revisandoPago, setRevisandoPago] = useState(false)
   const pedidoRef = useRef<Pedido | null>(null)
 
   const setPedido = useCallback((p: Pedido | null) => {
@@ -110,11 +120,12 @@ export function PantallaPedido() {
     async (silencioso = false) => {
       if (!personaId) return
       if (!silencioso) setCarga('cargando')
-      const [auts, enCurso, cat, cu] = await Promise.allSettled([
+      const [auts, enCurso, cat, cu, pagadoR] = await Promise.allSettled([
         leerAutorizaciones(personaId),
         leerPedidoEnCurso(personaId),
         verCatalogo(),
         editor ? leerCuenta() : Promise.resolve(null),
+        leerPedidoPagado(personaId),
       ])
       if (cat.status === 'rejected') {
         if (esVencida(cat.reason)) return
@@ -137,6 +148,8 @@ export function PantallaPedido() {
       setAut(despacho?.estado === 'vigente' ? 'vigente' : despacho?.estado === 'revision_vencida' ? 'revision-vencida' : 'sin-autorizacion')
       setPedido(enCurso.status === 'fulfilled' ? enCurso.value : null)
       if (cu.status === 'fulfilled') setCuenta(cu.value)
+      // El bloque «Pedido pagado» no es lo que se viene a hacer: si no llega, el carrito se ve igual.
+      setPagado(pagadoR.status === 'fulfilled' ? pagadoR.value : null)
       setCargado(true)
       setCarga('listo')
     },
@@ -189,6 +202,13 @@ export function PantallaPedido() {
         enfocarTitulo(60)
         return true
       }
+      // MATU-62 (6.1 y 6.2): otra persona está pagando. La nota con el foco, y el pedido como quedó.
+      if (pagoEnCursoDe(x)) {
+        setAlertaPago(true)
+        void cargar(true)
+        enfocar(ID_PAGO_EN_CURSO, 80)
+        return true
+      }
       if (cambioAjeno(x)) {
         void alCambioAjeno(x)
         return true
@@ -199,8 +219,36 @@ export function PantallaPedido() {
       }
       return false
     },
-    [alCambioAjeno],
+    [alCambioAjeno, cargar],
   )
+
+  /** 6.1 y 6.2: «Revisar de nuevo». Si sigue, se anuncia y el foco no se mueve; si terminó, se redibuja. */
+  const revisarPago = useCallback(async () => {
+    if (!personaId || revisandoPago) return
+    setRevisandoPago(true)
+    try {
+      const [p, pg] = await Promise.all([leerPedidoEnCurso(personaId), leerPedidoPagado(personaId)])
+      const sigue = !!p && esVistaCompleta(p) && p.pago_en_curso
+      setPedido(p)
+      setPagado(pg)
+      if (sigue) return anunciar(PAGO.sigueEnCurso, 'status')
+      setAlertaPago(false)
+      anunciar(PAGO.pagoTermino, 'status')
+      enfocarTitulo(60)
+    } catch (x) {
+      if (esVencida(x)) return
+      if (!manejar(x)) anunciar(PEDIDO.errCarga, 'alert')
+    } finally {
+      setRevisandoPago(false)
+    }
+  }, [personaId, revisandoPago, setPedido, manejar])
+
+  /** 8: «Ver el comprobante» lleva el pago en la memoria de la página. */
+  const verComprobante = (p: PagoVista) => {
+    if (personaId) fijarComprobante(personaId, p)
+    navegar(RUTA_PAGO)
+  }
+  const bloquePagado = pagado && (esPagoCompleto(pagado) ? pagado.comprobante !== null : pagado.estado === 'pagado') ? <BloquePedidoPagado pago={pagado} onVer={verComprobante} /> : null
 
   /** 4.3: con la autorización dada, se hace lo que se quería y se vuelve al carrito con su nota. */
   const alAutorizar = async () => {
@@ -429,6 +477,13 @@ export function PantallaPedido() {
       <Resumen
         pedido={pedido}
         editor={editor}
+        rol={rol}
+        nota={notaVista}
+        alertaPago={alertaPago}
+        revisandoPago={revisandoPago}
+        onRevisarPago={() => void revisarPago()}
+        onPagoEnCurso={() => setAlertaPago(true)}
+        onRecargar={() => void cargar(true)}
         acepto={acepto}
         onAcepto={setAcepto}
         error={errResumen}
@@ -441,10 +496,11 @@ export function PantallaPedido() {
           setNota({ tono: 'rocio', parrafos: [PEDIDO.yaPuedesCambiar] })
           navegar('/insumos/pedido')
         }}
-        onCancelado={(ya) => {
+        onCancelado={(ya, conPago) => {
           setPedido(null)
           setAcepto(false)
-          setNota(ya ? { tono: 'rocio', parrafos: [PEDIDO.yaCancelado] } : { tono: 'ok', parrafos: [PEDIDO.cancelamos] })
+          setAlertaPago(false)
+          setNota(ya ? { tono: 'rocio', parrafos: [PEDIDO.yaCancelado] } : { tono: 'ok', parrafos: [conPago ? PAGO.canceladoConPago : PEDIDO.cancelamos] })
           navegar('/insumos/pedido')
         }}
         onCambiarDireccion={() => irADireccion('resumen')}
@@ -459,6 +515,7 @@ export function PantallaPedido() {
         {notaVista}
         {fallaAgregar}
         <Vacio editor={editor} pila={pila} />
+        {bloquePagado}
       </div>
     )
 
@@ -471,6 +528,9 @@ export function PantallaPedido() {
         editor={editor}
         rol={rol}
         pila={pila}
+        alertaPago={alertaPago}
+        revisandoPago={revisandoPago}
+        onRevisarPago={() => void revisarPago()}
         direccion={rol === 'observador' ? undefined : direccionDe(persona)}
         cuenta={cuenta}
         telefono={telefono}
@@ -501,13 +561,15 @@ export function PantallaPedido() {
           setNota({ tono: 'rocio', parrafos: [PEDIDO.yaPuedesCambiar] })
           enfocarTitulo(60)
         }}
-        onCancelado={(ya) => {
+        onCancelado={(ya, conPago) => {
           setPedido(null)
-          setNota(ya ? { tono: 'rocio', parrafos: [PEDIDO.yaCancelado] } : { tono: 'ok', parrafos: [PEDIDO.cancelamos] })
+          setAlertaPago(false)
+          setNota(ya ? { tono: 'rocio', parrafos: [PEDIDO.yaCancelado] } : { tono: 'ok', parrafos: [conPago ? PAGO.canceladoConPago : PEDIDO.cancelamos] })
           enfocarTitulo(60)
         }}
         onAgregarDireccion={() => irADireccion('carrito')}
       />
+      {bloquePagado}
     </div>
   )
 }
@@ -551,6 +613,10 @@ interface PropsCarrito {
   editor: boolean
   rol: Rol
   pila: string
+  /** MATU-62 (6.1): un 409 `pago-en-curso`; la nota se anuncia y la pantalla queda sin controles. */
+  alertaPago: boolean
+  revisandoPago: boolean
+  onRevisarPago: () => void
   /** `undefined` para el observador: su vista no trae la entrega. */
   direccion: DireccionVista | null | undefined
   cuenta: Cuenta | null
@@ -564,7 +630,7 @@ interface PropsCarrito {
   onVacio: () => void
   onConfirmado: (p: PedidoVista) => void
   onCambiado: (p: PedidoVista) => void
-  onCancelado: (yaCancelado: boolean) => void
+  onCancelado: (yaCancelado: boolean, conPago: boolean) => void
   onAgregarDireccion: () => void
 }
 
@@ -574,7 +640,9 @@ type FallaTotal = 'red' | 'nada' | 'direccion' | null
 function Carrito(props: PropsCarrito) {
   const { pedido, editor, rol, pila, direccion, cuenta, telefono, onTelefono, deLista, nota, pedidoRef, onPedido, manejar } = props
   const borrador = pedido.estado === 'borrador'
-  const editable = editor && borrador
+  // MATU-62 (6.1): con un pago en curso nadie del grupo cambia el pedido; cancelar siempre se puede.
+  const enCurso = (esVistaCompleta(pedido) && pedido.pago_en_curso) || props.alertaPago
+  const editable = editor && borrador && !enCurso
   const vencido = pedido.estado === 'vencido'
 
   const [valores, setValores] = useState<Record<string, string>>(() => Object.fromEntries(pedido.lineas.map((l) => [l.producto.id, String(l.cantidad)])))
@@ -891,7 +959,17 @@ function Carrito(props: PropsCarrito) {
       </p>
       {/* Revisión P3-3: con el total confirmado o vencido, el envío y el total ya están a la vista. */}
       {borrador && <p className="max-w-prose text-base text-tenue">{PEDIDO.envioAlConfirmar}</p>}
-      {editor && (
+      {editor && enCurso && (
+        <>
+          <Boton variante="secundario" onClick={() => navegar(RUTA_RESUMEN)}>
+            {PEDIDO.verResumen}
+          </Boton>
+          <Boton id={ID_CANCELAR} variante="textoPeligro" className="mt-1" onClick={() => setCancelando(true)}>
+            {PEDIDO.cancelarPedido}
+          </Boton>
+        </>
+      )}
+      {editor && !enCurso && (
         <>
           {falla === 'red' && (
             <Nota tono="atenta" rol="alert" icono={<CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
@@ -941,7 +1019,8 @@ function Carrito(props: PropsCarrito) {
     <>
       {nota}
       {deEjemplo && <AvisoPiloto />}
-      {editor && !borrador && (
+      {editor && enCurso && <NotaPagoEnCurso id={ID_PAGO_EN_CURSO} para="cambiar" alerta={props.alertaPago} revisando={props.revisandoPago} onRevisar={props.onRevisarPago} />}
+      {editor && !borrador && !enCurso && (
         <Nota tono="rocio">{vencido ? <p>{PEDIDO.vencido}</p> : <p>{PEDIDO.yaConfirmaste}</p>}</Nota>
       )}
       <div className="mt-2 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -954,13 +1033,14 @@ function Carrito(props: PropsCarrito) {
       {cancelando && (
         <DialogoCancelar
           pedidoId={pedido.id}
+          pagoEnCurso={enCurso}
           onCerrar={() => {
             setCancelando(false)
             enfocar(ID_CANCELAR, 0)
           }}
           onCancelado={(ya) => {
             setCancelando(false)
-            props.onCancelado(ya)
+            props.onCancelado(ya, enCurso)
           }}
           manejar={manejar}
         />

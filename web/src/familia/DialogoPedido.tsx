@@ -8,6 +8,7 @@ import { Acciones, MensajeError } from './ui'
 export function DialogoPedido({
   titulo,
   texto,
+  destacado,
   confirmar,
   confirmando,
   seguir,
@@ -17,6 +18,8 @@ export function DialogoPedido({
 }: {
   titulo: string
   texto: string
+  /** MATU-62 (6.3): un párrafo en negrita, lo único del diálogo que dice que puede moverse dinero. */
+  destacado?: string
   /** El botón macizo `pronto`: lo que no se deshace, con el mismo verbo del título. */
   confirmar: string
   confirmando: string
@@ -75,7 +78,7 @@ export function DialogoPedido({
     <dialog
       ref={ref}
       aria-labelledby={`${uid}-t`}
-      aria-describedby={`${uid}-d`}
+      aria-describedby={destacado ? `${uid}-d ${uid}-x` : `${uid}-d`}
       onCancel={(e) => {
         e.preventDefault()
         cancelar()
@@ -96,6 +99,11 @@ export function DialogoPedido({
         <p id={`${uid}-d`} className="max-w-prose text-base">
           {texto}
         </p>
+        {destacado && (
+          <p id={`${uid}-x`} className="max-w-prose text-base font-bold">
+            {destacado}
+          </p>
+        )}
         {/* Con `showModal` lo de fuera queda inerte, también las regiones vivas: el error usa su propia región. */}
         <div role="alert" className="empty:-mb-4">
           {falla && <MensajeError>{error}</MensajeError>}

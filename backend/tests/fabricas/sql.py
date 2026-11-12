@@ -98,6 +98,15 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM perfil_consumo WHERE grupo_id = ANY(%s::uuid[])",
     # MATU-61: los pedidos del grupo; sus líneas, reglas, partes, entrega, transiciones y claves caen en cascada
     "DELETE FROM idempotencia WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-62: el pago de esos pedidos. transaccion_pasarela no se borra (trigger transaccion_sin_borrado): la limpieza
+    # apaga los triggers con el rol de réplica, como con consentimiento. Primero las anulaciones (venta_id)
+    "DELETE FROM transaccion_pasarela WHERE cargo_id IN (SELECT c.id FROM cargo c JOIN pedido p ON p.id = c.pedido_id"
+    " WHERE p.grupo_id = ANY(%s::uuid[])) AND venta_id IS NOT NULL",
+    "DELETE FROM transaccion_pasarela WHERE cargo_id IN (SELECT c.id FROM cargo c JOIN pedido p ON p.id = c.pedido_id"
+    " WHERE p.grupo_id = ANY(%s::uuid[]))",
+    "DELETE FROM participacion WHERE cargo_id IN (SELECT c.id FROM cargo c JOIN pedido p ON p.id = c.pedido_id"
+    " WHERE p.grupo_id = ANY(%s::uuid[]))",
+    "DELETE FROM cargo WHERE pedido_id IN (SELECT id FROM pedido WHERE grupo_id = ANY(%s::uuid[]))",
     "DELETE FROM pedido WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",

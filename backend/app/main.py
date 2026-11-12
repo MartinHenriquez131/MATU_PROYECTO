@@ -60,10 +60,22 @@ ROUTERS_CAPA_3: tuple[str, ...] = (
     # MATU-61: el pedido sin pagar y las condiciones del pedido (decisión 188)
     "app.modules.ordering.api.router:router",
     "app.modules.ordering.api.router_condiciones:router",
+    # MATU-62: pagar y las lecturas del pago (decisión 241)
+    "app.modules.payments.api.router:router",
 )
 
-# MATU-61 (C2, decisión 217): el efecto del retiro de despacho y del borrado sobre los pedidos, como
-# "finalidad=paquete:clase". Se importa solo con CAPA3_HABILITADA, igual que ROUTERS_CAPA_3
+# MATU-62 (D-62-17, decisión 241): la vuelta de Webpay no se apaga con CAPA3_HABILITADA. Un pago que el banco ya aprobó
+# se registra o se anula igual. Se importa al armar la app, nunca arriba, y se monta si su paquete existe: con la capa 3
+# quitada de verdad (tests/capa3.py) no está y la API arranca igual. Como ("paquete:atributo", prefijo)
+ROUTERS_PAGO_SIEMPRE: tuple[tuple[str, str], ...] = (
+    ("app.modules.payments.api.router_retorno:router", "/v1"),
+    ("app.modules.payments.api.router_retorno:router_formulario", ""),
+)
+
+# MATU-61 (D1 y D2) y MATU-94 (decisión 250): el efecto del retiro de despacho y del borrado sobre los pedidos, como
+# "finalidad=paquete:clase". Se registra siempre, con la capa 3 encendida o apagada: cancelar los pedidos sin pagar y
+# borrar su entrega es una protección de datos (política, §4 y §10), no una función de la capa 3. No monta rutas. Se
+# importa al armar la app, nunca en el nivel superior: con la capa 3 apagada y quitada, se omite
 EFECTOS_CAPA_3: tuple[tuple[str, str], ...] = (
     (FINALIDAD_DESPACHO, "app.modules.ordering.infrastructure.efecto_retiro:EfectoRetiroPedidos"),
 )
@@ -75,14 +87,46 @@ def salud() -> dict[str, str]:
 
 
 def incluir_capa_3(app: FastAPI) -> None:
-    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1 y registra los efectos de EFECTOS_CAPA_3. Solo se
-    llama con CAPA3_HABILITADA."""
+    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1. Solo se llama con CAPA3_HABILITADA."""
     for referencia in ROUTERS_CAPA_3:
         modulo, _, atributo = referencia.partition(":")
         app.include_router(getattr(importlib.import_module(modulo), atributo), prefix="/v1")
+
+
+def _falta_el_paquete(error: ModuleNotFoundError, modulo: str) -> bool:
+    """El módulo que falta es ``modulo`` o uno de sus paquetes: la capa 3 no está. Otro faltante es un defecto."""
+    return error.name is not None and (modulo == error.name or modulo.startswith(error.name + "."))
+
+
+def registrar_efectos_capa_3(capa3: bool) -> None:
+    """Registra los efectos de EFECTOS_CAPA_3 en care_circle, con la capa 3 encendida o apagada (MATU-94, decisión
+    250). Con la capa encendida, el efecto es obligatorio: si su paquete falta, la API no arranca. Con la capa apagada
+    y quitada (ADR-002), se omite y el retiro y el borrado siguen como en la decisión 217."""
     for finalidad, referencia in EFECTOS_CAPA_3:
         modulo, _, atributo = referencia.partition(":")
-        registrar_efecto(finalidad, getattr(importlib.import_module(modulo), atributo))
+        try:
+            fabrica = getattr(importlib.import_module(modulo), atributo)
+        except ModuleNotFoundError as error:
+            if capa3 or not _falta_el_paquete(error, modulo):
+                raise
+            log.warning("efecto de %s omitido: la capa 3 no está", finalidad)
+            continue
+        registrar_efecto(finalidad, fabrica)
+
+
+def incluir_vuelta_del_pago(app: FastAPI) -> None:
+    """Monta ROUTERS_PAGO_SIEMPRE con la capa 3 encendida o apagada. Si un paquete de la app no está (la capa 3
+    quitada), no la monta y lo deja en el log; cualquier otro error de importación sube."""
+    for referencia, prefijo in ROUTERS_PAGO_SIEMPRE:
+        modulo, _, atributo = referencia.partition(":")
+        try:
+            importado = importlib.import_module(modulo)
+        except ModuleNotFoundError as error:
+            if error.name and error.name.startswith("app.modules."):
+                log.warning("la vuelta del pago no se monta: falta su paquete")
+                return
+            raise
+        app.include_router(getattr(importado, atributo), prefix=prefijo)
 
 
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
@@ -99,6 +143,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # ni consumption: aquí se arman. Sin el efecto de una finalidad, su retiro falla cerrado
     registrar_efecto(FINALIDAD_PLAN_CUIDADO, EfectoRetiroFicha)
     registrar_efecto(FINALIDAD_CONSUMO, EfectoRetiroConsumo)
+    # MATU-94 (decisión 250): el de despacho, siempre. Con la capa 3 apagada no monta ninguna ruta de pedidos
+    registrar_efectos_capa_3(config.capa3_habilitada)
 
     # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
     # existen y responden 404 RFC 7807, sin caer en la app de familia
@@ -119,7 +165,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-61 (C17): el pedido, también sus errores. La dirección ya va bajo /v1/personas-cuidadas/
     for prefijo in (
         "/v1/sesiones", "/v1/dispositivos", "/v1/personas-cuidadas/", "/v1/recuperacion", "/v1/cuenta", "/v1/yo/",
-        "/v1/pedidos",
+        "/v1/pedidos", "/v1/pagos",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)
@@ -152,6 +198,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # nunca dependen de ella
     if config.capa3_habilitada:
         incluir_capa_3(app)
+    # MATU-62 (D-62-17): la vuelta de Webpay, también con la capa 3 apagada
+    incluir_vuelta_del_pago(app)
 
     # MATU-23: la página /r y sus /assets, después de las rutas de la API para no taparlas
     montar_pagina_relevo(app, config.web_dist)

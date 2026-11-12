@@ -55,10 +55,15 @@ def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
         assert exportado["components"]["schemas"][nombre] == esquema["components"]["schemas"][nombre], nombre
 
 
+# MATU-62 (decisión 240): ?version= es un número de versión, no un dato de nadie
+CONSULTAS_PERMITIDAS = {("/v1/condiciones-pedido", "version")}
+
+
 def test_sin_parametros_de_consulta_ni_datos_de_mas(esquema: dict[str, Any]) -> None:
     for ruta in RUTAS:
         for operacion in esquema["paths"][ruta].values():
-            assert all(p["in"] != "query" for p in operacion.get("parameters", [])), ruta
+            consultas = {(ruta, p["name"]) for p in operacion.get("parameters", []) if p["in"] == "query"}
+            assert consultas <= CONSULTAS_PERMITIDAS, ruta
     for nombre in VISTAS:
         assert not set(esquema["components"]["schemas"][nombre]["properties"]) & NUNCA, nombre
     assert set(esquema["paths"]["/v1/personas-cuidadas/{persona_id}/direccion"]) == {"put", "delete"}
