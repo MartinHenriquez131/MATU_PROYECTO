@@ -142,7 +142,9 @@ describe('Avisos: las casillas (3.3)', () => {
     // 1.2: `aria-disabled`, no `disabled`: el foco se queda en la casilla mientras guarda.
     expect(correo).not.toBeDisabled()
     expect(correo).toHaveAttribute('aria-disabled', 'true')
-    expect(correo).toHaveClass('aria-disabled:opacity-60')
+    // v1.3 (3.3): con el foco del teclado no se apaga, para que su anillo conserve 3:1.
+    expect(correo).toHaveClass('aria-disabled:not-focus-visible:opacity-60')
+    expect(correo).not.toHaveClass('aria-disabled:opacity-60')
     const telefonos = screen.getByRole('checkbox', { name: 'En tus teléfonos' })
     expect(telefonos).toHaveAttribute('aria-disabled', 'true')
     expect(correo).toHaveFocus()

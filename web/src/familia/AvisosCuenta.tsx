@@ -145,7 +145,7 @@ export function AvisosCuenta() {
         onChange={(e) => {
           if (pendiente === null) void cambiar(canal, e.target.checked)
         }}
-        className="size-6 shrink-0 accent-turquesa aria-disabled:opacity-60 angosto:mt-0.5"
+        className="size-6 shrink-0 accent-turquesa aria-disabled:not-focus-visible:opacity-60 angosto:mt-0.5"
       />
       {texto}
     </label>
