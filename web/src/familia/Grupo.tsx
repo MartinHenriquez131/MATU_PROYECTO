@@ -360,8 +360,14 @@ function EstadoBloque({ v, editor }: { v: AutorizacionVista; editor: boolean }) 
     tono = 'text-atenta'
     frase = (
       <>
-        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." /> {ficha ? T.renovarFicha : T.renovarInsumos}{' '}
-        <Fecha iso={v.revision_vence_en} fin="." />
+        {ficha ? T.autorizadaFicha : T.autorizadoInsumos} <Fecha iso={v.otorgado_en} fin="." />
+        {/* Decisión 251: con la capa 3 apagada no se puede renovar, así que no se pide renovarla. */}
+        {v.se_puede_otorgar && (
+          <>
+            {' '}
+            {ficha ? T.renovarFicha : T.renovarInsumos} <Fecha iso={v.revision_vence_en} fin="." />
+          </>
+        )}
       </>
     )
   } else if (v.estado === 'retirada') {

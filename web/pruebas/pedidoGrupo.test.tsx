@@ -143,6 +143,14 @@ describe('MATU-94 (decisión 251): la capa 3 apagada con un registro de pedidos'
     expect(b.queryByRole('button')).toBeNull()
   })
 
+  it('por renovar: solo «Autorizado el {fecha}.», sin «Hay que renovarlo…», que con la capa apagada no se puede', async () => {
+    abrir('admin', 'revision_vencida', { rutas: { 'GET /consentimientos$': { status: 200, cuerpo: autorizaciones('revision_vencida', false) } } })
+    const b = await bloque()
+    expect(b.getByText(/^Autorizado el/).closest('p')).toHaveTextContent(/^Autorizado el 09\/11\/2026\.$/)
+    expect(b.queryByText(/Hay que renovarlo/)).toBeNull()
+    expect(b.getByRole('button', { name: 'Retirar la autorización de los pedidos de María' })).toBeVisible()
+  })
+
   it('pagador con la retirada: sin la frase de quién puede volver a autorizarla', async () => {
     abrir('pagador', 'retirada', { rutas: capaApagada('retirada') })
     const b = await bloque()
