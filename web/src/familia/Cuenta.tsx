@@ -70,12 +70,12 @@ function EstadoCelular({ verificado }: { verificado: boolean }) {
   // El estado va con palabra, nunca solo con color.
   return verificado ? (
     <Etiqueta tono="ok">
-      <Check aria-hidden className="size-4 angosto:hidden" strokeWidth={3} />
+      <Check aria-hidden className="size-4" strokeWidth={3} />
       {CUENTA_PROPIA.confirmado}
     </Etiqueta>
   ) : (
     <Etiqueta>
-      <Circle aria-hidden className="size-3.5 angosto:hidden" strokeWidth={2.5} />
+      <Circle aria-hidden className="size-3.5" strokeWidth={2.5} />
       {CUENTA_PROPIA.sinConfirmar}
     </Etiqueta>
   )
