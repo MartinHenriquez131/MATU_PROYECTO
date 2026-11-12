@@ -3,6 +3,7 @@
 // lenguaje.md de donde sale: no se cambian por otros.
 // Nunca: "relevo", "token", "sesión", "canje", "revocado", "inválido", ni un código de error.
 import type { CampoFicha } from '../compartido/api/relevo'
+import { CORREO_CONTACTO } from '../compartido/contacto'
 import { RUTA_PRIVACIDAD } from '../compartido/textosPolitica'
 
 export const TITULO_DOCUMENTO = 'Ficha de cuidado compartida · MATU' // [lenguaje 7.1] 2.5
@@ -48,7 +49,7 @@ export const AVISO = {
   parrafos: [
     'MATU guarda tu nombre y tu teléfono, que anotó quien te compartió la ficha, para enviarte el enlace y poder contactarte. Tu teléfono se borra 30 días después de que el enlace vence o se corta.',
     'También registra cada vez que abres el enlace o la ficha y cada PIN incorrecto, con la fecha y la hora. La familia que te compartió la ficha puede ver ese registro con tu nombre. Lo guardamos 3 años.',
-    'Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos escribiendo a cuidaconmatu@gmail.com.',
+    `Responsables de tus datos: Jorge Espinoza y Martín Henríquez. Puedes pedir ver, corregir o borrar tus datos escribiendo a ${CORREO_CONTACTO}.`,
   ],
   politica: 'Política de privacidad (se abre en otra pestaña)', // [lenguaje 7.5]
 }
