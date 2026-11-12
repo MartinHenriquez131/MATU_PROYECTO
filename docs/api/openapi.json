@@ -6917,6 +6917,946 @@
           }
         ]
       }
+    },
+    "/v1/grupos/{grupo_id}/invitaciones": {
+      "post": {
+        "tags": [
+          "invitaciones"
+        ],
+        "summary": "Crear una invitación con un rol",
+        "description": "MATU-42 (decisiones 294 a 297). Solo admin. Vence a los 7 días. url y codigo salen una sola vez. Sin Idempotency-Key. Registra invitacion.crear con el rol.",
+        "operationId": "crearInvitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudInvitacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitacionCreada"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "tope-invitaciones: 20 por admin y grupo en 24 horas, con Retry-After",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin Redis, sin PEPPER_LIMITES o sin PEPPER_PIN. No se creó nada",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "invitaciones"
+        ],
+        "summary": "Ver las invitaciones sin usar",
+        "description": "MATU-42 (C10, P7). Solo admin. Pendientes y bloqueadas, de la más nueva a la más antigua.",
+        "operationId": "listarInvitaciones",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaInvitaciones"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}": {
+      "delete": {
+        "tags": [
+          "invitaciones"
+        ],
+        "summary": "Anular una invitación",
+        "description": "MATU-42 (decisión 308). Solo admin. Pendiente o bloqueada: 204 e invitacion.anular. Ya anulada: 204.",
+        "operationId": "anularInvitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invitacion Id"
+            }
+          },
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "invitacion-cerrada: ya se usó o venció, con estado",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitaciones/presentacion": {
+      "post": {
+        "tags": [
+          "invitacion-publica"
+        ],
+        "summary": "Saber quién invita y para qué rol, antes del código",
+        "description": "MATU-42 (C1, D-42-4 a, P2). Sin sesión. No cuenta como intento, no cambia nada y no se audita.",
+        "operationId": "presentarInvitacion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPresentacionInvitacion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresentacionInvitacion"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "invitacion-no-disponible, invitacion-usada o invitacion-vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "423": {
+            "description": "invitacion-bloqueada por 5 códigos incorrectos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana, de 1 a 3600",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitaciones/verificacion": {
+      "post": {
+        "tags": [
+          "invitacion-publica"
+        ],
+        "summary": "Verificar el código y ver a qué grupo se une, antes de pedir la cuenta",
+        "description": "MATU-42 (P1, P3, C30). Sin sesión. No une a nadie. El 5.º código incorrecto bloquea. Registra invitacion.codigo_incorrecto e invitacion.bloqueo con actor sistema.",
+        "operationId": "verificarCodigoInvitacion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCanjeInvitacion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificacionInvitacion"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "invitacion-no-disponible, invitacion-usada o invitacion-vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido (no cuenta como intento), o codigo-incorrecto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "423": {
+            "description": "invitacion-bloqueada por 5 códigos incorrectos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana, de 1 a 3600",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitaciones/aceptacion": {
+      "post": {
+        "tags": [
+          "invitacion-publica"
+        ],
+        "summary": "Unirse al grupo con la invitación y el código",
+        "description": "MATU-42 (C22, C27). Con sesión y sin X-Grupo-Id. Un solo uso. Inserta la membresía activa con el rol de la invitación y registra invitacion.aceptar con la cuenta. No crea ni copia autorizaciones (C7).",
+        "operationId": "aceptarInvitacion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCanjeInvitacion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Union"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin sesión o con un access token inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "ya-eres-parte, con grupo_id. No consume la invitación",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "410": {
+            "description": "invitacion-no-disponible, invitacion-usada o invitacion-vencida",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido (no cuenta como intento), o codigo-incorrecto",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "423": {
+            "description": "invitacion-bloqueada por 5 códigos incorrectos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana, de 1 a 3600",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/grupos/{grupo_id}/miembros": {
+      "get": {
+        "tags": [
+          "miembros"
+        ],
+        "summary": "Quiénes forman el grupo",
+        "description": "MATU-42 (decisión 302). Todo miembro activo. Sin email, celular ni usuario_id. No se audita.",
+        "operationId": "listarMiembros",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaMiembros"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/grupos/{grupo_id}/miembros/{membresia_id}": {
+      "patch": {
+        "tags": [
+          "miembros"
+        ],
+        "summary": "Cambiar el rol de alguien o el permiso del pagador para ver la ficha",
+        "description": "MATU-42 (decisiones 303 a 305 y 307). Solo admin. Dejar de ser admin o cuidador corta los enlaces de relevo que compartió; dejar de ser admin anula sus invitaciones sin usar. Orden: 401, 404, 428, 422, 412, 409, 200.",
+        "operationId": "cambiarMiembro",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "membresia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Membresia Id"
+            }
+          },
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCambioMiembro"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoCambioMiembro"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "\"v<version>\"",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "ultimo-admin: el grupo quedaría sin nadie que lo administre",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada, con la membresía vigente en actual",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, o permiso_solo_pagador",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "falta-version: sin If-Match, vacío o *",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "miembros"
+        ],
+        "summary": "Sacar a alguien del grupo",
+        "description": "MATU-42 (decisiones 305 a 307). Solo admin. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. La propia membresía es salir. No es idempotente: una retirada es 404.",
+        "operationId": "sacarMiembro",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "membresia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Membresia Id"
+            }
+          },
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoSalida"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "ultimo-admin o unica-persona. No cambia nada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/grupos/{grupo_id}/salida": {
+      "post": {
+        "tags": [
+          "miembros"
+        ],
+        "summary": "Salir del grupo por cuenta propia",
+        "description": "MATU-42 (D-42-13). Todo miembro activo. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. 409 ultimo-admin o unica-persona.",
+        "operationId": "salirDelGrupo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Grupo Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoSalida"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "ultimo-admin o unica-persona. No cambia nada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7213,15 +8153,29 @@
             "title": "Id"
           },
           "nombre": {
-            "type": "string",
-            "title": "Nombre"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre",
+            "description": "null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)"
+          },
+          "autor_activo": {
+            "type": "boolean",
+            "title": "Autor Activo",
+            "description": "false si ya no está en el grupo: «Alguien que ya no está en el grupo»"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
-          "nombre"
+          "nombre",
+          "autor_activo"
         ],
         "title": "AutorAccesoVista"
       },
@@ -7233,15 +8187,29 @@
             "title": "Id"
           },
           "nombre": {
-            "type": "string",
-            "title": "Nombre"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre",
+            "description": "null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)"
+          },
+          "autor_activo": {
+            "type": "boolean",
+            "title": "Autor Activo",
+            "description": "false si ya no está en el grupo: «Alguien que ya no está en el grupo»"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
-          "nombre"
+          "nombre",
+          "autor_activo"
         ],
         "title": "AutorPerfilVista",
         "description": "Quién guardó el perfil por última vez: su id y su nombre de pila, nunca el email."
@@ -7254,15 +8222,29 @@
             "title": "Id"
           },
           "nombre": {
-            "type": "string",
-            "title": "Nombre"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre",
+            "description": "null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)"
+          },
+          "autor_activo": {
+            "type": "boolean",
+            "title": "Autor Activo",
+            "description": "false si ya no está en el grupo: «Alguien que ya no está en el grupo»"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
-          "nombre"
+          "nombre",
+          "autor_activo"
         ],
         "title": "AutorVista"
       },
@@ -7377,6 +8359,11 @@
           "borrada": {
             "type": "boolean",
             "title": "Borrada"
+          },
+          "autorizo_alguien_que_ya_no_esta": {
+            "type": "boolean",
+            "title": "Autorizo Alguien Que Ya No Esta",
+            "description": "MATU-42 (D-42-9 a, decisión 311): true si no está retirada y quien la registró ya no es miembro activo. Sigue vigente. No dice quién"
           }
         },
         "additionalProperties": false,
@@ -7390,7 +8377,8 @@
           "revision_vence_en",
           "revocado_en",
           "borrado_en",
-          "borrada"
+          "borrada",
+          "autorizo_alguien_que_ya_no_esta"
         ],
         "title": "AutorizacionVista",
         "description": "El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la\nversión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``\nsalen de aquí."
@@ -8448,7 +9436,7 @@
                 "type": "null"
               }
             ],
-            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor"
           },
           "etag": {
             "type": "string",
@@ -8859,7 +9847,7 @@
                 "type": "null"
               }
             ],
-            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está"
+            "description": "Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor"
           },
           "etag": {
             "type": "string",
@@ -12124,6 +13112,506 @@
         ],
         "title": "EventoCuentaVista",
         "description": "Un evento de la propia cuenta: solo tipo, ocurrido_en y dispositivo (C3 a C5)."
+      },
+      "InvitacionCreada": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "`{ORIGEN_WEB}/invitacion#<token>`, con el token de 256 bits en el fragmento (C21)"
+          },
+          "codigo": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$",
+            "title": "Codigo",
+            "description": "4 dígitos que se dictan aparte. Se guarda solo su HMAC"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "rol",
+          "url",
+          "codigo",
+          "creada_en",
+          "expira_en"
+        ],
+        "title": "InvitacionCreada",
+        "description": "La invitación recién creada (P9). url y codigo salen solo aquí y una sola vez."
+      },
+      "InvitacionVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "bloqueada"
+            ],
+            "title": "Estado"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          },
+          "invitada_por": {
+            "$ref": "#/components/schemas/InvitadaPor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "rol",
+          "estado",
+          "creada_en",
+          "expira_en",
+          "invitada_por"
+        ],
+        "title": "InvitacionVista",
+        "description": "Una invitación sin usar, para quien administra. Nunca el token, el código ni los intentos."
+      },
+      "InvitadaPor": {
+        "properties": {
+          "nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre",
+            "description": "Nombre de pila copiado en la invitación, o null si ya no es miembro activo"
+          },
+          "autor_activo": {
+            "type": "boolean",
+            "title": "Autor Activo"
+          },
+          "eres_tu": {
+            "type": "boolean",
+            "title": "Eres Tu"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "autor_activo",
+          "eres_tu"
+        ],
+        "title": "InvitadaPor"
+      },
+      "ListaInvitaciones": {
+        "properties": {
+          "invitaciones": {
+            "items": {
+              "$ref": "#/components/schemas/InvitacionVista"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Invitaciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invitaciones"
+        ],
+        "title": "ListaInvitaciones"
+      },
+      "ListaMiembros": {
+        "properties": {
+          "miembros": {
+            "items": {
+              "$ref": "#/components/schemas/MiembroVista"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Miembros"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "miembros"
+        ],
+        "title": "ListaMiembros"
+      },
+      "MiembroVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "El id de la membresía, que usan PATCH y DELETE …/miembros/{membresia_id}"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "puede_ver_plan": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Puede Ver Plan",
+            "description": "Solo del pagador; null para los demás roles"
+          },
+          "unido_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Unido En"
+          },
+          "eres_tu": {
+            "type": "boolean",
+            "title": "Eres Tu"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"v[0-9]+\"$",
+            "title": "Etag"
+          },
+          "enlaces_vigentes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enlaces Vigentes",
+            "description": "Accesos de relevo vigentes que compartió: para quien administra y en la propia fila"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "rol",
+          "puede_ver_plan",
+          "unido_en",
+          "eres_tu",
+          "etag",
+          "enlaces_vigentes"
+        ],
+        "title": "MiembroVista",
+        "description": "Un miembro activo (C9). Nunca el email, el celular ni el usuario_id."
+      },
+      "PresentacionInvitacion": {
+        "properties": {
+          "nombre_pila_invita": {
+            "type": "string",
+            "title": "Nombre Pila Invita"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_pila_invita",
+          "rol",
+          "expira_en"
+        ],
+        "title": "PresentacionInvitacion",
+        "description": "Lo único que se ve antes del código (C1, D-42-4 a, P2)."
+      },
+      "ResultadoCambioMiembro": {
+        "properties": {
+          "miembro": {
+            "$ref": "#/components/schemas/MiembroVista"
+          },
+          "enlaces_cortados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Enlaces Cortados"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "miembro",
+          "enlaces_cortados"
+        ],
+        "title": "ResultadoCambioMiembro"
+      },
+      "ResultadoSalida": {
+        "properties": {
+          "enlaces_cortados": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Enlaces Cortados"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enlaces_cortados"
+        ],
+        "title": "ResultadoSalida"
+      },
+      "SolicitudCambioMiembro": {
+        "properties": {
+          "rol": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "cuidador",
+                  "pagador",
+                  "observador"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rol"
+          },
+          "puede_ver_plan": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Puede Ver Plan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "minProperties": 1,
+        "title": "SolicitudCambioMiembro",
+        "description": "rol, puede_ver_plan o los dos. null en cualquiera es 422."
+      },
+      "SolicitudCanjeInvitacion": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token"
+          },
+          "codigo": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$",
+            "title": "Codigo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "codigo"
+        ],
+        "title": "SolicitudCanjeInvitacion"
+      },
+      "SolicitudInvitacion": {
+        "properties": {
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rol"
+        ],
+        "title": "SolicitudInvitacion",
+        "description": "Solo el rol (C8). Sin correo, teléfono ni puede_ver_plan (D-42-1 a)."
+      },
+      "SolicitudPresentacionInvitacion": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "SolicitudPresentacionInvitacion"
+      },
+      "Union": {
+        "properties": {
+          "grupo_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Grupo Id"
+          },
+          "membresia_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Membresia Id"
+          },
+          "grupo": {
+            "type": "string",
+            "title": "Grupo"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "puede_ver_plan": {
+            "type": "boolean",
+            "title": "Puede Ver Plan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grupo_id",
+          "membresia_id",
+          "grupo",
+          "rol",
+          "puede_ver_plan"
+        ],
+        "title": "Union",
+        "description": "El grupo al que se unió, para fijar X-Grupo-Id en memoria."
+      },
+      "VerificacionInvitacion": {
+        "properties": {
+          "nombre_pila_invita": {
+            "type": "string",
+            "title": "Nombre Pila Invita"
+          },
+          "grupo": {
+            "type": "string",
+            "title": "Grupo"
+          },
+          "personas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Personas"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_pila_invita",
+          "grupo",
+          "personas",
+          "rol",
+          "expira_en"
+        ],
+        "title": "VerificacionInvitacion",
+        "description": "Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin intentos_restantes (decisión 325)."
       }
     },
     "securitySchemes": {

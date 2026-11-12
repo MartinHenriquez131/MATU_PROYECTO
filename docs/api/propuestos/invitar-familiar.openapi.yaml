@@ -1,9 +1,17 @@
 openapi: 3.1.0
 info:
   title: MATU API · Invitar a un familiar y ver el grupo (propuesto)
-  version: 0.2.0-propuesto
+  version: 0.3.0-implementado
   summary: Invitar con un enlace de un solo uso y un código, ver quiénes forman el grupo, cambiar roles, dar al pagador el permiso de ver la ficha, sacar a alguien y salir del grupo (MATU-42 y MATU-53, RF-38 y RF-42).
   description: |
+    **Implementado en MATU-42 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `pedido.openapi.yaml`, `pago.openapi.yaml` y
+    `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 318 a 331 del README (las
+    respuestas a las nueve preguntas abiertas y lo que fijó la migración 0026): sacar y salir van por
+    `membresia_retirar`, `SECURITY DEFINER` (decisión 327); el trigger del último admin serializa con un
+    bloqueo consultivo (328); las funciones de la persona invitada reciben el `request_id` (329), y
+    `intentos_restantes` va solo en el 422 `codigo-incorrecto` (325). La versión 0.3.0 lo aplica.
+
     Contrato **propuesto** de MATU-42 (backend) y MATU-53 (su pantalla), escrito el 12-11 **antes de
     implementar** (arquitectura 15.5, regla 1), con:
     - las decisiones **D-42-1 a D-42-13 y D-42-C20** de Jorge (12-11) sobre la revisión previa del
@@ -360,7 +368,7 @@ paths:
            `intentos_restantes` (1 a 4, P3). El **5.º** bloquea la invitación (`bloqueada_en`) y
            responde **423**, también si después llega el correcto (C30, como el PIN, decisión 11). Un
            código correcto antes del bloqueo vuelve el contador a 0.
-        9. Si no, **200**, con `intentos_restantes: 5` (el contador volvió a 0).
+        9. Si no, **200** (el contador volvió a 0). Sin `intentos_restantes` (decisión 325).
 
         Sin sesión no se puede saber si quien pregunta ya es parte del grupo: eso lo responde la
         aceptación (`ya-eres-parte`, C27).
@@ -410,7 +418,6 @@ paths:
                     personas: [María]
                     rol: cuidador
                     expira_en: '2026-11-19T21:30:00-03:00'
-                    intentos_restantes: 5
         '410':
           $ref: '#/components/responses/InvitacionNoSirve'
         '422':
@@ -1132,7 +1139,7 @@ components:
     VerificacionInvitacion:
       type: object
       additionalProperties: false
-      required: [nombre_pila_invita, grupo, personas, rol, expira_en, intentos_restantes]
+      required: [nombre_pila_invita, grupo, personas, rol, expira_en]
       description: |
         Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin apellidos de la persona cuidada, sin
         datos de los demás miembros y sin nada de la ficha.
@@ -1156,12 +1163,6 @@ components:
         expira_en:
           type: string
           format: date-time
-        intentos_restantes:
-          type: integer
-          const: 5
-          description: |
-            Con el código correcto el contador vuelve a 0, así que siempre es 5. Está para que la
-            aceptación, si el código cambió en memoria, se lea con la misma forma (P3).
 
     Union:
       type: object
