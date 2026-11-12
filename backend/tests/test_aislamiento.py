@@ -21,7 +21,10 @@ from dotenv import load_dotenv
 from psycopg import errors
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
+# MATU-94: sin valor por omisión (antes, dbname=matu, la base de uso). Sin MATU_TEST_DSN, el archivo se salta como
+# las demás pruebas de integración, y tests/conftest.py exige que apunte a una base de pruebas
+DSN = os.environ.get("MATU_TEST_DSN", "")
+pytestmark = pytest.mark.skipif(not DSN, reason="MATU_TEST_DSN no está definida")
 
 # Identificadores fijos para leer las pruebas con facilidad
 U_ADMIN_A, U_OBS_A, U_PAG_A, U_PAG2_A = (uuid.UUID(f"00000000-0000-0000-0000-0000000000a{i}") for i in (1, 2, 3, 4))

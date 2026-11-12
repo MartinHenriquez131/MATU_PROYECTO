@@ -282,7 +282,7 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
         <section aria-label="Editar una sección" className="flex min-w-0 flex-col gap-5">
           <Volver onClick={seguirDespues}>{FICHA.volverALaFicha}</Volver>
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-tenue">{MAS.titulo(pila)}</p>
+            <p className="text-base text-tenue">{MAS.titulo(pila)}</p>
             <Titulo>{seccion.titulo}</Titulo>
           </div>
           {remedios && (
@@ -311,7 +311,7 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
                 falla === 'muy-largo' ? 'ring-pronto' : 'ring-borde'
               }`}
             />
-            <p id="seccion-cuenta" className={`flex items-center gap-1.5 text-sm ${cerca ? 'font-bold text-atenta' : 'text-tenue'}`}>
+            <p id="seccion-cuenta" className={`flex items-center gap-1.5 text-base ${cerca ? 'font-bold text-atenta' : 'text-tenue'}`}>
               {cerca && <TriangleAlert aria-hidden className="size-4 shrink-0" />}
               {/* Solo las cifras en `cifras` (sin partirse): la frase completa desborda a 320 px con 200 %. */}
               <span className="min-w-0">
@@ -466,7 +466,7 @@ function QuitadaPorOtra({
       <section aria-labelledby="v-mia-q" className="flex flex-col gap-3 rounded-sm bg-hoja px-5 angosto:px-2 py-4 ring-2 ring-turquesa">
         <h2 id="v-mia-q" className="font-bold">
           {CONFLICTO.laTuya}
-          <span className="block text-sm font-normal text-tenue">{CONFLICTO.laTuyaDetalle}</span>
+          <span className="block text-base font-normal text-tenue">{CONFLICTO.laTuyaDetalle}</span>
         </h2>
         <p className="leading-relaxed whitespace-pre-line select-text">{mio}</p>
       </section>
@@ -521,7 +521,7 @@ function ConflictoAlQuitar({
         <h2 id="v-suya-q" className="font-bold">
           {CONFLICTO.laDe(autor)}
           {hora && (
-            <span className="block text-sm font-normal text-tenue">
+            <span className="block text-base font-normal text-tenue">
               {CONFLICTO.guardadaA} <span className="cifras">{hora}</span>
             </span>
           )}

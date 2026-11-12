@@ -4,6 +4,7 @@
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
 import { Check, ChevronLeft, Circle, CircleAlert, Minus, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
+import { ConTelefonos } from '../compartido/ui/ConTelefonos'
 import { AVISO_CUIDADOR, CAMPOS } from './datos'
 import { AUTORIZACION, FICHA } from './textos'
 import { navegar, type Ruta } from './ruteo'
@@ -68,15 +69,12 @@ export function CampoTexto({
   error,
   className = '',
   junto,
-  ayudaGrande = false,
   ...resto
 }: InputHTMLAttributes<HTMLInputElement> & {
   etiqueta: string
   ayuda?: ReactNode
   error?: string | null
   junto?: ReactNode
-  /** MATU-48: la ayuda en `text-base` (nada relevante bajo 1 rem). */
-  ayudaGrande?: boolean
 }) {
   const id = useId()
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
@@ -98,7 +96,7 @@ export function CampoTexto({
         {junto}
       </div>
       {ayuda && (
-        <span id={`${id}-a`} className={`${ayudaGrande ? 'text-base' : 'text-sm'} text-tenue`}>
+        <span id={`${id}-a`} className="text-base text-tenue">
           {ayuda}
         </span>
       )}
@@ -119,7 +117,6 @@ export function GrupoOpciones<T extends string>({
   children,
   nombradoPor,
   describe,
-  detalleGrande = false,
   describirOpciones = false,
   deshabilitada = false,
   errorArriba = false,
@@ -142,8 +139,6 @@ export function GrupoOpciones<T extends string>({
   nombradoPor?: string
   /** MATU-61 (O9): ids que también lo describen («Nunca lo cambiamos por otra marca…»). */
   describe?: string
-  /** MATU-61 (7.6): el detalle de cada opción en `text-base`. */
-  detalleGrande?: boolean
   /**
    * MATU-53 (9): cada opción se nombra solo con su texto y se describe con su detalle (y su `extra`),
    * con `aria-labelledby` y `aria-describedby`, en vez de leer todo junto como nombre.
@@ -226,7 +221,7 @@ export function GrupoOpciones<T extends string>({
                   {o.extra && <span id={`${idOpcion}-x`}>{o.extra}</span>}
                 </span>
                 {o.detalle && (
-                  <span id={`${idOpcion}-d`} className={`${detalleGrande ? 'text-base' : 'text-sm'} text-tenue`}>
+                  <span id={`${idOpcion}-d`} className="text-base text-tenue">
                     {o.detalle}
                   </span>
                 )}
@@ -351,7 +346,10 @@ function separarHoras(texto: string): { hora: string; texto: string }[] | null {
   })
 }
 
-/** Texto de un campo: siempre como texto, nunca HTML. "Su día" con horas, en línea de tiempo. */
+/**
+ * Texto de un campo: siempre como texto, nunca HTML. "Su día" con horas, en línea de tiempo. Los
+ * teléfonos no se parten, igual que en el relevo (MATU-23, 3.11.4).
+ */
 export function TextoCampo({ texto }: { texto: string | null }) {
   if (!texto || !texto.trim()) return <p className="text-tenue italic">{FICHA.sinCompletar}</p>
   const horas = separarHoras(texto)
@@ -364,7 +362,9 @@ export function TextoCampo({ texto }: { texto: string | null }) {
             <li key={i} className="relative flex items-start gap-3 angosto:flex-col angosto:gap-1">
               <span className="cifras w-13 shrink-0 pt-px text-right angosto:w-auto angosto:text-left font-bold text-turquesa">{it.hora}</span>
               <span aria-hidden className="relative z-10 mt-1.5 angosto:hidden size-3 shrink-0 rounded-full bg-miel ring-4 ring-hoja" />
-              <span className="min-w-0 break-words">{it.texto}</span>
+              <span className="min-w-0 break-words">
+                <ConTelefonos texto={it.texto} />
+              </span>
             </li>
           ))}
         </ol>
@@ -374,7 +374,7 @@ export function TextoCampo({ texto }: { texto: string | null }) {
     <div className="renglones leading-7">
       {texto.split('\n').map((l, i) => (
         <p key={i} className="break-words">
-          {l || ' '}
+          {l ? <ConTelefonos texto={l} /> : ' '}
         </p>
       ))}
     </div>
@@ -452,21 +452,26 @@ const HORAS_EN_TEXTO = /(\d{1,2}[:.]\d{2})/
 
 /**
  * El texto de una sección, tal cual, renglón por renglón, con las horas en `cifras` (5.6). Nunca
- * como línea de tiempo ni como HTML.
+ * como línea de tiempo ni como HTML. Los teléfonos no se parten, igual que en el relevo (3.11.4):
+ * primero los teléfonos, porque una hora no cae dentro de uno (el patrón no acepta : ni .).
  */
 export function TextoSeccion({ texto, recortar = false, className = '' }: { texto: string; recortar?: boolean; className?: string }) {
-  const partes = texto.split(HORAS_EN_TEXTO)
   return (
     <p className={`break-words whitespace-pre-line ${recortar ? 'line-clamp-3' : ''} ${className}`}>
-      {partes.map((p, i) =>
-        i % 2 ? (
-          <span key={i} className="cifras">
-            {p}
-          </span>
-        ) : (
-          p
-        ),
-      )}
+      <ConTelefonos
+        texto={texto}
+        pintarTexto={(t) =>
+          t.split(HORAS_EN_TEXTO).map((p, i) =>
+            i % 2 ? (
+              <span key={i} className="cifras">
+                {p}
+              </span>
+            ) : (
+              p
+            ),
+          )
+        }
+      />
     </p>
   )
 }

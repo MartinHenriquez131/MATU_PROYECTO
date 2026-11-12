@@ -121,7 +121,6 @@ export function Invitar() {
             }}
             error={sinRol ? T.sinRol : null}
             errorArriba
-            detalleGrande
             describirOpciones
             deshabilitada={ocupado}
             opciones={ROLES.map((r) => ({ valor: r, texto: ROL[r], detalle: descripcionRol(r, { capa3: capa3 === true, pilas }) }))}

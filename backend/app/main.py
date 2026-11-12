@@ -78,8 +78,10 @@ ROUTERS_PAGO_SIEMPRE: tuple[tuple[str, str], ...] = (
     ("app.modules.payments.api.router_retorno:router_formulario", ""),
 )
 
-# MATU-61 (C2, decisión 217): el efecto del retiro de despacho y del borrado sobre los pedidos, como
-# "finalidad=paquete:clase". Se importa solo con CAPA3_HABILITADA, igual que ROUTERS_CAPA_3
+# MATU-61 (D1 y D2) y MATU-94 (decisión 250): el efecto del retiro de despacho y del borrado sobre los pedidos, como
+# "finalidad=paquete:clase". Se registra siempre, con la capa 3 encendida o apagada: cancelar los pedidos sin pagar y
+# borrar su entrega es una protección de datos (política, §4 y §10), no una función de la capa 3. No monta rutas. Se
+# importa al armar la app, nunca en el nivel superior: con la capa 3 apagada y quitada, se omite
 EFECTOS_CAPA_3: tuple[tuple[str, str], ...] = (
     (FINALIDAD_DESPACHO, "app.modules.ordering.infrastructure.efecto_retiro:EfectoRetiroPedidos"),
 )
@@ -91,14 +93,31 @@ def salud() -> dict[str, str]:
 
 
 def incluir_capa_3(app: FastAPI) -> None:
-    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1 y registra los efectos de EFECTOS_CAPA_3. Solo se
-    llama con CAPA3_HABILITADA."""
+    """Monta los routers de ROUTERS_CAPA_3 con el prefijo /v1. Solo se llama con CAPA3_HABILITADA."""
     for referencia in ROUTERS_CAPA_3:
         modulo, _, atributo = referencia.partition(":")
         app.include_router(getattr(importlib.import_module(modulo), atributo), prefix="/v1")
+
+
+def _falta_el_paquete(error: ModuleNotFoundError, modulo: str) -> bool:
+    """El módulo que falta es ``modulo`` o uno de sus paquetes: la capa 3 no está. Otro faltante es un defecto."""
+    return error.name is not None and (modulo == error.name or modulo.startswith(error.name + "."))
+
+
+def registrar_efectos_capa_3(capa3: bool) -> None:
+    """Registra los efectos de EFECTOS_CAPA_3 en care_circle, con la capa 3 encendida o apagada (MATU-94, decisión
+    250). Con la capa encendida, el efecto es obligatorio: si su paquete falta, la API no arranca. Con la capa apagada
+    y quitada (ADR-002), se omite y el retiro y el borrado siguen como en la decisión 217."""
     for finalidad, referencia in EFECTOS_CAPA_3:
         modulo, _, atributo = referencia.partition(":")
-        registrar_efecto(finalidad, getattr(importlib.import_module(modulo), atributo))
+        try:
+            fabrica = getattr(importlib.import_module(modulo), atributo)
+        except ModuleNotFoundError as error:
+            if capa3 or not _falta_el_paquete(error, modulo):
+                raise
+            log.warning("efecto de %s omitido: la capa 3 no está", finalidad)
+            continue
+        registrar_efecto(finalidad, fabrica)
 
 
 def incluir_vuelta_del_pago(app: FastAPI) -> None:
@@ -133,6 +152,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-42 (decisión 305): sacar, salir y dejar de compartir cortan los enlaces de relevo de esa persona. care_circle
     # no importa care_plan: se arma aquí. Sin él, esas rutas fallan cerradas
     registrar_enlaces(EnlacesOtorgados)
+    # MATU-94 (decisión 250): el de despacho, siempre. Con la capa 3 apagada no monta ninguna ruta de pedidos
+    registrar_efectos_capa_3(config.capa3_habilitada)
 
     # MATU-58 (decisión 115): /docs y /openapi.json solo en local y pruebas. En staging y produccion no
     # existen y responden 404 RFC 7807, sin caer en la app de familia

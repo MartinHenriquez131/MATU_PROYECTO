@@ -233,7 +233,7 @@ export function CambiarConCodigo() {
         <Boton variante="texto" className="justify-start! text-left" ocupado={reenviando} textoOcupado={RECUPERAR.enviando} disabled={esperando || pausa} onClick={() => void reenviar()}>
           {RECUPERAR.reenviar}
         </Boton>
-        {pausa && !esperando && <p className="text-sm text-tenue">{RECUPERAR.enUnMinuto}</p>}
+        {pausa && !esperando && <p className="text-base text-tenue">{RECUPERAR.enUnMinuto}</p>}
       </div>
     </MarcoAlta>
   )

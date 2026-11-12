@@ -239,12 +239,16 @@ const sinCalidad = (a: AutorizacionVista): AutorizacionVista => ({
   revocado_en: a.revocado_en,
   borrado_en: a.borrado_en,
   borrada: a.borrada,
+  se_puede_otorgar: a.se_puede_otorgar,
   ...(a.autorizo_alguien_que_ya_no_esta === true ? { autorizo_alguien_que_ya_no_esta: true } : {}),
 })
 
 const rutaConsentimientos = (personaId: string) => `/v1/personas-cuidadas/${encodeURIComponent(personaId)}/consentimientos`
 
-/** `plan_cuidado` y `consumo`, y `despacho` con la capa 3 encendida (MATU-61, decisión 192 y C2). */
+/**
+ * `plan_cuidado` y `consumo`, y `despacho` con la capa 3 encendida (MATU-61, decisión 192 y C2) o, con
+ * la capa apagada, si la persona tiene un registro de ella (decisión 251). Pueden ser 2 o 3 ítems.
+ */
 export async function leerAutorizaciones(personaId: string): Promise<AutorizacionVista[]> {
   const r = await apiFamilia.get<S['AutorizacionesPersona'] | S['AutorizacionesPersonaResumen']>(rutaConsentimientos(personaId))
   return r.data.autorizaciones.map(sinCalidad)

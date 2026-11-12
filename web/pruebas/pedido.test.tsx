@@ -335,7 +335,7 @@ describe('El permiso de los pedidos (4)', () => {
     let creado: ReturnType<typeof borrador> | null = null
     const api = apiPedido(
       {
-        'GET /consentimientos$': () => ({ status: 200, cuerpo: (autorizada ? { autorizaciones: [{ finalidad: 'despacho', estado: 'vigente', id: 'x', otorgado_en: '2026-11-11T15:00:00Z', revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }] } : { autorizaciones: [{ finalidad: 'despacho', estado: 'sin_autorizar', id: null, otorgado_en: null, revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }] }) }),
+        'GET /consentimientos$': () => ({ status: 200, cuerpo: (autorizada ? { autorizaciones: [{ finalidad: 'despacho', estado: 'vigente', id: 'x', otorgado_en: '2026-11-11T15:00:00Z', revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false, se_puede_otorgar: true }] } : { autorizaciones: [{ finalidad: 'despacho', estado: 'sin_autorizar', id: null, otorgado_en: null, revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false, se_puede_otorgar: true }] }) }),
         'POST /consentimientos$': () => ((autorizada = true), { status: 201, cuerpo: {} }),
         'POST /pedidos$': () => ((creado = borrador({ lineas: [linea(PANAL, ALMACEN, 1, 12990)] })), { status: 201, cuerpo: creado }),
         'GET /pedido-en-curso$': () => (creado ? { status: 200, cuerpo: creado } : NO_ENCONTRADO),
@@ -565,7 +565,7 @@ describe('Revisión visual de MATU-61 en el carrito', () => {
 
 describe('Revisión visual de MATU-61: el foco al llegar al permiso (P2-2)', () => {
   it.each<'catalogo' | 'lista'>(['catalogo', 'lista'])('desde %s, el h1 «Antes de pedir, un permiso» recibe el foco que tenía el de «Cargando»', async (desde) => {
-    apiPedido({ 'GET /consentimientos$': { status: 200, cuerpo: { autorizaciones: [{ finalidad: 'despacho', estado: 'sin_autorizar', id: null, otorgado_en: null, revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }] } } }, { pedido: null })
+    apiPedido({ 'GET /consentimientos$': { status: 200, cuerpo: { autorizaciones: [{ finalidad: 'despacho', estado: 'sin_autorizar', id: null, otorgado_en: null, revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false, se_puede_otorgar: true }] } } }, { pedido: null })
     abrir('admin', {
       intencionPedido: { personaId: PERSONA_ID, desde, agregar: [{ producto_id: PANAL.id, oferta_id: OFERTAS.panalAlmacen, cantidad: 1, nombre: PANAL.nombre, deLista: desde === 'lista' ? '2 paquetes' : null }], fuera: [] },
     } as never)

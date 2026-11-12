@@ -45,7 +45,7 @@ from app.modules.payments.domain.venta import (
 pytestmark = pytest.mark.rf("RF-25")
 
 CONFIRMADO = datetime(2026, 11, 12, 14, 2, 11, tzinfo=UTC)
-VIDA = timedelta(minutes=10)
+VIDA = timedelta(minutes=8)  # VIDA_VENTA_WEBPAY_MINUTOS por omisión (MATU-94)
 
 
 def _venta(**cambios: object) -> Venta:
