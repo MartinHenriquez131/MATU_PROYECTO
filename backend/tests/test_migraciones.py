@@ -23,13 +23,22 @@ from dotenv import load_dotenv
 from psycopg.conninfo import make_conninfo
 from sqlalchemy.engine import make_url
 
+from tests.proteccion_base import nombre_de_la_base
+
 BACKEND = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND.parent / ".env")
-DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
+# MATU-94: sin valor por omisión (antes, dbname=matu). La base desechable BASE se crea desde la de origen, que
+# tests/conftest.py exige que sea de pruebas
+DSN = os.environ.get("MATU_TEST_DSN", "")
 URL_MIGRACIONES = os.environ.get("MIGRATIONS_DATABASE_URL")
-BASE = "matu_prueba_migraciones"
+# MATU-94: la base desechable lleva el nombre de la de origen, y termina en _test. Antes era una sola,
+# matu_prueba_migraciones, para todas las copias del repositorio en el mismo servidor: dos corridas a la vez (wt94 y
+# wt62, el 11-11) se la borraban una a la otra. Ahora cumple también la regla de tests/proteccion_base.py
+BASE = f"{nombre_de_la_base(DSN) or 'matu'}_migraciones_test"
 
-pytestmark = pytest.mark.skipif(not URL_MIGRACIONES, reason="MIGRATIONS_DATABASE_URL no está definida")
+pytestmark = pytest.mark.skipif(
+    not URL_MIGRACIONES or not DSN, reason="MIGRATIONS_DATABASE_URL o MATU_TEST_DSN no está definida"
+)
 
 CATALOGO = {
     "columnas": """
