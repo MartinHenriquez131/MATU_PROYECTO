@@ -238,27 +238,35 @@ describe('Quitar y agregar', () => {
 
   it('agregar a mano en envases: valida, agrega al final, lo anuncia, vuelve el foco y entra al texto', async () => {
     const { pantalla, amable } = abrir('admin')
-    const u = userEvent.setup()
+    // MATU-107: sin la espera entre eventos y el nombre pegado de una vez; bajo carga, tecla por
+    // tecla y con espera, la prueba pasaba los 15 s. Lo que importa se espera con waitFor.
+    const u = userEvent.setup({ delay: null })
     await pantalla.findByText('Pañal adulto talla M')
     const writeText = portapapeles(async () => {})
 
     await u.click(pantalla.getByRole('button', { name: 'Agregar otro insumo' }))
     const nombre = pantalla.getByRole('textbox', { name: '¿Qué insumo es?' })
     await waitFor(() => expect(nombre).toHaveFocus())
-    expect(pantalla.getByRole('radio', { name: 'Unidades' })).toBeChecked()
-    expect(pantalla.getByText('Esto queda solo en esta pantalla. No lo guardamos.')).toBeVisible()
+    // Lo del panel se busca dentro del panel: getByRole sobre toda la lista tardaba 100 a 250 ms por
+    // búsqueda, y bajo carga la prueba pasaba los 15 s.
+    const panel = within(nombre.closest('form') as HTMLElement)
+    expect(panel.getByRole('radio', { name: 'Unidades' })).toBeChecked()
+    expect(panel.getByText('Esto queda solo en esta pantalla. No lo guardamos.')).toBeVisible()
 
     // Sin nombre, el error queda en el campo.
-    await u.click(pantalla.getByRole('button', { name: 'Agregar' }))
+    const agregar = panel.getByRole('button', { name: 'Agregar' })
+    await u.click(agregar)
     expect(nombre).toHaveAccessibleDescription('Por ejemplo: «Toallitas húmedas». Sin remedios ni para qué se usa. Escribe el nombre del insumo.')
     expect(nombre).toHaveFocus()
 
-    await u.type(nombre, 'Toallitas para el baño')
-    await u.click(pantalla.getByRole('radio', { name: 'Envases' }))
-    expect(pantalla.getByText('envase')).toBeVisible()
-    await u.click(pantalla.getByRole('button', { name: 'Uno más: Cantidad' }))
-    expect(pantalla.getByText('envases')).toBeVisible()
-    await u.click(pantalla.getByRole('button', { name: 'Agregar' }))
+    await u.click(nombre)
+    await u.paste('Toallitas para el baño')
+    expect(nombre).toHaveValue('Toallitas para el baño')
+    await u.click(panel.getByRole('radio', { name: 'Envases' }))
+    expect(panel.getByText('envase')).toBeVisible()
+    await u.click(panel.getByRole('button', { name: 'Uno más: Cantidad' }))
+    expect(panel.getByText('envases')).toBeVisible()
+    await u.click(agregar)
 
     await waitFor(() => expect(amable).toHaveTextContent('Agregamos «Toallitas para el baño» a la lista.'))
     await waitFor(() => expect(pantalla.getByRole('button', { name: 'Agregar otro insumo' })).toHaveFocus())
