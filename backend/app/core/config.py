@@ -60,6 +60,10 @@ Cada historia agrega aquí lo suyo:
   (10 por omisión, decisión 230 y P-62-6) fija cuánto dura un pago en curso con la venta iniciada.
   PASARELA_PAGO=produccion exige además ENTORNO=produccion y DINERO_REAL_AUTORIZADO=true (observación 9 del cierre del
   analista): sin las dos, la configuración no carga y la API no arranca
+- MATU-55 (decisión 262): VAPID_CLAVE_PRIVADA, la clave privada de Web Push (RFC 8292), el escalar P-256 de 32 bytes
+  en base64url sin relleno. Opcional: sin ella, GET /v1/dispositivos/actual/push responde clave_publica null y la API
+  arranca igual. Un valor que no es una clave P-256 válida impide cargar la configuración. Es distinta en cada entorno
+  y se genera con python scripts/generar_vapid.py, que la muestra solo en la terminal de quien lo corre
 """
 
 import base64
@@ -71,6 +75,8 @@ from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.vapid import ClaveVapidInvalida, validar_clave_privada
 
 # backend/app/core/config.py → la raíz del repositorio está tres niveles más arriba
 RAIZ_REPOSITORIO = Path(__file__).resolve().parents[3]
@@ -250,10 +256,15 @@ class Configuracion(BaseSettings):
     # queda en false hasta cerrar las consultas legales CL-54, CL-55, CL-56, CL-64, CL-65 y CL-66. No es un secreto
     dinero_real_autorizado: bool = False
 
+    # MATU-55 (decisión 262): la clave privada VAPID de Web Push. Ver la cabecera de este archivo. Nunca va a un log, un
+    # error, el repr de la configuración ni una respuesta: solo se deriva de ella la pública
+    vapid_clave_privada: SecretStr | None = None
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
         "politica_actualizada_en", "correo_privacidad", "pasarela_pago", "webpay_codigo_comercio", "webpay_llave",
+        "vapid_clave_privada",
         mode="before",
     )
     @classmethod
@@ -284,6 +295,18 @@ class Configuracion(BaseSettings):
             crudo = b""
         if len(crudo) != LARGO_KEK:
             raise ValueError("KEK_ENTORNO debe ser una clave de 32 bytes aleatorios en base64")
+        return valor
+
+    @field_validator("vapid_clave_privada")
+    @classmethod
+    def _vapid_p256(cls, valor: SecretStr | None) -> SecretStr | None:
+        # El mensaje es fijo (ClaveVapidInvalida): nunca lleva la clave
+        if valor is None:
+            return None
+        try:
+            validar_clave_privada(valor.get_secret_value())
+        except ClaveVapidInvalida:
+            raise ValueError("VAPID_CLAVE_PRIVADA debe ser una clave privada P-256 en base64url sin relleno") from None
         return valor
 
     @model_validator(mode="after")

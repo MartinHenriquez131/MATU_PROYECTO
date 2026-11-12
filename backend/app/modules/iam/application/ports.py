@@ -8,6 +8,7 @@ from typing import Protocol
 
 from app.modules.iam.domain.demora import ContadorFallos
 from app.modules.iam.domain.dispositivo import LimitesConservacion
+from app.modules.iam.domain.ingresos import FilaIngreso
 from app.modules.iam.domain.politica import AceptacionPolitica
 from app.modules.iam.domain.recuperacion import Canal, CodigoGuardado, EnviosRecientes
 from app.modules.iam.domain.refresh import EstadoRefresh
@@ -175,6 +176,8 @@ class DispositivoGuardado:
     creado_en: datetime
     ultimo_uso_en: datetime | None
     revocado: bool
+    # MATU-55 (C5): si tiene un endpoint de push guardado. Nunca el endpoint
+    push_activo: bool = False
 
 
 class RepositorioSesiones(Protocol):
@@ -227,8 +230,20 @@ class RepositorioSesiones(Protocol):
         """Los dispositivos propios no revocados."""
         ...
 
-    def guardar_push(self, dispositivo_id: uuid.UUID, push_token: str | None) -> bool:
-        """Escribe push_token en el dispositivo propio no revocado. False si no hay tal dispositivo."""
+    def guardar_push(self, dispositivo_id: uuid.UUID, push_token: str | None) -> bool | None:
+        """Escribe push_token en el dispositivo propio no revocado. None si no hay tal dispositivo; si no, True si el
+        endpoint guardado cambió y False si ya era el mismo (MATU-55, decisión 260)."""
+        ...
+
+    def push_registrado(self, dispositivo_id: uuid.UUID) -> bool | None:
+        """MATU-55 (decisión 261): si el dispositivo propio no revocado tiene un endpoint guardado, sin leerlo. None si
+        no hay tal dispositivo."""
+        ...
+
+    def ingresos(self, desde: datetime, acciones: frozenset[str], limite: int) -> list[FilaIngreso]:
+        """MATU-55 (decisión 256): las filas de la auditoría de la cuenta con una de las acciones, desde el instante
+        (incluido), hasta limite, de la más reciente a la más antigua (a igual instante, la de id mayor primero). Con
+        el dispositivo de la fila si todavía existe. La RLS auditoria_cuenta_propia decide de quién son."""
         ...
 
 
