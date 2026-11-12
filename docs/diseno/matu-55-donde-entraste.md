@@ -1,6 +1,15 @@
 # MATU-55 · Dónde entraste, últimos ingresos y avisos · Especificación de diseño
 
-**Versión 1.1 · 12-11-2026 · agente 6 UI/UX.** Se escribió antes de construir.
+**Versión 1.2 · 12-11-2026 · agente 6 UI/UX.** La 1.1 se escribió antes de construir. La 1.2 sale de la revisión visual de lo construido.
+
+**Qué cambia de la 1.1 a la 1.2.** Las cinco diferencias que señaló el frontend se aceptan, y dos hallazgos de la revisión cambian la especificación:
+- «Tu cuenta» pide `GET /v1/dispositivos` para saber la clase del dispositivo actual (E1, 3.5). Si falla, dice «navegador»;
+- los ingresos traen `clase` en `dispositivo`, y «(este {…})» la usa (2.5 y C7);
+- al desactivar, primero va el `DELETE` y después se borra la suscripción del navegador (3.4);
+- `CELULAR.enUnMinuto` en «Confirma tu celular» queda para MATU-93: esa pantalla no es de esta historia;
+- los íconos de la PWA usan el corazón del favicon (3.6);
+- **hallazgo:** mientras se guarda una casilla, las dos van con `aria-disabled`, no con `disabled`, y el foco se devuelve después del render (3.3 y 3.4). Con `disabled` el navegador saca el foco al `body`;
+- **hallazgo:** la nota del estado E lleva `iconoEnLinea`, porque a 320 px con el texto al 200 % se salía 22 px (3.4).
 
 **Qué cambia de la 0.1 a la 1.1.** Entran las decisiones del orquestador, por delegación de Jorge (sección 0), y el contrato propuesto `docs/api/propuestos/donde-entraste.openapi.yaml`:
 - `GET /v1/yo/ingresos` responde `eventos[]` y `hay_mas`;
@@ -31,7 +40,7 @@
 
 | # | Decisión |
 |---|---|
-| E1 | **Aceptada.** El sustantivo sale de `clase`, que viene en `DispositivoVista`: `telefono` da «teléfono», `computador` da «computador» y `otro` da «navegador». Se usa en «Este {…}», en «(este {…})» y en «Cerrar en ese {…}». Las líneas de ingresos no traen `clase`. Para «(este {…})» se usa la clase del dispositivo actual, la de la fila con `actual: true` de `GET /v1/dispositivos` |
+| E1 | **Aceptada.** El sustantivo sale de `clase`, que viene en `DispositivoVista`: `telefono` da «teléfono», `computador` da «computador» y `otro` da «navegador». Se usa en «Este {…}», en «(este {…})» y en «Cerrar en ese {…}». **(1.2)** Las líneas de ingresos traen `clase` en `dispositivo`, y «(este {…})» usa esa: es la misma que la de la fila actual, porque solo se agrega con `actual: true`. En «Tu cuenta», la clase sale de la fila con `actual: true` de `GET /v1/dispositivos`. Si esa lectura falla, el sustantivo es «navegador», que vale para cualquiera, y mientras no llega el `h3` del bloque no se muestra |
 | E2 | **Aceptada.** «Dónde entraste» es una página propia, `/cuenta/donde-entraste`, con los teléfonos y los últimos ingresos. Los avisos van en «Tu cuenta», en un solo bloque con las preferencias y el teléfono actual |
 | E3 | **Aceptada.** Cada casilla se guarda al marcarla, sin interfaz optimista: queda en «Guardando…» hasta el 200 |
 | E4 | **Aceptada.** Al desmarcar «En tus teléfonos», el bloque del teléfono se oculta y la inscripción no se borra, porque no se envía nada. Con la casilla marcada y el teléfono activado, «Desactivar en este teléfono» sigue disponible en el bloque |
@@ -190,7 +199,7 @@ Es el patrón de `LineaApertura` de MATU-45 (4.3):
 **La cola** dice «a las {HH:MM} · {nombre}» **[ANALISTA]**:
 - solo la llevan `entraste` y `saliste`, que no nombran el dispositivo en su frase;
 - con `dispositivo: null` en esos dos, la cola es «a las {HH:MM} · en un teléfono o computador que ya no está en tu lista» **[NUEVO]**;
-- se agrega « (este teléfono)» **[ANALISTA]**, o «(este computador)» y «(este navegador)» **[NUEVO]**, si `dispositivo.actual` es `true`. El sustantivo sale de la clase del dispositivo actual (E1);
+- se agrega « (este teléfono)» **[ANALISTA]**, o «(este computador)» y «(este navegador)» **[NUEVO]**, si `dispositivo.actual` es `true`. El sustantivo sale de `dispositivo.clase` (E1, 1.2);
 - en los demás tipos, la cola dice solo «a las {HH:MM}». Los que nombran el dispositivo ya lo dicen en la frase, y los de la cuenta no tienen dispositivo;
 - `<time dateTime={ocurrido_en} title="DD/MM/AAAA HH:MM">` envuelve la hora;
 - nunca la IP, la ubicación ni el correo (C3 y C5).
@@ -356,9 +365,11 @@ Son un `fieldset` cuya `legend` lleva el estilo de un `h2`: «Avisos cuando un i
 | Alcance | Vale para todos tus grupos. **[ANALISTA, D5]** | `p text-base font-bold`, también en el `aria-describedby`. Va en negrita porque es lo que la gente no espera |
 | Casilla 1 | Por correo **[LENGUAJE 20]** → `correo` | La casilla de DISENO 6: `size-6`, `accent-turquesa` y la etiqueta de `min-h-12` como área táctil |
 | Casilla 2 | En tus teléfonos **[AJUSTE de LENGUAJE 20, D5]**: reemplaza a «En este teléfono», porque la preferencia vale para todos los teléfonos → `push` | Igual |
-| Guardando | Guardando… **[LENGUAJE 17]**. Es un `p role="status"` bajo las casillas. La casilla que se tocó lleva `aria-busy`, y las dos quedan `disabled` mientras se guarda | `text-base text-tenue` |
+| Guardando | Guardando… **[LENGUAJE 17]**. Es un `p role="status"` bajo las casillas. La casilla que se tocó lleva `aria-busy`, y las dos quedan con `aria-disabled="true"` mientras se guarda: un cambio en ese momento se ignora y la casilla no se mueve. **(1.2) No van `disabled`**: un control `disabled` pierde el foco y el navegador lo deja en el `body` (revisión del 12-11). Se ven igual que deshabilitadas, con la opacidad de DISENO 6 (`aria-disabled:opacity-60`) | `text-base text-tenue` |
 | Guardado | Guardamos tus avisos. **[ANALISTA]**, en el mismo `p role="status"`. Se borra al cambiar otra vez | `text-base` |
 | Error o sin red | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. **[LENGUAJE 17]**. La casilla vuelve a lo que estaba antes de tocarla y el foco se queda en ella | `MensajeError` bajo las casillas |
+
+**(1.2) El foco, en todo el bloque.** Cuando el foco tiene que ir a otro control después de una respuesta (la casilla tras guardar, «Desactivar…» tras activar, «Activar…» tras desactivar), se mueve **después de que React pinta el cambio**: en un efecto que mira el estado, como hace «Dónde entraste» con su nota, y no con un `setTimeout(0)` en el `finally`. En la revisión, el `setTimeout` corría antes del render y el foco terminaba en el `body` en los tres casos. Al guardar una casilla, «Activaste…» o «Desactivaste…» se borran, y al activar o desactivar se borra «Guardamos tus avisos.»: solo se ve el mensaje de lo último que se hizo.
 | Piloto | En el piloto los avisos se prueban sin enviarse: no te llegará nada. **[ANALISTA]** | `Nota tono="atenta"` con el ícono `Info`, el rótulo del piloto de DISENO 3. Va una vez, al final del bloque, y vale para los dos canales. Se ve mientras `envio_simulado` de `GET /v1/dispositivos/actual/push` sea `true`, que en el semestre es siempre. Si esa lectura falla, se muestra igual, porque es lo cierto en el piloto |
 
 **Estados del bloque.**
@@ -390,7 +401,7 @@ Mientras carga esa lectura, el bloque muestra «Cargando…» con `role="status"
 | **C. El navegador no deja** | `Notification.permission === 'denied'` | `Etiqueta` neutra con `Circle` y «Sin activar». `Nota tono="atenta"`: «Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.» **[ANALISTA]**. Sin botón, porque no hay nada que MATU pueda hacer |
 | **D. Sin soporte** | No hay `serviceWorker`, `PushManager` o `Notification`, y no es el caso E | `Nota tono="rocio"`: «Este navegador no puede recibir avisos.» **[ANALISTA]** «Puedes recibirlos por correo.» **[NUEVO]**. Sin etiqueta ni botón |
 | **F. MATU todavía no puede activarlos** | `clave_publica: null`, en un navegador que sí tiene soporte (Q6 del contrato) | La misma forma que D, `Nota tono="rocio"` sin etiqueta ni botón: «Por ahora no se pueden activar los avisos en este teléfono. Puedes recibirlos por correo.» **[NUEVO]**. No habla de la clave ni de la configuración, y no culpa al navegador. En un computador o en otro navegador, «teléfono» cambia según E1. Si además falta el soporte, manda D, y en un iPhone sin instalar, manda E |
-| **E. iPhone o iPad sin agregar a la pantalla de inicio** | iOS o iPadOS, sin `display-mode: standalone` ni `navigator.standalone` (ADR-026) | `Nota tono="rocio"` con el título «En iPhone, primero agrega MATU a tu pantalla de inicio.» **[NUEVO]** y una lista `ol list-decimal ps-5`: 1. «Toca Compartir {ícono `Share`} en Safari.» 2. «Elige «Agregar a inicio».» 3. «Abre MATU desde su ícono y vuelve a Tu cuenta.» **[NUEVO]**. El ícono `Share` va en línea, en `size-5`, con `aria-label="Compartir"`, porque es lo que la persona busca en la pantalla. Sin botón. Si el iPhone instalado tampoco tiene `PushManager` (iOS anterior a 16.4), pasa a D |
+| **E. iPhone o iPad sin agregar a la pantalla de inicio** | iOS o iPadOS, sin `display-mode: standalone` ni `navigator.standalone` (ADR-026) | `Nota tono="rocio"` con el título «En iPhone, primero agrega MATU a tu pantalla de inicio.» **[NUEVO]** y una lista `ol list-decimal ps-5`: 1. «Toca Compartir {ícono `Share`} en Safari.» 2. «Elige «Agregar a inicio».» 3. «Abre MATU desde su ícono y vuelve a Tu cuenta.» **[NUEVO]**. El ícono `Share` va en línea, en `size-5`, con `aria-label="Compartir"`, porque es lo que la persona busca en la pantalla. **(1.2)** La `Nota` lleva `iconoEnLinea` (MATU-44), para que en el modo `angosto` el ícono vaya en la línea del título y la lista use todo el ancho: sin eso, a 320 px con el texto al 200 % «Compartir» se sale 22 px. Sin botón. Si el iPhone instalado tampoco tiene `PushManager` (iOS anterior a 16.4), pasa a D |
 
 **Lo que pasa al tocar.**
 
@@ -401,7 +412,7 @@ Mientras carga esa lectura, el bloque muestra «Cargando…» con `role="status"
 | La persona cierra el aviso del navegador sin elegir (sigue `default`) | Sigue en B. `p role="status" text-base`: «No activamos los avisos. Puedes volver a intentarlo.» **[NUEVO]** | Se queda en el botón |
 | La persona elige «Bloquear» | Pasa a C | A la nota de C, que es `enfocable` |
 | Falla el `PUT` o no hay red | Sigue en B, y el frontend borra la suscripción del navegador para que no quede a medias. `MensajeError`: «No pudimos activar los avisos. Revisa tu conexión y vuelve a intentarlo.» **[NUEVO]** | Se queda en el botón |
-| Desactivando (borra la suscripción y `DELETE /v1/dispositivos/actual/push`) | «Desactivando…» **[NUEVO]** | Se queda en el botón |
+| Desactivando (`DELETE /v1/dispositivos/actual/push` y, con el 204, borra la suscripción del navegador; 1.2) | «Desactivando…» **[NUEVO]**. Si el `DELETE` falla, la suscripción sigue y la pantalla sigue en A. Si después falla borrar la del navegador, no se avisa: el servidor ya no envía a este teléfono | Se queda en el botón |
 | Desactivado | Pasa a B. `p role="status"`: «Desactivaste los avisos en este teléfono.» **[NUEVO]** | Al botón «Activar en este teléfono» |
 | Falla el `DELETE` | Sigue en A. `MensajeError`: «No pudimos desactivar los avisos. Revisa tu conexión y vuelve a intentarlo.» **[NUEVO]** | Se queda en el botón |
 
@@ -415,7 +426,7 @@ En un computador o en un navegador genérico, «teléfono» cambia por «computa
 | Bajada | Los teléfonos y computadores donde entraste, y tus últimos ingresos. **[NUEVO]** | `p text-base text-tenue` |
 | Botón | Ver dónde entraste **[NUEVO]** | `Boton variante="secundario"`, que navega a `/cuenta/donde-entraste`. Es un botón y no un enlace porque así lo hace hoy la app (`navegar`) |
 
-No pide nada a la API: no muestra cuántos dispositivos hay, para que «Tu cuenta» no espere otra petición.
+Esta entrada no pide nada a la API: no muestra cuántos dispositivos hay, para que «Tu cuenta» no espere otra petición. **(1.2)** El bloque de avisos sí pide `GET /v1/dispositivos`, solo para la clase del dispositivo actual (E1). No espera esa lectura para mostrar las casillas.
 
 ### 3.6 El `manifest` y los íconos (D6, necesarios para iPhone)
 
@@ -432,6 +443,7 @@ Sin el `manifest`, el iPhone no instala MATU y el estado E no tiene salida.
 | `background_color` | `#ECF3F2`, el `papel` claro |
 | Íconos | El logo de DISENO 1: el círculo `marca` con el `Heart` de lucide relleno en blanco. Van en PNG de 192 y 512 px, `purpose: any`, con fondo transparente fuera del círculo. Además, un PNG `maskable` de 512 px: el cuadrado entero en `marca` y el corazón blanco dentro del 60 % central, la zona segura. El `apple-touch-icon` es de 180 px, cuadrado y opaco (iOS pinta de negro lo transparente): fondo `marca` y el corazón blanco al 60 % |
 | Dónde | `web/public/`, generados en local. **Nada desde una CDN** |
+| El corazón (1.2) | Es el del favicon de `index.html`, no el `Heart` de lucide: así el favicon, el ícono de la pantalla de inicio y el del manifiesto tienen la misma forma. En la revisión mide el 49 % del ancho, y su punto más lejano queda a 0,27 del lado desde el centro: dentro del 60 % central y del círculo seguro de radio 0,4. Si se quiere el `Heart` de lucide igual que el logo de la barra, se cambia en el favicon y en los cuatro PNG en un mismo cambio (P3, no bloquea) |
 
 ---
 
@@ -495,6 +507,7 @@ Sin el `manifest`, el iPhone no instala MATU y el estado E no tiene salida.
 13. «Tu correo», «Tu celular» y «Política de privacidad» miden 17 px (`text-base`).
 14. No hay ningún botón «Cambiar mi contraseña».
 15. Ningún texto dice «sesión», «dispositivo», «IP» (salvo en la bajada, donde se dice que no se guarda), «token», «evento» ni «auditoría».
+16. **(1.2)** Después de guardar una casilla (bien o con error), de activar o de desactivar, `document.activeElement` nunca es el `body`: es la casilla, el botón que aparece o la nota de C.
 
 ---
 
@@ -508,7 +521,7 @@ Sin el `manifest`, el iPhone no instala MATU y el estado E no tiene salida.
 | C4 | La clave VAPID | Llega por `GET /v1/dispositivos/actual/push` en `clave_publica`, o `null`. La misma respuesta trae `registrado` y `envio_simulado` (3.4) |
 | C5 | `push_activo` por dispositivo | No hace falta. Para este teléfono basta `registrado` |
 | C6 | Cambiar la contraseña con la entrada abierta | No se puede. Se quita «Cambiar mi contraseña» (E5) y la ayuda lo dice en texto (2.5) |
-| C7 | `clase` | El backend la agrega a `DispositivoVista`: `telefono`, `computador` u `otro` (E1). El YAML de hoy no la trae todavía. Los eventos no la llevan, así que con `dispositivo: null` el texto nombra «un teléfono o computador» |
+| C7 | `clase` | Está en `DispositivoVista`: `telefono`, `computador` u `otro` (E1). **(1.2)** También llega en el `dispositivo` de cada evento, y «(este {…})» la usa. Con `dispositivo: null` no hay clase, así que el texto nombra «un teléfono o computador» |
 | C8 | `Cache-Control: no-store` | Sí, en todas las respuestas de `/v1/yo/` y `/v1/dispositivos` |
 | C9 | `SolicitudPush` sin `p256dh` ni `auth` | Sigue igual. No afecta a la pantalla |
 
