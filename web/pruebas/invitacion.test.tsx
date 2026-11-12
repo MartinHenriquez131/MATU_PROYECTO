@@ -288,6 +288,19 @@ describe('Confirmar y unirse', () => {
     expect(screen.getByText('Ve el nombre de María, Pedro y Elena y sus insumos. No ve la ficha.')).toBeVisible()
   })
 
+  it('pregunta por la capa 3 para describir «Paga» como en /grupo/invitar (v1.2)', async () => {
+    apiInvitacion()
+    const conocerCapa3 = vi.fn()
+    abrir({ hash: null, fase: 'dentro', invitacion: { ...EN_MEMORIA, verificacion: { ...VERIFICACION, rol: 'pagador' } as never }, capa3: null, conocerCapa3 })
+    await waitFor(() => expect(conocerCapa3).toHaveBeenCalled())
+  })
+
+  it('el título parte por sílabas un nombre largo (hyphens-auto)', () => {
+    apiInvitacion()
+    abrir({ hash: null, fase: 'dentro', invitacion: EN_MEMORIA })
+    expect(h1()).toHaveClass('hyphens-auto', 'break-words')
+  })
+
   it('sin sesión y con la invitación en memoria, vuelve a pedir la cuenta', () => {
     apiInvitacion()
     abrir({ hash: null, fase: 'fuera', invitacion: EN_MEMORIA })

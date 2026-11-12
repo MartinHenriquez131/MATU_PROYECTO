@@ -304,9 +304,9 @@ describe('Cambiar el rol', () => {
     abrir('admin')
     await abrirCambio('Rosa Pérez')
     await userEvent.click(enDialogo().getByRole('radio', { name: 'Paga' }))
-    const nota = enDialogo().getByText('Rosa Pérez dejará de ver la ficha. Se cortan 2 enlaces de relevo que compartió.')
+    // Una sola nota: lo que cambia y, «además», lo de pagar. Rosa no administra: nada de invitaciones.
+    const nota = enDialogo().getByText('Rosa Pérez dejará de ver la ficha. Se cortan 2 enlaces de relevo que compartió. Como paga, no verá la ficha hasta que le des permiso.')
     expect(nota.closest('[aria-live="polite"]')).not.toBeNull()
-    expect(enDialogo().getByText('Como paga, no verá la ficha hasta que le des permiso.')).toBeVisible()
     const guardar = enDialogo().getByRole('button', { name: 'Guardar el cambio' })
     expect(guardar).toHaveClass('bg-pronto')
     expect(guardar).not.toHaveClass('bg-turquesa')
@@ -365,13 +365,81 @@ describe('Cambiar el rol', () => {
     expect(screen.getByRole('dialog')).toBeVisible()
   })
 
+  it('mi propio rol: «Ahora cuidas.», en segunda persona y sin mi nombre (v1.2)', async () => {
+    api({
+      atender: (p) =>
+        p.linea === `PATCH /v1/grupos/${GRUPO_ID}/miembros/m-carmen`
+          ? { status: 200, cuerpo: { miembro: { ...CARMEN, rol: 'cuidador', etag: '"v2"' }, enlaces_cortados: 0 } }
+          : null,
+    })
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Cuida' }))
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Guardar el cambio' }))
+    expect(await screen.findByText('Ahora cuidas.')).toBeVisible()
+    expect(screen.queryByText(/Ahora Carmen/)).toBeNull()
+  })
+
+  it('v1.3: otra persona que administra pasa a «Cuida»: deja de administrar, sus invitaciones se anulan y el botón es pronto', async () => {
+    api()
+    abrir('admin')
+    await abrirCambio('Tomás Soto')
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Cuida' }))
+    const nota = enDialogo().getByText('Tomás Soto dejará de administrar el grupo. Si creó invitaciones que nadie ha usado, se anulan.')
+    expect(nota).toBeVisible()
+    expect(nota.closest('.font-bold')).toBeNull()
+    expect(enDialogo().getByRole('button', { name: 'Guardar el cambio' })).toHaveClass('bg-pronto')
+  })
+
+  it('v1.3: de admin a «Paga», la nota termina con las invitaciones; tras guardar, «Invitaciones sin usar» se vuelve a pedir', async () => {
+    const pedidas = api({
+      atender: (p) =>
+        p.linea === `PATCH /v1/grupos/${GRUPO_ID}/miembros/m-tomas`
+          ? { status: 200, cuerpo: { miembro: { ...TOMAS, rol: 'pagador', puede_ver_plan: false, etag: '"v2"' }, enlaces_cortados: 0 } }
+          : null,
+    })
+    abrir('admin')
+    await abrirCambio('Tomás Soto')
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Paga' }))
+    expect(
+      enDialogo().getByText(
+        'Tomás Soto dejará de ver la ficha. Como paga, no verá la ficha hasta que le des permiso. Si creó invitaciones que nadie ha usado, se anulan.',
+      ),
+    ).toBeVisible()
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Guardar el cambio' }))
+    expect(await screen.findByText('Ahora Tomás Soto paga.')).toBeVisible()
+    await waitFor(() => expect(pedidas.filter((p) => p.linea === `GET /v1/grupos/${GRUPO_ID}/invitaciones`)).toHaveLength(2))
+  })
+
+  it('v1.3: en mi fila, de admin a «Paga»: los enlaces antes que las invitaciones', async () => {
+    api()
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Paga' }))
+    expect(
+      enDialogo().getByText(
+        'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo. Se cortan los enlaces de relevo que compartiste. Hoy abre 1. Si creaste invitaciones que nadie ha usado, se anulan.',
+      ),
+    ).toBeVisible()
+  })
+
+  it('cuidadora a «Se informa»: sin la frase de las invitaciones (no administra)', async () => {
+    api()
+    abrir('admin')
+    await abrirCambio('Rosa Pérez')
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Se informa' }))
+    expect(enDialogo().queryByText(/invitaciones que nadie ha usado/)).toBeNull()
+  })
+
   it('409 ultimo-admin: el mensaje dentro del diálogo, que no se cierra, y la lista se vuelve a pedir', async () => {
     const pedidas = api({ atender: (p) => (p.linea.startsWith('PATCH') ? problema(409, 'ultimo-admin') : null) })
     abrir('admin')
     await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
     expect(enDialogo().getByRole('heading', { level: 2, name: 'Cambiar tu rol' })).toBeVisible()
     await userEvent.click(enDialogo().getByRole('radio', { name: 'Cuida' }))
-    expect(enDialogo().getByText('Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo.')).toBeVisible()
+    expect(
+      enDialogo().getByText('Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo. Si creaste invitaciones que nadie ha usado, se anulan.'),
+    ).toBeVisible()
     await userEvent.click(enDialogo().getByRole('button', { name: 'Guardar el cambio' }))
     expect(await enDialogo().findByText('El grupo necesita alguien que lo administre. Primero da ese rol a otra persona.')).toBeVisible()
     await waitFor(() => expect(pedidas.filter((p) => p.linea.endsWith('/miembros') && p.linea.startsWith('GET'))).toHaveLength(2))
@@ -500,11 +568,37 @@ describe('Sacar a alguien', () => {
     expect(pedidas.filter((p) => p.linea.startsWith('DELETE'))).toHaveLength(1)
   })
 
-  it('sin enlaces: «No tiene enlaces de relevo que abran ahora.»', async () => {
+  it('v1.3: sacar a quien administra suma el punto de las invitaciones, sin negrita, antes de «Para volver…», y las vuelve a pedir', async () => {
+    const pedidas = api({ atender: (p) => (p.linea === `DELETE /v1/grupos/${GRUPO_ID}/miembros/m-tomas` ? { status: 200, cuerpo: { enlaces_cortados: 0 } } : null) })
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Sacar del grupo a Tomás Soto' }))
+    const puntos = enDialogo().getAllByRole('listitem')
+    expect(puntos.map((li) => li.textContent)).toEqual([
+      'Dejará de verlo ahora.',
+      'No tiene enlaces de relevo que abran ahora.',
+      'Lo que escribió en la ficha queda.',
+      'Si creó invitaciones que nadie ha usado, se anulan.',
+      'Para volver, tendrías que invitar a Tomás Soto de nuevo.',
+    ])
+    expect(puntos[3]).not.toHaveClass('font-bold')
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Sacar del grupo' }))
+    expect(await screen.findByText('Tomás Soto ya no está en el grupo.')).toBeVisible()
+    await waitFor(() => expect(pedidas.filter((p) => p.linea === `GET /v1/grupos/${GRUPO_ID}/invitaciones`)).toHaveLength(2))
+  })
+
+  it('sacar a quien no administra no dice nada de invitaciones', async () => {
+    api()
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Sacar del grupo a Rosa Pérez' }))
+    expect(enDialogo().queryByText(/invitaciones que nadie ha usado/)).toBeNull()
+  })
+
+  it('sin enlaces: «No tiene enlaces de relevo que abran ahora.», con peso normal (v1.2)', async () => {
     api()
     abrir('admin')
     await userEvent.click(await screen.findByRole('button', { name: 'Sacar del grupo a Rodrigo Soto' }))
     expect(enDialogo().getByText('No tiene enlaces de relevo que abran ahora.')).toBeVisible()
+    expect(enDialogo().getByText('No tiene enlaces de relevo que abran ahora.')).not.toHaveClass('font-bold')
   })
 
   it('sin red: el error con su nombre, y la persona sigue en la lista', async () => {
@@ -532,12 +626,63 @@ describe('Anular una invitación', () => {
     expect(pedidas.filter((p) => p.linea.startsWith('DELETE'))).toHaveLength(1)
   })
 
-  it('409 invitacion-cerrada: dice que ya se usó y vuelve a pedir la lista', async () => {
-    api({ atender: (p) => (p.linea.startsWith('DELETE') ? problema(409, 'invitacion-cerrada', { estado: 'usada' }) : null) })
+  it('409 invitacion-cerrada: dice que ya se usó, vuelve a pedir la lista y el foco va a la nota, nunca al body (v1.2, P1)', async () => {
+    let cerrada = false
+    const pedidas = api({
+      atender: async (p): Promise<RespuestaFalsa | null> => {
+        if (p.linea.startsWith('DELETE')) return (cerrada = true), problema(409, 'invitacion-cerrada', { estado: 'usada' })
+        // Como en la red: la lista tarda, y mientras tanto el bloque se desmonta («Cargando…»).
+        if (cerrada && p.linea.endsWith('/miembros')) await new Promise((r) => setTimeout(r, 300))
+        return null
+      },
+    })
     abrir('admin')
     await userEvent.click(await screen.findByRole('button', { name: 'Anular la invitación' }))
     await userEvent.click(enDialogo().getByRole('button', { name: 'Anular la invitación' }))
     expect(await screen.findByText('Esa invitación ya se usó.')).toBeVisible()
+    await waitFor(() => expect(pedidas.filter((p) => p.linea === `GET /v1/grupos/${GRUPO_ID}/invitaciones`)).toHaveLength(2))
+    // El texto también está en la región viva de los anuncios: se busca el de la nota.
+    const enNota = () => screen.getAllByText('Esa invitación ya se usó.').find((x) => x.closest('[data-aviso]'))!.closest('[data-aviso]')
+    await waitFor(() => expect(enNota()).toHaveFocus())
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('409 sin estado: «Esa invitación ya no se puede anular.»', async () => {
+    api({ atender: (p) => (p.linea.startsWith('DELETE') ? problema(409, 'invitacion-cerrada') : null) })
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Anular la invitación' }))
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Anular la invitación' }))
+    expect(await screen.findByText('Esa invitación ya no se puede anular.')).toBeVisible()
+  })
+
+  it('el diálogo muestra la línea de la invitación y anula con «Anulando la invitación…»', async () => {
+    let soltar: () => void = () => {}
+    api({
+      atender: async (p): Promise<RespuestaFalsa | null> => {
+        if (!p.linea.startsWith('DELETE')) return null
+        await new Promise<void>((r) => (soltar = r))
+        return { status: 204 }
+      },
+    })
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Anular la invitación' }))
+    expect(enDialogo().getByText(/^Se informa ·/)).toHaveTextContent('Se informa · vence el 19/11/2026 a las 21:30.')
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Anular la invitación' }))
+    expect(enDialogo().getByRole('button', { name: /Anular la invitación/ })).toHaveAttribute('aria-busy', 'true')
+    expect(enDialogo().getByText('Anulando la invitación…')).toBeInTheDocument()
+    soltar()
+    expect(await screen.findByText('Invitación anulada.')).toBeVisible()
+  })
+
+  it('una bloqueada: «{rol} · se bloqueó.», sin fecha, con el candado y la frase, y se puede anular', async () => {
+    api({ invitaciones: [{ ...INVITACION, rol: 'cuidador', estado: 'bloqueada' }] })
+    abrir('admin')
+    const bloque = within(await screen.findByRole('region', { name: 'Invitaciones sin usar' }))
+    expect(bloque.getByText(/^Cuida ·/)).toHaveTextContent(/^Cuida · se bloqueó\.$/)
+    const frase = bloque.getByText('El código se escribió mal cinco veces. Ya no sirve.')
+    expect(frase.parentElement!.querySelector('svg')).toHaveClass('text-tenue')
+    await userEvent.click(bloque.getByRole('button', { name: 'Anular la invitación' }))
+    expect(enDialogo().getByText(/^Cuida ·/)).toHaveTextContent('Cuida · se bloqueó.')
   })
 })
 
@@ -557,8 +702,13 @@ describe('Salir del grupo', () => {
       'Dejarás de verlo ahora.',
       'Se cortan los enlaces de relevo que compartiste. Hoy abre 1.',
       'Lo que escribiste en la ficha queda, porque es parte del cuidado de María.',
+      'Si creaste invitaciones que nadie ha usado, se anulan.',
       'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.',
     ])
+    // v1.3: el correo, como texto y sin enlace, con los comprobantes porque la capa 3 está encendida.
+    const correo = enDialogo().getByText('Si después necesitas lo que hiciste en el grupo o los comprobantes de tus pagos, pídelos a cuidaconmatu@gmail.com.')
+    expect(correo).toHaveClass('text-tenue', 'break-words')
+    expect(enDialogo().queryByRole('link')).toBeNull()
     expect(enDialogo().getByRole('button', { name: 'Quedarme' })).toBeVisible()
     await userEvent.click(enDialogo().getByRole('button', { name: 'Salir del grupo' }))
     await waitFor(() => expect(window.location.pathname).toBe('/'))
@@ -586,6 +736,14 @@ describe('Salir del grupo', () => {
     expect(await enDialogo().findByText('El grupo necesita alguien que lo administre. Primero da ese rol a otra persona.')).toBeVisible()
   })
 
+  it('v1.3: sin la capa 3 el correo no nombra los pagos, y quien no administra no ve lo de las invitaciones', async () => {
+    api()
+    abrir('cuidador', { capa3: false })
+    await userEvent.click(await within(await screen.findByRole('region', { name: 'Salir del grupo' })).findByRole('button', { name: 'Salir del grupo' }))
+    expect(enDialogo().getByText('Si después necesitas lo que hiciste en el grupo, pídelo a cuidaconmatu@gmail.com.')).toBeVisible()
+    expect(enDialogo().queryByText(/invitaciones que nadie ha usado/)).toBeNull()
+  })
+
   it('sin red: «Sigues en el grupo.»', async () => {
     api({ atender: (p) => (p.linea.endsWith('/salida') ? RED : null) })
     abrir('cuidador')
@@ -603,6 +761,26 @@ describe('Salir del grupo', () => {
     await userEvent.click(enDialogo().getByRole('button', { name: 'Quedarme' }))
     await waitFor(() => expect(boton).toHaveFocus())
     expect(pedidas.some((p) => p.linea.endsWith('/salida'))).toBe(false)
+  })
+
+  it('sin persona registrada (5.10): sin el punto de la ficha, y sola en el grupo solo la primera oración', async () => {
+    api({ atender: (p) => (p.linea === `POST /v1/grupos/${GRUPO_ID}/salida` ? problema(409, 'unica-persona') : null) })
+    abrir('cuidador', { personas: [], persona: null })
+    await userEvent.click(await within(await screen.findByRole('region', { name: 'Salir del grupo' })).findByRole('button', { name: 'Salir del grupo' }))
+    expect(enDialogo().getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      'Dejarás de verlo ahora.',
+      'Se cortan los enlaces de relevo que compartiste. Hoy abre 1.',
+      'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.',
+    ])
+    await userEvent.click(enDialogo().getByRole('button', { name: 'Salir del grupo' }))
+    expect(await enDialogo().findByText('Eres la única persona de Familia Soto, así que no puedes salir.')).toBeVisible()
+  })
+
+  it('sola en el grupo y sin persona registrada: la sección dice solo la primera oración', async () => {
+    api({ miembros: [CARMEN], invitaciones: [] })
+    abrir('admin', { personas: [], persona: null })
+    const salir = within(await screen.findByRole('region', { name: 'Salir del grupo' }))
+    expect(await salir.findByText('Eres la única persona de Familia Soto, así que no puedes salir.')).toBeVisible()
   })
 
   it('nunca «Salir» solo: siempre «Salir del grupo»', async () => {
