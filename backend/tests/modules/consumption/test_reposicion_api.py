@@ -614,11 +614,12 @@ def test_logs_errores_y_auditoria_sin_cantidad_stock_ni_nombre(
         assert not _aparece_como_dato(valor, textos) and not _aparece_como_dato(valor, error.text)
     assert "secret" not in textos and "cantidad" not in textos and "stock_unidades" not in textos
     filas = _filas(
-        "SELECT accion, (to_jsonb(a) - 'id')::text, detalle, ip FROM auditoria a WHERE grupo_id = %s", familia.grupo.id
+        "SELECT accion, (to_jsonb(a) - 'id')::text, detalle, to_jsonb(a) ? 'ip' FROM auditoria a WHERE grupo_id = %s",
+        familia.grupo.id,
     )
     assert {f[0] for f in filas} == {"reposicion.declarar", "alerta.resolver", "alerta.descartar", "consumo.editar"}
-    for _, fila, detalle, ip in filas:
-        assert "secret" not in fila and detalle is None and ip is None
+    for _, fila, detalle, con_ip in filas:
+        assert "secret" not in fila and detalle is None and con_ip is False  # sin columna ip desde la 0025
         assert not any(_aparece_como_dato(v, fila) for v in ("4321", "4322", "4325"))
 
 

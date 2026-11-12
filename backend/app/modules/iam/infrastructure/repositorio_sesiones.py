@@ -3,7 +3,11 @@
 - resolver_refresh lee indice_token (sin RLS) antes de tener contexto, como el relevo (arquitectura
   7.7, excepción b). Después, cada transacción fija app.usuario_id con sesion_tenant y RLS
   (sesion_propia, dispositivo_propio, usuario_propio_*) acota todo al usuario.
-- Nunca se lee push_token ni token_hash para devolverlos: solo se escriben.
+- Nunca se lee push_token ni token_hash para devolverlos: solo se escriben. MATU-55 lee solo si hay un push_token
+  (push_token IS NOT NULL) y si el guardado cambió, dentro de la base.
+- MATU-55: ingresos lee la auditoría de la cuenta con columnas nombradas, sin la IP (que ya no existe), el request_id,
+  actor_ref, entidad_id ni el detalle. La RLS auditoria_cuenta_propia (0025) decide de quién son las filas, y
+  dispositivo_propio, de quién son los dispositivos que se unen.
 - conservar fija app.rol = 'operacion' y llama a iam_conservar (migración 0008), que solo borra.
 """
 
@@ -26,6 +30,7 @@ from app.modules.iam.application.ports import (
     TransaccionIam,
 )
 from app.modules.iam.domain.dispositivo import NOMBRE_GENERICO, PLATAFORMA_WEB, LimitesConservacion
+from app.modules.iam.domain.ingresos import FilaIngreso
 from app.modules.iam.domain.politica import AceptacionPolitica
 from app.modules.iam.domain.refresh import EstadoRefresh
 from app.modules.iam.domain.sesion import puede_iniciar_sesion
@@ -54,7 +59,28 @@ _ULTIMA_ACEPTACION = text(
     " ORDER BY aceptada_en DESC, id DESC LIMIT 1"
 )
 
-_DISPOSITIVO_COLUMNAS = "id, plataforma, nombre, creado_en, ultimo_uso_en, revocado_en"
+_DISPOSITIVO_COLUMNAS = (
+    "id, plataforma, nombre, creado_en, ultimo_uso_en, revocado_en, push_token IS NOT NULL AS push_activo"
+)
+
+# MATU-55 (decisión 260): el endpoint anterior se compara dentro de la base y nunca sale de ella
+_GUARDAR_PUSH = text(
+    "WITH previo AS (SELECT id, push_token FROM dispositivo WHERE id = :id AND revocado_en IS NULL FOR UPDATE)"
+    " UPDATE dispositivo d SET push_token = CAST(:push AS text) FROM previo WHERE d.id = previo.id"
+    " RETURNING previo.push_token IS DISTINCT FROM CAST(:push AS text) AS cambio"
+)
+_PUSH_REGISTRADO = text(
+    "SELECT push_token IS NOT NULL AS registrado FROM dispositivo WHERE id = :id AND revocado_en IS NULL"
+)
+
+# MATU-55 (decisiones 255 y 256): sin un WHERE por usuario, lo decide la RLS. grupo_id IS NULL lo repite la política
+_INGRESOS = text(
+    "SELECT a.accion, a.ocurrido_en, d.id AS dispositivo_id, d.nombre AS dispositivo_nombre"
+    " FROM auditoria a"
+    " LEFT JOIN dispositivo d ON a.entidad = 'dispositivo' AND d.id = a.entidad_id"
+    " WHERE a.grupo_id IS NULL AND a.accion = ANY(:acciones) AND a.ocurrido_en >= :desde"
+    " ORDER BY a.ocurrido_en DESC, a.id DESC LIMIT :limite"
+)
 
 
 def _dispositivo(fila: object) -> DispositivoGuardado:
@@ -65,6 +91,7 @@ def _dispositivo(fila: object) -> DispositivoGuardado:
         creado_en=fila.creado_en,  # type: ignore[attr-defined]
         ultimo_uso_en=fila.ultimo_uso_en,  # type: ignore[attr-defined]
         revocado=fila.revocado_en is not None,  # type: ignore[attr-defined]
+        push_activo=bool(fila.push_activo),  # type: ignore[attr-defined]
     )
 
 
@@ -201,12 +228,29 @@ class RepositorioSesionesSql:
         ).all()
         return [_dispositivo(fila) for fila in filas]
 
-    def guardar_push(self, dispositivo_id: uuid.UUID, push_token: str | None) -> bool:
-        resultado = self._sesion.execute(
-            text("UPDATE dispositivo SET push_token = :push WHERE id = :id AND revocado_en IS NULL RETURNING id"),
-            {"id": dispositivo_id, "push": push_token},
-        ).one_or_none()
-        return resultado is not None
+    def guardar_push(self, dispositivo_id: uuid.UUID, push_token: str | None) -> bool | None:
+        fila = self._sesion.execute(_GUARDAR_PUSH, {"id": dispositivo_id, "push": push_token}).one_or_none()
+        return None if fila is None else bool(fila.cambio)
+
+    def push_registrado(self, dispositivo_id: uuid.UUID) -> bool | None:
+        fila = self._sesion.execute(_PUSH_REGISTRADO, {"id": dispositivo_id}).one_or_none()
+        return None if fila is None else bool(fila.registrado)
+
+    def ingresos(self, desde: datetime, acciones: frozenset[str], limite: int) -> list[FilaIngreso]:
+        filas = self._sesion.execute(
+            _INGRESOS, {"acciones": sorted(acciones), "desde": desde, "limite": limite}
+        ).all()
+        return [
+            FilaIngreso(
+                accion=fila.accion,
+                ocurrido_en=fila.ocurrido_en,
+                dispositivo_id=fila.dispositivo_id,
+                dispositivo_nombre=(
+                    None if fila.dispositivo_id is None else (fila.dispositivo_nombre or NOMBRE_GENERICO)
+                ),
+            )
+            for fila in filas
+        ]
 
 
 _DATOS_CUENTA = text(

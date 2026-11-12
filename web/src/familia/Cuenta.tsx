@@ -19,6 +19,8 @@ import { useFamilia } from './estado'
 import { navegar } from './ruteo'
 import { Acciones, Etiqueta, GrupoOpciones, Nota, Pagina, Volver } from './ui'
 import { CELULAR, CUENTA_PROPIA, GENERAL, RECUPERAR } from './textos'
+import { AvisosCuenta } from './AvisosCuenta'
+import { ENTRADA_DONDE } from './textosDondeEntraste'
 
 type Carga = { estado: 'cargando' } | { estado: 'error' } | { estado: 'lista'; cuenta: Cuenta }
 
@@ -81,7 +83,7 @@ function EstadoCelular({ verificado }: { verificado: boolean }) {
  * El correo de contacto (`correo_contacto` de `GET /v1/politica`, pública y sin cookies). `null`
  * mientras no llega, si no está configurado o si la petición falla: el párrafo no se muestra.
  */
-function useCorreoPrivacidad() {
+export function useCorreoPrivacidad() {
   const [correo, setCorreo] = useState<string | null>(null)
   useEffect(() => {
     let vigente = true
@@ -174,6 +176,20 @@ export function TuCuenta() {
             </div>
             <FilaPolitica aceptada={carga.cuenta.politica_aceptada} />
           </dl>
+          {/* MATU-55 (3.5): la entrada a «Dónde entraste». No pide nada a la API. */}
+          <section aria-labelledby="donde-entraste-t" className="mt-6 flex max-w-xl flex-col items-start gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
+            <h2 id="donde-entraste-t" className="text-xl font-bold leading-snug">
+              {ENTRADA_DONDE.titulo}
+            </h2>
+            <p className="max-w-prose text-base text-tenue">{ENTRADA_DONDE.bajada}</p>
+            <Boton variante="secundario" className="angosto:self-stretch" onClick={() => navegar('/cuenta/donde-entraste')}>
+              {ENTRADA_DONDE.ver}
+            </Boton>
+          </section>
+          {/* MATU-55 (3.3 y 3.4): los avisos, para todos los grupos, y este teléfono. */}
+          <div className="mt-6">
+            <AvisosCuenta />
+          </div>
           <ComoPedir correo={correo} />
         </>
       )}

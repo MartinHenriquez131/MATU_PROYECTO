@@ -12,6 +12,7 @@ Sin I/O ni reloj del sistema.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import StrEnum
 from urllib.parse import urlsplit
 
 PLATAFORMA_WEB = "web"
@@ -51,6 +52,38 @@ def nombre_dispositivo(agente_usuario: str | None) -> str:
     if navegador is None or sistema is None:
         return NOMBRE_GENERICO
     return f"{navegador} en {sistema}"[:LARGO_MAXIMO_NOMBRE]
+
+
+class ClaseDispositivo(StrEnum):
+    """Qué sustantivo usa la pantalla para el dispositivo (MATU-55, C7 del diseñador): «teléfono», «computador» o
+    «navegador»."""
+
+    TELEFONO = "telefono"
+    COMPUTADOR = "computador"
+    OTRO = "otro"
+
+
+# El sistema de la lista cerrada de _SISTEMAS y su clase. iPad, y "Navegador web" (sin sistema reconocido), son OTRO
+_CLASE_POR_SISTEMA = {
+    "Android": ClaseDispositivo.TELEFONO,
+    "iPhone": ClaseDispositivo.TELEFONO,
+    "Windows": ClaseDispositivo.COMPUTADOR,
+    "Mac": ClaseDispositivo.COMPUTADOR,
+    "Linux": ClaseDispositivo.COMPUTADOR,
+    "ChromeOS": ClaseDispositivo.COMPUTADOR,
+}
+
+
+def clase_dispositivo(nombre: str) -> ClaseDispositivo:
+    """La clase de un dispositivo, desde su nombre guardado (MATU-55, C7).
+
+    El nombre ya es lo que MATU dedujo del agente de usuario al entrar (nombre_dispositivo), y el agente no se guarda
+    (decisión 47). Como el nombre lleva el sistema de la lista cerrada, la clase sale de ahí sin guardar nada nuevo:
+    clase_dispositivo(nombre_dispositivo(agente)) es la clase del agente."""
+    _, separador, sistema = nombre.rpartition(" en ")
+    if not separador:
+        return ClaseDispositivo.OTRO
+    return _CLASE_POR_SISTEMA.get(sistema, ClaseDispositivo.OTRO)
 
 
 # Servicios de Web Push admitidos (decisión 50). Un host exacto, o un sufijo que empieza con punto

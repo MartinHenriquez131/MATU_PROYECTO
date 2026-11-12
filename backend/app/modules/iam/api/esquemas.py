@@ -151,6 +151,19 @@ class SesionRespuesta(BaseModel):
     expira_en: int
 
 
+_CLASE = Annotated[
+    Literal["telefono", "computador", "otro"],
+    Field(
+        description=(
+            "MATU-55 (C7): qué sustantivo usa la pantalla, «teléfono», «computador» o «navegador». Lo deduce el"
+            " servidor del sistema del nombre, que salió del agente de usuario al entrar (Android e iPhone son"
+            " telefono; Windows, Mac, Linux y ChromeOS, computador; iPad y «Navegador web», otro). El agente no se"
+            " guarda"
+        )
+    ),
+]
+
+
 class DispositivoVista(BaseModel):
     """Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario."""
 
@@ -159,9 +172,19 @@ class DispositivoVista(BaseModel):
     id: uuid.UUID
     plataforma: Literal["android", "ios", "web"]
     nombre: Annotated[str, Field(max_length=LARGO_MAXIMO_NOMBRE)]
+    clase: _CLASE
     creado_en: datetime
     ultimo_uso_en: datetime | None
     actual: bool
+    push_activo: Annotated[
+        bool,
+        Field(
+            description=(
+                "MATU-55 (C5): si el dispositivo tiene un endpoint de push guardado («Avisos activados»). Nunca el"
+                " endpoint"
+            )
+        ),
+    ]
 
 
 class ListaDispositivos(BaseModel):
@@ -195,6 +218,109 @@ class SolicitudPush(BaseModel):
         if not push_admitido(valor):
             raise PydanticCustomError("push_no_admitido", "el servicio de avisos de este navegador no está admitido")
         return valor
+
+
+# --- MATU-55: Dónde entraste ------------------------------------------------------------------------
+
+
+class PushActualVista(BaseModel):
+    """GET /v1/dispositivos/actual/push (decisión 261). Nunca lleva el endpoint ni la clave privada."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    clave_publica: Annotated[
+        str | None,
+        Field(
+            pattern=r"^B[A-Za-z0-9_-]{86}$",
+            description=(
+                "Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87"
+                " caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no"
+                " está configurada"
+            ),
+        ),
+    ]
+    registrado: Annotated[
+        bool, Field(description="Si el dispositivo del claim did tiene un endpoint de push guardado")
+    ]
+    envio_simulado: Annotated[
+        bool,
+        Field(description="true mientras no exista un adaptador real de push (decisión 112): no se envía nada a nadie"),
+    ]
+
+
+class DispositivoEventoVista(BaseModel):
+    """El dispositivo de un evento (C3): nunca el id, la plataforma, el push_token, la IP ni el agente de usuario."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: Annotated[str, Field(max_length=LARGO_MAXIMO_NOMBRE, examples=["Chrome en Android"])]
+    clase: _CLASE
+    actual: Annotated[
+        bool,
+        Field(
+            description=(
+                "true si es el dispositivo del claim did de esta sesión. Con un access token sin did, siempre false"
+            )
+        ),
+    ]
+
+
+class EventoCuentaVista(BaseModel):
+    """Un evento de la propia cuenta: solo tipo, ocurrido_en y dispositivo (C3 a C5)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tipo: Annotated[
+        Literal[
+            "entraste",
+            "saliste",
+            "cerraste_en_dispositivo",
+            "salida_por_seguridad",
+            "contrasena_cambiada",
+            "celular_confirmado",
+            "codigo_recuperacion_pedido",
+            "avisos_cambiados",
+            "avisos_activados",
+            "avisos_desactivados",
+        ],
+        Field(
+            description=(
+                "Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla"
+                " arma el texto con lenguaje.md e ignora un tipo que no conoce"
+            )
+        ),
+    ]
+    ocurrido_en: Annotated[
+        datetime, Field(description="El instante, en UTC. La pantalla lo muestra en America/Santiago")
+    ]
+    dispositivo: Annotated[
+        DispositivoEventoVista | None,
+        Field(
+            description=(
+                "El dispositivo del evento (en cerraste_en_dispositivo, el que se cerró; el de origen no se muestra), o"
+                " null: siempre en contrasena_cambiada, celular_confirmado, codigo_recuperacion_pedido y"
+                " avisos_cambiados, y en los demás si el dispositivo ya no existe porque la conservación lo borró"
+                " (decisión 59)"
+            )
+        ),
+    ]
+
+
+class UltimosIngresosVista(BaseModel):
+    """GET /v1/yo/ingresos (decisiones 253 a 256)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    eventos: Annotated[list[EventoCuentaVista], Field(max_length=20)]
+    hay_mas: Annotated[
+        bool,
+        Field(
+            description=(
+                "true si en los últimos 90 días hay más de 20 eventos. No dice cuántos. Lo que no se muestra se pide"
+                " por correo (política, §10)"
+            )
+        ),
+    ]
 
 
 # --- MATU-57: recuperar el acceso y verificar el celular ---------------------------------------------

@@ -668,8 +668,10 @@ def _auditoria_real(entorno_ficha: EntornoFicha) -> None:
 def _filas_auditoria(request_id: str) -> list[tuple[Any, ...]]:
     with psycopg.connect(DSN) as cx:
         return cx.execute(
-            "SELECT grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, ip, ocurrido_en"
-            " FROM auditoria WHERE request_id = %s",
+            # MATU-55 (decisión 266): la columna ip ya no existe; to_jsonb(a) ? 'ip' lo verifica
+            "SELECT grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, to_jsonb(a) ? 'ip',"
+            " ocurrido_en"
+            " FROM auditoria a WHERE request_id = %s",
             (request_id,),
         ).fetchall()
 
@@ -693,7 +695,7 @@ def test_escritura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     )
     assert seccion is not None
     [fila] = _filas_auditoria(respuesta.headers["x-request-id"])
-    assert fila[:8] == (grupo, "usuario", cuidador.id, "plan.editar", "plan_seccion", seccion[0], None, None)
+    assert fila[:8] == (grupo, "usuario", cuidador.id, "plan.editar", "plan_seccion", seccion[0], None, False)
     assert fila[8] == AHORA
     # Ninguna columna lleva el texto, el ETag ni la versión
     assert texto not in repr(fila) and respuesta.headers.get("etag", "§") not in repr(fila)
@@ -714,7 +716,7 @@ def test_lectura_queda_auditada(entorno_ficha: EntornoFicha) -> None:
     plan = _una("SELECT id FROM plan_cuidado WHERE persona_cuidada_id = %s", persona)
     assert plan is not None
     [fila] = _filas_auditoria(respuesta.headers["x-request-id"])
-    assert fila[:8] == (grupo, "usuario", familia.admin.id, "plan.leer", "plan_cuidado", plan[0], None, None)
+    assert fila[:8] == (grupo, "usuario", familia.admin.id, "plan.leer", "plan_cuidado", plan[0], None, False)
     assert texto not in repr(fila)
 
 

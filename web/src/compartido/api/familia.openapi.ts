@@ -130,7 +130,7 @@ export interface paths {
         };
         /**
          * Ver Dispositivos
-         * @description Los dispositivos propios no revocados: primero el actual (claim `did`) y después por último uso. Nunca devuelve `push_token`.
+         * @description Los dispositivos propios no revocados: primero el actual (claim `did`) y después por último uso. Nunca devuelve `push_token`. Desde MATU-55, cada uno trae `clase` (C7) y `push_activo` (C5).
          */
         get: operations["ver_dispositivos_v1_dispositivos_get"];
         put?: never;
@@ -168,16 +168,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Ver Push Actual
+         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
+         */
+        get: operations["verPushActual"];
         /**
          * Guardar Push Actual
-         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Orden: 401, 404, 422 y 204.
+         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204.
          */
         put: operations["guardar_push_actual_v1_dispositivos_actual_push_put"];
         post?: never;
         /**
          * Borrar Push Actual
-         * @description Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente.
+         * @description Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente: con el endpoint ya vacío responde 204 sin auditar (MATU-55, decisión 260).
          */
         delete: operations["borrar_push_actual_v1_dispositivos_actual_push_delete"];
         options?: never;
@@ -811,7 +815,7 @@ export interface paths {
         get: operations["leerPreferenciaAvisos"];
         /**
          * Guardar Avisos
-         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Orden: 401, 422 y 200.
+         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). Orden: 401, 422 y 200.
          */
         put: operations["guardarPreferenciaAvisos"];
         post?: never;
@@ -1119,6 +1123,26 @@ export interface paths {
          * @description MATU-62 (decisiones 231 a 235). Pública e idempotente por token; la sesión es opcional y la vuelta nunca responde 401. token_ws de una venta iniciada: commit. Retorno repetido: no llama a Transbank (ya_registrado). TBK_TOKEN: sin commit, status y abandonado. Solo TBK_ORDEN_COMPRA y TBK_ID_SESION: tiempo_agotado. Valores que no son de MATU: 404. Sin montos ni tarjeta. No se apaga con la capa 3 (decisión 241)
          */
         post: operations["retorno_v1_pagos_retorno_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/yo/ingresos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Ingresos Propios
+         * @description Los eventos de la propia cuenta de los últimos 90 días, hasta 20, del más reciente al más antiguo (MATU-55, decisiones 254 y 255): entrar, salir, cerrar MATU en un dispositivo, la salida por seguridad, el cambio de contraseña, el celular confirmado, el pedido de un código de recuperación y los cambios de los avisos. Nunca los fallidos. Sin parámetros: un parámetro de consulta desconocido se ignora. `hay_mas` dice si hay más de 20. No se audita. Orden: 401 y 200.
+         */
+        get: operations["verIngresosPropios"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1600,6 +1624,12 @@ export interface components {
             /** Nombre */
             nombre: string;
             /**
+             * Clase
+             * @description MATU-55 (C7): qué sustantivo usa la pantalla, «teléfono», «computador» o «navegador». Lo deduce el servidor del sistema del nombre, que salió del agente de usuario al entrar (Android e iPhone son telefono; Windows, Mac, Linux y ChromeOS, computador; iPad y «Navegador web», otro). El agente no se guarda
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /**
              * Creado En
              * Format: date-time
              */
@@ -1608,6 +1638,11 @@ export interface components {
             ultimo_uso_en: string | null;
             /** Actual */
             actual: boolean;
+            /**
+             * Push Activo
+             * @description MATU-55 (C5): si el dispositivo tiene un endpoint de push guardado («Avisos activados»). Nunca el endpoint
+             */
+            push_activo: boolean;
         };
         /**
          * EstadoAcceso
@@ -3245,6 +3280,82 @@ export interface components {
              */
             cuotas: number;
         };
+        /**
+         * UltimosIngresosVista
+         * @description GET /v1/yo/ingresos (decisiones 253 a 256).
+         */
+        UltimosIngresosVista: {
+            /** Eventos */
+            eventos: components["schemas"]["EventoCuentaVista"][];
+            /**
+             * Hay Mas
+             * @description true si en los últimos 90 días hay más de 20 eventos. No dice cuántos. Lo que no se muestra se pide por correo (política, §10)
+             */
+            hay_mas: boolean;
+        };
+        /**
+         * PushActualVista
+         * @description GET /v1/dispositivos/actual/push (decisión 261). Nunca lleva el endpoint ni la clave privada.
+         */
+        PushActualVista: {
+            /**
+             * Clave Publica
+             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada
+             */
+            clave_publica: string | null;
+            /**
+             * Registrado
+             * @description Si el dispositivo del claim did tiene un endpoint de push guardado
+             */
+            registrado: boolean;
+            /**
+             * Envio Simulado
+             * @description true mientras no exista un adaptador real de push (decisión 112): no se envía nada a nadie
+             */
+            envio_simulado: boolean;
+        };
+        /**
+         * DispositivoEventoVista
+         * @description El dispositivo de un evento (C3): nunca el id, la plataforma, el push_token, la IP ni el agente de usuario.
+         */
+        DispositivoEventoVista: {
+            /**
+             * Nombre
+             * @example Chrome en Android
+             */
+            nombre: string;
+            /**
+             * Clase
+             * @description MATU-55 (C7): qué sustantivo usa la pantalla, «teléfono», «computador» o «navegador». Lo deduce el servidor del sistema del nombre, que salió del agente de usuario al entrar (Android e iPhone son telefono; Windows, Mac, Linux y ChromeOS, computador; iPad y «Navegador web», otro). El agente no se guarda
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /**
+             * Actual
+             * @description true si es el dispositivo del claim did de esta sesión. Con un access token sin did, siempre false
+             */
+            actual: boolean;
+        };
+        /**
+         * EventoCuentaVista
+         * @description Un evento de la propia cuenta: solo tipo, ocurrido_en y dispositivo (C3 a C5).
+         */
+        EventoCuentaVista: {
+            /**
+             * Tipo
+             * @description Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce
+             * @enum {string}
+             */
+            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados";
+            /**
+             * Ocurrido En
+             * Format: date-time
+             * @description El instante, en UTC. La pantalla lo muestra en America/Santiago
+             */
+            ocurrido_en: string;
+            /** @description El dispositivo del evento (en cerraste_en_dispositivo, el que se cerró; el de origen no se muestra), o null: siempre en contrasena_cambiada, celular_confirmado, codigo_recuperacion_pedido y avisos_cambiados, y en los demás si el dispositivo ya no existe porque la conservación lo borró (decisión 59) */
+            dispositivo: components["schemas"]["DispositivoEventoVista"] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -3632,6 +3743,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verPushActual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushActualVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };
@@ -7646,6 +7797,37 @@ export interface operations {
             };
             /** @description No trae ninguno de los cuatro campos, o uno no tiene la forma de Transbank */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verIngresosPropios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UltimosIngresosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

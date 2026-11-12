@@ -275,3 +275,55 @@ export type BorradoPersona = S['BorradoPersona']
 export async function borrarPersona(personaId: string): Promise<BorradoPersona> {
   return (await apiFamilia.post<BorradoPersona>(`/v1/personas-cuidadas/${encodeURIComponent(personaId)}/borrado`)).data
 }
+
+// ---------------------------------------------------------------- MATU-55: dónde entraste y los avisos
+
+/** `GET /v1/dispositivos`: los propios, primero el actual y después por último uso. Nunca el endpoint de push. */
+export type Dispositivo = S['DispositivoVista']
+/** `telefono`, `computador` u `otro`: el sustantivo de la pantalla (E1). */
+export type ClaseDispositivo = S['DispositivoVista']['clase']
+/** `GET /v1/yo/ingresos`: hasta 20 eventos de los últimos 90 días, y si hay más. */
+export type UltimosIngresos = S['UltimosIngresosVista']
+export type EventoCuenta = S['EventoCuentaVista']
+export type TipoEventoCuenta = S['EventoCuentaVista']['tipo']
+/** `GET /v1/dispositivos/actual/push`: la clave pública (o `null`), si este dispositivo está inscrito y si el envío es simulado. */
+export type PushActual = S['PushActualVista']
+/** `GET` y `PUT /v1/yo/avisos`: los dos canales, para todos los grupos de la persona. */
+export type PreferenciaAvisos = S['PreferenciaAvisosVista']
+
+export async function listarDispositivos(): Promise<Dispositivo[]> {
+  return (await apiFamilia.get<S['ListaDispositivos']>('/v1/dispositivos')).data.items
+}
+
+/** `DELETE /v1/dispositivos/{id}`: 204 (también si ya estaba cerrado) o 404 (ya no está en la lista). */
+export async function cerrarDispositivo(id: string): Promise<void> {
+  await apiFamilia.delete(`/v1/dispositivos/${encodeURIComponent(id)}`)
+}
+
+export async function leerIngresos(): Promise<UltimosIngresos> {
+  return (await apiFamilia.get<UltimosIngresos>('/v1/yo/ingresos')).data
+}
+
+export async function leerPushActual(): Promise<PushActual> {
+  return (await apiFamilia.get<PushActual>('/v1/dispositivos/actual/push')).data
+}
+
+/** `PUT /v1/dispositivos/actual/push`: solo el endpoint de la suscripción. 204. */
+export async function guardarPushActual(endpoint: string): Promise<void> {
+  const cuerpo: S['SolicitudPush'] = { push_token: endpoint }
+  await apiFamilia.put('/v1/dispositivos/actual/push', cuerpo)
+}
+
+/** `DELETE /v1/dispositivos/actual/push`: 204, idempotente. */
+export async function borrarPushActual(): Promise<void> {
+  await apiFamilia.delete('/v1/dispositivos/actual/push')
+}
+
+export async function leerAvisos(): Promise<PreferenciaAvisos> {
+  return (await apiFamilia.get<PreferenciaAvisos>('/v1/yo/avisos')).data
+}
+
+/** `PUT /v1/yo/avisos`, con los dos canales. Devuelve lo mismo que el `GET`. Sin versión ni `If-Match`. */
+export async function guardarAvisos(preferencia: PreferenciaAvisos): Promise<PreferenciaAvisos> {
+  return (await apiFamilia.put<PreferenciaAvisos>('/v1/yo/avisos', preferencia)).data
+}

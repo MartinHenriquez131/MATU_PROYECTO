@@ -16,6 +16,9 @@ function politicaDeContenido(): Plugin {
     "img-src 'self' data:",
     // Solo la propia API, en el mismo origen.
     "connect-src 'self'",
+    // MATU-55 (3.4 y 3.6): el service worker de los avisos, /sw.js, y el manifest, del mismo origen.
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "base-uri 'none'",
     // MATU-62 (4.5): el único formulario que se envía es el de «Pagar», a Webpay (integración y
     // producción, las URL de backend/app/modules/payments/infrastructure/pasarela_transbank.py).

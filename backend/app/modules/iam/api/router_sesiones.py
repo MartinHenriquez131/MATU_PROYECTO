@@ -13,9 +13,17 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 
+from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
+from app.core.vapid import clave_publica
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_emisor_tokens, obtener_reloj, usuario_actual
-from app.modules.iam.api.esquemas import DispositivoVista, ListaDispositivos, SesionRespuesta, SolicitudPush
+from app.modules.iam.api.esquemas import (
+    DispositivoVista,
+    ListaDispositivos,
+    PushActualVista,
+    SesionRespuesta,
+    SolicitudPush,
+)
 from app.modules.iam.api.sesion_web import (
     BORRAR_COOKIE,
     PROBLEMA,
@@ -32,9 +40,11 @@ from app.modules.iam.application.sesiones import (
     cerrar,
     guardar_push,
     listar_dispositivos,
+    push_registrado,
     renovar,
     sacar_dispositivo,
 )
+from app.modules.iam.domain.dispositivo import clase_dispositivo
 from app.shared.puertos import Reloj
 
 router = APIRouter()
@@ -135,7 +145,7 @@ def cerrar_sesion(request: Request, _cliente: ClienteWeb, unidad: UnidadDep, rel
     tags=["dispositivos"],
     description=(
         "Los dispositivos propios no revocados: primero el actual (claim `did`) y después por último uso."
-        " Nunca devuelve `push_token`."
+        " Nunca devuelve `push_token`. Desde MATU-55, cada uno trae `clase` (C7) y `push_activo` (C5)."
     ),
     responses={200: {"headers": _NO_STORE}, **_NO_AUTENTICADO},
 )
@@ -150,9 +160,11 @@ def ver_dispositivos(request: Request, respuesta: Response, usuario: Usuario, un
                 id=d.id,
                 plataforma=d.plataforma,  # type: ignore[arg-type]
                 nombre=d.nombre,
+                clase=clase_dispositivo(d.nombre).value,  # type: ignore[arg-type]
                 creado_en=d.creado_en,
                 ultimo_uso_en=d.ultimo_uso_en,
                 actual=d.id == usuario.dispositivo_id,
+                push_activo=d.push_activo,
             )
             for d in ordenados
         ]
@@ -199,6 +211,43 @@ def exigir_dispositivo_actual(usuario: Usuario, unidad: UnidadDep) -> None:
         raise _no_encontrado()
 
 
+def obtener_clave_publica_vapid() -> str | None:
+    """La clave pública VAPID derivada de VAPID_CLAVE_PRIVADA, o None si no está configurada (decisión 262)."""
+    privada = obtener_configuracion().vapid_clave_privada
+    return None if privada is None else clave_publica(privada.get_secret_value())
+
+
+# Decisión 112: no hay adaptador real de push. Cuando lo haya, este valor sale de la configuración
+ENVIO_PUSH_SIMULADO = True
+
+
+@router.get(
+    "/dispositivos/actual/push",
+    response_model=PushActualVista,
+    tags=["dispositivos"],
+    operation_id="verPushActual",
+    description=(
+        "Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública"
+        " VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca"
+        " lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y"
+        " del `DELETE`. No se audita. Orden: 401, 404 y 200."
+    ),
+    responses={200: {"headers": _NO_STORE}, **_NO_AUTENTICADO, **_NO_ENCONTRADO},
+)
+def ver_push_actual(
+    respuesta: Response,
+    usuario: Usuario,
+    unidad: UnidadDep,
+    clave: Annotated[str | None, Depends(obtener_clave_publica_vapid)],
+) -> PushActualVista:
+    try:
+        registrado = push_registrado(usuario_id=usuario.id, dispositivo_id=usuario.dispositivo_id, unidad=unidad)
+    except DispositivoNoEncontrado:
+        raise _no_encontrado() from None
+    respuesta.headers["Cache-Control"] = "no-store"
+    return PushActualVista(clave_publica=clave, registrado=registrado, envio_simulado=ENVIO_PUSH_SIMULADO)
+
+
 @router.put(
     "/dispositivos/actual/push",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -206,7 +255,8 @@ def exigir_dispositivo_actual(usuario: Usuario, unidad: UnidadDep) -> None:
     tags=["dispositivos"],
     description=(
         "Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una"
-        " respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Orden: 401, 404, 422 y 204."
+        " respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar`"
+        " solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204."
     ),
     responses={
         204: {"headers": _NO_STORE},
@@ -230,7 +280,10 @@ def guardar_push_actual(
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
     tags=["dispositivos"],
-    description="Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente.",
+    description=(
+        "Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente: con el endpoint ya vacío responde 204"
+        " sin auditar (MATU-55, decisión 260)."
+    ),
     responses={204: {"headers": _NO_STORE}, **_NO_AUTENTICADO, **_NO_ENCONTRADO},
 )
 def borrar_push_actual(request: Request, usuario: Usuario, unidad: UnidadDep) -> Response:

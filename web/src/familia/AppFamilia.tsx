@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
 import { ConfirmarCelular, TuCuenta } from './Cuenta'
+import { DondeEntraste } from './DondeEntraste'
 import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
@@ -49,7 +50,8 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   if (s.fase !== 'dentro') return PUBLICAS.has(ruta) ? null : '/entrar'
   if (PUBLICAS.has(ruta)) return inicio(s)
   // MATU-57: «Tu cuenta» no depende del grupo ni de la persona.
-  if (ruta === '/cuenta' || ruta === '/cuenta/celular') return null
+  // MATU-55: «Dónde entraste» tampoco.
+  if (ruta === '/cuenta' || ruta === '/cuenta/celular' || ruta === '/cuenta/donde-entraste') return null
   const editor = puedeEditar(s.rol)
   if (ruta === '/empezar/grupo') return s.grupos.length ? '/empezar/persona' : null
   // 5.3: sin grupo, toda sección lleva a crear el grupo.
@@ -166,6 +168,7 @@ function Rutas() {
   let pantalla
   if (ruta === '/cuenta') pantalla = <TuCuenta />
   else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
+  else if (ruta === '/cuenta/donde-entraste') pantalla = <DondeEntraste />
   // MATU-59 (2.2): el catálogo no depende de la persona ni de su autorización.
   else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
   // MATU-62: la vuelta de Webpay fija ella la persona del pedido (7.1), así que no depende de la elegida.

@@ -119,12 +119,13 @@ def test_alta_titular_crea_persona_direccion_consentimiento_y_auditoria(entorno_
 
     # Y una fila de auditoría con identificadores, sin nombre, sin IP y sin motivo
     auditoria = _todas(
-        "SELECT actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, ip, request_id, ocurrido_en"
-        " FROM auditoria WHERE grupo_id = %s",
+        # MATU-55 (decisión 266): la columna ip ya no existe; to_jsonb(a) ? 'ip' lo verifica
+        "SELECT actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, to_jsonb(a) ? 'ip', request_id, ocurrido_en"
+        " FROM auditoria a WHERE grupo_id = %s",
         grupo,
     )
     assert auditoria == [
-        ("usuario", a.id, "consentimiento.otorgar", "consentimiento", consentimiento_id, None, None,
+        ("usuario", a.id, "consentimiento.otorgar", "consentimiento", consentimiento_id, None, False,
          respuesta.headers["x-request-id"], OTORGADO_EN)
     ]
 
