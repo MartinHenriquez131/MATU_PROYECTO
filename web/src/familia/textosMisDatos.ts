@@ -183,8 +183,9 @@ export const MIS_DATOS = {
     // Espacio duro entre la cifra y su unidad: al cortar la línea no quedan separadas.
     return `${miles(n)} ${palabra} de ${insumo}`
   },
-  anoto: (nombre: string) => ` · Anotó ${nombre}`, // [NUEVO]; espacio duro antes del «·» (P3 de la tercera revisión)
-  llegoConPedido: ' · Llegó con un pedido de MATU', // [NUEVO]
+  // MATU-107 (4): sin el «·»; lo pone la pieza Cola.
+  anoto: (nombre: string) => `Anotó ${nombre}`, // [NUEVO]
+  llegoConPedido: 'Llegó con un pedido de MATU', // [NUEVO]
   el: 'El ', // [NUEVO]
 
   // 3.4.7 Avisos de insumos
@@ -203,7 +204,7 @@ export const MIS_DATOS = {
   pedidoDel: 'Pedido del ', // [NUEVO] + fecha
   loArmaron: ['Lo armaron el ', '.'] as Partes, // [NUEVO]
   enComercio: (comercio: string) => `En ${comercio}`, // [NUEVO]
-  siFalta: (que: string) => ` · Si falta: ${que}`, // [NUEVO]
+  siFalta: (que: string) => `Si falta: ${que}`, // [NUEVO]; el «·» lo pone Cola (MATU-107)
   productos: 'Productos', // [NUEVO]
   envio: 'Envío', // [L 27]
   total: 'Total', // [L 27]
@@ -318,8 +319,8 @@ export const MIS_DATOS = {
   enGrupo: (grupo: string) => ` en ${grupo}`, // [NUEVO], tras el monto
   tarjeta: (tipo: NonNullable<PagoCuentaCopia['tarjeta']>['tipo']) =>
     tipo === 'credito' ? 'Tarjeta de crédito terminada en ' : tipo === 'debito' ? 'Tarjeta de débito terminada en ' : 'Tarjeta de prepago terminada en ', // [NUEVO]
-  /** (1.2, P3-4 y 54-H4) Con espacio duro a ambos lados del «·»: un renglón nunca empieza ni termina con el punto. [NUEVO] */
-  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'),
+  /** (1.2, P3-4) Sin el «·», que lo pone la pieza Cola (MATU-107, 4). [NUEVO] */
+  cuotas: (n: number) => (n >= 2 ? `${n} cuotas` : 'Sin cuotas'),
   /** Con `referencia: null` (decisión 392, pago anulado por tardío). [NUEVO] */
   pagoDel: 'Pago del ',
   /** F3 (decisión 402): el mismo código que ya ve en su comprobante. [NUEVO] */

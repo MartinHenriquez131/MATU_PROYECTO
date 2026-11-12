@@ -138,7 +138,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     const b = bloque('Últimos ingresos')
     expect(within(b).getByText('Los de los últimos 90 días. Lo anterior va en el archivo.')).toBeInTheDocument()
     const lineas = within(b).getAllByRole('listitem')
-    expect(lineas.map((l) => l.textContent)).toEqual(['Pediste una copia de tus datosa las 10:14', 'Entrastea las 10:00 · Chrome en Android'])
+    expect(lineas.map((l) => l.textContent)).toEqual(['Pediste una copia de tus datosa las 10:14', 'Entrastea las 10:00 · Chrome en Android'])
     expect(lineas[0].querySelector('svg.lucide-download')).not.toBeNull()
     expect(within(b).queryByText(/No reconoces/)).toBeNull()
   })
@@ -151,9 +151,9 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     expect(within(b).getAllByText('En el piloto los avisos se prueban sin enviarse: aparecen aquí, pero no te llegaron.')).toHaveLength(1)
     const lineas = within(b).getAllByRole('listitem')
     expect(lineas.map((l) => l.textContent)).toEqual([
-      '10/11/2026 a las 08:00 · Por correo · En el piloto no salió',
-      '09/11/2026 a las 08:00 · En tus teléfonos · No salió',
-      '12/11/2026 a las 09:00 · Por SMS · Todavía no sale',
+      '10/11/2026 a las 08:00 · Por correo · En el piloto no salió',
+      '09/11/2026 a las 08:00 · En tus teléfonos · No salió',
+      '12/11/2026 a las 09:00 · Por SMS · Todavía no sale',
     ])
     expect(lineas[0].querySelector('svg.lucide-circle-dashed')).not.toBeNull()
     expect(lineas[1].querySelector('svg.lucide-x')).not.toBeNull()

@@ -42,6 +42,21 @@ export function Pagina({ titulo, bajada, ayuda, antes, children }: { titulo: Rea
   )
 }
 
+/**
+ * MATU-107 (especificación 4, DISENO 2): una cola con «·» («El 12/11/2026 · Anotó Carmen»). Fuera del
+ * modo `angosto`, el «·» va entre dos U+00A0 y ningún renglón empieza ni termina con él. En `angosto`
+ * el punto y sus espacios se ocultan y la cola baja a su propio renglón, sin cortar ninguna palabra.
+ * El «·» lo pone esta pieza, nunca el texto. El párrafo que la contiene mantiene `break-words`.
+ */
+export function Cola({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <span className="angosto:hidden">{'\u00a0·\u00a0'}</span>
+      <span className="angosto:block">{children}</span>
+    </>
+  )
+}
+
 /** Enlace de vuelta, de texto, 48 px en todos los tamaños. */
 export function Volver({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (

@@ -222,57 +222,55 @@ describe('1.2, «Tus datos»: F2 y F3', () => {
   })
 })
 
-describe('tercera revisión (P3): el «·» de las colas nunca queda solo al comienzo de un renglón', () => {
-  /** Cada «·» del texto va precedido de un espacio duro (U+00A0), nunca de un espacio común. */
-  const sinPuntoSuelto = (raiz: Element) => {
+describe('54-H4 (MATU-107, especificación 4): las colas con «·», una sola regla en «Datos de…» y «Tus datos»', () => {
+  /**
+   * Cada «·» va entre dos U+00A0, solo, dentro de un span `angosto:hidden`, y lo que sigue es un span
+   * `angosto:block`: fuera de `angosto` ningún renglón empieza ni termina con el punto, y en `angosto`
+   * el punto se oculta y la cola baja de renglón. El párrafo mantiene `break-words`.
+   */
+  const colasSegunLaRegla = (raiz: Element) => {
     const texto = raiz.textContent ?? ''
-    expect(texto.match(/·/g)?.length ?? 0).toBeGreaterThan(0)
-    expect(texto).not.toMatch(/ ·/)
+    const puntos = texto.match(/·/g)?.length ?? 0
+    expect(puntos).toBeGreaterThan(0)
     expect(texto).not.toMatch(/(^|[^\u00A0])·/)
+    expect(texto).not.toMatch(/·([^\u00A0]|$)/)
+    const separadores = [...raiz.querySelectorAll('span')].filter((e) => e.textContent?.includes('·') && e.children.length === 0)
+    expect(separadores).toHaveLength(puntos)
+    for (const sep of separadores) {
+      expect(sep.textContent).toBe('\u00A0·\u00A0')
+      expect(sep.className).toBe('angosto:hidden')
+      const cola = sep.nextElementSibling as HTMLElement
+      expect(cola.tagName).toBe('SPAN')
+      expect(cola.className).toBe('angosto:block')
+      expect(cola.textContent).not.toMatch(/^[\s\u00A0]|·/)
+      expect(sep.parentElement!.className).toMatch(/\bbreak-words\b/)
+    }
   }
 
-  it('«Datos de María»: compras, líneas y montos del pedido, aperturas e historial', async () => {
+  it('«Datos de María»: compras, líneas y montos del pedido, e historial', async () => {
     await abrirPersona()
     const compras = bloque('Compras anotadas (últimos 90 días)')
-    expect(within(compras).getAllByRole('listitem')[0].textContent).toContain('10/11/2026\u00A0· Anotó Carmen Soto')
+    expect(within(compras).getAllByRole('listitem')[0].textContent).toContain('10/11/2026\u00A0·\u00A0Anotó Carmen Soto')
     const pedido = within(bloque('Sus pedidos')).getAllByRole('listitem')[0]
     expect(pedido.textContent).toContain('Cobrado: $37.260\u00A0·\u00A0Devuelto: $5.290.')
-    expect(pedido.textContent).toContain('(comercio ficticio)\u00A0· Si falta:')
-    for (const nombre of ['Compras anotadas (últimos 90 días)', 'Sus pedidos', 'Quién abrió o editó la ficha']) sinPuntoSuelto(bloque(nombre))
+    expect(pedido.textContent).toContain('(comercio ficticio)\u00A0·\u00A0Si falta:')
+    for (const nombre of ['Compras anotadas (últimos 90 días)', 'Sus pedidos', 'Quién abrió o editó la ficha']) colasSegunLaRegla(bloque(nombre))
+  })
+
+  it('«Datos de María»: en «Cobrado · Devuelto», la cola es el par «Devuelto: $5.290.»', async () => {
+    await abrirPersona()
+    const pago = within(bloque('Sus pedidos')).getByText(/^Cobrado:/, { selector: 'p' })
+    expect(pago.textContent).toBe('Cobrado: $37.260\u00A0·\u00A0Devuelto: $5.290.')
+    expect(pago.querySelector('.angosto\\:block')).toHaveTextContent('Devuelto: $5.290.')
   })
 
   it('«Tus datos»: ingresos, avisos enviados y cuotas', async () => {
     apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
     render(<TusDatos />)
     await screen.findByRole('button', { name: 'Descargar en un archivo' })
-    for (const nombre of ['Últimos ingresos', 'Avisos que te enviamos', 'Tus pagos']) sinPuntoSuelto(bloque(nombre))
-  })
-})
-
-describe('54-H4 (P3): el «·» entre dos montos tampoco queda solo al final de un renglón', () => {
-  /** El «·» de los pagos lleva espacio duro (U+00A0) a ambos lados: el renglón no empieza ni termina con él. */
-  const pegadoAmbosLados = (texto: string) => {
-    expect(texto.match(/·/g)?.length ?? 0).toBeGreaterThan(0)
-    expect(texto).not.toMatch(/(^|[^\u00A0])·/)
-    expect(texto).not.toMatch(/·([^\u00A0]|$)/)
-  }
-
-  it('«Datos de María»: «Cobrado · Devuelto» del pedido', async () => {
-    await abrirPersona()
-    const pago = within(bloque('Sus pedidos')).getByText(/^Cobrado:/)
-    expect(pago.textContent).toBe('Cobrado: $37.260\u00A0·\u00A0Devuelto: $5.290.')
-    pegadoAmbosLados(pago.textContent ?? '')
-    expect(pago.className).toMatch(/\bbreak-words\b/)
-  })
-
-  it('«Tus datos»: «terminada en 4242 · 3 cuotas» y «· Sin cuotas» de cada pago', async () => {
-    apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
-    render(<TusDatos />)
-    await screen.findByRole('button', { name: 'Descargar en un archivo' })
-    const tarjetas = within(bloque('Tus pagos')).getAllByText(/terminada en/)
-    expect(tarjetas.length).toBe(2)
-    for (const t of tarjetas) pegadoAmbosLados(t.textContent ?? '')
-    expect(tarjetas[0].textContent).toContain('4242\u00A0·\u00A03 cuotas')
+    for (const nombre of ['Últimos ingresos', 'Avisos que te enviamos', 'Tus pagos']) colasSegunLaRegla(bloque(nombre))
+    const tarjetas = within(bloque('Tus pagos')).getAllByText(/terminada en/, { selector: 'p' })
+    expect(tarjetas.map((t) => t.textContent)).toEqual(['Tarjeta de crédito terminada en 4242\u00A0·\u00A03 cuotas', 'Tarjeta de débito terminada en 0019\u00A0·\u00A0Sin cuotas'])
   })
 })
 

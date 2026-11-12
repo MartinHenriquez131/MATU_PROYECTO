@@ -25,7 +25,7 @@ import { CUENTA_PROPIA } from './textos'
 import { pesos } from './textosCatalogo'
 import { MIEMBROS, ROL } from './textosInvitar'
 import { MIS_DATOS as T } from './textosMisDatos'
-import { Etiqueta, Nota, Pagina, Volver } from './ui'
+import { Cola, Etiqueta, Nota, Pagina, Volver } from './ui'
 import {
   AvisoDeCarga,
   Bloque,
@@ -377,7 +377,8 @@ function AvisosEnviados({ avisos, simulado, generadoEn }: { avisos: AvisoEnviado
                 <Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
                 <span className="min-w-0 text-base tabular-nums break-words">
                   <FechaHora iso={a.enviado_en ?? a.creado_en} />
-                  {` · ${T.canalAviso[a.canal] ?? ''} · ${T.resultadoAviso[a.resultado]}`}
+                  <Cola>{T.canalAviso[a.canal] ?? ''}</Cola>
+                  <Cola>{T.resultadoAviso[a.resultado]}</Cola>
                 </span>
               </li>
             )
@@ -416,12 +417,12 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
         <span className="cifras">{pesos(p.cobrado)}</span>
         {T.enGrupo(p.grupo)}
       </p>
-      <p className="max-w-prose text-base">
+      <p className="max-w-prose text-base break-words">
         {p.tarjeta ? (
           <>
             {T.tarjeta(p.tarjeta.tipo)}
             <span className="cifras">{p.tarjeta.ultimos4}</span>
-            {T.cuotas(p.tarjeta.cuotas)}
+            <Cola>{T.cuotas(p.tarjeta.cuotas)}</Cola>
           </>
         ) : (
           T.sinTarjeta

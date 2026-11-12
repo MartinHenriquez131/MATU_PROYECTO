@@ -345,11 +345,11 @@ describe('«Datos de María»: quién abrió o editó la ficha (3.4.9 y 3.4.10)'
     expect(within(b).getByText('Los de los últimos 90 días.')).toBeInTheDocument()
     expect(within(b).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Hoy', 'Ayer', 'El lunes'])
     expect(within(b).getAllByRole('listitem').map((l) => l.textContent)).toEqual([
-      'Pidió una copia de los datosa las 10:14 · Carmen Soto',
-      'Editó «Su día»a las 09:40 · Carmen Soto',
-      'Editó la fichaa las 09:24 · alguien que ya no está en el grupo',
+      'Pidió una copia de los datosa las 10:14 · Carmen Soto',
+      'Editó «Su día»a las 09:40 · Carmen Soto',
+      'Editó la fichaa las 09:24 · alguien que ya no está en el grupo',
       'MATU borró lo escrito en la fichaa las 10:14',
-      'Quitó «Moverse y descansar»a las 09:44 · Carmen Soto',
+      'Quitó «Moverse y descansar»a las 09:44 · Carmen Soto',
       'Se devolvió dinero de un pagoa las 10:14',
     ])
     expect(within(b).queryByText(/un_tipo_que_no_existe/)).toBeNull()

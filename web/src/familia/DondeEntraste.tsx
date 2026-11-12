@@ -23,7 +23,7 @@ import { DialogoConfirmar } from './DialogoConfirmar'
 import { useDemora } from './Estados'
 import { useFamilia } from './estado'
 import { navegar } from './ruteo'
-import { Etiqueta, Nota, Pagina, Volver } from './ui'
+import { Cola, Etiqueta, Nota, Pagina, Volver } from './ui'
 import { CUENTA_PROPIA, GENERAL, MARCO } from './textos'
 import { DONDE, FRASE_INGRESO } from './textosDondeEntraste'
 
@@ -164,11 +164,12 @@ export function LineaIngreso({ e, foco }: { e: EventoCuenta; foco?: React.Ref<HT
   const atenta = ATENTA.has(e.tipo)
   const nombre = e.dispositivo?.nombre ?? DONDE.yaNoEnLista
   const { fecha, hora } = fechaYHoraDeChile(new Date(e.ocurrido_en))
-  let cola = ''
+  let cola = null
   if (CON_COLA.has(e.tipo)) {
-    // MATU-54 (tercera revisión, P3): espacio duro antes del «·», que nunca queda solo al comienzo de un renglón.
-    cola = e.dispositivo ? ` · ${e.dispositivo.nombre}` : ` · en ${DONDE.yaNoEnLista}`
-    if (e.dispositivo?.actual) cola += ` ${DONDE.esteEntreParentesis(e.dispositivo.clase)}`
+    // MATU-107 (4): la cola con «·» de la pieza Cola.
+    let texto = e.dispositivo ? e.dispositivo.nombre : `en ${DONDE.yaNoEnLista}`
+    if (e.dispositivo?.actual) texto += ` ${DONDE.esteEntreParentesis(e.dispositivo.clase)}`
+    cola = <Cola>{texto}</Cola>
   }
   return (
     // MATU-54 (3.4.10): con `foco`, es la primera línea nueva de «Ver más» y recibe el foco.
