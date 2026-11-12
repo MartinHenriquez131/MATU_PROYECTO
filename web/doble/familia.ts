@@ -586,7 +586,8 @@ function sembrarMiembros() {
     miembro('Pedro Soto', 'observador', 1),
   ]
   const sinTomas = (yo: MiembroDoble) => familia(yo).filter((m) => m.nombre !== 'Tomás Soto')
-  const conCarmen = (yo: MiembroDoble, sin: string) => [miembro('Carmen Soto', 'admin', 30, { enlaces: 1 }), ...sinTomas(yo).filter((m) => m.nombre !== sin)]
+  // Saca a la persona de ejemplo con ese nombre, nunca a la fila propia (`yo` puede llamarse igual).
+  const conCarmen = (yo: MiembroDoble, sin: string) => [miembro('Carmen Soto', 'admin', 30, { enlaces: 1 }), ...sinTomas(yo).filter((m) => m === yo || m.nombre !== sin)]
   const mia = () => invitacionPendiente('cuidador', { nombre: 'Carmen', eresTu: true })
 
   {
