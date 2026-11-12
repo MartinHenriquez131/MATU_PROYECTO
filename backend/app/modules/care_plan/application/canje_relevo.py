@@ -1,6 +1,6 @@
 """Antes del PIN: presentar el acceso y canjear el enlace con el PIN (MATU-19, RF-06).
 
-Contrato: docs/api/propuestos/relevo.openapi.yaml, POST /v1/relevo/presentacion y /v1/relevo/canje.
+Contrato: docs/api/openapi.json (MATU-106), POST /v1/relevo/presentacion y /v1/relevo/canje.
 
 Condición C2 del analista normativo: estos casos de uso solo leen y escriben acceso_relevo (por
 RepositorioAccesoRelevo) e insertan auditoría. No importan ni llaman nada de plan_seccion, clave_datos

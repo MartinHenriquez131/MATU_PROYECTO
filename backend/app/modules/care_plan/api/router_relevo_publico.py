@@ -1,4 +1,4 @@
-"""Rutas públicas del relevo, sin cuenta (MATU-19, RF-06). Contrato: docs/api/propuestos/relevo.openapi.yaml.
+"""Rutas públicas del relevo, sin cuenta (MATU-19, RF-06). Contrato: docs/api/openapi.json (MATU-106).
 
     POST /v1/relevo/presentacion   token → los dos nombres de pila (decisión 28). 30 por hora por IP
     POST /v1/relevo/canje          token y PIN → 204 con la cookie __Secure-matu-relevo. 10 por hora por IP
@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import obtener_configuracion
 from app.core.db import obtener_fabrica_sesiones, sesion_tenant
 from app.core.errores import ErrorMATU
-from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
+from app.core.limite_ip import limite_por_ip
 from app.modules.care_plan.api.dependencias import obtener_custodia, obtener_pepper_pin
 from app.modules.care_plan.api.esquemas_relevo import (
     CampoRelevoVista,
@@ -40,6 +40,14 @@ from app.modules.care_plan.api.esquemas_relevo import (
     SeccionRelevoVista,
     SolicitudCanjeVista,
     SolicitudPresentacionVista,
+)
+from app.modules.care_plan.api.openapi_relevo_publico import (
+    DESCRIPCION_CANJE,
+    DESCRIPCION_PRESENTACION,
+    EXTRA_CANJE,
+    EXTRA_PRESENTACION,
+    RESPUESTAS_CANJE,
+    RESPUESTAS_PRESENTACION,
 )
 from app.modules.care_plan.application.canje_relevo import (
     AccesoBloqueadoAhora,
@@ -97,11 +105,6 @@ _TEXTOS: dict[TipoNoDisponible, str] = {
 }
 
 _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
-_ERRORES_ANTES_DEL_PIN: dict[int | str, dict[str, Any]] = {
-    410: {"description": "relevo-no-disponible, relevo-vencido, relevo-revocado o relevo-pausado", **_PROBLEMA},
-    422: {"description": "Cuerpo inválido. No cuenta como intento", **_PROBLEMA},
-    423: {"description": "Bloqueado por 5 PIN incorrectos", **_PROBLEMA},
-}
 
 
 # --- Dependencias --------------------------------------------------------------------------------------
@@ -187,7 +190,12 @@ def _acceso_por_token(fabrica: sessionmaker[Session], token: str, reloj: Reloj) 
     response_model=PresentacionVista,
     # MATU-25, decisión 29: 30 por hora por IP, en su propio contador, antes de validar los campos
     dependencies=[Depends(limite_por_ip(LIMITE_PRESENTACION))],
-    responses={**_ERRORES_ANTES_DEL_PIN, **RESPUESTAS_LIMITE},
+    # MATU-106: lo que declaraba propuestos/relevo.openapi.yaml, solo documentación
+    operation_id="presentarRelevo",
+    summary="Saber quién compartió la ficha y de quién es, antes del PIN",
+    description=DESCRIPCION_PRESENTACION,
+    responses=RESPUESTAS_PRESENTACION,
+    openapi_extra=EXTRA_PRESENTACION,
 )
 def presentar_relevo(
     request: Request,
@@ -215,15 +223,12 @@ def presentar_relevo(
     response_class=Response,
     # MATU-25, decisión 29: 10 por hora por IP, en su propio contador, antes de validar los campos
     dependencies=[Depends(limite_por_ip(LIMITE_CANJE))],
-    responses={
-        **_ERRORES_ANTES_DEL_PIN,
-        401: {"description": "PIN incorrecto, del 1.º al 4.º intento", **_PROBLEMA},
-        **RESPUESTAS_LIMITE,
-        503: {
-            "description": "Falta PEPPER_PIN o PEPPER_LIMITES, o Redis no responde: falla cerrado",
-            **_PROBLEMA,
-        },
-    },
+    # MATU-106: lo que declaraba propuestos/relevo.openapi.yaml, solo documentación
+    operation_id="canjearRelevo",
+    summary="Canjear el enlace y el PIN por una sesión de relevo",
+    description=DESCRIPCION_CANJE,
+    responses=RESPUESTAS_CANJE,
+    openapi_extra=EXTRA_CANJE,
 )
 def canjear_relevo(
     request: Request,
