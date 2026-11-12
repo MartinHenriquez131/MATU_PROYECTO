@@ -21,6 +21,7 @@ import {
   vistaDespacho,
 } from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
+import { alEntrar, alSalir, anotarCuenta, atenderDispositivos, dispositivoVivo, usoDe } from './dispositivos'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -539,6 +540,18 @@ function sembrar() {
     sembrarPagado(p.id, tresProductos, { quien: u.id, tardio: true })
   }
   sembrarPagado(conPedido('pago-observador@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresProductos, { quien: 'otra-cuenta' })
+  // MATU-55: Dónde entraste y los avisos. Con carmen@ y las demás se ve la historia de ejemplo; cada una
+  // la siembra la primera vez que entra (doble/dispositivos.ts).
+  for (const [email, modo] of [
+    ['ingresos-muchos@example.com', 'ingresos-muchos'],
+    ['ingresos-vacio@example.com', 'ingresos-vacio'],
+    ['donde-falla@example.com', 'donde-falla'],
+    ['cerrar-falla@example.com', 'cerrar-falla'],
+    ['avisos-falla@example.com', 'avisos-falla'],
+    ['avisos-guardar-falla@example.com', 'avisos-guardar-falla'],
+    ['push-sin-clave@example.com', 'push-sin-clave'],
+  ])
+    cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], modo)
 }
 sembrar()
 
@@ -588,22 +601,36 @@ const COOKIE = 'matu-refresh-doble'
 interface Refresh {
   email: string
   vence: number
+  /** MATU-55: el dispositivo de la entrada, el claim `did`. */
+  did: string
 }
 const refrescos = new Map<string, Refresh>()
-const tokens = new Map<string, { email: string; vence: number }>()
+const tokens = new Map<string, { email: string; vence: number; did: string }>()
 
-function emitirToken(u: Usuario) {
+function emitirToken(u: Usuario, did: string) {
   const t = randomUUID()
-  tokens.set(t, { email: u.email, vence: Date.now() + (u.modo === 'vence' ? 20_000 : 15 * 60_000) })
+  usoDe(did)
+  tokens.set(t, { email: u.email, vence: Date.now() + (u.modo === 'vence' ? 20_000 : 15 * 60_000), did })
   return { access_token: t, token_type: 'bearer', expira_en: u.modo === 'vence' ? 20 : 900 }
 }
-function emitirRefresh(res: ServerResponse, u: Usuario, vence?: number) {
+function emitirRefresh(res: ServerResponse, u: Usuario, did: string, vence?: number) {
   const id = randomUUID()
-  refrescos.set(id, { email: u.email, vence: vence ?? Date.now() + (u.modo === 'vence' ? 40_000 : 30 * 86_400_000) })
+  refrescos.set(id, { email: u.email, vence: vence ?? Date.now() + (u.modo === 'vence' ? 40_000 : 30 * 86_400_000), did })
   res.setHeader('Set-Cookie', `${COOKIE}=${id}; Max-Age=2592000; Path=/v1/sesiones; HttpOnly; SameSite=Strict`)
 }
 const borrarRefresh = (res: ServerResponse) => res.setHeader('Set-Cookie', `${COOKIE}=; Max-Age=0; Path=/v1/sesiones; HttpOnly; SameSite=Strict`)
 const refreshDe = (req: IncomingMessage) => new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`).exec(req.headers.cookie ?? '')?.[1]
+
+/** MATU-55: el `did` del access token, como el claim de la API. */
+function didDe(req: IncomingMessage): string | undefined {
+  const t = /^Bearer (.+)$/.exec(String(req.headers.authorization ?? ''))?.[1]
+  return t ? tokens.get(t)?.did : undefined
+}
+
+/** MATU-55: cerrar un dispositivo corta sus refresh; el access token sigue sus 15 minutos. */
+function revocarRefrescos(did: string) {
+  for (const [id, r] of refrescos) if (r.did === did) refrescos.delete(id)
+}
 
 function usuarioDe(req: IncomingMessage): Usuario | null {
   const t = /^Bearer (.+)$/.exec(String(req.headers.authorization ?? ''))?.[1]
@@ -702,8 +729,9 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (email === 'caido@example.com') return problema(res, 503, '/errores/servicio-no-disponible'), true
     const u = usuarios.get(email)
     if (!u || u.contrasena !== cuerpo?.contrasena) return problema(res, 401, '/errores/credenciales-invalidas'), true
-    emitirRefresh(res, u)
-    return json(res, 200, emitirToken(u)), true
+    const did = alEntrar(u.email, String(req.headers['user-agent'] ?? ''), u.modo)
+    emitirRefresh(res, u, did)
+    return json(res, 200, emitirToken(u, did)), true
   }
 
   if (metodo === 'POST' && ruta === '/v1/sesiones/renovar') {
@@ -712,14 +740,17 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     const s = id ? refrescos.get(id) : undefined
     if (id) refrescos.delete(id) // rota: el anterior ya no sirve
     const u = s ? usuarios.get(s.email) : undefined
-    if (!s || !u || s.vence < Date.now()) return borrarRefresh(res), problema(res, 401, '/errores/sesion-expirada'), true
-    emitirRefresh(res, u, u.modo === 'vence' ? s.vence : undefined)
-    return json(res, 200, emitirToken(u)), true
+    if (!s || !u || s.vence < Date.now() || !dispositivoVivo(s.did)) return borrarRefresh(res), problema(res, 401, '/errores/sesion-expirada'), true
+    emitirRefresh(res, u, s.did, u.modo === 'vence' ? s.vence : undefined)
+    return json(res, 200, emitirToken(u, s.did)), true
   }
 
   if (metodo === 'POST' && ruta === '/v1/sesiones/cerrar') {
     const id = refreshDe(req)
-    if (id) refrescos.delete(id)
+    if (id) {
+      alSalir(refrescos.get(id)?.did)
+      refrescos.delete(id)
+    }
     borrarRefresh(res)
     res.statusCode = 204
     return res.end(), true
@@ -737,6 +768,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (v && Date.now() - (ultimoEnvio.get(clave) ?? 0) >= 60_000) {
       const alCelular = v.celularVerificado && v.telefono && cuerpo?.canal !== 'correo'
       enviarCodigo(clave, email, alCelular ? `${v.canal} al ${enmascarar(v.telefono)}` : 'correo')
+      anotarCuenta(email, 'codigo_recuperacion_pedido')
     } else if (v) console.info(`[doble · envío simulado] recuperar → ${email}: no se envía (menos de 60 s del anterior)`)
     return sinCuerpo(res, 202), true
   }
@@ -753,6 +785,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (v?.modo === 'recuperar-espera') return res.setHeader('Retry-After', '120'), problema(res, 429, '/errores/demasiadas-peticiones'), true
     if (!v || v.modo === 'codigo-invalido' || !probarCodigo(`recuperar:${email}`, cuerpo?.codigo)) return problema(res, 422, '/errores/codigo-invalido'), true
     v.contrasena = String(nueva)
+    anotarCuenta(email, 'contrasena_cambiada')
     // Revoca todas las entradas de la cuenta (decisión 86) y avisa por el otro canal.
     for (const [id, r] of refrescos) if (r.email === email) refrescos.delete(id)
     console.info(`[doble · envío simulado] aviso → ${email}: cambiaron tu contraseña`)
@@ -779,10 +812,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return atenderRetorno(res, cuerpo, r, yo, grupoDe), true
   }
 
-  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos')) return false
+  if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos') && !ruta.startsWith('/v1/dispositivos') && !ruta.startsWith('/v1/yo/')) return false
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+
+  // ------------------------------------------------ MATU-55: dónde entraste, los avisos y el push
+  const editor = u.grupos.some((g) => g.rol === 'admin' || g.rol === 'cuidador')
+  if (atenderDispositivos(req, res, cuerpo, r, { email: u.email, modo: u.modo, editor }, didDe(req), revocarRefrescos)) return true
 
   // ------------------------------------------------ MATU-57: la cuenta y el celular
   if (metodo === 'GET' && ruta === '/v1/cuenta') {
@@ -817,6 +854,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!probarCodigo(`celular:${u.email}`, cuerpo.codigo)) return problema(res, 422, '/errores/codigo-invalido'), true
     u.celularVerificado = true
     u.canal = canal
+    anotarCuenta(u.email, 'celular_confirmado')
     return sinCuerpo(res, 204), true
   }
 

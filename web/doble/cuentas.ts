@@ -148,6 +148,14 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'pago-tardio@example.com', que: 'Pago: pago tardío respetado (7.6)' },
   { email: 'pago-observador@example.com', que: 'Pago: observador con un pedido pagado: solo «Pedido pagado» y «Pagado»' },
   { email: 'pedido-retirada@example.com', que: 'Pedido: la autorización de pedidos retirada; Grupo familiar con «Ver la dirección de entrega» y «Volver a autorizar»' },
+  // MATU-55: Dónde entraste (/cuenta/donde-entraste) y los avisos de Tu cuenta. Todas las cuentas tienen, la primera vez que entran, dos computadores o teléfonos más (Chrome en Windows y Safari en iPhone) y una historia con los diez tipos posibles: un código pedido, una salida por seguridad y un ingreso desde un teléfono que ya no está en la lista. Entra en dos navegadores para cerrar uno desde el otro
+  { email: 'ingresos-muchos@example.com', que: 'Dónde entraste: más de 20 ingresos en 90 días (hay_mas): «Mostramos los 20 más recientes…»' },
+  { email: 'ingresos-vacio@example.com', que: 'Dónde entraste: solo este navegador y ningún ingreso: «No hay ingresos en los últimos 90 días.»' },
+  { email: 'donde-falla@example.com', que: 'Dónde entraste: las dos lecturas responden 500, cada sección con su error y «Volver a intentar». En Tu cuenta, «Este navegador»' },
+  { email: 'cerrar-falla@example.com', que: 'Dónde entraste: «Cerrar en ese…» responde 500: el error dentro del diálogo' },
+  { email: 'avisos-falla@example.com', que: 'Tu cuenta: los avisos y el push de este teléfono responden 500 (errores con «Volver a intentar»; la nota del piloto se ve igual)' },
+  { email: 'avisos-guardar-falla@example.com', que: 'Tu cuenta: guardar una casilla, activar y desactivar responden 500' },
+  { email: 'push-sin-clave@example.com', que: 'Tu cuenta: el servidor no tiene clave pública (clave_publica null): «Por ahora no se pueden activar los avisos en este…» (estado F)' },
 ]
 
 /**
