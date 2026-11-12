@@ -31,7 +31,7 @@ def _sin_env(configuracion_sin_env: None) -> None:
 
 def _cargar(monkeypatch: pytest.MonkeyPatch, entorno: str, cuentas: str | None) -> Configuracion:
     monkeypatch.setenv("ENTORNO", entorno)
-    monkeypatch.setenv("POLITICA_VERSION", "0.17")
+    monkeypatch.setenv("POLITICA_VERSION", "0.18")
     if cuentas is not None:
         monkeypatch.setenv("PUSH_CUENTAS_PERMITIDAS", cuentas)
     return Configuracion()
@@ -107,7 +107,7 @@ def test_la_politica_no_muestra_la_lista() -> None:
 def test_la_dependencia_de_la_api_lee_la_configuracion_vigente(monkeypatch: pytest.MonkeyPatch) -> None:
     cuenta = uuid.uuid4()
     monkeypatch.setenv("ENTORNO", "staging")
-    monkeypatch.setenv("POLITICA_VERSION", "0.17")
+    monkeypatch.setenv("POLITICA_VERSION", "0.18")
     monkeypatch.setenv("PUSH_CUENTAS_PERMITIDAS", str(cuenta))
     config.obtener_configuracion.cache_clear()
     try:
@@ -138,7 +138,7 @@ def test_la_tarea_de_avisos_arma_el_consumidor_con_la_lista(monkeypatch: pytest.
 def test_el_arranque_avisa_sin_valores(monkeypatch: pytest.MonkeyPatch, entorno: str, avisa: bool) -> None:
     cuenta = uuid.uuid4()
     monkeypatch.setenv("ENTORNO", entorno)
-    monkeypatch.setenv("POLITICA_VERSION", "0.17")
+    monkeypatch.setenv("POLITICA_VERSION", "0.18")
     monkeypatch.setenv("PUSH_CUENTAS_PERMITIDAS", str(cuenta))
     config.obtener_configuracion.cache_clear()
     salida = io.StringIO()
