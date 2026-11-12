@@ -90,8 +90,9 @@ def _filas(request_id: str) -> list[tuple[Any, ...]]:
     """Las filas de auditoría de la petición, vistas como superusuario."""
     with psycopg.connect(DSN) as cx:
         return cx.execute(
-            "SELECT id, grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, ip, request_id,"
-            " ocurrido_en FROM auditoria WHERE request_id = %s ORDER BY id",
+            # MATU-55 (decisión 266): la columna ip ya no existe; to_jsonb(a) ? 'ip' lo verifica
+            "SELECT id, grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, to_jsonb(a) ? 'ip',"
+            " request_id, ocurrido_en FROM auditoria a WHERE request_id = %s ORDER BY id",
             (request_id,),
         ).fetchall()
 
@@ -129,11 +130,11 @@ def test_registrar_deja_una_fila_con_los_campos_de_la_entrada(
     # Entonces queda exactamente una fila, con el instante del Reloj y sin IP
     filas = _filas(request_id)
     assert len(filas) == 1
-    _, grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, ip, req, ocurrido_en = filas[0]
+    _, grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, con_ip, req, ocurrido_en = filas[0]
     assert (grupo_id, actor_tipo, actor_ref) == (grupo.id, "usuario", grupo.admin_id)
     assert (accion, entidad, entidad_id) == ("relevo.compartir", "acceso_relevo", acceso_id)
     assert (motivo, req) == ("fin_de_semana_fuera", request_id)
-    assert ip is None
+    assert con_ip is False
     assert ocurrido_en == reloj_fijo.ahora()
 
 
@@ -146,7 +147,7 @@ def test_registrar_sin_motivo_ni_entidad_id_deja_nulos(
         RegistroAuditoriaSql(sesion, reloj_fijo).registrar(_entrada(grupo, request_id, entidad_id=None))
 
     [fila] = _filas(request_id)
-    assert (fila[6], fila[7], fila[8]) == (None, None, None)  # entidad_id, motivo, ip
+    assert (fila[6], fila[7], fila[8]) == (None, None, False)  # entidad_id, motivo, sin columna ip
 
 
 # --- Solo inserción -----------------------------------------------------------------------------

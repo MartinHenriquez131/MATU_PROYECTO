@@ -134,12 +134,12 @@ def test_acceso_guarda_solo_hash(entorno: EntornoRelevo) -> None:
     assert token not in indice[5]
 
     auditoria = _todas(
-        "SELECT actor_tipo, actor_ref, motivo, ip, a::text FROM auditoria a"
+        "SELECT actor_tipo, actor_ref, motivo, to_jsonb(a) ? 'ip', a::text FROM auditoria a"
         " WHERE accion = 'relevo.compartir' AND entidad_id = %s",
         acceso_id,
     )
     assert len(auditoria) == 1
-    assert auditoria[0][:4] == ("usuario", familia.admin.id, "fin_de_semana_fuera", None)
+    assert auditoria[0][:4] == ("usuario", familia.admin.id, "fin_de_semana_fuera", False)  # sin ip (0025)
     assert token not in auditoria[0][4] and "Rosa" not in auditoria[0][4]
     assert not aparece_celular(_cuerpo()["telefono_relevo"], auditoria[0][4])  # sin falsos positivos por un UUID
 

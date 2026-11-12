@@ -1145,3 +1145,70 @@ def test_0024_pago_y_baja_al_esquema_de_0023(base_desechable):
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     assert consultar("SELECT count(*) FROM transaccion_pasarela") == [(1,)]
     alembic("upgrade", "head")
+
+
+# MATU-55 (0025): filas de la auditoría de 0024, como superusuario. Una de la cuenta (con la ip vacía, como siempre) y
+# una del grupo
+U25, G25 = "00000000-0000-0000-0000-0000000055a1", "00000000-0000-0000-0000-0000000055a0"
+FILAS_0024_AUDITORIA = f"""
+INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, ip) VALUES
+ (NULL,     'usuario', '{U25}', 'sesion.iniciar', 'dispositivo', NULL),
+ ('{G25}',  'usuario', '{U25}', 'plan.leer',      'plan_cuidado', NULL);
+"""
+
+
+def _alembic_falla(*args: str) -> str:
+    """Corre alembic esperando que falle, y devuelve su stderr."""
+    assert URL_MIGRACIONES is not None
+    url = make_url(URL_MIGRACIONES).set(database=BASE).render_as_string(hide_password=False)
+    r = subprocess.run(
+        [sys.executable, "-c", "from alembic.config import main; main()", *args],
+        cwd=BACKEND, env={**os.environ, "MIGRATIONS_DATABASE_URL": url},
+        capture_output=True, text=True, check=False,
+    )
+    assert r.returncode != 0, f"alembic {' '.join(args)} debía fallar"
+    return r.stderr
+
+
+@pytest.mark.rf("RF-37")
+def test_0025_auditoria_de_la_cuenta_y_baja_al_esquema_de_0024(base_desechable):
+    from app.shared.auditoria import ACCIONES_DE_CUENTA
+
+    alembic("upgrade", "0024")
+    esquema_0024 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_0024_AUDITORIA)
+
+    alembic("upgrade", "0025")
+    # La política, el índice y el CHECK validado; la columna ip ya no está, y las filas siguen
+    assert consultar("SELECT cmd FROM pg_policies WHERE policyname = 'auditoria_cuenta_propia'") == [("SELECT",)]
+    assert consultar("SELECT indexdef LIKE '%WHERE (grupo_id IS NULL)' FROM pg_indexes"
+                     " WHERE indexname = 'auditoria_cuenta_ix'") == [(True,)]
+    [(definicion, validada)] = consultar(
+        "SELECT pg_get_constraintdef(oid), convalidated FROM pg_constraint WHERE conname = 'auditoria_cuenta_acotada'")
+    assert validada is True
+    # La lista del CHECK es la de ACCIONES_DE_CUENTA (decisión 258)
+    assert set(definicion.split("ARRAY[", 1)[1].split("]", 1)[0].replace("::text", "").replace("'", "")
+               .replace(" ", "").split(",")) == {a.value for a in ACCIONES_DE_CUENTA}
+    assert consultar("SELECT count(*) FROM information_schema.columns WHERE table_name = 'auditoria'"
+                     " AND column_name = 'ip'") == [(0,)]
+    assert consultar("SELECT count(*) FROM auditoria") == [(2,)]
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad) VALUES ('usuario', '{U25}',"
+                  " 'plan.leer', 'plan_cuidado')")
+
+    alembic("downgrade", "0024")
+    despues = catalogo()
+    for parte, filas in esquema_0024.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM auditoria") == [(2,)]
+
+    # Una fila sin grupo que no es de la cuenta hace fallar la subida con el nombre del CHECK, en vez de quedar oculta
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad) VALUES ('usuario', '{U25}',"
+                  " 'plan.leer', 'plan_cuidado')")
+    assert "auditoria_cuenta_acotada" in _alembic_falla("upgrade", "0025")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("SET session_replication_role = replica")
+        c.execute("DELETE FROM auditoria WHERE grupo_id IS NULL AND accion = 'plan.leer'")
+    alembic("upgrade", "head")
