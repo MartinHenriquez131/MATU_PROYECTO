@@ -11,6 +11,7 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { AppFamilia } from '../src/familia/AppFamilia'
 import type { RespuestaFalsa } from './apiFalsa'
+import { respuestaDelGrupo } from './miembrosFalsos'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: '3c9d4e20-0000-4000-8000-0000000000aa', nombre: 'María Soto', nombre_pila: 'María', nivel_apoyo: 'apoyo_parcial' }
@@ -81,6 +82,9 @@ function apiApp(personasIniciales: (typeof MARIA)[], enlacesCortados = 2, { dosG
       personas = personas.filter((p) => p.id !== m[1])
       return responder(config, { status: 200, cuerpo: { persona_id: m[1], borrado_en: '2026-11-08T15:00:00Z', enlaces_cortados: enlacesCortados, autorizaciones_retiradas: 2 } })
     }
+    // MATU-53: quiénes forman el grupo, que Grupo familiar pide aparte (miembrosFalsos.ts).
+    const delGrupo = respuestaDelGrupo(linea)
+    if (delGrupo) return responder(config, delGrupo)
     return responder(config, { status: 404, cuerpo: { type: '/errores/no-encontrado', status: 404 } })
   }
   return pedidas

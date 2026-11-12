@@ -16,6 +16,7 @@ import { AutorizarFicha, AutorizarInsumos, GrupoFamiliar } from '../src/familia/
 import { ShellFamilia } from '../src/familia/Shell'
 import type { RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { respuestaDelGrupo } from './miembrosFalsos'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: '3c9d4e20-0000-4000-8000-0000000000aa', nombre: 'María Soto', nombre_pila: 'María' }
@@ -67,8 +68,10 @@ function api(atender: Atender) {
       params: config.params as Record<string, unknown> | undefined,
       cuerpo: typeof config.data === 'string' && config.data ? JSON.parse(config.data) : undefined,
     }
-    pedidas.push(p)
-    const r = await atender(p)
+    // MATU-53: quiénes forman el grupo, que Grupo familiar pide aparte (miembrosFalsos.ts).
+    const delGrupo = respuestaDelGrupo(p.linea)
+    if (!delGrupo) pedidas.push(p)
+    const r = delGrupo ?? (await atender(p))
     const respuesta: AxiosResponse = { data: r.cuerpo ?? '', status: r.status, statusText: '', headers: r.cabeceras ?? {}, config, request: {} }
     if (r.status >= 400) throw new AxiosError(`HTTP ${r.status}`, AxiosError.ERR_BAD_REQUEST, config, {}, respuesta)
     return respuesta
@@ -161,7 +164,8 @@ describe('Grupo familiar, por rol y por estado', () => {
     const pantalla = abrirGrupo('admin')
     expect(await pantalla.findByText('Permiso para guardar su ficha')).toBeVisible()
     expect(pantalla.getByRole('heading', { level: 1, name: 'Grupo familiar' })).toBeVisible()
-    expect(pantalla.getByText('A quién cuidan en Familia Soto y qué permisos dieron.')).toBeVisible()
+    // MATU-53 (5.1): la bajada suma quiénes forman el grupo.
+    expect(pantalla.getByText('Quiénes forman Familia Soto, a quién cuidan y qué permisos dieron.')).toBeVisible()
     expect(pantalla.getByRole('heading', { level: 2, name: 'María Soto' })).toBeVisible()
 
     expect(within(bloque('Permiso para guardar su ficha')).getByText(/^Autorizada el/)).toHaveTextContent('Autorizada el 04/11/2026.')
@@ -170,8 +174,8 @@ describe('Grupo familiar, por rol y por estado', () => {
     const retirarFicha = pantalla.getByRole('button', { name: 'Retirar la autorización de la ficha de María' })
     expect(retirarFicha).toHaveTextContent('Retirar la autorización')
     expect(pantalla.getByRole('button', { name: 'Retirar la autorización de los insumos de María' })).toBeVisible()
-    // 6.2: ningún elemento en turquesa macizo en Grupo familiar.
-    expect(document.querySelector('.bg-turquesa')).toBeNull()
+    // 6.2, cambiado por MATU-53 (10.1): el único turquesa macizo de Grupo familiar es «Invitar a alguien», solo para admin.
+    await waitFor(() => expect([...document.querySelectorAll('.bg-turquesa')].map((b) => b.textContent)).toEqual(['Invitar a alguien']))
     // P2: la calidad de quien autorizó nunca se muestra, aunque la API la mande al admin. (MATU-72: la
     // explicación de «Borrar sus datos» dice «su representante legal», que no es la calidad.)
     for (const permiso of ['Permiso para guardar su ficha', 'Permiso para calcular sus insumos'])
@@ -241,7 +245,8 @@ describe('Grupo familiar, por rol y por estado', () => {
       'Autorización retirada el 06/11/2026. Si nadie vuelve a autorizar, lo guardado se borra el 04/02/2027.',
     )
     expect(insumos.getByText('Puede volver a autorizarla quien administra el grupo o quien cuida a María.')).toBeVisible()
-    expect(pantalla.queryByRole('button')).toBeNull()
+    // MATU-53: fuera de la persona está «Salir del grupo», que es de todos los roles.
+    expect(within(pantalla.getByRole('region', { name: 'María Soto' })).queryByRole('button')).toBeNull()
     expect(pantalla.queryByText(/titular|representante|de hecho/i)).toBeNull()
     expect(pedidas.some((p) => p.linea.includes('accesos-relevo'))).toBe(false)
   })
