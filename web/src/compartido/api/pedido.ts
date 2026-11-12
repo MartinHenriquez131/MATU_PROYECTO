@@ -136,7 +136,17 @@ export function leerConflictoDireccion(error: unknown): DireccionVista | null {
 
 // ---------------------------------------------------------------- las condiciones del pedido (D6)
 
-/** `GET /v1/condiciones-pedido` (decisión 207): pública, sin sesión y sin cookies, como la política. */
-export async function leerCondiciones(): Promise<CondicionesPedido> {
-  return (await apiPublica.get<CondicionesPedido>('/v1/condiciones-pedido', { withCredentials: false })).data
+/**
+ * `GET /v1/condiciones-pedido` (decisión 207): pública, sin sesión y sin cookies, como la política.
+ * MATU-62 (P4, decisión 240): con `version`, esa versión publicada (la que se aceptó al pagar).
+ */
+export async function leerCondiciones(version: string | null = null): Promise<CondicionesPedido> {
+  const params = version ? { version } : undefined
+  return (await apiPublica.get<CondicionesPedido>('/v1/condiciones-pedido', { withCredentials: false, params })).data
+}
+
+/** La versión de `?version=` de la página, si tiene el formato del contrato (`0.2`). No es un dato de nadie. */
+export function versionDeLaDireccion(busqueda: string): string | null {
+  const v = new URLSearchParams(busqueda).get('version')
+  return v && v.length <= 9 && /^[0-9]+\.[0-9]+$/.test(v) ? v : null
 }

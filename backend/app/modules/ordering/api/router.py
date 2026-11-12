@@ -21,6 +21,7 @@ pedido ni la Idempotency-Key van a los logs: la línea de la petición lleva la 
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Header, Path, Request, Response, status
@@ -47,6 +48,7 @@ from app.modules.ordering.application import pedidos as casos
 from app.modules.ordering.application.pedidos import (
     Actor,
     CelularInvalido,
+    PagoEnCurso,
     PedidoAbierto,
     PedidoNoEncontrado,
     PedidoVacio,
@@ -64,6 +66,7 @@ from app.modules.ordering.domain.pedido import (
     NadaDisponible,
     Pedido,
     ReglaPedida,
+    ve_entrega,
 )
 from app.modules.ordering.infrastructure.condiciones import condiciones_vigentes
 from app.modules.ordering.infrastructure.repositorio_idempotencia import RepositorioIdempotenciaSQL
@@ -88,7 +91,8 @@ _ERRORES: dict[int | str, dict[str, Any]] = {
     },
     409: {
         "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible,"
-        " pedido-abierto (con pedido_id) o idempotencia-en-curso",
+        " pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas,"
+        " reglas-faltante y contacto)",
         **_PROBLEMA,
     },
     412: {"description": "/errores/version-desactualizada, con el pedido vigente en actual", **_PROBLEMA},
@@ -109,7 +113,8 @@ Vista = PedidoVista | PedidoVistaObservador
 
 
 def obtener_repositorio_pedidos(contexto: SesionDeGrupo) -> RepositorioPedidos:
-    return RepositorioPedidosSQL(contexto.sesion, contexto.grupo_id)
+    vida = timedelta(minutes=obtener_configuracion().vida_venta_webpay_minutos)
+    return RepositorioPedidosSQL(contexto.sesion, contexto.grupo_id, vida)
 
 
 def obtener_catalogo_comercio_pedido(contexto: SesionDeGrupo) -> CatalogoComercio:
@@ -288,6 +293,8 @@ class Proyeccion:
             precios_de_ejemplo=self.comercios.precios_de_ejemplo,
             condiciones=condiciones_vigentes(),
             celular_de_quien_lee=self.repositorio.celular_verificado(),
+            # MATU-62 (decisión 230): el observador no lee el pago (RLS) y su vista no lo trae
+            pago_en_curso=ve_entrega(self.rol) and self.repositorio.pago_en_curso(pedido.id, self.reloj.ahora()),
         )
 
 
@@ -359,6 +366,10 @@ def _traducir(error: Exception, proyectar: Proyeccion) -> ErrorMATU:
             detalle="Esta persona ya tiene un pedido sin pagar",
             extension={"pedido_id": str(error.pedido_id)},
         )
+    if isinstance(error, PagoEnCurso):
+        return ErrorMATU(
+            409, tipo="pago-en-curso", titulo="Hay un pago en curso", detalle="Hay un pago en curso para este pedido"
+        )
     if isinstance(error, PedidoVacio):
         return ErrorMATU(409, tipo="pedido-vacio", detalle="El pedido no tiene productos")
     if isinstance(error, SinDireccion):
@@ -380,6 +391,7 @@ ERRORES_DE_NEGOCIO = (
     PedidoVacio,
     SinDireccion,
     NadaDisponible,
+    PagoEnCurso,
 )
 
 
@@ -432,6 +444,11 @@ def _repetir(response: Response, repeticion: Repeticion, actor: Actor, proyectar
         raise ErrorMATU(404) from None
     response.status_code = repeticion.estado_http
     return _responder(response, proyectar.de(pedido))
+
+
+# MATU-62: payments reutiliza la reserva de la clave y la traducción de los errores del pedido (412 y 409 estado-pedido)
+reservar_clave = _reservar
+traducir_error = _traducir
 
 
 # --- Rutas ---------------------------------------------------------------------------------------------------------

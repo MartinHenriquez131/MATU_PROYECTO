@@ -80,6 +80,10 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "pedido.confirmar",
         "pedido.cancelar",
         "pedido.regla_faltante",
+        # MATU-62 (decisión 244)
+        "pago.iniciar",
+        "pago.aprobar",
+        "pago.anular",
     }
 
 
@@ -103,6 +107,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "persona_cuidada",
         "direccion",
         "pedido",
+        "cargo",
     }
 
 

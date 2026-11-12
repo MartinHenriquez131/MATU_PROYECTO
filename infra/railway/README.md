@@ -70,6 +70,8 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `FORWARDED_ALLOW_IPS` | Vacía al principio (127.0.0.1). Se fija en el paso 5 |
 | `PROXY_SALTOS` | Vacía al principio (0). `1` en Railway, en el paso 5 |
 | `DIAGNOSTICO_PROXY` | **No se carga**, salvo durante la verificación del paso 5: `true` y después se borra |
+| `PASARELA_PAGO` | MATU-62: `integracion` en staging. Webpay Plus en el ambiente de integración de Transbank, con el código de comercio y la llave públicas que trae su SDK: no se cargan. Sin la variable, pagar responde 503 y no se cobra nada. `falsa` no carga fuera de local y pruebas |
+| `VIDA_VENTA_WEBPAY_MINUTOS` | MATU-62: opcional, `8` por omisión (decisión 230; MATU-94: la venta de integración vence a los 7 minutos). Cuánto dura un pago en curso con la venta iniciada. Va en `matu-api` y en los cron |
 
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
 `ADMIN_DATABASE_URL` (solo se usa en tu computador, en el paso 3), `WEB_DIST` y `PORT` (los fijan la
@@ -240,6 +242,7 @@ y su porqué están en `backend/README.md` (hallazgos H3 y H5):
 | `matu-cron-borrados` | `python -m app.tareas borrados` | `0 6 * * *` | 03:00 / 02:00 |
 | `matu-cron-quiebres` | `python -m app.tareas quiebres` | `0 8 * * *` | 05:00 / 04:00 |
 | `matu-cron-avisos` | `python -m app.tareas avisos` | `*/5 * * * *` | cada 5 minutos, el mínimo de Railway |
+| `matu-cron-conciliacion` | `python -m app.tareas conciliacion_pagos` | `*/5 * * * *` | cada 5 minutos (MATU-62) |
 
 Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van como referencia a `matu-api`
 (`${{matu-api.DATABASE_URL}}`), sin copiar valores:
@@ -259,6 +262,11 @@ Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van co
 Desde MATU-61, `borrados` corre además `conservacion_pedidos` (los pedidos no pagados a los 30 días, migración
 0023). Corre siempre, con la capa 3 encendida o apagada (decisión 220): no necesita `CAPA3_HABILITADA`. Sin
 variables nuevas: usa `SCHEDULER_DATABASE_URL`.
+
+Desde MATU-62, `matu-cron-conciliacion` cierra los pagos de Webpay sin respuesta y reintenta las anulaciones
+(D-62-5 y D-62-6), también con la capa 3 apagada (D-62-17). Lleva las variables de `borrados`
+(`SCHEDULER_DATABASE_URL` para `pagos_por_conciliar`, `DATABASE_URL` para cerrar cada venta) más
+`PASARELA_PAGO` como referencia a `matu-api`. Sin `PASARELA_PAGO` la corrida no llama a nadie.
 
 `REGISTRO_AVISOS` **ya no se carga** en el cron de avisos: con `ENTORNO=staging` el envío simulado no escribe el
 archivo, que se perdía con cada contenedor (hallazgo H4). Lo enviado queda en la tabla `notificacion`, con su

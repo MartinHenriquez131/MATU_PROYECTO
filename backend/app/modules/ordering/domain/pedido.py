@@ -99,6 +99,10 @@ class Linea:
     salio: bool = False
     # La copia de producto.retracto_pierde_al_abrir al confirmar (C3). None en borrador
     retracto_copiado: bool | None = None
+    # MATU-62 (decisión 239): lo devuelto de la línea por una anulación parcial hecha, y lo que se está devolviendo
+    monto_devuelto: int = 0
+    devuelta_en: datetime | None = None
+    devolucion_en_curso: int | None = None
 
     @property
     def subtotal(self) -> int:
@@ -144,6 +148,8 @@ class Pedido:
     actualizado_en: datetime
     lineas: tuple[Linea, ...] = ()
     entrega: Entrega | None = None
+    # MATU-62: desde aquí el total, las líneas y las condiciones quedan fijos
+    pagado_en: datetime | None = None
 
     @property
     def etag(self) -> str:

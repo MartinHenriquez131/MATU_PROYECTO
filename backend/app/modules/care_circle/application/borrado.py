@@ -86,8 +86,9 @@ def borrar_persona(
         raise RolSinPermisoBorrado()
     persona = exigir_borrable(repositorio.bloquear_persona(solicitud.persona_id))
     # Falla cerrado: sin el efecto de una finalidad, lo de esa finalidad quedaría guardado
-    # MATU-61 (C2): ``finalidades`` son las activas. Con la capa 3, también despacho, y su efecto cancela los pedidos
-    # sin pagar; sin la capa 3, una autorización despacho que quedó se revoca igual, sin tocar pedidos
+    # MATU-61 (C2) y MATU-94 (decisión 250): ``finalidades`` son las que se retiran (finalidades_que_se_retiran): con
+    # el efecto de despacho registrado, también despacho, con la capa 3 encendida o apagada, y su efecto cancela los
+    # pedidos sin pagar; con la capa 3 quitada, una autorización despacho que quedó se revoca igual, sin tocar pedidos
     if any(finalidad not in efectos for finalidad in finalidades):
         raise EfectoNoDisponible()
     vigentes = repositorio.bloquear_vigentes(persona.id)

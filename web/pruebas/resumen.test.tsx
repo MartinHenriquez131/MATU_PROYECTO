@@ -68,12 +68,12 @@ describe('Antes de pagar, con el total vigente', () => {
     expect(screen.getAllByText('Precios de ejemplo.')).toHaveLength(1)
   })
 
-  it('9.9: sin «Pagar» (MATU-62) y sin ningún macizo turquesa; la casilla, las condiciones y la salida sin costo', async () => {
+  it('9.9 y MATU-62 (4): «Pagar {total}» es el único macizo turquesa; la casilla, las condiciones y la salida sin costo', async () => {
     apiPedido({}, { pedido: confirmado() })
     abrir()
     await titulo()
-    expect(screen.queryByRole('button', { name: /Pagar/ })).toBeNull()
-    expect(screen.getAllByRole('button').filter((b) => /\bbg-turquesa\b/.test(b.className))).toEqual([])
+    const pagar = screen.getByRole('button', { name: 'Pagar $34.260' })
+    expect(screen.getAllByRole('button').filter((b) => /\bbg-turquesa\b/.test(b.className))).toEqual([pagar])
     const enlace = screen.getByRole('link', { name: 'Condiciones del pedido (se abre en otra pestaña)' })
     expect(enlace).toHaveAttribute('href', '/condiciones-pedido')
     expect(enlace).toHaveAttribute('target', '_blank')

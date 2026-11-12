@@ -10,7 +10,8 @@ Qué protege cada prueba:
 1. Arranque: con la capa 3 bloqueada, app.main se importa, crea la API y no carga nada de la capa 3.
 2. Contrato: el OpenAPI trae la ficha, el relevo, el consumo, las alertas y la lista, y ninguna ruta del despacho.
 3. Respuestas: las rutas de las capas 1 y 2 llegan a su código (401, 422), no a un 404 de ruteo ni a un 500.
-4. Interruptor: CAPA3_HABILITADA monta ROUTERS_CAPA_3, y apagado ni siquiera los importa.
+4. Interruptor: CAPA3_HABILITADA monta ROUTERS_CAPA_3, y apagado ni siquiera los importa. El efecto de despacho
+   (EFECTOS_CAPA_3) se registra siempre, también apagado, sin montar rutas; quitado, se omite (MATU-94, decisión 250).
 5. Importaciones: nada de lo que app.main carga, siguiendo sus importaciones, llega a la capa 3.
    Complementa a test_arquitectura.py, que revisa cada importación suelta pero exime a main.py y a
    backoffice: aquí se sigue la cadena completa desde el punto de entrada.
@@ -293,12 +294,88 @@ def test_capa_3_apagada_por_omision(configuracion_sin_env: None) -> None:
     assert obtener_configuracion().capa3_habilitada is False
 
 
+def _sin_efecto_de_despacho(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Olvida el efecto de despacho que otra prueba del proceso ya registró: el registro es del proceso."""
+    from app.modules.care_circle.infrastructure import efectos_retiro
+
+    monkeypatch.delitem(efectos_retiro._FABRICAS, "despacho", raising=False)
+
+
+@pytest.mark.rf("RF-21")
+def test_capa_3_apagada_registra_el_efecto_de_despacho_sin_montar_rutas(capa3: pytest.MonkeyPatch) -> None:
+    """MATU-94 (decisión 250): retirar despacho y borrar a la persona cancelan los pedidos sin pagar también con la
+    capa 3 apagada. Falla sin la corrección: antes, el efecto se registraba solo dentro de incluir_capa_3."""
+    from app.main import crear_app
+    from app.modules.care_circle.infrastructure.efectos_retiro import _FABRICAS, finalidades_registradas
+    from app.modules.ordering.infrastructure.efecto_retiro import EfectoRetiroPedidos
+
+    _sin_efecto_de_despacho(capa3)
+    capa3.setenv("CAPA3_HABILITADA", "false")
+
+    app = crear_app(stream_logs=io.StringIO())
+
+    assert "despacho" in finalidades_registradas()
+    assert _FABRICAS["despacho"] is EfectoRetiroPedidos
+    # Ninguna ruta de pedidos por esto: ni las del despacho ni el router de ROUTERS_CAPA_3. La única de la capa 3 que
+    # queda es la vuelta del pago, que MATU-62 monta siempre (ROUTERS_PAGO_SIEMPRE, decisión 241), no el efecto
+    rutas = sorted(app.openapi()["paths"])
+    assert [r for r in rutas if r.startswith(PREFIJOS_CAPA_3)] == ["/v1/pagos/retorno"]
+    assert TestClient(app, raise_server_exceptions=False).get("/v1/pedidos-de-prueba").status_code == 404
+
+
+@pytest.mark.rf("RF-21")
+def test_el_efecto_de_un_paquete_quitado_se_omite_solo_con_la_capa_apagada(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+    from app.modules.care_circle.infrastructure.efectos_retiro import finalidades_registradas
+
+    _sin_efecto_de_despacho(monkeypatch)
+    monkeypatch.setattr(main, "EFECTOS_CAPA_3", (("despacho", "app.modules.ordering.no_existe_matu94:Efecto"),))
+
+    # Apagada y quitada (ADR-002): la API arranca sin el efecto, como en la decisión 217
+    main.registrar_efectos_capa_3(False)
+    assert "despacho" not in finalidades_registradas()
+
+    # Encendida, el efecto es obligatorio: no arranca
+    with pytest.raises(ModuleNotFoundError):
+        main.registrar_efectos_capa_3(True)
+
+
+@pytest.mark.rf("RF-21")
+@pytest.mark.parametrize(
+    ("faltante", "omitir"),
+    [
+        ("app.modules.ordering", True),
+        ("app.modules.ordering.infrastructure.efecto_retiro", True),
+        # Lo que falta es otra cosa: un defecto, no la capa 3 quitada. No se esconde
+        ("app.modules.ordering.infra", False),
+        ("sqlalchemy_no_existe", False),
+        (None, False),
+    ],
+)
+def test_solo_se_omite_si_falta_el_paquete_del_efecto(faltante: str | None, omitir: bool) -> None:
+    from app.main import _falta_el_paquete
+
+    error = ModuleNotFoundError("falta", name=faltante)
+
+    assert _falta_el_paquete(error, "app.modules.ordering.infrastructure.efecto_retiro") is omitir
+
+
 def test_routers_capa_3_solo_trae_la_capa_3() -> None:
     # ROUTERS_CAPA_3 no es una puerta trasera para apagar la ficha o el consumo por error
     from app.main import ROUTERS_CAPA_3
 
     ajenos = [r for r in ROUTERS_CAPA_3 if not es_de_la_capa_3(r.partition(":")[0], PAQUETES_CAPA_3)]
     assert ajenos == []
+
+
+def test_routers_pago_siempre_solo_trae_la_vuelta_del_pago() -> None:
+    # MATU-62 (D-62-17): lo que se monta con la capa 3 apagada es solo la vuelta de Webpay, de payments
+    from app.main import ROUTERS_PAGO_SIEMPRE
+
+    assert [r for r, _ in ROUTERS_PAGO_SIEMPRE] == [
+        "app.modules.payments.api.router_retorno:router",
+        "app.modules.payments.api.router_retorno:router_formulario",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -536,3 +613,115 @@ def test_flujos_de_las_capas_1_y_2_pasan_sin_la_capa_3() -> None:
     assert proceso.returncode == 0, salida
     # Todas pasan: ni una saltada (la base está, la marca requiere_base lo asegura)
     assert re.search(rf"\b{len(FLUJOS)} passed\b", salida) and "skipped" not in salida, salida
+
+
+# ---------------------------------------------------------------------------
+# 8 · MATU-62 (D-62-17, decisión 241): con la capa 3 apagada y un pago en curso, la vuelta y la conciliación siguen
+# ---------------------------------------------------------------------------
+
+
+def _app_sin_capa3(monkeypatch: pytest.MonkeyPatch) -> Any:
+    from app.core import config
+    from app.main import crear_app
+
+    monkeypatch.setenv("CAPA3_HABILITADA", "false")
+    config.obtener_configuracion.cache_clear()
+    try:
+        return crear_app(stream_logs=io.StringIO())
+    finally:
+        config.obtener_configuracion.cache_clear()
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_vuelta_del_pago_sigue_y_pagar_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = _app_sin_capa3(monkeypatch)
+    rutas = app.openapi()["paths"]
+    assert "post" in rutas["/v1/pagos/retorno"]
+    assert not any(ruta.startswith("/v1/pedidos") for ruta in rutas)
+    assert "/v1/personas-cuidadas/{persona_id}/pedido-pagado" not in rutas
+    cliente = TestClient(app)
+    # Fuera de openapi.json, y montada igual: el POST de Transbank vuelve a la pantalla
+    assert cliente.post("/insumos/pedido/pago", follow_redirects=False).status_code == 303
+    assert cliente.post(f"/v1/pedidos/{PERSONA}/pagar", json={}).status_code == 404
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_un_pago_en_curso_se_registra_por_la_vuelta(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Se apagó la capa 3 con la persona en Webpay: el pago que el banco aprobó se registra igual."""
+    from app.core.db import obtener_fabrica_sesiones
+    from app.modules.iam.api.dependencias import obtener_clave_jwt, obtener_reloj
+    from app.modules.payments.api.router_retorno import obtener_abrir_grupo, obtener_resolver
+    from app.modules.payments.infrastructure.pasarela import obtener_pasarela
+    from tests.modules.payments.test_casos_pago import Escena
+
+    escena = Escena()
+    token = escena.pagar().token  # con la capa 3 encendida
+    assert token is not None
+    escena.pasarela.pagar(token)
+    app = _app_sin_capa3(monkeypatch)
+    app.dependency_overrides[obtener_resolver] = lambda: escena.sistema.resolver
+    app.dependency_overrides[obtener_abrir_grupo] = lambda: escena.sistema.abrir
+    app.dependency_overrides[obtener_pasarela] = lambda: escena.pasarela
+    app.dependency_overrides[obtener_reloj] = lambda: escena.reloj
+    app.dependency_overrides[obtener_fabrica_sesiones] = lambda: None
+    clave = secrets.token_hex(32).encode()
+    app.dependency_overrides[obtener_clave_jwt] = lambda: clave
+
+    respuesta = TestClient(app).post("/v1/pagos/retorno", json={"token_ws": token})
+
+    assert (respuesta.status_code, respuesta.json()["resultado"]) == (200, "aprobado")
+    assert escena.p.estado == "pagado"
+
+
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_conciliacion_corre_y_cierra_el_pago(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D-62-17: la tarea conciliacion_pagos no mira CAPA3_HABILITADA. Sin base: el pago en memoria."""
+    from datetime import timedelta
+
+    from app import tareas
+    from app.core.config import obtener_configuracion
+    from app.modules.payments.infrastructure import tarea_conciliacion
+    from tests.modules.payments.test_casos_pago import VIDA, Escena
+
+    escena = Escena()
+    token = escena.pagar().token
+    assert token is not None
+    escena.pasarela.pagar(token)  # pagó y no volvió
+    escena.reloj.avanzar(VIDA + timedelta(seconds=1))
+    monkeypatch.setattr(tarea_conciliacion, "pasarela_desde", lambda config: escena.pasarela)
+    monkeypatch.setattr(tarea_conciliacion, "ListarPorConciliarSQL", lambda fabrica: escena.sistema.listar)
+    monkeypatch.setattr(tarea_conciliacion, "AbrirGrupoSQL", lambda fabrica, reloj: escena.sistema.abrir)
+    config = obtener_configuracion().model_copy(update={"capa3_habilitada": False})
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=object(),  # type: ignore[arg-type]
+        reloj=escena.reloj,
+        fabrica_scheduler=object(),  # type: ignore[arg-type]
+    )
+
+    assert tareas.correr(["conciliacion_pagos"], ctx) == tareas.SALIDA_OK
+    assert escena.p.estado == "pagado" and escena.pasarela.cobrado(token) == escena.p.total
+
+
+@requiere_base
+@pytest.mark.rf("RF-25")
+def test_con_la_capa_3_apagada_la_conciliacion_usa_matu_scheduler() -> None:
+    """Con base: pagos_por_conciliar con matu_scheduler, y la corrida queda ok, no apagada."""
+    from datetime import UTC, datetime
+
+    from app import tareas
+    from app.core.config import obtener_configuracion
+    from tests.base_datos import fabrica_scheduler
+    from tests.dobles.reloj_fijo import RelojFijo
+    from tests.test_tareas import _Espia
+
+    config = obtener_configuracion().model_copy(update={"capa3_habilitada": False, "pasarela_pago": "falsa"})
+    espia = _Espia(fabrica_scheduler())
+    ctx = tareas.Contexto(
+        config=config,
+        fabrica=tareas.fabrica_tareas(config),
+        reloj=RelojFijo(datetime.now(UTC)),
+        fabrica_scheduler=espia,  # type: ignore[arg-type]
+    )
+    assert tareas.correr(["conciliacion_pagos"], ctx) == tareas.SALIDA_OK
+    assert espia.sesiones

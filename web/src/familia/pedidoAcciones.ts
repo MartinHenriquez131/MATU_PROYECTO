@@ -2,6 +2,7 @@
 // `type` (sección 11, nunca por `title` ni `detail`). Sin interfaz optimista: el carrito cambia con
 // la respuesta de la API. Un solo pedido sin pagar por persona (C4): si no hay, se crea el borrador;
 // si lo hay, se reemplazan sus líneas con `If-Match`.
+import { isAxiosError } from 'axios'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   crearPedido,
@@ -28,6 +29,19 @@ export function permisoPedidoDe(x: unknown): 'sin-autorizacion' | 'revision-venc
 export function cambioAjeno(x: unknown): boolean {
   const f = leerFallo(x)
   return f.status === 412 || (f.status === 409 && esTipo(f.tipo, 'estado-pedido'))
+}
+
+/** MATU-62 (D-62-4, regla 1): 409 `pago-en-curso`, otra persona está pagando este pedido. */
+export function pagoEnCursoDe(x: unknown): boolean {
+  const f = leerFallo(x)
+  return f.status === 409 && esTipo(f.tipo, 'pago-en-curso')
+}
+
+/** El `estado` de un 409 `estado-pedido` (con el total vencido, `vencido`, D-62-15). */
+export function estadoDelConflicto(x: unknown): string | null {
+  if (!isAxiosError(x) || x.response?.status !== 409) return null
+  const e = (x.response.data as { estado?: unknown } | undefined)?.estado
+  return typeof e === 'string' ? e : null
 }
 
 /** El pedido ya no está en borrador: no se le pueden agregar productos sin «Cambiar el pedido». */

@@ -39,6 +39,8 @@ ESPERADAS = {
     (E.VENCIDO, E.TOTAL_CONFIRMADO),
     (E.VENCIDO, E.BORRADOR),
     (E.VENCIDO, E.CANCELADO),
+    # MATU-62 (decisión 242): el pago tardío del mismo total se respeta (D-62-4, regla 2)
+    (E.VENCIDO, E.PAGADO),
     (E.PAGADO, E.ENVIADO_A_COMERCIO),
     (E.PAGADO, E.CANCELADO_CON_DEVOLUCION),
     (E.ENVIADO_A_COMERCIO, E.PREPARANDO),
@@ -94,8 +96,8 @@ def test_las_289_combinaciones(desde: Estado, hacia: Estado) -> None:
         assert error.value.estado is desde
 
 
-def test_son_24_transiciones_y_las_de_jorge_estan() -> None:
-    assert TRANSICIONES == ESPERADAS and len(TRANSICIONES) == 24
+def test_son_25_transiciones_y_las_de_jorge_y_matu_62_estan() -> None:
+    assert TRANSICIONES == ESPERADAS and len(TRANSICIONES) == 25
     # C1: volver a confirmar un total vigente y «Cambiar el pedido»; C9: «Cambiar el pedido» con el total vencido
     assert {(E.TOTAL_CONFIRMADO, E.TOTAL_CONFIRMADO), (E.TOTAL_CONFIRMADO, E.BORRADOR), (E.VENCIDO, E.BORRADOR)} <= (
         TRANSICIONES
@@ -138,6 +140,8 @@ def test_los_motivos_son_la_lista_cerrada_de_c19() -> None:
         "familia_cambia_carrito",
         "autorizacion_retirada",
         "persona_borrada",
+        # MATU-62 (decisión 242)
+        "pago_aprobado",
     }
 
 
