@@ -159,8 +159,9 @@ describe('Avisos: las casillas (3.3)', () => {
     expect(screen.queryByText('Guardando…')).toBeNull()
     expect(correo).not.toBeChecked()
     expect(correo).not.toHaveAttribute('aria-disabled')
-    // Criterio 16: el foco ya está en la casilla en el mismo render, sin esperar un temporizador.
-    expect(correo).toHaveFocus()
+    // Criterio 16: el foco vuelve a la casilla. El efecto pasivo puede correr después del texto, así que se espera;
+    // que llegue sin temporizadores lo prueba el bloque «El foco después del render».
+    await vi.waitFor(() => expect(correo).toHaveFocus())
     expect(document.activeElement).not.toBe(document.body)
   })
 
@@ -173,7 +174,7 @@ describe('Avisos: las casillas (3.3)', () => {
     const error = await screen.findByText('No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.')
     expect(error.closest('[data-aviso]')).toHaveAttribute('data-aviso', 'alert')
     expect(correo).toBeChecked()
-    expect(correo).toHaveFocus()
+    await vi.waitFor(() => expect(correo).toHaveFocus())
     expect(document.activeElement).not.toBe(document.body)
   })
 
@@ -350,8 +351,8 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
 
     expect(await screen.findByText('Activaste los avisos en este teléfono.')).toBeInTheDocument()
     expect(screen.getByText('Activados')).toBeInTheDocument()
-    // Criterio 16: en el mismo render, sin esperar un temporizador.
-    expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toHaveFocus()
+    // Criterio 16 (sin temporizadores: lo prueba el bloque «El foco después del render»).
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toHaveFocus())
     expect(n.pasos).toEqual(['requestPermission', 'register /sw.js', 'subscribe'])
     const opciones = n.pushManager.subscribe.mock.calls[0][0]
     expect(opciones.userVisibleOnly).toBe(true)
@@ -377,7 +378,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     await u().click(activar)
     expect(await screen.findByText('No activamos los avisos. Puedes volver a intentarlo.')).toBeInTheDocument()
     expect(screen.getByText('Sin activar')).toBeInTheDocument()
-    expect(activar).toHaveFocus()
+    await vi.waitFor(() => expect(activar).toHaveFocus())
     expect(n.pushManager.subscribe).not.toHaveBeenCalled()
     expect(api.de('PUT', '/v1/dispositivos/actual/push')).toHaveLength(0)
   })
@@ -388,7 +389,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     render(<AvisosCuenta />)
     await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
     const nota = await screen.findByText('Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.')
-    expect(nota.closest('[tabindex="-1"]')).toHaveFocus()
+    await vi.waitFor(() => expect(nota.closest('[tabindex="-1"]')).toHaveFocus())
     expect(screen.queryByRole('button', { name: /Activar en este/ })).toBeNull()
   })
 
@@ -403,7 +404,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     expect(n.pasos).toEqual(['requestPermission', 'register /sw.js', 'subscribe', 'unsubscribe'])
     expect(n.suscripcion()).toBeNull()
     expect(screen.getByText('Sin activar')).toBeInTheDocument()
-    expect(activar).toHaveFocus()
+    await vi.waitFor(() => expect(activar).toHaveFocus())
   })
 
   it('desactivar: primero el DELETE y después la suscripción; pasa a B y el foco a «Activar…»', async () => {
@@ -414,7 +415,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     expect(await screen.findByText('Desactivaste los avisos en este teléfono.')).toBeInTheDocument()
     expect(api.de('DELETE', '/v1/dispositivos/actual/push')).toHaveLength(1)
     expect(n.pasos).toEqual(['unsubscribe'])
-    expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toHaveFocus()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Activar en este teléfono' })).toHaveFocus())
   })
 
   it('falla el DELETE: sigue en A, el error, y la suscripción del navegador no se toca', async () => {
@@ -429,7 +430,7 @@ describe('Este teléfono: activar y desactivar (3.4, D6-a)', () => {
     expect(await screen.findByText('No pudimos desactivar los avisos. Revisa tu conexión y vuelve a intentarlo.')).toBeInTheDocument()
     expect(screen.getByText('Activados')).toBeInTheDocument()
     expect(n.pasos).toEqual([])
-    expect(desactivar).toHaveFocus()
+    await vi.waitFor(() => expect(desactivar).toHaveFocus())
   })
 })
 
