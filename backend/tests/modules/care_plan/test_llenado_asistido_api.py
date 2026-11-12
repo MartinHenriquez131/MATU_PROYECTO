@@ -13,6 +13,9 @@ import pytest
 
 from app.modules.care_circle.api.dependencias_grupo import obtener_pepper_codigo
 from tests.base_datos import requiere_base
+
+# reloj_fijo parte de la hora real (decisión 340)
+from tests.modules.care_circle.test_invitaciones_api import reloj_fijo  # noqa: F401
 from tests.modules.care_plan.conftest import EntornoFicha
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-42")]
