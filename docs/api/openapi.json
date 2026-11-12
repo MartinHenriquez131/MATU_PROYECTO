@@ -7857,6 +7857,168 @@
           }
         }
       }
+    },
+    "/v1/yo/datos": {
+      "get": {
+        "tags": [
+          "mis-datos"
+        ],
+        "summary": "«Tus datos»: todo lo que MATU guarda de la propia cuenta",
+        "description": "MATU-54 (D-54-2 a, D-54-16 a). Cualquier cuenta. La copia completa de la cuenta, para la pantalla y para el archivo (Content-Disposition inline). Nada de una persona cuidada. 10 copias por hora por cuenta, sumando «Datos de» (429 tope-copias). Registra cuenta.datos_descargar. Orden: 401, 503, 429 y 200",
+        "operationId": "verDatosPropios",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "inline; filename=\"matu-cuenta-AAAA-MM-DD.json\": el nombre con que la pantalla guarda el archivo",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopiaDatosCuenta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "tope-copias: 10 copias por hora por cuenta, con Retry-After",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin Redis o sin PEPPER_LIMITES: el límite falla cerrado",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/datos": {
+      "get": {
+        "tags": [
+          "mis-datos"
+        ],
+        "summary": "«Datos de {nombre_pila}»: todo lo que MATU guarda de la persona cuidada",
+        "description": "MATU-54 (D-54-1 a D-54-15). Admin y cuidador. La copia completa, para la pantalla y para el archivo (Content-Disposition inline). Sin la autorización vigente, la ficha y los insumos van solo con su estado. 10 copias por hora por cuenta (429 tope-copias). Registra persona.datos_descargar. Orden: 401, 404, 503, 429 y 200",
+        "operationId": "verDatosPersona",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopiaDatosPersona"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "inline; filename=\"matu-datos-AAAA-MM-DD.json\": el nombre con que la pantalla guarda el archivo",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "Sin grupo, rol pagador u observador, o persona de otro grupo o borrada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "tope-copias: 10 copias por hora por cuenta, con Retry-After",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13080,10 +13242,11 @@
               "codigo_recuperacion_pedido",
               "avisos_cambiados",
               "avisos_activados",
-              "avisos_desactivados"
+              "avisos_desactivados",
+              "pediste_una_copia"
             ],
             "title": "Tipo",
-            "description": "Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce"
+            "description": "Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce. MATU-54 (decisión 376): pediste_una_copia es la copia de «Tus datos»; la de una persona no entra"
           },
           "ocurrido_en": {
             "type": "string",
@@ -13612,6 +13775,2088 @@
         ],
         "title": "VerificacionInvitacion",
         "description": "Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin intentos_restantes (decisión 325)."
+      },
+      "AperturaCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "presentacion",
+              "apertura",
+              "pin_incorrecto",
+              "bloqueo"
+            ],
+            "title": "Tipo"
+          },
+          "ocurrido_en": {
+            "type": "string",
+            "title": "Ocurrido En"
+          },
+          "secciones": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "quien_es",
+                    "preferencias",
+                    "alimentacion",
+                    "movilidad",
+                    "comunicacion",
+                    "remedios"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "ocurrido_en",
+          "secciones"
+        ],
+        "title": "AperturaCopia"
+      },
+      "TarjetaCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "credito",
+              "debito",
+              "prepago"
+            ],
+            "title": "Tipo"
+          },
+          "ultimos4": {
+            "type": "string",
+            "title": "Ultimos4"
+          },
+          "cuotas": {
+            "type": "integer",
+            "title": "Cuotas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "ultimos4",
+          "cuotas"
+        ],
+        "title": "TarjetaCopia"
+      },
+      "CompraCopia": {
+        "properties": {
+          "insumo": {
+            "type": "string",
+            "title": "Insumo"
+          },
+          "unidad": {
+            "type": "string",
+            "enum": [
+              "unidad",
+              "sobre",
+              "ml",
+              "g"
+            ],
+            "title": "Unidad"
+          },
+          "unidades": {
+            "type": "integer",
+            "title": "Unidades"
+          },
+          "el": {
+            "type": "string",
+            "title": "El"
+          },
+          "origen": {
+            "type": "string",
+            "enum": [
+              "declarada",
+              "pedido_matu"
+            ],
+            "title": "Origen"
+          },
+          "anotada_en": {
+            "type": "string",
+            "title": "Anotada En"
+          },
+          "anotada_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaNombrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "insumo",
+          "unidad",
+          "unidades",
+          "el",
+          "origen",
+          "anotada_en",
+          "anotada_por"
+        ],
+        "title": "CompraCopia"
+      },
+      "InsumoCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "del_catalogo": {
+            "type": "boolean",
+            "title": "Del Catalogo"
+          },
+          "unidad": {
+            "type": "string",
+            "enum": [
+              "unidad",
+              "sobre",
+              "ml",
+              "g"
+            ],
+            "title": "Unidad"
+          },
+          "usa_unidades": {
+            "type": "integer",
+            "title": "Usa Unidades"
+          },
+          "cada_dias": {
+            "type": "integer",
+            "title": "Cada Dias"
+          },
+          "quedaban_unidades": {
+            "type": "integer",
+            "title": "Quedaban Unidades"
+          },
+          "quedaban_el": {
+            "type": "string",
+            "title": "Quedaban El"
+          },
+          "se_acaba_el": {
+            "type": "string",
+            "title": "Se Acaba El"
+          },
+          "dias_aviso": {
+            "type": "integer",
+            "title": "Dias Aviso"
+          },
+          "unidades_por_envase": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Por Envase"
+          },
+          "se_sigue": {
+            "type": "boolean",
+            "title": "Se Sigue"
+          },
+          "agregado_en": {
+            "type": "string",
+            "title": "Agregado En"
+          },
+          "actualizado_en": {
+            "type": "string",
+            "title": "Actualizado En"
+          },
+          "actualizado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaNombrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "del_catalogo",
+          "unidad",
+          "usa_unidades",
+          "cada_dias",
+          "quedaban_unidades",
+          "quedaban_el",
+          "se_acaba_el",
+          "dias_aviso",
+          "unidades_por_envase",
+          "se_sigue",
+          "agregado_en",
+          "actualizado_en",
+          "actualizado_por"
+        ],
+        "title": "InsumoCopia"
+      },
+      "TextoMostrado": {
+        "properties": {
+          "identificador": {
+            "type": "string",
+            "title": "Identificador"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "huella": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Huella"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identificador",
+          "version",
+          "huella"
+        ],
+        "title": "TextoMostrado"
+      },
+      "DireccionCopia": {
+        "properties": {
+          "etiqueta": {
+            "type": "string",
+            "title": "Etiqueta"
+          },
+          "calle": {
+            "type": "string",
+            "title": "Calle"
+          },
+          "numero": {
+            "type": "string",
+            "title": "Numero"
+          },
+          "depto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depto"
+          },
+          "comuna": {
+            "type": "string",
+            "title": "Comuna"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "etiqueta",
+          "calle",
+          "numero",
+          "depto",
+          "comuna",
+          "region",
+          "referencia"
+        ],
+        "title": "DireccionCopia"
+      },
+      "FichaCopia": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "disponible",
+              "retirada",
+              "en_pausa",
+              "borrada",
+              "sin_autorizar"
+            ],
+            "title": "Estado"
+          },
+          "borrado_el": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrado El"
+          },
+          "completitud": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  0,
+                  33,
+                  67,
+                  100
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completitud"
+          },
+          "campos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CampoCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campos"
+          },
+          "secciones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SeccionCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secciones"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estado",
+          "borrado_el",
+          "completitud",
+          "campos",
+          "secciones"
+        ],
+        "title": "FichaCopia"
+      },
+      "AvisoInsumoCopia": {
+        "properties": {
+          "insumo": {
+            "type": "string",
+            "title": "Insumo"
+          },
+          "fecha_prevista": {
+            "type": "string",
+            "title": "Fecha Prevista"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "notificada",
+              "resuelta",
+              "descartada"
+            ],
+            "title": "Estado"
+          },
+          "creado_en": {
+            "type": "string",
+            "title": "Creado En"
+          },
+          "notificado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notificado En"
+          },
+          "cerrado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cerrado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "insumo",
+          "fecha_prevista",
+          "estado",
+          "creado_en",
+          "notificado_en",
+          "cerrado_en"
+        ],
+        "title": "AvisoInsumoCopia"
+      },
+      "PagoCuentaCopia": {
+        "properties": {
+          "grupo": {
+            "type": "string",
+            "title": "Grupo"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "pagado_en": {
+            "type": "string",
+            "title": "Pagado En"
+          },
+          "cobrado": {
+            "type": "integer",
+            "title": "Cobrado"
+          },
+          "devuelto": {
+            "type": "integer",
+            "title": "Devuelto"
+          },
+          "tarjeta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TarjetaCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grupo",
+          "referencia",
+          "pagado_en",
+          "cobrado",
+          "devuelto",
+          "tarjeta",
+          "pago_de_prueba"
+        ],
+        "title": "PagoCuentaCopia"
+      },
+      "CampoCopia": {
+        "properties": {
+          "campo": {
+            "type": "string",
+            "enum": [
+              "rutina",
+              "manejo_situaciones",
+              "red_apoyo"
+            ],
+            "title": "Campo"
+          },
+          "texto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texto"
+          },
+          "escrito_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaNombrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actualizado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actualizado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "campo",
+          "texto",
+          "escrito_por",
+          "actualizado_en"
+        ],
+        "title": "CampoCopia"
+      },
+      "DispositivoDelEventoCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "clase": {
+            "type": "string",
+            "enum": [
+              "telefono",
+              "computador",
+              "otro"
+            ],
+            "title": "Clase"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "clase"
+        ],
+        "title": "DispositivoDelEventoCopia"
+      },
+      "QuienCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "persona",
+              "matu"
+            ],
+            "title": "Tipo"
+          },
+          "nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre"
+          },
+          "activo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "nombre",
+          "activo"
+        ],
+        "title": "QuienCopia"
+      },
+      "CuentaCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "correo": {
+            "type": "string",
+            "title": "Correo"
+          },
+          "celular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Celular"
+          },
+          "celular_confirmado": {
+            "type": "boolean",
+            "title": "Celular Confirmado"
+          },
+          "canal_codigos": {
+            "type": "string",
+            "enum": [
+              "sms",
+              "whatsapp"
+            ],
+            "title": "Canal Codigos"
+          },
+          "creada_en": {
+            "type": "string",
+            "title": "Creada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "correo",
+          "celular",
+          "celular_confirmado",
+          "canal_codigos",
+          "creada_en"
+        ],
+        "title": "CuentaCopia"
+      },
+      "AvisoEnviadoCopia": {
+        "properties": {
+          "creado_en": {
+            "type": "string",
+            "title": "Creado En"
+          },
+          "enviado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enviado En"
+          },
+          "canal": {
+            "type": "string",
+            "enum": [
+              "correo",
+              "push",
+              "sms"
+            ],
+            "title": "Canal"
+          },
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "salio",
+              "no_salio",
+              "pendiente",
+              "en_el_piloto_no_salio"
+            ],
+            "title": "Resultado"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "creado_en",
+          "enviado_en",
+          "canal",
+          "resultado"
+        ],
+        "title": "AvisoEnviadoCopia"
+      },
+      "LineaPedidoCopia": {
+        "properties": {
+          "producto": {
+            "type": "string",
+            "title": "Producto"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          },
+          "comercio": {
+            "type": "string",
+            "title": "Comercio"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "precio_unitario": {
+            "type": "integer",
+            "title": "Precio Unitario"
+          },
+          "subtotal": {
+            "type": "integer",
+            "title": "Subtotal"
+          },
+          "si_falta": {
+            "type": "string",
+            "enum": [
+              "otro_comercio",
+              "quitar"
+            ],
+            "title": "Si Falta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "producto",
+          "presentacion",
+          "comercio",
+          "cantidad",
+          "precio_unitario",
+          "subtotal",
+          "si_falta"
+        ],
+        "title": "LineaPedidoCopia"
+      },
+      "CondicionesCopia": {
+        "properties": {
+          "grupo": {
+            "type": "string",
+            "title": "Grupo"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "huella": {
+            "type": "string",
+            "title": "Huella"
+          },
+          "aceptadas_en": {
+            "type": "string",
+            "title": "Aceptadas En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grupo",
+          "referencia",
+          "version",
+          "huella",
+          "aceptadas_en"
+        ],
+        "title": "CondicionesCopia"
+      },
+      "GrupoCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "unido_en": {
+            "type": "string",
+            "title": "Unido En"
+          },
+          "puede_ver_ficha": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Puede Ver Ficha"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "rol",
+          "unido_en",
+          "puede_ver_ficha"
+        ],
+        "title": "GrupoCopia"
+      },
+      "CopiaDatosPersona": {
+        "properties": {
+          "formato": {
+            "type": "string",
+            "const": "matu-datos/1",
+            "title": "Formato"
+          },
+          "tipo": {
+            "type": "string",
+            "const": "persona_cuidada",
+            "title": "Tipo"
+          },
+          "generado_en": {
+            "type": "string",
+            "title": "Generado En"
+          },
+          "aviso": {
+            "type": "string",
+            "const": "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.",
+            "title": "Aviso"
+          },
+          "persona": {
+            "$ref": "#/components/schemas/DatosPersonaCopia"
+          },
+          "autorizaciones": {
+            "items": {
+              "$ref": "#/components/schemas/AutorizacionCopia"
+            },
+            "type": "array",
+            "title": "Autorizaciones"
+          },
+          "ficha": {
+            "$ref": "#/components/schemas/FichaCopia"
+          },
+          "enlaces_relevo": {
+            "items": {
+              "$ref": "#/components/schemas/EnlaceRelevoCopia"
+            },
+            "type": "array",
+            "title": "Enlaces Relevo"
+          },
+          "insumos": {
+            "$ref": "#/components/schemas/InsumosCopia"
+          },
+          "pedidos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PedidoCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pedidos"
+          },
+          "historial": {
+            "$ref": "#/components/schemas/HistorialCopia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "formato",
+          "tipo",
+          "generado_en",
+          "aviso",
+          "persona",
+          "autorizaciones",
+          "ficha",
+          "enlaces_relevo",
+          "insumos",
+          "pedidos",
+          "historial"
+        ],
+        "title": "CopiaDatosPersona",
+        "description": "Respuesta de GET /v1/personas-cuidadas/{persona_id}/datos (MATU-54, decisión 350)."
+      },
+      "PreferenciaAvisosCopia": {
+        "properties": {
+          "correo": {
+            "type": "boolean",
+            "title": "Correo"
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "correo",
+          "push"
+        ],
+        "title": "PreferenciaAvisosCopia"
+      },
+      "EventoCuentaCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "entraste",
+              "saliste",
+              "cerraste_en_dispositivo",
+              "salida_por_seguridad",
+              "contrasena_cambiada",
+              "celular_confirmado",
+              "codigo_recuperacion_pedido",
+              "avisos_cambiados",
+              "avisos_activados",
+              "avisos_desactivados",
+              "pediste_una_copia"
+            ],
+            "title": "Tipo"
+          },
+          "ocurrido_en": {
+            "type": "string",
+            "title": "Ocurrido En"
+          },
+          "dispositivo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DispositivoDelEventoCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "ocurrido_en",
+          "dispositivo"
+        ],
+        "title": "EventoCuentaCopia"
+      },
+      "PagoPedidoCopia": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "sin_intento",
+              "pendiente",
+              "aprobado",
+              "no_aprobado",
+              "devuelto_parcial",
+              "anulado"
+            ],
+            "title": "Estado"
+          },
+          "pagado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagado En"
+          },
+          "pagado_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaNombrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cobrado": {
+            "type": "integer",
+            "title": "Cobrado"
+          },
+          "devuelto": {
+            "type": "integer",
+            "title": "Devuelto"
+          },
+          "devoluciones": {
+            "items": {
+              "$ref": "#/components/schemas/DevolucionCopia"
+            },
+            "type": "array",
+            "title": "Devoluciones"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estado",
+          "pagado_en",
+          "pagado_por",
+          "cobrado",
+          "devuelto",
+          "devoluciones",
+          "pago_de_prueba"
+        ],
+        "title": "PagoPedidoCopia"
+      },
+      "EntregaCopia": {
+        "properties": {
+          "calle": {
+            "type": "string",
+            "title": "Calle"
+          },
+          "numero": {
+            "type": "string",
+            "title": "Numero"
+          },
+          "depto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depto"
+          },
+          "comuna": {
+            "type": "string",
+            "title": "Comuna"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calle",
+          "numero",
+          "depto",
+          "comuna",
+          "region",
+          "referencia"
+        ],
+        "title": "EntregaCopia"
+      },
+      "PedidoCopia": {
+        "properties": {
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "borrador",
+              "total_confirmado",
+              "vencido",
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "asignado",
+              "sin_repartidor",
+              "retirado",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cerrado",
+              "cancelado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado"
+          },
+          "creado_en": {
+            "type": "string",
+            "title": "Creado En"
+          },
+          "total_confirmado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Confirmado En"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaPedidoCopia"
+            },
+            "type": "array",
+            "title": "Lineas"
+          },
+          "subtotal_productos": {
+            "type": "integer",
+            "title": "Subtotal Productos"
+          },
+          "costo_envio": {
+            "type": "integer",
+            "title": "Costo Envio"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "entrega": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntregaCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pago": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PagoPedidoCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precios_de_ejemplo": {
+            "type": "boolean",
+            "title": "Precios De Ejemplo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "referencia",
+          "estado",
+          "creado_en",
+          "total_confirmado_en",
+          "lineas",
+          "subtotal_productos",
+          "costo_envio",
+          "total",
+          "entrega",
+          "pago",
+          "precios_de_ejemplo"
+        ],
+        "title": "PedidoCopia"
+      },
+      "PoliticaCopia": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "huella": {
+            "type": "string",
+            "title": "Huella"
+          },
+          "aceptada_en": {
+            "type": "string",
+            "title": "Aceptada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "huella",
+          "aceptada_en"
+        ],
+        "title": "PoliticaCopia"
+      },
+      "AutorizacionCopia": {
+        "properties": {
+          "finalidad": {
+            "type": "string",
+            "enum": [
+              "plan_cuidado",
+              "consumo",
+              "despacho"
+            ],
+            "title": "Finalidad"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "vigente",
+              "revision_vencida",
+              "retirada",
+              "reemplazada"
+            ],
+            "title": "Estado"
+          },
+          "calidad_otorgante": {
+            "type": "string",
+            "enum": [
+              "titular",
+              "representante_legal",
+              "cuidador_de_hecho"
+            ],
+            "title": "Calidad Otorgante"
+          },
+          "version_politica": {
+            "type": "string",
+            "title": "Version Politica"
+          },
+          "declaracion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextoMostrado"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aviso": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextoMostrado"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registrada_por": {
+            "$ref": "#/components/schemas/PersonaNombrada"
+          },
+          "otorgada_en": {
+            "type": "string",
+            "title": "Otorgada En"
+          },
+          "revision_vence_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Vence En"
+          },
+          "retirada_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirada En"
+          },
+          "hay_documento_representante": {
+            "type": "boolean",
+            "title": "Hay Documento Representante"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finalidad",
+          "estado",
+          "calidad_otorgante",
+          "version_politica",
+          "declaracion",
+          "aviso",
+          "registrada_por",
+          "otorgada_en",
+          "revision_vence_en",
+          "retirada_en",
+          "hay_documento_representante"
+        ],
+        "title": "AutorizacionCopia"
+      },
+      "DevolucionCopia": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "pago_tardio",
+              "producto_no_entregado",
+              "cancelacion"
+            ],
+            "title": "Motivo"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Producto"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_curso",
+              "hecha"
+            ],
+            "title": "Estado"
+          },
+          "solicitada_en": {
+            "type": "string",
+            "title": "Solicitada En"
+          },
+          "hecha_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hecha En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "motivo",
+          "producto",
+          "monto",
+          "estado",
+          "solicitada_en",
+          "hecha_en"
+        ],
+        "title": "DevolucionCopia"
+      },
+      "SeccionCopia": {
+        "properties": {
+          "seccion": {
+            "type": "string",
+            "enum": [
+              "quien_es",
+              "preferencias",
+              "alimentacion",
+              "movilidad",
+              "comunicacion",
+              "remedios"
+            ],
+            "title": "Seccion"
+          },
+          "texto": {
+            "type": "string",
+            "title": "Texto"
+          },
+          "escrito_por": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonaNombrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "creada_en": {
+            "type": "string",
+            "title": "Creada En"
+          },
+          "actualizado_en": {
+            "type": "string",
+            "title": "Actualizado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seccion",
+          "texto",
+          "escrito_por",
+          "creada_en",
+          "actualizado_en"
+        ],
+        "title": "SeccionCopia"
+      },
+      "DatosPersonaCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "nombre_pila": {
+            "type": "string",
+            "title": "Nombre Pila"
+          },
+          "nivel_apoyo": {
+            "type": "string",
+            "enum": [
+              "autovalente_con_supervision",
+              "apoyo_parcial",
+              "apoyo_total"
+            ],
+            "title": "Nivel Apoyo"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DireccionCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alta_en": {
+            "type": "string",
+            "title": "Alta En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "nombre_pila",
+          "nivel_apoyo",
+          "direccion",
+          "alta_en"
+        ],
+        "title": "DatosPersonaCopia"
+      },
+      "InsumosCopia": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "disponible",
+              "retirada",
+              "en_pausa",
+              "borrada",
+              "sin_autorizar"
+            ],
+            "title": "Estado"
+          },
+          "borrado_el": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Borrado El"
+          },
+          "lista": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InsumoCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lista"
+          },
+          "compras": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CompraCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compras"
+          },
+          "avisos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AvisoInsumoCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avisos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estado",
+          "borrado_el",
+          "lista",
+          "compras",
+          "avisos"
+        ],
+        "title": "InsumosCopia"
+      },
+      "DispositivoCopia": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "clase": {
+            "type": "string",
+            "enum": [
+              "telefono",
+              "computador",
+              "otro"
+            ],
+            "title": "Clase"
+          },
+          "creado_en": {
+            "type": "string",
+            "title": "Creado En"
+          },
+          "ultimo_uso_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso En"
+          },
+          "cerrado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cerrado En"
+          },
+          "avisos_activos": {
+            "type": "boolean",
+            "title": "Avisos Activos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "clase",
+          "creado_en",
+          "ultimo_uso_en",
+          "cerrado_en",
+          "avisos_activos"
+        ],
+        "title": "DispositivoCopia"
+      },
+      "PersonaNombrada": {
+        "properties": {
+          "nombre": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre",
+          "activo"
+        ],
+        "title": "PersonaNombrada"
+      },
+      "CopiaDatosCuenta": {
+        "properties": {
+          "formato": {
+            "type": "string",
+            "const": "matu-datos/1",
+            "title": "Formato"
+          },
+          "tipo": {
+            "type": "string",
+            "const": "cuenta",
+            "title": "Tipo"
+          },
+          "generado_en": {
+            "type": "string",
+            "title": "Generado En"
+          },
+          "aviso": {
+            "type": "string",
+            "const": "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.",
+            "title": "Aviso"
+          },
+          "cuenta": {
+            "$ref": "#/components/schemas/CuentaCopia"
+          },
+          "politica": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PoliticaCopia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grupos": {
+            "items": {
+              "$ref": "#/components/schemas/GrupoCopia"
+            },
+            "type": "array",
+            "title": "Grupos"
+          },
+          "dispositivos": {
+            "items": {
+              "$ref": "#/components/schemas/DispositivoCopia"
+            },
+            "type": "array",
+            "title": "Dispositivos"
+          },
+          "preferencia_avisos": {
+            "$ref": "#/components/schemas/PreferenciaAvisosCopia"
+          },
+          "eventos": {
+            "items": {
+              "$ref": "#/components/schemas/EventoCuentaCopia"
+            },
+            "type": "array",
+            "title": "Eventos"
+          },
+          "avisos_enviados": {
+            "items": {
+              "$ref": "#/components/schemas/AvisoEnviadoCopia"
+            },
+            "type": "array",
+            "title": "Avisos Enviados"
+          },
+          "envio_simulado": {
+            "type": "boolean",
+            "title": "Envio Simulado"
+          },
+          "pagos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PagoCuentaCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagos"
+          },
+          "condiciones_aceptadas": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CondicionesCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condiciones Aceptadas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "formato",
+          "tipo",
+          "generado_en",
+          "aviso",
+          "cuenta",
+          "politica",
+          "grupos",
+          "dispositivos",
+          "preferencia_avisos",
+          "eventos",
+          "avisos_enviados",
+          "envio_simulado",
+          "pagos",
+          "condiciones_aceptadas"
+        ],
+        "title": "CopiaDatosCuenta",
+        "description": "Respuesta de GET /v1/yo/datos (MATU-54, decisiones 358 a 360)."
+      },
+      "HechoCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "abrio_la_ficha",
+              "edito_la_ficha",
+              "quito_una_seccion",
+              "ficha_borrada",
+              "dio_una_autorizacion",
+              "retiro_una_autorizacion",
+              "compartio_la_ficha",
+              "corto_un_enlace",
+              "agrego_un_insumo",
+              "edito_un_insumo",
+              "dejo_de_seguir_un_insumo",
+              "volvio_a_seguir_un_insumo",
+              "quito_un_insumo",
+              "anoto_una_compra",
+              "aviso_de_insumo",
+              "descarto_un_aviso",
+              "resolvio_un_aviso",
+              "cambio_la_direccion",
+              "creo_un_pedido",
+              "confirmo_un_pedido",
+              "cancelo_un_pedido",
+              "cambio_que_hacer_si_falta",
+              "inicio_un_pago",
+              "pago_aprobado",
+              "pago_anulado",
+              "pidio_una_copia"
+            ],
+            "title": "Tipo"
+          },
+          "ocurrido_en": {
+            "type": "string",
+            "title": "Ocurrido En"
+          },
+          "quien": {
+            "$ref": "#/components/schemas/QuienCopia"
+          },
+          "campo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rutina",
+                  "manejo_situaciones",
+                  "red_apoyo"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campo"
+          },
+          "seccion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "quien_es",
+                  "preferencias",
+                  "alimentacion",
+                  "movilidad",
+                  "comunicacion",
+                  "remedios"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seccion"
+          },
+          "finalidad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "plan_cuidado",
+                  "consumo",
+                  "despacho"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalidad"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "ocurrido_en",
+          "quien",
+          "campo",
+          "seccion",
+          "finalidad",
+          "referencia"
+        ],
+        "title": "HechoCopia"
+      },
+      "HistorialCopia": {
+        "properties": {
+          "alcance": {
+            "type": "string",
+            "enum": [
+              "todo",
+              "lo_tuyo"
+            ],
+            "title": "Alcance"
+          },
+          "hechos": {
+            "items": {
+              "$ref": "#/components/schemas/HechoCopia"
+            },
+            "type": "array",
+            "title": "Hechos"
+          },
+          "hay_hechos_sin_asociar": {
+            "type": "boolean",
+            "title": "Hay Hechos Sin Asociar"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "alcance",
+          "hechos",
+          "hay_hechos_sin_asociar"
+        ],
+        "title": "HistorialCopia"
+      },
+      "EnlaceRelevoCopia": {
+        "properties": {
+          "nombre_relevo": {
+            "type": "string",
+            "title": "Nombre Relevo"
+          },
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "salgo_unas_horas",
+              "fin_de_semana_fuera",
+              "turno_de_noche",
+              "otro"
+            ],
+            "title": "Motivo"
+          },
+          "campos": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "rutina",
+                "manejo_situaciones",
+                "red_apoyo"
+              ]
+            },
+            "type": "array",
+            "title": "Campos"
+          },
+          "secciones": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "quien_es",
+                "preferencias",
+                "alimentacion",
+                "movilidad",
+                "comunicacion",
+                "remedios"
+              ]
+            },
+            "type": "array",
+            "title": "Secciones"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "vigente",
+              "vencido",
+              "revocado",
+              "bloqueado"
+            ],
+            "title": "Estado"
+          },
+          "creado_en": {
+            "type": "string",
+            "title": "Creado En"
+          },
+          "vence_en": {
+            "type": "string",
+            "title": "Vence En"
+          },
+          "cortado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cortado En"
+          },
+          "compartido_por": {
+            "type": "string",
+            "title": "Compartido Por"
+          },
+          "usos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Usos"
+          },
+          "ultimo_uso_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimo Uso En"
+          },
+          "aperturas": {
+            "items": {
+              "$ref": "#/components/schemas/AperturaCopia"
+            },
+            "type": "array",
+            "title": "Aperturas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_relevo",
+          "motivo",
+          "campos",
+          "secciones",
+          "estado",
+          "creado_en",
+          "vence_en",
+          "cortado_en",
+          "compartido_por",
+          "usos",
+          "ultimo_uso_en",
+          "aperturas"
+        ],
+        "title": "EnlaceRelevoCopia"
       }
     },
     "securitySchemes": {

@@ -1,9 +1,16 @@
 openapi: 3.1.0
 info:
   title: MATU API · Mis datos (propuesto)
-  version: 0.1.0-propuesto
+  version: 0.2.0-implementado
   summary: Ver y descargar todo lo que MATU guarda de la persona cuidada y de la propia cuenta (MATU-54, Ley 21.719, acceso y portabilidad).
   description: |
+    **Implementado en MATU-54 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como explicación
+    de las decisiones, como `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 366 a 400 del
+    README (las respuestas del orquestador a Q1 a Q18, sus ajustes C-1 a P15 y lo que fijó la implementación): las
+    aperturas dentro de cada enlace, `finalidad` y `referencia` en los hechos (F1), `unidad` en las compras (F5),
+    el aviso fijo de la especificación v1.1 del diseñador (P14), `matu-cuenta-AAAA-MM-DD.json`, la referencia del
+    pago de la cuenta anulable y el 503 de la custodia solo si hay texto que descifrar.
+
     Contrato **propuesto** de MATU-54, escrito el 12-11 **antes de implementar** (arquitectura 15.5,
     regla 1), con:
     - la revisión previa del analista normativo (`docs/legal/revision-previa-matu-54.md` del repositorio
@@ -28,9 +35,9 @@ info:
     vuelve a llamar a la API: no hay segunda auditoría ni segunda cuenta en el límite, y el archivo es
     exactamente lo que se vio. No hay PDF, HTML ni hoja de impresión (ADR-029).
 
-    **Historial** (D-54-9 a, decisión 357): la respuesta trae **todo** lo guardado. La pantalla muestra
-    primero los últimos 90 días y «Ver más» muestra el resto desde la misma respuesta. El archivo lo
-    trae todo.
+    **Historial** (D-54-9 a, decisiones 357 y 383): la respuesta trae **todo** lo guardado, porque el archivo
+    son los mismos bytes. La pantalla filtra a los últimos 90 días, y su «Ver más» pagina solo dentro de esos
+    90 días. El archivo lo trae todo.
 
     **Límite** (D-54-10 a, decisión 346): 10 copias por hora por cuenta, en un contador común a las dos
     rutas. La 11.ª responde **429 `tope-copias`** con `Retry-After`.
@@ -92,9 +99,9 @@ paths:
         4. **429** `tope-copias` si la cuenta ya pidió 10 copias en la ventana de una hora. Se cuenta solo
            lo que pasó el 404.
         5. Se registra `persona.datos_descargar` (decisión 347).
-        6. **503** si la autorización de la ficha está vigente y la custodia de la clave maestra no
-           desenvuelve la clave de datos (decisión 32). Nunca se entrega la copia sin el texto en ese caso:
-           diría «sin texto» de una ficha que sí lo tiene.
+        6. **503** si la autorización de la ficha está vigente, hay una sección escrita y la custodia de la
+           clave maestra no está configurada o no desenvuelve la clave de datos (decisiones 32 y 390). Nunca se
+           entrega la copia sin el texto en ese caso: diría «sin texto» de una ficha que sí lo tiene.
         7. **200** con la copia.
 
         **Lectura coherente** (C8, decisión 348): todo se lee en una sola transacción `REPEATABLE READ`,
@@ -256,7 +263,7 @@ components:
     ContentDispositionCuenta:
       description: |
         Como `ContentDispositionPersona`, con otro nombre para que las dos copias del mismo día no se
-        confundan en las descargas: `matu-cuenta-AAAA-MM-DD.json` (P7 del diseñador, pregunta abierta 7 del README).
+        confundan en las descargas: `matu-cuenta-AAAA-MM-DD.json` (P7 del diseñador, decisión 372 del README).
       required: true
       schema:
         type: string
@@ -326,10 +333,10 @@ components:
 
     AvisoCopia:
       type: string
-      const: Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.
+      const: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
       description: |
         Texto fijo con que empieza la copia (C10). Lo propone este contrato: el texto definitivo es de
-        `lenguaje.md`, sección 35 (pregunta abierta 12 del README; la 34 ya es de MATU-42, P12 del diseñador). Va igual en las dos copias.
+        `lenguaje.md`, sección 35 (decisión 377 del README; la 34 ya es de MATU-42, P12 del diseñador). Va igual en las dos copias.
 
     PersonaNombrada:
       type: object
@@ -813,11 +820,15 @@ components:
     CompraCopia:
       type: object
       additionalProperties: false
-      required: [insumo, unidades, el, origen, anotada_en, anotada_por]
+      required: [insumo, unidad, unidades, el, origen, anotada_en, anotada_por]
       properties:
         insumo:
           type: string
           description: El nombre del insumo, como en `InsumoCopia.nombre`.
+        unidad:
+          type: string
+          enum: [unidad, sobre, ml, g]
+          description: F5 (decisión 386) la unidad del insumo, para leer la cantidad.
         unidades:
           type: integer
           minimum: 1
@@ -1047,7 +1058,8 @@ components:
           type: array
           description: |
             **Todo** lo guardado, del más reciente al más antiguo; a igual instante, el de `id` mayor primero.
-            La pantalla muestra primero los últimos 90 días y «Ver más» el resto (D-54-9 a).
+            La pantalla muestra solo los últimos 90 días, con «Ver más» dentro de ellos; el archivo lo trae todo
+            (D-54-9 a, decisión 383).
           items:
             $ref: '#/components/schemas/HechoCopia'
         hay_hechos_sin_asociar:
@@ -1055,7 +1067,7 @@ components:
           description: |
             `true` si hay filas de auditoría del grupo anteriores a la 0028 que no se pudieron asociar a esta
             persona (su entidad ya no existe y el grupo cuida a más de una persona), y por eso no están
-            (decisión 356). La pantalla lo dice (pregunta abierta 9 del README). En el piloto, con datos
+            (decisión 356). La pantalla lo dice (decisión 374 del README). En el piloto, con datos
             sintéticos, se espera `false`.
 
     TipoHecho:
@@ -1147,7 +1159,7 @@ components:
     HechoCopia:
       type: object
       additionalProperties: false
-      required: [tipo, ocurrido_en, quien, campo, seccion]
+      required: [tipo, ocurrido_en, quien, campo, seccion, finalidad, referencia]
       description: |
         Un hecho del historial. **Solo** estos campos: ni el texto, ni `id`, `request_id`, `actor_ref`,
         `entidad_id`, `detalle` en bruto o el motivo de un enlace (que ya está en `enlaces_relevo`).
@@ -1173,6 +1185,19 @@ components:
             - type: string
               enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
             - type: 'null'
+        finalidad:
+          description: |
+            F1 (decisión 384): en `dio_una_autorizacion` y `retiro_una_autorizacion`, a qué autorización se
+            refiere. `null` en los demás. Nunca quién retiró (F2, decisión 385).
+          oneOf:
+            - type: string
+              enum: [plan_cuidado, consumo, despacho]
+            - type: 'null'
+        referencia:
+          description: |
+            F1 (decisión 384): en los hechos de pedidos y pagos, la referencia de MATU del pedido (la del
+            comprobante), o `null` si el pedido no se pagó o ya no existe.
+          type: [string, 'null']
 
     # ---------------------------------------------------------------- copia de la cuenta
 
@@ -1229,8 +1254,8 @@ components:
           type: array
           description: |
             **Todos** los ingresos y eventos de seguridad guardados de la cuenta, del más reciente al más
-            antiguo (D1 de MATU-55, decisión 254, más `pediste_una_copia`). La pantalla muestra los últimos 90
-            días y «Ver más» el resto (D-54-9 a).
+            antiguo (D1 de MATU-55, decisión 254, más `pediste_una_copia`). La pantalla muestra solo los
+            últimos 90 días, con «Ver más» dentro de ellos; el archivo lo trae todo (D-54-9 a, decisión 383).
           items:
             $ref: '#/components/schemas/EventoCuentaCopia'
         avisos_enviados:
@@ -1427,8 +1452,9 @@ components:
           type: string
           description: El nombre del grupo del pedido.
         referencia:
-          type: string
+          type: [string, 'null']
           pattern: '^[0-9]{4,6}$'
+          description: La referencia del pedido, o `null` si el pago se anuló por tardío y el pedido no quedó pagado.
         pagado_en:
           $ref: '#/components/schemas/Instante'
         cobrado:
@@ -1480,7 +1506,7 @@ components:
         formato: matu-datos/1
         tipo: persona_cuidada
         generado_en: '2026-11-12T10:05:00-03:00'
-        aviso: Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
         persona:
           nombre: Elena Prueba Sintética
           nombre_pila: Elena
@@ -1572,6 +1598,7 @@ components:
                 activo: true
           compras:
             - insumo: Pañal adulto talla M
+              unidad: unidad
               unidades: 20
               el: '2026-11-10'
               origen: declarada
@@ -1592,6 +1619,8 @@ components:
                 activo: true
               campo: null
               seccion: null
+              finalidad: null
+              referencia: null
             - tipo: compartio_la_ficha
               ocurrido_en: '2026-11-02T10:00:00-03:00'
               quien:
@@ -1600,6 +1629,8 @@ components:
                 activo: true
               campo: null
               seccion: null
+              finalidad: null
+              referencia: null
             - tipo: edito_la_ficha
               ocurrido_en: '2026-11-01T09:12:00-03:00'
               quien:
@@ -1608,6 +1639,8 @@ components:
                 activo: true
               campo: rutina
               seccion: null
+              finalidad: null
+              referencia: null
           hay_hechos_sin_asociar: false
 
     CopiaPersonaRetirada:
@@ -1616,7 +1649,7 @@ components:
         formato: matu-datos/1
         tipo: persona_cuidada
         generado_en: '2026-11-12T10:05:00-03:00'
-        aviso: Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
         persona:
           nombre: Elena Prueba Sintética
           nombre_pila: Elena
@@ -1649,7 +1682,7 @@ components:
         formato: matu-datos/1
         tipo: cuenta
         generado_en: '2026-11-12T10:07:00-03:00'
-        aviso: Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia, y el archivo que descargues queda en tu teléfono, fuera de MATU.
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
         cuenta:
           nombre: Carmen Soto
           correo: carmen.soto@ejemplo.invalid
