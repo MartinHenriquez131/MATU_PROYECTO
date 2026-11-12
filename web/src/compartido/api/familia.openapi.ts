@@ -1149,6 +1149,174 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/grupos/{grupo_id}/invitaciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver las invitaciones sin usar
+         * @description MATU-42 (C10, P7). Solo admin. Pendientes y bloqueadas, de la más nueva a la más antigua.
+         */
+        get: operations["listarInvitaciones"];
+        put?: never;
+        /**
+         * Crear una invitación con un rol
+         * @description MATU-42 (decisiones 294 a 297). Solo admin. Vence a los 7 días. url y codigo salen una sola vez. Sin Idempotency-Key. Registra invitacion.crear con el rol.
+         */
+        post: operations["crearInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Anular una invitación
+         * @description MATU-42 (decisión 308). Solo admin. Pendiente o bloqueada: 204 e invitacion.anular. Ya anulada: 204.
+         */
+        delete: operations["anularInvitacion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/presentacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saber quién invita y para qué rol, antes del código
+         * @description MATU-42 (C1, D-42-4 a, P2). Sin sesión. No cuenta como intento, no cambia nada y no se audita.
+         */
+        post: operations["presentarInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/verificacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verificar el código y ver a qué grupo se une, antes de pedir la cuenta
+         * @description MATU-42 (P1, P3, C30). Sin sesión. No une a nadie. El 5.º código incorrecto bloquea. Registra invitacion.codigo_incorrecto e invitacion.bloqueo con actor sistema.
+         */
+        post: operations["verificarCodigoInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/aceptacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unirse al grupo con la invitación y el código
+         * @description MATU-42 (C22, C27). Con sesión y sin X-Grupo-Id. Un solo uso. Inserta la membresía activa con el rol de la invitación y registra invitacion.aceptar con la cuenta. No crea ni copia autorizaciones (C7).
+         */
+        post: operations["aceptarInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/miembros": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quiénes forman el grupo
+         * @description MATU-42 (decisión 302). Todo miembro activo. Sin email, celular ni usuario_id. No se audita.
+         */
+        get: operations["listarMiembros"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/miembros/{membresia_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sacar a alguien del grupo
+         * @description MATU-42 (decisiones 305 a 307). Solo admin. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. La propia membresía es salir. No es idempotente: una retirada es 404.
+         */
+        delete: operations["sacarMiembro"];
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar el rol de alguien o el permiso del pagador para ver la ficha
+         * @description MATU-42 (decisiones 303 a 305 y 307). Solo admin. Dejar de ser admin o cuidador corta los enlaces de relevo que compartió; dejar de ser admin anula sus invitaciones sin usar. Orden: 401, 404, 428, 422, 412, 409, 200.
+         */
+        patch: operations["cambiarMiembro"];
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/salida": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Salir del grupo por cuenta propia
+         * @description MATU-42 (D-42-13). Todo miembro activo. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. 409 ultimo-admin o unica-persona.
+         */
+        post: operations["salirDelGrupo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1284,8 +1452,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Nombre */
-            nombre: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
         };
         /**
          * AutorPerfilVista
@@ -1297,8 +1473,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Nombre */
-            nombre: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
         };
         /** AutorVista */
         AutorVista: {
@@ -1307,8 +1491,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Nombre */
-            nombre: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
         };
         /** AutorizacionCreada */
         AutorizacionCreada: {
@@ -1341,6 +1533,11 @@ export interface components {
             borrado_en: string | null;
             /** Borrada */
             borrada: boolean;
+            /**
+             * Autorizo Alguien Que Ya No Esta
+             * @description MATU-42 (D-42-9 a, decisión 311): true si no está retirada y quien la registró ya no es miembro activo. Sigue vigente. No dice quién
+             */
+            autorizo_alguien_que_ya_no_esta: boolean;
         };
         /**
          * AutorizacionVistaResumen
@@ -1788,7 +1985,7 @@ export interface components {
             dias_restantes: number;
             /** Activo */
             activo: boolean;
-            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está */
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor */
             actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
             /** Etag */
             etag: string;
@@ -1953,7 +2150,7 @@ export interface components {
             dias_restantes: number;
             /** Activo */
             activo: boolean;
-            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). null si la cuenta ya no está */
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor */
             actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
             /** Etag */
             etag: string;
@@ -3344,6 +3541,243 @@ export interface components {
             ocurrido_en: string;
             /** @description El dispositivo del evento (en cerraste_en_dispositivo, el que se cerró; el de origen no se muestra), o null: siempre en contrasena_cambiada, celular_confirmado, codigo_recuperacion_pedido y avisos_cambiados, y en los demás si el dispositivo ya no existe porque la conservación lo borró (decisión 59) */
             dispositivo: components["schemas"]["DispositivoEventoVista"] | null;
+        };
+        /**
+         * InvitacionCreada
+         * @description La invitación recién creada (P9). url y codigo salen solo aquí y una sola vez.
+         */
+        InvitacionCreada: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Url
+             * @description `{ORIGEN_WEB}/invitacion#<token>`, con el token de 256 bits en el fragmento (C21)
+             */
+            url: string;
+            /**
+             * Codigo
+             * @description 4 dígitos que se dictan aparte. Se guarda solo su HMAC
+             */
+            codigo: string;
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /**
+         * InvitacionVista
+         * @description Una invitación sin usar, para quien administra. Nunca el token, el código ni los intentos.
+         */
+        InvitacionVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "bloqueada";
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            invitada_por: components["schemas"]["InvitadaPor"];
+        };
+        /** InvitadaPor */
+        InvitadaPor: {
+            /**
+             * Nombre
+             * @description Nombre de pila copiado en la invitación, o null si ya no es miembro activo
+             */
+            nombre: string | null;
+            /** Autor Activo */
+            autor_activo: boolean;
+            /** Eres Tu */
+            eres_tu: boolean;
+        };
+        /** ListaInvitaciones */
+        ListaInvitaciones: {
+            /** Invitaciones */
+            invitaciones: components["schemas"]["InvitacionVista"][];
+        };
+        /** ListaMiembros */
+        ListaMiembros: {
+            /** Miembros */
+            miembros: components["schemas"]["MiembroVista"][];
+        };
+        /**
+         * MiembroVista
+         * @description Un miembro activo (C9). Nunca el email, el celular ni el usuario_id.
+         */
+        MiembroVista: {
+            /**
+             * Id
+             * Format: uuid
+             * @description El id de la membresía, que usan PATCH y DELETE …/miembros/{membresia_id}
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Puede Ver Plan
+             * @description Solo del pagador; null para los demás roles
+             */
+            puede_ver_plan: boolean | null;
+            /**
+             * Unido En
+             * Format: date-time
+             */
+            unido_en: string;
+            /** Eres Tu */
+            eres_tu: boolean;
+            /** Etag */
+            etag: string;
+            /**
+             * Enlaces Vigentes
+             * @description Accesos de relevo vigentes que compartió: para quien administra y en la propia fila
+             */
+            enlaces_vigentes: number | null;
+        };
+        /**
+         * PresentacionInvitacion
+         * @description Lo único que se ve antes del código (C1, D-42-4 a, P2).
+         */
+        PresentacionInvitacion: {
+            /** Nombre Pila Invita */
+            nombre_pila_invita: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /** ResultadoCambioMiembro */
+        ResultadoCambioMiembro: {
+            miembro: components["schemas"]["MiembroVista"];
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /** ResultadoSalida */
+        ResultadoSalida: {
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /**
+         * SolicitudCambioMiembro
+         * @description rol, puede_ver_plan o los dos. null en cualquiera es 422.
+         */
+        SolicitudCambioMiembro: {
+            /** Rol */
+            rol?: ("admin" | "cuidador" | "pagador" | "observador") | null;
+            /** Puede Ver Plan */
+            puede_ver_plan?: boolean | null;
+        };
+        /** SolicitudCanjeInvitacion */
+        SolicitudCanjeInvitacion: {
+            /** Token */
+            token: string;
+            /** Codigo */
+            codigo: string;
+        };
+        /**
+         * SolicitudInvitacion
+         * @description Solo el rol (C8). Sin correo, teléfono ni puede_ver_plan (D-42-1 a).
+         */
+        SolicitudInvitacion: {
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+        };
+        /** SolicitudPresentacionInvitacion */
+        SolicitudPresentacionInvitacion: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * Union
+         * @description El grupo al que se unió, para fijar X-Grupo-Id en memoria.
+         */
+        Union: {
+            /**
+             * Grupo Id
+             * Format: uuid
+             */
+            grupo_id: string;
+            /**
+             * Membresia Id
+             * Format: uuid
+             */
+            membresia_id: string;
+            /** Grupo */
+            grupo: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Puede Ver Plan */
+            puede_ver_plan: boolean;
+        };
+        /**
+         * VerificacionInvitacion
+         * @description Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin intentos_restantes (decisión 325).
+         */
+        VerificacionInvitacion: {
+            /** Nombre Pila Invita */
+            nombre_pila_invita: string;
+            /** Grupo */
+            grupo: string;
+            /** Personas */
+            personas: string[];
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
         };
     };
     responses: never;
@@ -7822,6 +8256,698 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listarInvitaciones: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaInvitaciones"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crearInvitacion: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitacionCreada"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description tope-invitaciones: 20 por admin y grupo en 24 horas, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis, sin PEPPER_LIMITES o sin PEPPER_PIN. No se creó nada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    anularInvitacion: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                invitacion_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-cerrada: ya se usó o venció, con estado */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presentarInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPresentacionInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresentacionInvitacion"];
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verificarCodigoInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCanjeInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificacionInvitacion"];
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (no cuenta como intento), o codigo-incorrecto */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    aceptarInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCanjeInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Union"];
+                };
+            };
+            /** @description Sin sesión o con un access token inválido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ya-eres-parte, con grupo_id. No consume la invitación */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (no cuenta como intento), o codigo-incorrecto */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listarMiembros: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaMiembros"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sacarMiembro: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                membresia_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoSalida"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin o unica-persona. No cambia nada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cambiarMiembro: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                membresia_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCambioMiembro"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description "v<version>" */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoCambioMiembro"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin: el grupo quedaría sin nadie que lo administre */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada, con la membresía vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o permiso_solo_pagador */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description falta-version: sin If-Match, vacío o * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    salirDelGrupo: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoSalida"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin o unica-persona. No cambia nada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
