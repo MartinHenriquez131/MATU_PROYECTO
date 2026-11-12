@@ -1,6 +1,14 @@
 # MATU-55 · Dónde entraste, últimos ingresos y avisos · Especificación de diseño
 
-**Versión 0.1 · 12-11-2026 · agente 6 UI/UX.** Se escribió antes de construir. Las bases son estas:
+**Versión 1.1 · 12-11-2026 · agente 6 UI/UX.** Se escribió antes de construir.
+
+**Qué cambia de la 0.1 a la 1.1.** Entran las decisiones del orquestador, por delegación de Jorge (sección 0), y el contrato propuesto `docs/api/propuestos/donde-entraste.openapi.yaml`:
+- `GET /v1/yo/ingresos` responde `eventos[]` y `hay_mas`;
+- cada evento trae `tipo`, `ocurrido_en` y `dispositivo: {nombre, actual} | null`;
+- `GET /v1/dispositivos/actual/push` responde `clave_publica`, `registrado` y `envio_simulado`;
+- `clase` llega en `DispositivoVista`.
+
+**Las bases son estas:**
 - las decisiones de Jorge del 12-11, D1 a D8, en `docs/legal/revision-previa-matu-55.md` del repositorio MATU;
 - `Demo/DISENO.md`, con la regla de MATU-93: **ningún texto bajo 17 px, salvo el rótulo de la barra inferior**;
 - `docs/lenguaje.md`, secciones 13.3, 19, 20, 26 y 29;
@@ -13,20 +21,21 @@
 - **[ANALISTA]**: el analista lo propuso en la sección 5 de la revisión previa, pero todavía no está en `lenguaje.md`. Jorge lo aprueba con la pantalla.
 - **[NUEVO]**: no está en ninguna de las dos partes.
 - **[AJUSTE]**: cambia un texto ya aprobado. Se explica por qué.
+- **[ANALISTA-CIERRE]**: el analista lo revisa en el cierre antes de copiarlo a `lenguaje.md`. Son dos textos: la ayuda del estado B (3.4), que repite la línea de la política 0.14, y «Si no lo pediste tú, no compartas el código con nadie.» (2.5).
 
-> **Aviso al orquestador.** El worktree `wt55c` sale de la rama de MATU-62 y todavía no tiene MATU-93. Hoy `Cuenta.tsx` escribe los rótulos del `dl` en `text-sm`, y esta especificación los pide en `text-base`, como quedan con MATU-93. Si MATU-93 se fusiona antes, `web/pruebas/textoMinimo17.test.ts` lo verifica sola. Si se fusiona después, MATU-55 ya tiene que cumplirlo.
+> **Regla de 17 px (MATU-93).** Ningún texto de estas pantallas va bajo `text-base`. **Los rótulos del `dl` de `Cuenta.tsx` («Tu correo», «Tu celular» y «Política de privacidad») pasan de `text-sm` a `text-base`.** El worktree `wt55c` sale de la rama de MATU-62 y todavía no tiene MATU-93. Si MATU-93 se fusiona antes, `web/pruebas/textoMinimo17.test.ts` lo verifica. Si se fusiona después, MATU-55 ya tiene que cumplirlo.
 
 ---
 
-## 0. Lo que tiene que decidir alguien más
+## 0. Decisiones (del orquestador, por delegación de Jorge, 12-11)
 
-| # | Pregunta | Propuesta |
-|---|---|---|
-| E1 | El analista preguntó qué reemplaza a «Este teléfono» en un computador | Un **sustantivo según el dispositivo**. Es «teléfono» si el nombre termina en «en Android» o «en iPhone», «computador» si termina en «en Windows», «en Mac», «en Linux» o «en ChromeOS», y «navegador» en los demás casos («en iPad» y «Navegador web»). El sustantivo se usa en «Este {…}», en «(este {…})» y en «Cerrar en ese {…}». Ver la pregunta C7 al backend |
-| E2 | ¿Dónde viven las pantallas? | **«Dónde entraste»** es una página propia, `/cuenta/donde-entraste`, a la que se entra desde «Tu cuenta». Junta los teléfonos y los últimos ingresos. **Los avisos** van en «Tu cuenta», en un solo bloque, con las preferencias y el teléfono actual juntos, porque uno no se entiende sin el otro |
-| E3 | Las preferencias, ¿se guardan al marcar o con un botón? | **Al marcar cada casilla**, sin interfaz optimista: la casilla queda en «Guardando…» hasta el 200. Así no aparece un segundo botón principal en «Tu cuenta» |
-| E4 | Si «En tus teléfonos» se desmarca, ¿se borra la inscripción de este teléfono? | **No.** El bloque del teléfono se oculta, y la inscripción queda como estaba. Es una decisión de flujo, así que la confirma el orquestador |
-| E5 | ¿Cómo cambia la contraseña alguien que ya entró? | Hoy solo se puede con la recuperación, que es pública. La ayuda «¿No reconoces un ingreso?» lleva a `/entrar/recuperar`. Ver la pregunta C6 |
+| # | Decisión |
+|---|---|
+| E1 | **Aceptada.** El sustantivo sale de `clase`, que viene en `DispositivoVista`: `telefono` da «teléfono», `computador` da «computador» y `otro` da «navegador». Se usa en «Este {…}», en «(este {…})» y en «Cerrar en ese {…}». Las líneas de ingresos no traen `clase`. Para «(este {…})» se usa la clase del dispositivo actual, la de la fila con `actual: true` de `GET /v1/dispositivos` |
+| E2 | **Aceptada.** «Dónde entraste» es una página propia, `/cuenta/donde-entraste`, con los teléfonos y los últimos ingresos. Los avisos van en «Tu cuenta», en un solo bloque con las preferencias y el teléfono actual |
+| E3 | **Aceptada.** Cada casilla se guarda al marcarla, sin interfaz optimista: queda en «Guardando…» hasta el 200 |
+| E4 | **Aceptada.** Al desmarcar «En tus teléfonos», el bloque del teléfono se oculta y la inscripción no se borra, porque no se envía nada. Con la casilla marcada y el teléfono activado, «Desactivar en este teléfono» sigue disponible en el bloque |
+| E5 | **«Cambiar mi contraseña» se quita.** Con la entrada abierta no hay cómo cambiar la contraseña (sección 7, C6). La ayuda dice cómo hacerlo, en texto (2.5) |
 
 ---
 
@@ -103,13 +112,14 @@ Las rutas son tres:
 │ …                                  │
 │                                    │
 │ ¿No reconoces un ingreso? Cierra   │  p text-base, max-w-prose
-│ MATU en ese teléfono y cambia tu   │
-│ contraseña.                        │
-│ Cambiar mi contraseña              │  Boton texto
+│ MATU en ese teléfono. Para cambiar │
+│ tu contraseña, sal de MATU y toca  │
+│ «¿Olvidaste tu contraseña?» al     │
+│ entrar.                            │
 │                                    │
 │ Si necesitas los ingresos          │  p text-base text-tenue
-│ anteriores, escribe a              │  correo en EnlaceEnFrase mailto
-│ cuidaconmatu@gmail.com desde el    │
+│ anteriores a 90 días, escribe a    │  correo en EnlaceEnFrase mailto
+│ cuidaconmatu@gmail.com desde el    │  (con hay_mas, otro texto: 2.5)
 │ correo de tu cuenta.               │
 ├────────────────────────────────────┤
 │ [Ficha] [Insumos] [Compartir] [Gr.]│  barra fija (telefono:)
@@ -155,7 +165,7 @@ Es un `li` con `flex items-start gap-3 py-4`. El ícono va `aria-hidden`, en `si
 
 | Parte | Contenido | Clases |
 |---|---|---|
-| Ícono | `Smartphone` para teléfono, `Laptop` para computador y `Globe` para navegador (E1). Es decorativo: el nombre ya lo dice | `size-6 text-tenue` |
+| Ícono | Según `clase`: `Smartphone` para `telefono`, `Laptop` para `computador` y `Globe` para `otro` (E1). Es decorativo: el nombre ya lo dice | `size-6 text-tenue` |
 | Nombre | `nombre`, tal cual llega («Chrome en Android») | `font-bold break-words` |
 | Marca del actual | Solo con `actual: true`. Es una `Etiqueta tono="activo"` con `CircleDot` (`size-4`) y «Este teléfono» **[LENGUAJE 13.3]**, «Este computador» **[NUEVO]** o «Este navegador» **[NUEVO]**, según E1 | `Etiqueta`, ya en `text-base` |
 | Última vez | «Última vez: {fecha} a las {hora}» **[LENGUAJE 13.3]**, con `ultimo_uso_en` o, si es `null`, `creado_en`. `{fecha}` es «hoy», «ayer» o `DD/MM/AAAA` **[AJUSTE]**: «hoy» y «ayer» se leen más rápido, y Quién la vio ya los usa. La fecha y la hora van en dos `cifras` dentro de un `<time dateTime>` | `text-base text-tenue tabular-nums` |
@@ -175,37 +185,45 @@ Es el patrón de `LineaApertura` de MATU-45 (4.3):
 - las líneas se agrupan por día con un `h3` (`text-lg font-bold`): «Hoy», «Ayer», «El {día de la semana}» entre 2 y 6 días atrás, y «El DD/MM/AAAA» desde los 7 días. Son las mismas reglas de MATU-45. Si hay `h2` «Últimos ingresos», el día es `h3`;
 - el orden es el del servidor, del más nuevo al más viejo. El cliente no reordena ni filtra: el servidor ya recorta a 90 días y 20 líneas (D2) y nunca manda los ingresos fallidos (D1).
 
+**`{nombre}`** es `dispositivo.nombre`. Si `dispositivo` es `null` en un tipo que lleva dispositivo (la conservación lo borró a los 90 días sin uso), `{nombre}` se reemplaza por «un teléfono o computador que ya no está en tu lista» **[NUEVO]**. El evento no trae `clase`, así que no se puede elegir un solo sustantivo. Nunca se dice «dispositivo».
+
 **La cola** dice «a las {HH:MM} · {nombre}» **[ANALISTA]**:
-- se agrega « (este teléfono)» **[ANALISTA]**, o «(este computador)» y «(este navegador)» **[NUEVO]**, si la línea es del dispositivo actual;
-- si la frase ya nombra el dispositivo, la cola dice solo «a las {HH:MM}», para no repetirlo;
-- si no hay dispositivo, como en el código pedido para recuperar la cuenta o en un dispositivo que ya se borró, también dice solo «a las {HH:MM}»;
+- solo la llevan `entraste` y `saliste`, que no nombran el dispositivo en su frase;
+- con `dispositivo: null` en esos dos, la cola es «a las {HH:MM} · en un teléfono o computador que ya no está en tu lista» **[NUEVO]**;
+- se agrega « (este teléfono)» **[ANALISTA]**, o «(este computador)» y «(este navegador)» **[NUEVO]**, si `dispositivo.actual` es `true`. El sustantivo sale de la clase del dispositivo actual (E1);
+- en los demás tipos, la cola dice solo «a las {HH:MM}». Los que nombran el dispositivo ya lo dicen en la frase, y los de la cuenta no tienen dispositivo;
 - `<time dateTime={ocurrido_en} title="DD/MM/AAAA HH:MM">` envuelve la hora;
 - nunca la IP, la ubicación ni el correo (C3 y C5).
 
-| Qué pasó (D1-c) | Frase | Ícono lucide | Círculo |
+| `tipo` | Frase | Ícono lucide | Círculo |
 |---|---|---|---|
-| Entró | Entraste **[ANALISTA]** | `LogIn` | `bg-rocio text-turquesa` |
-| Salió | Saliste **[ANALISTA]** | `LogOut` | `bg-rocio text-turquesa` |
-| Cerró MATU en otro dispositivo | Cerraste MATU en {nombre} **[ANALISTA]**. La cola dice «a las {HH:MM} · desde {nombre de origen}» **[NUEVO]**, porque aquí hay dos dispositivos. Sin nombre de destino: «Cerraste MATU en otro teléfono» **[NUEVO]** | `MonitorSmartphone` | `bg-rocio text-turquesa` |
-| MATU la sacó por un uso extraño | Te sacamos de MATU en {nombre} porque notamos un uso extraño. **[AJUSTE]** del texto del analista, sin «Vuelve a entrar.»: en una historia, una orden en presente confunde | `ShieldAlert` | `bg-atenta-fondo text-atenta` |
-| Cambió la contraseña | Cambiaste tu contraseña **[ANALISTA]** | `KeyRound` | `bg-rocio text-turquesa` |
-| Confirmó el celular | Confirmaste tu celular **[ANALISTA]** | `Phone` | `bg-rocio text-turquesa` |
-| Se pidió un código para recuperar la cuenta | Se pidió un código para recuperar tu cuenta **[ANALISTA]**. Debajo, siempre: «Si no lo pediste tú, no compartas el código con nadie.» **[NUEVO]**, en `text-base text-tenue` | `ShieldAlert` | `bg-atenta-fondo text-atenta` |
-| Activó los avisos en un dispositivo | Activaste los avisos en {nombre} **[ANALISTA]** | `Bell` | `bg-rocio text-turquesa` |
-| Desactivó los avisos en un dispositivo | Desactivaste los avisos en {nombre} **[ANALISTA]** | `BellOff` | `bg-rocio text-turquesa` |
-| Cambió la preferencia de avisos | Cambiaste tus avisos **[ANALISTA]** | `Bell` | `bg-rocio text-turquesa` |
-| Un tipo que el cliente no conoce | No se muestra. Se registra en la consola de desarrollo sin datos | — | — |
+| `entraste` | Entraste **[ANALISTA]** | `LogIn` | `bg-rocio text-turquesa` |
+| `saliste` | Saliste **[ANALISTA]** | `LogOut` | `bg-rocio text-turquesa` |
+| `cerraste_en_dispositivo` | Cerraste MATU en {nombre} **[ANALISTA]**, con el nombre del que se cerró (`dispositivo`, contrato C3). No dice desde dónde se cerró, porque el contrato no lo trae | `MonitorSmartphone` | `bg-rocio text-turquesa` |
+| `salida_por_seguridad` | Te sacamos de MATU en {nombre} porque notamos un uso extraño. **[AJUSTE]** del texto del analista y del contrato, sin «Vuelve a entrar.»: en una historia, una orden en presente confunde | `ShieldAlert` | `bg-atenta-fondo text-atenta` |
+| `contrasena_cambiada` | Cambiaste tu contraseña **[ANALISTA]** | `KeyRound` | `bg-rocio text-turquesa` |
+| `celular_confirmado` | Confirmaste tu celular **[ANALISTA]** | `Phone` | `bg-rocio text-turquesa` |
+| `codigo_recuperacion_pedido` | Se pidió un código para recuperar tu cuenta **[ANALISTA]**. Debajo, siempre: «Si no lo pediste tú, no compartas el código con nadie.» **[NUEVO] [ANALISTA-CIERRE]**, en `text-base text-tenue` | `ShieldAlert` | `bg-atenta-fondo text-atenta` |
+| `avisos_activados` | Activaste los avisos en {nombre} **[ANALISTA]** | `Bell` | `bg-rocio text-turquesa` |
+| `avisos_desactivados` | Desactivaste los avisos en {nombre} **[ANALISTA]** | `BellOff` | `bg-rocio text-turquesa` |
+| `avisos_cambiados` | Cambiaste tus avisos **[ANALISTA]** | `Bell` | `bg-rocio text-turquesa` |
+| Un `tipo` que el cliente no conoce | No se muestra, y la pantalla no se rompe (contrato, `TipoEventoCuenta`) | — | — |
 
 - **Ninguna línea va en `pronto`.** Ni el uso extraño ni el código pedido son una emergencia: son algo para revisar, y por eso van en `atenta`, con su forma propia y su frase.
 - El estado lo dicen la frase y la forma (diez íconos, y dos de ellos en otro tono). El color solo acompaña.
 
-**La ayuda al pie de la lista** se ve siempre que haya líneas:
-- un párrafo `text-base max-w-prose`: «¿No reconoces un ingreso? Cierra MATU en ese teléfono y cambia tu contraseña.» **[ANALISTA]**;
-- debajo, un `Boton variante="texto"` «Cambiar mi contraseña» **[NUEVO]**, que lleva a `/entrar/recuperar` (E5 y C6).
+**La ayuda al pie de la lista** se ve siempre que haya líneas. Es un párrafo `text-base max-w-prose`, sin botón (E5): «¿No reconoces un ingreso? Cierra MATU en ese teléfono. Para cambiar tu contraseña, sal de MATU y toca «¿Olvidaste tu contraseña?» al entrar.» **[AJUSTE]** del texto del analista, que decía «y cambia tu contraseña». Con la entrada abierta no hay cómo cambiarla, así que el texto dice el camino real, que usa «¿Olvidaste tu contraseña?» de `lenguaje.md` 19. En un computador, «ese teléfono» cambia por «ese computador» o «ese navegador» según la clase del dispositivo actual (E1).
 
-**Lo anterior a 90 días** se ve en un párrafo `text-base text-tenue max-w-prose`: «Si necesitas los ingresos anteriores, escribe a {correo} desde el correo de tu cuenta.» **[NUEVO]**.
+**Lo que no se muestra** va en un párrafo `text-base text-tenue max-w-prose`, que depende de `hay_mas`:
+
+| `hay_mas` | Texto |
+|---|---|
+| `false` | Si necesitas los ingresos anteriores a 90 días, escribe a {correo} desde el correo de tu cuenta. **[NUEVO]** |
+| `true` | Mostramos los 20 más recientes. Para ver los demás, o los anteriores a 90 días, escribe a {correo} desde el correo de tu cuenta. **[NUEVO]** |
+
 - El correo es `correo_contacto` de `GET /v1/politica`, en un `EnlaceEnFrase` con `mailto:` y `[overflow-wrap:anywhere]`, igual que «Cómo pedir» de MATU-75.
-- Sin correo configurado, el párrafo no se muestra.
+- Sin correo configurado, con `hay_mas: true` queda solo «Mostramos los 20 más recientes.», y con `false` el párrafo no se muestra.
+- La lista vacía (`eventos: []`) muestra el párrafo de `false`, bajo la nota del vacío.
 
 ### 2.6 El diálogo «¿Cerrar MATU en {nombre}?» (D8)
 
@@ -248,7 +266,7 @@ Es el patrón de `LineaApertura` de MATU-45 (4.3):
 | Abierto | Lo de arriba | En el título |
 | Pidiendo (`DELETE /v1/dispositivos/{id}`) | El botón en «Cerrando…» con `aria-busy`, y Esc no cancela la petición | Se queda en el botón |
 | 204 | El diálogo se cierra y la fila sale de la lista. Arriba de la lista aparece `Nota tono="ok" enfocable rol="status"`: «Cerramos MATU en {nombre}.» **[ANALISTA]**. «Últimos ingresos» se vuelve a pedir, para que aparezca «Cerraste MATU en {nombre}» | En la nota |
-| 404 | El diálogo se cierra y la fila sale de la lista. Arriba de la lista aparece `Nota tono="atenta" enfocable rol="status"`: «Ese teléfono ya no estaba en tu lista.» **[ANALISTA]** | En la nota |
+| 404 | El diálogo se cierra y la fila sale de la lista. Arriba de la lista aparece `Nota tono="atenta" enfocable rol="status"`: «Ese teléfono ya no estaba en tu lista.» **[ANALISTA]**, o «Ese computador» o «Ese navegador» **[NUEVO]**, según la clase de la fila (E1) | En la nota |
 | 401 | Lo resuelve el cliente de la app: la entrada venció | — |
 | Error o sin red | El diálogo sigue abierto, y en su región de error aparece `MensajeError`: «No pudimos cerrar MATU en ese teléfono. Revisa tu conexión y vuelve a intentarlo.» **[NUEVO]**, o ese computador o ese navegador | Se queda en el botón de confirmar |
 | Dejarlo abierto o Esc | Se cierra sin hacer nada | Vuelve al botón que lo abrió |
@@ -260,7 +278,7 @@ Cada `section` carga por su cuenta. Si una falla, la otra se sigue viendo.
 | Estado | Tus teléfonos y computadores | Últimos ingresos |
 |---|---|---|
 | Cargando | `p role="status" text-tenue` «Cargando…» **[LENGUAJE 26]**, después de la demora de `useDemora`. Sin esqueletos (DISENO 6, Página) | Igual |
-| Vacío | No puede pasar, porque el dispositivo actual siempre está. Si `items` llega vacío, se trata como error | `Nota tono="rocio"`: «No hay ingresos en los últimos 90 días.» **[ANALISTA]**. Sin la ayuda del pie |
+| Vacío | No puede pasar, porque el dispositivo actual siempre está. Si `items` llega vacío, se trata como error | `Nota tono="rocio"`: «No hay ingresos en los últimos 90 días.» **[ANALISTA]**. Sin «¿No reconoces un ingreso?», pero con el párrafo del correo (2.5) |
 | Error o sin red | `Nota tono="pronto" rol="alert"`: «No pudimos traer dónde entraste. Revisa tu conexión e inténtalo de nuevo.» **[ANALISTA]**, y `Boton variante="secundario"` «Volver a intentar» **[LENGUAJE 26]** | `Nota tono="pronto" rol="alert"`: «No pudimos traer tus últimos ingresos. Revisa tu conexión e inténtalo de nuevo.» **[NUEVO]**, y «Volver a intentar» |
 | 401 | Lo resuelve el cliente de la app | Igual |
 | 412 | **No aplica:** las dos son lecturas, y el `DELETE` no lleva versión | Igual |
@@ -275,7 +293,7 @@ Cada `section` carga por su cuenta. Si una falla, la otra se sigue viendo.
 ### 3.1 Jerarquía
 
 1. El `h1` «Tu cuenta» y su bajada, que ya existen.
-2. Los datos que ya existen (correo, celular y política), sin cambios salvo los rótulos en `text-base` (MATU-93).
+2. Los datos que ya existen (correo, celular y política). **El único cambio es que los tres `dt` («Tu correo», «Tu celular» y «Política de privacidad») pasan de `text-sm text-tenue` a `text-base text-tenue`** (MATU-93). Se distinguen del dato por el color `tenue` y por el orden, nunca por el tamaño.
 3. **Nuevo:** «Dónde entraste», con una frase y su botón.
 4. **Nuevo:** «Avisos cuando un insumo se está acabando», con las dos casillas y, debajo de «En tus teléfonos», el teléfono actual.
 5. «Cómo pedir» (MATU-75), que sigue al final.
@@ -341,7 +359,7 @@ Son un `fieldset` cuya `legend` lleva el estilo de un `h2`: «Avisos cuando un i
 | Guardando | Guardando… **[LENGUAJE 17]**. Es un `p role="status"` bajo las casillas. La casilla que se tocó lleva `aria-busy`, y las dos quedan `disabled` mientras se guarda | `text-base text-tenue` |
 | Guardado | Guardamos tus avisos. **[ANALISTA]**, en el mismo `p role="status"`. Se borra al cambiar otra vez | `text-base` |
 | Error o sin red | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. **[LENGUAJE 17]**. La casilla vuelve a lo que estaba antes de tocarla y el foco se queda en ella | `MensajeError` bajo las casillas |
-| Piloto | En el piloto los avisos se prueban sin enviarse: no te llegará nada. **[ANALISTA]** | `Nota tono="atenta"` con el ícono `Info`, el rótulo del piloto de DISENO 3. Va una vez, al final del bloque, y vale para los dos canales |
+| Piloto | En el piloto los avisos se prueban sin enviarse: no te llegará nada. **[ANALISTA]** | `Nota tono="atenta"` con el ícono `Info`, el rótulo del piloto de DISENO 3. Va una vez, al final del bloque, y vale para los dos canales. Se ve mientras `envio_simulado` de `GET /v1/dispositivos/actual/push` sea `true`, que en el semestre es siempre. Si esa lectura falla, se muestra igual, porque es lo cierto en el piloto |
 
 **Estados del bloque.**
 
@@ -355,16 +373,23 @@ Son un `fieldset` cuya `legend` lleva el estilo de un `h2`: «Avisos cuando un i
 
 ### 3.4 «Este teléfono»: recibir avisos aquí (D6)
 
-**Solo se ve si «En tus teléfonos» está marcada** (E4). Es un bloque `flex flex-col items-start gap-3 border-l-4 border-linea ps-4 angosto:ps-2 mt-1`, justo debajo de esa casilla, con un `h3` `text-lg font-bold`: «Este teléfono» **[LENGUAJE 13.3]**, «Este computador» o «Este navegador» **[NUEVO]** (E1). La raya izquierda en `linea` lo cuelga de la casilla. No es el borde de un control, así que no necesita 3:1.
+**Solo se ve si «En tus teléfonos» está marcada** (E4). Al desmarcarla, el bloque se oculta y la inscripción de este teléfono no se borra. Al volver a marcarla, el bloque reaparece en el estado en que quedó, y si estaba activado ofrece «Desactivar en este teléfono». Es un bloque `flex flex-col items-start gap-3 border-l-4 border-linea ps-4 angosto:ps-2 mt-1`, justo debajo de esa casilla, con un `h3` `text-lg font-bold`: «Este teléfono» **[LENGUAJE 13.3]**, «Este computador» o «Este navegador» **[NUEVO]** (E1). La raya izquierda en `linea` lo cuelga de la casilla. No es el borde de un control, así que no necesita 3:1.
 
-El estado sale del navegador: `Notification.permission`, `PushManager.getSubscription()` y si la app está instalada. **La pantalla nunca pide el permiso al cargar: solo al tocar «Activar»** (D6-a).
+**De dónde sale el estado:**
+- de `GET /v1/dispositivos/actual/push`, que trae `clave_publica`, `registrado` y `envio_simulado`;
+- del navegador: `Notification.permission`, `PushManager.getSubscription()` y si la app está instalada.
+
+**La pantalla nunca pide el permiso al cargar: solo al tocar «Activar»** (D6-a).
+
+Mientras carga esa lectura, el bloque muestra «Cargando…» con `role="status"`. Si falla o no hay red, muestra `Nota tono="pronto" rol="alert"`: «No pudimos ver los avisos de este teléfono. Revisa tu conexión e inténtalo de nuevo.» **[NUEVO]**, con «Volver a intentar». Las casillas siguen funcionando.
 
 | Estado | Cuándo | Qué se ve |
 |---|---|---|
-| **A. Activados** | Hay suscripción y el `PUT /v1/dispositivos/actual/push` respondió 204 | `Etiqueta tono="ok"` con `Check` y «Activados» **[NUEVO]**. `Boton variante="secundario"` «Desactivar en este teléfono» **[NUEVO]** |
-| **B. Sin activar** | Hay soporte, el permiso es `default` o `granted` y no hay suscripción | `Etiqueta` neutra con `Circle` y «Sin activar» **[NUEVO]**. La ayuda, en `text-base text-tenue max-w-prose`: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.» **[NUEVO, de la línea de la política 0.14, D6]**. `Boton variante="secundario"` «Activar en este teléfono» **[NUEVO]** |
+| **A. Activados** | `registrado: true` y el navegador tiene una suscripción con la misma `clave_publica` | `Etiqueta tono="ok"` con `Check` y «Activados» **[NUEVO]**. `Boton variante="secundario"` «Desactivar en este teléfono» **[NUEVO]** |
+| **B. Sin activar** | Hay soporte, `clave_publica` no es `null`, el permiso es `default` o `granted` y falta la suscripción o `registrado` | `Etiqueta` neutra con `Circle` y «Sin activar» **[NUEVO]**. La ayuda, en `text-base text-tenue max-w-prose`: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.» **[NUEVO, de la línea de la política 0.14, D6] [ANALISTA-CIERRE]**. `Boton variante="secundario"` «Activar en este teléfono» **[NUEVO]** |
 | **C. El navegador no deja** | `Notification.permission === 'denied'` | `Etiqueta` neutra con `Circle` y «Sin activar». `Nota tono="atenta"`: «Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.» **[ANALISTA]**. Sin botón, porque no hay nada que MATU pueda hacer |
 | **D. Sin soporte** | No hay `serviceWorker`, `PushManager` o `Notification`, y no es el caso E | `Nota tono="rocio"`: «Este navegador no puede recibir avisos.» **[ANALISTA]** «Puedes recibirlos por correo.» **[NUEVO]**. Sin etiqueta ni botón |
+| **F. MATU todavía no puede activarlos** | `clave_publica: null`, en un navegador que sí tiene soporte (Q6 del contrato) | La misma forma que D, `Nota tono="rocio"` sin etiqueta ni botón: «Por ahora no se pueden activar los avisos en este teléfono. Puedes recibirlos por correo.» **[NUEVO]**. No habla de la clave ni de la configuración, y no culpa al navegador. En un computador o en otro navegador, «teléfono» cambia según E1. Si además falta el soporte, manda D, y en un iPhone sin instalar, manda E |
 | **E. iPhone o iPad sin agregar a la pantalla de inicio** | iOS o iPadOS, sin `display-mode: standalone` ni `navigator.standalone` (ADR-026) | `Nota tono="rocio"` con el título «En iPhone, primero agrega MATU a tu pantalla de inicio.» **[NUEVO]** y una lista `ol list-decimal ps-5`: 1. «Toca Compartir {ícono `Share`} en Safari.» 2. «Elige «Agregar a inicio».» 3. «Abre MATU desde su ícono y vuelve a Tu cuenta.» **[NUEVO]**. El ícono `Share` va en línea, en `size-5`, con `aria-label="Compartir"`, porque es lo que la persona busca en la pantalla. Sin botón. Si el iPhone instalado tampoco tiene `PushManager` (iOS anterior a 16.4), pasa a D |
 
 **Lo que pasa al tocar.**
@@ -428,8 +453,8 @@ Sin el `manifest`, el iPhone no instala MATU y el estado E no tiene salida.
 
 ## 5. Accesibilidad
 
-- **17 px:** ningún texto bajo `text-base`, ni la cola de las líneas, ni las ayudas, ni los rótulos del `dl` (MATU-93).
-- **48 px:** «Salir», «Cerrar en ese…», «Ver dónde entraste», «Activar» y «Desactivar», «Cambiar mi contraseña», «Volver a intentar», las dos etiquetas de casilla y los botones del diálogo miden `min-h-12`. El enlace del correo usa el `::after` de DISENO 6.
+- **17 px:** ningún texto bajo `text-base`: ni la cola de las líneas, ni las ayudas, ni los rótulos del `dl` de `Cuenta.tsx`, que pasan de `text-sm` a `text-base` (MATU-93).
+- **48 px:** «Salir», «Cerrar en ese…», «Ver dónde entraste», «Activar» y «Desactivar», «Volver a intentar», las dos etiquetas de casilla y los botones del diálogo miden `min-h-12`. El enlace del correo usa el `::after` de DISENO 6.
 - **Foco:** el contorno base de 3 px en `turquesa`, y en `pronto` en los botones `peligro`. Al llegar a la página va al `h1`. Las notas que reciben el foco son `enfocable` y no dibujan contorno, porque no son controles.
 - **El diálogo** atrapa el foco con `showModal` y lo devuelve al botón que lo abrió (P7).
 - **El estado nunca solo por color:**
@@ -462,40 +487,54 @@ Sin el `manifest`, el iPhone no instala MATU y el estado E no tiene salida.
 5. «Últimos ingresos» nunca tiene más de 20 líneas, ni una de hace más de 90 días, ni un ingreso fallido.
 6. El diálogo abre con el foco en su título, dice lo de los 15 minutos y no tiene ningún campo de contraseña.
 7. La casilla dice «En tus teléfonos», no «En este teléfono», y «Vale para todos tus grupos.» va en negrita dentro de la descripción del `fieldset`.
-8. La nota del piloto se ve una sola vez en el bloque de avisos, en `atenta` con `Info`, en todos los estados del teléfono.
+8. La nota del piloto se ve una sola vez en el bloque de avisos, en `atenta` con `Info`, en todos los estados del teléfono, mientras `envio_simulado` sea `true`.
 9. Al cargar «Tu cuenta», el navegador no pide el permiso de avisos. Lo pide solo al tocar «Activar en este teléfono».
 10. En un iPhone sin MATU en la pantalla de inicio se ven los tres pasos con el ícono `Share`, y ningún botón «Activar».
 11. Ningún texto mide menos de 17 px. Todo lo tocable mide 48 px o más. A 320 px con el texto al 200 % no hay desplazamiento horizontal.
-12. Ningún texto dice «sesión», «dispositivo», «IP» (salvo en la bajada, donde se dice que no se guarda), «token», «evento» ni «auditoría».
+12. Con `clave_publica: null` se ve el estado F, sin la palabra «clave» y sin botón «Activar».
+13. «Tu correo», «Tu celular» y «Política de privacidad» miden 17 px (`text-base`).
+14. No hay ningún botón «Cambiar mi contraseña».
+15. Ningún texto dice «sesión», «dispositivo», «IP» (salvo en la bajada, donde se dice que no se guarda), «token», «evento» ni «auditoría».
 
 ---
 
-## 7. Preguntas al contrato (`docs/api/propuestos/donde-entraste.openapi.yaml`)
+## 7. El contrato, resuelto (`docs/api/propuestos/donde-entraste.openapi.yaml`)
 
-| # | Pregunta | Lo que esta pantalla necesita |
+| # | Pregunta de la 0.1 | Cómo quedó |
 |---|---|---|
-| C1 | ¿Ruta y forma de «Últimos ingresos»? | Por ejemplo `GET /v1/cuenta/ingresos`, con `items[]` de `{ tipo, ocurrido_en, dispositivo_nombre: string \| null, dispositivo_actual: boolean, objetivo_nombre: string \| null }`. Que `tipo` sea un enum cerrado con los diez casos de 2.5, sin el nombre interno de la auditoría (`sesion.iniciar`). Nunca `ip`, `request_id`, `actor_ref`, `entidad_id`, `detalle` ni `familia_id` (C3) |
-| C2 | ¿El servidor recorta a 90 días y 20 líneas, y excluye los fallidos? | Sí, para que el cliente no filtre (D1 y D2) |
-| C3 | En «Cerraste MATU en {nombre}», ¿llegan los dos nombres, el de origen y el de destino? | `dispositivo_nombre` es el origen y `objetivo_nombre` el destino. Lo mismo para «Activaste los avisos en {nombre}» |
-| C4 | ¿Cómo recibe el cliente la clave pública VAPID? | Un `GET` público o una variable de construcción. La pantalla no la muestra, pero sin ella el estado B no funciona (P8) |
-| C5 | ¿`DispositivoVista` puede traer `push_activo: boolean`? | Es opcional. Serviría para decir «Avisos activados» en cada fila y para avisar cuando «En tus teléfonos» está marcada sin ningún teléfono activado. Sin el campo, la especificación funciona igual con el estado del navegador |
-| C6 | ¿Una persona que ya entró puede cambiar su contraseña? | Hoy solo existe `/v1/recuperacion/*`. ¿`/entrar/recuperar` funciona con la entrada abierta, o la ruta lo redirige a la ficha? Si no funciona, «Cambiar mi contraseña» se quita y la ayuda queda solo en texto |
-| C7 | ¿Puede venir el tipo de dispositivo (`clase: telefono \| computador \| otro`) en `DispositivoVista` y en las líneas? | Sale de la misma lista cerrada de `nombre_dispositivo`. Evita que el cliente lea el texto del nombre para elegir el sustantivo (E1). Sin el campo, el cliente usa el sufijo del nombre |
-| C8 | ¿`GET /v1/dispositivos` y la ruta de ingresos responden con `Cache-Control: no-store`? | Sí (C6) |
-| C9 | `SolicitudPush` acepta solo el `endpoint`, sin las claves `p256dh` ni `auth` | Basta para el envío simulado. Cuando el envío sea real, el cuerpo cambia. No afecta a la pantalla |
+| C1 | La ruta y la forma | `GET /v1/yo/ingresos` responde `{eventos[], hay_mas}`. Cada evento trae `{tipo, ocurrido_en, dispositivo: {nombre, actual} \| null}`, y `tipo` es un enum cerrado de diez valores (2.5). Nunca trae IP ni identificadores |
+| C2 | El recorte | Lo hace el servidor: 90 días, 20 eventos y sin los fallidos. `hay_mas` avisa si hay más de 20 |
+| C3 | El nombre en «Cerraste MATU en {nombre}» | Es el del dispositivo que se cerró. **Ojo, orquestador:** tu mensaje dice `objetivo.nombre`, pero el YAML de hoy lo trae en `dispositivo.nombre` (`TipoEventoCuenta`: «sí, el que se cerró»). La especificación sigue al YAML. Si el campo cambia de nombre, solo cambia la lectura, no el texto. El origen no llega, así que la línea no dice «desde…» |
+| C4 | La clave VAPID | Llega por `GET /v1/dispositivos/actual/push` en `clave_publica`, o `null`. La misma respuesta trae `registrado` y `envio_simulado` (3.4) |
+| C5 | `push_activo` por dispositivo | No hace falta. Para este teléfono basta `registrado` |
+| C6 | Cambiar la contraseña con la entrada abierta | No se puede. Se quita «Cambiar mi contraseña» (E5) y la ayuda lo dice en texto (2.5) |
+| C7 | `clase` | El backend la agrega a `DispositivoVista`: `telefono`, `computador` u `otro` (E1). El YAML de hoy no la trae todavía. Los eventos no la llevan, así que con `dispositivo: null` el texto nombra «un teléfono o computador» |
+| C8 | `Cache-Control: no-store` | Sí, en todas las respuestas de `/v1/yo/` y `/v1/dispositivos` |
+| C9 | `SolicitudPush` sin `p256dh` ni `auth` | Sigue igual. No afecta a la pantalla |
 
 ---
 
 ## 8. Textos para `lenguaje.md`
 
-Son todos los marcados **[ANALISTA]**, **[NUEVO]** y **[AJUSTE]**, en una sección nueva («Dónde entraste y avisos», MATU-55). La sección 20 se ajusta: «En este teléfono» pasa a «En tus teléfonos», con «Vale para todos tus grupos.». Los cinco ajustes son estos:
-1. «En tus teléfonos», en la sección 20.
-2. «hoy» y «ayer» en «Última vez», en la 13.3.
-3. «Te sacamos de MATU en {nombre} porque notamos un uso extraño.», sin «Vuelve a entrar.».
-4. «Los de los últimos 90 días, hasta 20.», con «hasta 20» agregado al texto del analista.
-5. El sustantivo según el dispositivo (E1), en «Este…», «(este…)» y «Cerrar en ese…».
+Son todos los marcados **[ANALISTA]**, **[NUEVO]** y **[AJUSTE]**, en una sección nueva («Dónde entraste y avisos», MATU-55).
 
-Antes de copiarlos los revisa el analista, en especial la ayuda del estado B, que repite la línea de la política 0.14, y «Si no lo pediste tú, no compartas el código con nadie.».
+**Los [NUEVO] que pidió el orquestador (Q6 del contrato):**
+- `dispositivo: null`: «un teléfono o computador que ya no está en tu lista», en lugar de `{nombre}` o en la cola (2.5);
+- `hay_mas`: con `false`, «Si necesitas los ingresos anteriores a 90 días, escribe a {correo} desde el correo de tu cuenta.»; con `true`, «Mostramos los 20 más recientes. Para ver los demás, o los anteriores a 90 días, escribe a {correo} desde el correo de tu cuenta.» (2.5);
+- `clave_publica: null`: «Por ahora no se pueden activar los avisos en este teléfono. Puedes recibirlos por correo.» (3.4, estado F);
+- el sustantivo de E1: «teléfono», «computador» o «navegador», en «Este…», «(este…)», «Cerrar en ese…», «Ese… ya no estaba en tu lista.» y los textos de avisos de 3.4.
+
+**Los seis ajustes a textos ya aprobados o propuestos:**
+1. «En tus teléfonos», en la sección 20, con «Vale para todos tus grupos.».
+2. «hoy» y «ayer» en «Última vez», en la 13.3.
+3. «Te sacamos de MATU en {nombre} porque notamos un uso extraño.», sin «Vuelve a entrar.», también en la tabla de `TipoEventoCuenta` del contrato.
+4. «Los de los últimos 90 días, hasta 20.», con «hasta 20» agregado al texto del analista.
+5. El sustantivo según la clase (E1).
+6. «¿No reconoces un ingreso? Cierra MATU en ese teléfono. Para cambiar tu contraseña, sal de MATU y toca «¿Olvidaste tu contraseña?» al entrar.» (E5).
+
+**[ANALISTA-CIERRE]**, los dos textos que el analista revisa en el cierre antes de copiarlos:
+1. La ayuda del estado B: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.» Repite la línea de la política 0.14, y las dos tienen que decir lo mismo.
+2. «Si no lo pediste tú, no compartas el código con nadie.», bajo `codigo_recuperacion_pedido`.
 
 ---
 
@@ -509,6 +548,8 @@ La voy a revisar funcionando, con capturas a 360, 1280 y 1920 px, en tema claro 
 5. Pedir un código de recuperación y ver su línea en `atenta`.
 6. Cambiar las dos casillas, y probar un error sin red.
 7. Activar y desactivar los avisos, con el permiso concedido, cerrado sin elegir y bloqueado.
-8. Probar un navegador sin soporte.
+8. Desmarcar y volver a marcar «En tus teléfonos» con este teléfono activado (E4).
+9. Probar un navegador sin soporte, y un backend sin `VAPID_CLAVE_PRIVADA` (estado F).
+10. Ver un evento con `dispositivo: null` y otro con `hay_mas: true`, con datos sintéticos.
 
 En el iPhone real, lo prueba Martín: Safari sin instalar (estado E), después agregar MATU a la pantalla de inicio y activar. Además, verifico el texto exacto de «Agregar a inicio» en un iOS en español.
