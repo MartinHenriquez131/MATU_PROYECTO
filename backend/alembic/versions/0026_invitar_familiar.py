@@ -501,12 +501,14 @@ END $$;
 -- (j) e (i)
 DROP FUNCTION invitacion_conservar(timestamptz, timestamptz);
 ALTER TABLE auditoria DROP CONSTRAINT auditoria_detalle_acotado;
+-- Como la 0013: validar el CHECK ve todas las filas (RLS no lo acota). Con filas con rol, vuelve NOT VALID
 DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM auditoria WHERE detalle ? 'rol') THEN
-        ALTER TABLE auditoria ADD CONSTRAINT auditoria_detalle_acotado CHECK ({DETALLE_0013}) NOT VALID;
-    ELSE
+    BEGIN
         ALTER TABLE auditoria ADD CONSTRAINT auditoria_detalle_acotado CHECK ({DETALLE_0013});
-    END IF;
+    EXCEPTION WHEN check_violation THEN
+        RAISE NOTICE 'MATU-42: la auditoría tiene detalles con rol; el CHECK de la 0013 vuelve NOT VALID';
+        ALTER TABLE auditoria ADD CONSTRAINT auditoria_detalle_acotado CHECK ({DETALLE_0013}) NOT VALID;
+    END;
 END $$;
 
 -- (h)
@@ -565,13 +567,14 @@ ALTER TABLE invitacion DROP COLUMN nombre_pila_invita;
 ALTER TABLE invitacion ADD COLUMN destino_email text;
 ALTER TABLE invitacion ADD COLUMN destino_telefono text;
 DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM invitacion) THEN
-        ALTER TABLE invitacion ADD CONSTRAINT invitacion_destino
-            CHECK (destino_email IS NOT NULL OR destino_telefono IS NOT NULL) NOT VALID;
-    ELSE
+    BEGIN
         ALTER TABLE invitacion ADD CONSTRAINT invitacion_destino
             CHECK (destino_email IS NOT NULL OR destino_telefono IS NOT NULL);
-    END IF;
+    EXCEPTION WHEN check_violation THEN
+        RAISE NOTICE 'MATU-42: hay invitaciones sin correo ni teléfono; invitacion_destino vuelve NOT VALID';
+        ALTER TABLE invitacion ADD CONSTRAINT invitacion_destino
+            CHECK (destino_email IS NOT NULL OR destino_telefono IS NOT NULL) NOT VALID;
+    END;
 END $$;
 
 -- (c) y (b)

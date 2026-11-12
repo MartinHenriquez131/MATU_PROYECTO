@@ -1310,3 +1310,21 @@ def test_0026_invitaciones_y_miembros_y_baja_al_esquema_de_0025(base_desechable)
         assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
     assert consultar("SELECT count(*) FROM membresia") == [(2,)]
     alembic("upgrade", "head")
+
+
+@pytest.mark.rf("RF-38")
+def test_0026_baja_con_auditoria_de_roles_y_la_conserva(base_desechable):
+    """Con filas de auditoría con rol (o invitaciones sin contacto), la bajada no borra nada: los CHECK de la 0025
+    vuelven NOT VALID. Validar un CHECK ve todas las filas, sin RLS."""
+    alembic("upgrade", "0026")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_0025_GRUPO)
+        c.execute(f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle) VALUES"
+                  f" ('{G26}', 'usuario', '{U26A}', 'invitacion.crear', 'invitacion', '{{\"rol\": \"cuidador\"}}')")
+        c.execute(_invitacion_0026("00000000-0000-0000-0000-0000000026e3", "t3", None))
+    alembic("downgrade", "0025")
+    assert dict(consultar("SELECT conname, convalidated FROM pg_constraint WHERE conname IN"
+                          " ('auditoria_detalle_acotado', 'invitacion_destino')")) == {
+        "auditoria_detalle_acotado": False, "invitacion_destino": False}
+    assert consultar("SELECT count(*) FROM auditoria WHERE detalle ? 'rol'") == [(1,)]
+    assert consultar("SELECT count(*) FROM invitacion") == [(1,)]
