@@ -1,6 +1,10 @@
 # MATU-55 · Dónde entraste, últimos ingresos y avisos · Especificación de diseño
 
-**Versión 1.2 · 12-11-2026 · agente 6 UI/UX.** La 1.1 se escribió antes de construir. La 1.2 sale de la revisión visual de lo construido.
+**Versión 1.3 · 12-11-2026 · agente 6 UI/UX.** La 1.1 se escribió antes de construir. La 1.2 y la 1.3 salen de las dos revisiones visuales de lo construido.
+
+**Qué cambia de la 1.2 a la 1.3** (segunda revisión, commit bd321d7):
+- la ayuda del estado B pasa al texto aprobado en el cierre del analista (3.4 y 8);
+- la opacidad de la casilla que espera no se aplica mientras tiene el foco: `aria-disabled:not-focus-visible:opacity-60` (3.3). Con `opacity-60` sobre el `input`, el contorno de foco también queda al 60 % y en el tema claro baja a 2,82:1, bajo el 3:1 que pide el foco.
 
 **Qué cambia de la 1.1 a la 1.2.** Las cinco diferencias que señaló el frontend se aceptan, y dos hallazgos de la revisión cambian la especificación:
 - «Tu cuenta» pide `GET /v1/dispositivos` para saber la clase del dispositivo actual (E1, 3.5). Si falla, dice «navegador»;
@@ -365,7 +369,7 @@ Son un `fieldset` cuya `legend` lleva el estilo de un `h2`: «Avisos cuando un i
 | Alcance | Vale para todos tus grupos. **[ANALISTA, D5]** | `p text-base font-bold`, también en el `aria-describedby`. Va en negrita porque es lo que la gente no espera |
 | Casilla 1 | Por correo **[LENGUAJE 20]** → `correo` | La casilla de DISENO 6: `size-6`, `accent-turquesa` y la etiqueta de `min-h-12` como área táctil |
 | Casilla 2 | En tus teléfonos **[AJUSTE de LENGUAJE 20, D5]**: reemplaza a «En este teléfono», porque la preferencia vale para todos los teléfonos → `push` | Igual |
-| Guardando | Guardando… **[LENGUAJE 17]**. Es un `p role="status"` bajo las casillas. La casilla que se tocó lleva `aria-busy`, y las dos quedan con `aria-disabled="true"` mientras se guarda: un cambio en ese momento se ignora y la casilla no se mueve. **(1.2) No van `disabled`**: un control `disabled` pierde el foco y el navegador lo deja en el `body` (revisión del 12-11). Se ven igual que deshabilitadas, con la opacidad de DISENO 6 (`aria-disabled:opacity-60`) | `text-base text-tenue` |
+| Guardando | Guardando… **[LENGUAJE 17]**. Es un `p role="status"` bajo las casillas. La casilla que se tocó lleva `aria-busy`, y las dos quedan con `aria-disabled="true"` mientras se guarda: un cambio en ese momento se ignora y la casilla no se mueve. **(1.2) No van `disabled`**: un control `disabled` pierde el foco y el navegador lo deja en el `body` (revisión del 12-11). Se ven igual que deshabilitadas, con la opacidad de DISENO 6, salvo la que tiene el foco: `aria-disabled:not-focus-visible:opacity-60` (1.3). La opacidad del `input` también apaga su contorno de foco | `text-base text-tenue` |
 | Guardado | Guardamos tus avisos. **[ANALISTA]**, en el mismo `p role="status"`. Se borra al cambiar otra vez | `text-base` |
 | Error o sin red | No pudimos guardar. Revisa tu conexión y vuelve a intentarlo. **[LENGUAJE 17]**. La casilla vuelve a lo que estaba antes de tocarla y el foco se queda en ella | `MensajeError` bajo las casillas |
 
@@ -397,7 +401,7 @@ Mientras carga esa lectura, el bloque muestra «Cargando…» con `role="status"
 | Estado | Cuándo | Qué se ve |
 |---|---|---|
 | **A. Activados** | `registrado: true` y el navegador tiene una suscripción con la misma `clave_publica` | `Etiqueta tono="ok"` con `Check` y «Activados» **[NUEVO]**. `Boton variante="secundario"` «Desactivar en este teléfono» **[NUEVO]** |
-| **B. Sin activar** | Hay soporte, `clave_publica` no es `null`, el permiso es `default` o `granted` y falta la suscripción o `registrado` | `Etiqueta` neutra con `Circle` y «Sin activar» **[NUEVO]**. La ayuda, en `text-base text-tenue max-w-prose`: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.» **[NUEVO, de la línea de la política 0.14, D6] [ANALISTA-CIERRE]**. `Boton variante="secundario"` «Activar en este teléfono» **[NUEVO]** |
+| **B. Sin activar** | Hay soporte, `clave_publica` no es `null`, el permiso es `default` o `granted` y falta la suscripción o `registrado` | `Etiqueta` neutra con `Circle` y «Sin activar» **[NUEVO]**. La ayuda, en `text-base text-tenue max-w-prose`: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante, y MATU la guarda hasta que los desactives o salgas. En el piloto, MATU no le envía nada a ese servicio.» **[NUEVO, de la línea de la política 0.14, D6] [ANALISTA-CIERRE], texto aprobado en la 1.3]**. `Boton variante="secundario"` «Activar en este teléfono» **[NUEVO]** |
 | **C. El navegador no deja** | `Notification.permission === 'denied'` | `Etiqueta` neutra con `Circle` y «Sin activar». `Nota tono="atenta"`: «Tu navegador no deja que MATU te avise. Puedes cambiarlo en los ajustes del navegador.» **[ANALISTA]**. Sin botón, porque no hay nada que MATU pueda hacer |
 | **D. Sin soporte** | No hay `serviceWorker`, `PushManager` o `Notification`, y no es el caso E | `Nota tono="rocio"`: «Este navegador no puede recibir avisos.» **[ANALISTA]** «Puedes recibirlos por correo.» **[NUEVO]**. Sin etiqueta ni botón |
 | **F. MATU todavía no puede activarlos** | `clave_publica: null`, en un navegador que sí tiene soporte (Q6 del contrato) | La misma forma que D, `Nota tono="rocio"` sin etiqueta ni botón: «Por ahora no se pueden activar los avisos en este teléfono. Puedes recibirlos por correo.» **[NUEVO]**. No habla de la clave ni de la configuración, y no culpa al navegador. En un computador o en otro navegador, «teléfono» cambia según E1. Si además falta el soporte, manda D, y en un iPhone sin instalar, manda E |
@@ -546,7 +550,7 @@ Son todos los marcados **[ANALISTA]**, **[NUEVO]** y **[AJUSTE]**, en una secci�
 6. «¿No reconoces un ingreso? Cierra MATU en ese teléfono. Para cambiar tu contraseña, sal de MATU y toca «¿Olvidaste tu contraseña?» al entrar.» (E5).
 
 **[ANALISTA-CIERRE]**, los dos textos que el analista revisa en el cierre antes de copiarlos:
-1. La ayuda del estado B: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante. En el piloto, MATU no le envía ningún texto.» Repite la línea de la política 0.14, y las dos tienen que decir lo mismo.
+1. La ayuda del estado B: «Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante, y MATU la guarda hasta que los desactives o salgas. En el piloto, MATU no le envía nada a ese servicio.» Repite la línea de la política 0.14, y las dos tienen que decir lo mismo.
 2. «Si no lo pediste tú, no compartas el código con nadie.», bajo `codigo_recuperacion_pedido`.
 
 ---
