@@ -1358,7 +1358,7 @@ La numeración sigue en la 188: la última de `main` es la 187 (MATU-74), y ning
 Lo que no calzaba entre la arquitectura, el informe del analista, el pedido del orquestador y la especificación del diseñador. **Todas quedaron resueltas por Jorge el 11-11** con sus decisiones C1 a C10; cada pregunta dice con cuál, y las decisiones de arriba ya lo aplican.
 
 - **C1:** `confirmar` acepta también un total vigente y lo reemplaza; se agrega `total_confirmado → borrador` («Cambiar el pedido»), con su ruta.
-- **C2:** con la capa 3 apagada, el retiro y el borrado siguen funcionando y no tocan pedidos; `GET …/consentimientos` trae 3 ítems con la capa 3 encendida y 2 con la capa apagada.
+- **C2:** con la capa 3 apagada, el retiro y el borrado siguen funcionando; `GET …/consentimientos` trae 3 ítems con la capa 3 encendida y 2 con la capa apagada. **Corregido por la decisión 250 (MATU-94):** con la capa 3 apagada, el retiro de `despacho` y el borrado sí cancelan los pedidos sin pagar; solo con la capa 3 quitada (sin el paquete `ordering`) no los tocan. Con un registro de `despacho`, la vista trae 3 ítems también con la capa apagada (decisión 251).
 - **C3:** admin y cuidador ven, arman, ajustan, confirman y cancelan sin pagar; el pagador ve todo y no confirma; el observador ve el carrito sin dirección ni resumen; otro grupo, 404.
 - **C4:** un solo pedido sin pagar por persona (409 `pedido-abierto`), leído con `GET …/pedido-en-curso`.
 - **C5:** al confirmar, solo se busca otro comercio con `otro_comercio`; con `quitar`, el producto sale. Entre varios, el de menor precio, marcado en `cambio`. Ventana fija «Entre 24 y 48 horas hábiles». Envío único de la configuración. Todos los precios con IVA incluido.

@@ -92,7 +92,9 @@ def test_sin_la_capa_3_son_dos_autorizaciones_y_despacho_no_existe(
 def test_sin_la_capa_3_borrar_a_la_persona_funciona_y_revoca_despacho(
     entorno_iam: EntornoIam, fabrica_despacho: Fabrica
 ) -> None:
-    """C2: el borrado de MATU-72 sigue funcionando sin la capa 3 y no toca pedidos."""
+    """C2: el borrado de MATU-72 sigue funcionando sin la capa 3. Aquí no hay pedidos que tocar: con la capa 3
+    apagada, el borrado sí cancela los pedidos sin pagar (decisión 250, test_pedido_capa3_apagada.py), y solo con la
+    capa 3 quitada (FLUJOS de test_capa3_desacoplable.py) no los toca."""
     familia = fabrica_despacho.familia()
     despacho = _despacho_que_quedo(familia)
 
