@@ -10,7 +10,7 @@ import { familiaFalsa } from './familiaFalsa'
 import { responderPolitica } from './politicaFalsa'
 
 const INVITACION = {
-  token: 'TokenSinteticoDeInvitacion0123456789abcdefghij',
+  token: 'TokenSinteticoDeInvitacion0123456789abcdefghij', // pragma: allowlist secret
   presentacion: { nombre_pila_invita: 'Carmen', rol: 'cuidador', expira_en: '2026-11-20T00:30:00Z' },
   codigo: '4729',
   verificacion: { nombre_pila_invita: 'Carmen', rol: 'cuidador', expira_en: '2026-11-20T00:30:00Z', grupo: 'Familia Soto', personas: ['María'] },

@@ -14,7 +14,7 @@ import { NotaVuelvesALaInvitacion, PaginaInvitacion } from '../src/familia/Invit
 import type { RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 
-const TOKEN = 'TokenSinteticoDeInvitacion0123456789abcdefghij'
+const TOKEN = 'TokenSinteticoDeInvitacion0123456789abcdefghij' // pragma: allowlist secret
 const GRUPO_NUEVO = '3c9d4e20-0000-4000-8000-0000000000n1'
 const PRESENTACION = { nombre_pila_invita: 'Carmen', rol: 'cuidador', expira_en: '2026-11-20T00:30:00Z' }
 const VERIFICACION = { ...PRESENTACION, grupo: 'Familia Soto', personas: ['María'] }
