@@ -238,8 +238,8 @@ describe('«Tus datos»: el diálogo y los estados (5.6)', () => {
   it('429 con la hora, sin «Volver a intentar», y el foco en la nota', async () => {
     apiCopia(problemaCopia(429, 'tope-copias', { 'retry-after': '60' }))
     render(<TusDatos />)
-    const nota = (await screen.findByText(/Ya pediste los datos varias veces/)).closest('[data-aviso]')!
-    expect(nota).toHaveTextContent('Ya pediste los datos varias veces. Vuelve a intentarlo a las 10:15.')
+    const nota = (await screen.findByText(/Abriste o descargaste los datos varias veces en la última hora/)).closest('[data-aviso]')!
+    expect(nota).toHaveTextContent('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo a las 10:15.')
     await waitFor(() => expect(nota).toHaveFocus())
     expect(screen.queryByRole('button', { name: 'Volver a intentar' })).toBeNull()
   })

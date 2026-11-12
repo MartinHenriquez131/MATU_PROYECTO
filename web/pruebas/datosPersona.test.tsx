@@ -587,9 +587,9 @@ describe('«Datos de María»: estados de la página (3.6)', () => {
   it('429: la hora de Retry-After en `atenta` con Clock, sin «Volver a intentar»', async () => {
     apiCopia(problemaCopia(429, 'tope-copias', { 'retry-after': '1230' }))
     render(<DatosDePersona />)
-    const nota = await screen.findByText(/Ya pediste los datos varias veces/)
+    const nota = await screen.findByText(/Abriste o descargaste los datos varias veces en la última hora/)
     // 10:14 más 20 min 30 s, hacia arriba al minuto.
-    expect(nota.closest('[data-aviso]')).toHaveTextContent('Ya pediste los datos varias veces. Vuelve a intentarlo a las 10:35.')
+    expect(nota.closest('[data-aviso]')).toHaveTextContent('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo a las 10:35.')
     expect(nota.closest('[data-aviso]')).toHaveClass('bg-atenta-fondo')
     expect(nota.closest('[data-aviso]')!.querySelector('svg.lucide-clock')).not.toBeNull()
     await waitFor(() => expect(nota.closest('[data-aviso]')).toHaveFocus())
@@ -600,7 +600,7 @@ describe('«Datos de María»: estados de la página (3.6)', () => {
   it('429 sin Retry-After: «… en una hora.»', async () => {
     apiCopia(problemaCopia(429, 'tope-copias'))
     render(<DatosDePersona />)
-    expect(await screen.findByText('Ya pediste los datos varias veces. Vuelve a intentarlo en una hora.')).toBeInTheDocument()
+    expect(await screen.findByText('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo en una hora.')).toBeInTheDocument()
   })
 
   it('404: la nota general con Lock', async () => {

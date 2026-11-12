@@ -275,3 +275,34 @@ describe('54-H4 (P3): el «·» entre dos montos tampoco queda solo al final de 
     expect(tarjetas[0].textContent).toContain('4242\u00A0·\u00A03 cuotas')
   })
 })
+
+describe('MATU-107 (54-H3): la ayuda del límite, bajo la bajada, también mientras carga y con el 429', () => {
+  const AYUDA = 'Cada vez que abres esta pantalla cuenta como una copia de los datos. Puedes abrirla hasta 10 veces por hora.'
+
+  it('«Datos de María»: la ayuda va justo después de la bajada, con su mismo estilo', async () => {
+    await abrirPersona()
+    const bajada = screen.getByText(/Lo que MATU guarda hoy de María, al/)
+    const ayuda = screen.getByText(AYUDA)
+    expect(bajada.nextElementSibling).toBe(ayuda)
+    expect(ayuda.className).toBe(bajada.className)
+  })
+
+  it('«Tus datos»: la ayuda va justo después de la bajada', async () => {
+    apiCopia(copiaComoRespuesta(copiaCuenta(), 'matu-cuenta-2026-11-12.json'))
+    render(<TusDatos />)
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    expect(screen.getByText(/Lo que MATU guarda hoy de tu cuenta, al/).nextElementSibling).toBe(screen.getByText(AYUDA))
+  })
+
+  it('con el 429 la ayuda se ve, y la nota dice «Abriste o descargaste…» en las dos pantallas', async () => {
+    apiCopia(problemaCopia(429, 'tope-copias'))
+    const { unmount } = render(<DatosDePersona />)
+    expect(await screen.findByText('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo en una hora.')).toBeInTheDocument()
+    expect(screen.getByText(AYUDA)).toBeInTheDocument()
+    unmount()
+    apiCopia(problemaCopia(429, 'tope-copias'))
+    render(<TusDatos />)
+    expect(await screen.findByText('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo en una hora.')).toBeInTheDocument()
+    expect(screen.getByText(AYUDA)).toBeInTheDocument()
+  })
+})

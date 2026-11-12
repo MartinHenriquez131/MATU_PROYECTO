@@ -76,7 +76,7 @@ export function TusDatos() {
   ) : undefined
 
   return (
-    <Pagina titulo={T.cuentaTitulo} bajada={bajada} antes={<Volver onClick={volver}>{T.volverACuenta}</Volver>}>
+    <Pagina titulo={T.cuentaTitulo} bajada={bajada} ayuda={T.limiteCopias} antes={<Volver onClick={volver}>{T.volverACuenta}</Volver>}>
       {estado.estado === 'cargando' && <Cargando />}
       {estado.estado !== 'cargando' && estado.estado !== 'lista' && <AvisoDeCarga e={aviso} reintentar={reintentar} />}
       {copia && (

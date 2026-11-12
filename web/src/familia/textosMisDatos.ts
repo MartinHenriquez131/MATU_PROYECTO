@@ -60,9 +60,11 @@ export const MIS_DATOS = {
   // estados de la página (3.6)
   errCarga: 'No pudimos traer los datos. Revisa tu conexión y vuelve a intentarlo.', // [ANALISTA]
   errNoDisponible: 'No pudimos traer los datos en este momento. Vuelve a intentarlo en unos minutos.', // [NUEVO]
-  /** 429 con `Retry-After`: «… a las {HH:MM}.» [ANALISTA, ajustado] */
-  tope: ['Ya pediste los datos varias veces. Vuelve a intentarlo a las ', '.'] as Partes,
-  topeSinHora: 'Ya pediste los datos varias veces. Vuelve a intentarlo en una hora.', // [ANALISTA]
+  /** 429 con `Retry-After`: «… a las {HH:MM}.» [ANALISTA, ajustado; lenguaje 35, MATU-107] */
+  tope: ['Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo a las ', '.'] as Partes,
+  topeSinHora: 'Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo en una hora.', // [ANALISTA; lenguaje 35, MATU-107]
+  /** MATU-107 (54-H3): bajo la bajada de «Datos de…» y de «Tus datos». [ANALISTA; lenguaje 35] */
+  limiteCopias: 'Cada vez que abres esta pantalla cuenta como una copia de los datos. Puedes abrirla hasta 10 veces por hora.',
 
   // frases de los historiales (3.4.9)
   noventaConMas: 'Los de los últimos 90 días. Lo anterior va en el archivo.', // [NUEVO]

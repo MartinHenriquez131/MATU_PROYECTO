@@ -25,7 +25,7 @@ export function Titulo({ children, className = 'text-3xl @2xl/main:text-4xl', la
   )
 }
 
-export function Pagina({ titulo, bajada, antes, children }: { titulo: ReactNode; bajada?: ReactNode; antes?: ReactNode; children?: ReactNode }) {
+export function Pagina({ titulo, bajada, ayuda, antes, children }: { titulo: ReactNode; bajada?: ReactNode; ayuda?: ReactNode; antes?: ReactNode; children?: ReactNode }) {
   return (
     <>
       <div className="mb-7 flex flex-col gap-3">
@@ -33,6 +33,8 @@ export function Pagina({ titulo, bajada, antes, children }: { titulo: ReactNode;
         <div>
           <Titulo>{titulo}</Titulo>
           {bajada && <p className="mt-1.5 max-w-prose text-base text-tenue">{bajada}</p>}
+          {/* MATU-107 (54-H3): una línea de ayuda bajo la bajada, con su mismo estilo. */}
+          {ayuda && <p className="mt-1.5 max-w-prose text-base text-tenue">{ayuda}</p>}
         </div>
       </div>
       {children}

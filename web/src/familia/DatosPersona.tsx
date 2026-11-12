@@ -93,7 +93,7 @@ function PaginaDatosPersona({ persona }: { persona: PersonaListada }) {
   ) : undefined
 
   return (
-    <Pagina titulo={T.titulo(pila)} bajada={bajada} antes={<Volver onClick={volver}>{T.volverAGrupo}</Volver>}>
+    <Pagina titulo={T.titulo(pila)} bajada={bajada} ayuda={T.limiteCopias} antes={<Volver onClick={volver}>{T.volverAGrupo}</Volver>}>
       {estado.estado === 'cargando' && <Cargando />}
       {estado.estado !== 'cargando' && estado.estado !== 'lista' && <AvisoDeCarga e={estado} reintentar={reintentar} />}
       {copia && (

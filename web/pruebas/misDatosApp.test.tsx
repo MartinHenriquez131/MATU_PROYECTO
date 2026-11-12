@@ -158,3 +158,46 @@ describe('«Tus datos» desde Tu cuenta (4)', () => {
     expect(window.location.pathname).toBe('/cuenta')
   })
 })
+
+describe('MATU-107 (54-H3): un solo GET por visita, y la ayuda del límite bajo la bajada', () => {
+  const AYUDA = 'Cada vez que abres esta pantalla cuenta como una copia de los datos. Puedes abrirla hasta 10 veces por hora.'
+  /** Volver a la pestaña o a la ventana: lo que hace un navegador al reenfocar. */
+  function reenfocar() {
+    window.dispatchEvent(new Event('blur'))
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+  }
+
+  it('«Datos de María»: reenfocar no repite el GET, y volver atrás tampoco lo pide', async () => {
+    const pedidas = api('admin')
+    abrirApp('/grupo')
+    await u().click(await verDatos())
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    const bajada = screen.getByText(/Lo que MATU guarda hoy de María, al/)
+    expect(bajada.nextElementSibling).toHaveTextContent(AYUDA)
+    reenfocar()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(pedidas.filter((p) => p.endsWith('/datos'))).toHaveLength(1)
+    // El botón «atrás» del navegador: vuelve a Grupo familiar sin pedir otra copia.
+    window.history.pushState(null, '', '/grupo')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    await verDatos()
+    expect(pedidas.filter((p) => p.endsWith('/datos'))).toHaveLength(1)
+  })
+
+  it('«Tus datos»: reenfocar no repite el GET, y volver a tu cuenta tampoco', async () => {
+    const pedidas = api('pagador')
+    abrirApp('/cuenta')
+    await u().click(await screen.findByRole('button', { name: 'Ver tus datos' }, { timeout: 5000 }))
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    const bajada = screen.getByText(/Lo que MATU guarda hoy de tu cuenta, al/)
+    expect(bajada.nextElementSibling).toHaveTextContent(AYUDA)
+    reenfocar()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(pedidas.filter((p) => p === 'GET /v1/yo/datos')).toHaveLength(1)
+    await u().click(screen.getByRole('button', { name: 'Volver a tu cuenta' }))
+    await screen.findByRole('button', { name: 'Ver tus datos' }, { timeout: 5000 })
+    expect(pedidas.filter((p) => p === 'GET /v1/yo/datos')).toHaveLength(1)
+  })
+})
