@@ -1,6 +1,6 @@
 # MATU-53 · App de familia: invitar a un familiar y ver el grupo · Especificación de diseño
 
-**Versión 1.1 · 12 de noviembre de 2026** (decisiones del orquestador, por delegación de Jorge: sección 0.4) · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
+**Versión 1.2 · 12 de noviembre de 2026** (los seis vacíos que encontró el frontend, decididos tras la revisión visual: sección 0.5) · v1.1: decisiones del orquestador, por delegación de Jorge (0.4) · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
 
 **Fuentes, en este orden:**
 - `Demo/DISENO.md`, con la regla de MATU-93 («ningún texto bajo 17 px», PR MATU_PROYECTO #87, todavía no en esta rama: ver 0.2).
@@ -83,6 +83,19 @@ Por delegación de Jorge, que las confirma al fusionar. **Mandan sobre 0.2 y 0.3
 | P14 | Quien está sola en su grupo no puede salir: 409, con un texto que la lleva a «Borrar sus datos» (MATU-72) | 7.3 |
 | P2, P3, P7, P8, P9 | Como se propusieron en 0.3 | 3, 4 y 5.4 |
 | Textos **[NUEVO]** | Aprobados por el orquestador, por delegación de Jorge. Jorge los confirma al fusionar | 11 |
+
+### 0.5 Los seis vacíos de la v1.1 (12-11, v1.2)
+
+El frontend los llenó con textos **[PROVISIONAL]** mientras se decidían. Quedan así, después de verlos funcionando. Los textos nuevos van marcados **[NUEVO v1.2]** y entran a la tabla de la sección 11.
+
+| # | Vacío | Decisión | Dónde |
+|---|---|---|---|
+| 1 | El diálogo de anular (la 5.4 remitía a una «8.4» que no existe) | Se acepta lo construido, con dos ajustes: el gerundio lleva su objeto («Anulando la invitación…», como «Sacando del grupo…») y el 409 sin estado conocido dice «Esa invitación ya no se puede anular.». **Tras el 409, el foco va a la nota, nunca al `body`** | 5.4.1 |
+| 2 | Las invitaciones bloqueadas no se distinguían de las pendientes | La primera línea cambia a «`{rol}` · se bloqueó.» y se suma una línea con `Lock` y palabra. Se pueden anular igual | 5.4 |
+| 3 | Sin persona registrada, donde la frase pide un nombre de pila | «la persona que cuidan» se acepta en las frases que siguen leyéndose bien. En «Salir del grupo», el punto de la ficha y la segunda oración de la 7.3 se omiten: sin persona no hay ficha ni «Borrar sus datos» | 5.10 |
+| 4 | «Cuéntale» con varias personas | Se acepta el plural: «Si María y Pedro pueden comprenderlo, cuéntales que invitaste a otra persona.» | 3.2 |
+| 5 | El nombre de pila propio en la vista previa | Se acepta la primera palabra del nombre, **porque es la misma regla del backend** (`nombre_pila()` en `care_circle/domain/invitaciones.py`): la vista previa dice exactamente lo que verá la persona. Si la regla cambia en el backend, cambia aquí | 3.2 |
+| 6 | El cambio del rol propio («Ahora Carmen Soto cuida.») | En la fila propia, en segunda persona: «Ahora cuidas.», «Ahora pagas.», «Ahora te informas.» | 6.4 |
 
 ---
 
@@ -206,6 +219,13 @@ Es una ruta de `AppFamilia`, **no** una rama aparte de `main.tsx` como `/r`. La 
 └────────────────────────────────────┘
 │ Ficha  Insumos  Compartir  Grupo   │  barra fija
 ```
+
+**«Cuéntale» según cuántas personas cuidan (v1.2):**
+- Una: «Si María puede comprenderlo, cuéntale que invitaste a otra persona.» **[ANALISTA]**
+- Varias, unidas con «y»: «Si María y Pedro pueden comprenderlo, cuéntales que invitaste a otra persona.» **[NUEVO v1.2]**
+- Ninguna registrada: la nota no aparece.
+
+**El nombre en la vista previa (v1.2):** la primera palabra del nombre propio en la lista del grupo, que es la misma regla con que el backend copia `nombre_pila_invita` (`nombre_pila()`). Así la vista previa dice exactamente lo que verá quien abra el enlace. Si la lista no se puede pedir, la vista previa no aparece: nunca se inventa un nombre.
 
 **Ningún rol elegido de partida.** Elegir qué podrá hacer otra persona con los datos de María es una decisión, no un valor por omisión. Si toca «Crear la invitación» sin elegir, no se hace la petición, aparece «Elige qué podrá hacer.» **[NUEVO]** bajo la `legend` en `MensajeError`, y el foco va a la primera opción.
 
@@ -569,8 +589,58 @@ La bajada cambia: «Quiénes forman `{grupo}`, a quién cuidan y qué permisos d
 
 - `h2` «Invitaciones sin usar» **[ANALISTA]** y una `ul` con la misma superficie de la lista. Solo las vigentes. Si no hay ninguna, el bloque no aparece.
 - Cada una: «`{rol}` · vence el `{fecha}` a las `{hora}`.» **[ANALISTA, con la hora agregada como pide su §6]**, `font-bold`. Debajo, «La creó `{nombre}`.» **[NUEVO]** en `text-tenue` (con dos personas que administran, sirve para saber de quién es). Si la creó alguien que ya no está: «La creó alguien que ya no está en el grupo.» (5.7).
-- «Anular la invitación» **[ANALISTA]**, `textoPeligro`, abre el diálogo de 8.4.
+- «Anular la invitación» **[ANALISTA]**, `textoPeligro`, abre el diálogo de 5.4.1.
 - Después de anular, la fila sale y queda en su lugar una `Nota tono="ok"`, que recibe el foco: «Invitación anulada.» **[ANALISTA]**.
+
+**Las bloqueadas (v1.2).** Una invitación con cinco códigos malos sigue en la lista (está sin usar y nadie la anuló), pero ya no sirve. Se distingue con palabra y forma, nunca solo con color:
+
+```
+│ Cuida · se bloqueó.                │  font-bold, en lugar de «vence el…»
+│ 🔒 El código se escribió mal cinco │  Lock size-5 text-tenue aria-hidden
+│    veces. Ya no sirve.             │  + text-base, flex gap-2
+│ La creó Carmen.                    │  text-tenue
+│ Anular la invitación               │  textoPeligro
+```
+
+- Primera línea: «`{rol}` · se bloqueó.» **[NUEVO v1.2]**, `font-bold`. Sin fecha: el vencimiento ya no importa.
+- Segunda línea, con `Lock`: «El código se escribió mal cinco veces. Ya no sirve.» **[NUEVO v1.2]**, `text-base` en `tinta`. El ícono en `text-tenue`: es información, no una alarma.
+- «La creó…» y «Anular la invitación», igual que las pendientes. Anularla la saca de la lista.
+- El orden, el de la API.
+
+#### 5.4.1 Anular una invitación (diálogo, solo admin) · v1.2
+
+La construcción de 6.1.
+
+```
+┌────────────────────────────────────┐
+│ ¿Anular la invitación?             │  h2 text-xl font-bold, foco inicial
+│                                    │
+│ Paga · vence el 17/11/2026 a las   │  text-base font-bold: la misma
+│ 07:29.                             │  línea de la lista, para saber cuál
+│                                    │
+│ El enlace deja de servir, también  │  text-base
+│ con el código. Si quieres que esa  │
+│ persona se una, crea una           │
+│ invitación nueva.                  │
+│                                    │
+│ [ Anular la invitación ]           │  peligroPrincipal
+│ No anular                          │  texto
+└────────────────────────────────────┘
+```
+
+| Pieza | Texto |
+|---|---|
+| h2 | «¿Anular la invitación?» **[NUEVO v1.2]** |
+| Cuál | La primera línea de su fila: «`{rol}` · vence el `{fecha}` a las `{hora}`.» o «`{rol}` · se bloqueó.» |
+| Texto | «El enlace deja de servir, también con el código. Si quieres que esa persona se una, crea una invitación nueva.» **[NUEVO v1.2]** |
+| Botones | «Anular la invitación» **[ANALISTA]**, `peligroPrincipal` · «No anular» **[NUEVO v1.2]**, texto |
+| Anulando | «Anulando la invitación…» **[NUEVO v1.2]**, `aria-busy` |
+| Hecho | Lo de arriba: «Invitación anulada.» en `Nota tono="ok"` con el foco |
+| Sin red o 5xx | En la región `role="alert"` del diálogo: «No pudimos anular la invitación. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba.» **[NUEVO v1.2]**. El diálogo no se cierra |
+| 409 `invitacion-cerrada` (se usó o venció mientras tanto) | El diálogo se cierra, la lista se vuelve a pedir y en el lugar de la nota de invitaciones, `Nota tono="rocio"`, **que recibe el foco**: «Esa invitación ya se usó.» o «Esa invitación ya venció.» según el `estado` del problema. Sin estado conocido: «Esa invitación ya no se puede anular.» **[NUEVO v1.2]**. Si ya no quedan invitaciones y el bloque desaparece, la nota queda igual sobre «María Soto», y el foco va a ella |
+| 404 | 5.9 |
+
+**El foco nunca queda en el `body`.** Si al volver a pedir la lista la nota se vuelve a montar, el foco se le da después de montarla.
 
 ### 5.5 El grupo nunca queda sin admin
 
@@ -637,6 +707,21 @@ Es el nombre de toda persona cuya membresía ya no está activa, en cualquier pa
 | 410 | No aplica en `/grupo` |
 | 412 | Ver 6.6 |
 
+### 5.10 Sin persona registrada (v1.2)
+
+Un grupo recién creado puede no tener todavía a nadie registrado. Donde una frase pide `{nombre_pila}` o `{nombres_pila}`:
+
+| Frase | Sin persona |
+|---|---|
+| «Se informa»: «Ve el nombre de `{nombres_pila}` y sus insumos. No ve la ficha.» | «Ve el nombre de la persona que cuidan y sus insumos. No ve la ficha.» **[NUEVO v1.2]** |
+| Confirmar (4.5): «Lo que veas sobre `{nombres_pila}` es para su cuidado…» | «Lo que veas sobre la persona que cuidan es para su cuidado. No lo compartas fuera del grupo.» **[NUEVO v1.2]**, coherente con el h1 «Todavía no registran a la persona que cuidan.» |
+| Dar la ficha (6.7): «Podrá leer la ficha de `{nombres_pila}`…» | «Podrá leer la ficha de la persona que cuidan y ver sus enlaces de relevo. No podrá cambiarla ni compartirla.» **[NUEVO v1.2]** |
+| «Cuéntale» (3.2) | La nota no aparece |
+| Salir (7.2): «Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`.» | **El punto no aparece:** sin persona no hay ficha. Además, «la persona que cuidan» junto a «cuidado» se lee redundante |
+| Sola en el grupo (7.3): «… Si ya no usan MATU para cuidar a `{nombres_pila}`, puedes borrar sus datos en «Borrar sus datos», más arriba.» | Solo la primera oración: «Eres la única persona de `{grupo}`, así que no puedes salir.» Sin persona no hay bloque «Borrar sus datos» al que mandarla |
+
+«la persona que cuidan» va siempre en minúscula y dentro de la oración: nunca empieza una frase ni reemplaza un título.
+
 ---
 
 ## 6. Cambiar el rol (diálogo, solo admin)
@@ -695,7 +780,7 @@ En pantalla ancha, el mismo diálogo centrado, con los dos botones en una fila.
 El diálogo se cierra, la fila se actualiza en su lugar y, bajo la fila, una `Nota tono="ok"` que recibe el foco:
 - «Ahora `{nombre}` `{rol en minúscula}`.» **[ANALISTA]**: «Ahora Rosa cuida.», «Ahora Rosa administra el grupo.», «Ahora Rosa paga.», «Ahora Rosa se informa.»
 - Si se cortaron enlaces, sigue «Cortamos `{n}` enlaces.» o «Cortamos 1 enlace.» **[NUEVO, la forma de L 22]**.
-- Si fue mi propio rol, la página se vuelve a dibujar con mi rol nuevo, y la nota va arriba de la lista.
+- Si fue mi propio rol, la página se vuelve a dibujar con mi rol nuevo, y la nota va arriba de la lista. **En segunda persona, nunca con mi nombre (v1.2):** «Ahora cuidas.» · «Ahora pagas.» · «Ahora te informas.» **[NUEVO v1.2]**, más «Cortamos `{n}` enlaces.» si hubo. («Ahora administras el grupo.» no ocurre: solo quien administra cambia su propio rol.)
 
 ### 6.5 Errores
 
@@ -814,11 +899,11 @@ Si igual llega el 409: con otras personas en el grupo, el diálogo muestra la fr
 | `Boton` | `compartido/ui/Boton.tsx` | `principal`, `secundario`, `texto`, `peligro`, `textoPeligro`, `peligroPrincipal`. Cargando con gerundio y `aria-busy`. `aria-disabled` donde tiene que conservar el foco (6.3) |
 | `Nota` | `compartido/ui/Nota.tsx` | `rocio`, `ok`, `atenta`, `pronto`, con ícono siempre |
 | Sección del código | `EnlaceListo` de `Compartir.tsx`, con los cambios de 3.4 | con código, sin código (3.6) |
-| Diálogo | El de MATU-44 4.1 (`DialogoRetirar`) | abierto, enviando, error, 409, 412 |
+| Diálogo | El de MATU-44 4.1 (`DialogoRetirar`) | abierto, enviando, error, 409, 412. Los seis: cambiar el rol, dar y quitar la ficha, sacar, salir y anular (5.4.1) |
 | Marco público de `/invitacion` | La forma de `relevo/Marco.tsx`, con otro rótulo | — |
 | Estado que no sigue | `Baldosa` y la forma de `PantallasSimples.tsx` | los ocho de 4.7 |
 | `EnlacePoliticaSolo` | `compartido/ui/Enlaces.tsx` | Los de MATU-75 |
-| Lista de miembros, fila de invitación | **Nuevos**, en `Grupo.tsx` | Los de 5.3 y 5.4 |
+| Lista de miembros, fila de invitación | **Nuevos**, en `Grupo.tsx` | Los de 5.3 y 5.4: pendiente y bloqueada |
 
 **Íconos, todos de `lucide-react`:** `MailPlus`, `MailOpen`, `KeyRound`, `Send`, `Copy`, `CircleCheck`, `Link2`, `Link2Off`, `CalendarX2`, `Lock`, `Hourglass`, `CloudOff`, `Eye`, `EyeOff`, `UserRound`, `Info`, `TriangleAlert`. Decorativos con `aria-hidden`.
 
@@ -860,6 +945,9 @@ Nada escrito a mano: ni colores, ni sombras, ni tamaños fuera de la escala, ni 
 15. Ningún texto mide menos de 17 px.
 16. Ningún texto dice «token», «usuario», «observador», «revocar», «rechazar», «invitado» ni «invitada», ni un término de L 3. Ninguno asume el género de nadie.
 17. «Salir del grupo» nunca aparece abreviado como «Salir».
+18. Una invitación bloqueada se distingue de una pendiente sin mirar el color: dice «se bloqueó» y lleva `Lock` (v1.2).
+19. Después de anular, con éxito o con 409, el foco está en una nota, nunca en el `body` (v1.2).
+20. La nota del cambio del rol propio está en segunda persona y no lleva el nombre propio (v1.2).
 
 ---
 
@@ -889,6 +977,11 @@ Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEV
 | «Paga» sin capa 3 | Ve los insumos. Ve la ficha solo si quien administra le da permiso. |
 | Permiso del pagador | ¿Dejar que `{nombre}` vea la ficha? · Podrá leer la ficha de `{nombres_pila}` y ver sus enlaces de relevo. No podrá cambiarla ni compartirla. · No por ahora · Ahora `{nombre}` puede ver la ficha. · ¿Quitarle la ficha a `{nombre}`? · `{nombre}` dejará de ver la ficha desde ahora. · No quitar · `{nombre}` ya no ve la ficha. |
 | Sacar | No tiene enlaces de relevo que abran ahora. · Para volver, tendrías que invitar a `{nombre}` de nuevo. · Sacando del grupo… · No pudimos sacar a `{nombre}` del grupo. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. |
+| Anular (v1.2) | ¿Anular la invitación? · El enlace deja de servir, también con el código. Si quieres que esa persona se una, crea una invitación nueva. · No anular · Anulando la invitación… · No pudimos anular la invitación. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. · Esa invitación ya se usó. · Esa invitación ya venció. · Esa invitación ya no se puede anular. |
+| Bloqueada en la lista (v1.2) | `{rol}` · se bloqueó. · El código se escribió mal cinco veces. Ya no sirve. |
+| Sin persona (v1.2) | la persona que cuidan (en «Se informa», en la confidencialidad de confirmar y al dar la ficha) |
+| Varias personas (v1.2) | Si `{nombres_pila}` pueden comprenderlo, cuéntales que invitaste a otra persona. |
+| Mi propio rol (v1.2) | Ahora cuidas. · Ahora pagas. · Ahora te informas. |
 | Salir | Dejarás de ver `{grupo}` y se cortan los enlaces de relevo que compartiste. · Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`. · Para volver, alguien que administra el grupo tiene que invitarte de nuevo. · Saliendo del grupo… · Saliste de `{grupo}`. · No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo. · Eres la única persona que administra `{grupo}`. Para salir, primero da ese rol a otra persona. · Eres la única persona de `{grupo}`, así que no puedes salir. Si ya no usan MATU para cuidar a `{nombres_pila}`, puedes borrar sus datos en «Borrar sus datos», más arriba. |
 
 **Ajustes a textos del analista:** «Con tu rol podrás: `{descripción}`.» pasa a «Tu rol: `{rol}`. `{descripción}`» (0.2). «Ese código no es. Te quedan `{n}` intentos.» suma «Después, la invitación se bloquea.» (4.3). El aviso D-42-9 va sin el nombre y sin «renuévala» (5.6, aprobado). «Código: `{codigo}`.» sale del texto, porque los dígitos ya están a la vista (3.4).
@@ -899,7 +992,7 @@ Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEV
 
 Con la app funcionando (`npm run dev` en `web/`, con el doble de la API o contra el backend de la rama), con datos sintéticos (Carmen administra, Rodrigo paga, Rosa cuida, Familia Soto, María):
 
-- Capturas a 360, 1280 y 1920 px, en tema claro y oscuro, y a 320 px con el texto al 200 %, de: `/grupo` como admin y como pagador, `/grupo/invitar` con «Administra el grupo» elegido, `/grupo/invitar/listo` con y sin código, los cuatro pasos de `/invitacion`, cada estado de 4.7, y los cinco diálogos con su error.
+- Capturas a 360, 1280 y 1920 px, en tema claro y oscuro, y a 320 px con el texto al 200 %, de: `/grupo` como admin y como pagador, `/grupo/invitar` con «Administra el grupo» elegido, `/grupo/invitar/listo` con y sin código, los cuatro pasos de `/invitacion`, cada estado de 4.7, y los seis diálogos con su error.
 - Mido el contraste de las notas en los dos temas, el alto de cada botón de texto de las filas, y que nada mida menos de 17 px.
 - Recorro todo con el teclado y con el lector de pantalla: el foco al abrir y cerrar cada diálogo, el código leído dígito a dígito y los anuncios.
 - Reviso el historial y el almacenamiento del navegador después de aceptar una invitación: sin token ni código.
