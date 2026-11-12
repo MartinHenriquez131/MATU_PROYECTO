@@ -12,7 +12,9 @@ petición de retiro o de autorización, con su sesión y su registro de auditor�
     borrado nunca vuelve a leerse.
 - borrar (MATU-72, decisión 150): al borrar a la persona, en este orden y con el instante del borrado:
   1. corta los accesos con la misma regla del retiro (cortar_por_retiro, FOR UPDATE OF a) y deja sin el nombre
-     de pila de la persona todos los accesos de su plan;
+     de pila de la persona todos los accesos de su plan. En la misma sentencia vacía el teléfono del relevo y fija
+     telefono_borrado_en con el instante del borrado (MATU-46, D-46-3 a): no espera los 30 días. Un teléfono que la
+     tarea ya vació conserva su instante;
   2. destruye la clave vigente, con clave.destruir y actor el usuario, en una sentencia;
   3. después, en otra sentencia, borra todas las filas de plan_seccion de la persona y deja el plan en 0 de 3
      (C6). En READ COMMITTED cada sentencia toma una foto nueva: una sección que se confirmó mientras el UPDATE
@@ -44,11 +46,14 @@ _PLAN_EN_BLANCO = text(
     "UPDATE plan_cuidado SET completitud_pct = 0, actualizado_en = :ahora"
     " WHERE persona_cuidada_id = :persona_id AND grupo_id = :grupo_id"
 )
-# MATU-72 (D5): los accesos se conservan (D4), sin el nombre de pila de la persona
-_ACCESOS_SIN_NOMBRE = text(
-    "UPDATE acceso_relevo a SET nombre_pila_persona = :fijo FROM plan_cuidado p"
+# MATU-72 (D5): los accesos se conservan (D4), sin el nombre de pila de la persona. MATU-46 (D-46-3 a): y sin el
+# teléfono del relevo, desde ese instante. Solo los accesos del plan de esta persona, nunca los de otra del grupo
+_ACCESOS_SIN_NOMBRE_NI_TELEFONO = text(
+    "UPDATE acceso_relevo a SET nombre_pila_persona = :fijo, otorgado_a_telefono = NULL,"
+    " telefono_borrado_en = COALESCE(a.telefono_borrado_en, :ahora) FROM plan_cuidado p"
     " WHERE a.plan_id = p.id AND p.persona_cuidada_id = :persona_id AND p.grupo_id = :grupo_id"
-    " AND a.grupo_id = :grupo_id AND a.nombre_pila_persona IS DISTINCT FROM :fijo"
+    " AND a.grupo_id = :grupo_id"
+    " AND (a.nombre_pila_persona IS DISTINCT FROM :fijo OR a.otorgado_a_telefono IS NOT NULL)"
 )
 
 
@@ -76,7 +81,7 @@ class EfectoRetiroFicha:
     def borrar(self, persona_id: uuid.UUID, ahora: datetime, usuario_id: uuid.UUID, request_id: str | None) -> int:
         cortados = cortar_por_retiro(persona_id, ahora, usuario_id, request_id, self._accesos)
         parametros = {"persona_id": persona_id, "grupo_id": self._grupo_id, "ahora": ahora}
-        self._sesion.execute(_ACCESOS_SIN_NOMBRE, {**parametros, "fijo": NOMBRE_BORRADO})
+        self._sesion.execute(_ACCESOS_SIN_NOMBRE_NI_TELEFONO, {**parametros, "fijo": NOMBRE_BORRADO})
         # C6: la clave en una sentencia y las secciones en otra, después
         self._destruir(persona_id, ahora, request_id, usuario_id)
         self._sesion.execute(_DESCARTAR_SECCIONES, parametros)

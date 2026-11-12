@@ -1336,3 +1336,77 @@ def test_0026_baja_con_auditoria_de_roles_y_la_conserva(base_desechable):
         "auditoria_detalle_acotado": False, "invitacion_destino": False}
     assert consultar("SELECT count(*) FROM auditoria WHERE detalle ? 'rol'") == [(1,)]
     assert consultar("SELECT count(*) FROM invitacion") == [(1,)]
+
+
+# MATU-46 (0027): el teléfono del relevo se borra a los 30 días, y al tiro al borrar a la persona. Como superusuario
+ACC27_VIEJO, ACC27_VIGENTE = ("00000000-0000-0000-0000-0000000027" + s for s in ("c1", "c2"))
+
+
+def _acceso_0027(acceso_id: str, token: str, termino_hace: str | None) -> str:
+    """Un acceso de relevo; termino_hace lo deja vencido hace ese intervalo."""
+    creado = "now()" if termino_hace is None else f"now() - interval '{termino_hace}' - interval '1 day'"
+    return (
+        "INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
+        " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash, creado_en,"
+        f" expira_en, relevo_informado_en) VALUES ('{acceso_id}', '{G}', '{PLAN}', '{U}', 'Relevo', '+56955550127',"
+        f" 'Persona', 'Ana', ARRAY['rutina'], 'otro', sha256('{token}'), 'p', {creado}, {creado} + interval '1 day',"
+        " now());"
+    )
+
+
+@pytest.mark.rf("RF-05")
+def test_0027_telefono_del_relevo_y_baja_al_esquema_de_0026(base_desechable):
+    alembic("upgrade", "0026")
+    esquema_0026 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_ACCESO + _acceso_0027(ACC27_VIEJO, "t1", "31 days") + _acceso_0027(ACC27_VIGENTE, "t2", None))
+
+    alembic("upgrade", "0027")
+    columnas = dict(consultar("SELECT column_name, is_nullable FROM information_schema.columns"
+                              " WHERE table_name = 'acceso_relevo'"))
+    assert columnas["otorgado_a_telefono"] == "YES" and columnas["telefono_borrado_en"] == "YES"
+    assert consultar("SELECT convalidated FROM pg_constraint WHERE conname = 'acceso_relevo_telefono_borrado'"
+                     ) == [(True,)]
+    assert consultar("SELECT tgname FROM pg_trigger WHERE tgname = 'acceso_relevo_telefono'") == [
+        ("acceso_relevo_telefono",)]
+    # Las políticas de la tarea, solo para matu_owner; las de la familia y del relevo no cambian
+    politicas = {(n, r, c) for n, r, c in consultar(
+        "SELECT policyname, roles::text, cmd FROM pg_policies WHERE tablename = 'acceso_relevo'"
+        " AND policyname LIKE 'acceso_conservacion%'")}
+    assert politicas == {("acceso_conservacion_leer", "{matu_owner}", "SELECT"),
+                         ("acceso_conservacion", "{matu_owner}", "UPDATE")}
+    # matu_app recibe solo el UPDATE de las dos columnas del teléfono (D-46-3 a)
+    assert _columnas_con("acceso_relevo", "UPDATE") == {
+        "revocado_en", "nombre_pila_persona", "pin_intentos_fallidos", "usos", "ultimo_uso_en",
+        "otorgado_a_telefono", "telefono_borrado_en"}
+    assert _privilegios("acceso_relevo") == {"SELECT", "INSERT"}
+    # La función, SECURITY DEFINER con search_path fijo, solo para matu_scheduler (C9)
+    [(definer, config, acl)] = consultar(
+        "SELECT prosecdef, proconfig, proacl::text FROM pg_proc WHERE proname = 'relevo_conservar'")
+    assert definer and config == ["search_path=pg_catalog, public, pg_temp"]
+    assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", "matu_scheduler=X/matu_owner"}
+    # La tarea vacía el teléfono del acceso vencido hace 31 días, y solo ese
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("SET ROLE matu_scheduler")
+        c.execute("SELECT set_config('app.rol', 'operacion', false)")
+        assert c.execute("SELECT relevo_conservar(now() - interval '30 days', now())").fetchone() == (1,)
+        assert c.execute("SELECT relevo_conservar(now() - interval '30 days', now())").fetchone() == (0,)
+    assert dict(consultar("SELECT id::text, otorgado_a_telefono FROM acceso_relevo")) == {
+        ACC27_VIEJO: None, ACC27_VIGENTE: "+56955550127"}
+    # El trigger, también para el superusuario: el teléfono no vuelve
+    with pytest.raises(psycopg.errors.CheckViolation), psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"UPDATE acceso_relevo SET otorgado_a_telefono = '+56955550127', telefono_borrado_en = NULL"
+                  f" WHERE id = '{ACC27_VIEJO}'")
+
+    # Con un teléfono borrado, la bajada se detiene en vez de inventar uno
+    assert "MATU nunca inventa un teléfono" in _alembic_falla("downgrade", "0026")
+    assert consultar("SELECT count(*) FROM acceso_relevo WHERE otorgado_a_telefono IS NULL") == [(1,)]
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"DELETE FROM acceso_relevo WHERE id = '{ACC27_VIEJO}'")
+
+    alembic("downgrade", "0026")
+    despues = catalogo()
+    for parte, filas in esquema_0026.items():
+        assert despues[parte] == filas, f"downgrade no restaura {parte}: {set(filas) ^ set(despues[parte])}"
+    assert consultar("SELECT id::text, otorgado_a_telefono FROM acceso_relevo") == [(ACC27_VIGENTE, "+56955550127")]
+    alembic("upgrade", "head")

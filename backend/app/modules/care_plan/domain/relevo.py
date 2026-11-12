@@ -166,3 +166,26 @@ def debe_revocar(acceso: VidaAcceso, ahora: datetime) -> bool:
 def puede_revocar(rol: str) -> bool:
     """Revocan admin y cuidador, los mismos que comparten. El pagador no, ni con puede_ver_plan."""
     return puede_escribir(rol)
+
+
+# --- Conservar el teléfono del relevo (MATU-46, decisión 25) -----------------------------------------
+
+# El teléfono se borra 30 días después del fin del acceso. El nombre, el motivo y las fechas se quedan
+CONSERVACION_TELEFONO = timedelta(days=30)
+
+
+def fin_del_acceso(expira_en: datetime, revocado_en: datetime | None) -> datetime:
+    """Cuándo terminó el acceso: lo que ocurra primero, el vencimiento o el corte (C1).
+
+    Un acceso bloqueado por el PIN o en pausa no tiene corte: cuenta desde su vencimiento (C2)."""
+    return expira_en if revocado_en is None else min(expira_en, revocado_en)
+
+
+def limite_telefono(ahora: datetime) -> datetime:
+    """Los accesos que terminaron en este instante o antes ya pasaron los 30 días."""
+    return ahora - CONSERVACION_TELEFONO
+
+
+def telefono_por_borrar(expira_en: datetime, revocado_en: datetime | None, ahora: datetime) -> bool:
+    """La regla de relevo_conservar (migración 0027): el fin del acceso cumplió 30 días."""
+    return fin_del_acceso(expira_en, revocado_en) <= limite_telefono(ahora)

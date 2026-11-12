@@ -513,12 +513,10 @@ def test_la_0_14_sigue_publicada_para_quien_la_acepto() -> None:
 
 
 @pytest.mark.rf("RF-38")
-def test_la_0_15_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_15_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-42 y MATU-53: la 0.15 agrega las invitaciones sin correo ni teléfono, quiénes forman el grupo, el cambio de
     rol, salir y los 30 días de las invitaciones; de la 0.11 a la 0.14 siguen publicadas para quien las aceptó."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.15", "2026-11-12")
     texto = texto_publicado("0.15")
     assert texto != texto_publicado("0.14")
     for parte in (
@@ -534,3 +532,25 @@ def test_la_0_15_esta_publicada_y_es_la_de_env_example() -> None:
         assert parte in texto, parte
     # Lo de la 0.14 sigue en el texto vigente
     assert "**El registro de tu cuenta.**" in texto and "MATU no ve el número de tu tarjeta" in texto
+
+
+
+@pytest.mark.rf("RF-05")
+def test_la_0_16_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-46: la 0.16 dice que el teléfono del relevo se borra a los 30 días de que el acceso vence o se corta, y al
+    borrar a la persona, y que el borrado a los 3 años todavía no existe; de la 0.11 a la 0.15 siguen publicadas."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.16", "2026-11-12")
+    texto = texto_publicado("0.16")
+    assert texto != texto_publicado("0.15")
+    for parte in (
+        "El teléfono del relevo se borra 30 días después de que el acceso vence o se corta, lo que ocurra primero",
+        "borramos el teléfono de cada relevo",
+        "Todavía no se borran solos a los 3 años",
+        "La versión 0.16 borra solo el teléfono del relevo a los 30 días",
+        "solo acorta plazos",
+    ):
+        assert parte in texto, parte
+    # Lo de la 0.15 sigue en el texto vigente
+    assert "**Quiénes forman el grupo:**" in texto and "### Salir de un grupo" in texto

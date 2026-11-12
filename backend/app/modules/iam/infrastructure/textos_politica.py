@@ -28,6 +28,8 @@ PUBLICADAS: dict[str, str] = {
     "0.14": "1965bdbffd446fa58c5786d80f1e5609bb3ea6afa0b2ee2360671640cc0bc81e",  # pragma: allowlist secret
     # MATU-42: las invitaciones al grupo, quiénes lo forman, el cambio de rol y salir. Las anteriores siguen
     "0.15": "8b262c0d46ee2edf039af51958f42681e8ef3fc137fd9eb8df7b94436470cd0f",  # pragma: allowlist secret
+    # MATU-46: el teléfono del relevo se borra a los 30 días, y al borrar a la persona. Las anteriores siguen
+    "0.16": "41d65aed2a2f4b7f940a98056301a445d64ff9e2a16e85b46c0b244c3e42759c",  # pragma: allowlist secret
 }
 
 

@@ -2279,9 +2279,12 @@ def test_un_acceso_cortado_no_se_reabre_y_ninguno_se_alarga(cx):
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("UPDATE acceso_relevo SET revocado_en = NULL WHERE id = %s", (ACC_REVOCADO,))
     for cambio in ("expira_en = expira_en + interval '1 day'", "pin_hash = 'otro'",
-                   "otorgado_a_telefono = '+56900000047'", "secciones_permitidas = ARRAY['rutina']"):
+                   "secciones_permitidas = ARRAY['rutina']"):
         with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
             cx.execute(f"UPDATE acceso_relevo SET {cambio} WHERE id = %s", (ACC_VIGENTE,))
+    # MATU-46 (0027, D-46-3 a): matu_app puede vaciar el teléfono, pero el trigger no deja cambiarlo por otro
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE acceso_relevo SET otorgado_a_telefono = '+56900000047' WHERE id = %s", (ACC_VIGENTE,))
 
 
 def _insertar_acceso_sql():
@@ -2632,6 +2635,8 @@ FUNCIONES_SCHEDULER = {
     "pagos_por_conciliar": "SELECT * FROM pagos_por_conciliar(now(), 10)",
     # MATU-42 (D-42-6): las invitaciones cerradas a los 30 días
     "invitacion_conservar": "SELECT invitacion_conservar(now() - interval '30 days', now())",
+    # MATU-46 (decisión 25): el teléfono del relevo a los 30 días
+    "relevo_conservar": "SELECT relevo_conservar(now() - interval '30 days', now())",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -3906,3 +3911,91 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
         " AND has_function_privilege('matu_app', oid, 'EXECUTE')").fetchall()}
     assert ejecuta == {"relevo_autorizacion_vigente", "iam_credencial", "pago_resolver_venta", "membresia_retirar",
                        "invitacion_presentar", "invitacion_verificar", "invitacion_aceptar"}
+
+
+# ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
+
+ACC_B_46 = uuid.UUID("00000000-0000-0000-0000-0000000046b1")
+TELEFONOS_SEMILLA = {ACC_VIGENTE: "+56911111111", ACC_VENCIDO: "+56922222222", ACC_REVOCADO: "+56933333333"}
+
+
+def _acceso_b_vencido_hace_40_dias(cx):
+    cx.execute("INSERT INTO acceso_relevo (id, grupo_id, plan_id, otorgado_por, otorgado_a_nombre, otorgado_a_telefono,"
+               " nombre_pila_persona, nombre_pila_comparte, secciones_permitidas, motivo, token_hash, pin_hash,"
+               " creado_en, expira_en, relevo_informado_en) VALUES (%s, %s, %s, %s, 'Relevo B', '+56944444444',"
+               " 'Luis', 'Admin', ARRAY['rutina'], 'otro', sha256('t46'), 'p', now() - interval '41 days',"
+               " now() - interval '40 days', now())", (ACC_B_46, G_B, PLAN_B, U_ADMIN_B))
+
+
+@pytest.mark.rf("RF-05")
+def test_relevo_conservar_vacia_solo_lo_terminado_hace_30_dias_y_solo_el_telefono(cx):
+    """C11: de los cuatro accesos (tres de A, uno de B), solo el de B terminó hace 30 días. Se vacía su teléfono, y su
+    nombre y su motivo se quedan."""
+    _acceso_b_vencido_hace_40_dias(cx)
+    como(cx, "matu_scheduler", rol="operacion")
+    assert cx.execute("SELECT relevo_conservar(now() - interval '30 days', now())").fetchone() == (1,)
+    # El scheduler no lee la tabla: solo ejecuta la función
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("SELECT count(*) FROM acceso_relevo")
+    cx.execute("RESET ROLE")
+    telefonos = dict(cx.execute("SELECT id, otorgado_a_telefono FROM acceso_relevo").fetchall())
+    assert telefonos == {**TELEFONOS_SEMILLA, ACC_B_46: None}
+    assert cx.execute("SELECT otorgado_a_nombre, motivo, telefono_borrado_en IS NOT NULL FROM acceso_relevo"
+                      " WHERE id = %s", (ACC_B_46,)).fetchone() == ("Relevo B", "otro", True)
+
+
+@pytest.mark.rf("RF-05")
+def test_relevo_conservar_no_abre_lecturas_a_matu_app(cx):
+    """C10: las políticas de la tarea son TO matu_owner. matu_app con operación sigue sin ver ningún acceso, y con el
+    contexto de B no ve los de A."""
+    _acceso_b_vencido_hace_40_dias(cx)
+    como(cx, rol="operacion")
+    assert contar(cx, "acceso_relevo") == 0
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    assert {r[0] for r in cx.execute("SELECT id FROM acceso_relevo").fetchall()} == {ACC_B_46}
+
+
+@pytest.mark.rf("RF-05")
+@pytest.mark.parametrize(("limite", "ahora"), [
+    ("now() - interval '30 days'", "now() + interval '1 hour'"),   # ahora en el futuro
+    ("now() - interval '29 days'", "now()"),                       # límite reciente
+    ("NULL", "now()"),
+    ("now() - interval '30 days'", "NULL"),
+])
+def test_relevo_conservar_rechaza_un_ahora_futuro_o_un_limite_reciente(cx, limite, ahora):
+    como(cx, "matu_scheduler", rol="operacion")
+    with pytest.raises(errors.InvalidParameterValue):
+        cx.execute(f"SELECT relevo_conservar(({limite})::timestamptz, ({ahora})::timestamptz)")
+
+
+@pytest.mark.rf("RF-05")
+def test_nadie_devuelve_ni_cambia_un_telefono_borrado_tampoco_el_superusuario(cx):
+    """El trigger acceso_relevo_telefono vale para todos los roles: un teléfono solo se vacía, una vez."""
+    cx.execute("UPDATE acceso_relevo SET otorgado_a_telefono = NULL, telefono_borrado_en = now() WHERE id = %s",
+               (ACC_VENCIDO,))
+    for cambio in ("otorgado_a_telefono = '+56922222222', telefono_borrado_en = NULL",
+                   "telefono_borrado_en = now() + interval '1 day'"):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE acceso_relevo SET {cambio} WHERE id = %s", (ACC_VENCIDO,))
+    # Ni vaciarlo sin dejar el instante, ni fijar el instante con el teléfono puesto (CHECK de la 0027)
+    for cambio in ("otorgado_a_telefono = NULL", "telefono_borrado_en = now()"):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE acceso_relevo SET {cambio} WHERE id = %s", (ACC_VIGENTE,))
+
+
+@pytest.mark.rf("RF-05")
+def test_matu_app_vacia_el_telefono_solo_como_admin_o_cuidador(sesiones_app):
+    """D-46-3 a): el borrado de la persona lo vacía como matu_app. El pagador con permiso, el observador y otro grupo
+    no alcanzan ninguna fila."""
+    from sqlalchemy import text
+
+    from app.core.db import sesion_tenant
+
+    vaciar = text("UPDATE acceso_relevo SET otorgado_a_telefono = NULL, telefono_borrado_en = now() WHERE id = :id")
+    for usuario, grupo in ((U_PAG2_A, G_A), (U_OBS_A, G_A), (U_ADMIN_B, G_B)):
+        with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=usuario, grupo_id=grupo) as s:
+            assert s.execute(vaciar, {"id": ACC_VIGENTE}).rowcount == 0, usuario  # type: ignore[attr-defined]
+            raise _Deshacer
+    with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
+        assert s.execute(vaciar, {"id": ACC_VIGENTE}).rowcount == 1  # type: ignore[attr-defined]
+        raise _Deshacer
