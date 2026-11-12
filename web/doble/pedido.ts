@@ -237,13 +237,16 @@ function vista(p: Pedido, rol: Rol, u: UsuarioPedido) {
 
 // ---------------------------------------------------------------- las autorizaciones
 
-/** El ítem `despacho` de `GET …/consentimientos` (decisión 192). */
-export function vistaDespacho(personaId: string, rol: Rol) {
+/** Con la capa 3 apagada, `despacho` viene en la vista solo si la persona tiene un registro (decisión 251). */
+export const tieneDespacho = (personaId: string) => (despachos.get(personaId)?.estado ?? 'no') !== 'no'
+
+/** El ítem `despacho` de `GET …/consentimientos` (decisión 192); con la capa 3 apagada, no se otorga (decisión 251). */
+export function vistaDespacho(personaId: string, rol: Rol, capa3 = true) {
   const d = despachos.get(personaId) ?? { estado: 'no', otorgado_en: null, revocado_en: null }
   const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: d.estado === 'no' ? null : 'cuidador_de_hecho', autorizo_alguien_que_ya_no_esta: false } : {}
   const estado = { no: 'sin_autorizar', vigente: 'vigente', vencida: 'revision_vencida', retirada: 'retirada' }[d.estado]
   const revision = d.estado === 'vencida' && d.otorgado_en ? new Date(new Date(d.otorgado_en).getTime() + 365 * 86_400_000).toISOString() : null
-  return { finalidad: 'despacho', estado, id: d.estado === 'no' ? null : `${personaId}-despacho`, ...calidad, otorgado_en: d.otorgado_en, revision_vence_en: revision, revocado_en: d.revocado_en, borrado_en: null, borrada: false }
+  return { finalidad: 'despacho', estado, id: d.estado === 'no' ? null : `${personaId}-despacho`, ...calidad, otorgado_en: d.otorgado_en, revision_vence_en: revision, revocado_en: d.revocado_en, borrado_en: null, borrada: false, se_puede_otorgar: capa3 }
 }
 
 /** `POST …/consentimientos` con `despacho`: la huella de la declaración, obligatoria (decisión 192). */
@@ -263,7 +266,7 @@ export function otorgarDespacho(res: ServerResponse, b: Record<string, unknown>,
 }
 
 /** `POST …/consentimientos/despacho/retiro`: cancela lo no pagado y borra su entrega; la dirección queda (C6). */
-export function retirarDespacho(res: ServerResponse, personaId: string, rol: Rol, { json, problema }: Responder) {
+export function retirarDespacho(res: ServerResponse, personaId: string, rol: Rol, { json, problema }: Responder, capa3 = true) {
   const d = despachos.get(personaId)
   if (!d || d.estado === 'no') return problema(res, 404, '/errores/no-encontrado')
   if (d.estado === 'retirada') return problema(res, 409, '/errores/ya-retirada')
@@ -278,7 +281,7 @@ export function retirarDespacho(res: ServerResponse, personaId: string, rol: Rol
     enCurso.delete(personaId)
     cancelados = 1
   }
-  return json(res, 200, { autorizacion: vistaDespacho(personaId, rol), enlaces_cortados: 0, pedidos_cancelados: cancelados })
+  return json(res, 200, { autorizacion: vistaDespacho(personaId, rol, capa3), enlaces_cortados: 0, pedidos_cancelados: cancelados })
 }
 
 // ---------------------------------------------------------------- las rutas

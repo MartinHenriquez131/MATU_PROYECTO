@@ -17,9 +17,13 @@ from app.core.config import obtener_configuracion
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 # Superusuario: solo para sembrar y limpiar. Las verificaciones corren como matu_app.
-DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
+# MATU-94: sin valor por omisión. Antes caía en dbname=matu, la base de uso; ahora, sin MATU_TEST_DSN, las pruebas con
+# base se saltan como sin DATABASE_URL, y tests/conftest.py exige que las dos apunten a una base de pruebas
+DSN = os.environ.get("MATU_TEST_DSN", "")
 
-requiere_base = pytest.mark.skipif(not obtener_configuracion().database_url, reason="DATABASE_URL no está definida")
+requiere_base = pytest.mark.skipif(
+    not obtener_configuracion().database_url or not DSN, reason="DATABASE_URL o MATU_TEST_DSN no está definida"
+)
 
 ROLES_DE_LAS_TAREAS = frozenset({"matu_scheduler", "matu_publisher"})
 

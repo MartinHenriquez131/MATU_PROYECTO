@@ -126,7 +126,8 @@ export function confirmado(cambios: Partial<PedidoVista> = {}): PedidoVista {
   }
 }
 
-export const autorizaciones = (despacho: 'vigente' | 'revision_vencida' | 'sin_autorizar' | 'retirada' = 'vigente') => ({
+/** Con `capa3: false`, `despacho` viene con `se_puede_otorgar: false` (decisión 251). */
+export const autorizaciones = (despacho: 'vigente' | 'revision_vencida' | 'sin_autorizar' | 'retirada' = 'vigente', capa3 = true) => ({
   autorizaciones: (['plan_cuidado', 'consumo', 'despacho'] as const).map((finalidad) => ({
     finalidad,
     estado: finalidad === 'despacho' ? despacho : 'vigente',
@@ -137,6 +138,7 @@ export const autorizaciones = (despacho: 'vigente' | 'revision_vencida' | 'sin_a
     revocado_en: despacho === 'retirada' && finalidad === 'despacho' ? '2026-11-10T15:00:00Z' : null,
     borrado_en: null,
     borrada: false,
+    se_puede_otorgar: finalidad !== 'despacho' || capa3,
   })),
 })
 

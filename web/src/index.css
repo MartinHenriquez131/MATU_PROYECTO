@@ -209,15 +209,12 @@
   letter-spacing: -0.025em;
   line-height: 1.05;
 }
-/* Renglones de cuaderno en la hoja de la ficha. */
+/* Renglones de cuaderno en la hoja de la ficha. Una raya de 1 px al pie de cada tile de 1.75rem
+   (el `leading-7` de la hoja). Firefox pintaba franjas con `calc(1.75rem - 1px)` dentro de
+   `repeating-linear-gradient` (MATU-93). Propiedades separadas: no borran el `bg-hoja`. */
 @utility renglones {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(1.75rem - 1px),
-    color-mix(in oklab, var(--color-turquesa) 12%, transparent) calc(1.75rem - 1px),
-    color-mix(in oklab, var(--color-turquesa) 12%, transparent) 1.75rem
-  );
+  background-image: linear-gradient(to bottom, transparent calc(100% - 1px), color-mix(in oklab, var(--color-turquesa) 12%, transparent) calc(100% - 1px));
+  background-size: 100% 1.75rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

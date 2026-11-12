@@ -416,7 +416,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** El estado de las autorizaciones de la persona: dos, o tres con la capa 3 */
+        /** El estado de las autorizaciones de la persona: dos, o tres con la capa 3 o con un registro de despacho */
         get: operations["estado_v1_personas_cuidadas__persona_id__consentimientos_get"];
         put?: never;
         /** Dar la autorización para calcular los insumos o para usar la ficha */
@@ -1538,6 +1538,11 @@ export interface components {
              * @description MATU-42 (D-42-9 a, decisión 311): true si no está retirada y quien la registró ya no es miembro activo. Sigue vigente. No dice quién
              */
             autorizo_alguien_que_ya_no_esta: boolean;
+            /**
+             * Se Puede Otorgar
+             * @description false si la finalidad no se otorga ahora: despacho con la capa 3 apagada, que viene solo si la persona tiene un registro, para poder retirarla. La pantalla no ofrece «Volver a autorizar» (decisión 251)
+             */
+            se_puede_otorgar: boolean;
         };
         /**
          * AutorizacionVistaResumen
@@ -1563,10 +1568,16 @@ export interface components {
             borrado_en: string | null;
             /** Borrada */
             borrada: boolean;
+            /**
+             * Se Puede Otorgar
+             * @description Como en AutorizacionVista (decisión 251)
+             */
+            se_puede_otorgar: boolean;
         };
         /**
          * AutorizacionesPersona
-         * @description plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2). Lo que ven admin y cuidador.
+         * @description plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2) o, con la capa 3 apagada, si la persona
+         *     tiene un registro de ella (decisión 251). Lo que ven admin y cuidador.
          */
         AutorizacionesPersona: {
             /** Autorizaciones */
@@ -5547,7 +5558,7 @@ export interface operations {
                 "X-Grupo-Id"?: string | null;
             };
             path: {
-                /** @description plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404 */
+                /** @description plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404 */
                 finalidad: "plan_cuidado" | "consumo" | "despacho";
                 persona_id: string;
             };
@@ -5573,7 +5584,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó */
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las tres o que nunca se autorizó */
             404: {
                 headers: {
                     [name: string]: unknown;

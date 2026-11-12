@@ -1,7 +1,7 @@
 // Revisión visual de MATU-61 (P2-1): el detalle de cada opción de «quién da el permiso» va en
 // `text-base` (17 px), nunca en `text-sm` (14,9 px). Es el mismo `GrupoOpciones` en tres pantallas:
 // la autorización de pedidos (MATU-61), el permiso de los insumos (MATU-36) y la autorización del
-// alta (3.5.2). Falla sin `detalleGrande` en cualquiera de las tres. Solo datos sintéticos.
+// alta (3.5.2). Desde MATU-93 es lo que hace `GrupoOpciones` por omisión. Solo datos sintéticos.
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'

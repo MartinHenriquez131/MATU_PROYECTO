@@ -252,7 +252,7 @@ def test_pagador_y_observador_no_retiran_ni_autorizan_404_y_nada_cambia(
 
 
 CAMPOS_RESUMEN = {"finalidad", "estado", "id", "otorgado_en", "revision_vence_en", "revocado_en", "borrado_en",
-                  "borrada"}
+                  "borrada", "se_puede_otorgar"}  # se_puede_otorgar: MATU-94 (decisión 251)
 
 
 @pytest.mark.parametrize(("etiqueta", "con_calidad"), [
@@ -368,14 +368,15 @@ def test_estado_de_las_dos_autorizaciones(entorno: EntornoAbrir) -> None:
     assert (plan["revocado_en"], plan["borrado_en"], plan["borrada"]) == (None, None, False)
     assert consumo == {"finalidad": "consumo", "estado": "sin_autorizar", "id": None, "calidad_otorgante": None,
                        "otorgado_en": None, "revision_vence_en": None, "revocado_en": None, "borrado_en": None,
-                       "borrada": False, "autorizo_alguien_que_ya_no_esta": False}
+                       "borrada": False, "autorizo_alguien_que_ya_no_esta": False, "se_puede_otorgar": True}
 
     retiro = _retirar(entorno, familia).json()["autorizacion"]
     despues = _estado(entorno, familia).json()["autorizaciones"][0]
     assert despues == retiro and despues["estado"] == "retirada"
     # Sin la referencia, la evidencia, la versión de la política ni quién la dio (MATU-42: solo si ya no está)
     assert set(despues) == {"finalidad", "estado", "id", "calidad_otorgante", "otorgado_en", "revision_vence_en",
-                            "revocado_en", "borrado_en", "borrada", "autorizo_alguien_que_ya_no_esta"}
+                            "revocado_en", "borrado_en", "borrada", "autorizo_alguien_que_ya_no_esta",
+                            "se_puede_otorgar"}
 
 
 # --- La carrera con compartir (condición 7) ------------------------------------------------------------------
