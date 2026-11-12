@@ -729,6 +729,7 @@ Un grupo recién creado puede no tener todavía a nadie registrado. Donde una fr
 
 | Frase | Sin persona |
 |---|---|
+| Bajada de Grupo familiar (5.1): «Quiénes forman `{grupo}`, a quién cuidan y qué permisos dieron.» | «Quiénes forman `{grupo}`. Todavía no registran a la persona que cuidan.» **[NUEVO v1.3]**: sin persona no hay a quién cuidan ni permisos en la página, y la bajada no promete lo que no está |
 | «Se informa»: «Ve el nombre de `{nombres_pila}` y sus insumos. No ve la ficha.» | «Ve el nombre de la persona que cuidan y sus insumos. No ve la ficha.» **[NUEVO v1.2]** |
 | Confirmar (4.5): «Lo que veas sobre `{nombres_pila}` es para su cuidado…» | «Lo que veas sobre la persona que cuidan es para su cuidado. No lo compartas fuera del grupo.» **[NUEVO v1.2]**, coherente con el h1 «Todavía no registran a la persona que cuidan.» |
 | Dar la ficha (6.7): «Podrá leer la ficha de `{nombres_pila}`…» | «Podrá leer la ficha de la persona que cuidan y ver sus enlaces de relevo. No podrá cambiarla ni compartirla.» **[NUEVO v1.2]** |
