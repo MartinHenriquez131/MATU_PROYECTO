@@ -101,7 +101,7 @@ function FilaPolitica({ aceptada }: { aceptada: PoliticaAceptada | null | undefi
   const fecha = instante && !Number.isNaN(instante.getTime()) ? fechaYHoraDeChile(instante).fecha : null
   return (
     <div className="flex flex-col gap-2 py-4">
-      <dt className="text-sm text-tenue">{POLITICA.fila}</dt>
+      <dt className="text-base text-tenue">{POLITICA.fila}</dt>
       <dd className="flex flex-col items-start gap-2 text-base">
         {aceptada && fecha ? (
           <p>
@@ -145,11 +145,11 @@ export function TuCuenta() {
         <>
           <dl className="flex max-w-xl flex-col divide-y divide-linea rounded-xl bg-hoja px-4 angosto:px-2 ring-1 ring-linea">
             <div className="flex flex-col gap-0.5 py-4">
-              <dt className="text-sm text-tenue">{CUENTA_PROPIA.correo}</dt>
+              <dt className="text-base text-tenue">{CUENTA_PROPIA.correo}</dt>
               <dd className="font-bold break-words">{carga.cuenta.email}</dd>
             </div>
             <div className="flex flex-col gap-2 py-4">
-              <dt className="text-sm text-tenue">{CUENTA_PROPIA.celular}</dt>
+              <dt className="text-base text-tenue">{CUENTA_PROPIA.celular}</dt>
               {carga.cuenta.celular_enmascarado ? (
                 <dd className="flex flex-col items-start gap-3">
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -363,7 +363,7 @@ export function ConfirmarCelular() {
               <Boton variante="texto" className="justify-start! text-left" disabled={reenvioEn || esperando || ocupado} onClick={() => void enviarCodigo()}>
                 {CELULAR.otro}
               </Boton>
-              {reenvioEn && <p className="text-sm text-tenue">{CELULAR.enUnMinuto}</p>}
+              {reenvioEn && <p className="text-base text-tenue">{CELULAR.enUnMinuto}</p>}
               {ahoraNo}
             </div>
           </>

@@ -69,15 +69,12 @@ export function CampoTexto({
   error,
   className = '',
   junto,
-  ayudaGrande = false,
   ...resto
 }: InputHTMLAttributes<HTMLInputElement> & {
   etiqueta: string
   ayuda?: ReactNode
   error?: string | null
   junto?: ReactNode
-  /** MATU-48: la ayuda en `text-base` (nada relevante bajo 1 rem). */
-  ayudaGrande?: boolean
 }) {
   const id = useId()
   const describe = [ayuda ? `${id}-a` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
@@ -99,7 +96,7 @@ export function CampoTexto({
         {junto}
       </div>
       {ayuda && (
-        <span id={`${id}-a`} className={`${ayudaGrande ? 'text-base' : 'text-sm'} text-tenue`}>
+        <span id={`${id}-a`} className="text-base text-tenue">
           {ayuda}
         </span>
       )}
@@ -120,7 +117,6 @@ export function GrupoOpciones<T extends string>({
   children,
   nombradoPor,
   describe,
-  detalleGrande = false,
 }: {
   leyenda: string
   opciones: { valor: T; texto: string; detalle?: string }[]
@@ -139,8 +135,6 @@ export function GrupoOpciones<T extends string>({
   nombradoPor?: string
   /** MATU-61 (O9): ids que también lo describen («Nunca lo cambiamos por otra marca…»). */
   describe?: string
-  /** MATU-61 (7.6): el detalle de cada opción en `text-base`. */
-  detalleGrande?: boolean
 }) {
   const id = useId()
   if (forma === 'chips')
@@ -196,7 +190,7 @@ export function GrupoOpciones<T extends string>({
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="font-bold leading-snug">{o.texto}</span>
-                {o.detalle && <span className={`${detalleGrande ? 'text-base' : 'text-sm'} text-tenue`}>{o.detalle}</span>}
+                {o.detalle && <span className="text-base text-tenue">{o.detalle}</span>}
               </span>
             </label>
           )

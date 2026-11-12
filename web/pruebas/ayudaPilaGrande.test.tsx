@@ -1,6 +1,6 @@
 // Revisión visual de MATU-61: en «¿A quién cuidas?» (/empezar/persona), la ayuda «Es el nombre que
-// verá quien te reemplace.» va en `text-base` (17 px), no en `text-sm` (14,9 px). Falla sin
-// `ayudaGrande` en su `CampoTexto`. Solo datos sintéticos.
+// verá quien te reemplace.» va en `text-base` (17 px), no en `text-sm` (14,9 px). Desde MATU-93
+// es lo que hace `CampoTexto` por omisión (antes, la prop `ayudaGrande`). Solo datos sintéticos.
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AQuien } from '../src/familia/Alta'
