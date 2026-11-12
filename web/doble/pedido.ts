@@ -240,7 +240,7 @@ function vista(p: Pedido, rol: Rol, u: UsuarioPedido) {
 /** El ítem `despacho` de `GET …/consentimientos` (decisión 192). */
 export function vistaDespacho(personaId: string, rol: Rol) {
   const d = despachos.get(personaId) ?? { estado: 'no', otorgado_en: null, revocado_en: null }
-  const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: d.estado === 'no' ? null : 'cuidador_de_hecho' } : {}
+  const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: d.estado === 'no' ? null : 'cuidador_de_hecho', autorizo_alguien_que_ya_no_esta: false } : {}
   const estado = { no: 'sin_autorizar', vigente: 'vigente', vencida: 'revision_vencida', retirada: 'retirada' }[d.estado]
   const revision = d.estado === 'vencida' && d.otorgado_en ? new Date(new Date(d.otorgado_en).getTime() + 365 * 86_400_000).toISOString() : null
   return { finalidad: 'despacho', estado, id: d.estado === 'no' ? null : `${personaId}-despacho`, ...calidad, otorgado_en: d.otorgado_en, revision_vence_en: revision, revocado_en: d.revocado_en, borrado_en: null, borrada: false }

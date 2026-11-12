@@ -21,18 +21,23 @@ import {
   vistaDespacho,
 } from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
+import { atenderGrupo, atenderInvitacionPublica, invitacionPendiente, miembro, type InvitacionDoble, type MiembroDoble } from './grupo'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
 /** Las seis secciones complementarias (MATU-50, docs/api/propuestos/ficha-ampliada.openapi.yaml). */
 type SeccionApi = 'quien_es' | 'preferencias' | 'alimentacion' | 'movilidad' | 'comunicacion' | 'remedios'
 const SECCIONES: SeccionApi[] = ['quien_es', 'preferencias', 'alimentacion', 'movilidad', 'comunicacion', 'remedios']
+/** MATU-42 (decisión 309): quien ya no está en el grupo llega con `nombre: null`. */
+type AutorDoble = { id: string; nombre: string | null }
 interface Campo {
   texto: string | null
   version: number
-  autor: { id: string; nombre: string } | null
+  autor: AutorDoble | null
   en: string | null
 }
+/** `AutorVista`, `AutorAccesoVista` y `AutorPerfilVista`: `autor_activo` es `false` si ya no está. */
+export const autorVista = (a: AutorDoble | null) => (a ? { id: a.id, nombre: a.nombre, autor_activo: a.nombre !== null } : null)
 interface Persona {
   id: string
   nombre: string
@@ -51,6 +56,8 @@ interface Persona {
   accesos: Acceso[]
   /** MATU-44: cuándo se otorgó cada autorización y, si se retiró, cuándo y cuándo se borra lo guardado. */
   autorizaciones: Record<Finalidad, { otorgado_en: string; retiro: Retiro | null }>
+  /** MATU-42 (decisión 311): quien registró las autorizaciones ya no está en el grupo. */
+  autorizoQuienYaNoEsta?: boolean
 }
 type Finalidad = 'plan_cuidado' | 'consumo'
 interface Retiro {
@@ -71,7 +78,7 @@ interface Acceso {
   revocado_en: string | null
   bloqueado: boolean
   usos: number
-  otorgado_por: { id: string; nombre: string } | null
+  otorgado_por: AutorDoble | null
 }
 type TipoApertura = 'presentacion' | 'apertura' | 'pin_incorrecto' | 'bloqueo'
 interface Apertura {
@@ -85,6 +92,10 @@ interface Grupo {
   rol: Rol
   puede_ver_plan: boolean
   personas: Persona[]
+  /** MATU-42: quiénes forman el grupo. Sin definir, grupo.ts los arma al pedirlos. */
+  miembros?: MiembroDoble[]
+  /** MATU-42: las invitaciones sin usar (pendientes o bloqueadas). */
+  invitaciones?: InvitacionDoble[]
 }
 interface Usuario {
   id: string
@@ -108,7 +119,7 @@ interface Usuario {
 const RODRIGO = { id: randomUUID(), nombre: 'Rodrigo' }
 const hace = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
 const vacio = (): Campo => ({ texto: null, version: 0, autor: null, en: null })
-const escrito = (texto: string, autor: { id: string; nombre: string }, min = 42): Campo => ({ texto, version: 1, autor, en: hace(min) })
+const escrito = (texto: string, autor: AutorDoble, min = 42): Campo => ({ texto, version: 1, autor, en: hace(min) })
 
 const SU_DIA = '08:00 Despierta. Le gusta que abran la cortina primero.\n08:30 Té con leche tibio, nunca caliente.\n13:00 Almuerza mejor si alguien la acompaña.'
 const SI_SE_ALTERA = 'Bajar las persianas y poner la radio bajito. No hablarle fuerte.'
@@ -542,6 +553,66 @@ function sembrar() {
 }
 sembrar()
 
+// ---------------------------------------------------------------- MATU-42: las cuentas del grupo
+
+/** Las cuentas de MATU-42 y MATU-53 (cuentas.ts): una por rol y por estado. */
+function sembrarMiembros() {
+  const soto = (rol: Rol, puedeVer = false) => [grupo('Familia Soto', rol, [persona('María Soto', 'María', { rutina: escrito(SU_DIA, RODRIGO) })], puedeVer)]
+  const conMiembros = (email: string, nombre: string, rol: Rol, lista: (yo: MiembroDoble) => MiembroDoble[], modo?: string, puedeVer = false) => {
+    const u = cuenta(email, nombre, soto(rol, puedeVer), modo)
+    const yo = miembro(`${nombre} Soto`, rol, 20, { eresTu: true, puede_ver_plan: rol === 'pagador' && puedeVer, enlaces: rol === 'admin' || rol === 'cuidador' ? 2 : 0 })
+    u.grupos[0].miembros = lista(yo).sort((a, b) => a.unido_en.localeCompare(b.unido_en))
+    insumos(u, 'vigente', true)
+    return u
+  }
+  const familia = (yo: MiembroDoble) => [
+    yo,
+    miembro('Tomás Soto', 'admin', 18),
+    miembro('Rodrigo Soto', 'pagador', 12),
+    miembro('Rosa Pérez', 'cuidador', 2, { enlaces: 2 }),
+    miembro('Pedro Soto', 'observador', 1),
+  ]
+  const sinTomas = (yo: MiembroDoble) => familia(yo).filter((m) => m.nombre !== 'Tomás Soto')
+  const conCarmen = (yo: MiembroDoble, sin: string) => [miembro('Carmen Soto', 'admin', 30, { enlaces: 1 }), ...sinTomas(yo).filter((m) => m.nombre !== sin)]
+  const mia = () => invitacionPendiente('cuidador', { nombre: 'Carmen', eresTu: true })
+
+  {
+    // Admin con otra persona que administra («Cambiar tu rol»). Invitaciones: una suya, una bloqueada
+    // de alguien que ya no está, y una que al anularla ya se usó (409 invitacion-cerrada).
+    const u = conMiembros('miembros-admin@example.com', 'Carmen', 'admin', familia)
+    u.grupos[0].invitaciones = [
+      invitacionPendiente('observador', { nombre: 'Carmen', eresTu: true }),
+      invitacionPendiente('cuidador', { nombre: null, eresTu: false }, { estado: 'bloqueada', creada_en: hace(3 * DIA) }),
+      invitacionPendiente('pagador', { nombre: 'Tomás', eresTu: false }, { creada_en: hace(4 * DIA), cerrada: 'usada' }),
+    ]
+  }
+  conMiembros('miembros-unico-admin@example.com', 'Carmen', 'admin', sinTomas)
+  conMiembros('miembros-cuidador@example.com', 'Rosa', 'cuidador', (yo) => conCarmen(yo, 'Rosa Pérez'))
+  conMiembros('miembros-pagador@example.com', 'Rodrigo', 'pagador', (yo) => conCarmen(yo, 'Rodrigo Soto'))
+  conMiembros('miembros-pagador-ve@example.com', 'Rodrigo', 'pagador', (yo) => conCarmen(yo, 'Rodrigo Soto'), undefined, true)
+  conMiembros('miembros-observador@example.com', 'Pedro', 'observador', (yo) => conCarmen(yo, 'Pedro Soto'))
+  conMiembros('miembros-sola@example.com', 'Carmen', 'admin', (yo) => [yo])
+  conMiembros('miembros-conflicto@example.com', 'Carmen', 'admin', familia, 'miembros-conflicto')
+  conMiembros('miembros-ultimo-admin@example.com', 'Carmen', 'admin', familia, 'miembros-ultimo-admin')
+  conMiembros('miembros-falla@example.com', 'Carmen', 'admin', familia, 'miembros-falla').grupos[0].invitaciones = [mia()]
+  conMiembros('miembros-lista-falla@example.com', 'Carmen', 'admin', familia, 'miembros-lista-falla')
+  conMiembros('miembros-ya-no-admin@example.com', 'Carmen', 'admin', familia, 'miembros-ya-no-admin').grupos[0].invitaciones = [mia()]
+  conMiembros('miembros-tope@example.com', 'Carmen', 'admin', familia, 'miembros-tope')
+  conMiembros('miembros-lento@example.com', 'Carmen', 'admin', familia, 'lento').grupos[0].invitaciones = [mia()]
+  {
+    // D-42-9 y D-42-10: quien escribió «Su día» y «Quién es», creó un enlace y dio las autorizaciones ya no está.
+    const u = conMiembros('miembros-autor-salio@example.com', 'Carmen', 'admin', familia)
+    const p = conAperturas(u.grupos[0].personas[0])
+    const salio = { id: randomUUID(), nombre: null }
+    p.campos.rutina = escrito(SU_DIA, salio)
+    p.secciones.quien_es = escrito(TEXTOS_SECCION.quien_es, salio, 90)
+    p.accesos[0].otorgado_por = salio
+    p.autorizoQuienYaNoEsta = true
+    u.grupos[0].invitaciones = [invitacionPendiente('cuidador', { nombre: null, eresTu: false })]
+  }
+}
+sembrarMiembros()
+
 // ---------------------------------------------------------------- códigos y envíos (MATU-57)
 // Envío simulado: el código solo se escribe en la consola del servidor de desarrollo, nunca en una
 // respuesta ni en la página. Datos sintéticos. Reglas de las decisiones 81 a 87: 6 dígitos, 10
@@ -625,7 +696,7 @@ type Responder = {
 const vistaCampo = (c: Campo) => ({
   texto: c.texto,
   etag: c.version ? `"v${c.version}"` : null,
-  actualizado_por: c.autor,
+  actualizado_por: autorVista(c.autor),
   actualizado_en: c.en,
 })
 const completitud = (p: Persona) => Math.round(((['rutina', 'manejo_situaciones', 'red_apoyo'] as CampoApi[]).filter((k) => p.campos[k].texto?.trim()).length * 100) / 3)
@@ -779,6 +850,24 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     return atenderRetorno(res, cuerpo, r, yo, grupoDe), true
   }
 
+  // MATU-42: la persona invitada (decisión 299). La presentación y la verificación son públicas; la
+  // aceptación, con sesión y sin `X-Grupo-Id`: une a la cuenta en un grupo nuevo del doble.
+  if (metodo === 'POST' && ruta.startsWith('/v1/invitaciones/')) {
+    const paso = ruta.slice('/v1/invitaciones/'.length)
+    if (paso === 'presentacion' || paso === 'verificacion' || paso === 'aceptacion') {
+      const yo = paso === 'aceptacion' ? usuarioDe(req) : null
+      if (paso === 'aceptacion' && !yo) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+      atenderInvitacionPublica(paso, res, cuerpo, r, yo, (i) => {
+        const g = grupo(i.grupo, i.rol, i.personas.map((pila) => persona(`${pila} Soto`, pila, { rutina: escrito(SU_DIA, { id: randomUUID(), nombre: i.nombre_pila_invita }) })))
+        const nuevo = miembro(yo!.nombre, i.rol, 0, { eresTu: true })
+        g.miembros = [miembro(`${i.nombre_pila_invita} Soto`, 'admin', 30, { enlaces: 1 }), nuevo]
+        yo!.grupos.push(g)
+        return { grupo_id: g.id, membresia_id: nuevo.id }
+      })
+      return true
+    }
+  }
+
   if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos')) return false
 
   const u = usuarioDe(req)
@@ -830,6 +919,12 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   }
 
   const g = u.grupos.find((x) => x.id === req.headers['x-grupo-id'])
+  // MATU-42: quiénes forman el grupo, cambiar el rol, sacar, salir y las invitaciones (grupo.ts).
+  const mGrupo = /^\/v1\/grupos\/([^/]+)\/(miembros|invitaciones|salida)(?:\/([^/]+))?$/.exec(ruta)
+  if (mGrupo) {
+    if (!g || g.id !== decodeURIComponent(mGrupo[1])) return problema(res, 404, '/errores/no-encontrado'), true
+    return atenderGrupo(req, res, cuerpo, r, u, g, mGrupo[2] as 'miembros' | 'invitaciones' | 'salida', mGrupo[3] ? decodeURIComponent(mGrupo[3]) : null), true
+  }
   const mPersonas = /^\/v1\/grupos\/([^/]+)\/personas-cuidadas$/.exec(ruta)
   if (mPersonas) {
     if (!g || g.id !== decodeURIComponent(mPersonas[1])) return problema(res, 404, '/errores/no-encontrado'), true
@@ -1002,7 +1097,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
       campo: nombreCampo,
       texto: nuevo.texto,
       etag: `"v${nuevo.version}"`,
-      actualizado_por: nuevo.autor,
+      actualizado_por: autorVista(nuevo.autor),
       actualizado_en: nuevo.en,
       completitud: completitud(p),
     }),
@@ -1015,14 +1110,15 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
 /** La `AutorizacionVista` de una finalidad (decisión 127). Al pagador y al observador, sin la calidad. */
 function vistaAutorizacion(p: Persona, u: Usuario, finalidad: Finalidad, rol: Rol) {
   const { otorgado_en, retiro } = p.autorizaciones[finalidad]
-  const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: p.calidad } : {}
+  // MATU-42 (decisión 311): `autorizo_alguien_que_ya_no_esta` solo para admin y cuidador, y solo sin retiro.
+  const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: p.calidad, autorizo_alguien_que_ya_no_esta: !retiro && p.autorizoQuienYaNoEsta === true } : {}
   const vacia = { revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }
   if (retiro) {
     const borrada = new Date(retiro.borrado_en).getTime() <= Date.now()
     return { finalidad, estado: borrada ? 'borrada' : 'retirada', id: `${p.id}-${finalidad}`, ...calidad, otorgado_en, ...vacia, ...retiro, borrada }
   }
   const nunca = finalidad === 'consumo' && p.consumo.autorizacion === 'no'
-  if (nunca) return { finalidad, estado: 'sin_autorizar', id: null, ...(rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: null } : {}), otorgado_en: null, ...vacia }
+  if (nunca) return { finalidad, estado: 'sin_autorizar', id: null, ...(rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: null, autorizo_alguien_que_ya_no_esta: false } : {}), otorgado_en: null, ...vacia }
   const vencida = finalidad === 'consumo' ? p.consumo.autorizacion === 'vencida' : u.modo === 'revision-vencida'
   // Por renovar: se otorgó hace más de un año y la revisión venció 12 meses después (decisión 33).
   const AÑO = 365 * DIA
@@ -1187,7 +1283,7 @@ function atenderSeccion(
   p.secciones[seccion] = nuevo
   res.setHeader('ETag', `"v${nuevo.version}"`)
   res.setHeader('Cache-Control', 'no-store')
-  return json(res, actual ? 200 : 201, { seccion, texto: nuevo.texto, etag: `"v${nuevo.version}"`, actualizado_por: nuevo.autor, actualizado_en: nuevo.en })
+  return json(res, actual ? 200 : 201, { seccion, texto: nuevo.texto, etag: `"v${nuevo.version}"`, actualizado_por: autorVista(nuevo.autor), actualizado_en: nuevo.en })
 }
 
 // ---------------------------------------------------------------- accesos de relevo (MATU-48)
@@ -1206,7 +1302,7 @@ function estadoDe(a: Acceso): 'vigente' | 'vencido' | 'revocado' | 'bloqueado' {
 function vistaAcceso(a: Acceso, rol: Rol) {
   const { bloqueado: _b, telefono_relevo, ...resto } = a
   void _b
-  const vista = { ...resto, estado: estadoDe(a), ultimo_uso_en: null as string | null }
+  const vista = { ...resto, otorgado_por: autorVista(a.otorgado_por), estado: estadoDe(a), ultimo_uso_en: null as string | null }
   return rol === 'admin' || rol === 'cuidador' ? { ...vista, telefono_relevo } : vista
 }
 
