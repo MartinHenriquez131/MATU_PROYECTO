@@ -61,8 +61,11 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // 5.3: sin grupo, toda sección lleva a crear el grupo.
   if (!s.grupos.length) return '/empezar/grupo'
   if (ruta === '/empezar/persona' || ruta === '/empezar/autorizacion') return editor ? null : inicio(s)
+  // MATU-53 (decisión del 12-11): Grupo familiar se alcanza sin persona registrada, para todos los
+  // roles, para ver quiénes forman el grupo y poder salir. Invitar, solo admin (más abajo).
+  const delGrupo = ruta === '/grupo' || ruta === '/grupo/invitar' || ruta === '/grupo/invitar/listo'
   // 5.4: sin persona, el admin y el cuidador van a registrarla.
-  if (!s.personas.length && editor) return '/empezar/persona'
+  if (!s.personas.length && editor && !delGrupo) return '/empezar/persona'
   // MATU-48 2.1: crear y ver el PIN, solo admin y cuidador. La lista de enlaces también la ve el
   // pagador con `puede_ver_plan`, sin teléfono ni «Cortar».
   if ((ruta === '/compartir' || ruta === '/compartir/listo') && !puedeCompartir(s.rol)) return inicio(s)
@@ -182,6 +185,10 @@ function Rutas() {
   else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
   // MATU-62: la vuelta de Webpay fija ella la persona del pedido (7.1), así que no depende de la elegida.
   else if (ruta === RUTA_PAGO && (s.persona || hayVuelta())) pantalla = <PantallaPago />
+  // MATU-53: Grupo familiar y lo de invitar no dependen de la persona elegida.
+  else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
+  else if (ruta === '/grupo/invitar') pantalla = <Invitar />
+  else if (ruta === '/grupo/invitar/listo') pantalla = <InvitacionLista />
   else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo || seccion) {
@@ -194,9 +201,6 @@ function Rutas() {
   // MATU-61: las tres rutas del pedido son una sola pantalla, que conserva el pedido en memoria al
   // pasar del carrito a la dirección y al resumen (la `key` de abajo no cambia entre ellas).
   else if (ruta.startsWith('/insumos/pedido')) pantalla = <PantallaPedido />
-  else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
-  else if (ruta === '/grupo/invitar') pantalla = <Invitar />
-  else if (ruta === '/grupo/invitar/listo') pantalla = <InvitacionLista />
   else if (ruta === '/grupo/autorizar-ficha') pantalla = <AutorizarFicha />
   else if (ruta === '/grupo/autorizar-insumos') pantalla = <AutorizarInsumos />
   else if (ruta === '/grupo/autorizar-pedidos') pantalla = <AutorizarPedidosDesdeGrupo />

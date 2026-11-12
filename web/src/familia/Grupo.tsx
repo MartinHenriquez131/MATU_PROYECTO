@@ -253,6 +253,8 @@ export function GrupoFamiliar() {
         </Boton>
       </div>
     )
+  // MATU-53: sin persona registrada no hay autorizaciones ni «Borrar sus datos»: solo la lista y salir.
+  else if (!datos.length && !(enMemoria ?? []).length) cuerpo = null
   else if (!datos.length)
     cuerpo = (
       <Nota tono="rocio" icono={<Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
@@ -296,7 +298,7 @@ export function GrupoFamiliar() {
           <AvisoDeLlegada key={llegada} />
           <QuienesForman datos={miembros} pilas={pilas} />
         </div>
-        {cuerpo}
+        {cuerpo ?? null}
         <SalirDelGrupo datos={miembros} pilas={pilas} />
       </div>
       {borrando && (
