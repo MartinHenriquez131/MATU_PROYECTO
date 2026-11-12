@@ -18,6 +18,9 @@ docs/api/
     ├── pago.openapi.yaml         MATU-62: pagar el total confirmado con Webpay Plus, el retorno, el estado del
                                   pago, el pedido pagado y el comprobante (implementado en MATU-62, decisiones 223 a
                                   249; se conserva como explicación y manda openapi.json)
+    ├── donde-entraste.openapi.yaml  MATU-55: los últimos ingresos de la propia cuenta, la clave pública de push y
+                                  la auditoría de la preferencia de avisos (implementado en MATU-55, decisiones
+                                  252 a 284; se conserva como explicación y manda openapi.json)
     └── invitar-familiar.openapi.yaml  MATU-42 y MATU-53: invitar con enlace y código, aceptar, quiénes forman
                                   el grupo, cambiar roles y el permiso del pagador, sacar a alguien y salir
                                   (propuesto, decisiones 290 a 317)
@@ -54,7 +57,7 @@ docs/api/
 | `POST /v1/sesiones` | MATU-05a; cambio de MATU-38 | Implementado, con la cookie del refresh, el dispositivo, el claim `did` y la demora (429/503) de MATU-38. En `openapi.json` |
 | `POST /v1/sesiones/renovar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
 | `POST /v1/sesiones/cerrar` | MATU-38 (RF-37) | Implementado. En `openapi.json` desde MATU-38 |
-| `GET /v1/dispositivos` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
+| `GET /v1/dispositivos` | MATU-38 | Implementado. En `openapi.json` desde MATU-38. MATU-55 suma `clase` y `push_activo` (decisiones 280 y 281) |
 | `DELETE /v1/dispositivos/{dispositivo_id}` | MATU-38 | Implementado. En `openapi.json` desde MATU-38 |
 | `PUT /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
 | `DELETE /v1/dispositivos/actual/push` | MATU-38, la usa MATU-41 | Implementado (solo guarda; el envío es MATU-41). En `openapi.json` desde MATU-38 |
@@ -102,6 +105,8 @@ docs/api/
 | `GET /v1/pedidos/{pedido_id}/pago` | MATU-62 (R4, D-62-2) | Implementado. En `openapi.json` desde MATU-62 (decisiones 236, 238, 239, 248 y 249). Estado, devoluciones y comprobante. Capa 3 |
 | `GET /v1/personas-cuidadas/{persona_id}/pedido-pagado` | MATU-62 (P2 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 237). El último pedido pagado, con su comprobante. Capa 3 |
 | `GET /v1/condiciones-pedido?version=` | MATU-62 (P4 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 240). Cambio aditivo a la ruta de MATU-61 |
+| `GET /v1/yo/ingresos` | MATU-55 (RF-37, D1 y D2) | Implementado. En `openapi.json` desde MATU-55 (decisiones 253 a 256 y 279 a 283) |
+| `GET /v1/dispositivos/actual/push` | MATU-55 (D6) | Implementado. En `openapi.json` desde MATU-55 (decisiones 261, 262 y 272) |
 | `POST /v1/grupos/{grupo_id}/invitaciones` | MATU-42 (RF-38) | **Propuesto** en `invitar-familiar.openapi.yaml` (decisiones 293 a 297). Solo admin |
 | `GET /v1/grupos/{grupo_id}/invitaciones` | MATU-42 (C10) | **Propuesto** (decisión 294). Solo admin |
 | `DELETE /v1/grupos/{grupo_id}/invitaciones/{invitacion_id}` | MATU-42 | **Propuesto** (decisión 308). Solo admin |
@@ -1475,6 +1480,137 @@ Lo que no calza o queda abierto. Ninguna pregunta cambia el alcance por sí sola
 7. **P-62-7 · La cookie del refresh al volver de Webpay.** Es `SameSite=Strict`. La navegación desde Webpay es entre sitios, pero `POST /v1/sesiones/renovar` lo pide la página de MATU, así que la cookie debería viajar. Hay que verificarlo en el teléfono (Chrome y Safari); si no viaja, la pantalla cae en 7.10 («Entrar») y el pago igual queda registrado.
 8. **P-62-8 · Documentos fuera de este perímetro:** la arquitectura 8.4 (la ruta `POST /v1/pedidos/{id}/pagar`, el cargo al pagar y la `return_url` en la app), 9.4 (salen `POST /v1/cargos/{id}/pagar` y `GET /v1/cargos/{id}`; `GET /v1/pedidos/{id}/comprobante` pasa a `GET …/pago` y `…/pedido-pagado`; el 410 del total vencido pasa a 409) y 12.4, caso 8 (decisión 225); y la especificación del diseñador (P2 y P4 con los nombres de este contrato).
 9. **P-62-9 · Nombres distintos del diseño** (manda el contrato): `InicioPago` trae `url` y `token` como se pidió, más `intento_id`, `estado`, `monto` y `total_confirmado_en`; el correo trae `destino` y `enviado`; `codigo_autorizacion` va fuera de `tarjeta`, como lo lista el diseño; el comprobante suma `subtotal_productos`, `pago_de_prueba` y `condiciones.huella`; el observador recibe `estado: pagado` o `sin_pagar`; la vuelta suma `grupo_id` y `volver_a_preguntar_en`, y `ResultadoPago` suma `en_webpay`, solo para `GET …/pago`.
+
+## MATU-55 · Dónde entraste: los teléfonos y los últimos ingresos (RF-37, RF-39, Ley 21.719)
+
+Contrato escrito el 12-11, **antes de implementar**, con la revisión previa del analista normativo (`docs/legal/revision-previa-matu-55.md` del repositorio MATU, condiciones C1 a C13) y las **decisiones de Jorge del 12-11, D1 a D8** (misma revisión, sección «Decisiones de Jorge»). Las rutas nuevas y sus esquemas están en `propuestos/donde-entraste.openapi.yaml`. Los cambios a rutas de `openapi.json` van ahí como fragmentos `Cambio*` con `x-matu-se-suma-a`, como en MATU-61 y MATU-62. Se apila sobre MATU-62: la migración es la **0025** (`down_revision = "0024"`).
+
+La numeración sigue en la 252: MATU-62 usa de la 223 a la 249, y MATU-94 la 250 y la 251. Si otra historia se fusiona antes con decisiones nuevas, se renumera al fusionar.
+
+### Decisiones de MATU-55 (12-11)
+
+252. **Alcance.** MATU-55 agrega dos lecturas, `GET /v1/yo/ingresos` y `GET /v1/dispositivos/actual/push`. Cambia la auditoría de `PUT /v1/yo/avisos` y de `PUT`/`DELETE /v1/dispositivos/actual/push`, sin cambiar su forma, y lleva la migración 0025. Las demás rutas que usa la pantalla siguen como están en `openapi.json`. No es capa 3: nada de esto se apaga con `CAPA3_HABILITADA`.
+253. **`GET /v1/yo/ingresos`: contexto y códigos** (C1, C2). Usa `sesion_de_usuario`, que fija solo `app.usuario_id`.
+    - No lleva `X-Grupo-Id` (si llega, se ignora) ni parámetros de usuario, de fecha o de página. Un parámetro de consulta desconocido se ignora.
+    - La fila que se ve la decide la RLS `auditoria_cuenta_propia` (decisión 257), no un `WHERE`.
+    - Orden: **401 y 200**. **No hay 404 ni 422**: la ruta no tiene parámetros de ruta ni cuerpo, y una lista vacía es 200.
+    - No se audita (C10).
+254. **Qué eventos entran (D1-c).** Una lista cerrada que la API devuelve como `tipo` (`TipoEventoCuenta`), con un nombre propio y **no** el de la acción de auditoría, que no sale:
+    - `entraste` (`sesion.iniciar`), `saliste` (`sesion.cerrar`), `cerraste_en_dispositivo` (`dispositivo.sacar`) y `salida_por_seguridad` (`sesion.reutilizacion_detectada`);
+    - `contrasena_cambiada` (`cuenta.contrasena_cambiar`), `celular_confirmado` (`cuenta.celular_verificar`) y `codigo_recuperacion_pedido` (`cuenta.recuperar_solicitar`);
+    - `avisos_cambiados` (`avisos.preferencia`, nueva), `avisos_activados` (`dispositivo.push_registrar`) y `avisos_desactivados` (`dispositivo.push_borrar`).
+
+    **No entran nunca:** `sesion.inicio_fallido`, `cuenta.recuperar_verificar_fallido`, `cuenta.celular_verificar_fallido`, `cuenta.celular_solicitar` (D1 no lo nombra) ni una fila con grupo. La API no manda texto: la pantalla lo arma con `lenguaje.md` (revisión previa, sección 5) e ignora un `tipo` que no conoce.
+255. **Ventana y tope (D2).** `ocurrido_en >= ahora - 90 días` según el `Reloj`, hasta **20**, del más reciente al más antiguo. A igual instante, va primero el de `id` mayor. La consulta pide 21: `hay_mas` es `true` si hay más de 20 en la ventana, sin decir cuántos. Lo anterior, o lo que no cabe, se pide por correo (política, §10).
+256. **Forma de cada evento (C3 a C5).**
+    - Solo `tipo`, `ocurrido_en` (UTC, RFC 3339; la pantalla lo muestra en `America/Santiago`) y `dispositivo`, que es `{nombre, actual}` o `null`.
+    - `actual` compara con el claim `did`. Sin `did`, es `false`.
+    - `dispositivo` es `null` en los cuatro eventos de la cuenta y, en los de un dispositivo, si la conservación ya lo borró (decisión 59).
+    - La lectura une `auditoria` con `dispositivo` (`LEFT JOIN … ON a.entidad = 'dispositivo' AND d.id = a.entidad_id`). La RLS `dispositivo_propio` ya la acota a los dispositivos propios, también los revocados.
+    - **Nunca** `id`, `request_id`, `actor_ref`, `entidad_id`, `detalle`, `familia_id`, la plataforma, la IP ni la ubicación. Columnas nombradas, sin `SELECT *` (C4), esquemas con `extra="forbid"` y una prueba que falla si aparece cualquiera de esos nombres.
+257. **Política `auditoria_cuenta_propia`** (P2-2 de MATU-38, P1 de la revisión previa): `FOR SELECT USING (grupo_id IS NULL AND ((actor_tipo = 'usuario' AND actor_ref = app_usuario()) OR (actor_tipo = 'sistema' AND accion = 'cuenta.recuperar_solicitar' AND entidad = 'usuario' AND entidad_id = app_usuario())))`.
+    - Es **más estrecha que el borrador del analista** en dos puntos. La primera rama exige `actor_tipo = 'usuario'`, porque `actor_ref` es polimórfico (con el relevo es el id del acceso). La segunda nombra la acción, porque `cuenta.recuperar_verificar_fallido` también va con actor `sistema` y con el `entidad_id` de la persona, y D1 prohíbe mostrar los fallidos.
+    - Sin `app.usuario_id` (relevo, sistema u operación) no se ve ninguna fila. `sesion.inicio_fallido`, sin actor ni entidad, no la ve nadie.
+258. **`CHECK auditoria_cuenta_acotada`**: `grupo_id IS NOT NULL OR accion IN (…)`, con las 14 acciones de `ACCIONES_DE_CUENTA` (las 13 de hoy más `avisos.preferencia`).
+    - Así la base garantiza que una fila sin grupo es siempre de la cuenta. La política de la 257 nunca puede abrir una fila de la ficha o del consumo escrita sin grupo por error.
+    - Una prueba verifica que la lista del `CHECK` es la misma de `ACCIONES_DE_CUENTA`, como con `SECCIONES_AUDITABLES`.
+    - `auditoria.accion` sigue sin un `CHECK` global, y `auditoria_detalle_acotado` no cambia.
+259. **`avisos.preferencia`** (C7 a C9). `PUT /v1/yo/avisos` lo registra en la misma transacción que guarda: actor `usuario`, entidad `usuario` con su propio id, **sin grupo, sin `detalle` y sin los valores**.
+    - **Solo si la preferencia cambió**, es decir, si lo que devuelve el `GET` después es distinto de lo de antes. Un `PUT` con los mismos valores o un 422 no auditan, y el `GET` tampoco.
+    - `notifications` usa el puerto `RegistroAuditoria` de `shared`, como verifica `test_arquitectura.py`.
+    - Se agrega a `AccionAuditoria` y a `ACCIONES_DE_CUENTA`.
+260. **Push: se audita solo si cambia.** Hoy `PUT` y `DELETE /v1/dispositivos/actual/push` auditan en cada llamada.
+    - Desde MATU-55, un `PUT` con el mismo endpoint guardado o un `DELETE` con el endpoint ya vacío responden 204 sin auditar. Si no, el service worker que renueva la suscripción y la pantalla que repite el `PUT` llenarían la lista de «Activaste los avisos».
+    - Cambiar a otro endpoint vuelve a auditar `dispositivo.push_registrar`.
+    - La forma y los códigos no cambian, pero sí una prueba de MATU-38: `tests/modules/iam/test_refresh_api.py` (línea 468) espera dos `dispositivo.push_borrar` por dos `DELETE` seguidos.
+261. **`GET /v1/dispositivos/actual/push`** (D6). Responde `PushActualVista`:
+    - `clave_publica`: la clave VAPID, o `null` si no está configurada;
+    - `registrado`: si el dispositivo del `did` tiene un endpoint guardado, sin devolverlo;
+    - `envio_simulado`: `true` mientras no haya un adaptador real (decisión 112).
+
+    Va con sesión y en la misma ruta que el `PUT` y el `DELETE`, con su mismo 404 (sin `did` o con el dispositivo revocado). Orden: 401, 404 y 200. No se audita. Se eligió esta ruta, y no una `GET /v1/config/push` pública, porque sin sesión no hay a qué dispositivo asociar la inscripción, y así no se abre otra ruta pública.
+262. **La clave VAPID.** Hay un solo secreto nuevo, **`VAPID_CLAVE_PRIVADA`** (`SecretStr` de `pydantic-settings`, solo en el `.env` o en las variables de Railway): el escalar privado P-256 de 32 bytes, en base64url sin relleno.
+    - La pública se deriva con `cryptography`, que ya es dependencia. Sale como el punto sin comprimir de 65 bytes en base64url: 87 caracteres que empiezan con `B`.
+    - Un valor que no es una clave P-256 válida hace que la configuración no cargue, como con los demás secretos. Sin la variable, `clave_publica` es `null` y la API arranca igual.
+    - Es distinta en cada entorno. Nunca va a logs, errores, el `repr` de la configuración ni una respuesta. Las pruebas generan la clave al correr: ninguna queda escrita en el repositorio.
+    - **Al rotarla**, las suscripciones viejas dejan de servir. La pantalla compara la clave con `subscription.options.applicationServerKey` y, si difiere, se inscribe de nuevo y repite el `PUT`.
+    - El `sub` de RFC 8292 (`VAPID_CONTACTO`) se agrega cuando exista el envío real.
+263. **El envío sigue simulado** (decisiones 112 y 113, D6). MATU-55 no agrega un adaptador real ni contacta ningún servicio de push. El único contacto con el servicio del fabricante es el del navegador al inscribirse, y solo cuando la persona toca el botón. Es lo que agrega la política (D6), y la CL-37 sigue abierta.
+264. **Service worker y `manifest`.** No llevan ruta de la API.
+    - Los entrega `backend/app/core/web.py` desde `WEB_DIST` (decisión 115), con `Cache-Control: no-cache` y los tipos de `TIPOS_DEL_BUILD` (`.js` y `.webmanifest` ya están).
+    - El service worker tiene que quedar en la raíz del build (`/sw.js`) para que su alcance sea `/`. Si no está en el build, `/sw.js` responde 404 RFC 7807, no el `index.html`.
+    - Lo que muestra el push (el texto fijo de la decisión 113) es del frontend.
+265. **Lo que la pantalla usa sin cambios** (D5, D8, C11 a C13).
+    - «En tus teléfonos» (D5) es el texto del campo `push` de `PreferenciaAvisosVista`, que no cambia de nombre.
+    - Cerrar en otro teléfono es `DELETE /v1/dispositivos/{dispositivo_id}` tal como está: **sin pedir la contraseña** (D8) y con 404 si ya no estaba. Revoca sus sesiones y borra su endpoint. Un access token ya emitido en ese teléfono vale hasta 15 minutos, como dice el diálogo (C11).
+    - En este teléfono, la pantalla ofrece «Salir», que es `POST /v1/sesiones/cerrar` (C12).
+266. **Se borra `auditoria.ip`** (D7). Verificado el 12-11 en la rama `matu-62-pago`: ningún código la escribe.
+    - `RegistroAuditoriaSql` (`app/shared/auditoria_sql.py`), `repositorio_personas.py` y la función de la 0016 insertan con columnas nombradas y sin `ip`. La 0024 no toca `auditoria`, y ninguna vista ni función depende del tipo de fila de `auditoria`.
+    - Hay pruebas que leen la columna y hay que ajustarlas: `tests/shared/test_auditoria_sql.py`, `tests/modules/iam/test_refresh_api.py`, `tests/modules/care_plan/test_abrir_relevo_api.py`, `tests/modules/care_plan/test_relevo_api.py` y `tests/modules/consumption/test_reposicion_api.py`.
+    - El downgrade la vuelve a crear como `inet` nula, al final de la tabla. Nunca tuvo datos.
+267. **Índice `auditoria_cuenta_ix`** `ON auditoria (actor_ref, ocurrido_en DESC) WHERE grupo_id IS NULL`, para la primera rama de la política. La segunda usa `auditoria_entidad_ix` (`entidad, entidad_id, ocurrido_en DESC`), que ya existe.
+268. **Conservación** (D3, CL-53). Los 90 días son solo lo que se muestra. La auditoría de la cuenta se conserva 3 años, y el borrado lo construye MATU-89. MATU-55 no borra nada.
+269. **`Cache-Control: no-store`** en todas las respuestas del contrato, 2xx y errores, con el middleware de prefijo de `/v1/yo/` y `/v1/dispositivos` (`app/main.py`). Verificado con un script sobre el YAML: 5 respuestas, ninguna sin la cabecera. La pantalla no guarda la lista ni la configuración de push en el almacenamiento del navegador (C6).
+270. **Logs.** La línea de la petición lleva la plantilla de la ruta, el estado y el usuario. Nunca la lista de eventos, los nombres de los dispositivos, el endpoint de push ni la clave VAPID, tampoco en el `repr` de los objetos. Una prueba con `caplog` lo verifica.
+271. **La migración 0025** (`down_revision = "0024"`).
+    - **Upgrade**, en este orden:
+      1. la política `auditoria_cuenta_propia` (decisión 257);
+      2. el índice `auditoria_cuenta_ix` (decisión 267);
+      3. el `CHECK auditoria_cuenta_acotada` (decisión 258), con `NOT VALID` y después `VALIDATE CONSTRAINT`, para que una fila sin grupo que no sea de la cuenta haga fallar la migración con el nombre del `CHECK` en vez de quedar oculta;
+      4. `ALTER TABLE auditoria DROP COLUMN ip` (decisión 266), con el `COMMENT ON` de la tabla al día.
+    - **Downgrade**, en orden inverso: `ADD COLUMN ip inet`, `DROP CONSTRAINT auditoria_cuenta_acotada`, `DROP INDEX auditoria_cuenta_ix` y `DROP POLICY auditoria_cuenta_propia`.
+    - Sin columnas nuevas, y sin tocar `auditoria_detalle_acotado` ni los permisos: `matu_app` ya lee `auditoria` y no la actualiza ni la borra.
+    - Se prueba en `test_migraciones.py` (`upgrade head`, `downgrade -1` y `upgrade head`) y en `test_aislamiento.py`:
+      - A lee sus filas de cuenta y no las de B, también con un grupo en el contexto;
+      - A ve su `cuenta.recuperar_solicitar` y no su `cuenta.recuperar_verificar_fallido`;
+      - el relevo, el sistema y operación no ven ninguna;
+      - nadie ve `sesion.inicio_fallido`;
+      - las aperturas del relevo y la auditoría de la ficha siguen como estaban.
+
+### Para el orquestador (MATU-55)
+
+Lo que no calza o queda abierto. Ninguna pregunta cambia el alcance por sí sola.
+
+1. **Q1 · La ruta de la clave pública** (decisión 261). Se eligió `GET /v1/dispositivos/actual/push`, con sesión, en vez de `GET /v1/config/push` pública. Confirmarlo.
+2. **Q2 · El `CHECK auditoria_cuenta_acotada`** (decisión 258). El analista dijo que la 0025 no tocaba los `CHECK`, y este es nuevo y defensivo. Confirmarlo. Antes de desplegar en staging, Martín puede revisar que no haya filas que lo rompan: `SELECT accion, count(*) FROM auditoria WHERE grupo_id IS NULL GROUP BY accion`.
+3. **Q3 · El push audita solo si cambia** (decisión 260). Cambia el comportamiento de una ruta de MATU-38 y una de sus pruebas. Sin esto, la lista se llena de «Activaste los avisos».
+4. **Q4 · La política es más estrecha que el borrador del analista** (decisión 257). Que el analista lo confirme en el cierre.
+5. **Q5 · `cuenta.celular_solicitar` no entra** (decisión 254), porque D1 no lo nombra. Si Jorge lo quiere, falta su texto en `lenguaje.md`.
+6. **Q6 · Textos que faltan en `lenguaje.md`** (para el diseñador): un evento de un dispositivo que ya se borró (`dispositivo: null`), qué dice la pantalla con `hay_mas: true` y qué muestra sin la clave VAPID (`clave_publica: null`). Sigue pendiente, además, qué reemplaza a «Este teléfono» en un computador.
+7. **Q7 · Generar la clave VAPID.** Para staging hace falta `VAPID_CLAVE_PRIVADA`. Se propone un comando `python -m app.tareas clave_vapid` que imprima una clave nueva y su pública, para ponerla en Railway sin que quede en ningún archivo. Si se prefiere no imprimir un secreto en la terminal, se documenta un comando de `openssl`. Va en «Para desplegar» del PR.
+8. **Q8 · Documentos fuera de este perímetro:**
+   - `docs/modelo-datos.md`: la fila de `auditoria` sin `ip`, el índice, el `CHECK` y la política;
+   - el registro de tratamientos, entradas 5, 6 y 8;
+   - la política que trae MATU-55 (D6);
+   - `lenguaje.md`: la sección 5 de la revisión previa y D5;
+   - la arquitectura, 11.8;
+   - las secciones 0 a 2 de la revisión previa, que todavía dicen 0024.
+9. **Q9 · CSP del frontend.** Si la etiqueta meta del build trae una `Content-Security-Policy` con `worker-src` o `script-src` estrictos, tiene que admitir `'self'` para `/sw.js`. Es del frontend, no de la API.
+
+### Decisiones al implementar MATU-55 (12-11)
+
+Las respuestas del orquestador, por delegación de Jorge, a las preguntas Q1 a Q9 de arriba y a las preguntas C1 a C9 del diseñador (`docs/diseno/matu-55-donde-entraste.md`), con el ajuste del orquestador del 12-11 a la especificación v1.1 del diseñador (C3 y C7). Q6 y Q8 siguen abiertas: son de otros documentos.
+
+272. **Q1 · `GET /v1/dispositivos/actual/push`, con sesión** (decisión 261), confirmado. No se abre `GET /v1/config/push`.
+273. **Q2 · El `CHECK auditoria_cuenta_acotada`**, confirmado (decisión 258), con `NOT VALID` y `VALIDATE` en la 0025. **Antes de desplegar en staging**, Martín revisa que ninguna fila lo rompa, con `SELECT accion, count(*) FROM auditoria WHERE grupo_id IS NULL GROUP BY accion`: toda acción que salga debe estar en `ACCIONES_DE_CUENTA`. Si alguna no está, la migración falla con el nombre del `CHECK` y no despliega. Va en «Para desplegar» del PR.
+274. **Q3 · El push audita solo si cambia** (decisión 260), confirmado. La prueba de MATU-38 que esperaba dos `dispositivo.push_borrar` por dos `DELETE` seguidos (`test_push_solo_se_escribe_y_respeta_la_lista_cerrada`) ahora espera uno. El endpoint anterior se compara dentro de la base (`UPDATE … FROM previo … RETURNING previo.push_token IS DISTINCT FROM …`) y nunca sale de ella.
+275. **Q4 · La política más estrecha queda** (decisión 257). La confirma el analista en la revisión de cierre.
+276. **Q5 · `cuenta.celular_solicitar` queda fuera** (decisión 254).
+277. **Q7 · La clave VAPID se genera con `python scripts/generar_vapid.py`**, desde `backend/`. Imprime en la salida estándar, solo a quien lo corre, `VAPID_CLAVE_PRIVADA=<clave>` en el formato que espera la configuración (el escalar P-256 de 32 bytes en base64url sin relleno) y la pública que derivará la API. No escribe archivos ni usa `logging`. La derivación vive en `app/core/vapid.py`, que también valida la clave al cargar la configuración. Va en «Para desplegar».
+278. **Q9 · CSP del build.** Si la etiqueta meta de la `Content-Security-Policy` del build trae `worker-src` (o un `script-src` estricto sin `worker-src`), tiene que admitir `'self'` para `/sw.js`. Es del frontend; la API no cambia.
+279. **C2 y C3 · Lo recorta el servidor, y en «Cerraste MATU en…» va solo el teléfono que se cerró.**
+    - El servidor recorta a 90 días y 20 eventos y excluye los fallidos (decisiones 254 y 255): la pantalla no filtra.
+    - No se agrega `objetivo`. En `cerraste_en_dispositivo`, `dispositivo` es el teléfono que se cerró, como dice la decisión 256. El de origen no se registra en la auditoría (`dispositivo.sacar` guarda el cerrado en `entidad_id`) y no se muestra: un solo campo, menos datos.
+    - `dispositivo` puede ser `null`: siempre en los cuatro eventos de la cuenta y, en los de un dispositivo, si la conservación ya lo borró. La pantalla lo muestra como «un teléfono o computador que ya no está en tu lista» (especificación v1.1).
+280. **C7 · `clase: telefono | computador | otro`** en `DispositivoVista` y en el `dispositivo` de cada evento, obligatoria. La deduce el servidor (`clase_dispositivo`, `app/modules/iam/domain/dispositivo.py`) del sistema del nombre del dispositivo, que ya es lo que MATU dedujo del agente de usuario al entrar (decisión 47): Android e iPhone son `telefono`; Windows, Mac, Linux y ChromeOS, `computador`; iPad y «Navegador web», `otro`. No se guarda el agente de usuario ni la clase, y la 0025 no agrega columnas. Una tablet Android sale como `telefono`: el nombre no distingue el formato.
+281. **C5 · `push_activo` en `DispositivoVista`**, obligatorio: si el dispositivo tiene un endpoint de push guardado (`push_token IS NOT NULL`, leído en la base). Nunca el endpoint.
+282. **C6 · Con la sesión abierta no hay cambio de contraseña.** El frontend quita «Cambiar mi contraseña»; MATU-55 no agrega una ruta.
+283. **C8 · `Cache-Control: no-store`** en `GET /v1/dispositivos`, `GET /v1/yo/ingresos` y `GET /v1/dispositivos/actual/push`, también en sus errores (middleware de `/v1/dispositivos` y `/v1/yo/`, y repetido en cada ruta).
+284. **C9 · `SolicitudPush` sigue solo con el endpoint** mientras el envío sea simulado (decisión 263). Cuando el envío sea real, el cuerpo cambia (`p256dh` y `auth`) y la pantalla repite el `PUT`.
+
+**Lo que cambia al implementar, frente al propuesto:** `clase` y `push_activo` (arriba). `clase` sale en `openapi.json` como un `enum` en línea, no como el componente `ClaseDispositivo` del YAML, y los errores como `application/problem+json` sin esquema, como en el resto de `openapi.json`. Las rutas y los códigos son los del propuesto.
+
+Además de las cinco pruebas de la decisión 266, otras tres leían `auditoria.ip` y se ajustaron igual (verifican que la columna ya no está): `tests/modules/care_circle/test_personas.py`, `tests/modules/care_plan/test_ficha_api.py` y `tests/modules/care_plan/test_borrado_persona_api.py`. Ningún código de la aplicación la leía.
 
 ## MATU-42 y MATU-53 · Invitar a un familiar y ver el grupo (RF-38, RF-42; propuesto)
 

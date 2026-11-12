@@ -267,16 +267,17 @@ def test_apertura_auditada(entorno: EntornoAbrir) -> None:
 
     filas = _todas(
         # Sin la columna id: con la secuencia avanzada podría valer el PIN (como en ac8a315)
-        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, (to_jsonb(a) - 'id')::text"
+        "SELECT grupo_id, actor_tipo, actor_ref, entidad, entidad_id, motivo, to_jsonb(a) ? 'ip',"
+        " (to_jsonb(a) - 'id')::text"
         " FROM auditoria a"
         " WHERE accion = 'relevo.abrir' AND actor_ref = %s", acceso_id)
     assert len(filas) == 1
-    grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, ip, fila = filas[0]
+    grupo, actor_tipo, actor_ref, entidad, entidad_id, motivo, con_ip, fila = filas[0]
     plan = _una("SELECT id FROM plan_cuidado WHERE persona_cuidada_id = %s", familia.persona.id)
     assert plan is not None
     assert (grupo, actor_tipo, actor_ref, entidad, entidad_id) == (
         familia.grupo.id, "relevo", acceso_id, "plan_cuidado", plan[0])
-    assert motivo is None and ip is None  # C8
+    assert motivo is None and con_ip is False  # C8; la columna ip se borró en la 0025 (MATU-55)
     # El PIN como dato completo: los UUID, el request_id y la fecha de la fila lo traían por azar
     assert token not in fila and not aparece_como_dato(pin, fila) and "Rosa" not in fila
     usos, ultimo = cast(tuple[int, datetime], _una(
@@ -295,8 +296,9 @@ def test_pin_incorrecto_confirma_contador_y_auditoria(entorno: EntornoAbrir) -> 
     _problema(entorno.canjear(token, "0000" if pin != "0000" else "1111"), 401, "pin-incorrecto")
     assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (1,)
     assert _todas(
-        "SELECT actor_tipo, ip FROM auditoria WHERE accion = 'relevo.pin_incorrecto' AND actor_ref = %s", acceso_id
-    ) == [("relevo", None)]
+        "SELECT actor_tipo, to_jsonb(a) ? 'ip' FROM auditoria a WHERE accion = 'relevo.pin_incorrecto'"
+        " AND actor_ref = %s", acceso_id
+    ) == [("relevo", False)]
     # El PIN correcto vuelve el contador a 0
     assert entorno.canjear(token, pin).status_code == 204
     assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)

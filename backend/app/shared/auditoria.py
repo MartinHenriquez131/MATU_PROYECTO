@@ -90,9 +90,13 @@ class AccionAuditoria(StrEnum):
     PAGO_INICIAR = "pago.iniciar"
     PAGO_APROBAR = "pago.aprobar"
     PAGO_ANULAR = "pago.anular"
+    # MATU-55 (decisión 259): cambiar la preferencia propia de avisos, sin los valores (ni el canal, ni si se prendió o
+    # se apagó) y solo si cambió. De la cuenta: sin grupo
+    AVISOS_PREFERENCIA = "avisos.preferencia"
 
 
-# Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38)
+# Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
+# CHECK auditoria_cuenta_acotada exige esta misma lista a toda fila sin grupo, y tests/test_migraciones.py lo verifica
 ACCIONES_DE_CUENTA = frozenset(
     {
         AccionAuditoria.SESION_INICIAR,
@@ -108,6 +112,8 @@ ACCIONES_DE_CUENTA = frozenset(
         AccionAuditoria.CUENTA_CELULAR_SOLICITAR,
         AccionAuditoria.CUENTA_CELULAR_VERIFICAR,
         AccionAuditoria.CUENTA_CELULAR_VERIFICAR_FALLIDO,
+        # MATU-55 (decisión 259)
+        AccionAuditoria.AVISOS_PREFERENCIA,
     }
 )
 

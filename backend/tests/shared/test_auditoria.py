@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from app.shared.auditoria import (
+    ACCIONES_DE_CUENTA,
     AccionAuditoria,
     ActorTipo,
     EntidadAuditoria,
@@ -84,6 +85,8 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "pago.iniciar",
         "pago.aprobar",
         "pago.anular",
+        # MATU-55 (decisión 259)
+        "avisos.preferencia",
     }
 
 
@@ -194,6 +197,21 @@ def test_entrada_rechaza_str_libre_o_grupo_ausente(cambio: dict[str, Any]) -> No
 
 
 # --- MATU-38: acciones de la cuenta, sin grupo, y detalle acotado (RF-37) ---------------------
+
+
+@pytest.mark.rf("RF-39")
+def test_la_preferencia_de_avisos_es_de_la_cuenta_y_va_sin_grupo() -> None:
+    # MATU-55 (decisión 259): sin grupo, sin detalle y con la persona como entidad
+    assert AccionAuditoria.AVISOS_PREFERENCIA in ACCIONES_DE_CUENTA
+    entrada = EntradaAuditoria(
+        grupo_id=None,
+        actor_tipo=ActorTipo.USUARIO,
+        actor_ref=USUARIO,
+        accion=AccionAuditoria.AVISOS_PREFERENCIA,
+        entidad=EntidadAuditoria.USUARIO,
+        entidad_id=USUARIO,
+    )
+    assert entrada.detalle() is None
 
 HUELLA = "ab" * 32
 

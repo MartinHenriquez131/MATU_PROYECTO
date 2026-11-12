@@ -181,7 +181,8 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     # Auditoría: entrar y cerrar, sin cada renovación
     assert _auditoria(cuenta) == ["sesion.iniciar", "sesion.cerrar"]
     assert _filas(
-        "SELECT DISTINCT grupo_id, ip, detalle FROM auditoria WHERE actor_ref = %s", cuenta) == [(None, None, None)]
+        "SELECT DISTINCT grupo_id, to_jsonb(a) ? 'ip', detalle FROM auditoria a WHERE actor_ref = %s", cuenta) == [
+        (None, False, None)]
 
 
 def test_ventana_deslizante_sin_tope_y_vencimiento_sin_uso(
@@ -379,8 +380,11 @@ def test_dispositivos_lista_el_actual_primero_sin_push_token(
     assert respuesta.headers["cache-control"] == "no-store"
     items = respuesta.json()["items"]
     assert [(d["nombre"], d["actual"]) for d in items] == [("Chrome en Android", True), ("Firefox en Windows", False)]
-    assert set(items[0]) == {"id", "plataforma", "nombre", "creado_en", "ultimo_uso_en", "actual"}
-    assert PUSH not in respuesta.text and "push" not in respuesta.text
+    # MATU-55: clase (C7) y push_activo (C5), nunca el endpoint
+    assert set(items[0]) == {
+        "id", "plataforma", "nombre", "clase", "creado_en", "ultimo_uso_en", "actual", "push_activo"}
+    assert [(d["clase"], d["push_activo"]) for d in items] == [("telefono", True), ("computador", False)]
+    assert PUSH not in respuesta.text and "push_token" not in respuesta.text and "fcm" not in respuesta.text
     assert _did(entorno_iam, computador) == uuid.UUID(items[1]["id"])
 
 
@@ -464,8 +468,8 @@ def test_push_solo_se_escribe_y_respeta_la_lista_cerrada(
     assert borrado.status_code == 204
     assert _filas("SELECT push_token FROM dispositivo WHERE id = %s", did) == [(None,)]
     assert entorno_iam.cliente.delete("/v1/dispositivos/actual/push", headers=_bearer(token)).status_code == 204
-    assert _auditoria(cuenta) == [
-        "sesion.iniciar", "dispositivo.push_registrar", "dispositivo.push_borrar", "dispositivo.push_borrar"]
+    # MATU-55 (decisión 260): borrar un endpoint ya vacío responde 204 sin auditar; antes eran dos push_borrar
+    assert _auditoria(cuenta) == ["sesion.iniciar", "dispositivo.push_registrar", "dispositivo.push_borrar"]
 
 
 def test_push_sin_did_responde_404_antes_que_422(entorno_iam: EntornoIam, cuenta: uuid.UUID) -> None:

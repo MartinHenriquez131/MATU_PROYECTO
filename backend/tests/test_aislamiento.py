@@ -3337,3 +3337,103 @@ def test_una_venta_autorizando_cuenta_como_dinero_y_no_se_borra(cx):
     assert contar(cx, "pedido", f"id = '{pedido}'") == 1
     assert contar(cx, "transaccion_pasarela", f"id = '{venta}'") == 1
     assert contar(cx, "cargo", f"id = '{cargo}'") == 1
+
+
+# ---- MATU-55 (migración 0025): cada persona lee solo la auditoría de su propia cuenta
+
+DISP_CUENTA_A = uuid.UUID("00000000-0000-0000-0000-0000000055a1")
+DISP_CUENTA_B = uuid.UUID("00000000-0000-0000-0000-0000000055b1")
+
+
+def _sembrar_cuenta(cx):
+    """Como superusuario, dentro de la transacción que se revierte: filas de la cuenta de A y de B, el código pedido y
+    el fallido de A (actor sistema), un inicio fallido sin actor, y una fila del grupo de A."""
+    for usuario, dispositivo in ((U_ADMIN_A, DISP_CUENTA_A), (U_ADMIN_B, DISP_CUENTA_B)):
+        cx.execute("INSERT INTO dispositivo (id, usuario_id, plataforma, nombre) VALUES (%s, %s, 'web',"
+                   " 'Chrome en Android')", (dispositivo, usuario))
+        for accion in ("sesion.iniciar", "dispositivo.push_registrar", "cuenta.celular_solicitar"):
+            cx.execute("INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                       " VALUES ('usuario', %s, %s, 'dispositivo', %s)", (usuario, accion, dispositivo))
+        cx.execute("INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                   " VALUES ('usuario', %s, 'avisos.preferencia', 'usuario', %s)", (usuario, usuario))
+    for accion in ("cuenta.recuperar_solicitar", "cuenta.recuperar_verificar_fallido"):
+        cx.execute("INSERT INTO auditoria (actor_tipo, accion, entidad, entidad_id) VALUES ('sistema', %s, 'usuario',"
+                   " %s)", (accion, U_ADMIN_A))
+    cx.execute("INSERT INTO auditoria (actor_tipo, accion, entidad) VALUES ('sistema', 'sesion.inicio_fallido',"
+               " 'usuario')")
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (G_A, U_ADMIN_A))
+
+
+def _cuenta_visible(cx):
+    return sorted(cx.execute(
+        "SELECT accion, coalesce(actor_ref, entidad_id) FROM auditoria WHERE grupo_id IS NULL").fetchall())
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("grupo", [None, G_A, G_B])
+def test_cada_persona_lee_solo_la_auditoria_de_su_cuenta(cx, grupo):
+    """A ve sus filas de la cuenta, con o sin un grupo en el contexto, y nunca las de B; ve el código de recuperación
+    pedido (actor sistema) y no el código fallido; nadie ve el inicio fallido (decisión 257)."""
+    _sembrar_cuenta(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=grupo)
+    assert _cuenta_visible(cx) == sorted([
+        ("avisos.preferencia", U_ADMIN_A),
+        ("cuenta.celular_solicitar", U_ADMIN_A),
+        ("cuenta.recuperar_solicitar", U_ADMIN_A),
+        ("dispositivo.push_registrar", U_ADMIN_A),
+        ("sesion.iniciar", U_ADMIN_A),
+    ])
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=grupo)
+    assert {r[1] for r in _cuenta_visible(cx)} == {U_ADMIN_B}
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize("contexto", [
+    {"usuario_id": U_NUEVO},                              # otra persona, sin filas propias
+    {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE},  # el relevo
+    {"rol": "sistema"},                                  # el sistema, sin cuenta
+    {"rol": "operacion"},                                # operación
+    {},                                                  # sin contexto
+])
+def test_nadie_mas_lee_la_auditoria_de_una_cuenta(cx, contexto):
+    _sembrar_cuenta(cx)
+    como(cx, **contexto)
+    assert _cuenta_visible(cx) == []
+
+
+@pytest.mark.rf("RF-37")
+def test_la_auditoria_de_la_cuenta_no_abre_la_del_grupo(cx):
+    """Las lecturas del grupo y las aperturas del relevo siguen como en la 0005 y la 0010: la fila del grupo de A la ve
+    su admin con el grupo en el contexto, y no sin él."""
+    _sembrar_cuenta(cx)
+    como(cx, usuario_id=U_ADMIN_A)
+    assert contar(cx, "auditoria", "grupo_id IS NOT NULL") == 0
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "auditoria", "grupo_id IS NOT NULL") == 1
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A)
+    assert contar(cx, "auditoria", "grupo_id IS NOT NULL") == 0
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.parametrize(("accion", "acepta"), [
+    ("sesion.iniciar", True),
+    ("avisos.preferencia", True),
+    ("plan.leer", False),
+    ("consumo.editar", False),
+    ("pago.aprobar", False),
+])
+def test_una_fila_sin_grupo_es_siempre_de_la_cuenta(cx, accion, acepta):
+    """CHECK auditoria_cuenta_acotada (decisión 258), también para el superusuario."""
+    insertar = "INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad) VALUES ('usuario', %s, %s, 'usuario')"
+    if acepta:
+        cx.execute(insertar, (U_ADMIN_A, accion))
+    else:
+        with pytest.raises(errors.CheckViolation):
+            cx.execute(insertar, (U_ADMIN_A, accion))
+
+
+@pytest.mark.rf("RF-37")
+def test_la_auditoria_ya_no_tiene_ip(cx):
+    """Decisión 266 (D7)."""
+    assert contar(cx, "information_schema.columns", "table_name = 'auditoria' AND column_name = 'ip'") == 0

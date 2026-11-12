@@ -43,6 +43,7 @@ from app.modules.consumption.api.router_lista import router as router_lista
 from app.modules.consumption.api.router_reposicion import router as router_reposicion
 from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
 from app.modules.iam.api.router import router as router_iam
+from app.modules.iam.api.router_ingresos import router as router_ingresos
 from app.modules.iam.api.router_politica import router as router_politica
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
@@ -172,6 +173,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_consumo, prefix="/v1")
     app.include_router(router_reposicion, prefix="/v1")
     app.include_router(router_avisos, prefix="/v1")
+    # MATU-55: «Dónde entraste», los últimos ingresos de la propia cuenta
+    app.include_router(router_ingresos, prefix="/v1")
 
     # MATU-40 (ADR-002): la capa 3 se monta aparte y solo si está habilitada. Las capas 1 y 2, arriba,
     # nunca dependen de ella

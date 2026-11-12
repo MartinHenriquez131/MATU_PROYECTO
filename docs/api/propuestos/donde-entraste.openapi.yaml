@@ -1,0 +1,497 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Dónde entraste (propuesto)
+  version: 0.1.0-implementado
+  summary: Los últimos ingresos y eventos de seguridad de la propia cuenta, la clave pública de push y la auditoría de la preferencia de avisos (MATU-55, RF-37, RF-39).
+  description: |
+    **Implementado en MATU-55 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como
+    explicación de las decisiones, como `pedido.openapi.yaml` y `pago.openapi.yaml`. Al implementar se sumaron
+    las decisiones 272 a 284 del README (las respuestas del orquestador a Q1 a Q9 del backend y a C1 a C9 del
+    diseñador): `clase` en `DispositivoEvento` y en `DispositivoVista` (C7), `push_activo` en
+    `DispositivoVista` (C5) y, en `cerraste_en_dispositivo`, solo el teléfono que se cerró (C3).
+
+    Contrato **propuesto** de MATU-55, escrito el 12-11 **antes de implementar** (arquitectura 15.5,
+    regla 1), con:
+    - la revisión previa del analista normativo (`docs/legal/revision-previa-matu-55.md` del repositorio
+      MATU) y sus condiciones **C1 a C13**;
+    - las **decisiones de Jorge del 12-11, D1 a D8** (misma revisión, sección «Decisiones de Jorge»);
+    - las rutas que ya existen y que la pantalla usa sin cambiarles la forma (MATU-38 y MATU-41).
+
+    Las decisiones de este contrato son las **252 a 271** de `docs/api/README.md`, sección «MATU-55». Se
+    apila sobre MATU-62 (migración 0024): MATU-55 lleva la **0025** (`down_revision = "0024"`).
+
+    **Qué agrega:**
+    - `GET /v1/yo/ingresos`: los ingresos y los eventos de seguridad de la propia cuenta de los últimos
+      **90 días**, hasta **20**, del más reciente al más antiguo (D1-c y D2). Fecha y hora, el tipo y el
+      teléfono; nunca la IP, la ubicación, tokens ni identificadores internos (C3 a C5).
+    - `GET /v1/dispositivos/actual/push`: la clave pública VAPID para que el navegador se inscriba en su
+      servicio de push, si este teléfono ya está inscrito y si el envío es simulado (D6).
+
+    **Qué cambia en rutas de `openapi.json`, sin cambiar su forma** (fragmentos `Cambio*` con
+    `x-matu-se-suma-a`, como en MATU-61 y MATU-62):
+    - `PUT /v1/yo/avisos` audita `avisos.preferencia`, sin los valores, solo si la preferencia cambió (C7
+      y C8, decisión 259).
+    - `PUT` y `DELETE /v1/dispositivos/actual/push` auditan solo si el endpoint cambió (decisión 260).
+    - `GET /v1/dispositivos` suma `clase` y `push_activo` a cada dispositivo (C5 y C7, decisiones 279 y 280).
+
+    **Rutas que la pantalla usa tal como están en `openapi.json`** (no se repiten aquí):
+    - `GET /v1/dispositivos` (`ver_dispositivos_v1_dispositivos_get`): la lista «En tus teléfonos».
+    - `DELETE /v1/dispositivos/{dispositivo_id}` (`sacar_v1_dispositivos__dispositivo_id__delete`):
+      cerrar MATU en otro teléfono, **sin pedir la contraseña** (D8, C13), con 404 si ya no está.
+    - `POST /v1/sesiones/cerrar`: «Salir» en este teléfono (C12).
+    - `GET` y `PUT /v1/yo/avisos` (`leerPreferenciaAvisos`, `guardarPreferenciaAvisos`): «Por correo» y
+      «En tus teléfonos» (D5; el nombre del campo `push` no cambia).
+    - `PUT` y `DELETE /v1/dispositivos/actual/push`: activar y desactivar los avisos en este teléfono.
+
+    **Contexto.** Las dos rutas nuevas son de la persona, no de una familia: usan `bearerAuth` con
+    `sesion_de_usuario`, que fija solo `app.usuario_id`. **No llevan `X-Grupo-Id`** (si llega, se
+    ignora) **ni ningún parámetro de usuario** (C2): la fila que se ve la decide la política RLS
+    `auditoria_cuenta_propia` de la 0025, no un `WHERE` (C1).
+
+    **`Cache-Control: no-store` en todas las respuestas**, 2xx y errores (middleware de prefijo de
+    `/v1/yo/` y `/v1/dispositivos`; verificado con un script sobre este archivo: 0 respuestas sin la
+    cabecera). La pantalla no guarda nada de esto en el almacenamiento del navegador (C6).
+
+    **Lo que nunca sale:** la IP (la columna `auditoria.ip` se borra en la 0025, D7), el `request_id` de
+    la fila, `actor_ref`, `entidad_id`, `detalle`, `familia_id`, el `push_token`, la clave privada VAPID
+    ni la ubicación. Los esquemas son `additionalProperties: false` y una prueba falla si aparece
+    cualquiera de esos nombres en la respuesta (C3).
+
+    Los componentes comunes (`ErrorCampo`, `Problema`, `bearerAuth`, `XRequestId`, `CacheControlNoStore` y
+    `WWWAuthenticateBearer`) son copias idénticas de `pago.openapi.yaml`. La descripción de
+    `CacheControlNoStore` habla de la ficha y del relevo, y aquí vale igual para la cuenta.
+
+    Todos los datos de los ejemplos son sintéticos. La clave pública del ejemplo no corresponde a ninguna
+    clave privada en uso.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: cuenta
+    description: Lo que la persona puede ver de su propia cuenta (MATU-55)
+  - name: dispositivos
+    description: Los dispositivos propios y su inscripción en push (MATU-38 y MATU-55)
+
+paths:
+  /v1/yo/ingresos:
+    get:
+      tags: [cuenta]
+      operationId: verIngresosPropios
+      summary: Los últimos ingresos y eventos de seguridad de la propia cuenta
+      description: |
+        Los eventos de la propia cuenta de los **últimos 90 días** según el `Reloj` (`ocurrido_en >= ahora
+        - 90 días`), **hasta 20**, del más reciente al más antiguo; a igual instante, el más nuevo primero
+        (decisiones 254 y 255, D1-c y D2).
+
+        **Qué entra** (lista cerrada, decisión 254): ver `TipoEventoCuenta`. **Qué no entra nunca:** los
+        ingresos fallidos (`sesion.inicio_fallido`), los códigos fallidos (`cuenta.recuperar_verificar_fallido`
+        y `cuenta.celular_verificar_fallido`), el pedido de código del celular (`cuenta.celular_solicitar`),
+        la renovación del refresh (no se audita) y toda fila con grupo.
+
+        **Sin parámetros** (C2): ni de usuario, ni de fecha, ni de página. Un parámetro de consulta
+        desconocido se ignora. Lo anterior a 90 días, o más allá de 20, se pide por correo (política,
+        §10): `hay_mas` lo dice.
+
+        **No se audita** (C10). Orden: 401 y 200. No hay 404 ni 422: la ruta no tiene parámetros de ruta
+        ni cuerpo, y una lista vacía es 200.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Los eventos, posiblemente ninguno.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UltimosIngresos'
+              examples:
+                conEventos:
+                  $ref: '#/components/examples/UltimosIngresosConEventos'
+                vacio:
+                  summary: Sin eventos en los últimos 90 días
+                  value:
+                    eventos: []
+                    hay_mas: false
+        '401':
+          $ref: '#/components/responses/NoAutenticadoCuenta'
+
+  /v1/dispositivos/actual/push:
+    get:
+      tags: [dispositivos]
+      operationId: verPushActual
+      summary: La clave pública de push y si este teléfono está inscrito
+      description: |
+        Lo que la pantalla necesita para «Recibir avisos en este teléfono» (D6, decisión 261):
+
+        - `clave_publica`: la clave pública VAPID (RFC 8292) que el navegador pasa como
+          `applicationServerKey` a `PushManager.subscribe()`. Se deriva de `VAPID_CLAVE_PRIVADA`, que vive
+          solo en el `.env` (decisión 262). **`null` si no está configurada**: la pantalla no ofrece
+          activar los avisos en este teléfono (pregunta abierta Q6 del README).
+        - `registrado`: si el dispositivo del claim `did` tiene hoy un endpoint guardado. Nunca devuelve
+          el endpoint.
+        - `envio_simulado`: `true` mientras MATU no tenga un proveedor real de push (decisión 112). En el
+          semestre siempre es `true`, y la pantalla dice «En el piloto los avisos se prueban sin enviarse:
+          no te llegará nada.».
+
+        La inscripción (`subscribe()`) **solo ocurre cuando la persona toca el botón** (D6). Si la
+        `clave_publica` cambia (se rotó la clave), la suscripción vieja deja de servir: la pantalla
+        compara con `subscription.options.applicationServerKey`, y si difiere borra la suscripción, se
+        inscribe de nuevo y repite el `PUT`.
+
+        Va en la misma ruta que el `PUT` y el `DELETE` (MATU-38), con el mismo 404. Va con sesión: sin
+        sesión no hay a qué dispositivo asociar la inscripción. **No se audita.** Orden: 401, 404 y 200.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: La configuración de push de este teléfono.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushActualVista'
+              examples:
+                configurada:
+                  summary: Clave configurada, este teléfono aún no se inscribe
+                  value:
+                    clave_publica: BEjemplo-sintetico-de-clave-publica-VAPID-de-MATU-no-es-una-clave-real-----------------
+                    registrado: false
+                    envio_simulado: true
+                sinClave:
+                  summary: VAPID_CLAVE_PRIVADA no está configurada
+                  value:
+                    clave_publica: null
+                    registrado: false
+                    envio_simulado: true
+        '401':
+          $ref: '#/components/responses/NoAutenticadoCuenta'
+        '404':
+          $ref: '#/components/responses/NoEncontradoDispositivo'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+
+  schemas:
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    # ---------------------------------------------------------------- dónde entraste
+
+    TipoEventoCuenta:
+      type: string
+      description: |
+        Qué pasó, de una lista cerrada (D1-c, decisión 254). Es un nombre de la API, **no** el de la
+        acción de auditoría, que no sale. La pantalla arma el texto con `docs/lenguaje.md` (revisión previa
+        de MATU-55, sección 5); la API nunca manda texto.
+
+        | `tipo` | Acción de auditoría | Lleva `dispositivo` | Texto propuesto |
+        |---|---|---|---|
+        | `entraste` | `sesion.iniciar` | sí | «Entraste» |
+        | `saliste` | `sesion.cerrar` | sí | «Saliste» |
+        | `cerraste_en_dispositivo` | `dispositivo.sacar` | sí, el que se cerró | «Cerraste MATU en {nombre}» |
+        | `salida_por_seguridad` | `sesion.reutilizacion_detectada` | sí | «Te sacamos de MATU en {nombre} porque notamos un uso extraño. Vuelve a entrar.» |
+        | `contrasena_cambiada` | `cuenta.contrasena_cambiar` | no | «Cambiaste tu contraseña» |
+        | `celular_confirmado` | `cuenta.celular_verificar` | no | «Confirmaste tu celular» |
+        | `codigo_recuperacion_pedido` | `cuenta.recuperar_solicitar` | no | «Se pidió un código para recuperar tu cuenta» |
+        | `avisos_cambiados` | `avisos.preferencia` (nueva) | no | «Cambiaste tus avisos» |
+        | `avisos_activados` | `dispositivo.push_registrar` | sí | «Activaste los avisos en {nombre}» |
+        | `avisos_desactivados` | `dispositivo.push_borrar` | sí | «Desactivaste los avisos en {nombre}» |
+
+        Un valor nuevo en esta lista es un cambio de contrato: la pantalla debe ignorar un `tipo` que no
+        conoce, sin romperse.
+      enum:
+        - entraste
+        - saliste
+        - cerraste_en_dispositivo
+        - salida_por_seguridad
+        - contrasena_cambiada
+        - celular_confirmado
+        - codigo_recuperacion_pedido
+        - avisos_cambiados
+        - avisos_activados
+        - avisos_desactivados
+
+    ClaseDispositivo:
+      type: string
+      enum: [telefono, computador, otro]
+      description: |
+        Qué sustantivo usa la pantalla (C7 del diseñador, decisión 280): «teléfono», «computador» o
+        «navegador». La deduce el servidor del sistema del nombre, que MATU sacó del agente de usuario al
+        entrar (decisión 47): Android e iPhone son `telefono`; Windows, Mac, Linux y ChromeOS, `computador`;
+        iPad y «Navegador web», `otro`. El agente de usuario no se guarda, y la clase tampoco: se calcula al
+        leer.
+
+    DispositivoEvento:
+      type: object
+      additionalProperties: false
+      required: [nombre, clase, actual]
+      description: |
+        El teléfono o computador del evento (C3). Solo el nombre grueso (navegador y sistema, de la lista
+        cerrada de MATU-38, por ejemplo «Chrome en Android»), su clase y si es el de esta sesión. **Nunca** el
+        id, la plataforma, el `push_token`, la IP ni el agente de usuario.
+      properties:
+        nombre:
+          type: string
+          maxLength: 60
+          examples: [Chrome en Android]
+        clase:
+          $ref: '#/components/schemas/ClaseDispositivo'
+        actual:
+          type: boolean
+          description: |
+            `true` si es el dispositivo del claim `did` de esta sesión («(este teléfono)»). Con un access
+            token sin `did`, siempre `false`, como en `GET /v1/dispositivos`.
+
+    EventoCuenta:
+      type: object
+      additionalProperties: false
+      required: [tipo, ocurrido_en, dispositivo]
+      description: |
+        Un evento de la propia cuenta. **Solo** estos tres campos (C3): ni `id`, ni `request_id`, ni
+        `actor_ref`, ni `entidad_id`, ni `detalle`, ni `familia_id`, ni la IP. Sin ubicación (C5).
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoEventoCuenta'
+        ocurrido_en:
+          type: string
+          format: date-time
+          description: |
+            El instante, en UTC (RFC 3339). La pantalla lo muestra en hora de Chile
+            (`America/Santiago`), como «Hoy», «Ayer» o «El DD/MM/AAAA», «a las HH:MM» en 24 horas.
+          examples: ['2026-11-12T13:05:00Z']
+        dispositivo:
+          description: |
+            El dispositivo del evento, o `null`. En `cerraste_en_dispositivo` es **el que se cerró**; el de
+            origen no se registra ni se muestra (C3, decisión 279). Es `null`:
+            - siempre en los eventos de la cuenta (`contrasena_cambiada`, `celular_confirmado`,
+              `codigo_recuperacion_pedido` y `avisos_cambiados`), que no son de un dispositivo;
+            - en los demás, si el dispositivo ya no existe porque la conservación lo borró (90 días sin
+              uso, decisión 59). La pantalla lo muestra como «un teléfono o computador que ya no está en
+              tu lista» (especificación v1.1 del diseñador).
+          oneOf:
+            - $ref: '#/components/schemas/DispositivoEvento'
+            - type: 'null'
+
+    UltimosIngresos:
+      type: object
+      additionalProperties: false
+      required: [eventos, hay_mas]
+      description: Respuesta de `GET /v1/yo/ingresos`.
+      properties:
+        eventos:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/EventoCuenta'
+        hay_mas:
+          type: boolean
+          description: |
+            `true` si en los últimos 90 días hay más de 20 eventos (la consulta pide 21). No dice cuántos.
+            Lo que no se muestra se pide por correo (política, §10). Lo anterior a 90 días no cuenta aquí.
+
+    # ---------------------------------------------------------------- push
+
+    PushActualVista:
+      type: object
+      additionalProperties: false
+      required: [clave_publica, registrado, envio_simulado]
+      description: Respuesta de `GET /v1/dispositivos/actual/push` (decisión 261). Nunca lleva el endpoint.
+      properties:
+        clave_publica:
+          description: |
+            Clave pública VAPID: el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87
+            caracteres. `null` si `VAPID_CLAVE_PRIVADA` no está configurada.
+          oneOf:
+            - type: string
+              pattern: '^B[A-Za-z0-9_-]{86}$'
+            - type: 'null'
+        registrado:
+          type: boolean
+          description: Si el dispositivo del claim `did` tiene un endpoint de push guardado.
+        envio_simulado:
+          type: boolean
+          description: |
+            `true` mientras no exista un adaptador real de push (decisión 112): no se envía nada a nadie.
+
+    # ---------------------------------------------------------------- cambios a rutas de openapi.json
+
+    CambioGuardarPreferenciaAvisos:
+      type: object
+      x-matu-se-suma-a: [guardarPreferenciaAvisos]
+      description: |
+        **Cambio propuesto a `PUT /v1/yo/avisos`** (MATU-41, decisión 111), sin cambiar el cuerpo, la
+        respuesta ni los códigos. En la misma transacción que guarda, registra **`avisos.preferencia`**
+        (C7 y C8, decisión 259): actor `usuario`, entidad `usuario` con su propio id, **sin grupo, sin
+        `detalle` y sin los valores** (ni el canal, ni si se prendió o se apagó). **Solo si la preferencia
+        cambió**: si lo que devuelve el `GET` después es distinto de lo que devolvía antes. Un `PUT` con
+        los mismos valores responde 200 y no audita. Un 422 no audita. El `GET` no se audita (C10).
+      properties: {}
+
+    CambioVerDispositivos:
+      type: object
+      x-matu-se-suma-a: [ver_dispositivos_v1_dispositivos_get]
+      description: |
+        **Cambio a `GET /v1/dispositivos`** (MATU-38), sin cambiar la ruta ni los códigos: cada
+        `DispositivoVista` suma `clase` (C7, decisión 280) y `push_activo` (C5, decisión 281), los dos
+        obligatorios. `push_activo` dice si el dispositivo tiene un endpoint de push guardado («Avisos
+        activados»), nunca el endpoint.
+      properties:
+        clase:
+          $ref: '#/components/schemas/ClaseDispositivo'
+        push_activo:
+          type: boolean
+
+    CambioGuardarPush:
+      type: object
+      x-matu-se-suma-a:
+        - guardar_push_actual_v1_dispositivos_actual_push_put
+        - borrar_push_actual_v1_dispositivos_actual_push_delete
+      description: |
+        **Cambio propuesto a `PUT` y `DELETE /v1/dispositivos/actual/push`** (MATU-38), sin cambiar el
+        cuerpo, la respuesta ni los códigos (decisión 260). Hoy auditan `dispositivo.push_registrar` o
+        `dispositivo.push_borrar` en cada llamada. Desde MATU-55 auditan **solo si el endpoint guardado
+        cambió**: un `PUT` con el mismo endpoint que ya estaba, o un `DELETE` con el endpoint ya vacío,
+        responden 204 sin auditar. Así «Dónde entraste» no se llena de «Activaste los avisos» cada vez que
+        el service worker renueva la suscripción o la pantalla repite el `PUT`. Cambiar a otro endpoint
+        audita `dispositivo.push_registrar` otra vez.
+      properties: {}
+
+  examples:
+    UltimosIngresosConEventos:
+      summary: Tres eventos de los últimos 90 días (datos sintéticos)
+      value:
+        eventos:
+          - tipo: entraste
+            ocurrido_en: '2026-11-12T13:05:00Z'
+            dispositivo:
+              nombre: Chrome en Android
+              clase: telefono
+              actual: true
+          - tipo: avisos_cambiados
+            ocurrido_en: '2026-11-10T22:41:00Z'
+            dispositivo: null
+          - tipo: cerraste_en_dispositivo
+            ocurrido_en: '2026-11-08T15:20:00Z'
+            dispositivo:
+              nombre: Safari en iPhone
+              clase: telefono
+              actual: false
+        hay_mas: false
+
+  responses:
+    NoAutenticadoCuenta:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`). La app renueva una vez y repite. La pantalla nunca muestra el `detail`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoEncontradoDispositivo:
+      description: |
+        El access token no trae `did`, o el dispositivo está revocado: el mismo 404 de `PUT` y `DELETE
+        /v1/dispositivos/actual/push`.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404

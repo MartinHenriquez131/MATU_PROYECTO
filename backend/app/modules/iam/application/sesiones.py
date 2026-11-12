@@ -24,6 +24,13 @@ from app.modules.iam.application.sesion import emitir_acceso, verificar_credenci
 from app.modules.iam.domain.credenciales import normalizar_email
 from app.modules.iam.domain.demora import PREFIJO_EMAIL, PREFIJO_IP, huella, retry_after
 from app.modules.iam.domain.dispositivo import limites_conservacion, nombre_dispositivo
+from app.modules.iam.domain.ingresos import (
+    TIPO_POR_ACCION,
+    TOPE_INGRESOS,
+    UltimosIngresos,
+    armar_ingresos,
+    inicio_ventana,
+)
 from app.modules.iam.domain.refresh import (
     BYTES_REFRESH,
     MOTIVO_DISPOSITIVO,
@@ -334,13 +341,18 @@ def guardar_push(
     """PUT (con push_token) o DELETE (con None) de /v1/dispositivos/actual/push.
 
     Lanza DispositivoNoEncontrado si el access token no trae did, o si el dispositivo está revocado.
-    El push_token ya llega validado (lista cerrada de hosts) y nunca se audita.
+    El push_token ya llega validado (lista cerrada de hosts) y nunca se audita. Desde MATU-55 (decisión 260) se audita
+    solo si el endpoint guardado cambió.
     """
     if dispositivo_id is None:
         raise DispositivoNoEncontrado()
     with unidad.transaccion(usuario_id) as tx:
-        if not tx.sesiones.guardar_push(dispositivo_id, push_token):
+        cambio = tx.sesiones.guardar_push(dispositivo_id, push_token)
+        if cambio is None:
             raise DispositivoNoEncontrado()
+        # MATU-55 (decisión 260): el mismo endpoint, o borrar uno ya vacío, no se audita
+        if not cambio:
+            return
         tx.auditoria.registrar(
             EntradaAuditoria(
                 grupo_id=None,
@@ -356,6 +368,32 @@ def guardar_push(
                 request_id=request_id,
             )
         )
+
+
+def push_registrado(*, usuario_id: uuid.UUID, dispositivo_id: uuid.UUID | None, unidad: UnidadIam) -> bool:
+    """MATU-55 (decisión 261): si el dispositivo del claim did tiene un endpoint guardado. No se audita.
+
+    Lanza DispositivoNoEncontrado si el access token no trae did, o si el dispositivo está revocado: el mismo 404 del
+    PUT y del DELETE."""
+    if dispositivo_id is None:
+        raise DispositivoNoEncontrado()
+    with unidad.transaccion(usuario_id) as tx:
+        registrado = tx.sesiones.push_registrado(dispositivo_id)
+    if registrado is None:
+        raise DispositivoNoEncontrado()
+    return registrado
+
+
+def ver_ingresos(
+    *, usuario_id: uuid.UUID, dispositivo_actual: uuid.UUID | None, unidad: UnidadIam, reloj: Reloj
+) -> UltimosIngresos:
+    """GET /v1/yo/ingresos (MATU-55, decisiones 253 a 256): los eventos de la propia cuenta de los últimos 90 días,
+    hasta 20. Pide uno más para saber si hay más. No se audita (C10)."""
+    desde = inicio_ventana(reloj.ahora())
+    acciones = frozenset(accion.value for accion in TIPO_POR_ACCION)
+    with unidad.transaccion(usuario_id) as tx:
+        filas = tx.sesiones.ingresos(desde, acciones, TOPE_INGRESOS + 1)
+    return armar_ingresos(filas, dispositivo_actual=dispositivo_actual)
 
 
 @dataclass(frozen=True)
