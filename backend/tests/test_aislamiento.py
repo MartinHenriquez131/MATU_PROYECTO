@@ -2625,6 +2625,8 @@ FUNCIONES_SCHEDULER = {
                          " now())",
     # MATU-61 (D5): lo no pagado a los 30 días
     "pedido_conservar": "SELECT * FROM pedido_conservar(now() - interval '30 days', now())",
+    # MATU-62 (D-62-5): la conciliación, solo ids
+    "pagos_por_conciliar": "SELECT * FROM pagos_por_conciliar(now(), 10)",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -2815,8 +2817,14 @@ def test_pagador_y_observador_leen_el_pedido_y_no_lo_escriben(cx, ctx):
     como(cx, **ctx)
     assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 1
     assert contar(cx, "regla_sustitucion", f"pedido_id = '{PED_A_BORRADOR}'") == 1
+    # MATU-62 (D-62-16): el pagador alcanza la fila del pedido sin pagar para aceptar las condiciones, y el trigger
+    # pedido_escritura_del_pago rechaza todo lo demás
+    if ctx == A_PAGADOR:
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'")
+    else:
+        assert cx.execute(f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'").rowcount == 0
     for sentencia in (
-        f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'",
         f"UPDATE pedido_linea SET cantidad = 5 WHERE pedido_id = '{PED_A_BORRADOR}'",
         f"UPDATE regla_sustitucion SET accion = 'quitar' WHERE pedido_id = '{PED_A_BORRADOR}'",
         f"DELETE FROM pedido_linea WHERE pedido_id = '{PED_A_BORRADOR}'",

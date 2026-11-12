@@ -27,7 +27,8 @@ BACKEND = Path(__file__).resolve().parents[1]
 load_dotenv(BACKEND.parent / ".env")
 DSN = os.environ.get("MATU_TEST_DSN", "host=localhost port=5432 user=postgres dbname=matu")
 URL_MIGRACIONES = os.environ.get("MIGRATIONS_DATABASE_URL")
-BASE = "matu_prueba_migraciones"
+# La base desechable. MATU_BASE_MIGRACIONES la cambia para que dos worktrees no se pisen en el mismo servidor
+BASE = os.environ.get("MATU_BASE_MIGRACIONES", "matu_prueba_migraciones")
 
 pytestmark = pytest.mark.skipif(not URL_MIGRACIONES, reason="MIGRATIONS_DATABASE_URL no está definida")
 
@@ -1128,7 +1129,9 @@ def test_0024_pago_y_baja_al_esquema_de_0023(base_desechable):
     # La conservación: el borrador sin cobro se borra a los 30 días; el pagado no
     with psycopg.connect(_dsn(BASE)) as c:
         c.execute("SET session_replication_role = replica")
-        c.execute(f"UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id IN ('{PED24}', '{PED24B}')")
+        # Solo el borrador: el pedido pagado de la 0023 no tiene quién aceptó, y pedido_condiciones_completas (NOT VALID)
+        # rechaza cualquier escritura nueva de esa fila. Lo pagado no se conserva por fecha
+        c.execute(f"UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = '{PED24B}'")
         c.execute("SET session_replication_role = origin")
         c.execute("SET ROLE matu_scheduler")
         c.execute("SELECT set_config('app.rol', 'operacion', false)")
