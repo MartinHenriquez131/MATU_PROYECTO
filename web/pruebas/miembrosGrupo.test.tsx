@@ -418,9 +418,20 @@ describe('Cambiar el rol', () => {
     await userEvent.click(enDialogo().getByRole('radio', { name: 'Paga' }))
     expect(
       enDialogo().getByText(
-        'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo. Se cortan los enlaces de relevo que compartiste. Hoy abre 1. Si creaste invitaciones que nadie ha usado, se anulan.',
+        'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo. También dejarás de ver la ficha. Se cortan los enlaces de relevo que compartiste. Hoy abre 1. Si creaste invitaciones que nadie ha usado, se anulan.',
       ),
     ).toBeVisible()
+  })
+
+  it('v1.3: en mi fila, de admin a «Se informa» también dejo de ver la ficha; a «Cuida», no', async () => {
+    api()
+    abrir('admin')
+    await userEvent.click(await screen.findByRole('button', { name: 'Cambiar tu rol' }))
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Se informa' }))
+    expect(enDialogo().getByText(/También dejarás de ver la ficha\./)).toBeVisible()
+    await userEvent.click(enDialogo().getByRole('radio', { name: 'Cuida' }))
+    expect(enDialogo().queryByText(/También dejarás de ver la ficha/)).toBeNull()
+    expect(enDialogo().getByText(/Si creaste invitaciones que nadie ha usado, se anulan\./)).toBeVisible()
   })
 
   it('cuidadora a «Se informa»: sin la frase de las invitaciones (no administra)', async () => {
