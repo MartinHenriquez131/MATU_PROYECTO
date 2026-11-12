@@ -136,7 +136,7 @@ function Persona() {
             <span className="flex min-w-0 flex-col">
               <span className="font-bold">{p.nombre}</span>
               {(rolGrupo === 'admin' || rolGrupo === 'cuidador') && 'nombre_pila' in p && (
-                <span className="text-sm text-tenue">{MARCO.leDicen(nombrePilaDe(p))}</span>
+                <span className="text-base text-tenue">{MARCO.leDicen(nombrePilaDe(p))}</span>
               )}
             </span>
           </label>
@@ -148,7 +148,7 @@ function Persona() {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="min-w-0">
-        <span className="block text-sm text-tenue">{MARCO.cuidasA}</span>
+        <span className="block text-base text-tenue">{MARCO.cuidasA}</span>
         {varios ? (
           <button
             type="button"

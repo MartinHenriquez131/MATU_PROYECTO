@@ -63,7 +63,7 @@ def test_el_post_acepta_plan_cuidado(esquema: dict[str, Any]) -> None:
 def test_la_vista_trae_solo_lo_acordado(esquema: dict[str, Any]) -> None:
     vista = esquema["components"]["schemas"]["AutorizacionVista"]
     campos = {"finalidad", "estado", "id", "calidad_otorgante", "otorgado_en", "revision_vence_en", "revocado_en",
-              "borrado_en", "borrada"}
+              "borrado_en", "borrada", "se_puede_otorgar"}  # se_puede_otorgar: MATU-94 (decisión 251)
     assert set(vista["properties"]) == set(vista["required"]) == campos
     assert vista["additionalProperties"] is False
     assert set(esquema["components"]["schemas"]["EstadoVista"]["enum"]) == {

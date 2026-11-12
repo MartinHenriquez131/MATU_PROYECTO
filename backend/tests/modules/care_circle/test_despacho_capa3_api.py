@@ -1,9 +1,11 @@
 """MATU-61 · La autorización de pedidos (despacho) con la capa 3 apagada y encendida (C2, decisión 217).
 
 Sin importar ordering: estas pruebas corren también en el intérprete sin la capa 3 (tests/test_capa3_desacoplable.py,
-FLUJOS). Con la capa 3 apagada, GET …/consentimientos trae dos ítems, despacho no se otorga ni se retira por la ruta,
-y borrar a la persona funciona y revoca también una autorización despacho que quedó de cuando estaba encendida, sin
-tocar pedidos. Con la capa 3 encendida, tres ítems.
+FLUJOS). Con la capa 3 apagada, GET …/consentimientos trae dos ítems y despacho no se otorga. Su retiro sin una
+autorización responde 404: quitada la capa, porque despacho no es una finalidad; apagada, porque nunca se autorizó. Con
+una que quedó, el retiro y el borrado cancelan lo no pagado (MATU-94, decisión 250,
+tests/modules/ordering/test_pedido_capa3_apagada.py). Borrar a la persona funciona y revoca también una autorización
+despacho que quedó de cuando estaba encendida. Con la capa 3 encendida, tres ítems.
 """
 
 import json
@@ -90,7 +92,9 @@ def test_sin_la_capa_3_son_dos_autorizaciones_y_despacho_no_existe(
 def test_sin_la_capa_3_borrar_a_la_persona_funciona_y_revoca_despacho(
     entorno_iam: EntornoIam, fabrica_despacho: Fabrica
 ) -> None:
-    """C2: el borrado de MATU-72 sigue funcionando sin la capa 3 y no toca pedidos."""
+    """C2: el borrado de MATU-72 sigue funcionando sin la capa 3. Aquí no hay pedidos que tocar: con la capa 3
+    apagada, el borrado sí cancela los pedidos sin pagar (decisión 250, test_pedido_capa3_apagada.py), y solo con la
+    capa 3 quitada (FLUJOS de test_capa3_desacoplable.py) no los toca."""
     familia = fabrica_despacho.familia()
     despacho = _despacho_que_quedo(familia)
 
@@ -104,6 +108,43 @@ def test_sin_la_capa_3_borrar_a_la_persona_funciona_y_revoca_despacho(
         assert cx.execute("SELECT revocacion_motivo FROM consentimiento WHERE id = %s", (despacho,)).fetchone() == (
             "borrado",
         )
+
+
+def test_sin_la_capa_3_despacho_vigente_se_ve_y_se_retira(entorno_iam: EntornoIam, fabrica_despacho: Fabrica) -> None:
+    """MATU-94 (decisión 251): con la capa 3 apagada, una autorización despacho que quedó aparece en la vista, sin
+    «Volver a autorizar» (se_puede_otorgar false), y se retira por la ruta (200). Retirar es igual de fácil que dar."""
+    familia = fabrica_despacho.familia()
+    _despacho_que_quedo(familia)
+    cab = _cabeceras(entorno_iam, familia.admin, familia)
+    ruta = CONSENTIMIENTOS.format(familia.persona.id)
+
+    antes = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
+    assert [(a["finalidad"], a["estado"], a["se_puede_otorgar"]) for a in antes] == [
+        ("plan_cuidado", "vigente", True), ("consumo", "sin_autorizar", True), ("despacho", "vigente", False)]
+
+    retiro = entorno_iam.cliente.post(ruta + "/despacho/retiro", headers=cab)
+
+    assert retiro.status_code == 200, retiro.text
+    assert retiro.json()["pedidos_cancelados"] == 0
+    assert (retiro.json()["autorizacion"]["estado"], retiro.json()["autorizacion"]["se_puede_otorgar"]) == (
+        "retirada", False)
+    despues = entorno_iam.cliente.get(ruta, headers=cab).json()["autorizaciones"]
+    assert [(a["finalidad"], a["estado"]) for a in despues][2] == ("despacho", "retirada")
+    # Otorgar despacho sigue respondiendo 422 con la capa apagada
+    otorgar = entorno_iam.cliente.post(
+        ruta,
+        headers=cab,
+        json={
+            "finalidad": "despacho",
+            "calidad_otorgante": "titular",
+            "huella_declaracion": huella_declaracion_pedidos(CalidadOtorgante.TITULAR),
+        },
+    )
+    assert otorgar.status_code == 422 and otorgar.json()["errores"][0]["campo"] == "finalidad"
+    # El pagador ve lo mismo en su resumen
+    pagador = _cabeceras(entorno_iam, familia.miembros["pagador"].usuario, familia)
+    resumen = entorno_iam.cliente.get(ruta, headers=pagador).json()["autorizaciones"]
+    assert [(a["finalidad"], a["se_puede_otorgar"]) for a in resumen][2] == ("despacho", False)
 
 
 def test_con_la_capa_3_son_tres_autorizaciones(entorno_iam: EntornoIam, fabrica_despacho: Fabrica) -> None:

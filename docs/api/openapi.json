@@ -2792,7 +2792,7 @@
         "tags": [
           "autorizaciones"
         ],
-        "summary": "El estado de las autorizaciones de la persona: dos, o tres con la capa 3",
+        "summary": "El estado de las autorizaciones de la persona: dos, o tres con la capa 3 o con un registro de despacho",
         "operationId": "estado_v1_personas_cuidadas__persona_id__consentimientos_get",
         "security": [
           {
@@ -2890,7 +2890,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404",
+              "description": "plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404",
               "enum": [
                 "plan_cuidado",
                 "consumo",
@@ -2898,7 +2898,7 @@
               ],
               "title": "Finalidad"
             },
-            "description": "plan_cuidado, consumo o, con la capa 3, despacho. Otro valor responde 404"
+            "description": "plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404"
           },
           {
             "name": "persona_id",
@@ -2945,7 +2945,7 @@
             }
           },
           "404": {
-            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las dos o que nunca se autorizó",
+            "description": "No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las tres o que nunca se autorizó",
             "content": {
               "application/problem+json": {}
             }
@@ -7377,6 +7377,11 @@
           "borrada": {
             "type": "boolean",
             "title": "Borrada"
+          },
+          "se_puede_otorgar": {
+            "type": "boolean",
+            "title": "Se Puede Otorgar",
+            "description": "false si la finalidad no se otorga ahora: despacho con la capa 3 apagada, que viene solo si la persona tiene un registro, para poder retirarla. La pantalla no ofrece «Volver a autorizar» (decisión 251)"
           }
         },
         "additionalProperties": false,
@@ -7390,7 +7395,8 @@
           "revision_vence_en",
           "revocado_en",
           "borrado_en",
-          "borrada"
+          "borrada",
+          "se_puede_otorgar"
         ],
         "title": "AutorizacionVista",
         "description": "El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la\nversión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``\nsalen de aquí."
@@ -7472,6 +7478,11 @@
           "borrada": {
             "type": "boolean",
             "title": "Borrada"
+          },
+          "se_puede_otorgar": {
+            "type": "boolean",
+            "title": "Se Puede Otorgar",
+            "description": "Como en AutorizacionVista (decisión 251)"
           }
         },
         "additionalProperties": false,
@@ -7484,7 +7495,8 @@
           "revision_vence_en",
           "revocado_en",
           "borrado_en",
-          "borrada"
+          "borrada",
+          "se_puede_otorgar"
         ],
         "title": "AutorizacionVistaResumen",
         "description": "Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del\notorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2)."
@@ -7505,7 +7517,7 @@
           "autorizaciones"
         ],
         "title": "AutorizacionesPersona",
-        "description": "plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2). Lo que ven admin y cuidador."
+        "description": "plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2) o, con la capa 3 apagada, si la persona\ntiene un registro de ella (decisión 251). Lo que ven admin y cuidador."
       },
       "AutorizacionesPersonaResumen": {
         "properties": {

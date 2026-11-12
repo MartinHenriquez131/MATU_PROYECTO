@@ -222,7 +222,7 @@ function VistaPrevia({
         <h2 id="vista-t" className="text-xl font-bold leading-snug">
           {titulo}
         </h2>
-        {nota && <p className="text-sm text-tenue">{nota}</p>}
+        {nota && <p className="text-base text-tenue">{nota}</p>}
       </div>
       <HojaFicha pila={persona ? nombrePilaDe(persona) : ''} textos={textos} escribiendo={escribiendo} secciones={secciones} />
     </section>
@@ -305,7 +305,7 @@ export function TuFicha() {
                     </div>
                     <p className={`line-clamp-2 whitespace-pre-line ${ok ? '' : 'text-tenue'}`}>{ok ? f.texto : c.pregunta(pila)}</p>
                     {ok && f.actualizado_en && (
-                      <p className="text-sm text-tenue">
+                      <p className="text-base text-tenue">
                         {FICHA.loEscribio(f.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={f.actualizado_en} />
                       </p>
                     )}
@@ -529,7 +529,7 @@ function EditorCampo({
                 falla === 'muy-largo' ? 'ring-pronto' : 'ring-borde'
               }`}
             />
-            <p id="campo-cuenta" className={`flex items-center gap-1.5 text-sm ${cerca ? 'font-bold text-atenta' : 'text-tenue'}`}>
+            <p id="campo-cuenta" className={`flex items-center gap-1.5 text-base ${cerca ? 'font-bold text-atenta' : 'text-tenue'}`}>
               {cerca && <TriangleAlert aria-hidden className="size-4 shrink-0" />}
               {/* Solo las cifras en `cifras` (sin partirse): la frase completa desborda a 320 px con 200 %. */}
               <span className="min-w-0">
@@ -626,7 +626,7 @@ export function PantallaConflicto({
           <h2 id="v-suya" className="font-bold">
             {CONFLICTO.laDe(autor)}
             {hora && (
-              <span className="block text-sm font-normal text-tenue">
+              <span className="block text-base font-normal text-tenue">
                 {CONFLICTO.guardadaA} <span className="cifras">{hora}</span>
               </span>
             )}
@@ -639,7 +639,7 @@ export function PantallaConflicto({
         <section aria-labelledby="v-mia" className="flex flex-col gap-3 rounded-sm bg-hoja px-5 angosto:px-2 py-4 ring-2 ring-turquesa">
           <h2 id="v-mia" className="font-bold">
             {CONFLICTO.laTuya}
-            <span className="block text-sm font-normal text-tenue">{CONFLICTO.laTuyaDetalle}</span>
+            <span className="block text-base font-normal text-tenue">{CONFLICTO.laTuyaDetalle}</span>
           </h2>
           <p className="flex-1 leading-relaxed whitespace-pre-line select-text">{mio || <i className="text-tenue">{CONFLICTO.vacia}</i>}</p>
           <Boton className="self-start" ocupado={ocupado} textoOcupado={FICHA.guardando} onClick={() => void dejarMia()}>

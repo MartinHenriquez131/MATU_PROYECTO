@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { FichaRelevo } from '../src/compartido/api/relevo'
 import { PantallaFicha } from '../src/relevo/PantallaFicha'
-import { partesDeTelefono, TELEFONO, trozosConTelefonos, type Trozo } from '../src/relevo/telefonos'
+import { partesDeTelefono, TELEFONO, trozosConTelefonos, type Trozo } from '../src/compartido/telefonos'
 
 const calces = (texto: string) => [...texto.matchAll(TELEFONO)].map((m) => m[0])
 const unir = (texto: string) =>

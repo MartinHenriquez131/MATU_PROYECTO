@@ -50,7 +50,7 @@ export function MasSobre({ ficha, pila, rol }: { ficha: Ficha; pila: string; rol
                 {x.api === 'remedios' && <AvisoRemedios />}
                 <TextoSeccion texto={e.texto} recortar className="renglones text-base leading-7" />
                 {e.actualizado_en && (
-                  <p className="text-sm text-tenue">
+                  <p className="text-base text-tenue">
                     {FICHA.loEscribio(e.actualizado_por?.nombre ?? CONFLICTO.otraPersona)} <Cuando iso={e.actualizado_en} />
                   </p>
                 )}

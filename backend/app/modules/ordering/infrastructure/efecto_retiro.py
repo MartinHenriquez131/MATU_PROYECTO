@@ -1,6 +1,7 @@
 """El efecto del retiro de ``despacho`` y del borrado de la persona sobre sus pedidos (MATU-61, D1 y D2).
 
-Lo registra app.main en care_circle solo con la capa 3 encendida (C2, decisión 217): care_circle no importa ordering.
+Lo registra app.main en care_circle siempre, con la capa 3 encendida o apagada (MATU-94, decisión 250, que corrige
+la 217): es una protección de datos, no una función de la capa 3. care_circle no importa ordering.
 Corre en la transacción de la petición, con el instante del retiro: si cancelar falla, la excepción sigue y se
 deshace todo, también el retiro (decisión 124).
 

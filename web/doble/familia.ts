@@ -18,6 +18,7 @@ import {
   sembrarPagado,
   sembrarPagoEnCurso,
   sembrarPedido,
+  tieneDespacho,
   vistaDespacho,
 } from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
@@ -481,6 +482,10 @@ function sembrar() {
     sembrarDespacho(p.id, despacho)
     return { u, p }
   }
+  // MATU-94 (decisión 251): la capa 3 apagada con una autorización de pedidos de cuando estaba encendida
+  // y la dirección guardada (C8: se ve y se vacía también así).
+  conPedido('catalogo-apagado-despacho@example.com', 'Carmen', 'admin', 'vigente', 'catalogo-apagado-despacho')
+  conPedido('catalogo-apagado-retirado@example.com', 'Carmen', 'admin', 'retirada', 'catalogo-apagado-retirado')
   const tresProductos: [string, number][] = [['Pañal adulto M', 2], ['Protectores diarios', 1], ['Toallitas húmedas', 3]]
   sembrarPedido(conPedido('pedido@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos)
   sembrarPedido(conPedido('pedido-cuidador@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos)
@@ -798,7 +803,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!u) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
     if (u.modo === 'catalogo-falla') return problema(res, 503, '/errores/servicio-no-disponible'), true
     // CAPA3_HABILITADA=false: la ruta no existe (decisión 167).
-    if (u.modo === 'catalogo-apagado') return problema(res, 404, '/errores/no-encontrado'), true
+    if (u.modo?.startsWith('catalogo-apagado')) return problema(res, 404, '/errores/no-encontrado'), true
     return json(res, 200, catalogoDoble(u.modo)), true
   }
 
@@ -884,7 +889,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   }
 
   // MATU-61: la dirección y el pedido. Con la capa 3 apagada, las rutas del pedido no existen (C2).
-  const capa3 = u.modo !== 'catalogo-apagado'
+  const capa3 = !u.modo?.startsWith('catalogo-apagado')
   if (capa3 || /\/direccion$/.test(ruta)) {
     const personaDe = (id: string) => g?.personas.find((x) => x.id === id) ?? null
     if (atenderPedido(req, res, cuerpo, r, u, g?.rol ?? null, personaDe)) return true
@@ -917,16 +922,17 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
   if (mAut) {
     const pc = g?.personas.find((x) => x.id === decodeURIComponent(mAut[1]))
     if (!g || !pc) return problema(res, 404, '/errores/no-encontrado'), true
-    const despacho = u.modo !== 'catalogo-apagado'
+    const despacho = !u.modo?.startsWith('catalogo-apagado')
     const metodoAut = req.method ?? 'GET'
     const editorAut = g.rol === 'admin' || g.rol === 'cuidador'
-    // MATU-61 (decisión 192): `despacho` se otorga y se retira como las otras, solo con la capa 3.
-    if (despacho && metodoAut === 'POST' && editorAut && mAut[2] === 'despacho') return retirarDespacho(res, pc.id, g.rol, r), true
+    // MATU-61 (decisión 192): `despacho` se otorga como las otras, solo con la capa 3. Se retira
+    // siempre (decisión 250) y, con la capa apagada, viene en la vista solo con un registro (decisión 251).
+    if (metodoAut === 'POST' && editorAut && mAut[2] === 'despacho' && (despacho || tieneDespacho(pc.id))) return retirarDespacho(res, pc.id, g.rol, r, despacho), true
     if (despacho && metodoAut === 'POST' && editorAut && !mAut[2] && cuerpo?.finalidad === 'despacho') return otorgarDespacho(res, cuerpo, pc.id, r), true
-    if (despacho && metodoAut === 'GET' && !mAut[2]) {
+    if (metodoAut === 'GET' && !mAut[2] && (despacho || tieneDespacho(pc.id))) {
       res.setHeader('Cache-Control', 'no-store')
       const vistas = (['plan_cuidado', 'consumo'] as const).map((f) => vistaAutorizacion(pc, u, f, g.rol))
-      return r.json(res, 200, { autorizaciones: [...vistas, vistaDespacho(pc.id, g.rol)] }), true
+      return r.json(res, 200, { autorizaciones: [...vistas, vistaDespacho(pc.id, g.rol, despacho)] }), true
     }
     const atendido = atenderAutorizaciones(req, res, cuerpo, r, u, g, pc, mAut[2] ? decodeURIComponent(mAut[2]) : null)
     if (atendido) return true
@@ -1054,7 +1060,7 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
 function vistaAutorizacion(p: Persona, u: Usuario, finalidad: Finalidad, rol: Rol) {
   const { otorgado_en, retiro } = p.autorizaciones[finalidad]
   const calidad = rol === 'admin' || rol === 'cuidador' ? { calidad_otorgante: p.calidad } : {}
-  const vacia = { revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false }
+  const vacia = { revision_vence_en: null, revocado_en: null, borrado_en: null, borrada: false, se_puede_otorgar: true }
   if (retiro) {
     const borrada = new Date(retiro.borrado_en).getTime() <= Date.now()
     return { finalidad, estado: borrada ? 'borrada' : 'retirada', id: `${p.id}-${finalidad}`, ...calidad, otorgado_en, ...vacia, ...retiro, borrada }
