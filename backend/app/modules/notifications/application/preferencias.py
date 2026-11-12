@@ -9,6 +9,9 @@ decisión 78). El pagador y el observador la usan para activar; el admin y el cu
 - PUT (decisión de Jorge del 04-11, tras la revisión de cierre): guarda un canal solo si su valor difiere del
   que muestra el GET, o si ese canal ya tenía una fila. Así, quien es admin en un grupo y observador en otro y
   solo apaga el push no queda con el correo activado en el grupo donde es observador.
+- MATU-55 (decisión 259): el PUT registra avisos.preferencia en la misma transacción, solo si lo que devuelve el GET
+  después es distinto de lo de antes. Actor la persona, entidad su cuenta, sin grupo, sin detalle y sin los valores.
+  El GET no se audita.
 """
 
 import uuid
@@ -17,6 +20,8 @@ from dataclasses import dataclass
 from app.modules.consumption.domain.alerta import avisa_por_defecto
 from app.modules.notifications.application.ports import RepositorioPreferencias
 from app.modules.notifications.domain.aviso import TIPO_EVENTO_QUIEBRE, Canal, canal_activo, canales_por_guardar
+from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
+from app.shared.puertos import RegistroAuditoria
 
 
 @dataclass(frozen=True)
@@ -39,8 +44,13 @@ def leer_preferencia(repositorio: RepositorioPreferencias, usuario_id: uuid.UUID
 
 
 def guardar_preferencia(
-    repositorio: RepositorioPreferencias, usuario_id: uuid.UUID, preferencia: PreferenciaAvisos
+    repositorio: RepositorioPreferencias,
+    usuario_id: uuid.UUID,
+    preferencia: PreferenciaAvisos,
+    auditoria: RegistroAuditoria,
+    request_id: str | None = None,
 ) -> PreferenciaAvisos:
+    antes = leer_preferencia(repositorio, usuario_id)
     guardadas = repositorio.guardadas(usuario_id, TIPO_EVENTO_QUIEBRE)
     pedidos = {Canal.CORREO: preferencia.correo, Canal.PUSH: preferencia.push}
     cambios = canales_por_guardar(
@@ -48,4 +58,17 @@ def guardar_preferencia(
     )
     if cambios:
         repositorio.guardar(usuario_id, TIPO_EVENTO_QUIEBRE, cambios)
-    return leer_preferencia(repositorio, usuario_id)
+    despues = leer_preferencia(repositorio, usuario_id)
+    if despues != antes:
+        auditoria.registrar(
+            EntradaAuditoria(
+                grupo_id=None,
+                actor_tipo=ActorTipo.USUARIO,
+                actor_ref=usuario_id,
+                accion=AccionAuditoria.AVISOS_PREFERENCIA,
+                entidad=EntidadAuditoria.USUARIO,
+                entidad_id=usuario_id,
+                request_id=request_id,
+            )
+        )
+    return despues
