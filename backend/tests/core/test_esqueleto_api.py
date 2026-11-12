@@ -200,11 +200,12 @@ def _formatear(nombre_logger: str, mensaje: str, *args: object) -> dict[str, obj
 
 
 def test_log_de_tercero_no_deja_el_query_string_de_una_url(secreto: str) -> None:
-    # Dado un WARNING de urllib3 con una URL absoluta y una línea de petición con path y query
+    # Dado un WARNING de un cliente HTTP con una URL absoluta y una línea de petición con path y query. Desde MATU-62
+    # urllib3 queda en ERROR (no escribe sus WARNING): la misma regla se prueba con requests, que sigue en WARNING
     url = f"https://pasarela.ejemplo.cl/api/v1/estado?token={secreto}&otro=1"  # pragma: allowlist secret
-    datos = _formatear("urllib3.connectionpool", "Retrying after connection broken: %s", url)
+    datos = _formatear("requests.adapters", "Retrying after connection broken: %s", url)
     linea = _formatear(
-        "urllib3.connectionpool", 'https://pasarela.ejemplo.cl:443 "GET /api/v1/estado?token=%s HTTP/1.1" 200', secreto
+        "requests.adapters", 'https://pasarela.ejemplo.cl:443 "GET /api/v1/estado?token=%s HTTP/1.1" 200', secreto
     )
 
     # Entonces se conserva la URL sin su query string

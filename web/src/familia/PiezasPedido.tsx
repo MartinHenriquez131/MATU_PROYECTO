@@ -15,6 +15,7 @@ import { enfocar, esTipo } from './insumosComun'
 import { telefonoEnTexto } from './pedidoComun'
 import { CATALOGO } from './textosCatalogo'
 import { PEDIDO } from './textosPedido'
+import { PAGO } from './textosPago'
 import { Acciones, Nota } from './ui'
 
 export const ID_CAMBIAR_TELEFONO = 'cambiar-telefono'
@@ -27,11 +28,21 @@ export function horaDeVencimiento(p: Pick<Pedido, 'vence_en'>): string {
   return new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d)
 }
 
-export function UnaColumna({ tono, icono, children }: { tono: 'neutro' | 'atenta' | 'rocio'; icono: ReactNode; children: ReactNode }) {
-  const fondo = { neutro: 'bg-tinta/7 text-tenue', atenta: 'bg-atenta-fondo text-atenta', rocio: 'bg-rocio text-turquesa' }[tono]
+/**
+ * El fondo y el color de la baldosa de un estado. MATU-62 (especificación, «Tokens») suma `ok`, el
+ * mismo par de `Etiqueta tono="ok"`, para «Pagaste tu pedido».
+ */
+export const FONDO_BALDOSA = { neutro: 'bg-tinta/7 text-tenue', atenta: 'bg-atenta-fondo text-atenta', rocio: 'bg-rocio text-turquesa', ok: 'bg-ok-fondo text-ok' } as const
+export type TonoBaldosa = keyof typeof FONDO_BALDOSA
+
+export function Baldosa({ tono, icono }: { tono: TonoBaldosa; icono: ReactNode }) {
+  return <span className={`grid size-16 shrink-0 place-items-center rounded-2xl ${FONDO_BALDOSA[tono]}`}>{icono}</span>
+}
+
+export function UnaColumna({ tono, icono, children }: { tono: TonoBaldosa; icono: ReactNode; children: ReactNode }) {
   return (
     <div className="mt-2 flex flex-col items-start gap-5">
-      <span className={`grid size-16 place-items-center rounded-2xl ${fondo}`}>{icono}</span>
+      <Baldosa tono={tono} icono={icono} />
       {children}
     </div>
   )
@@ -198,11 +209,14 @@ export function TelefonoContacto({
 /** 10: «¿Cancelar este pedido?». El 409 de uno ya cancelado no es un error: lo que se pidió ya pasó. */
 export function DialogoCancelar({
   pedidoId,
+  pagoEnCurso = false,
   onCerrar,
   onCancelado,
   manejar,
 }: {
   pedidoId: string
+  /** MATU-62 (6.3): con un pago en curso, el párrafo en negrita de la anulación. */
+  pagoEnCurso?: boolean
   onCerrar: () => void
   onCancelado: (yaCancelado: boolean) => void
   manejar: (x: unknown) => boolean
@@ -211,6 +225,7 @@ export function DialogoCancelar({
     <DialogoPedido
       titulo={PEDIDO.cancelarPregunta}
       texto={PEDIDO.cancelarTexto}
+      destacado={pagoEnCurso ? PAGO.cancelarConPago : undefined}
       confirmar={PEDIDO.cancelarPedido}
       confirmando={PEDIDO.cancelando}
       seguir={PEDIDO.seguir}

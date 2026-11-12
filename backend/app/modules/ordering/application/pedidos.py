@@ -4,6 +4,11 @@ Todo corre en la transacción de la petición (sesion_de_grupo) y con un solo in
 bloquea la fila del pedido (FOR UPDATE) y, si su total confirmado ya venció, guarda primero la transición
 ``total_confirmado → vencido`` (actor sistema, motivo total_vencio, en el instante del vencimiento, decisión 204).
 
+MATU-62 (D-62-4, regla 1; decisión 230): mientras el pedido tiene un pago en curso (una venta iniciada vigente o
+autorizando), confirmar, «Cambiar el pedido», ajustar las líneas, cambiar las reglas o el teléfono responden 409
+pago-en-curso, después del 403 y de la idempotencia y antes de estado-pedido y del 412. Cancelar, el retiro de
+despacho y el borrado de la persona no se bloquean: si la venta se aprueba después, se anula completa (regla 3).
+
 Auditoría (D12), sin contenido: pedido.crear, pedido.confirmar, pedido.cancelar y pedido.regla_faltante. Ajustar las
 líneas, cambiar el teléfono y «Cambiar el pedido» no se auditan. Nada del pedido va a los logs ni a los errores.
 """
@@ -79,6 +84,10 @@ class VersionDesactualizada(Exception):
     def __init__(self, actual: Pedido) -> None:
         super().__init__("el pedido cambió")
         self.actual = actual
+
+
+class PagoEnCurso(Exception):
+    """Hay un pago en curso para este pedido (409 pago-en-curso, D-62-4 regla 1). No dice quién paga."""
 
 
 class PedidoVacio(Exception):
@@ -165,6 +174,12 @@ def pedido_para_escribir(
 def exigir_version(pedido: Pedido, if_match: str) -> None:
     if if_match.strip() != pedido.etag:
         raise VersionDesactualizada(pedido)
+
+
+def exigir_sin_pago_en_curso(pedido: Pedido, ahora: datetime, repositorio: RepositorioPedidos) -> None:
+    """D-62-4, regla 1: los cambios voluntarios esperan el resultado del pago en curso."""
+    if repositorio.pago_en_curso(pedido.id, ahora):
+        raise PagoEnCurso()
 
 
 def _auditar(actor: Actor, accion: AccionAuditoria, pedido_id: uuid.UUID, registro: RegistroAuditoria) -> None:
@@ -259,6 +274,7 @@ def reemplazar_lineas(
     """PUT …/lineas (decisión 199). Solo en borrador. Orden: 422 del carrito, 412 y 409."""
     ofertas = repositorio.ofertas(p.oferta_id for p in pedidas)
     lineas = armar_carrito(pedidas, ofertas, pedido.lineas)
+    exigir_sin_pago_en_curso(pedido, ahora, repositorio)
     exigir_version(pedido, if_match)
     pedido = _registrar_vencimiento(pedido, ahora, repositorio)
     if pedido.estado is not Estado.BORRADOR:
@@ -279,6 +295,7 @@ def reemplazar_reglas(
     """PUT …/reglas-faltante (decisión 200, RF-21). En borrador, total confirmado y vencido; no cambia el total ni
     el plazo. Registra pedido.regla_faltante, sin las acciones. Orden: 422, 412 y 409."""
     reglas = armar_reglas(pedidas, (linea.producto.id for linea in pedido.lineas))
+    exigir_sin_pago_en_curso(pedido, ahora, repositorio)
     exigir_version(pedido, if_match)
     pedido = _registrar_vencimiento(pedido, ahora, repositorio)
     if pedido.estado not in SIN_PAGAR:
@@ -333,6 +350,7 @@ def confirmar(
     reemplaza con 15 minutos nuevos. Orden: 422 del teléfono, 409 estado-pedido, pedido-vacio, sin-direccion y
     nada-disponible. No crea el cargo (frontera con MATU-62)."""
     telefono, origen = _telefono(telefono_escrito, pedido, repositorio)
+    exigir_sin_pago_en_curso(pedido, ahora, repositorio)
     pedido = _registrar_vencimiento(pedido, ahora, repositorio)
     if pedido.estado not in SIN_PAGAR:
         raise TransicionInvalida(pedido.estado)
@@ -382,6 +400,7 @@ def cambiar_contacto(
     telefono = normalizar_celular(telefono_escrito)
     if telefono is None:
         raise CelularInvalido()
+    exigir_sin_pago_en_curso(pedido, ahora, repositorio)
     exigir_version(pedido, if_match)
     pedido = _registrar_vencimiento(pedido, ahora, repositorio)
     if pedido.estado not in (Estado.TOTAL_CONFIRMADO, Estado.VENCIDO) or pedido.entrega is None:
@@ -394,6 +413,7 @@ def cambiar_contacto(
 def cambiar_pedido(actor: Actor, pedido: Pedido, ahora: datetime, repositorio: RepositorioPedidos) -> Pedido:
     """POST …/cambiar (decisión 218; C1 y C9): de vuelta al carrito desde el total vigente o vencido. Descarta el
     total, las partes por comercio y la copia de la entrega. No se audita."""
+    exigir_sin_pago_en_curso(pedido, ahora, repositorio)
     pedido = _registrar_vencimiento(pedido, ahora, repositorio)
     if pedido.estado not in (Estado.TOTAL_CONFIRMADO, Estado.VENCIDO):
         raise TransicionInvalida(pedido.estado)

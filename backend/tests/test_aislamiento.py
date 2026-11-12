@@ -12,6 +12,7 @@ superusuario solo para sembrar datos. Cada verificación corre con SET ROLE matu
 """
 import os
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 import psycopg
@@ -129,17 +130,24 @@ INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_un
  ('{PED_A_BORRADOR}', '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 1, 12990, NULL);
 INSERT INTO pedido_transicion (pedido_id, desde, hacia, actor_tipo, actor_ref) VALUES
  ('{PED_A_BORRADOR}', NULL, 'borrador', 'usuario', '{U_ADMIN_A}');
+-- MATU-62 (0024): marcar un pedido pagado lo hace solo el sistema, con su venta aprobada (trigger
+-- pedido_escritura_del_pago). La semilla escribe el pago con el rol de réplica, sin triggers; los CHECK se cumplen
+SET session_replication_role = replica;
 UPDATE pedido SET estado = 'enviado_a_comercio', total_confirmado_en = now() - interval '5 minutes',
                   total_vence_en = now() + interval '10 minutes', pagado_en = now(),
-                  condiciones_version = '0.1', condiciones_aceptadas_en = now(), condiciones_huella = repeat('a', 64)
+                  condiciones_version = '0.1', condiciones_aceptadas_en = now(), condiciones_huella = repeat('a', 64),
+                  condiciones_aceptadas_por = creado_por
  WHERE id IN ('{PED_A_ENVIADO}', '{PED_B_ENVIADO}');
 INSERT INTO cargo (id, pedido_id, estado, monto_cobrado) VALUES
  ('00000000-0000-0000-0000-0000000007a1', '{PED_A_ENVIADO}', 'pagado', 28970);
 INSERT INTO participacion (id, cargo_id, usuario_id, porcentaje_bp, estado, monto_cobrado) VALUES
  ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-0000000007a1', '{U_ADMIN_A}', 10000,
   'pagada', 28970);
-INSERT INTO transaccion_pasarela (participacion_id, proveedor, tipo, buy_order, monto, estado, idempotency_key) VALUES
- ('00000000-0000-0000-0000-0000000008a1', 'webpay_plus', 'venta', 'MATU-0001', 28970, 'aprobada', 'k1');
+INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto, estado,
+                                  idempotency_key, total_confirmado_en) VALUES
+ ('00000000-0000-0000-0000-0000000008a1', '00000000-0000-0000-0000-0000000007a1', 'webpay_plus', 'venta',
+  'MATU-0001', 28970, 'aprobada', 'k1', now() - interval '5 minutes');
+SET session_replication_role = origin;
 INSERT INTO repartidor (id, usuario_id, vehiculo, comuna_base) VALUES ('{REPARTIDOR}', '{U_REP}', 'auto', 'La Reina');
 INSERT INTO asignacion (grupo_id, pedido_id, repartidor_id) VALUES ('{G_A}', '{PED_A_ENVIADO}', '{REPARTIDOR}');
 INSERT INTO idempotencia (grupo_id, endpoint, clave, usuario_id, hash_peticion, estado_http, pedido_id) VALUES
@@ -758,8 +766,9 @@ OFERTA = "00000000-0000-0000-0000-000000000f11"
 @pytest.mark.rf("ADR-027")
 @pytest.mark.parametrize("tabla", ["cargo", "participacion"])
 def test_devuelto_no_supera_lo_cobrado(cx, tabla):
-    """Reemplaza a la prueba del tope de captura: ya no hay autorizado ni capturado, solo cobrado y devuelto."""
-    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    """Reemplaza a la prueba del tope de captura: ya no hay autorizado ni capturado, solo cobrado y devuelto. Desde la
+    0024 (MATU-62) el cargo lo actualizan el sistema y operación, no la familia."""
+    como(cx, rol="operacion")
     parcial = "devuelto_parcial" if tabla == "cargo" else "devuelta_parcial"
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute(f"UPDATE {tabla} SET estado = %s, monto_devuelto = monto_cobrado + 1", (parcial,))
@@ -792,14 +801,18 @@ def test_total_es_productos_mas_un_envio(cx):
     ("transaccion_pasarela", "tipo", "autorizacion"),
 ])
 def test_estados_de_la_captura_diferida_ya_no_existen(cx, tabla, columna, valor):
-    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    # MATU-62: las tablas del pago las actualiza operación (la familia no alcanza la fila y el UPDATE no fallaría)
+    if tabla in ("cargo", "participacion", "transaccion_pasarela"):
+        como(cx, rol="operacion")
+    else:
+        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     with pytest.raises(errors.CheckViolation):
         cx.execute(f"UPDATE {tabla} SET {columna} = %s", (valor,))
 
 
 @pytest.mark.rf("ADR-027")
 def test_estado_del_cargo_coincide_con_sus_montos(cx):
-    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    como(cx, rol="operacion")  # MATU-62: el cargo lo actualizan el sistema y operación
     for estado, cobrado, devuelto in (("pagado", 0, 0), ("pendiente", 28970, 0), ("rechazado", 28970, 0),
                                       ("anulado", 28970, 100), ("devuelto_parcial", 28970, 0),
                                       ("devuelto_parcial", 28970, 28970), ("pagado", 28970, 100)):
@@ -838,9 +851,14 @@ def test_pedido_pagado_exige_total_confirmado_y_marca_de_pago(cx):
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes' WHERE id = %s",
                    (PED_A_BORRADOR,))
-    cx.execute("""UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes',
-                  condiciones_version = '0.1', condiciones_aceptadas_en = now() + interval '2 minutes',
-                  condiciones_huella = repeat('b', 64) WHERE id = %s""", (PED_A_BORRADOR,))
+    # MATU-62 (D-62-4): la familia acepta las condiciones, pero el pago lo marca solo el sistema, con su venta aprobada
+    cx.execute("""UPDATE pedido SET condiciones_version = '0.2',
+                  condiciones_aceptadas_en = now() + interval '2 minutes',
+                  condiciones_huella = repeat('b', 64), condiciones_aceptadas_por = %s WHERE id = %s""",
+               (U_ADMIN_A, PED_A_BORRADOR))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now() + interval '2 minutes' WHERE id = %s",
+                   (PED_A_BORRADOR,))
 
 
 @pytest.mark.rf("ADR-027")
@@ -908,11 +926,13 @@ def test_comercio_no_ve_pedidos_sin_pagar_o_sin_enviar(cx, estado):
     _persona_a2(cx)
     pedido = cx.execute("""INSERT INTO pedido (grupo_id, persona_cuidada_id, comercio_id, estado, subtotal_productos,
                                       total, total_confirmado_en, total_vence_en, pagado_en, condiciones_version,
-                                      condiciones_aceptadas_en, condiciones_huella, creado_por)
+                                      condiciones_aceptadas_en, condiciones_huella, condiciones_aceptadas_por,
+                                      creado_por)
                   VALUES (%s, %s, %s, %s, 12990, 12990, now(), now() + interval '15 minutes',
                           CASE WHEN %s THEN now() END, CASE WHEN %s THEN '0.1' END, CASE WHEN %s THEN now() END,
-                          CASE WHEN %s THEN repeat('c', 64) END, %s) RETURNING id""",
-               (G_A, P_A2, COMERCIO, estado, pagado, pagado, pagado, pagado, U_ADMIN_A)).fetchone()[0]
+                          CASE WHEN %s THEN repeat('c', 64) END, CASE WHEN %s THEN %s::uuid END, %s) RETURNING id""",
+               (G_A, P_A2, COMERCIO, estado, pagado, pagado, pagado, pagado, pagado, U_ADMIN_A,
+                U_ADMIN_A)).fetchone()[0]
     # Aunque tenga su parte enviada: sin pagar o sin enviar, el comercio no lo ve
     cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia, enviado_en)"
                " VALUES (%s, %s, %s, 'referencia-opaca-prueba', now())", (G_A, pedido, COMERCIO))
@@ -2605,6 +2625,8 @@ FUNCIONES_SCHEDULER = {
                          " now())",
     # MATU-61 (D5): lo no pagado a los 30 días
     "pedido_conservar": "SELECT * FROM pedido_conservar(now() - interval '30 days', now())",
+    # MATU-62 (D-62-5): la conciliación, solo ids
+    "pagos_por_conciliar": "SELECT * FROM pagos_por_conciliar(now(), 10)",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -2769,10 +2791,14 @@ def _pedido_de_dos_comercios(cx, enviado: bool = True):
                 uuid.UUID(int=0xA32)))
     cx.execute("INSERT INTO regla_sustitucion (pedido_id, producto_id, accion) VALUES (%s, %s, 'quitar')",
                (PED_A_DOS, PRODUCTO))
+    # MATU-62: solo el sistema marca el pago (trigger pedido_escritura_del_pago); aquí, sin triggers
+    cx.execute("SET LOCAL session_replication_role = replica")
     cx.execute("""UPDATE pedido SET estado = 'enviado_a_comercio', total_confirmado_en = now() - interval '5 minutes',
                   total_vence_en = now() + interval '10 minutes', pagado_en = now(), condiciones_version = '0.1',
-                  condiciones_aceptadas_en = now(), condiciones_huella = repeat('d', 64) WHERE id = %s""",
+                  condiciones_aceptadas_en = now(), condiciones_huella = repeat('d', 64),
+                  condiciones_aceptadas_por = creado_por WHERE id = %s""",
                (PED_A_DOS,))
+    cx.execute("SET LOCAL session_replication_role = origin")
 
 
 A_PAGADOR = {"usuario_id": U_PAG_A, "grupo_id": G_A}
@@ -2791,8 +2817,14 @@ def test_pagador_y_observador_leen_el_pedido_y_no_lo_escriben(cx, ctx):
     como(cx, **ctx)
     assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 1
     assert contar(cx, "regla_sustitucion", f"pedido_id = '{PED_A_BORRADOR}'") == 1
+    # MATU-62 (D-62-16): el pagador alcanza la fila del pedido sin pagar para aceptar las condiciones, y el trigger
+    # pedido_escritura_del_pago rechaza todo lo demás
+    if ctx == A_PAGADOR:
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'")
+    else:
+        assert cx.execute(f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'").rowcount == 0
     for sentencia in (
-        f"UPDATE pedido SET version = version + 1 WHERE id = '{PED_A_BORRADOR}'",
         f"UPDATE pedido_linea SET cantidad = 5 WHERE pedido_id = '{PED_A_BORRADOR}'",
         f"UPDATE regla_sustitucion SET accion = 'quitar' WHERE pedido_id = '{PED_A_BORRADOR}'",
         f"DELETE FROM pedido_linea WHERE pedido_id = '{PED_A_BORRADOR}'",
@@ -2964,3 +2996,344 @@ def test_borrar_un_perfil_deja_la_reposicion_programada_sin_perfil(cx):
     cx.execute("DELETE FROM perfil_consumo WHERE id = %s", (perfil,))
     assert cx.execute("SELECT perfil_consumo_id FROM plan_reposicion_linea WHERE plan_reposicion_id = %s",
                       (plan,)).fetchone() == (None,)
+
+
+# ---- MATU-62 (migración 0024): el pago por operación y por rol, la venta atada al total y la conservación con dinero
+
+TABLAS_DEL_PAGO = ("cargo", "participacion", "transaccion_pasarela")
+
+
+def _cuidador_a(cx):
+    """Un cuidador en A, como superusuario y solo en esta prueba (la semilla no trae cuidador)."""
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')"
+               " ON CONFLICT DO NOTHING", (G_A, U_NUEVO))
+
+
+def _pedido_por_pagar(cx, total_confirmado_en="now() - interval '1 minute'"):
+    """Como superusuario: un pedido de A con el total confirmado y vigente, de otra persona de A (C4)."""
+    _persona_a2(cx)
+    return cx.execute(
+        "INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+        f" total_confirmado_en, total_vence_en, creado_por) VALUES (%s, %s, 'total_confirmado', 12990, 2990, 15980,"
+        f" {total_confirmado_en}, {total_confirmado_en} + interval '15 minutes', %s) RETURNING id, total_confirmado_en",
+        (G_A, P_A2, U_ADMIN_A)).fetchone()
+
+
+def _venta(cx, pedido, confirmado_en, *, estado="iniciada", monto=15980, token=None, usuario=U_ADMIN_A):
+    """Como superusuario: el cargo, la participación y una venta del pedido."""
+    cargo = cx.execute("INSERT INTO cargo (pedido_id) VALUES (%s) ON CONFLICT (pedido_id) DO UPDATE"
+                       " SET pedido_id = EXCLUDED.pedido_id RETURNING id", (pedido,)).fetchone()[0]
+    participacion = cx.execute(
+        "INSERT INTO participacion (cargo_id, usuario_id, porcentaje_bp) VALUES (%s, %s, 10000)"
+        " ON CONFLICT (cargo_id, usuario_id) DO UPDATE SET porcentaje_bp = 10000 RETURNING id",
+        (cargo, usuario)).fetchone()[0]
+    venta = cx.execute(
+        "INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, session_id, token,"
+        " monto, estado, idempotency_key, total_confirmado_en) VALUES (%s, %s, 'webpay_plus', 'venta', %s, 's', %s,"
+        " %s, %s, %s, %s) RETURNING id",
+        (participacion, cargo, uuid.uuid4().hex[:26], token or uuid.uuid4().hex, monto, estado, uuid.uuid4().hex,
+         confirmado_en)).fetchone()[0]
+    return cargo, participacion, venta
+
+
+@pytest.mark.rf("RF-25")
+def test_las_politicas_del_pago_son_por_operacion_sin_for_all(cx):
+    filas = cx.execute("SELECT tablename, policyname, cmd FROM pg_policies WHERE tablename = ANY(%s)",
+                       (list(TABLAS_DEL_PAGO),)).fetchall()
+    assert filas, "sin políticas del pago"
+    assert [f for f in filas if f[2] == "ALL"] == []
+    privilegios = {(t, p) for t, p in cx.execute(
+        "SELECT table_name, privilege_type FROM information_schema.role_table_grants"
+        " WHERE grantee = 'matu_app' AND table_name = ANY(%s)", (list(TABLAS_DEL_PAGO),))}
+    assert not {p for t, p in privilegios if p == "DELETE"}
+
+
+@pytest.mark.rf("RF-25")
+def test_el_observador_no_lee_el_pago_y_admin_cuidador_y_pagador_si(cx):
+    _cuidador_a(cx)
+    for usuario, ve in ((U_OBS_A, False), (U_ADMIN_A, True), (U_NUEVO, True), (U_PAG_A, True)):
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        for tabla in TABLAS_DEL_PAGO:
+            assert (contar(cx, tabla) > 0) is ve, (usuario, tabla)
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-25")
+@pytest.mark.parametrize("usuario", [U_OBS_A, U_NUEVO], ids=["observador", "cuidador"])
+def test_el_observador_y_el_cuidador_no_pagan(cx, usuario):
+    """D-62-8: no crean el cargo; sin cargo no hay participación ni venta."""
+    _cuidador_a(cx)
+    pedido, _ = _pedido_por_pagar(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO cargo (pedido_id) VALUES (%s)", (pedido,))
+    if usuario == U_OBS_A:
+        # El observador tampoco acepta las condiciones: no alcanza la fila
+        assert cx.execute("UPDATE pedido SET condiciones_version = '0.2', condiciones_aceptadas_en = now(),"
+                          " condiciones_huella = repeat('a', 64), condiciones_aceptadas_por = %s WHERE id = %s",
+                          (usuario, pedido)).rowcount == 0
+
+
+@pytest.mark.rf("RF-25")
+@pytest.mark.parametrize("usuario", [U_ADMIN_A, U_PAG_A], ids=["admin", "pagador"])
+def test_admin_y_pagador_abren_la_venta_atada_al_total(cx, usuario):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    como(cx, usuario_id=usuario, grupo_id=G_A)
+    cargo = cx.execute("INSERT INTO cargo (pedido_id) VALUES (%s) RETURNING id", (pedido,)).fetchone()[0]
+    participacion = cx.execute("INSERT INTO participacion (cargo_id, usuario_id, porcentaje_bp) VALUES (%s, %s, 10000)"
+                               " RETURNING id", (cargo, usuario)).fetchone()[0]
+    venta = ("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, session_id,"
+             " token, monto, estado, idempotency_key, total_confirmado_en)"
+             " VALUES (%s, %s, 'webpay_plus', 'venta', %s, 's', %s, %s, 'iniciada', %s, %s)")
+    # D-62-4: atada al total y al total_confirmado_en del pedido
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(venta, (participacion, cargo, "o" * 26, "t-otro-monto", 15981, "k-otro-monto", confirmado_en))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(venta, (participacion, cargo, "p" * 26, "t-otro-total", 15980, "k-otro-total",
+                           confirmado_en + timedelta(seconds=1)))
+    cx.execute(venta, (participacion, cargo, "q" * 26, "t-bien", 15980, "k-bien", confirmado_en))
+    # Quien paga no cierra la venta ni la marca aprobada: eso es del sistema
+    assert cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada' WHERE token = 't-bien'").rowcount == 0
+
+
+@pytest.mark.rf("RF-25")
+def test_el_pagador_solo_escribe_las_condiciones_a_su_nombre(cx):
+    """D-62-16: el pagador no arma el pedido; acepta las condiciones con su cuenta y nada más."""
+    pedido, _ = _pedido_por_pagar(cx)
+    como(cx, usuario_id=U_PAG_A, grupo_id=G_A)
+    for cambio in ("costo_envio = 0, total = subtotal_productos", "estado = 'cancelado'", "version = version + 1"):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (pedido,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET condiciones_version = '0.2', condiciones_aceptadas_en = now(),"
+                   " condiciones_huella = repeat('a', 64), condiciones_aceptadas_por = %s WHERE id = %s",
+                   (U_ADMIN_A, pedido))
+    assert cx.execute("UPDATE pedido SET condiciones_version = '0.2', condiciones_aceptadas_en = now(),"
+                      " condiciones_huella = repeat('a', 64), condiciones_aceptadas_por = %s WHERE id = %s",
+                      (U_PAG_A, pedido)).rowcount == 1
+    # Ni la referencia ni el pago
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET referencia = '1234' WHERE id = %s", (pedido,))
+
+
+@pytest.mark.rf("RF-25")
+def test_otro_grupo_no_ve_ni_toca_el_pago(cx):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    cargo, _, venta = _venta(cx, pedido, confirmado_en)
+    for ctx in ({"usuario_id": U_ADMIN_B, "grupo_id": G_B}, {"grupo_id": G_B, "rol": "sistema"}):
+        como(cx, **ctx)
+        for tabla in TABLAS_DEL_PAGO:
+            assert contar(cx, tabla, f"id IN ('{cargo}', '{venta}')") == 0, (ctx, tabla)
+        assert cx.execute("UPDATE transaccion_pasarela SET estado = 'rechazada' WHERE id = %s", (venta,)).rowcount == 0
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-25")
+@pytest.mark.parametrize("ctx", [
+    {"usuario_id": U_ADMIN_A, "grupo_id": G_A}, {"grupo_id": G_A, "rol": "sistema"}, {"rol": "operacion"},
+], ids=["admin", "sistema", "operacion"])
+def test_nadie_borra_cargos_participaciones_ni_transacciones(cx, ctx):
+    como(cx, **ctx)
+    for tabla in TABLAS_DEL_PAGO:
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(f"DELETE FROM {tabla}")
+
+
+@pytest.mark.rf("RF-25")
+def test_el_sistema_marca_pagado_solo_con_la_venta_aprobada_del_mismo_total(cx):
+    """D-62-4: total_confirmado → pagado con una venta aprobada y no anulada del mismo total y total_confirmado_en."""
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    _, _, venta = _venta(cx, pedido, confirmado_en)
+    cx.execute("UPDATE pedido SET condiciones_version = '0.2', condiciones_aceptadas_en = now(),"
+               " condiciones_huella = repeat('a', 64), condiciones_aceptadas_por = %s WHERE id = %s",
+               (U_ADMIN_A, pedido))
+    como(cx, grupo_id=G_A, rol="sistema")
+    pagar = "UPDATE pedido SET estado = 'pagado', pagado_en = now(), referencia = '4821' WHERE id = %s"
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(pagar, (pedido,))  # la venta sigue iniciada
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', cerrada_en = now() WHERE id = %s", (venta,))
+    # El sistema solo marca el pago: no cambia el total ni la entrega
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'pagado', pagado_en = now(), costo_envio = 0, total = 12990"
+                   " WHERE id = %s", (pedido,))
+    assert cx.execute(pagar, (pedido,)).rowcount == 1
+    cx.execute("INSERT INTO pedido_transicion (pedido_id, desde, hacia, actor_tipo, motivo)"
+               " VALUES (%s, 'total_confirmado', 'pagado', 'sistema', 'pago_aprobado')", (pedido,))
+    # Con el pago, las condiciones quedan fijas, también para el admin
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET condiciones_version = '0.3' WHERE id = %s", (pedido,))
+
+
+@pytest.mark.rf("RF-25")
+def test_una_sola_venta_aprobada_por_cargo_token_unico_y_sin_respuesta_de_transbank(cx):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    _, _, primera = _venta(cx, pedido, confirmado_en, token="token-sintetico-1")
+    _, _, segunda = _venta(cx, pedido, confirmado_en, token="token-sintetico-2")
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        _venta(cx, pedido, confirmado_en, token="token-sintetico-1")
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada' WHERE id = %s", (primera,))
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada' WHERE id = %s", (segunda,))
+    # Regla 3: aprobada y anulada completa en el mismo momento, sí
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', anulacion_total = true WHERE id = %s", (segunda,))
+    for cambio in ("payload_respuesta = '{\"vci\": \"TSY\"}'", "ultimos4 = 'abcd'", "monto = 1",
+                   "estado = 'iniciada'"):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE transaccion_pasarela SET {cambio} WHERE id = %s", (primera,))
+
+
+@pytest.mark.rf("RF-25")
+def test_lo_anulado_no_supera_lo_cobrado_y_una_linea_se_devuelve_una_vez(cx):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    cargo, participacion, venta = _venta(cx, pedido, confirmado_en, estado="aprobada")
+    anular = ("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto, estado,"
+              " idempotency_key, venta_id, motivo_anulacion) VALUES (%s, %s, 'webpay_plus', 'anulacion', %s, %s,"
+              " 'iniciada', %s, %s, 'pago_tardio')")
+    como(cx, grupo_id=G_A, rol="sistema")
+    cx.execute(anular, (participacion, cargo, "a" * 26, 10000, "k-anular-1", venta))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(anular, (participacion, cargo, "b" * 26, 5981, "k-anular-2", venta))
+    cx.execute(anular, (participacion, cargo, "c" * 26, 5980, "k-anular-3", venta))
+
+
+@pytest.mark.rf("RF-25")
+def test_la_vuelta_resuelve_su_venta_solo_como_sistema_y_sin_grupo(cx):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    _, _, venta = _venta(cx, pedido, confirmado_en, token="token-de-la-vuelta")
+    como(cx, rol="sistema")
+    assert cx.execute("SELECT * FROM pago_resolver_venta('token-de-la-vuelta', NULL, NULL)").fetchall() == [
+        (venta, G_A)]
+    assert cx.execute("SELECT * FROM pago_resolver_venta('otro', NULL, NULL)").fetchall() == []
+    # Sin rol sistema, o con un grupo o una cuenta, no
+    cx.execute("RESET ROLE")
+    for ctx in ({"grupo_id": G_B, "rol": "sistema"}, {"usuario_id": U_ADMIN_A, "grupo_id": G_A}, {"rol": "operacion"}):
+        como(cx, **ctx)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute("SELECT * FROM pago_resolver_venta('token-de-la-vuelta', NULL, NULL)")
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-25")
+def test_la_conciliacion_es_solo_de_matu_scheduler_y_entrega_solo_ids(cx):
+    pedido, confirmado_en = _pedido_por_pagar(cx)
+    _, _, venta = _venta(cx, pedido, confirmado_en, estado="autorizando")
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("SELECT * FROM pagos_por_conciliar(now(), 10)")
+    cx.execute("RESET ROLE")
+    como(cx, "matu_scheduler", rol="operacion")
+    filas = cx.execute("SELECT * FROM pagos_por_conciliar(now(), 500)").fetchall()
+    assert (venta, G_A) in filas and all(len(f) == 2 for f in filas)
+
+
+@pytest.mark.rf("RF-25")
+def test_pedido_conservar_separa_por_dinero(cx):
+    """D-62-13 (c): sin dinero se borra todo con el pedido; con dinero (aunque anulado) se conservan el pedido sin
+    entrega, el cargo y las transacciones, y se borran las líneas, las reglas y la línea de tiempo."""
+    sin_dinero, confirmado_en = _pedido_por_pagar(cx, "now() - interval '40 days'")
+    cargo_sin, _, venta_sin = _venta(cx, sin_dinero, confirmado_en, estado="rechazada")
+    cx.execute("UPDATE cargo SET estado = 'rechazado' WHERE id = %s", (cargo_sin,))
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (sin_dinero,))
+    # Otra persona de A, con un pago tardío anulado completo (regla 3) y el pedido cancelado
+    persona_3 = cx.execute("INSERT INTO persona_cuidada (grupo_id, nombre, nombre_pila, nivel_apoyo)"
+                           " VALUES (%s, 'Ana Rojas', 'Ana', 'apoyo_parcial') RETURNING id", (G_A,)).fetchone()[0]
+    con_dinero, confirmado_3 = cx.execute(
+        "INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+        " total_confirmado_en, total_vence_en, creado_por) VALUES (%s, %s, 'total_confirmado', 12990, 2990, 15980,"
+        " now() - interval '40 days', now() - interval '40 days' + interval '15 minutes', %s)"
+        " RETURNING id, total_confirmado_en", (G_A, persona_3, U_ADMIN_A)).fetchone()
+    cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)"
+               " VALUES (%s, %s, %s, 1, 12990)", (con_dinero, OFERTA, PRODUCTO))
+    cx.execute("INSERT INTO pedido_transicion (pedido_id, hacia, actor_tipo) VALUES (%s, 'borrador', 'sistema')",
+               (con_dinero,))
+    cargo_con, participacion, venta_con = _venta(cx, con_dinero, confirmado_3)
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', anulacion_total = true WHERE id = %s",
+               (venta_con,))
+    cx.execute("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+               " estado, idempotency_key, venta_id, motivo_anulacion) VALUES (%s, %s, 'webpay_plus', 'anulacion', %s,"
+               " 15980,"
+               " 'aprobada', %s, %s, 'pago_tardio')", (participacion, cargo_con, "z" * 26, "k-z", venta_con))
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (con_dinero,))
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id IN (%s, %s)",
+               (sin_dinero, con_dinero))
+    cx.execute("SET LOCAL session_replication_role = origin")
+
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())")
+    cx.execute("RESET ROLE")
+
+    assert contar(cx, "pedido", f"id = '{sin_dinero}'") == 0
+    assert contar(cx, "cargo", f"id = '{cargo_sin}'") == 0
+    assert contar(cx, "transaccion_pasarela", f"id = '{venta_sin}'") == 0
+    assert contar(cx, "pedido", f"id = '{con_dinero}'") == 1
+    assert contar(cx, "cargo", f"id = '{cargo_con}'") == 1
+    assert contar(cx, "transaccion_pasarela", f"cargo_id = '{cargo_con}'") == 2
+    assert contar(cx, "pedido_linea", f"pedido_id = '{con_dinero}'") == 0
+    assert contar(cx, "pedido_transicion", f"pedido_id = '{con_dinero}'") == 0
+    assert contar(cx, "pedido", f"id = '{PED_A_ENVIADO}'") == 1  # lo pagado no se toca
+    # Fuera de pedido_conservar, el registro contable sigue sin borrarse
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("DELETE FROM transaccion_pasarela WHERE cargo_id = %s", (cargo_con,))
+
+
+def _pedido_viejo(cx):
+    """Como superusuario: un pedido de otra persona de A con el total confirmado hace 40 días, con una línea."""
+    persona = cx.execute("INSERT INTO persona_cuidada (grupo_id, nombre, nombre_pila, nivel_apoyo)"
+                         " VALUES (%s, 'Eva Soto', 'Eva', 'apoyo_parcial') RETURNING id", (G_A,)).fetchone()[0]
+    pedido, confirmado_en = cx.execute(
+        "INSERT INTO pedido (grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total,"
+        " total_confirmado_en, total_vence_en, creado_por) VALUES (%s, %s, 'total_confirmado', 12990, 2990, 15980,"
+        " now() - interval '40 days', now() - interval '40 days' + interval '15 minutes', %s)"
+        " RETURNING id, total_confirmado_en", (G_A, persona, U_ADMIN_A)).fetchone()
+    cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)"
+               " VALUES (%s, %s, %s, 1, 12990)", (pedido, OFERTA, PRODUCTO))
+    return pedido, confirmado_en
+
+
+def _conservar_a_40_dias(cx, *pedidos):
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = ANY(%s)", (list(pedidos),))
+    cx.execute("SET LOCAL session_replication_role = origin")
+    como(cx, "matu_scheduler", rol="operacion")
+    cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())")
+    cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-25")
+def test_pedido_conservar_cancela_el_pedido_abierto_con_dinero_que_queda_sin_lineas(cx):
+    """Observación 5 del cierre del analista: un pago tardío anulado de un pedido que siguió abierto (total confirmado)
+    deja, a los 30 días, el pedido sin líneas: pasa a cancelado y no queda como el pedido sin pagar de la persona."""
+    pedido, confirmado_en = _pedido_viejo(cx)
+    cargo, participacion, venta = _venta(cx, pedido, confirmado_en)
+    cx.execute("UPDATE transaccion_pasarela SET estado = 'aprobada', anulacion_total = true WHERE id = %s", (venta,))
+    cx.execute("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+               " estado, idempotency_key, venta_id, motivo_anulacion) VALUES (%s, %s, 'webpay_plus', 'anulacion', %s,"
+               " 15980, 'aprobada', %s, %s, 'pago_tardio')", (participacion, cargo, "y" * 26, "k-y", venta))
+
+    _conservar_a_40_dias(cx, pedido)
+
+    assert cx.execute("SELECT estado, pagado_en FROM pedido WHERE id = %s", (pedido,)).fetchone() == ("cancelado", None)
+    assert contar(cx, "pedido_linea", f"pedido_id = '{pedido}'") == 0
+    assert contar(cx, "transaccion_pasarela", f"cargo_id = '{cargo}'") == 2
+    # Fuera de pedido_conservar, operación no cancela un pedido así
+    pedido_2, _ = _pedido_viejo(cx)
+    como(cx, rol="operacion")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (pedido_2,))
+
+
+@pytest.mark.rf("RF-25")
+def test_una_venta_autorizando_cuenta_como_dinero_y_no_se_borra(cx):
+    """Observación 6: el commit de una venta autorizando pudo cobrar; su pedido y su venta se conservan."""
+    pedido, confirmado_en = _pedido_viejo(cx)
+    cargo, _, venta = _venta(cx, pedido, confirmado_en, estado="autorizando")
+    cx.execute("UPDATE pedido SET estado = 'cancelado' WHERE id = %s", (pedido,))
+
+    _conservar_a_40_dias(cx, pedido)
+
+    assert contar(cx, "pedido", f"id = '{pedido}'") == 1
+    assert contar(cx, "transaccion_pasarela", f"id = '{venta}'") == 1
+    assert contar(cx, "cargo", f"id = '{cargo}'") == 1

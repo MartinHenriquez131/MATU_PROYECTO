@@ -5516,7 +5516,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -5803,7 +5803,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -5926,7 +5926,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -6056,7 +6056,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -6173,7 +6173,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -6286,7 +6286,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -6387,7 +6387,7 @@
             }
           },
           "409": {
-            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id) o idempotencia-en-curso",
+            "description": "/errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto)",
             "content": {
               "application/problem+json": {}
             }
@@ -6413,11 +6413,38 @@
           "condiciones"
         ],
         "summary": "Las condiciones del pedido vigentes, con su versión y su huella",
-        "description": "MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. Capa 3",
+        "description": "MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. MATU-62 (decisión 240): con ?version=, una versión publicada alguna vez. Capa 3",
         "operationId": "ver_condiciones_v1_condiciones_pedido_get",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 9,
+                  "pattern": "^[0-9]+\\.[0-9]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CondicionesPedidoVista"
+                }
+              }
+            },
             "headers": {
               "Cache-Control": {
                 "description": "no-cache: se revalida cada vez",
@@ -6425,13 +6452,18 @@
                   "type": "string"
                 }
               }
-            },
+            }
+          },
+          "404": {
+            "description": "MATU-62: esa versión nunca se publicó",
             "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CondicionesPedidoVista"
-                }
-              }
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "MATU-62: version no tiene la forma MAYOR.MENOR",
+            "content": {
+              "application/problem+json": {}
             }
           },
           "503": {
@@ -6441,6 +6473,363 @@
             }
           }
         }
+      }
+    },
+    "/v1/pedidos/{pedido_id}/pagar": {
+      "post": {
+        "tags": [
+          "pago"
+        ],
+        "summary": "Aceptar las condiciones y abrir el pago del total confirmado en Webpay",
+        "description": "MATU-62 (decisiones 224 a 230). admin y pagador, con la autorización despacho vigente. El total tiene que estar vigente (con el total vencido, 409 estado-pedido con vencido, sin llamar a la pasarela). If-Match e Idempotency-Key obligatorios. Un solo pago en curso por pedido (409 pago-en-curso). Guarda la aceptación de las condiciones, crea o reutiliza el cargo y abre la venta de Webpay Plus por el total confirmado; el cuerpo no trae montos. Registra pago.iniciar. Capa 3",
+        "operationId": "pagar_v1_pedidos__pedido_id__pagar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPago"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InicioPago"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "/errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, cuidador u observador, pedido de otro grupo, inexistente o de una persona eliminada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "/errores/estado-pedido (con estado; con el total vencido, vencido), /errores/pago-en-curso, /errores/condiciones-cambiaron (con version_vigente) o /errores/idempotencia-en-curso",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "/errores/version-desactualizada, con el pedido vigente en actual. No se cobró nada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo o cabeceras inválidos, o /errores/idempotencia-reutilizada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "/errores/falta-idempotencia o /errores/falta-version",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "/errores/pasarela-no-disponible, con Retry-After: Webpay no respondió y no se cobró nada",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/pedidos/{pedido_id}/pago": {
+      "get": {
+        "tags": [
+          "pago"
+        ],
+        "summary": "El estado del pago del pedido, sus devoluciones y el comprobante",
+        "description": "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3",
+        "operationId": "ver_pago_v1_pedidos__pedido_id__pago_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PagoVista"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PagoVistaObservador"
+                    }
+                  ],
+                  "title": "Response Ver Pago V1 Pedidos  Pedido Id  Pago Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, pedido o persona de otro grupo, inexistente o eliminada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Un identificador que no es UUID responde 404; 422 queda para la forma",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/personas-cuidadas/{persona_id}/pedido-pagado": {
+      "get": {
+        "tags": [
+          "pago"
+        ],
+        "summary": "El último pedido pagado de la persona, con su comprobante",
+        "description": "MATU-62 (decisión 237). El pedido de pagado_en más reciente de la persona, con las vistas por rol de GET …/pago. 404 si no hay pedido pagado. No pide despacho. MATU-63 la reemplaza por el seguimiento. Capa 3",
+        "operationId": "ver_pedido_pagado_v1_personas_cuidadas__persona_id__pedido_pagado_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "persona_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Persona Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PagoVista"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PagoVistaObservador"
+                    }
+                  ],
+                  "title": "Response Ver Pedido Pagado V1 Personas Cuidadas  Persona Id  Pedido Pagado Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el access token, o es inválido o vencido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No miembro, pedido o persona de otro grupo, inexistente o eliminada",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Un identificador que no es UUID responde 404; 422 queda para la forma",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/pagos/retorno": {
+      "post": {
+        "tags": [
+          "retorno"
+        ],
+        "summary": "La vuelta de Webpay que manda la app; hace el commit y responde el resultado",
+        "description": "MATU-62 (decisiones 231 a 235). Pública e idempotente por token; la sesión es opcional y la vuelta nunca responde 401. token_ws de una venta iniciada: commit. Retorno repetido: no llama a Transbank (ya_registrado). TBK_TOKEN: sin commit, status y abandonado. Solo TBK_ORDEN_COMPRA y TBK_ID_SESION: tiempo_agotado. Valores que no son de MATU: 404. Sin montos ni tarjeta. No se apaga con la capa 3 (decisión 241)",
+        "operationId": "retorno_v1_pagos_retorno_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudRetorno"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoRetorno"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Los valores no son de ninguna venta de MATU",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "No trae ninguno de los cuatro campos, o uno no tiene la forma de Transbank",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {},
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     }
   },
@@ -10084,6 +10473,17 @@
                 "type": "null"
               }
             ]
+          },
+          "devolucion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevolucionLinea"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "MATU-62: la devolución de esta línea por anulación parcial. null si no se devolvió"
           }
         },
         "additionalProperties": false,
@@ -10098,7 +10498,8 @@
           "subtotal",
           "regla_faltante",
           "retracto_pierde_al_abrir",
-          "cambio"
+          "cambio",
+          "devolucion"
         ],
         "title": "LineaPedido"
       },
@@ -10300,6 +10701,24 @@
               }
             ]
           },
+          "pago_en_curso": {
+            "type": "boolean",
+            "title": "Pago En Curso",
+            "description": "MATU-62 (decisión 230): hay una venta iniciada vigente o autorizando. Mientras sea true, confirmar, cambiar, lineas, reglas-faltante y contacto responden 409 pago-en-curso"
+          },
+          "pagado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagado En",
+            "description": "MATU-62: cuándo se pagó. El pago se lee en GET …/pago"
+          },
           "creado_en": {
             "type": "string",
             "format": "date-time",
@@ -10331,6 +10750,8 @@
           "ventana_entrega",
           "entrega",
           "resumen",
+          "pago_en_curso",
+          "pagado_en",
           "creado_en",
           "actualizado_en"
         ],
@@ -10659,6 +11080,803 @@
           "reglas"
         ],
         "title": "SolicitudReglasFaltante"
+      },
+      "Comprobante": {
+        "properties": {
+          "referencia": {
+            "type": "string",
+            "pattern": "^[0-9]{4,6}$",
+            "title": "Referencia"
+          },
+          "pagado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pagado En"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaComprobante"
+            },
+            "type": "array",
+            "title": "Lineas"
+          },
+          "subtotal_productos": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Subtotal Productos"
+          },
+          "costo_envio": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Costo Envio"
+          },
+          "total": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Total"
+          },
+          "pagaste_tu": {
+            "type": "boolean",
+            "title": "Pagaste Tu"
+          },
+          "tarjeta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tarjeta"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "codigo_autorizacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 6
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codigo Autorizacion"
+          },
+          "vendedor": {
+            "type": "string",
+            "const": "MATU, piloto académico, sin persona jurídica",
+            "title": "Vendedor"
+          },
+          "ventana_entrega": {
+            "type": "string",
+            "title": "Ventana Entrega"
+          },
+          "canal_reclamo": {
+            "type": "string",
+            "title": "Canal Reclamo"
+          },
+          "condiciones": {
+            "$ref": "#/components/schemas/CondicionesComprobante"
+          },
+          "tardio": {
+            "type": "boolean",
+            "title": "Tardio"
+          },
+          "devoluciones": {
+            "items": {
+              "$ref": "#/components/schemas/Devolucion"
+            },
+            "type": "array",
+            "title": "Devoluciones"
+          },
+          "precios_de_ejemplo": {
+            "type": "boolean",
+            "title": "Precios De Ejemplo"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba"
+          },
+          "correo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorreoComprobante"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solo quien pagó y solo si se envió. En el piloto no se envía: null (decisión 249)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "referencia",
+          "pagado_en",
+          "lineas",
+          "subtotal_productos",
+          "costo_envio",
+          "total",
+          "pagaste_tu",
+          "tarjeta",
+          "codigo_autorizacion",
+          "vendedor",
+          "ventana_entrega",
+          "canal_reclamo",
+          "condiciones",
+          "tardio",
+          "devoluciones",
+          "precios_de_ejemplo",
+          "pago_de_prueba",
+          "correo"
+        ],
+        "title": "Comprobante",
+        "description": "La confirmación escrita del pago (R4, decisión 238). **No es una boleta.**"
+      },
+      "CondicionesComprobante": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 9,
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "title": "Version"
+          },
+          "aceptadas_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Aceptadas En"
+          },
+          "huella": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Huella"
+          },
+          "enlace": {
+            "type": "string",
+            "pattern": "^/v1/condiciones-pedido\\?version=[0-9]+\\.[0-9]+$",
+            "title": "Enlace",
+            "description": "La versión aceptada, no la vigente (decisión 240)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "aceptadas_en",
+          "huella",
+          "enlace"
+        ],
+        "title": "CondicionesComprobante"
+      },
+      "CondicionesQueSeAceptan": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 9,
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "title": "Version"
+          },
+          "huella": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Huella",
+            "description": "SHA-256 del texto exacto, desde «## 1. Quién vende» (decisión 221)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "huella"
+        ],
+        "title": "CondicionesQueSeAceptan"
+      },
+      "CorreoComprobante": {
+        "properties": {
+          "destino": {
+            "type": "string",
+            "title": "Destino",
+            "description": "El correo de la cuenta de quien pagó"
+          },
+          "enviado": {
+            "type": "boolean",
+            "title": "Enviado",
+            "description": "Si se envió. Decisión 249: mientras no se envíe, Comprobante.correo va en null (D-62-3)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "destino",
+          "enviado"
+        ],
+        "title": "CorreoComprobante"
+      },
+      "Devolucion": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "pago_tardio",
+              "producto_no_entregado",
+              "cancelacion"
+            ],
+            "title": "Motivo"
+          },
+          "monto": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Monto"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductoPedido"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_curso",
+              "hecha"
+            ],
+            "title": "Estado"
+          },
+          "solicitada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Solicitada En"
+          },
+          "hecha_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hecha En"
+          },
+          "ultimos4": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ultimos4",
+            "description": "Solo para quien pagó (D-62-2)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "motivo",
+          "monto",
+          "producto",
+          "estado",
+          "solicitada_en",
+          "hecha_en",
+          "ultimos4"
+        ],
+        "title": "Devolucion",
+        "description": "Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado."
+      },
+      "DevolucionLinea": {
+        "properties": {
+          "monto": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Monto",
+            "description": "Pesos enteros devueltos o por devolver"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_curso",
+              "hecha"
+            ],
+            "title": "Estado"
+          },
+          "hecha_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hecha En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "monto",
+          "estado",
+          "hecha_en"
+        ],
+        "title": "DevolucionLinea",
+        "description": "MATU-62 (decisión 239): la anulación parcial de la línea, a la misma tarjeta. La crea MATU-63. Sin los\núltimos 4."
+      },
+      "InicioPago": {
+        "properties": {
+          "intento_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Intento Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "iniciada",
+              "autorizando",
+              "aprobada",
+              "rechazada",
+              "error"
+            ],
+            "title": "Estado"
+          },
+          "monto": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Monto",
+            "description": "El total confirmado, en pesos enteros con IVA, envío incluido"
+          },
+          "total_confirmado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Total Confirmado En"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "El action del formulario de Webpay. null si la venta ya no está iniciada"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token",
+            "description": "El valor de token_ws. null con url null"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intento_id",
+          "estado",
+          "monto",
+          "total_confirmado_en",
+          "url",
+          "token"
+        ],
+        "title": "InicioPago",
+        "description": "La venta abierta (decisiones 228 y 229). Sin datos de tarjeta. La pantalla envía un formulario POST a ``url``\ncon el campo token_ws = ``token``; el token nunca va en la URL de la app."
+      },
+      "IntentoPago": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "aprobado",
+              "aprobado_tardio",
+              "no_aprobado",
+              "abandonado",
+              "tiempo_agotado",
+              "pendiente",
+              "anulado",
+              "en_webpay"
+            ],
+            "title": "Resultado"
+          },
+          "iniciado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Iniciado En"
+          },
+          "cerrado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cerrado En"
+          },
+          "es_tuyo": {
+            "type": "boolean",
+            "title": "Es Tuyo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "resultado",
+          "iniciado_en",
+          "cerrado_en",
+          "es_tuyo"
+        ],
+        "title": "IntentoPago"
+      },
+      "LineaComprobante": {
+        "properties": {
+          "producto": {
+            "$ref": "#/components/schemas/ProductoPedido"
+          },
+          "cantidad": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Cantidad"
+          },
+          "precio_unitario": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Precio Unitario"
+          },
+          "subtotal": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Subtotal"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "producto",
+          "cantidad",
+          "precio_unitario",
+          "subtotal"
+        ],
+        "title": "LineaComprobante"
+      },
+      "PagoVista": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "sin_intento",
+              "pendiente",
+              "aprobado",
+              "no_aprobado",
+              "devuelto_parcial",
+              "anulado"
+            ],
+            "title": "Estado"
+          },
+          "pago_en_curso": {
+            "type": "boolean",
+            "title": "Pago En Curso"
+          },
+          "intento": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IntentoPago"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comprobante": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Comprobante"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "devoluciones": {
+            "items": {
+              "$ref": "#/components/schemas/Devolucion"
+            },
+            "type": "array",
+            "title": "Devoluciones"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba",
+            "description": "Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello de un pago anulado (diseño 7.9)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "estado",
+          "pago_en_curso",
+          "intento",
+          "comprobante",
+          "devoluciones",
+          "pago_de_prueba"
+        ],
+        "title": "PagoVista",
+        "description": "El pago del pedido para admin, cuidador y pagador (decisión 236)."
+      },
+      "PagoVistaObservador": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pagado",
+              "sin_pagar"
+            ],
+            "title": "Estado"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "estado"
+        ],
+        "title": "PagoVistaObservador",
+        "description": "Lo que ve el observador: solo si está pagado (D-62-2, decisión 127)."
+      },
+      "ResultadoRetorno": {
+        "properties": {
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "aprobado",
+              "aprobado_tardio",
+              "no_aprobado",
+              "abandonado",
+              "tiempo_agotado",
+              "pendiente",
+              "anulado"
+            ],
+            "title": "Resultado"
+          },
+          "ya_registrado": {
+            "type": "boolean",
+            "title": "Ya Registrado"
+          },
+          "anulacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "en_curso",
+                  "hecha"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anulacion"
+          },
+          "volver_a_preguntar_en": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volver A Preguntar En"
+          },
+          "grupo_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grupo Id",
+            "description": "Solo con la sesión de un admin, cuidador o pagador del grupo"
+          },
+          "persona_cuidada_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Persona Cuidada Id"
+          },
+          "pedido_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pedido Id"
+          },
+          "pago_de_prueba": {
+            "type": "boolean",
+            "title": "Pago De Prueba",
+            "description": "Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "resultado",
+          "ya_registrado",
+          "anulacion",
+          "volver_a_preguntar_en",
+          "grupo_id",
+          "persona_cuidada_id",
+          "pedido_id",
+          "pago_de_prueba"
+        ],
+        "title": "ResultadoRetorno",
+        "description": "El resultado de la vuelta (decisiones 232 a 234). Sin montos ni tarjeta, con o sin sesión."
+      },
+      "SolicitudPago": {
+        "properties": {
+          "acepta_condiciones": {
+            "type": "boolean",
+            "const": true,
+            "title": "Acepta Condiciones",
+            "description": "La casilla marcada por quien paga. Con false o sin ella, 422"
+          },
+          "condiciones": {
+            "$ref": "#/components/schemas/CondicionesQueSeAceptan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "acepta_condiciones",
+          "condiciones"
+        ],
+        "title": "SolicitudPago",
+        "description": "Lo que quien paga aceptó (R5, D6, D-62-16). **No lleva montos**: el monto sale del pedido, y If-Match asegura\nque es el que la pantalla mostró (decisión 226)."
+      },
+      "SolicitudRetorno": {
+        "properties": {
+          "token_ws": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Ws"
+          },
+          "TBK_TOKEN": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tbk Token"
+          },
+          "TBK_ORDEN_COMPRA": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 26,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tbk Orden Compra"
+          },
+          "TBK_ID_SESION": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 61,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tbk Id Sesion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudRetorno",
+        "description": "Lo que trajo la dirección de la vuelta, con los nombres de Transbank (decisión 232). Al menos uno."
+      },
+      "Tarjeta": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "credito",
+              "debito",
+              "prepago"
+            ],
+            "title": "Tipo"
+          },
+          "ultimos4": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$",
+            "title": "Ultimos4"
+          },
+          "cuotas": {
+            "type": "integer",
+            "maximum": 48.0,
+            "minimum": 0.0,
+            "title": "Cuotas",
+            "description": "0 o 1: sin cuotas. Las cuotas las reparte el banco"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "ultimos4",
+          "cuotas"
+        ],
+        "title": "Tarjeta",
+        "description": "Lo que Transbank devuelve y MATU guarda (R14). Solo la ve quien pagó (D-62-2)."
       }
     },
     "securitySchemes": {

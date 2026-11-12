@@ -1,6 +1,6 @@
 // MATU-61 (9.8, O6): la página pública /condiciones-pedido, con el armado de /privacidad: sin sesión
 // ni cookies, la versión y la fecha arriba, el texto en Markdown y sin índice. Solo datos sintéticos.
-import { screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { describe, expect, it } from 'vitest'
@@ -16,9 +16,9 @@ const CONDICIONES = {
 }
 
 function api(...respuestas: { status: number; cuerpo?: unknown }[]) {
-  const pedidas: { ruta: string; credenciales: unknown; cabeceras: Record<string, unknown> }[] = []
+  const pedidas: { ruta: string; credenciales: unknown; cabeceras: Record<string, unknown>; params?: unknown }[] = []
   apiPublica.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
-    pedidas.push({ ruta: config.url ?? '', credenciales: config.withCredentials, cabeceras: config.headers.toJSON() as Record<string, unknown> })
+    pedidas.push({ ruta: config.url ?? '', credenciales: config.withCredentials, cabeceras: config.headers.toJSON() as Record<string, unknown>, ...(config.params ? { params: config.params } : {}) })
     const r = respuestas[Math.min(pedidas.length - 1, respuestas.length - 1)]
     const respuesta = { data: r.cuerpo ?? '', status: r.status, statusText: '', headers: {}, config, request: {} }
     if (r.status >= 400) throw new AxiosError(`HTTP ${r.status}`, AxiosError.ERR_BAD_REQUEST, config, {}, respuesta)
@@ -38,6 +38,20 @@ describe('Condiciones del pedido', () => {
     expect(screen.queryByText('Volver al índice')).toBeNull()
     await waitFor(() => expect(document.title).toBe('Condiciones del pedido · MATU'))
     expect(pedidas).toEqual([{ ruta: '/v1/condiciones-pedido', credenciales: false, cabeceras: expect.not.objectContaining({ Authorization: expect.anything() }) }])
+  })
+
+  it('MATU-62 (P4): con ?version=0.2 pide esa versión, la que se aceptó al pagar; con otro formato, la vigente', async () => {
+    window.history.replaceState(null, '', '/condiciones-pedido?version=0.2')
+    const pedidas = api({ status: 200, cuerpo: { ...CONDICIONES, version: '0.2' } })
+    conRegionesGlobales(<PaginaCondiciones />)
+    expect(await screen.findByText('Versión', { exact: false })).toHaveTextContent('Versión 0.2')
+    expect(pedidas[0]).toMatchObject({ ruta: '/v1/condiciones-pedido', params: { version: '0.2' } })
+    cleanup()
+    window.history.replaceState(null, '', '/condiciones-pedido?version=0.2;x')
+    const otras = api({ status: 200, cuerpo: CONDICIONES })
+    conRegionesGlobales(<PaginaCondiciones />)
+    await screen.findByRole('heading', { level: 2, name: '1. Quién vende' })
+    expect(otras[0]).not.toHaveProperty('params')
   })
 
   it('sin conexión: el aviso y «Volver a intentar»', async () => {

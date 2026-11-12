@@ -44,6 +44,8 @@ CAMPOS_PERMITIDOS = (
     "notificacion_id", "evento_id", "canal", "codigo",
     "xff_cabeceras", "xff_elementos", "xff_clases", "proxy_saltos", "ip_contada",
     "tarea", "resultado", "corrida", "inicio", "fin", "contadores", "falta",
+    # MATU-62 (decisión 235): el caso de la vuelta de Webpay, nunca lo que trajo
+    "caso",
 )
 
 # Lo que se registra en "ruta" cuando la petición no calzó con ninguna ruta (404 de ruta inexistente)
@@ -55,8 +57,14 @@ log = logging.getLogger("matu.api")
 _URL_CON_QUERY = re.compile(r"(?P<base>(?:https?://|/)[^\s?#\"'<>]*)[?#][^\s\"'<>]*")
 
 
+# MATU-62 (cierre del analista, observación 1): commit, status y refund de Transbank llevan el token en la ruta
+# (/transactions/<token> y /transactions/<token>/refunds). En un mensaje de terceros, el segmento se enmascara
+_RUTA_TRANSACCION = re.compile(r"(/transactions/)[^/\s?#\"'<>]+")
+MASCARA = "***"
+
+
 def _sin_query(mensaje: str) -> str:
-    return _URL_CON_QUERY.sub(r"\g<base>", mensaje)
+    return _RUTA_TRANSACCION.sub(r"\g<1>" + MASCARA, _URL_CON_QUERY.sub(r"\g<base>", mensaje))
 
 
 def _mensaje(record: logging.LogRecord) -> str:
@@ -105,6 +113,10 @@ def configurar_logs(nivel: str = "INFO", stream: TextIO | None = None) -> None:
     # Se suben a WARNING para que una llamada saliente (Transbank, correo) no deje tokens en el log.
     for nombre in ("httpx", "httpx2", "httpcore", "urllib3", "requests"):
         logging.getLogger(nombre).setLevel(logging.WARNING)
+    # MATU-62 (observación 1): urllib3 escribe la ruta de la petición, con el token de Transbank, en sus advertencias
+    # de reintento: sube a ERROR. El SDK de Transbank queda en WARNING
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    logging.getLogger("transbank").setLevel(logging.WARNING)
 
 
 def _request_id_entrante(scope: Scope) -> str | None:
@@ -178,7 +190,7 @@ class MiddlewareRequestId:
                 "estado": estado,
                 "duracion_ms": round((time.perf_counter() - inicio) * 1000, 1),
             }
-            for campo in ("usuario_id", "grupo_id"):
+            for campo in ("usuario_id", "grupo_id", "caso"):
                 if campo in estado_peticion:
                     extra[campo] = estado_peticion[campo]
             log.info("peticion", extra=extra)

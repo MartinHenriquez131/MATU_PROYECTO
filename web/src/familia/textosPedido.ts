@@ -254,6 +254,8 @@ export const GRUPO_PEDIDOS = {
   puntos: (pila: string) => [
     { texto: `Ya no se pueden hacer pedidos para ${pila} desde MATU, desde ahora.` },
     { texto: 'Cancelamos sin costo los pedidos sin pagar y borramos la dirección y el teléfono que se copiaron en ellos.', fuerte: true },
+    // MATU-62 (6.4) [A5.4]: siempre, sin depender de que haya un pago en curso.
+    { texto: 'Si hay un pago en curso y se aprueba, lo anulamos completo el mismo día.' },
     { texto: 'Los pedidos ya pagados siguen hasta que se entreguen.' },
     { texto: `La dirección de entrega de ${pila} queda guardada para cuando vuelvas a autorizar. Puedes vaciarla cuando quieras.` },
     { texto: 'La lista de insumos se puede seguir imprimiendo y compartiendo.' },

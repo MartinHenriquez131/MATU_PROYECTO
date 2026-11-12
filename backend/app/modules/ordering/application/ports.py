@@ -103,6 +103,11 @@ class RepositorioPedidos(Protocol):
         """El celular verificado (E.164) de quien hace la petición, o None."""
         ...
 
+    def pago_en_curso(self, pedido_id: uuid.UUID, ahora: datetime) -> bool:
+        """D-62-4, regla 1 (MATU-62, decisión 230): el cargo del pedido tiene una venta autorizando, o iniciada hace
+        menos de VIDA_VENTA_WEBPAY. Lee las tablas del pago con RLS (el observador no las ve: para él, False)."""
+        ...
+
 
 class RepositorioIdempotencia(Protocol):
     """Implementación: RepositorioIdempotenciaSQL (infrastructure/repositorio_idempotencia.py)."""

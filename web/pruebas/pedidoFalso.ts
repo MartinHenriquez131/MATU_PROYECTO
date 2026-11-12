@@ -69,6 +69,7 @@ export const linea = (p: Producto, comercio: typeof ALMACEN, cantidad: number, p
   regla_faltante: 'otro_comercio',
   retracto_pierde_al_abrir: p.retracto_pierde_al_abrir,
   cambio: null,
+  devolucion: null,
   ...extra,
 })
 
@@ -96,6 +97,8 @@ export function borrador(cambios: Partial<PedidoVista> = {}): PedidoVista {
     resumen: null,
     creado_en: '2026-11-11T15:00:00Z',
     actualizado_en: '2026-11-11T15:00:00Z',
+    pago_en_curso: false,
+    pagado_en: null,
     ...cambios,
   }
 }

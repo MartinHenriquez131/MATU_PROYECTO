@@ -4,7 +4,7 @@
 // `GET /v1/condiciones-pedido` va por `apiPublica`. Sin índice: son secciones cortas.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CircleAlert } from 'lucide-react'
-import { leerCondiciones, type CondicionesPedido } from '../compartido/api/pedido'
+import { leerCondiciones, versionDeLaDireccion, type CondicionesPedido } from '../compartido/api/pedido'
 import { fechaCorta } from '../compartido/fechas'
 import { POLITICA } from '../compartido/textosPolitica'
 import { Anunciado } from '../compartido/ui/Anuncios'
@@ -47,15 +47,17 @@ function Contenido({ condiciones }: { condiciones: CondicionesPedido }) {
 
 export function PaginaCondiciones() {
   const [carga, setCarga] = useState<Carga>({ estado: 'cargando' })
+  // MATU-62 (7.5.3, P4): el comprobante enlaza a la versión aceptada, `?version=0.2`. Sin ella, la vigente.
+  const [version] = useState(() => versionDeLaDireccion(window.location.search))
 
   const cargar = useCallback(async (reintento: boolean) => {
     if (reintento) setCarga({ estado: 'error', reintentando: true })
     try {
-      setCarga({ estado: 'lista', condiciones: await leerCondiciones() })
+      setCarga({ estado: 'lista', condiciones: await leerCondiciones(version) })
     } catch {
       setCarga({ estado: 'error', reintentando: false })
     }
-  }, [])
+  }, [version])
 
   useEffect(() => {
     document.title = TITULO_DOCUMENTO

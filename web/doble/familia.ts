@@ -8,7 +8,18 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaEnvases, listaParaLista, perfil, type ConsumoDoble } from './consumo'
 import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, DOMINIO_NO_PERMITIDO } from './cuentas'
-import { atenderPedido, otorgarDespacho, productoDelCatalogo, retirarDespacho, sembrarDespacho, sembrarPedido, vistaDespacho } from './pedido'
+import {
+  atenderPedido,
+  atenderRetorno,
+  otorgarDespacho,
+  productoDelCatalogo,
+  retirarDespacho,
+  sembrarDespacho,
+  sembrarPagado,
+  sembrarPagoEnCurso,
+  sembrarPedido,
+  vistaDespacho,
+} from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -491,6 +502,43 @@ function sembrar() {
   sembrarPedido(conPedido('pedido-conflicto@example.com', 'Carmen', 'admin', 'vigente', 'pedido-conflicto').p.id, tresProductos)
   sembrarPedido(conPedido('pedido-falla@example.com', 'Carmen', 'admin', 'vigente', 'pedido-falla').p.id, tresProductos)
   conPedido('pedido-retirada@example.com', 'Carmen', 'admin', 'retirada')
+  // MATU-62: el pago, una cuenta por estado y por rol. «Pagar» lleva a la página falsa de Webpay,
+  // donde se elige el resultado (débito, crédito en cuotas, prepago, no aprobado, anular, tiempo
+  // agotado, pendiente, tardío, anulado y sin sesión).
+  sembrarPedido(conPedido('pago@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos, true)
+  sembrarPedido(conPedido('pago-pagador@example.com', 'Rodrigo', 'pagador', 'vigente').p.id, tresProductos, true)
+  sembrarPedido(conPedido('pago-cuidador@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos, true)
+  sembrarPagoEnCurso(conPedido('pago-en-curso@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos)
+  sembrarPagoEnCurso(conPedido('pago-en-curso-cuidador@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos)
+  sembrarPagoEnCurso(conPedido('pago-en-curso-pagador@example.com', 'Rodrigo', 'pagador', 'vigente').p.id, tresProductos)
+  for (const [email, modo] of [
+    ['pago-webpay-caido@example.com', 'pago-webpay-caido'],
+    ['pago-red@example.com', 'pago-red'],
+    ['pago-vencido@example.com', 'pago-vencido'],
+    ['pago-condiciones@example.com', 'pago-condiciones'],
+    ['pago-409@example.com', 'pago-409-en-curso'],
+  ] as const)
+    sembrarPedido(conPedido(email, 'Carmen', 'admin', 'vigente', modo).p.id, tresProductos, true)
+  {
+    const { u, p } = conPedido('pago-pagado@example.com', 'Carmen', 'admin', 'vigente')
+    sembrarPedido(p.id, [['Pañal adulto M', 1]])
+    sembrarPagado(p.id, tresProductos, { quien: u.id })
+  }
+  sembrarPagado(conPedido('pago-pagado-otro@example.com', 'Carmen', 'admin', 'vigente').p.id, tresProductos, { quien: 'otra-cuenta', tarjeta: 'credito' })
+  {
+    const { u, p } = conPedido('pago-devoluciones@example.com', 'Carmen', 'admin', 'vigente')
+    sembrarPagado(p.id, tresProductos, { quien: u.id, tarjeta: 'credito', devoluciones: true })
+  }
+  sembrarPagado(conPedido('pago-devoluciones-otro@example.com', 'Javiera', 'cuidador', 'vigente').p.id, tresProductos, { quien: 'otra-cuenta', devoluciones: true })
+  {
+    const { u, p } = conPedido('pago-prepago@example.com', 'Rodrigo', 'pagador', 'vigente')
+    sembrarPagado(p.id, tresProductos, { quien: u.id, tarjeta: 'prepago' })
+  }
+  {
+    const { u, p } = conPedido('pago-tardio@example.com', 'Carmen', 'admin', 'vigente')
+    sembrarPagado(p.id, tresProductos, { quien: u.id, tardio: true })
+  }
+  sembrarPagado(conPedido('pago-observador@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresProductos, { quien: 'otra-cuenta' })
 }
 sembrar()
 
@@ -719,6 +767,16 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     // CAPA3_HABILITADA=false: la ruta no existe (decisión 167).
     if (u.modo === 'catalogo-apagado') return problema(res, 404, '/errores/no-encontrado'), true
     return json(res, 200, catalogoDoble(u.modo)), true
+  }
+
+  // MATU-62 (decisión 234): la vuelta de Webpay es pública y la sesión es opcional; nunca responde 401.
+  if (metodo === 'POST' && ruta === '/v1/pagos/retorno') {
+    const yo = usuarioDe(req)
+    const grupoDe = (personaId: string) => {
+      const g = yo?.grupos.find((x) => x.personas.some((p) => p.id === personaId))
+      return g ? { grupo_id: g.id, rol: g.rol } : null
+    }
+    return atenderRetorno(res, cuerpo, r, yo, grupoDe), true
   }
 
   if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos')) return false

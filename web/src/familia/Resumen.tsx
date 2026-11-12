@@ -5,22 +5,30 @@
 // - El total vale lo que dice el servidor: la hora sale de `vence_en` y el aviso de los 2 minutos de
 //   `vigencia_segundos`, contados desde que llegó la respuesta. Nunca el reloj del teléfono solo.
 // - Nada cuenta hacia atrás: el aviso llega una vez y el texto no cambia cada segundo.
-// - «Pagar» es de MATU-62: su lugar queda vacío y no se dibuja un botón que no paga (9.9).
-import { useEffect, useRef, useState } from 'react'
-import { ArrowDownUp, Clock, CloudOff, FileText, PackageX, ReceiptText, RefreshCw, Store } from 'lucide-react'
+// - MATU-62 (especificación matu-62-pago.md, 4 a 6): «Pagar {total}» para admin y pagador, con la
+//   frase de Webpay antes; el cuidador ve quién paga. Sin interfaz optimista: «Pagando…» hasta que
+//   el servidor abre la venta, y entonces una navegación completa a Webpay en la misma pestaña.
+// - Con un pago en curso no hay casilla, «Pagar», aviso de los 2 minutos ni «Volver a confirmar».
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ArrowDownUp, Clock, CloudOff, FileText, Lock, PackageX, ReceiptText, RefreshCw, Store } from 'lucide-react'
+import type { Rol } from '../compartido/api/familia'
 import { leerFallo } from '../compartido/api/cliente'
-import { cambiarContacto, confirmarPedido, volverABorrador, type LineaPedido, type PedidoVista } from '../compartido/api/pedido'
+import { irAWebpay, pagarPedido } from '../compartido/api/pago'
+import { cambiarContacto, confirmarPedido, nuevaClave, volverABorrador, type LineaPedido, type PedidoVista } from '../compartido/api/pedido'
 import { esVencida } from '../compartido/api/sesion'
 import { anunciar } from '../compartido/ui/Anuncios'
 import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
 import { Boton } from '../compartido/ui/Boton'
 import { enfocar, esTipo } from './insumosComun'
 import { PestanasInsumos } from './Insumos'
+import { NotaPagoEnCurso } from './Pago'
+import { estadoDelConflicto } from './pedidoAcciones'
 import { direccionEnTexto, hayCambios, huellaDelTotal } from './pedidoComun'
 import { AvisoPiloto, DialogoCancelar, horaDeVencimiento, Retracto, siFaltaTexto, TelefonoContacto } from './PiezasPedido'
 import { navegar } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
+import { PAGO } from './textosPago'
 import { PEDIDO } from './textosPedido'
 import { Etiqueta, MensajeError, Nota, Titulo, Volver } from './ui'
 
@@ -31,10 +39,24 @@ const ID_AVISO_PLAZO = 'aviso-plazo'
 const ID_CASILLA = 'casilla-condiciones'
 const ID_ENLACE_CONDICIONES = 'enlace-condiciones'
 const ID_CANCELAR = 'cancelar-pedido'
+const ID_PAGAR_AYUDA = 'pagar-ayuda'
+const ID_ERROR_CASILLA = 'casilla-condiciones-e'
+const ID_ERROR_PAGAR = 'error-pagar'
+const ID_PAGO_EN_CURSO = 'pago-en-curso'
+/** 4.6: un 409 `idempotencia-en-curso` se repite una vez, a los 2 segundos, con la misma clave. */
+const REPETIR_MS = 2_000
+const esperar = (ms: number) => new Promise<void>((listo) => window.setTimeout(listo, ms))
 
 export function Resumen({
   pedido,
   editor,
+  rol,
+  nota,
+  alertaPago,
+  revisandoPago,
+  onRevisarPago,
+  onPagoEnCurso,
+  onRecargar,
   acepto,
   onAcepto,
   error,
@@ -47,6 +69,16 @@ export function Resumen({
 }: {
   pedido: PedidoVista
   editor: boolean
+  rol: Rol
+  /** 11.2: «Este pedido cambió mientras lo revisabas…», bajo la bajada. */
+  nota: ReactNode
+  /** MATU-62 (6.2): un 409 `pago-en-curso` al pagar o al volver a confirmar. */
+  alertaPago: boolean
+  revisandoPago: boolean
+  onRevisarPago: () => void
+  onPagoEnCurso: () => void
+  /** Vuelve a leer el pedido (las condiciones cambiaron, o se volvió de Webpay con «Atrás»). */
+  onRecargar: () => void
   acepto: boolean
   onAcepto: (v: boolean) => void
   /** El error de volver a confirmar (también el de 8.6, al volver de la dirección). */
@@ -55,7 +87,7 @@ export function Resumen({
   onPedido: (p: PedidoVista) => void
   manejar: (x: unknown) => boolean
   onCambiado: (p: PedidoVista) => void
-  onCancelado: (yaCancelado: boolean) => void
+  onCancelado: (yaCancelado: boolean, conPago: boolean) => void
   onCambiarDireccion: () => void
 }) {
   const [avisoDos, setAvisoDos] = useState(false)
@@ -64,6 +96,14 @@ export function Resumen({
   const [cambiando, setCambiando] = useState(false)
   const [errCambiar, setErrCambiar] = useState(false)
   const [cancelando, setCancelando] = useState(false)
+  const [pagando, setPagando] = useState(false)
+  const [errPagar, setErrPagar] = useState<'webpay' | 'red' | null>(null)
+  const [errCasilla, setErrCasilla] = useState<'marca' | 'cambiaron' | null>(null)
+  /** D-62-8: pagan admin y pagador. El cuidador ve quién paga, sin casilla ni botón. */
+  const puedePagar = rol === 'admin' || rol === 'pagador'
+  /** D-62-4, regla 1: con una venta `iniciada` o `autorizando`, nadie del grupo cambia el pedido. */
+  const enCurso = pedido.pago_en_curso || alertaPago
+  const editaLectura = editor && !enCurso
 
   // 9.5 y 9.6: desde la respuesta, los segundos que quedan según el servidor. Un temporizador para el
   // aviso a los 120 s y otro para el vencimiento; se rehacen con cada pedido nuevo.
@@ -81,6 +121,83 @@ export function Resumen({
   }, [pedido])
 
   const vencido = pedido.estado === 'vencido' || vencioAqui
+
+  // 4.5, paso 4: si se vuelve de Webpay con «Atrás» y la página sale de la memoria del navegador con
+  // «Pagando…» congelado, el botón vuelve a como estaba y se pregunta al servidor si hay un pago en curso.
+  useEffect(() => {
+    const alMostrar = (e: PageTransitionEvent) => {
+      if (!e.persisted) return
+      setPagando(false)
+      onRecargar()
+    }
+    window.addEventListener('pageshow', alMostrar)
+    return () => window.removeEventListener('pageshow', alMostrar)
+  }, [onRecargar])
+
+  /**
+   * 4.5 y 4.6: «Pagar {total}». Nunca deshabilitado: sin la casilla se dice qué falta. Con la venta
+   * abierta, un formulario a Webpay en la misma pestaña; la clave y el token solo en esta función.
+   */
+  const pagar = async () => {
+    if (pagando) return
+    setErrPagar(null)
+    if (!acepto) {
+      setErrCasilla('marca')
+      return enfocar(ID_CASILLA, 0)
+    }
+    const condiciones = pedido.resumen?.condiciones
+    if (!condiciones) return setErrPagar('red')
+    setErrCasilla(null)
+    setPagando(true)
+    const clave = nuevaClave()
+    try {
+      let inicio
+      try {
+        inicio = await pagarPedido(pedido.id, pedido.etag, condiciones, clave)
+      } catch (x) {
+        const f = leerFallo(x)
+        if (!(f.status === 409 && esTipo(f.tipo, 'idempotencia-en-curso'))) throw x
+        await esperar(REPETIR_MS)
+        inicio = await pagarPedido(pedido.id, pedido.etag, condiciones, clave)
+      }
+      if (inicio.url && inicio.token) {
+        // «Pagando…» sigue hasta que el navegador deja la página.
+        irAWebpay(inicio.url, inicio.token)
+        return
+      }
+      // La misma clave con la venta ya terminada: lo que pasó está en el pedido.
+      setPagando(false)
+      onRevisarPago()
+    } catch (x) {
+      setPagando(false)
+      if (esVencida(x)) return
+      const f = leerFallo(x)
+      if (f.status === 503 && esTipo(f.tipo, 'pasarela-no-disponible')) {
+        setErrPagar('webpay')
+        return enfocar(ID_ERROR_PAGAR, 40)
+      }
+      if (f.status === 409 && esTipo(f.tipo, 'estado-pedido') && estadoDelConflicto(x) === 'vencido') {
+        // D-62-15: el servidor dice que venció. El estado vencido de 9.6, con el foco en su aviso.
+        setVencioAqui(true)
+        return enfocar(ID_AVISO_PLAZO, 60)
+      }
+      if (f.status === 409 && esTipo(f.tipo, 'pago-en-curso')) {
+        onPagoEnCurso()
+        return enfocar(ID_PAGO_EN_CURSO, 60)
+      }
+      if (f.status === 409 && esTipo(f.tipo, 'condiciones-cambiaron')) {
+        onAcepto(false)
+        setErrCasilla('cambiaron')
+        onRecargar()
+        return enfocar(ID_CASILLA, 60)
+      }
+      // 422 y 428 son un defecto de la pantalla, no de la persona; un 409 de idempotencia repetido, igual.
+      if (f.status !== 422 && f.status !== 428 && f.status !== 409 && manejar(x)) return
+      if (f.status === 409 && esTipo(f.tipo, 'estado-pedido') && manejar(x)) return
+      setErrPagar('red')
+      enfocar(ID_ERROR_PAGAR, 40)
+    }
+  }
 
   // 9.6: si el foco estaba en lo que desaparece (la casilla o el enlace), pasa al aviso. Si no, no se mueve.
   const antes = useRef(vencido)
@@ -186,7 +303,7 @@ export function Resumen({
             <LineaResumen key={l.producto.id} linea={l} />
           ))}
         </ul>
-        {editor && (
+        {editaLectura && (
           <div className="mt-4 flex flex-col items-start gap-3">
             <p id="cambiar-frase" className="max-w-prose text-base text-tenue">
               {PEDIDO.cambiarFrase}
@@ -207,7 +324,7 @@ export function Resumen({
           <>
             <p className="text-base break-words">{direccionEnTexto(entrega)}</p>
             {entrega.referencia && <p className="text-base text-tenue break-words">{entrega.referencia}</p>}
-            {editor && (
+            {editaLectura && (
               <Boton variante="texto" onClick={onCambiarDireccion}>
                 {PEDIDO.cambiarDireccion}
               </Boton>
@@ -217,7 +334,7 @@ export function Resumen({
               conPrefijo
               mostrado={entrega.telefono_contacto}
               esTuyo={entrega.telefono_es_tuyo}
-              editable={editor}
+              editable={editaLectura}
               abiertoAlInicio={false}
               onGuardar={guardarTelefono}
             />
@@ -258,10 +375,32 @@ export function Resumen({
       </Nota>
     ) : null
 
+  const errorPagar = errPagar && (
+    <Nota id={ID_ERROR_PAGAR} tono="atenta" rol="alert" enfocable icono={<CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
+      {errPagar === 'webpay' ? PAGO.errWebpay : PAGO.errRed}
+    </Nota>
+  )
+
+  const enlaceCondiciones = (
+    <a
+      id={ID_ENLACE_CONDICIONES}
+      href={RUTA_CONDICIONES}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-12 items-start gap-2 self-start py-3 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa"
+    >
+      <FileText aria-hidden className="mt-0.5 size-5 shrink-0" />
+      {PEDIDO.condiciones}
+    </a>
+  )
+
   const decision = (
     <div className="flex min-w-0 flex-col items-stretch gap-5">
       <Boleta pedido={pedido} vencido={vencido} hora={hora} />
-      {vencido ? (
+      {enCurso ? (
+        // 6.1 y 6.2: sin aviso de los 2 minutos ni «Volver a confirmar», aunque el total venza.
+        <NotaPagoEnCurso id={ID_PAGO_EN_CURSO} para={puedePagar ? 'pagar' : 'cambiar'} alerta={alertaPago} revisando={revisandoPago} onRevisar={onRevisarPago} />
+      ) : vencido ? (
         <>
           <Nota id={ID_AVISO_PLAZO} tono="atenta" borde rol="status" enfocable icono={<Clock aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
             <p>{editor ? PEDIDO.vencido : PEDIDO.vencidoPagador}</p>
@@ -286,21 +425,51 @@ export function Resumen({
             </Nota>
           )}
           {errorConfirmar}
-          <a
-            id={ID_ENLACE_CONDICIONES}
-            href={RUTA_CONDICIONES}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-12 items-start gap-2 self-start py-3 font-bold text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa"
-          >
-            <FileText aria-hidden className="mt-0.5 size-5 shrink-0" />
-            {PEDIDO.condiciones}
-          </a>
-          <label className="flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 font-bold">
-            <input id={ID_CASILLA} type="checkbox" checked={acepto} onChange={(e) => onAcepto(e.target.checked)} className="size-6 shrink-0 accent-turquesa angosto:mt-0.5" />
-            {PEDIDO.acepto}
-          </label>
-          {/* 9.9: aquí va «Pagar {total}» (MATU-62). No se dibuja un botón que no paga. */}
+          {enlaceCondiciones}
+          {puedePagar ? (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="flex min-h-12 cursor-pointer items-center angosto:items-start gap-3 font-bold">
+                  <input
+                    id={ID_CASILLA}
+                    type="checkbox"
+                    checked={acepto}
+                    aria-invalid={errCasilla ? true : undefined}
+                    aria-describedby={errCasilla ? ID_ERROR_CASILLA : undefined}
+                    onChange={(e) => {
+                      onAcepto(e.target.checked)
+                      if (e.target.checked) setErrCasilla(null)
+                    }}
+                    className="size-6 shrink-0 accent-turquesa angosto:mt-0.5"
+                  />
+                  {PEDIDO.acepto}
+                </label>
+                {errCasilla && <MensajeError id={ID_ERROR_CASILLA}>{errCasilla === 'marca' ? PAGO.marcaLaCasilla : PAGO.condicionesCambiaron}</MensajeError>}
+              </div>
+              {/* 4.4: antes del botón, para leerla antes de decidir; y en su descripción. */}
+              <p id={ID_PAGAR_AYUDA} className="max-w-prose text-base text-tenue">
+                {PAGO.antesDeWebpay}
+              </p>
+              {errorPagar}
+              <Boton
+                className="self-start"
+                icono={<Lock aria-hidden className="size-5 shrink-0" />}
+                aria-describedby={ID_PAGAR_AYUDA}
+                ocupado={pagando}
+                textoOcupado={PAGO.pagando}
+                onClick={() => void pagar()}
+              >
+                {PAGO.pagar} <span className="cifras">{pesos(total)}</span>
+              </Boton>
+              {pagando && (
+                <p role="status" className="text-base">
+                  {PAGO.abriendoWebpay}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="max-w-prose text-base">{PAGO.pagaQuien}</p>
+          )}
         </>
       )}
       {confirmando && (
@@ -327,6 +496,7 @@ export function Resumen({
           {PEDIDO.resBajada} <span className="cifras font-bold">{pesos(total)}</span>.
         </p>
       </div>
+      {nota}
       {pedido.precios_de_ejemplo && <AvisoPiloto />}
       <div className="mt-4 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         {lectura}
@@ -337,13 +507,14 @@ export function Resumen({
       {cancelando && (
         <DialogoCancelar
           pedidoId={pedido.id}
+          pagoEnCurso={enCurso}
           onCerrar={() => {
             setCancelando(false)
             enfocar(ID_CANCELAR, 0)
           }}
           onCancelado={(ya) => {
             setCancelando(false)
-            onCancelado(ya)
+            onCancelado(ya, enCurso)
           }}
           manejar={manejar}
         />

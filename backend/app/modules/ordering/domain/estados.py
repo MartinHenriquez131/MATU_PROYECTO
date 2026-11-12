@@ -1,9 +1,11 @@
 """Los estados del pedido y sus transiciones (arquitectura 8.1 y 12.3; decisiones 204 y 208; C1 y C9 de Jorge).
 
-Los 17 estados son los del CHECK de pedido (migración 0002). Las 24 transiciones son las de la arquitectura 8.1 más
+Los 17 estados son los del CHECK de pedido (migración 0002). Las 25 transiciones son las de la arquitectura 8.1 más
 tres de Jorge: volver a confirmar un total vigente (``total_confirmado → total_confirmado``, C1) y «Cambiar el
-pedido» desde el total vigente o vencido (``total_confirmado → borrador``, C1, y ``vencido → borrador``, C9). La
-prueba recorre los 17 × 17 = 289 pares.
+pedido» desde el total vigente o vencido (``total_confirmado → borrador``, C1, y ``vencido → borrador``, C9), y la de
+MATU-62: ``vencido → pagado``, solo con una venta del mismo total y el mismo total_confirmado_en (regla 2 de D-62-4,
+decisión 242). Un pago aprobado de un total que ya no es el del pedido no mueve el estado (regla 3). La prueba recorre
+los 17 × 17 = 289 pares.
 
 ``asignado`` y ``sin_repartidor`` no tienen transiciones (fase 2). ``cancelado``, ``cancelado_con_devolucion`` y
 ``cerrado`` son terminales. El vencimiento lo dice el Reloj (decisión 204): un total confirmado con ``total_vence_en``
@@ -49,6 +51,7 @@ TRANSICIONES: frozenset[tuple[Estado, Estado]] = frozenset(
         (E.VENCIDO, E.TOTAL_CONFIRMADO),  # «Volver a confirmar» (C23)
         (E.VENCIDO, E.BORRADOR),  # C9: «Cambiar el pedido» con el total vencido
         (E.VENCIDO, E.CANCELADO),
+        (E.VENCIDO, E.PAGADO),  # MATU-62: el pago tardío del mismo total se respeta (D-62-4, regla 2)
         # Después de pagar (MATU-62 y MATU-63)
         (E.PAGADO, E.ENVIADO_A_COMERCIO),
         (E.PAGADO, E.CANCELADO_CON_DEVOLUCION),
@@ -86,6 +89,8 @@ class Motivo(StrEnum):
     FAMILIA_CAMBIA_CARRITO = "familia_cambia_carrito"
     AUTORIZACION_RETIRADA = "autorizacion_retirada"
     PERSONA_BORRADA = "persona_borrada"
+    # MATU-62 (decisión 242): total_confirmado o vencido → pagado, con actor sistema
+    PAGO_APROBADO = "pago_aprobado"
 
 
 class TransicionInvalida(Exception):

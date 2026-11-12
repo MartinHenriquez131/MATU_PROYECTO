@@ -1203,9 +1203,10 @@ def main(argv: Sequence[str] = ()) -> int:
                 f"{ARCHIVO_RELEVO} si se creó en este equipo; si no, --restablecer crea uno nuevo."
             )
     print(
-        "\nListo para probar los recorridos 1 a 4: cuenta, persona, autorización y ficha; compartir con un relevo y"
-        " cortar el acceso; insumos y aviso de que se acaba; lista de insumos y anotar una compra."
-        "\nLos recorridos 5 y 6 (pedido, pago y retiro) llegan con MATU-61 a 63."
+        "\nListo para probar los recorridos 1 a 5: cuenta, persona, autorización y ficha; compartir con un relevo y"
+        " cortar el acceso; insumos y aviso de que se acaba; lista de insumos y anotar una compra; y el pedido y el"
+        " pago con las tarjetas de prueba de Transbank."
+        "\nEl retiro (recorrido 6) llega con MATU-63."
     )
     return 0
 
