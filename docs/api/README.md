@@ -15,9 +15,12 @@ docs/api/
     ├── pedido.openapi.yaml       MATU-61: autorización de pedidos, dirección, carrito, reglas si falta un producto,
                                   total confirmado y cancelar sin pagar (implementado en MATU-61, decisiones 188 a
                                   222; se conserva como explicación y manda openapi.json)
-    └── pago.openapi.yaml         MATU-62: pagar el total confirmado con Webpay Plus, el retorno, el estado del
+    ├── pago.openapi.yaml         MATU-62: pagar el total confirmado con Webpay Plus, el retorno, el estado del
                                   pago, el pedido pagado y el comprobante (implementado en MATU-62, decisiones 223 a
                                   249; se conserva como explicación y manda openapi.json)
+    └── invitar-familiar.openapi.yaml  MATU-42 y MATU-53: invitar con enlace y código, aceptar, quiénes forman
+                                  el grupo, cambiar roles y el permiso del pagador, sacar a alguien y salir
+                                  (propuesto, decisiones 280 a 307)
 ```
 
 ## Propuestos e implementados
@@ -99,6 +102,18 @@ docs/api/
 | `GET /v1/pedidos/{pedido_id}/pago` | MATU-62 (R4, D-62-2) | Implementado. En `openapi.json` desde MATU-62 (decisiones 236, 238, 239, 248 y 249). Estado, devoluciones y comprobante. Capa 3 |
 | `GET /v1/personas-cuidadas/{persona_id}/pedido-pagado` | MATU-62 (P2 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 237). El último pedido pagado, con su comprobante. Capa 3 |
 | `GET /v1/condiciones-pedido?version=` | MATU-62 (P4 del diseño) | Implementado. En `openapi.json` desde MATU-62 (decisión 240). Cambio aditivo a la ruta de MATU-61 |
+| `POST /v1/grupos/{grupo_id}/invitaciones` | MATU-42 (RF-38) | **Propuesto** en `invitar-familiar.openapi.yaml` (decisiones 283 a 287). Solo admin |
+| `GET /v1/grupos/{grupo_id}/invitaciones` | MATU-42 (C10) | **Propuesto** (decisión 284). Solo admin |
+| `DELETE /v1/grupos/{grupo_id}/invitaciones/{invitacion_id}` | MATU-42 | **Propuesto** (decisión 298). Solo admin |
+| `POST /v1/invitaciones/presentacion` | MATU-42 (C1) | **Propuesto** (decisiones 289 y 290). Pública |
+| `POST /v1/invitaciones/verificacion` | MATU-42 (C2, P1 del diseño) | **Propuesto** (decisiones 288 a 291). Pública, cuenta los intentos del código |
+| `POST /v1/invitaciones/aceptacion` | MATU-42 (RF-38) | **Propuesto** (decisiones 288 a 291). Con sesión, sin `X-Grupo-Id` |
+| `GET /v1/grupos/{grupo_id}/miembros` | MATU-42 (C9, D-42-10) | **Propuesto** (decisión 292). Todo miembro activo |
+| `PATCH /v1/grupos/{grupo_id}/miembros/{membresia_id}` | MATU-42 (RF-38, D-42-5) | **Propuesto** (decisiones 293 a 295 y 297). Solo admin, con `If-Match` |
+| `DELETE /v1/grupos/{grupo_id}/miembros/{membresia_id}` | MATU-42 (D-42-7) | **Propuesto** (decisiones 294 a 297). Solo admin |
+| `POST /v1/grupos/{grupo_id}/salida` | MATU-42 (D-42-13) | **Propuesto** (decisiones 294 a 297). Todo miembro activo |
+| `GET /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-42 (D-42-9) | Implementado; **cambio propuesto** `autorizo_alguien_que_ya_no_esta` (decisión 301) |
+| Autor de la ficha, las secciones, los accesos y los perfiles | MATU-42 (D-42-10) | Implementado; **cambio propuesto** `nombre: null` y `autor_activo` (decisión 299) |
 
 Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). Desde MATU-67, `/version.json` entrega el identificador del build con `Cache-Control: no-store`, y 404 RFC 7807 si no está en el build, nunca el `index.html` (decisión 172). Desde MATU-62 (implementado, decisión 231), `POST /insumos/pedido/pago` recibe la vuelta de Webpay por POST y responde 303 a la misma pantalla con los valores en el fragmento; está declarada en `propuestos/pago.openapi.yaml` con `x-matu-fuera-de-openapi-json`. `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
@@ -151,6 +166,16 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/pago-en-curso` | 409 | `POST …/pagar` con una venta `iniciada` vigente o `autorizando`, y las rutas de MATU-61 que cambian el pedido (confirmar, cambiar, líneas, reglas y teléfono) en ese momento (D-62-4, regla 1). Cancelar no se bloquea | **Nuevo** (MATU-62) |
 | `/errores/condiciones-cambiaron` | 409 | `POST …/pagar`: la versión o la huella de las condiciones que mandó la pantalla no son las publicadas, con `version_vigente` | **Nuevo** (MATU-62) |
 | `/errores/pasarela-no-disponible` | 503 | `POST …/pagar`: Webpay no respondió o falló el `create`. No se cobró nada. Con `Retry-After` | **Nuevo** (MATU-62) |
+| `/errores/ultimo-admin` | 409 | Cambiar el rol, sacar o salir dejaría al grupo sin admin activo (C11, C12) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/unica-persona` | 409 | Salir siendo la única persona del grupo (P14). La pantalla lleva a borrar los datos (MATU-72) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/invitacion-no-disponible` | 410 | El token no es de ninguna invitación, está cortado, se anuló o se borró (C28) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/invitacion-usada` | 410 | La invitación ya se usó (P4) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/invitacion-vencida` | 410 | Pasaron los 7 días (P4) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/invitacion-bloqueada` | 423 | 5 códigos incorrectos, con `nombre_pila_invita` (C30, P2) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/codigo-incorrecto` | 422 | El código de la invitación no coincide, con `intentos_restantes` (decisión 288) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/ya-eres-parte` | 409 | Aceptar una invitación siendo ya miembro activo del grupo, con `grupo_id` (C27) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/invitacion-cerrada` | 409 | Anular una invitación usada o vencida, con `estado` (P8) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/tope-invitaciones` | 429 | 20 invitaciones por admin y grupo en 24 horas, con `Retry-After` (C31, P9) | **Nuevo** (MATU-42, propuesto) |
 
 ## Lo que usa la app de familia (MATU-32)
 
@@ -198,7 +223,7 @@ La app de familia no usa `/v1/relevo/…` (es la página del relevo, MATU-23) ni
 - **`GET /v1/personas-cuidadas/{persona_id}` no existe**, ni editar o borrar una persona. La app usa la lista `GET /v1/grupos/{grupo_id}/personas-cuidadas` y elige por `id`.
 - **No hay ruta para consultar las autorizaciones.** La vista de la persona trae solo la de `plan_cuidado` (`consentimiento`). Que falta la de `consumo` se sabe por el 403 con `finalidad: consumo` de `GET …/consumo`. *Desde MATU-44:* `GET …/consentimientos` (decisión 127).
 - **No hay catálogo** (`/v1/catalogo/…`, arquitectura 9.4). En el sprint 3 la app anota insumos con `nombre_libre`.
-- **No hay invitaciones ni cambio de roles** (MATU-42 y MATU-53, sprint 4), ni salir de un grupo.
+- **No hay invitaciones ni cambio de roles** (MATU-42 y MATU-53, sprint 4), ni salir de un grupo. *Propuesto el 12-11:* `propuestos/invitar-familiar.openapi.yaml` (decisiones 280 a 307).
 - **No hay reposiciones** ("Ya lo compré", MATU-51), **ni lista de reposición ni exportarla** (sprint 4). *Actualizado el 06-11:* la lista de insumos está implementada en MATU-60 (`GET …/consumo/lista`, decisiones 116 a 122) y nunca tendrá exportación ni enlace (ADR-031, decisión 122).
 - **No hay `/v1/consumo/{id}` ni `/v1/alertas`** sin la persona, como dice la arquitectura 9.3: todo cuelga de `/v1/personas-cuidadas/{persona_id}/consumo…` (decisión 54).
 - **No hay preferencias de aviso** (`preferencia_notificacion`), ni cambiar o recuperar la contraseña, ni "cerrar todas las sesiones" (se sacan los dispositivos uno por uno).
@@ -1450,3 +1475,99 @@ Lo que no calza o queda abierto. Ninguna pregunta cambia el alcance por sí sola
 7. **P-62-7 · La cookie del refresh al volver de Webpay.** Es `SameSite=Strict`. La navegación desde Webpay es entre sitios, pero `POST /v1/sesiones/renovar` lo pide la página de MATU, así que la cookie debería viajar. Hay que verificarlo en el teléfono (Chrome y Safari); si no viaja, la pantalla cae en 7.10 («Entrar») y el pago igual queda registrado.
 8. **P-62-8 · Documentos fuera de este perímetro:** la arquitectura 8.4 (la ruta `POST /v1/pedidos/{id}/pagar`, el cargo al pagar y la `return_url` en la app), 9.4 (salen `POST /v1/cargos/{id}/pagar` y `GET /v1/cargos/{id}`; `GET /v1/pedidos/{id}/comprobante` pasa a `GET …/pago` y `…/pedido-pagado`; el 410 del total vencido pasa a 409) y 12.4, caso 8 (decisión 225); y la especificación del diseñador (P2 y P4 con los nombres de este contrato).
 9. **P-62-9 · Nombres distintos del diseño** (manda el contrato): `InicioPago` trae `url` y `token` como se pidió, más `intento_id`, `estado`, `monto` y `total_confirmado_en`; el correo trae `destino` y `enviado`; `codigo_autorizacion` va fuera de `tarjeta`, como lo lista el diseño; el comprobante suma `subtotal_productos`, `pago_de_prueba` y `condiciones.huella`; el observador recibe `estado: pagado` o `sin_pagar`; la vuelta suma `grupo_id` y `volver_a_preguntar_en`, y `ResultadoPago` suma `en_webpay`, solo para `GET …/pago`.
+
+## MATU-42 y MATU-53 · Invitar a un familiar y ver el grupo (RF-38, RF-42; propuesto)
+
+Contrato en `propuestos/invitar-familiar.openapi.yaml` (0.2.0-propuesto), escrito el 12-11 antes de implementar, con las decisiones D-42-1 a D-42-13 y D-42-C20 de Jorge (revisión previa del analista, `docs/legal/revision-previa-matu-42-53.md` del repositorio MATU) y las respuestas del orquestador, por delegación de Jorge, a las preguntas P1 a P14 del diseñador (`docs/diseno/matu-53-invitar-grupo.md`, 0.3 y 0.4).
+
+**Numeración.** Las decisiones de esta historia van de la **280 a la 307**. Las 250 a 279 quedan para MATU-55, que en su rama usa de la 252 a la 271 o más; si al fusionar quedan huecos, no se renumera.
+
+### Decisiones de MATU-42 (12-11)
+
+280. **Alcance.** Invitar (solo admin), ver y anular las invitaciones sin usar, la presentación, la verificación del código y la aceptación, la lista de miembros, cambiar el rol y el permiso del pagador, sacar a alguien y salir. Más dos cambios a rutas de `openapi.json`: `autorizo_alguien_que_ya_no_esta` (decisión 301) y el autor que ya no está (decisión 299). **No** entran: cerrar o borrar un grupo, cambiar el nombre del grupo, renovar la autorización de quien salió (MATU-69, Product Backlog), avisos por correo o push al unirse o salir, ni ver la auditoría de membresías (pregunta 3).
+281. **Dónde viven las rutas.** Las del grupo, bajo `/v1/grupos/{grupo_id}/…` con `X-Grupo-Id`, como `…/personas-cuidadas` de MATU-07: el path y la cabecera tienen que coincidir, si no 404. Las de la persona invitada, bajo `/v1/invitaciones/…`, sin `X-Grupo-Id`, porque el grupo sale del token.
+282. **Sin 403.** Un rol que no alcanza, otro grupo, un id que no es UUID o una membresía retirada responden 404 (decisión 4). Ninguna ruta pide una autorización de la persona cuidada (C7), que es la única causa de 403 en la capa 1.
+283. **La invitación no guarda contacto** (D-42-1 a). Quien administra manda el enlace desde su teléfono y dicta el código aparte (C33). MATU no envía nada y nunca busca a la persona entre las cuentas (C26). La 0026 quita `destino_email`, `destino_telefono` y `CHECK invitacion_destino`.
+284. **Solo el rol, 7 días** (C8, D-42-3, D-42-5). El cuerpo de crear es `{rol}`, cualquiera de los cuatro. El permiso del pagador va aparte, en `PATCH …/miembros/{id}`. Vence a los 7 días exactos según el `Reloj`, sin elegir (siempre hay código, así que las 48 horas de D-42-3 no aplican). La lista de pendientes (solo admin, C10, P7) trae rol, fechas, estado (`pendiente` o `bloqueada`) y quién la creó con su nombre de pila; nunca el token, el código ni los intentos.
+285. **`url`, `codigo` y `expira_en` una sola vez** (P9). La `url` es `{ORIGEN_WEB}/invitacion#<token>`, con 256 bits en el fragmento (C21). Ninguna otra ruta los repite. La página `/invitacion` la sirve el `index.html` de la app (decisión 115) y lleva `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex`, como `/r` (C23); el cambio va en `app/core/web.py`.
+286. **Crear no lleva `Idempotency-Key`.** Repetir la respuesta obligaría a guardar el token y el código. Un doble toque crea dos invitaciones, y la que sobra se anula.
+287. **El código** (D-42-2 a). 4 dígitos aleatorios (`secrets`), guardados como HMAC-SHA256 con `PEPPER_PIN` y separación de dominio (`"invitacion:" + invitacion_id`), en `invitacion.codigo_hash`. No hace falta un secreto nuevo. Sin `PEPPER_PIN`, crear, verificar y aceptar responden 503 sin cambiar nada.
+288. **Código incorrecto: 422 `codigo-incorrecto`**, con `intentos_restantes` (1 a 4), y no 401 como el PIN del relevo (decisión 10): la aceptación lleva una sesión válida, y un 401 haría que la app intente renovarla. La verificación usa el mismo para que la pantalla trate igual los dos pasos. Un código mal formado es 422 `validacion` y no cuenta. El 5.º incorrecto bloquea (`bloqueada_en`, 423, C30), también si después llega el correcto; uno correcto antes del bloqueo vuelve el contador a 0 (como la decisión 11).
+289. **Tres pasos para la persona invitada** (P1). (1) `presentacion`, sin sesión: `nombre_pila_invita`, `rol` y `expira_en` (C1, D-42-4 a, P2). (2) `verificacion`, sin sesión, con el código: además el nombre del grupo y los nombres de pila de las personas cuidadas activas (C2, P3), sin unir a nadie. (3) `aceptacion`, con sesión, vuelve a mandar token y código: une. Las tres evalúan en el mismo orden: límite por IP, cuerpo, 410, 423, código (solo 2 y 3), `ya-eres-parte` (solo 3). «No quiero unirme» no llama al servidor (P12): la invitación sigue hasta que vence o se anula.
+290. **Tres 410** (P4): `invitacion-no-disponible` (inexistente, cortada, anulada o borrada: C28 junta inexistente y anulada), `invitacion-usada` e `invitacion-vencida`. El 423 trae `nombre_pila_invita` (P2). Ninguno cuenta como intento. Que se distinga usada de vencida no revela datos de nadie: solo el estado de un enlace que quien pregunta ya tiene.
+291. **Límites** (C29, C31). Presentación: 30 por hora por IP, contador propio. Verificación y aceptación: **20 por hora** por IP en un contador común «canje de invitación»; el analista sugería 10, pero una unión legítima usa dos llamadas. Crear: 20 por admin y grupo en 24 horas, **429 `tope-invitaciones`** con `Retry-After`, con su propio `type` para no confundirlo con el límite por IP (P9). Todas las claves de Redis son huellas HMAC con `PEPPER_LIMITES` (decisión 27); sin Redis o sin la llave, 503.
+292. **Quiénes forman el grupo** (C6, C9, D-42-10 a, P5, P13). Todo miembro activo ve a los activos, por `unido_en`: id de la membresía, nombre, rol, `puede_ver_plan` (solo del pagador; `null` para los demás), `unido_en`, `eres_tu`, `etag` y `enlaces_vigentes` (los accesos de relevo vigentes que esa persona compartió). `enlaces_vigentes` lo ve quien administra en todas las filas, y cada persona en la propia, para la confirmación de salir; en las demás filas es `null`. Nunca el email, el celular ni el `usuario_id`, con una prueba que falla si aparecen.
+293. **`membresia.version` e `If-Match`** (P6). La 0026 agrega `version`, y `PATCH …/miembros/{id}` exige `If-Match` con el `etag` (`"v<version>"`): sin él, vacío o `*`, 428 `falta-version`; desactualizado, 412 con `actual`. Sacar y salir no lo piden: no pisan un cambio de otro.
+294. **El grupo nunca queda sin admin** (C11, C12). La API responde 409 `ultimo-admin` al degradar, sacar o hacer salir al último admin activo, y un trigger de la 0026 lo impide también por SQL, con dos cambios a la vez. Si la persona es la única del grupo, salir responde **409 `unica-persona`** (P14), y la pantalla la lleva a «Borrar sus datos» (MATU-72).
+295. **Se cortan los enlaces de relevo** (C13, C19, D-42-7 a). Al sacar a alguien, al salir y al pasar de `admin` o `cuidador` a `pagador` u `observador`, en la misma transacción y antes de retirar o degradar la membresía: `acceso_relevo.revocado_en` e `indice_token.revocado_en`, con `relevo.revocar` por acceso. Se corta al dejar de **compartir**, no al dejar de ver la ficha: un pagador con permiso ve la ficha, pero no crea ni corta accesos (`app_escribe_plan`), así que no podría cortarlos después. `PATCH` responde `enlaces_cortados`; sacar y salir responden **200** con `enlaces_cortados` (P13), no 204.
+296. **Sacarse a uno mismo es salir.** `DELETE …/miembros/{id}` sobre la propia membresía hace lo mismo que `POST …/salida`, con su auditoría (`membresia.salir`) y sus dos 409. Sacar no es idempotente: una membresía retirada responde 404 («Esa persona ya no estaba en el grupo»).
+297. **Quien deja de ser admin pierde sus invitaciones sin usar.** Al degradar, sacar o salir de un admin, sus invitaciones pendientes o bloqueadas se anulan en la misma transacción, con `invitacion.anular`. Si no, alguien podría entrar con un rol que ya no da nadie que administre. Es una decisión de este contrato, no de la revisión previa (pregunta 5).
+298. **Anular** es `DELETE …/invitaciones/{id}`, solo admin. Pendiente o bloqueada: 204 e `invitacion.anular`. Ya anulada: 204 sin cambiar nada. Usada o vencida: **409 `invitacion-cerrada`** con `estado` (P8).
+299. **El autor que ya no está** (D-42-10 a, P11). La 0026 deja `usuario_comiembro` solo para membresías activas. `AutorVista`, `AutorAccesoVista` y `AutorPerfilVista` pasan a `{id, nombre: string | null, autor_activo: bool}`: quien ya no está, o una cuenta eliminada, llega con su `id`, `nombre: null` y `autor_activo: false`, igual en todas las rutas, y la pantalla escribe «Alguien que ya no está en el grupo». `autor: null` queda solo para una fila sin autor. **No es solo aditivo**: `nombre` se vuelve anulable y `autor_activo` es obligatorio, y se vuelve a exportar `openapi.json`. Los pedidos y el pago no muestran nombres (solo `es_tuyo`), así que no cambian; si el diseño quiere «quién armó, confirmó o pagó» (su 5.7), hace falta otra decisión (pregunta 4).
+300. **Unirse, salir y que te saquen no publican eventos ni avisos** en el semestre. La lista se ve al volver a pedirla.
+301. **`autorizo_alguien_que_ya_no_esta`** (D-42-9 a, P10). Un booleano en `AutorizacionVista` de `GET …/consentimientos`, que ven admin y cuidador, en las tres finalidades. `true` si la autorización no está retirada y `otorgado_por` ya no es miembro activo. No dice quién (decisión 127 y D-42-10). La autorización sigue vigente; renovar va en MATU-69.
+302. **Auditoría** (D-42-8 b). Entidades nuevas `invitacion` y `membresia`. Acciones: `invitacion.crear`, `.anular`, `.aceptar`, `.codigo_incorrecto` y `.bloqueo`; `membresia.cambiar_rol`, `.permiso_ficha`, `.sacar` y `.salir`. El único detalle es `{"rol": …}`, de la lista cerrada de los cuatro roles. Nunca el token, el código, sus huellas, la IP ni datos de contacto. La verificación sin sesión registra con actor `sistema` y `actor_ref` vacío, como el inicio de sesión fallido (MATU-38); la aceptación, con la cuenta. Las funciones `SECURITY DEFINER` escriben esas filas en su misma transacción. Las lecturas no se auditan. `invitacion.cerrar` de D-42-8 no se usa (pregunta 1).
+303. **RF-42, llenado asistido, sin ruta nueva.** Un admin o cuidador que entró con una invitación completa o corrige la ficha con `PUT …/plan/ficha/{campo}` y `PUT …/plan/secciones/{seccion}`. La autoría queda en el `autor` de cada campo y en `plan.editar` con su cuenta. Sin `en_nombre_de` (decisión 21, arquitectura 9.2). MATU-42 lo cierra con una prueba de integración: Rosa acepta como cuidadora, escribe «Su día» y la ficha muestra a Rosa como autora, con `plan.editar` de su cuenta.
+304. **Un cambio de rol con un pago en curso** (D-42-C20) vale desde la petición siguiente, y el pago no se anula.
+305. **Lo que nunca sale ni se registra** (C24): el token, el código, sus huellas, la IP, el correo y el celular, en logs, errores, auditoría ni eventos. `Cache-Control: no-store` en todas las respuestas (verificado con un script: 51 respuestas, 0 sin la cabecera). Los componentes comunes son copias idénticas de `pago.openapi.yaml` y `relevo.openapi.yaml` (verificado con un script).
+306. **Lo que el contrato pide a la migración 0026** (`down_revision = "0025"`): ver «Plan de la 0026».
+307. **`type` nuevos:** `ultimo-admin` y `unica-persona` (409), `invitacion-no-disponible`, `invitacion-usada` e `invitacion-vencida` (410), `invitacion-bloqueada` (423), `codigo-incorrecto` (422), `ya-eres-parte` e `invitacion-cerrada` (409) y `tope-invitaciones` (429). Se reutilizan `no-autenticado`, `token-invalido`, `no-encontrado`, `validacion`, `version-desactualizada`, `falta-version`, `demasiadas-peticiones` y `servicio-no-disponible`.
+
+### Plan de la 0026 (MATU-42, `down_revision = "0025"`)
+
+En texto, para revisar antes de escribirla. Todo el SQL de políticas, permisos, triggers y `CHECK` va con `op.execute` dentro de la migración, y se verifica `upgrade head`, `downgrade -1` y `upgrade head`. Antes de escribirla se trae la rama de MATU-55 (0025) y se revisa si toca `auditoria_detalle_acotado`, `usuario_comiembro` o `membresia`. En `main`, la última versión de `auditoria_detalle_acotado` es la de la 0013 (verificado el 12-11: ni la 0023 ni la 0024 lo cambian), y la 0023 **no** dividió `direccion_familia` ni `direccion_operacion`, así que los divide esta.
+
+a) **`app_es_admin()`**, `STABLE`: una membresía activa con rol `admin` de `app_usuario()` en `app_grupo()`.
+
+b) **`membresia`.**
+- Sale `membresia_familia` (ALL). Entran `membresia_familia_leer` (SELECT, `grupo_id = app_grupo() AND estado = 'activa'`, D-42-10 a), `membresia_admin_editar` (UPDATE de una fila activa del grupo con `app_es_admin()`) y `membresia_salir` (UPDATE de la propia fila activa, `WITH CHECK (usuario_id = app_usuario() AND estado = 'retirada')`). `membresia_operacion` pasa de ALL a SELECT. `membresia_propia` y `membresia_fundador` no cambian. Sin política de DELETE.
+- `version integer NOT NULL DEFAULT 1 CHECK (version > 0)` (decisión 293).
+- `REVOKE UPDATE, DELETE` y `GRANT UPDATE (rol, puede_ver_plan, estado, retirado_en, version)` a `matu_app`.
+- `membresia_uq` pasa a un índice único parcial `(grupo_id, usuario_id) WHERE estado <> 'retirada'` (D-42-11 a).
+- Las escrituras de la aplicación no usan `RETURNING`: una fila que queda `retirada` ya no pasa la política de lectura.
+
+c) **Trigger «nunca sin admin»** (`BEFORE UPDATE` en `membresia`, C11). Solo si la fila vieja es `admin` y `activa` y la nueva deja de serlo: `SELECT … FROM grupo_familiar WHERE id = OLD.grupo_id FOR UPDATE` y, si no queda otro admin activo, `RAISE` con `ERRCODE = 'check_violation'` y el nombre de restricción `membresia_ultimo_admin`, que la API traduce a 409. El bloqueo serializa dos degradaciones simultáneas; en READ COMMITTED, la cuenta posterior al bloqueo ve lo que la otra confirmó. El `FOR UPDATE` pasa RLS porque, en todos esos casos, quien actúa todavía es admin activo (o es operación). Si en la prueba no alcanza, la alternativa es `pg_advisory_xact_lock` sobre el grupo.
+
+d) **`invitacion`.**
+- La upgrade falla con un mensaje claro si la tabla tiene filas (ninguna ruta las creó; se verifica que staging está vacío).
+- Salen `destino_email`, `destino_telefono` y `CHECK invitacion_destino` (D-42-1 a).
+- Entran `nombre_pila_invita text NOT NULL`, `codigo_hash bytea NOT NULL CHECK (octet_length = 32)`, `codigo_intentos_fallidos smallint NOT NULL DEFAULT 0 CHECK (entre 0 y 5)` y `bloqueada_en timestamptz`; `CHECK (octet_length(token_hash) = 32)` y `CHECK ((aceptada_en IS NULL) = (aceptada_por IS NULL))`. `invitacion_vigencia` (7 días) se queda.
+- Trigger `invitacion_vida_fija` (`BEFORE UPDATE`): `aceptada_*`, `revocada_en` y `bloqueada_en`, una vez fijados, no cambian; `expira_en` no se alarga; `grupo_id`, `rol`, `token_hash`, `codigo_hash`, `invitado_por` y `creada_en` no cambian.
+- Sale `invitacion_familia` (ALL). Entran `invitacion_admin_leer` (SELECT), `invitacion_admin_crear` (INSERT, con `invitado_por = app_usuario()`) e `invitacion_admin_anular` (UPDATE), las tres con `grupo_id = app_grupo() AND app_es_admin()`. `invitacion_operacion` sigue en SELECT. Sin DELETE.
+- `REVOKE UPDATE, DELETE` y `GRANT UPDATE (revocada_en)` a `matu_app`. Lo demás lo escriben las funciones de (e).
+
+e) **Las funciones de la persona invitada** (D-42-12 a): `invitacion_presentar(p_token_hash, p_ahora)`, `invitacion_verificar(p_token_hash, p_codigo_hash, p_ahora)` e `invitacion_aceptar(p_token_hash, p_codigo_hash, p_ahora)`. `SECURITY DEFINER`, dueño `matu_owner`, `SET search_path = pg_catalog, public, pg_temp`, `REVOKE ALL FROM PUBLIC` y `EXECUTE` solo para `matu_app`, como `pago_resolver_venta` (0024).
+- Las tres exigen que no haya `app.grupo_id` y rechazan un `p_ahora` en el futuro. `invitacion_aceptar` exige `app.usuario_id`.
+- Buscan por `indice_token` (`tipo = 'invitacion'`) y toman la invitación con `FOR UPDATE` (verificar y aceptar).
+- Devuelven un `resultado` cerrado (`no_disponible`, `usada`, `vencida`, `bloqueada`, `codigo_incorrecto`, `ya_eres_parte`, `ok`) y solo lo que cada paso muestra: la presentación, `nombre_pila_invita`, `rol` y `expira_en`; la verificación, además el nombre del grupo, los nombres de pila de las personas activas e `intentos_restantes`; la aceptación, `grupo_id`, `membresia_id`, el nombre del grupo y el rol.
+- Cuentan los intentos, fijan `bloqueada_en` en el 5.º, insertan la membresía, fijan `aceptada_*` e `indice_token.revocado_en`, y escriben la auditoría (decisión 302) en la misma transacción.
+- Como `matu_owner` está sujeto a RLS forzado, leen y escriben con políticas `TO matu_owner` acotadas a un marcador que fija la propia función con `set_config(…, true)` (el patrón de `pedido_resolver_pago` y `app.conservacion`), sobre `invitacion`, `membresia`, `grupo_familiar`, `persona_cuidada` y `auditoria`.
+- La ruta hace `commit` antes de responder 422 o 423, para que el intento quede contado (como el canje del relevo).
+
+f) **`grupo_familiar`.** Sale `grupo_familia` (ALL). Entran `grupo_familia_leer` (SELECT, `id = app_grupo()`) y `grupo_admin_editar` (UPDATE con `app_es_admin()`). `REVOKE UPDATE, DELETE` y `GRANT UPDATE (nombre, actualizado_en)`, que también habilita el `FOR UPDATE` de (c). `grupo_operacion`, `grupo_mis_grupos`, `grupo_crear`, `grupo_creador_ver` y `grupo_scheduler` no cambian.
+
+g) **`direccion`.** Salen `direccion_familia` y `direccion_operacion` (ALL). Entran `direccion_familia_leer` (SELECT del grupo) y `direccion_familia_crear`, `_editar` y `_borrar`, con `app_retira_autorizacion()` (admin o cuidador activo, 0016), los mismos que hoy usan `PUT` y `DELETE …/direccion` y el borrado de MATU-72. Y `direccion_operacion_leer` (SELECT).
+
+h) **`usuario_comiembro`** exige `m.estado = 'activa'` (D-42-10 a, hallazgo 4). Los avisos (0014) ya filtran miembros activos, así que no cambian.
+
+i) **`auditoria_detalle_acotado`** acepta además `rol`, un string de la lista cerrada (D-42-8 b). El downgrade lo deja como la 0013, `NOT VALID` si ya hay filas con `rol`, como hizo la 0013 con la 0008.
+
+j) **`invitacion_conservar(limite, ahora)`** (D-42-6), `SECURITY DEFINER`, solo para `matu_scheduler` con `app.rol = 'operacion'`: borra las invitaciones cerradas hace 30 días o más (aceptadas, anuladas, bloqueadas o vencidas, desde la primera de esas fechas) y su `indice_token`. La llama la tarea de MATU-74 (`borrados`), que corre siempre.
+
+k) **Pruebas.** En `test_aislamiento.py`: nadie que no sea admin inserta, cambia ni anula membresías, invitaciones o el grupo por SQL; un observador no se sube a admin; nadie borra; B no ve nada de A; quien salió no ve a sus excompañeros (`usuario_comiembro`) ni la membresía de otros; el último admin con dos degradaciones simultáneas; la aceptación de un solo uso con dos a la vez; el código y el bloqueo; volver a invitar a quien salió; la dirección por rol. En `test_migraciones.py`, el ciclo completo. Los esquemas de respuesta, sin email, celular ni `usuario_id`.
+
+l) **Downgrade.** Deja el esquema como la 0025: vuelven las políticas ALL y los permisos de antes, `usuario_comiembro` sin el filtro, el `CHECK` de la auditoría de la 0013, `membresia_uq` (falla con un mensaje claro si una cuenta tiene dos membresías en el mismo grupo, como la 0023 y la 0024 fallan cuando perderían datos), y `destino_email` y `destino_telefono` como columnas anulables con `invitacion_destino` `NOT VALID`. Se van `version`, las columnas nuevas de `invitacion`, los triggers, las funciones y `app_es_admin()`.
+
+**Sin migración:** cortar los enlaces de relevo (0020 c), las acciones y entidades de auditoría (`app/shared/auditoria.py`) y las cabeceras de `/invitacion` (`app/core/web.py`).
+
+### Preguntas abiertas (MATU-42)
+
+1. **`invitacion.cerrar`** está en D-42-8, pero ningún hecho lo produce: vencer no es una acción, y el borrado a los 30 días es conservación. Se propone no usarla. ¿Se quita de la lista?
+2. **Cortar al dejar de compartir** (decisión 295): C19 dice «si el cambio le quita la ficha». Un admin o cuidador que pasa a pagador con permiso sigue viendo la ficha, pero no puede compartir ni cortar. Se propone cortar igual. ¿De acuerdo?
+3. **«Lo ve quien administra el grupo»**: la política §6 propuesta por el analista dice que quien administra ve el registro de quién invitó, se unió, cambió un rol o salió. Ninguna ruta lo muestra. Es un faltante: o una tarjeta para `GET /v1/grupos/{grupo_id}/actividad` (sprint 5), o se quita la frase de la política antes de publicarla.
+4. **Los pedidos no muestran nombres.** El diseño (5.7) nombra «quién armó, confirmó o pagó un pedido», pero `PedidoVista` y `PagoVista` solo traen `es_tuyo`. Si se quieren los nombres, es un cambio de MATU-61 o MATU-62 que este contrato no hace.
+5. **Anular las invitaciones de quien deja de ser admin** (decisión 297) no estaba en la revisión previa. Conviene que el analista lo vea en el cierre.
+6. **`autor_activo`** cambia también los autores de rutas ya implementadas (decisión 299). ¿Va en MATU-42 o en una tarjeta propia? Se propone MATU-42, porque D-42-10 es de esta historia.
+7. **El límite de 20 canjes por hora** (decisión 291) es el doble del que sugirió el analista. ¿Se acepta?
+8. **`intentos_restantes` en la verificación correcta** siempre vale 5. Se dejó porque P3 lo pide. ¿Basta con el del 422?
+9. **La política y `lenguaje.md`** se publican al fusionar (sección 33 de `lenguaje.md`, versión de la política según D11). Faltan en `lenguaje.md` los textos del 410 usado o vencido y de `unica-persona`; el diseño ya los propuso (4.7 y 7.3).
