@@ -1,9 +1,11 @@
 # MATU-107 · Correcciones del 12/11 · Especificación de diseño
 
-**Versión 1 · 12/11/2026** · diseñador (agente 6). Dos puntos:
+**Versión 2 · 12/11/2026** · diseñador (agente 6). La versión 2 viene de la revisión visual y suma el `iconoEnLinea` de la nota G (2.2) y las secciones 4 y 5. Puntos:
 
 1. la barra inferior de la app de la familia (hallazgo 42-H2 de Martín, P3);
-2. «Recibir avisos en este teléfono» cuando la cuenta no puede activarlos (C14, `permitido: false`).
+2. «Recibir avisos en este teléfono» cuando la cuenta no puede activarlos (C14, `permitido: false`);
+4. las colas con «·» (54-H4);
+5. la ayuda del límite de copias (54-H3).
 
 Fuentes: `Demo/DISENO.md` (secciones 2, 3 y 4), `docs/diseno/matu-39-app-familia.md` (2.1), `docs/diseno/matu-55-donde-entraste.md` (3.4) y el contrato `docs/api/openapi.json` (`GET` y `PUT /v1/dispositivos/actual/push`).
 
@@ -123,7 +125,7 @@ Que Carmen entienda que, en el piloto, su teléfono no recibe avisos por una reg
 |---|---|
 | **Cuándo** | `GET /v1/dispositivos/actual/push` responde `permitido: false` |
 | **Prioridad** | **Manda sobre todos los demás** (A a F). Con `permitido: false` no se mira el navegador, y nunca se dice «Este navegador no puede recibir avisos» ni el texto de F |
-| **Qué se ve** | El `h3` del bloque («Este teléfono», «Este computador» o «Este navegador», según E1) y, debajo, `Nota tono="rocio"` con el ícono propio del tono. **Sin `Etiqueta`** (ni «Sin activar» ni «Activados») y **sin el botón «Activar en este teléfono»** |
+| **Qué se ve** | El `h3` del bloque («Este teléfono», «Este computador» o «Este navegador», según E1) y, debajo, `Nota tono="rocio" iconoEnLinea` con el ícono propio del tono. **(v2)** Con `iconoEnLinea`, como en el estado E: en el modo `angosto` el ícono va en la línea del texto. Sin él, a 320 px con el texto al 200 % el texto quedaba en una columna de unos 140 px, con una o dos palabras por renglón. **Sin `Etiqueta`** (ni «Sin activar» ni «Activados») y **sin el botón «Activar en este teléfono»** |
 | **Texto exacto** | «En el piloto, los avisos en el teléfono solo se prueban en los teléfonos del equipo de MATU.» **[ANALISTA, aprobado]** |
 | **E1** | El texto no cambia en un computador ni en otro navegador. Habla de la regla del piloto, no de este dispositivo |
 | **Permiso del navegador** | Nunca se pide: no hay botón que lo pida |
@@ -181,6 +183,44 @@ Si el navegador ya mostró su aviso de permiso y la persona dijo «Permitir», n
 6. La nota `atenta` del piloto sigue apareciendo una sola vez al final del bloque.
 
 ---
+
+## 4. Las colas con «·» (54-H4)
+
+**Lo que se vio (revisión del 12/11, `datos-admin` y `datos-pagador`).** En «Datos de María» hay 26 «·». En 25 de ellos, el espacio de antes es U+00A0 y el de después es normal. En el modo `angosto` (320 px con el texto al 200 %), varios terminan un renglón: «Anotó», «Llegó con…» y las líneas del historial («a las 18:12 ·⏎Carmen Soto»). «Cobrado · Devuelto» ya tiene U+00A0 a los dos lados, y por eso la cadena «$37.260 · Devuelto:» no se puede partir. A 320 px con el texto al 200 % no cabe en los 252 px de la columna, y `break-words` la corta en medio de la palabra: «Devu⏎elto». Es peor que el punto al final del renglón (**P2**).
+
+**Decisión: una sola regla para toda cola con «·»** (montos, «Anotó», «Llegó con un pedido», «Si falta», historial y cuotas):
+
+| Dónde | Cómo |
+|---|---|
+| **Fuera del modo `angosto`** | U+00A0 a los dos lados del «·». La cadena más larga que queda es una fecha o un monto más una palabra, y cabe en la columna más angosta sin `angosto` (252 px a 320 px). |
+| **En el modo `angosto`** | El «·» y sus dos espacios van en un `span` con `angosto:hidden`, y la cola baja a su propio renglón con `angosto:block`. Ningún renglón empieza ni termina con el punto, y ninguna palabra se corta. |
+| Siempre | Se mantiene `break-words` en el párrafo, como red. |
+
+Forma, por ejemplo en el pago:
+
+```tsx
+<p className="text-base break-words">
+  {T.cobrado}<span className="cifras">{pesos(pago.cobrado)}</span>
+  <span className="angosto:hidden">{'\u00a0·\u00a0'}</span>
+  <span className="angosto:block">{T.devuelto}<span className="cifras">{pesos(pago.devuelto)}.</span></span>
+</p>
+```
+
+Para las colas que hoy son texto (`anoto`, `llegoConPedido`, `siFalta`, `cuotas` y la cola del historial), el «·» sale del texto y lo pone el componente, de la forma de arriba. El texto queda sin el punto ni los espacios («Anotó Carmen Soto»). Para el lector de pantalla, en `angosto` el renglón nuevo hace de pausa.
+
+**Criterios:**
+1. A 320 px con el texto al 200 %, en «Datos de María» y en «Tus datos», ningún renglón empieza ni termina con «·», y ninguna palabra queda cortada («Devu⏎elto»).
+2. A 360 y 1280 px, todas las colas siguen en la misma línea que su dato, con «·» entre U+00A0.
+3. El ancho de desplazamiento es igual al ancho de la pantalla en todos los casos.
+
+**«· 3 cuotas» en «Tus datos».** Hoy se ve bien en todos los anchos: «4242 · 3 cuotas» es corto y no se corta. Igual pasa a la regla de arriba, para que todo funcione de la misma manera.
+
+## 5. La ayuda del límite de copias (54-H3)
+
+«Cada vez que abres esta pantalla cuenta como una copia de los datos. Puedes abrirla hasta 10 veces por hora.» va bajo la bajada, en `p text-base text-tenue max-w-prose mt-1.5`, igual que la bajada. **Queda así.**
+- Es información de apoyo, constante, y no un estado. Por eso no va en una `Nota`, que se reserva para lo que cambia o pide atención.
+- Se ve también cuando la página muestra el 429 («Abriste o descargaste los datos varias veces…»), donde más sirve.
+- Medido: `tenue` sobre `papel` da 6,4:1 en claro, y en oscuro supera 7:1. Mide 17 px. A 320 px con el texto al 200 % no desborda.
 
 ## 3. Para el orquestador
 
