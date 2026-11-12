@@ -26,6 +26,8 @@ PUBLICADAS: dict[str, str] = {
     "0.13": "135dc42b6ff28e53f32e3291a151762248a9dee3150e33b3b1e61d03a744844f",  # pragma: allowlist secret
     # MATU-55: «Dónde entraste», el registro de la cuenta y los avisos en los teléfonos. Las anteriores siguen
     "0.14": "1965bdbffd446fa58c5786d80f1e5609bb3ea6afa0b2ee2360671640cc0bc81e",  # pragma: allowlist secret
+    # MATU-42: las invitaciones al grupo, quiénes lo forman, el cambio de rol y salir. Las anteriores siguen
+    "0.15": "8b262c0d46ee2edf039af51958f42681e8ef3fc137fd9eb8df7b94436470cd0f",  # pragma: allowlist secret
 }
 
 

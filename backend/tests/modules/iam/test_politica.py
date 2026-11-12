@@ -490,12 +490,10 @@ def test_la_0_13_sigue_publicada_para_quien_la_acepto() -> None:
 
 
 @pytest.mark.rf("RF-25")
-def test_la_0_14_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_14_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-55 (P7 del analista): la 0.14 agrega «Dónde entraste», el registro de la cuenta y los avisos en los
     teléfonos; la 0.11, la 0.12 y la 0.13 siguen publicadas para quien las aceptó."""
     assert {"0.11", "0.12", "0.13", "0.14"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.14", "2026-11-12")
     texto = texto_publicado("0.14")
     assert texto != texto_publicado("0.13")
     for parte in (
@@ -512,3 +510,27 @@ def test_la_0_14_esta_publicada_y_es_la_de_env_example() -> None:
     from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
 
     assert all(declaracion in texto for declaracion in DECLARACIONES_PEDIDOS.values())
+
+
+@pytest.mark.rf("RF-38")
+def test_la_0_15_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-42 y MATU-53: la 0.15 agrega las invitaciones sin correo ni teléfono, quiénes forman el grupo, el cambio de
+    rol, salir y los 30 días de las invitaciones; de la 0.11 a la 0.14 siguen publicadas para quien las aceptó."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.15", "2026-11-12")
+    texto = texto_publicado("0.15")
+    assert texto != texto_publicado("0.14")
+    for parte in (
+        "no guardamos el correo ni el teléfono de la persona que invitas",
+        "el código no va en el mensaje",
+        "**Quiénes forman el grupo:**",
+        "No ven el email, el celular ni un número que identifique la cuenta",
+        "### Salir de un grupo",
+        "**Invitaciones a un grupo:** 30 días desde que se aceptan, se anulan, se bloquean o vencen",
+        "La versión 0.15 agrega las invitaciones a tu grupo",
+        "No te pedimos aceptar de nuevo esta política",
+    ):
+        assert parte in texto, parte
+    # Lo de la 0.14 sigue en el texto vigente
+    assert "**El registro de tu cuenta.**" in texto and "MATU no ve el número de tu tarjeta" in texto
