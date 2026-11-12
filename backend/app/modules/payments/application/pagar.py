@@ -106,7 +106,10 @@ def pagar(
     visible = estado_visible(pedido.estado, pedido.total_vence_en, ahora)
     if visible is not Estado.TOTAL_CONFIRMADO or pedido.total is None or pedido.total_confirmado_en is None:
         raise TransicionInvalida(visible)
-    cargo = repositorio.cargo_de(pedido.id, bloquear=True)
+    # Sin FOR UPDATE: el pedido ya está bloqueado y serializa a quien paga. Además, FOR UPDATE sobre cargo exige su
+    # política de UPDATE, que la familia tiene solo para un cargo rechazado: el cargo pendiente no se vería y pagar
+    # intentaría crear un segundo cargo (prueba con base, 11-11)
+    cargo = repositorio.cargo_de(pedido.id)
     if cargo is not None and any(en_curso(v, ahora, vida) for v in repositorio.ventas(cargo.id)):
         raise PagoEnCurso()
     exigir_version(pedido, if_match)
