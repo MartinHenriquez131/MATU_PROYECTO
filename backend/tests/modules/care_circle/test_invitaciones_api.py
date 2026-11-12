@@ -4,6 +4,7 @@ Contrato: docs/api/propuestos/invitar-familiar.openapi.yaml. Solo datos sintéti
 El límite por IP y el tope de invitaciones van con el contador en memoria de tests/modules/conftest.py.
 """
 
+import json
 import re
 import secrets
 import uuid
@@ -109,6 +110,22 @@ def _todas(sql: str, *parametros: Any) -> list[tuple[Any, ...]]:
         return cx.execute(sql, parametros).fetchall()
 
 
+def _sin_request_id(respuesta: Any) -> str:
+    """El cuerpo del problema sin su request_id (un UUID aleatorio), para buscar un valor corto sin falsos positivos."""
+    cuerpo = dict(respuesta.json())
+    cuerpo.pop("request_id", None)
+    return json.dumps(cuerpo, ensure_ascii=False)
+
+
+def _valores(dato: Any) -> set[str]:
+    """Todos los valores escalares de un JSON, como texto."""
+    if isinstance(dato, dict):
+        return set().union(*(_valores(v) for v in dato.values())) if dato else set()
+    if isinstance(dato, list):
+        return set().union(*(_valores(v) for v in dato)) if dato else set()
+    return {str(dato)}
+
+
 def _otro_codigo(codigo: str) -> str:
     return f"{(int(codigo) + 1) % 10_000:04d}"
 
@@ -132,7 +149,8 @@ def test_invitar_presentar_verificar_y_unirse(entorno: Entorno) -> None:
     [vista] = lista.json()["invitaciones"]
     assert vista["estado"] == "pendiente" and vista["invitada_por"]["eres_tu"] is True
     assert vista["invitada_por"]["nombre"] == familia.admin.nombre.split()[0]
-    assert token not in lista.text and codigo not in lista.text.replace(creada["creada_en"], "")
+    # El código son 4 dígitos que podrían aparecer en un id o una fecha: se busca como valor, no como texto
+    assert token not in lista.text and codigo not in _valores(lista.json())
 
     presentacion = entorno.presentar(token)
     assert presentacion.status_code == 200, presentacion.text
@@ -282,7 +300,8 @@ def test_un_codigo_mal_formado_es_422_y_no_cuenta(entorno: Entorno) -> None:
     for malo in ("12", "abcd", "12345"):
         respuesta = entorno.verificar(token, malo)
         assert respuesta.status_code == 422 and respuesta.json()["type"] == "/errores/validacion"
-        assert malo not in respuesta.text
+        # Sin el request_id, que es aleatorio y puede contener «12» o «abcd»: el problema nunca repite el valor
+        assert malo not in _sin_request_id(respuesta)
     assert entorno.verificar(token, _otro_codigo(codigo)).json()["intentos_restantes"] == 4
 
 
