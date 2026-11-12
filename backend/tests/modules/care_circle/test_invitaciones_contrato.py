@@ -88,5 +88,5 @@ def test_el_propuesto_queda_como_implementado() -> None:
     assert "**Implementado en MATU-42 (12-11): manda `docs/api/openapi.json`.**" in texto
     readme = (DOCS / "README.md").read_text(encoding="utf-8")
     assert "### Preguntas abiertas (MATU-42)" not in readme
-    for numero in range(290, 332):
+    for numero in [*range(290, 332), 340, 341]:
         assert re.search(rf"\n{numero}\. \*\*", readme), numero
