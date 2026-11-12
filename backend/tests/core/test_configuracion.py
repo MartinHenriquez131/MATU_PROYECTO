@@ -487,7 +487,7 @@ LLAVE_SINTETICA = "llave-sintetica-de-prueba-0000"  # pragma: allowlist secret
 
 def _produccion(monkeypatch: pytest.MonkeyPatch, entorno: str, autorizado: str | None) -> None:
     monkeypatch.setenv("ENTORNO", entorno)
-    monkeypatch.setenv("POLITICA_VERSION", "0.16")
+    monkeypatch.setenv("POLITICA_VERSION", "0.17")
     monkeypatch.setenv("PASARELA_PAGO", "produccion")
     monkeypatch.setenv("WEBPAY_CODIGO_COMERCIO", "000000000000")
     monkeypatch.setenv("WEBPAY_LLAVE", LLAVE_SINTETICA)
@@ -532,6 +532,6 @@ def test_el_dinero_real_queda_bloqueado_en_env_example() -> None:
 @pytest.mark.rf("RF-25")
 def test_integracion_no_pide_la_marca(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENTORNO", "staging")
-    monkeypatch.setenv("POLITICA_VERSION", "0.16")
+    monkeypatch.setenv("POLITICA_VERSION", "0.17")
     monkeypatch.setenv("PASARELA_PAGO", "integracion")
     assert cargar().dinero_real_autorizado is False

@@ -536,12 +536,10 @@ def test_la_0_15_sigue_publicada_para_quien_la_acepto() -> None:
 
 
 @pytest.mark.rf("RF-05")
-def test_la_0_16_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_16_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-46: la 0.16 dice que el teléfono del relevo se borra a los 30 días de que el acceso vence o se corta, y al
-    borrar a la persona, y que el borrado a los 3 años todavía no existe; de la 0.11 a la 0.15 siguen publicadas."""
+    borrar a la persona, y que el borrado a los 3 años todavía no existe; sigue publicada para quien la aceptó."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.16", "2026-11-12")
     texto = texto_publicado("0.16")
     assert texto != texto_publicado("0.15")
     for parte in (
@@ -554,3 +552,24 @@ def test_la_0_16_esta_publicada_y_es_la_de_env_example() -> None:
         assert parte in texto, parte
     # Lo de la 0.15 sigue en el texto vigente
     assert "**Quiénes forman el grupo:**" in texto and "### Salir de un grupo" in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_la_0_17_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-54: la 0.17 agrega ver y descargar los datos desde la aplicación, en «Datos de» y en «Tus datos», con los
+    90 días en pantalla y todo en el archivo, y nadie vuelve a aceptar; de la 0.11 a la 0.16 siguen publicadas."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.17", "2026-11-12")
+    texto = texto_publicado("0.17")
+    assert texto != texto_publicado("0.16")
+    for parte in (
+        "### Ver y descargar los datos desde la aplicación",
+        "**Tus datos.** En «Tu cuenta», «Tus datos», ves lo que MATU guarda de tu cuenta",
+        "**En la pantalla** ves los últimos 90 días de cada registro. **El archivo** trae todo lo guardado",
+        "La versión 0.17 agrega ver y descargar los datos desde la aplicación. No te pedimos aceptar de nuevo esta"
+        " política ni volver a dar las autorizaciones",
+    ):
+        assert parte in texto, parte
+    # Lo de la 0.16 sigue en el texto vigente
+    assert "La versión 0.16 borra solo el teléfono del relevo a los 30 días" in texto
