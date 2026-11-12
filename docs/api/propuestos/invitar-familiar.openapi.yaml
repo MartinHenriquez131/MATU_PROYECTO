@@ -12,8 +12,8 @@ info:
     - las respuestas del orquestador, por delegación de Jorge, a las preguntas **P1 a P14** del diseñador
       (`docs/diseno/matu-53-invitar-grupo.md`, secciones 0.3 y 0.4). La versión 0.2.0 las aplica.
 
-    Las decisiones de este contrato son las **280 a 307** de `docs/api/README.md`, sección «MATU-42 y
-    MATU-53». Parten de la 280 para no chocar con MATU-55, que usa de la 252 a la 271 o más en su rama.
+    Las decisiones de este contrato son las **290 a 317** de `docs/api/README.md`, sección «MATU-42 y
+    MATU-53». Parten de la 290 para no chocar con MATU-55, que usa de la 252 a la 289 en su rama.
 
     **Qué cubre:**
     - **Invitar** (solo `admin`): `POST /v1/grupos/{grupo_id}/invitaciones` crea una invitación con un
@@ -38,7 +38,7 @@ info:
       (D-42-9 a, P10, `CambioAutorizacionVista`) y el autor que ya no está como `nombre: null` y
       `autor_activo: false` (D-42-10 a, P11, `CambioAutor`).
 
-    **RF-42, llenado asistido** (decisión 303): no tiene ruta propia. Un `admin` o `cuidador` que entró
+    **RF-42, llenado asistido** (decisión 313): no tiene ruta propia. Un `admin` o `cuidador` que entró
     con una invitación completa o corrige la ficha con las rutas que ya existen (`PUT …/plan/ficha/{campo}`
     y `PUT …/plan/secciones/{seccion}`), y la autoría queda en el `autor` de cada campo y en la auditoría
     `plan.editar`, con su cuenta como actor. MATU-42 lo cierra con una prueba de integración.
@@ -59,7 +59,7 @@ info:
     `history.replaceState` y lo manda **en el cuerpo de un POST**, nunca en la URL ni en una query. La
     base guarda solo su SHA-256 (`invitacion.token_hash` e `indice_token`). El token y el código quedan en
     memoria mientras la persona entra o crea su cuenta, nunca en `sessionStorage` ni `localStorage`
-    (C25). El código se guarda como HMAC-SHA256 con `PEPPER_PIN` (decisión 287).
+    (C25). El código se guarda como HMAC-SHA256 con `PEPPER_PIN` (decisión 297).
 
     **`Cache-Control: no-store` en todas las respuestas**, 2xx y errores. Las tres rutas de la persona
     invitada llevan además `Referrer-Policy: no-referrer` y `X-Robots-Tag: noindex` (C23).
@@ -109,7 +109,7 @@ paths:
         La respuesta trae **una sola vez** `url` (`{ORIGEN_WEB}/invitacion#<token>`), `codigo` (4
         dígitos) y `expira_en` (P9). Ninguna otra ruta vuelve a entregar la `url` ni el `codigo`: si se
         pierden, se anula la invitación y se crea otra. Por eso **no lleva `Idempotency-Key`** (decisión
-        286): guardar la respuesta para repetirla obligaría a guardar el token y el código. Un doble
+        296): guardar la respuesta para repetirla obligaría a guardar el token y el código. Un doble
         toque crea dos invitaciones, y la lista de pendientes deja anular la que sobra.
 
         La respuesta es siempre la misma forma: nunca se busca a la persona invitada entre las cuentas
@@ -266,7 +266,7 @@ paths:
         vencimiento: nunca el nombre del grupo, el de la persona cuidada ni nada del grupo, que se ven
         después del código (`…/verificacion`).
 
-        **Orden de evaluación** (decisión 289), el mismo de la verificación hasta el bloqueo:
+        **Orden de evaluación** (decisión 299), el mismo de la verificación hasta el bloqueo:
 
         1. Límite por IP de MATU-25: **30 presentaciones por hora**, en un contador propio, con la huella
            HMAC de la IP (decisión 27). Si se supera, **429**. Sin Redis o sin `PEPPER_LIMITES`, **503**.
@@ -346,10 +346,10 @@ paths:
         entrar o crear su cuenta, con el token y el código **en memoria** (C25), y llama a
         `…/aceptacion`.
 
-        **Orden de evaluación** (decisión 289):
+        **Orden de evaluación** (decisión 299):
 
         1. Límite por IP: **20 por hora**, en un contador «canje de invitación» que comparten la
-           verificación y la aceptación (decisión 291). Si se supera, **429**. Sin Redis o sin
+           verificación y la aceptación (decisión 301). Si se supera, **429**. Sin Redis o sin
            `PEPPER_LIMITES`, **503**.
         2. Cuerpo válido: `token` y `codigo` de 4 dígitos. Si no, **422 `validacion`**, que no cuenta
            como intento.
@@ -369,7 +369,7 @@ paths:
         la invitación con `FOR UPDATE` para contar los intentos sin carreras y escribe la auditoría en
         la misma transacción: `invitacion.codigo_incorrecto` y `invitacion.bloqueo`, con `{"rol": …}` y
         actor `sistema` con `actor_ref` vacío, como el inicio de sesión fallido de MATU-38, porque no hay
-        cuenta (decisión 302). En la aceptación, el actor es la cuenta. Un 200 no se audita.
+        cuenta (decisión 312). En la aceptación, el actor es la cuenta. Un 200 no se audita.
       x-matu-historia: MATU-42, MATU-53
       x-matu-auditoria: invitacion.codigo_incorrecto, invitacion.bloqueo
       security: []
@@ -456,8 +456,8 @@ paths:
         **Unirse no crea, copia ni cambia autorizaciones** (C7): la persona nueva ve lo que su rol
         permite y solo con la autorización vigente de cada finalidad. Desde la petición siguiente, `GET
         /v1/grupos` trae el grupo con su rol. Si la invitación la creó alguien que después dejó de ser
-        `admin`, ya está anulada (decisión 297) y responde 410 `invitacion-no-disponible`. Ningún evento
-        ni aviso en el semestre (decisión 300).
+        `admin`, ya está anulada (decisión 307) y responde 410 `invitacion-no-disponible`. Ningún evento
+        ni aviso en el semestre (decisión 310).
       x-matu-historia: MATU-42, MATU-53
       x-matu-auditoria: invitacion.aceptar, invitacion.codigo_incorrecto, invitacion.bloqueo
       requestBody:
@@ -633,15 +633,15 @@ paths:
           SQL y con dos cambios a la vez.
         - **Dejar de ser `admin` o `cuidador`** (pasar a `pagador` u `observador`) corta en la misma
           transacción los accesos de relevo vigentes que esa persona compartió en el grupo (C19, D-42-7
-          a, decisión 295), con `relevo.revocar` por acceso, como el retiro de MATU-44. Un `pagador` con
+          a, decisión 305), con `relevo.revocar` por acceso, como el retiro de MATU-44. Un `pagador` con
           permiso ve la ficha pero no la comparte ni la corta, así que no podría cortarlos después.
-        - **Dejar de ser `admin`** anula sus invitaciones sin usar (decisión 297).
+        - **Dejar de ser `admin`** anula sus invitaciones sin usar (decisión 307).
         - **Un pago en curso no se anula** (D-42-C20): el rol nuevo vale desde la petición siguiente.
 
         Sin cambios reales (el mismo rol y el mismo permiso) responde **200** con `enlaces_cortados: 0`,
         sin subir la versión ni auditar.
 
-        **Condicional** (P6, decisión 293): `If-Match` con el `etag` de la membresía, en el cambio de rol
+        **Condicional** (P6, decisión 303): `If-Match` con el `etag` de la membresía, en el cambio de rol
         y en el del permiso. Sin él, vacío o `*`, **428 `falta-version`**; desactualizado, **412
         `version-desactualizada`** con la membresía en `actual`. Así dos personas que administran no se
         pisan.
@@ -721,7 +721,7 @@ paths:
         1. corta los accesos de relevo vigentes que esa persona compartió en el grupo
            (`acceso_relevo.revocado_en` e `indice_token.revocado_en`, con `relevo.revocar` por acceso),
            **antes** de retirar la membresía (C13, D-42-7 a);
-        2. si era `admin`, anula sus invitaciones sin usar (decisión 297);
+        2. si era `admin`, anula sus invitaciones sin usar (decisión 307);
         3. deja la membresía `retirada`, con `retirado_en` y `puede_ver_plan = false`. **No la borra**
            (C14): la nombra la auditoría.
 
@@ -730,7 +730,7 @@ paths:
         en la ficha queda, con el autor como «alguien que ya no está» (C16, D-42-10 a, P11). Se le puede
         volver a invitar (C17, D-42-11 a). La autorización que haya dado sigue vigente (D-42-9 a, P10).
 
-        **La propia membresía** se trata como `POST …/salida` (decisión 296), con su auditoría y sus 409.
+        **La propia membresía** se trata como `POST …/salida` (decisión 306), con su auditoría y sus 409.
 
         **No es idempotente:** una membresía ya retirada, inexistente o de otro grupo responde **404**
         («Esa persona ya no estaba en el grupo»). El último admin responde **409 `ultimo-admin`**.
@@ -1216,7 +1216,7 @@ components:
         etag:
           type: string
           pattern: '^"v[0-9]+"$'
-          description: '`"v<membresia.version>"`, para el `If-Match` de `PATCH` (decisión 293).'
+          description: '`"v<membresia.version>"`, para el `If-Match` de `PATCH` (decisión 303).'
         enlaces_vigentes:
           type: [integer, 'null']
           minimum: 0
@@ -1306,7 +1306,7 @@ components:
         Lo mismo para una cuenta eliminada. `autor: null` queda solo para una fila sin autor
         (`actualizado_por` nulo). El texto «Alguien que ya no está en el grupo» lo pone la pantalla.
         **No es solo aditivo:** `nombre` se vuelve anulable, y la exportación de `openapi.json` lo
-        muestra (decisión 299). Los pedidos y el pago no muestran el nombre de nadie, solo `es_tuyo`, así
+        muestra (decisión 309). Los pedidos y el pago no muestran el nombre de nadie, solo `es_tuyo`, así
         que no cambian.
       type: object
       required: [id, nombre, autor_activo]
@@ -1533,7 +1533,7 @@ components:
       description: |
         Dos casos. `/errores/validacion`: el cuerpo no trae un `token` válido o el `codigo` no son 4
         dígitos; no cuenta como intento. `/errores/codigo-incorrecto`: el código no coincide, del 1.º
-        al 4.º intento, con `intentos_restantes` (decisión 288: 422 y no 401, porque la aceptación lleva
+        al 4.º intento, con `intentos_restantes` (decisión 298: 422 y no 401, porque la aceptación lleva
         una sesión válida y un 401 haría que la app intente renovarla; la verificación usa el mismo
         para que la pantalla trate igual los dos pasos).
       headers:
@@ -1565,7 +1565,7 @@ components:
 
     InvitacionNoSirve:
       description: |
-        **Tres `type` de 410** (P4, decisión 290), ninguno cuenta como intento:
+        **Tres `type` de 410** (P4, decisión 300), ninguno cuenta como intento:
         - `/errores/invitacion-no-disponible`: el token no es de ninguna invitación, está cortado, la
           anularon o ya se borró. Inexistente y anulada dan lo mismo (C28).
         - `/errores/invitacion-usada`: ya se usó (en la aceptación, por otra cuenta o por esta si ya
