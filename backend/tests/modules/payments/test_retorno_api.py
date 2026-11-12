@@ -173,18 +173,32 @@ def _formulario(cliente: TestClient, cuerpo: str) -> Any:
     )
 
 
+# Valores sintéticos que no pueden aparecer por azar en un log (un request_id UUID o un hex del instante): una prueba
+# que buscara «abc» fallaba cuando el UUID lo traía (CI del 12-11)
+TOKEN_FORM = "TOKENSINTETICO_QA_9f2"
+TBK_FORM = "TBKTOKENSINTETICO_QA_7c1"
+ORDEN_FORM = "ORDENSINTETICA_QA_4d8"
+SESION_FORM = "SESIONSINTETICA_QA_de_una_vuelta_larga_6e3"
+NOMBRE_FORM = "NOMBRESINTETICO_QA_Maria"
+CORREO_FORM = "CORREOSINTETICO_QA@ejemplo.cl"
+VALORES_FORM = (TOKEN_FORM, TBK_FORM, ORDEN_FORM, SESION_FORM, NOMBRE_FORM, CORREO_FORM, "TBK_TOKEN", "token_ws")
+
+
 @pytest.mark.parametrize(
     ("cuerpo", "location"),
     [
-        ("token_ws=abc_DEF-123", "/insumos/pedido/pago#token_ws=abc_DEF-123"),
+        (f"token_ws={TOKEN_FORM}", f"/insumos/pedido/pago#token_ws={TOKEN_FORM}"),
         (
-            "TBK_TOKEN=t1&TBK_ORDEN_COMPRA=o1&TBK_ID_SESION=s1",
-            "/insumos/pedido/pago#TBK_TOKEN=t1&TBK_ORDEN_COMPRA=o1&TBK_ID_SESION=s1",
+            f"TBK_TOKEN={TBK_FORM}&TBK_ORDEN_COMPRA={ORDEN_FORM}&TBK_ID_SESION={SESION_FORM}",
+            f"/insumos/pedido/pago#TBK_TOKEN={TBK_FORM}&TBK_ORDEN_COMPRA={ORDEN_FORM}&TBK_ID_SESION={SESION_FORM}",
         ),
-        ("token_ws=abc&nombre=Mar%C3%ADa&email=x%40y.cl", "/insumos/pedido/pago#token_ws=abc"),
+        (
+            f"token_ws={TOKEN_FORM}&nombre={NOMBRE_FORM}&email={CORREO_FORM.replace('@', '%40')}",
+            f"/insumos/pedido/pago#token_ws={TOKEN_FORM}",
+        ),
         ("token_ws=%3Cscript%3E", "/insumos/pedido/pago"),
         ("TBK_ORDEN_COMPRA=" + "o" * 27, "/insumos/pedido/pago"),
-        ("token_ws=a&token_ws=b", "/insumos/pedido/pago"),
+        (f"token_ws={TOKEN_FORM}&token_ws={TBK_FORM}", "/insumos/pedido/pago"),
         ("", "/insumos/pedido/pago"),
     ],
     ids=["token", "tbk", "descarta-otros", "caracteres", "largo", "repetido", "vacio"],
@@ -201,7 +215,8 @@ def test_el_post_de_transbank_es_un_303_a_la_pantalla_con_el_fragmento(
     assert respuesta.headers["referrer-policy"] == "no-referrer"
     # No registra el cuerpo: ni los valores ni los nombres de los campos
     texto = salida.getvalue()
-    assert "abc" not in texto and "TBK_TOKEN" not in texto and "Mar" not in texto
+    for valor in VALORES_FORM:
+        assert valor not in texto, valor
 
 
 def test_el_post_de_transbank_no_llama_a_transbank_ni_esta_en_openapi(
@@ -217,7 +232,7 @@ def test_el_post_de_transbank_no_llama_a_transbank_ni_esta_en_openapi(
 
 # --- Decisión 235: la vuelta por la dirección no deja el token en los logs ------------------------------------------
 
-TOKEN_SINTETICO = "abcdef0123456789" * 4
+TOKEN_SINTETICO = "TOKENSINTETICO_QA_vuelta_por_get_" + "x" * 31
 
 
 @pytest.fixture
