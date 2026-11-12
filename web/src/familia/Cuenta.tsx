@@ -21,6 +21,10 @@ import { Acciones, Etiqueta, GrupoOpciones, Nota, Pagina, Volver } from './ui'
 import { CELULAR, CUENTA_PROPIA, GENERAL, RECUPERAR } from './textos'
 import { AvisosCuenta } from './AvisosCuenta'
 import { ENTRADA_DONDE } from './textosDondeEntraste'
+import { MIS_DATOS } from './textosMisDatos'
+
+/** MATU-54 (4): el `id` de «Ver tus datos», para devolverle el foco al volver de «Tus datos». */
+export const ID_VER_TUS_DATOS = 'ver-tus-datos'
 
 type Carga = { estado: 'cargando' } | { estado: 'error' } | { estado: 'lista'; cuenta: Cuenta }
 
@@ -136,9 +140,15 @@ function ComoPedir({ correo }: { correo: string | null }) {
 // ---------------------------------------------------------------- 5.2 Tu cuenta (D5)
 
 export function TuCuenta() {
-  const { fijar } = useFamilia()
+  const { fijar, focoAlVolver } = useFamilia()
   const { carga, cargar } = useCuenta()
   const correo = useCorreoPrivacidad()
+  // MATU-54 (4): al volver de «Tus datos», el foco va a «Ver tus datos» cuando ya está pintado.
+  useEffect(() => {
+    if (!focoAlVolver || carga.estado === 'cargando') return
+    ;(document.getElementById(focoAlVolver) ?? document.getElementById('titulo-pagina'))?.focus()
+    fijar({ focoAlVolver: null })
+  }, [focoAlVolver, carga.estado, fijar])
   return (
     <Pagina titulo={CUENTA_PROPIA.titulo} bajada={CUENTA_PROPIA.bajada}>
       {carga.estado === 'cargando' && <Cargando />}
@@ -184,6 +194,16 @@ export function TuCuenta() {
             <p className="max-w-prose text-base text-tenue">{ENTRADA_DONDE.bajada}</p>
             <Boton variante="secundario" className="angosto:self-stretch" onClick={() => navegar('/cuenta/donde-entraste')}>
               {ENTRADA_DONDE.ver}
+            </Boton>
+          </section>
+          {/* MATU-54 (4): la entrada a «Tus datos», justo después de «Dónde entraste». No pide nada a la API. */}
+          <section aria-labelledby="tus-datos-t" className="mt-6 flex max-w-xl flex-col items-start gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
+            <h2 id="tus-datos-t" className="text-xl font-bold leading-snug">
+              {MIS_DATOS.cuentaTitulo}
+            </h2>
+            <p className="max-w-prose text-base text-tenue">{MIS_DATOS.cuentaBajada}</p>
+            <Boton id={ID_VER_TUS_DATOS} variante="secundario" className="angosto:self-stretch" onClick={() => navegar('/cuenta/datos')}>
+              {MIS_DATOS.cuentaBoton}
             </Boton>
           </section>
           {/* MATU-55 (3.3 y 3.4): los avisos, para todos los grupos, y este teléfono. */}

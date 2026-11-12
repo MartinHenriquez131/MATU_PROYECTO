@@ -123,6 +123,17 @@ interface Estado {
   direccionDesdeGrupo: boolean
   /** MATU-53 (2.1): la invitación que se está abriendo. */
   invitacion: InvitacionEnMemoria | null
+  /**
+   * MATU-54 (1): de qué persona es «Datos de…» (`/grupo/datos`). Lo fija «Ver los datos de…» en Grupo
+   * familiar; la ruta no lleva el id. Al recargar no existe y la ruta vuelve a `/grupo`.
+   */
+  datosDe: string | null
+  /**
+   * MATU-54 (2 y 4): el `id` del botón que abrió una página, para devolverle el foco al volver. La
+   * pantalla de destino lo enfoca cuando ya lo pintó, y lo vacía; mientras tanto, la regla de ruta no
+   * lleva el foco al `h1`.
+   */
+  focoAlVolver: string | null
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -175,6 +186,8 @@ const INICIAL: Estado = {
   llegadaPedido: null,
   direccionDesdeGrupo: false,
   invitacion: null,
+  datosDe: null,
+  focoAlVolver: null,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {

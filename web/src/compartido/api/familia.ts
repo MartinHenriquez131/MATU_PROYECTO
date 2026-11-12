@@ -373,8 +373,12 @@ export type Dispositivo = S['DispositivoVista']
 export type ClaseDispositivo = S['DispositivoVista']['clase']
 /** `GET /v1/yo/ingresos`: hasta 20 eventos de los últimos 90 días, y si hay más. */
 export type UltimosIngresos = S['UltimosIngresosVista']
-export type EventoCuenta = S['EventoCuentaVista']
-export type TipoEventoCuenta = S['EventoCuentaVista']['tipo']
+/**
+ * MATU-54 (5.5, decisión del orquestador): `pediste_una_copia` se suma a los tipos de `/v1/yo/ingresos`.
+ * Hasta que `familia.openapi.ts` se regenere, el tipo se agrega aquí; después la unión es la misma.
+ */
+export type TipoEventoCuenta = S['EventoCuentaVista']['tipo'] | 'pediste_una_copia'
+export type EventoCuenta = Omit<S['EventoCuentaVista'], 'tipo'> & { tipo: TipoEventoCuenta }
 /** `GET /v1/dispositivos/actual/push`: la clave pública (o `null`), si este dispositivo está inscrito y si el envío es simulado. */
 export type PushActual = S['PushActualVista']
 /** `GET` y `PUT /v1/yo/avisos`: los dos canales, para todos los grupos de la persona. */

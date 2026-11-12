@@ -3,7 +3,7 @@
 // Cada sección pide lo suyo al abrir la página y nada se guarda en el navegador (C6). «Cerrar en ese
 // teléfono» confirma en un diálogo y espera el 204: sin interfaz optimista.
 import { Fragment, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Bell, BellOff, CircleDot, Globe, KeyRound, Laptop, LogIn, LogOut, MonitorSmartphone, Phone, ShieldAlert, Smartphone } from 'lucide-react'
+import { Bell, BellOff, CircleDot, Download, Globe, KeyRound, Laptop, LogIn, LogOut, MonitorSmartphone, Phone, ShieldAlert, Smartphone } from 'lucide-react'
 import { leerFallo } from '../compartido/api/cliente'
 import {
   cerrarDispositivo,
@@ -84,7 +84,7 @@ function ErrorLectura({ texto, reintentar }: { texto: string; reintentar: () => 
 
 const instanteValido = (iso: string | null | undefined) => !!iso && !Number.isNaN(new Date(iso).getTime())
 
-const iconoClase = (clase: ClaseDispositivo) => (clase === 'telefono' ? Smartphone : clase === 'computador' ? Laptop : Globe)
+export const iconoClase = (clase: ClaseDispositivo) => (clase === 'telefono' ? Smartphone : clase === 'computador' ? Laptop : Globe)
 
 /** «Última vez: hoy a las 10:14» (2.4): «hoy», «ayer» o DD/MM/AAAA, y la hora, en dos `cifras`. */
 function UltimaVez({ iso }: { iso: string }) {
@@ -149,6 +149,8 @@ const ICONO_INGRESO: Record<EventoCuenta['tipo'], typeof LogIn> = {
   avisos_activados: Bell,
   avisos_desactivados: BellOff,
   avisos_cambiados: Bell,
+  // MATU-54 (5.5): la cola dice solo la hora, como los tipos de la cuenta sin dispositivo.
+  pediste_una_copia: Download,
 }
 const ATENTA = new Set<EventoCuenta['tipo']>(['salida_por_seguridad', 'codigo_recuperacion_pedido'])
 const CON_COLA = new Set<EventoCuenta['tipo']>(['entraste', 'saliste'])
@@ -157,7 +159,7 @@ const CON_COLA = new Set<EventoCuenta['tipo']>(['entraste', 'saliste'])
 export const seMuestra = (e: EventoCuenta) => Object.hasOwn(FRASE_INGRESO, e.tipo) && instanteValido(e.ocurrido_en)
 
 /** 2.5: una línea de «Últimos ingresos», con el patrón de `LineaApertura` (MATU-45, 4.3). */
-export function LineaIngreso({ e }: { e: EventoCuenta }) {
+export function LineaIngreso({ e, foco }: { e: EventoCuenta; foco?: React.Ref<HTMLLIElement> }) {
   const Icono = ICONO_INGRESO[e.tipo]
   const atenta = ATENTA.has(e.tipo)
   const nombre = e.dispositivo?.nombre ?? DONDE.yaNoEnLista
@@ -168,7 +170,8 @@ export function LineaIngreso({ e }: { e: EventoCuenta }) {
     if (e.dispositivo?.actual) cola += ` ${DONDE.esteEntreParentesis(e.dispositivo.clase)}`
   }
   return (
-    <li className="flex items-start gap-3 border-b border-linea py-3 last:border-0 angosto:flex-col angosto:gap-2">
+    // MATU-54 (3.4.10): con `foco`, es la primera línea nueva de «Ver más» y recibe el foco.
+    <li ref={foco} tabIndex={foco ? -1 : undefined} className="flex items-start gap-3 border-b border-linea py-3 outline-none last:border-0 angosto:flex-col angosto:gap-2">
       <span aria-hidden className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-full ${atenta ? 'bg-atenta-fondo text-atenta' : 'bg-rocio text-turquesa'}`}>
         <Icono className="size-5" />
       </span>

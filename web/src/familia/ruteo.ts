@@ -11,6 +11,7 @@ export type Ruta =
   | '/cuenta'
   | '/cuenta/celular'
   | '/cuenta/donde-entraste'
+  | '/cuenta/datos'
   | '/empezar/grupo'
   | '/empezar/persona'
   | '/empezar/autorizacion'
@@ -41,6 +42,7 @@ export type Ruta =
   | '/grupo/autorizar-ficha'
   | '/grupo/autorizar-insumos'
   | '/grupo/autorizar-pedidos'
+  | '/grupo/datos'
   | '/grupo/invitar'
   | '/grupo/invitar/listo'
   | '/invitacion'
@@ -54,6 +56,7 @@ export const RUTAS: readonly Ruta[] = [
   '/cuenta',
   '/cuenta/celular',
   '/cuenta/donde-entraste',
+  '/cuenta/datos',
   '/empezar/grupo',
   '/empezar/persona',
   '/empezar/autorizacion',
@@ -84,6 +87,7 @@ export const RUTAS: readonly Ruta[] = [
   '/grupo/autorizar-ficha',
   '/grupo/autorizar-insumos',
   '/grupo/autorizar-pedidos',
+  '/grupo/datos',
   '/grupo/invitar',
   '/grupo/invitar/listo',
   '/invitacion',
