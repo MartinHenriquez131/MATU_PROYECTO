@@ -123,7 +123,8 @@ export async function entrar(email: string, contrasena: string): Promise<void> {
 
 /**
  * `POST /v1/sesiones/cerrar`. Pase lo que pase (204, error o sin red), borra todo lo que está en
- * memoria y avisa a las otras pestañas (especificación 2.4).
+ * memoria y avisa a las otras pestañas (especificación 2.4). MATU-55 (recomendación del analista):
+ * después borra también la suscripción de avisos de este navegador.
  */
 export async function salir(): Promise<void> {
   try {
@@ -133,6 +134,24 @@ export async function salir(): Promise<void> {
   } finally {
     olvidarTodo()
     canal?.postMessage('salio')
+  }
+  await olvidarSuscripcionPush()
+}
+
+/**
+ * MATU-55: al salir, la inscripción de avisos del navegador se borra (el servidor ya borró el
+ * endpoint al cerrar la sesión, decisión 47). Sin service worker o sin `PushManager` no hace nada, y
+ * si falla, la salida sigue igual: nunca lanza.
+ */
+export async function olvidarSuscripcionPush(): Promise<void> {
+  try {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator) || !navigator.serviceWorker) return
+    if (typeof window === 'undefined' || !('PushManager' in window)) return
+    const registro = await navigator.serviceWorker.getRegistration('/')
+    const sub = await registro?.pushManager.getSubscription()
+    await sub?.unsubscribe()
+  } catch {
+    // No bloquea la salida.
   }
 }
 

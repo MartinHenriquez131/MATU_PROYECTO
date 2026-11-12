@@ -467,11 +467,9 @@ def test_la_0_12_sigue_publicada_para_quien_la_acepto() -> None:
 
 
 @pytest.mark.rf("RF-25")
-def test_la_0_13_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_13_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-62 (D11): la 0.13 agrega el pago con Transbank; la 0.11 y la 0.12 siguen publicadas."""
     assert {"0.11", "0.12", "0.13"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.13", "2026-11-11")
     texto = texto_publicado("0.13")
     assert texto != texto_publicado("0.12")
     for parte in (
@@ -486,6 +484,31 @@ def test_la_0_13_esta_publicada_y_es_la_de_env_example() -> None:
     ):
         assert parte in texto, parte
     # Las declaraciones de la autorización de pedidos (MATU-61) siguen en el texto vigente
+    from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
+
+    assert all(declaracion in texto for declaracion in DECLARACIONES_PEDIDOS.values())
+
+
+@pytest.mark.rf("RF-25")
+def test_la_0_14_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-55 (P7 del analista): la 0.14 agrega «Dónde entraste», el registro de la cuenta y los avisos en los
+    teléfonos; la 0.11, la 0.12 y la 0.13 siguen publicadas para quien las aceptó."""
+    assert {"0.11", "0.12", "0.13", "0.14"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.14", "2026-11-12")
+    texto = texto_publicado("0.14")
+    assert texto != texto_publicado("0.13")
+    for parte in (
+        "**El registro de tu cuenta.**",
+        "Nunca guardamos tu dirección IP, tu ubicación, tu navegador ni tu email en este registro",
+        "lo que pasó en tu cuenta en los últimos 90 días, hasta 20 líneas",
+        "**Registro de tu cuenta** (sección 4): 3 años",
+        "los avisos en el teléfono se activan solo en teléfonos del equipo de MATU",
+        "No te pedimos aceptar de nuevo esta política",
+    ):
+        assert parte in texto, parte
+    # Lo de la 0.13 sigue en el texto vigente: el pago y las declaraciones de pedidos (MATU-61)
+    assert "MATU no ve el número de tu tarjeta" in texto
     from app.modules.care_circle.domain.declaraciones import DECLARACIONES_PEDIDOS
 
     assert all(declaracion in texto for declaracion in DECLARACIONES_PEDIDOS.values())
