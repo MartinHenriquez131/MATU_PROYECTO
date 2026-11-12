@@ -330,7 +330,7 @@ export function EsteTelefono({
   else if (estado === 'no-permitido' || estado === 'no-permitido-inscrito')
     cuerpo = (
       <>
-        <Nota id={ID_NO_PERMITIDO} tono="rocio" enfocable rol={anunciarG ? 'status' : undefined}>
+        <Nota id={ID_NO_PERMITIDO} tono="rocio" iconoEnLinea enfocable rol={anunciarG ? 'status' : undefined}>
           {PUSH.noPermitido}
         </Nota>
         {estado === 'no-permitido-inscrito' && (

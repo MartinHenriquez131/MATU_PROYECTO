@@ -348,6 +348,9 @@ describe('MATU-107: estado G, la cuenta no está en el equipo del piloto (2.2, 2
     expect(nota).not.toBeNull()
     expect(nota.className).toMatch(/\bbg-rocio\b/)
     expect(nota.querySelector('svg.lucide-info')).not.toBeNull()
+    // v2 (revisión visual): iconoEnLinea, como E. En `angosto` el ícono va en la línea del texto.
+    expect(nota.querySelector(':scope > span.contents')).toHaveClass('angosto:hidden')
+    expect(nota.querySelector('.text-base > span.hidden svg.lucide-info')).not.toBeNull()
     expect(nota.textContent).toBe(G)
     // Al cargar en G no se anuncia: solo después del 409.
     expect(nota).not.toHaveAttribute('data-aviso')

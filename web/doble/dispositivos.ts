@@ -259,7 +259,7 @@ export function atenderDispositivos(
     if (!d || d.revocado) return problema(res, 404, '/errores/no-encontrado'), true
     if (metodo === 'GET') {
       if (falla('avisos-falla')) return problema(res, 500, '/errores/interno'), true
-      return json(res, 200, { clave_publica: modo === 'push-sin-clave' ? null : CLAVE_PUBLICA, permitido: modo !== 'push-no-permitido', registrado: d.push !== null, envio_simulado: true }), true
+      return json(res, 200, { clave_publica: modo === 'push-sin-clave' || modo === 'push-no-permitido' ? null : CLAVE_PUBLICA, permitido: modo !== 'push-no-permitido', registrado: d.push !== null, envio_simulado: true }), true
     }
     if (metodo === 'PUT') {
       const token = cuerpo?.push_token
