@@ -484,7 +484,7 @@ function DialogoRol({
   const avisos: string[] = mismo
     ? []
     : dejoDeAdministrar
-      ? [CR.dejasDeAdministrar, ...(pierdoFicha ? [[SALIR.seCortan, misEnlaces].filter(Boolean).join(' ')] : []), SE_ANULAN.propia]
+      ? [CR.dejasDeAdministrar, ...(pierdoFicha ? [CR.tambienDejasLaFicha, [SALIR.seCortan, misEnlaces].filter(Boolean).join(' ')] : []), SE_ANULAN.propia]
       : !propia && elegido === 'admin'
         ? [CR.seraAdmin(miembro.nombre)]
         : pierdeFicha

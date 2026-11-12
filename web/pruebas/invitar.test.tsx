@@ -15,7 +15,7 @@ import { miembroDePrueba } from './miembrosFalsos'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
 const MARIA = { id: '3c9d4e20-0000-4000-8000-0000000000aa', nombre: 'María Soto', nombre_pila: 'María' }
-const URL_INVITACION = 'http://localhost/invitacion#TokenSinteticoDeInvitacion0123456789abcdefghij'
+const URL_INVITACION = 'http://localhost/invitacion#TokenSinteticoDeInvitacion0123456789abcdefghij' // pragma: allowlist secret
 const CREADA = { id: 'i1', rol: 'cuidador', url: URL_INVITACION, codigo: '4729', creada_en: '2026-11-12T21:30:00Z', expira_en: '2026-11-20T00:30:00Z' }
 
 let contexto = familiaFalsa()

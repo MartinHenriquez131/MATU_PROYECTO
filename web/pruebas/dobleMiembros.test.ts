@@ -45,6 +45,19 @@ describe('El doble de quiénes forman el grupo', () => {
     expect(miembros.filter((m) => m.nombre === nombre)).toHaveLength(1)
   })
 
+  it('miembros-sin-persona: grupo sin personas registradas, con la propia fila de admin y un pagador', async () => {
+    const sesion = await pedir('POST', '/v1/sesiones', { email: 'miembros-sin-persona@example.com', contrasena: 'contrasena-ejemplo' }) // pragma: allowlist secret
+    const auth = { authorization: `Bearer ${String(sesion.cuerpo.access_token)}` }
+    const grupos = (await pedir('GET', '/v1/grupos', null, auth)).cuerpo as unknown as { id: string; rol: string }[]
+    expect(grupos[0].rol).toBe('admin')
+    const id = grupos[0].id
+    const personas = await pedir('GET', `/v1/grupos/${id}/personas-cuidadas`, null, { ...auth, 'x-grupo-id': id })
+    expect(personas).toMatchObject({ status: 200, cuerpo: [] })
+    const miembros = (await pedir('GET', `/v1/grupos/${id}/miembros`, null, { ...auth, 'x-grupo-id': id })).cuerpo.miembros as { rol: string; eres_tu: boolean }[]
+    expect(miembros.filter((m) => m.eres_tu)).toEqual([expect.objectContaining({ rol: 'admin' })])
+    expect(miembros.some((m) => m.rol === 'pagador')).toBe(true)
+  })
+
   it('inv-queda-1: un código malo deja 1 intento, y el siguiente la bloquea', async () => {
     const malo = await pedir('POST', '/v1/invitaciones/verificacion', { token: 'inv-queda-1', codigo: '0000' })
     expect(malo).toMatchObject({ status: 422, cuerpo: { intentos_restantes: 1 } })

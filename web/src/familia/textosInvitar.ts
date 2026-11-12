@@ -81,6 +81,8 @@ export const cortamos = (n: number) => (n <= 0 ? '' : enlaces(n, 'Cortamos 1 enl
 
 export const MIEMBROS = {
   bajada: (grupo: string) => `Quiénes forman ${grupo}, a quién cuidan y qué permisos dieron.`, // [NUEVO]
+  /** 5.10 (v1.3): sin persona registrada. [NUEVO v1.3] */
+  bajadaSinPersona: (grupo: string) => `Quiénes forman ${grupo}. Todavía no registran a la persona que cuidan.`,
   titulo: 'Quiénes forman el grupo', // [ANALISTA]
   tu: '(tú)', // [ANALISTA]
   seUnio: 'Se unió el', // [NUEVO] «Se unió el {fecha}.»
@@ -149,6 +151,8 @@ export const CAMBIAR_ROL = {
   },
   comoPaga: 'Como paga, no verá la ficha hasta que le des permiso.', // [NUEVO]
   dejasDeAdministrar: 'Dejarás de administrar el grupo. Para volver a hacerlo, otra persona que administra tendrá que dártelo.', // [NUEVO]
+  /** 6.3 (v1.3): en mi fila, si además paso a «Paga» o «Se informa». [NUEVO v1.3] */
+  tambienDejasLaFicha: 'También dejarás de ver la ficha.',
   /** 6.3 (v1.3): otra persona deja de administrar y sigue viendo la ficha (de admin a cuida). [NUEVO v1.3] */
   dejaraDeAdministrar: (nombre: string) => `${nombre} dejará de administrar el grupo.`,
   guardar: 'Guardar el cambio', // [ANALISTA]

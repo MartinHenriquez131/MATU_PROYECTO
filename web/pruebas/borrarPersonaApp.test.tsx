@@ -160,8 +160,9 @@ describe('Después de borrar, con la app entera', () => {
     abrirApp()
     await borrar('María')
     expect(await notaCon('Borramos los datos de María. No había enlaces que abrieran.')).toBeVisible()
-    // Ir y volver: la regla de ruta lleva otra vez al paso «Persona», sin la nota.
-    window.history.pushState(null, '', '/grupo')
+    // Ir y volver: la regla de ruta lleva otra vez al paso «Persona», sin la nota. Desde MATU-53,
+    // Grupo familiar se abre sin persona registrada: se va por la ficha, que sí lleva al paso.
+    window.history.pushState(null, '', '/ficha')
     window.dispatchEvent(new PopStateEvent('popstate'))
     await waitFor(() => expect(window.location.pathname).toBe('/empezar/persona'))
     await screen.findByRole('heading', { level: 1, name: '¿A quién cuidas?' })

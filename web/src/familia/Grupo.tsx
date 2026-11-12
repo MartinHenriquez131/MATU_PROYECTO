@@ -209,7 +209,8 @@ export function GrupoFamiliar() {
       setBorrando(null)
       setDatos((xs) => xs.filter((x) => x.persona.id !== id))
       setAvisos((xs) => Object.fromEntries(Object.entries(xs).filter(([clave]) => !clave.startsWith(`${id}-`))))
-      setLlegada((n) => n + 1)
+      // Sin nadie más, la nota es de «¿A quién cuidas?»: aquí no se vuelve a montar (la consumiría).
+      if (quedan.length) setLlegada((n) => n + 1)
       fijar({
         personas: quedan,
         ...(era ? { personaId: quedan[0]?.id ?? null, ficha: null, autorizacion: null } : {}),
@@ -217,6 +218,9 @@ export function GrupoFamiliar() {
         ...(borradorDe(borrador, d.persona) ? { borrador: BORRADOR_VACIO } : {}),
         aviso: { titulo: aviso.texto, tono: aviso.tono, enfocar: quedan.length > 0 },
       })
+      // MATU-72 4.1: sin nadie más, a registrar a otra persona, en el mismo render. Desde MATU-53 la
+      // regla de ruta ya no lo hace sola, porque Grupo familiar se abre sin persona registrada.
+      if (!quedan.length) navegar('/empezar/persona', { reemplazar: true })
     })
   }
 
@@ -253,6 +257,8 @@ export function GrupoFamiliar() {
         </Boton>
       </div>
     )
+  // MATU-53: sin persona registrada no hay autorizaciones ni «Borrar sus datos»: solo la lista y salir.
+  else if (!datos.length && !(enMemoria ?? []).length) cuerpo = null
   else if (!datos.length)
     cuerpo = (
       <Nota tono="rocio" icono={<Lock aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />}>
@@ -290,13 +296,13 @@ export function GrupoFamiliar() {
     )
 
   return (
-    <Pagina titulo={T.titulo} bajada={grupo ? M.bajada(grupo.nombre) : undefined}>
+    <Pagina titulo={T.titulo} bajada={grupo ? ((enMemoria ?? []).length ? M.bajada(grupo.nombre) : M.bajadaSinPersona(grupo.nombre)) : undefined}>
       <div className="flex max-w-5xl flex-col gap-10">
         <div>
           <AvisoDeLlegada key={llegada} />
           <QuienesForman datos={miembros} pilas={pilas} />
         </div>
-        {cuerpo}
+        {cuerpo ?? null}
         <SalirDelGrupo datos={miembros} pilas={pilas} />
       </div>
       {borrando && (
