@@ -1061,7 +1061,6 @@ function LineaCarrito({
                 onCambio={onRegla}
                 nombradoPor={idProducto(pid)}
                 describe="nunca-otra-marca"
-                detalleGrande
                 opciones={[
                   { valor: 'otro_comercio', texto: PEDIDO.otroComercio, detalle: PEDIDO.otroComercioDetalle },
                   { valor: 'quitar', texto: PEDIDO.quitar },
