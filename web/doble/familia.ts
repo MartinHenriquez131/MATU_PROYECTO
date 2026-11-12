@@ -606,6 +606,8 @@ function sembrarMiembros() {
   conMiembros('miembros-pagador-ve@example.com', 'Rodrigo', 'pagador', (yo) => conCarmen(yo, 'Rodrigo Soto'), undefined, true)
   conMiembros('miembros-observador@example.com', 'Pedro', 'observador', (yo) => conCarmen(yo, 'Pedro Soto'))
   conMiembros('miembros-sola@example.com', 'Carmen', 'admin', (yo) => [yo])
+  // 5.10 (v1.2): un grupo sin persona registrada, con Rodrigo que paga (dar la ficha) y Rosa (salir).
+  conMiembros('miembros-sin-persona@example.com', 'Carmen', 'admin', (yo) => conCarmen(yo, 'Carmen Soto').filter((m) => m === yo || m.nombre !== 'Carmen Soto')).grupos[0].personas = []
   conMiembros('miembros-conflicto@example.com', 'Carmen', 'admin', familia, 'miembros-conflicto')
   conMiembros('miembros-ultimo-admin@example.com', 'Carmen', 'admin', familia, 'miembros-ultimo-admin')
   conMiembros('miembros-falla@example.com', 'Carmen', 'admin', familia, 'miembros-falla').grupos[0].invitaciones = [mia()]

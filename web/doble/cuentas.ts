@@ -156,6 +156,7 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'miembros-pagador@example.com', que: 'Grupo: pagador sin la ficha: «No ve la ficha» solo en su fila' },
   { email: 'miembros-pagador-ve@example.com', que: 'Grupo: pagador con la ficha: «Puede ver la ficha» en su fila' },
   { email: 'miembros-observador@example.com', que: 'Grupo: se informa (Pedro): la lista sin botones y «Salir del grupo»' },
+  { email: 'miembros-sin-persona@example.com', que: 'Grupo sin persona registrada (5.10): admin con Rodrigo (paga), Rosa y Pedro. «Dejar que vea la ficha» dice «la persona que cuidan» y «Salir del grupo» no trae el punto de la ficha. Ojo: la app lleva hoy a quien administra sin persona a «¿A quién cuidas?» (MATU-39 5.4)' },
   { email: 'miembros-sola@example.com', que: 'Grupo: la única persona del grupo: «Por ahora solo estás tú…» y «Eres la única persona de Familia Soto, así que no puedes salir…»' },
   { email: 'miembros-conflicto@example.com', que: 'Grupo: el primer cambio de rol o de permiso de cada persona responde 412 (otra persona que administra la cambió antes): el diálogo se queda con «Ahora» en el rol nuevo' },
   { email: 'miembros-ultimo-admin@example.com', que: 'Grupo: bajar de rol a quien administra, sacarlo o salir responde 409 ultimo-admin («El grupo necesita alguien que lo administre…»)' },
