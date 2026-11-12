@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect } from 'react'
 import { AQuien, Autorizacion, CrearCuenta, CrearGrupo, Entrar } from './Alta'
 import { ConfirmarCelular, TuCuenta } from './Cuenta'
 import { DondeEntraste } from './DondeEntraste'
+import { DatosDePersona } from './DatosPersona'
+import { TusDatos } from './TusDatos'
 import { campoDeRuta, seccionDeRuta } from './datos'
 import { EditorDeSeccion } from './EditorSeccion'
 import { Compartir, EnlaceListo, Enlaces } from './Compartir'
@@ -54,12 +56,15 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   if (s.fase !== 'dentro') return PUBLICAS.has(ruta) ? null : '/entrar'
   if (PUBLICAS.has(ruta)) return inicio(s)
   // MATU-57: «Tu cuenta» no depende del grupo ni de la persona.
-  // MATU-55: «Dónde entraste» tampoco.
-  if (ruta === '/cuenta' || ruta === '/cuenta/celular' || ruta === '/cuenta/donde-entraste') return null
+  // MATU-55: «Dónde entraste» tampoco. MATU-54: «Tus datos» tampoco, y la ve todo rol.
+  if (ruta === '/cuenta' || ruta === '/cuenta/celular' || ruta === '/cuenta/donde-entraste' || ruta === '/cuenta/datos') return null
   const editor = puedeEditar(s.rol)
   if (ruta === '/empezar/grupo') return s.grupos.length ? '/empezar/persona' : null
   // 5.3: sin grupo, toda sección lleva a crear el grupo.
   if (!s.grupos.length) return '/empezar/grupo'
+  // MATU-54 (1): «Datos de…», solo admin y cuidador y solo desde «Ver los datos de…» (la persona en
+  // memoria). Al recargar, o si la persona ya no está, se vuelve a Grupo familiar sin aviso.
+  if (ruta === '/grupo/datos') return editor && s.datosDe && s.personas.some((p) => p.id === s.datosDe) ? null : '/grupo'
   if (ruta === '/empezar/persona' || ruta === '/empezar/autorizacion') return editor ? null : inicio(s)
   // MATU-53 (decisión del 12-11): Grupo familiar se alcanza sin persona registrada, para todos los
   // roles, para ver quiénes forman el grupo y poder salir. Invitar, solo admin (más abajo).
@@ -124,6 +129,13 @@ function Rutas() {
   }, [fase, capa3, conocerCapa3, ruta])
   useEffect(() => {
     if (s.fase === 'cargando') return
+    // MATU-54 (2 y 4): al volver de «Datos de…» o de «Tus datos», la pantalla devuelve el foco al botón
+    // que la abrió cuando ya lo pintó; aquí no se lleva al `h1`. Si se fue a otra ruta antes de que
+    // esa pantalla cargara, el foco pendiente se olvida y vale la regla de siempre.
+    if (s.focoAlVolver) {
+      if (ruta === '/grupo' || ruta === '/cuenta') return
+      s.fijar({ focoAlVolver: null })
+    }
     const t = window.setTimeout(() => (document.getElementById(ID_AVISO_LLEGADA) ?? document.getElementById('titulo-pagina'))?.focus({ preventScroll: false }), 0)
     return () => window.clearTimeout(t)
   }, [ruta, s.fase, s.personaId])
@@ -181,6 +193,7 @@ function Rutas() {
   if (ruta === '/cuenta') pantalla = <TuCuenta />
   else if (ruta === '/cuenta/celular') pantalla = <ConfirmarCelular />
   else if (ruta === '/cuenta/donde-entraste') pantalla = <DondeEntraste />
+  else if (ruta === '/cuenta/datos') pantalla = <TusDatos />
   // MATU-59 (2.2): el catálogo no depende de la persona ni de su autorización.
   else if (ruta === '/insumos/catalogo') pantalla = <Catalogo />
   // MATU-62: la vuelta de Webpay fija ella la persona del pedido (7.1), así que no depende de la elegida.
@@ -189,6 +202,8 @@ function Rutas() {
   else if (ruta === '/grupo') pantalla = <GrupoFamiliar />
   else if (ruta === '/grupo/invitar') pantalla = <Invitar />
   else if (ruta === '/grupo/invitar/listo') pantalla = <InvitacionLista />
+  // MATU-54: la persona de «Datos de…» es la de `datosDe`, no la elegida en el encabezado.
+  else if (ruta === '/grupo/datos') pantalla = <DatosDePersona />
   else if (!s.persona) pantalla = <SinPersona />
   else if (ruta === '/ficha/quien-la-vio') pantalla = <QuienLaVio />
   else if (ruta === '/ficha' || campo || seccion) {

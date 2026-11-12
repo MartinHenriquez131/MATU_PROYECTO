@@ -67,6 +67,7 @@ export const FRASE_INGRESO: Record<TipoEventoCuenta, (nombre: string) => string>
   avisos_activados: (n) => `Activaste los avisos en ${n}`, // [analista]
   avisos_desactivados: (n) => `Desactivaste los avisos en ${n}`, // [analista]
   avisos_cambiados: () => 'Cambiaste tus avisos', // [analista]
+  pediste_una_copia: () => 'Pediste una copia de tus datos', // [nuevo] MATU-54, 5.5
 }
 
 /** 3.5: la entrada a «Dónde entraste» dentro de «Tu cuenta». */

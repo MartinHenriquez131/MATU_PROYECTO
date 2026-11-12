@@ -2,7 +2,7 @@
 // título, la región de error vacía y sin animación). Nació para el pedido (MATU-61, secciones 8.7 y
 // 10: «Cancelar pedido» y «Vaciar la dirección») y MATU-55 (2.6) lo sacó del pedido para «Cerrar en
 // ese teléfono», sin cambiar sus clases. La petición ya salida no se cancela con Esc.
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Boton } from '../compartido/ui/Boton'
 import { Acciones, MensajeError } from './ui'
 
@@ -16,6 +16,8 @@ export function DialogoConfirmar({
   error,
   onConfirmar,
   onCerrar,
+  variante = 'peligroPrincipal',
+  icono,
 }: {
   titulo: string
   texto: string
@@ -31,6 +33,12 @@ export function DialogoConfirmar({
   onConfirmar: () => Promise<boolean>
   /** Cerrar sin hacer nada (Esc o «seguir»): la pantalla devuelve el foco al botón que lo abrió. */
   onCerrar: () => void
+  /**
+   * MATU-54 (3.7): «Antes de descargar» confirma algo que no borra nada, con el macizo `principal` y
+   * el ícono `Download`. Por omisión, el macizo `pronto` de lo que no se deshace.
+   */
+  variante?: 'peligroPrincipal' | 'principal'
+  icono?: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -110,7 +118,7 @@ export function DialogoConfirmar({
           {falla && <MensajeError>{error}</MensajeError>}
         </div>
         <Acciones>
-          <Boton ref={confirmarRef} variante="peligroPrincipal" ocupado={ocupado} textoOcupado={confirmando} onClick={() => void hacer()}>
+          <Boton ref={confirmarRef} variante={variante} icono={icono} ocupado={ocupado} textoOcupado={confirmando} onClick={() => void hacer()}>
             {confirmar}
           </Boton>
           <button

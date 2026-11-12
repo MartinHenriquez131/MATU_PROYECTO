@@ -317,6 +317,8 @@ class AccesoNuevo:
     id: uuid.UUID
     grupo_id: uuid.UUID
     plan_id: uuid.UUID
+    # MATU-54 (0028): la persona del plan, para la fila relevo.compartir. No se guarda en acceso_relevo
+    persona_cuidada_id: uuid.UUID
     otorgado_por: uuid.UUID
     nombre_relevo: str
     telefono_relevo: str = field(repr=False)
@@ -447,6 +449,8 @@ class AccesoDelRelevo:
     expira_en: datetime
     # MATU-50: el relevo no ve una sección complementaria nacida después del acceso
     creado_en: datetime
+    # MATU-54 (0028): la persona del plan del acceso, para las filas de auditoría del relevo
+    persona_cuidada_id: uuid.UUID | None = None
 
 
 class RepositorioAccesoRelevo(Protocol):

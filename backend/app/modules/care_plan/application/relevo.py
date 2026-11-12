@@ -110,6 +110,7 @@ def compartir(
             id=acceso_id,
             grupo_id=peticion.grupo_id,
             plan_id=plan_id,
+            persona_cuidada_id=peticion.persona_cuidada_id,
             otorgado_por=peticion.usuario_id,
             nombre_relevo=solicitud.nombre_relevo,
             telefono_relevo=solicitud.telefono_relevo,

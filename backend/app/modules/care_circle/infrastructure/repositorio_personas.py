@@ -44,9 +44,10 @@ _INSERTAR_CONSENTIMIENTO = text(
 
 # Solo identificadores: sin nombre, sin IP y sin motivo
 _INSERTAR_AUDITORIA = text(
-    "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, request_id, ocurrido_en)"
+    "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, request_id, ocurrido_en,"
+    " persona_cuidada_id)"
     " VALUES (:grupo_id, 'usuario', :usuario_id, 'consentimiento.otorgar', 'consentimiento', :consentimiento_id,"
-    " :request_id, :ocurrido_en)"
+    " :request_id, :ocurrido_en, :persona_id)"
 )
 
 _COLUMNAS_DIRECCION = "d.etiqueta, d.calle, d.numero, d.depto, d.comuna, d.region, d.referencia, d.version"
@@ -198,5 +199,7 @@ class RepositorioPersonasSQL:
                 "consentimiento_id": alta.consentimiento_id,
                 "request_id": alta.request_id,
                 "ocurrido_en": alta.otorgado_en,
+                # MATU-54 (0028): la persona de la autorización
+                "persona_id": alta.persona_id,
             },
         )

@@ -165,3 +165,31 @@ def limite_por_ip(limite: LimitePorIp) -> Callable[..., None]:
 
     verificar_limite_ip.__name__ = f"limite_ip_{limite.prefijo.replace('-', '_')}"
     return verificar_limite_ip
+
+
+# --- MATU-54: el límite por cuenta de la copia de los datos (D-54-10 a, decisión 346) -------------------------------
+
+DETALLE_TOPE_COPIAS = "Ya pediste los datos varias veces. Vuelve a intentarlo en una hora"
+
+
+def contar_por_cuenta(
+    limite: LimitePorIp, usuario_id: str, pepper: bytes | None, contador: ContadorVentana
+) -> None:
+    """Suma una copia de la cuenta y responde 503 (sin PEPPER_LIMITES o sin Redis, falla cerrada) o 429
+    ``tope-copias`` con Retry-After. La clave es la huella HMAC del id de la cuenta: el id nunca llega a Redis."""
+    if pepper is None:
+        log.error("falta PEPPER_LIMITES: la copia de los datos falla cerrada")
+        raise ErrorMATU(503, detalle=DETALLE_503)
+    clave = clave_de(limite, huella(pepper, limite.prefijo, usuario_id))
+    try:
+        resultado = contador.sumar(clave, limite.ventana_segundos)
+    except ContadorNoDisponible:
+        log.error("Redis no responde: la copia de los datos falla cerrada")
+        raise ErrorMATU(503, detalle=DETALLE_503) from None
+    if excedido(resultado.conteo, limite):
+        raise ErrorMATU(
+            429,
+            tipo="tope-copias",
+            detalle=DETALLE_TOPE_COPIAS,
+            headers={"Retry-After": str(retry_after(resultado.ttl_segundos, limite))},
+        )

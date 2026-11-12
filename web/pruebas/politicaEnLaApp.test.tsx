@@ -31,7 +31,7 @@ const CUENTA: Cuenta = {
 }
 
 const ENLACE_SOLO = { name: 'Política de privacidad (se abre en otra pestaña)' }
-const COMO_PEDIR = /Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a/
+const COMO_PEDIR = /Para cambiar tu nombre o tu correo, o eliminar tu cuenta, escribe a/
 
 describe('«Tu cuenta»: la política aceptada', () => {
   it('con registro: la versión y la fecha en hora de Chile, el enlace y cómo pedir con mailto:', async () => {
@@ -52,7 +52,7 @@ describe('«Tu cuenta»: la política aceptada', () => {
     expect(correo).toHaveAttribute('href', 'mailto:privacidad@example.org')
     expect(correo).not.toHaveAttribute('target')
     expect(correo.closest('p')).toHaveTextContent(
-      'Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a privacidad@example.org desde el correo de tu cuenta.',
+      'Para cambiar tu nombre o tu correo, o eliminar tu cuenta, escribe a privacidad@example.org desde el correo de tu cuenta. Para ver o descargar tus datos, entra a «Tus datos».',
     )
     expect(correo.closest('dl')).toBeNull()
   })

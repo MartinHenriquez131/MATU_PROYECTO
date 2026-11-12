@@ -498,13 +498,13 @@ def test_el_plan_lo_lee_quien_lo_ve_lo_editan_admin_y_cuidador_y_nadie_lo_borra(
     ],
 )
 def test_detalle_de_auditoria_solo_admite_tipos_de_seccion(cx, detalle, acepta):
-    insertar = ("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle)"
-                " VALUES (%s, 'usuario', %s, 'plan.editar', 'plan_seccion', CAST(%s AS jsonb))")
+    insertar = ("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, detalle, persona_cuidada_id)"
+                " VALUES (%s, 'usuario', %s, 'plan.editar', 'plan_seccion', CAST(%s AS jsonb), %s)")
     if acepta:
-        cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+        cx.execute(insertar, (G_A, U_ADMIN_A, detalle, P_A))
     else:
         with pytest.raises(errors.CheckViolation):
-            cx.execute(insertar, (G_A, U_ADMIN_A, detalle))
+            cx.execute(insertar, (G_A, U_ADMIN_A, detalle, P_A))
 
 
 def test_relevo_no_hereda_nada_de_la_familia(cx):
@@ -524,11 +524,12 @@ def test_relevo_vencido_revocado_o_sin_acceso_cero_filas(cx, acceso):
 
 def test_relevo_registra_su_apertura_en_auditoria(cx):
     como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
-    cx.execute("""INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id)
-                  VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado', %s)""", (G_A, ACC_VIGENTE, PLAN_A))
+    cx.execute("""INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id,
+                  persona_cuidada_id) VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado', %s, %s)""",
+               (G_A, ACC_VIGENTE, PLAN_A, P_A))
     with pytest.raises(errors.InsufficientPrivilege):
-        cx.execute("""INSERT INTO auditoria (grupo_id, actor_tipo, accion, entidad)
-                      VALUES (%s, 'relevo', 'relevo.abrir', 'plan_cuidado')""", (G_B,))
+        cx.execute("""INSERT INTO auditoria (grupo_id, actor_tipo, accion, entidad, persona_cuidada_id)
+                      VALUES (%s, 'relevo', 'relevo.abrir', 'plan_cuidado', %s)""", (G_B, P_B))
 
 
 # ---- MATU-19 (migración 0007): lo que el relevo puede cambiar de su acceso y la autorización vigente
@@ -1026,8 +1027,9 @@ def _sembrar_auditoria(cx):
     cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES (%s, %s, 'cuidador', false)",
                (G_A, U_CUID_A))
     for grupo, actor in ((G_A, U_ADMIN_A), (G_A, U_CUID_A), (G_A, U_OBS_A), (G_B, U_ADMIN_B)):
-        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
-                   " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (grupo, actor))
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                   " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado', %s)",
+                   (grupo, actor, P_A if grupo == G_A else P_B))
 
 
 def _actores_visibles(cx):
@@ -1333,10 +1335,11 @@ def _sembrar_aperturas(cx):
     cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol, puede_ver_plan) VALUES (%s, %s, 'cuidador', false)",
                (G_A, U_CUID_APERTURAS_A))
     for accion in (*ACCIONES_APERTURA, "relevo.canje"):
-        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id)"
-                   " VALUES (%s, 'relevo', %s, %s, 'acceso_relevo', %s)", (G_A, ACC_VIGENTE, accion, ACC_VIGENTE))
-    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
-               " VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado')", (G_B, uuid.uuid4()))
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id,"
+                   " persona_cuidada_id) VALUES (%s, 'relevo', %s, %s, 'acceso_relevo', %s, %s)",
+                   (G_A, ACC_VIGENTE, accion, ACC_VIGENTE, P_A))
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+               " VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado', %s)", (G_B, uuid.uuid4(), P_B))
 
 
 def _acciones_del_relevo(cx):
@@ -1372,8 +1375,8 @@ def test_aperturas_del_relevo_no_las_ve_ni_operacion_ni_el_relevo(cx):
 def test_cuidador_sigue_sin_ver_las_lecturas_de_otros_miembros(cx):
     """0010 abre solo las filas del relevo: plan.leer del admin sigue fuera del alcance del cuidador."""
     _sembrar_aperturas(cx)
-    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
-               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (G_A, U_ADMIN_A))
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado', %s)", (G_A, U_ADMIN_A, P_A))
     como(cx, usuario_id=U_CUID_APERTURAS_A, grupo_id=G_A)
     assert contar(cx, "auditoria", "actor_tipo = 'usuario'") == 0
 
@@ -3371,8 +3374,8 @@ def _sembrar_cuenta(cx):
                    " %s)", (accion, U_ADMIN_A))
     cx.execute("INSERT INTO auditoria (actor_tipo, accion, entidad) VALUES ('sistema', 'sesion.inicio_fallido',"
                " 'usuario')")
-    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
-               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado')", (G_A, U_ADMIN_A))
+    cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+               " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado', %s)", (G_A, U_ADMIN_A, P_A))
 
 
 def _cuenta_visible(cx):
@@ -3999,3 +4002,80 @@ def test_matu_app_vacia_el_telefono_solo_como_admin_o_cuidador(sesiones_app):
     with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, usuario_id=U_ADMIN_A, grupo_id=G_A) as s:
         assert s.execute(vaciar, {"id": ACC_VIGENTE}).rowcount == 1  # type: ignore[attr-defined]
         raise _Deshacer
+
+
+# ---- MATU-54 (migración 0028): la persona de cada fila de auditoría y la copia de los datos
+
+
+def _sembrar_copias(cx):
+    """Como superusuario, en la transacción que se revierte: una copia pedida por cada admin, de su persona."""
+    for grupo, actor, persona in ((G_A, U_ADMIN_A, P_A), (G_B, U_ADMIN_B, P_B)):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id,"
+                   " persona_cuidada_id) VALUES (%s, 'usuario', %s, 'persona.datos_descargar', 'persona_cuidada', %s,"
+                   " %s)", (grupo, actor, persona, persona))
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("usuario, grupo", [
+    (U_ADMIN_A, G_A),   # A, con su grupo, filtrando por la persona de B
+    (U_ADMIN_A, G_B),   # A con el grupo de B: no es miembro
+    (U_PAG_A, G_A),     # pagador de A
+    (U_OBS_A, G_A),     # observador de A
+])
+def test_nadie_lee_la_auditoria_de_la_persona_de_otro(cx, usuario, grupo):
+    """D-54-6 a: la columna nueva no abre lecturas. A no lee lo de la persona de B, ni el pagador ni el observador
+    leen la copia que pidió el admin."""
+    _sembrar_copias(cx)
+    como(cx, usuario_id=usuario, grupo_id=grupo)
+    assert contar(cx, "auditoria", f"persona_cuidada_id = '{P_B}'") == 0
+    if usuario != U_ADMIN_A:
+        assert contar(cx, "auditoria", f"persona_cuidada_id = '{P_A}'") == 0
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_el_admin_lee_la_copia_de_su_persona(cx):
+    _sembrar_copias(cx)
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "auditoria", f"persona_cuidada_id = '{P_A}'") == 1
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_una_fila_con_la_persona_de_otro_grupo_falla(cx):
+    """auditoria_persona_fk: la integridad referencial no pasa por RLS, y vale para matu_app y para el relevo."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.ForeignKeyViolation):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                   " VALUES (%s, 'usuario', %s, 'plan.leer', 'plan_cuidado', %s)", (G_A, U_ADMIN_A, P_B))
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_el_relevo_no_registra_con_la_persona_de_otro_grupo(cx):
+    como(cx, rol="relevo", acceso_relevo_id=ACC_VIGENTE)
+    with pytest.raises(errors.ForeignKeyViolation):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, persona_cuidada_id)"
+                   " VALUES (%s, 'relevo', %s, 'relevo.abrir', 'plan_cuidado', %s)", (G_A, ACC_VIGENTE, P_B))
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_una_accion_de_persona_sin_persona_falla(cx):
+    """auditoria_persona_obligatoria (NOT VALID): toda fila nueva de una acción de persona lleva su persona."""
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad)"
+                   " VALUES (%s, 'usuario', %s, 'persona.datos_descargar', 'persona_cuidada')", (G_A, U_ADMIN_A))
+
+
+@pytest.mark.rf("RF-37")
+@pytest.mark.rf("Ley-21.719")
+def test_la_copia_de_la_cuenta_la_lee_solo_su_duena(cx):
+    for usuario in (U_ADMIN_A, U_ADMIN_B):
+        cx.execute("INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id)"
+                   " VALUES ('usuario', %s, 'cuenta.datos_descargar', 'usuario', %s)", (usuario, usuario))
+    como(cx, usuario_id=U_ADMIN_A)
+    assert {r[0] for r in cx.execute(
+        "SELECT actor_ref FROM auditoria WHERE accion = 'cuenta.datos_descargar'").fetchall()} == {U_ADMIN_A}

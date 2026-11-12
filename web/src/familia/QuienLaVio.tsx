@@ -41,12 +41,21 @@ const instante = (a: Apertura) => new Date(a.ocurrido_en)
 const valida = (a: Apertura) => !Number.isNaN(instante(a).getTime())
 
 /** «a las 10:14» o, con `completa`, «hoy a las 10:14», «el 24/10/2026 a las 10:14». Siempre en <time>. */
-function Hora({ a, completa = false }: { a: Apertura; completa?: boolean }) {
+/** `completa="fecha"` (MATU-54, 1.2): «el 12/11/2026 a las 10:09», sin «hoy» ni «ayer», para una copia. */
+function Hora({ a, completa = false }: { a: Apertura; completa?: boolean | 'fecha' }) {
   const d = instante(a)
   const { fecha, hora } = fechaYHoraDeChile(d)
   return (
     <time dateTime={a.ocurrido_en} title={`${fecha} ${hora}`} className="block text-base text-tenue tabular-nums">
-      {completa ? `${diaRelativoDeChile(d, new Date(), true)} ${QUIEN.aLas(hora)}` : QUIEN.aLas(hora)}
+      {completa === 'fecha' ? (
+        <>
+          el <span className="cifras">{fecha}</span> {QUIEN.aLas(hora)}
+        </>
+      ) : completa ? (
+        `${diaRelativoDeChile(d, new Date(), true)} ${QUIEN.aLas(hora)}`
+      ) : (
+        QUIEN.aLas(hora)
+      )}
     </time>
   )
 }
@@ -65,7 +74,7 @@ export function LineaApertura({
 }: {
   a: Apertura
   sinAbrir: boolean
-  completa?: boolean
+  completa?: boolean | 'fecha'
   foco?: React.Ref<HTMLLIElement>
   notas?: boolean
   acciones?: boolean

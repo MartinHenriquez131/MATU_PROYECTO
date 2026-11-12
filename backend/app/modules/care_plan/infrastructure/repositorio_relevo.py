@@ -30,7 +30,10 @@ _POR_ACCESO = text(_INDICE + " AND referencia_id = :acceso_id")
 
 _LEER = text(
     "SELECT id, grupo_id, plan_id, secciones_permitidas, nombre_pila_persona, nombre_pila_comparte, pin_hash,"
-    " pin_intentos_fallidos, expira_en, creado_en FROM acceso_relevo"
+    " pin_intentos_fallidos, expira_en, creado_en,"
+    # MATU-54 (0028): la persona del plan, para la auditoría. plan_relevo (02_rls) deja al relevo leer su plan
+    " (SELECT p.persona_cuidada_id FROM plan_cuidado p WHERE p.id = acceso_relevo.plan_id) AS persona_cuidada_id"
+    " FROM acceso_relevo"
 )
 _AUTORIZACION = text("SELECT relevo_autorizacion_vigente(:ahora)")
 _LEER_PARA_CANJE = text(_LEER.text + " FOR UPDATE")
@@ -94,6 +97,7 @@ class RepositorioAccesoRelevoSQL:
             pin_intentos_fallidos=f.pin_intentos_fallidos,
             expira_en=f.expira_en.astimezone(UTC),
             creado_en=f.creado_en.astimezone(UTC),
+            persona_cuidada_id=f.persona_cuidada_id,
         )
 
     def autorizacion_vigente(self, ahora: datetime) -> bool:

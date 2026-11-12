@@ -39,6 +39,7 @@ export const POLITICA = {
   aceptasteEl: 'el',
   sinRegistro: 'No tenemos registro de qué versión aceptaste.', // [lenguaje 29]
   // [lenguaje 29] «… escribe a {correo} desde el correo de tu cuenta.»; el correo es `correo_contacto`.
-  comoPedirAntes: 'Para cambiar tu nombre o tu correo, pedir una copia de tus datos o eliminar tu cuenta, escribe a ',
-  comoPedirDespues: ' desde el correo de tu cuenta.',
+  // MATU-54 (4, ajuste de L 29 [ANALISTA]): la copia ya no se pide por correo, está en «Tus datos».
+  comoPedirAntes: 'Para cambiar tu nombre o tu correo, o eliminar tu cuenta, escribe a ',
+  comoPedirDespues: ' desde el correo de tu cuenta. Para ver o descargar tus datos, entra a «Tus datos».',
 }

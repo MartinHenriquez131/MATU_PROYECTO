@@ -18,6 +18,8 @@ type Tipo =
   | 'avisos_cambiados'
   | 'avisos_activados'
   | 'avisos_desactivados'
+  // MATU-54 (5.5): cada «Tus datos» abierto. La copia de la persona no entra aquí (decisión 358).
+  | 'pediste_una_copia'
 
 interface Dispositivo {
   id: string
@@ -30,6 +32,8 @@ interface Dispositivo {
   /** La conservación lo borró (decisión 59): sus eventos llegan con `dispositivo: null`. */
   borrado: boolean
   push: string | null
+  /** MATU-54: cuándo se cerró, para «Se cerró el…» de «Tus datos». Los sembrados usan su último uso. */
+  cerrado_en?: string | null
 }
 interface Evento {
   email: string
@@ -116,6 +120,11 @@ function sembrar(email: string, modo: string | undefined) {
   anotar(email, 'entraste', 9 * DIA, pc.id)
   anotar(email, 'entraste', 40 * DIA, viejo.id)
   if (modo === 'ingresos-muchos') for (let i = 0; i < 16; i++) anotar(email, i % 2 ? 'saliste' : 'entraste', 10 * DIA + i * 180, pc.id)
+  // MATU-54: más de 20 ingresos en 90 días («Ver más») y otros anteriores, que solo van en el archivo.
+  if (modo === 'datos-historial') {
+    for (let i = 0; i < 30; i++) anotar(email, i % 2 ? 'saliste' : 'entraste', 11 * DIA + i * 2 * DIA, pc.id)
+    for (let i = 0; i < 6; i++) anotar(email, 'entraste', 95 * DIA + i * DIA, viejo.id)
+  }
 }
 
 /** `POST /v1/sesiones`: un dispositivo nuevo, el `did` del token. */
@@ -132,6 +141,7 @@ export function alSalir(did: string | undefined) {
   const d = did ? dispositivos.get(did) : undefined
   if (!d || d.revocado) return
   d.revocado = true
+  d.cerrado_en = hace(0)
   d.push = null
   anotar(d.email, 'saliste', 0, d.id)
 }
@@ -147,6 +157,39 @@ export function usoDe(did: string | undefined) {
 /** Lo que pasa sin dispositivo de por medio (MATU-57): el código pedido, la contraseña y el celular. */
 export function anotarCuenta(email: string, tipo: 'codigo_recuperacion_pedido' | 'contrasena_cambiada' | 'celular_confirmado') {
   anotar(email, tipo, 0, null)
+}
+
+/** MATU-54: «Tus datos» se abrió, y la copia ya trae esta línea (decisión 347). */
+export function anotarCopia(email: string) {
+  anotar(email, 'pediste_una_copia', 0, null)
+}
+
+/**
+ * MATU-54: lo de MATU-55 que va en «Tus datos»: todos los dispositivos que se guardan (también los
+ * cerrados, salvo los que la conservación ya borró), todos los eventos y la preferencia de avisos.
+ * `instante` escribe el instante con el desfase de Chile, como la copia (decisión 349).
+ */
+export function paraCopia(email: string, modo: string | undefined, editor: boolean, instante: (iso: string) => string) {
+  sembrar(email, modo)
+  const propios = [...dispositivos.values()].filter((d) => d.email === email && !d.borrado)
+  return {
+    dispositivos: propios.map((d) => ({
+      nombre: d.nombre,
+      clase: d.clase,
+      creado_en: instante(d.creado_en),
+      ultimo_uso_en: d.ultimo_uso_en ? instante(d.ultimo_uso_en) : null,
+      cerrado_en: d.revocado ? instante(d.cerrado_en ?? d.ultimo_uso_en ?? d.creado_en) : null,
+      avisos_activos: d.push !== null,
+    })),
+    eventos: eventos
+      .filter((e) => e.email === email)
+      .sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
+      .map((e) => {
+        const d = e.dispositivo ? dispositivos.get(e.dispositivo) : undefined
+        return { tipo: e.tipo, ocurrido_en: instante(e.ocurrido_en), dispositivo: d && !d.borrado ? { nombre: d.nombre, clase: d.clase } : null }
+      }),
+    preferencia_avisos: avisosDe(email, editor),
+  }
 }
 
 /** Decisión 78: sin preferencia guardada, activos si es admin o cuidador en algún grupo. */
@@ -242,6 +285,7 @@ export function atenderDispositivos(
     if (falla('cerrar-falla')) return problema(res, 500, '/errores/interno'), true
     if (!d.revocado) {
       d.revocado = true
+      d.cerrado_en = hace(0)
       d.push = null
       revocar(d.id)
       anotar(email, 'cerraste_en_dispositivo', 0, d.id)

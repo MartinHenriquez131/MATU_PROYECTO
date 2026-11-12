@@ -282,11 +282,13 @@ class EventoCuentaVista(BaseModel):
             "avisos_cambiados",
             "avisos_activados",
             "avisos_desactivados",
+            "pediste_una_copia",
         ],
         Field(
             description=(
                 "Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla"
-                " arma el texto con lenguaje.md e ignora un tipo que no conoce"
+                " arma el texto con lenguaje.md e ignora un tipo que no conoce. MATU-54 (decisión 376):"
+                " pediste_una_copia es la copia de «Tus datos»; la de una persona no entra"
             )
         ),
     ]

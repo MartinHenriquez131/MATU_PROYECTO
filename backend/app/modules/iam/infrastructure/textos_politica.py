@@ -30,6 +30,8 @@ PUBLICADAS: dict[str, str] = {
     "0.15": "8b262c0d46ee2edf039af51958f42681e8ef3fc137fd9eb8df7b94436470cd0f",  # pragma: allowlist secret
     # MATU-46: el teléfono del relevo se borra a los 30 días, y al borrar a la persona. Las anteriores siguen
     "0.16": "41d65aed2a2f4b7f940a98056301a445d64ff9e2a16e85b46c0b244c3e42759c",  # pragma: allowlist secret
+    # MATU-54: ver y descargar los datos desde la aplicación, en «Datos de» y en «Tus datos». Las anteriores siguen
+    "0.17": "6560f6c4a38b563282ba3f1d97f0c3a0ad3dce6168038549d2437e174976beae",  # pragma: allowlist secret
 }
 
 

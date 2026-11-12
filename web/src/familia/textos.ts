@@ -396,6 +396,9 @@ export const TITULOS: Record<string, string> = {
   '/cuenta': CUENTA_PROPIA.titulo,
   '/cuenta/celular': CELULAR.titulo,
   '/cuenta/donde-entraste': 'Dónde entraste', // [lenguaje 13.3] MATU-55
+  // MATU-54 (1, C26): sin nombres. [NUEVO]
+  '/cuenta/datos': 'Tus datos',
+  '/grupo/datos': 'Datos guardados',
   '/empezar/grupo': GRUPO.titulo,
   '/empezar/persona': PERSONA.titulo,
   '/empezar/autorizacion': AUTORIZACION.titulo,

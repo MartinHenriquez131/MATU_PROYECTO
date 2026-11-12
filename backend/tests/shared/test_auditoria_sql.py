@@ -53,14 +53,22 @@ def sesiones() -> Iterator[sessionmaker[Session]]:
         engine.dispose()
 
 
+# MATU-54 (0028): la persona de cada grupo, para las acciones de persona
+_PERSONAS: dict[uuid.UUID, uuid.UUID] = {}
+
+
 @pytest.fixture
 def grupo(fabrica: Fabrica) -> GrupoCreado:
-    return fabrica.grupo()
+    creado = fabrica.grupo()
+    _PERSONAS[creado.id] = fabrica.persona_cuidada(creado).id
+    return creado
 
 
 @pytest.fixture
 def otro_grupo(fabrica: Fabrica) -> GrupoCreado:
-    return fabrica.grupo()
+    creado = fabrica.grupo()
+    _PERSONAS[creado.id] = fabrica.persona_cuidada(creado).id
+    return creado
 
 
 def _como_admin(sesiones: sessionmaker[Session], grupo: GrupoCreado) -> AbstractContextManager[Session]:
@@ -81,6 +89,7 @@ def _entrada(grupo: GrupoCreado, request_id: str, **cambios: Any) -> EntradaAudi
         "entidad": EntidadAuditoria.PLAN_CUIDADO,
         "entidad_id": uuid.uuid4(),
         "request_id": request_id,
+        "persona_cuidada_id": _PERSONAS[grupo.id],
     }
     campos.update(cambios)
     return EntradaAuditoria(**campos)

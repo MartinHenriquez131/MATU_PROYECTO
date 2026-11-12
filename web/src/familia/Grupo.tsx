@@ -38,6 +38,8 @@ import { BORRAR_DATOS as B, GRUPO_FAMILIAR as T } from './textosGrupo'
 import { GRUPO_PEDIDOS as P } from './textosPedido'
 import { MIEMBROS as M } from './textosInvitar'
 import { QuienesForman, SalirDelGrupo, useMiembros } from './Miembros'
+import { idVerDatos } from './DatosPersona'
+import { MIS_DATOS as D } from './textosMisDatos'
 import { Acciones, MensajeError, Nota, Pagina, Titulo, Volver } from './ui'
 
 /** Con la autorización vigente o por renovar: hay algo que retirar. */
@@ -101,7 +103,7 @@ function borradorDe(b: BorradorPersona, p: PersonaListada) {
 }
 
 export function GrupoFamiliar() {
-  const { grupo, rol, personaId: elegidaId, personas: enMemoria, borrador, fijar, reautorizar, capa3, conocerCapa3 } = useFamilia()
+  const { grupo, rol, personaId: elegidaId, personas: enMemoria, borrador, fijar, reautorizar, capa3, conocerCapa3, focoAlVolver } = useFamilia()
   const editor = puedeEditar(rol)
   // MATU-53 (5): quiénes forman el grupo, arriba, y salir del grupo, al final, con la misma lista.
   const miembros = useMiembros()
@@ -158,6 +160,22 @@ export function GrupoFamiliar() {
   useEffect(() => {
     void cargar()
   }, [cargar])
+
+  // MATU-54 (2): al volver de «Datos de…», el foco va a «Ver los datos de…» cuando la lista ya se pintó.
+  // Si el botón ya no está (la persona salió o cambió el rol), al `h1`. Nunca queda en el `body`.
+  useEffect(() => {
+    if (!focoAlVolver || carga === 'cargando') return
+    ;(document.getElementById(focoAlVolver) ?? document.getElementById('titulo-pagina'))?.focus()
+    fijar({ focoAlVolver: null })
+  }, [focoAlVolver, carga, datos, fijar])
+
+  /** MATU-54 (2): la persona va en memoria, nunca en la ruta. Fijarla y cambiar de ruta van juntos. */
+  const verDatos = (d: DatosPersona) => {
+    flushSync(() => {
+      fijar({ datosDe: d.persona.id })
+      navegar('/grupo/datos')
+    })
+  }
 
   // 3.5: la confirmación recibe el foco cuando ya está en la pantalla.
   useEffect(() => {
@@ -297,6 +315,8 @@ export function GrupoFamiliar() {
                 />
               ))}
             </div>
+            {/* MATU-54 (2): entre los permisos y «Borrar sus datos», que sigue siendo lo último. */}
+            <BloqueDatos persona={d.persona} editor={editor} onVer={() => verDatos(d)} />
             <BloqueBorrar persona={d.persona} editor={editor} onBorrar={() => setBorrando(d)} />
           </section>
         ))}
@@ -658,6 +678,32 @@ function BloqueBorrar({ persona, editor, onBorrar }: { persona: PersonaListada; 
         </>
       ) : (
         <p className="text-base text-tenue">{B.quienPuede(pila)}</p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * MATU-54 (2): «Datos de {nombre_pila}», con la forma de «Borrar sus datos»: sin fondo ni anillo, detrás
+ * de una línea. No es macizo. Pagador y observador ven quién puede, sin botón.
+ */
+function BloqueDatos({ persona, editor, onVer }: { persona: PersonaListada; editor: boolean; onVer: () => void }) {
+  const pila = nombrePilaDe(persona)
+  const id = `datos-titulo-${persona.id}`
+  return (
+    <section aria-labelledby={id} className="mt-4 flex flex-col gap-3 border-t border-linea pt-6">
+      <h3 id={id} className="text-lg font-bold break-words">
+        {D.titulo(pila)}
+      </h3>
+      {editor ? (
+        <>
+          <p className="max-w-prose text-base">{D.entradaTexto(pila)}</p>
+          <Boton id={idVerDatos(persona.id)} variante="secundario" className="self-start angosto:self-stretch" onClick={onVer}>
+            {D.entradaBoton(pila)}
+          </Boton>
+        </>
+      ) : (
+        <p className="max-w-prose text-base text-tenue">{D.entradaQuienPuede(pila)}</p>
       )}
     </section>
   )

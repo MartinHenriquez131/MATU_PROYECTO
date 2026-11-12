@@ -182,7 +182,7 @@ def exigir_sin_pago_en_curso(pedido: Pedido, ahora: datetime, repositorio: Repos
         raise PagoEnCurso()
 
 
-def _auditar(actor: Actor, accion: AccionAuditoria, pedido_id: uuid.UUID, registro: RegistroAuditoria) -> None:
+def _auditar(actor: Actor, accion: AccionAuditoria, pedido: Pedido, registro: RegistroAuditoria) -> None:
     registro.registrar(
         EntradaAuditoria(
             grupo_id=actor.grupo_id,
@@ -190,8 +190,10 @@ def _auditar(actor: Actor, accion: AccionAuditoria, pedido_id: uuid.UUID, regist
             actor_ref=actor.usuario_id,
             accion=accion,
             entidad=EntidadAuditoria.PEDIDO,
-            entidad_id=pedido_id,
+            entidad_id=pedido.id,
             request_id=actor.request_id,
+            # MATU-54 (0028): la persona del pedido
+            persona_cuidada_id=pedido.persona_id,
         )
     )
 
@@ -257,7 +259,7 @@ def crear(
         # Otra petición creó uno entre la lectura y el INSERT (pedido_sin_pagar_uq)
         otro = repositorio.en_curso(persona_id)
         raise PedidoAbierto(otro if otro is not None else pedido.id)
-    _auditar(actor, AccionAuditoria.PEDIDO_CREAR, pedido.id, registro)
+    _auditar(actor, AccionAuditoria.PEDIDO_CREAR, pedido, registro)
     creado = repositorio.cargar(pedido.id)
     assert creado is not None
     return creado
@@ -302,7 +304,7 @@ def reemplazar_reglas(
         raise TransicionInvalida(pedido.estado)
     lineas = tuple(replace(linea, regla=reglas[linea.producto.id]) for linea in pedido.lineas)
     repositorio.guardar(replace(pedido, lineas=lineas, version=pedido.version + 1))
-    _auditar(actor, AccionAuditoria.PEDIDO_REGLA_FALTANTE, pedido.id, registro)
+    _auditar(actor, AccionAuditoria.PEDIDO_REGLA_FALTANTE, pedido, registro)
     return _recargar(pedido.id, repositorio)
 
 
@@ -383,7 +385,7 @@ def confirmar(
         entrega=_entrega(direccion, telefono, origen),
     )
     repositorio.guardar(confirmado, rehacer_partes=True)
-    _auditar(actor, AccionAuditoria.PEDIDO_CONFIRMAR, pedido.id, registro)
+    _auditar(actor, AccionAuditoria.PEDIDO_CONFIRMAR, pedido, registro)
     return _recargar(pedido.id, repositorio)
 
 
@@ -446,7 +448,7 @@ def cancelar(
         raise TransicionInvalida(pedido.estado)
     _transicion(actor, pedido, Estado.CANCELADO, motivo, ahora, repositorio)
     repositorio.guardar(replace(pedido, estado=Estado.CANCELADO, version=pedido.version + 1, entrega=None))
-    _auditar(actor, AccionAuditoria.PEDIDO_CANCELAR, pedido.id, registro)
+    _auditar(actor, AccionAuditoria.PEDIDO_CANCELAR, pedido, registro)
     return _recargar(pedido.id, repositorio)
 
 

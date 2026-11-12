@@ -378,6 +378,7 @@ export type ClaseDispositivo = S['DispositivoVista']['clase']
 /** `GET /v1/yo/ingresos`: hasta 20 eventos de los últimos 90 días, y si hay más. */
 export type UltimosIngresos = S['UltimosIngresosVista']
 export type EventoCuenta = S['EventoCuentaVista']
+/** MATU-54 (decisión 376): suma `pediste_una_copia`, la copia de «Tus datos». */
 export type TipoEventoCuenta = S['EventoCuentaVista']['tipo']
 /** `GET /v1/dispositivos/actual/push`: la clave pública (o `null`), si este dispositivo está inscrito y si el envío es simulado. */
 export type PushActual = S['PushActualVista']

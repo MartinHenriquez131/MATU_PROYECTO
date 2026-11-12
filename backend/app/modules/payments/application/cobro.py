@@ -20,6 +20,7 @@ from app.modules.payments.application.ports import (
     PasarelaNoDisponible,
     PasarelaRechazo,
     PasarelaWebpay,
+    PedidoCobro,
     Unidad,
 )
 from app.modules.payments.domain import cargo as reglas_cargo
@@ -74,15 +75,17 @@ class Cierre:
 PENDIENTE = Cierre(ResultadoPago.PENDIENTE)
 
 
-def _auditar(unidad: Unidad, grupo_id: uuid.UUID, accion: AccionAuditoria, cargo_id: uuid.UUID) -> None:
+def _auditar(unidad: Unidad, pedido: PedidoCobro, accion: AccionAuditoria, cargo_id: uuid.UUID) -> None:
     unidad.registro.registrar(
         EntradaAuditoria(
-            grupo_id=grupo_id,
+            grupo_id=pedido.grupo_id,
             actor_tipo=ActorTipo.SISTEMA,
             actor_ref=None,
             accion=accion,
             entidad=EntidadAuditoria.CARGO,
             entidad_id=cargo_id,
+            # MATU-54 (0028): la persona del pedido
+            persona_cuidada_id=pedido.persona_id,
         )
     )
 
@@ -217,7 +220,7 @@ def aprobar(
             unidad, pasarela, venta, venta.monto, MotivoAnulacion.PAGO_TARDIO, ahora, monto_pasarela=cobrado
         )
         _cerrar_cargo_sin_cobro(unidad, venta, ahora, vida)
-        _auditar(unidad, pedido.grupo_id, AccionAuditoria.PAGO_ANULAR, cargo.id)
+        _auditar(unidad, pedido, AccionAuditoria.PAGO_ANULAR, cargo.id)
         repo.emitir(PAGO_ANULADO, pedido.id, ahora)
         return Cierre(ResultadoPago.ANULADO, estado)
 
@@ -245,7 +248,7 @@ def aprobar(
         repo.guardar_participacion(participacion)
     repo.guardar_participacion(replace(participacion, estado=EstadoParticipacion.PAGADA, monto_cobrado=venta.monto))
     repo.emitir(PEDIDO_PAGADO, pedido.id, ahora)
-    _auditar(unidad, pedido.grupo_id, AccionAuditoria.PAGO_APROBAR, cargo.id)
+    _auditar(unidad, pedido, AccionAuditoria.PAGO_APROBAR, cargo.id)
     resultado = ResultadoPago.APROBADO_TARDIO if decision is Decision.RESPETAR_TARDIO else ResultadoPago.APROBADO
     return Cierre(resultado)
 

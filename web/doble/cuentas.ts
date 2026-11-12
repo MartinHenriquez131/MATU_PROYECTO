@@ -176,6 +176,23 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'avisos-falla@example.com', que: 'Tu cuenta: los avisos y el push de este teléfono responden 500 (errores con «Volver a intentar»; la nota del piloto se ve igual)' },
   { email: 'avisos-guardar-falla@example.com', que: 'Tu cuenta: guardar una casilla, activar y desactivar responden 500' },
   { email: 'push-sin-clave@example.com', que: 'Tu cuenta: el servidor no tiene clave pública (clave_publica null): «Por ahora no se pueden activar los avisos en este…» (estado F)' },
+  // MATU-54: «Datos de María» (/grupo/datos, desde Grupo familiar) y «Tus datos» (/cuenta/datos, desde Tu cuenta).
+  // Abrir cualquiera de las dos es pedir una copia: 10 por hora por cuenta, sumando las dos (la 11.ª da el 429 con la hora).
+  { email: 'datos-admin@example.com', que: 'Mis datos: admin con la copia completa. Ficha 3 de 3 con dos secciones, dirección, cuatro autorizaciones (una «Se renovó» y el documento del representante), cinco enlaces con aperturas, insumos con compras y avisos, un pedido con devolución y pago de prueba, y el historial con los 26 tipos (MATU, alguien que ya no está y un tipo desconocido que no se muestra). «Tus datos» con un pago y sus condiciones' },
+  { email: 'datos-cuidador@example.com', que: 'Mis datos: cuidadora (Rosa). El historial dice «Aquí ves solo lo que hiciste tú…» y trae solo sus líneas' },
+  { email: 'datos-pagador@example.com', que: 'Mis datos: pagador (Rodrigo). En Grupo familiar, «Los puede ver quien administra el grupo o quien cuida a María.», sin botón. «Tus datos» con su pago (tarjeta de crédito terminada en 4242, 3 cuotas, código de autorización 1213), las condiciones y «Un grupo del que saliste». Toda cuenta datos-* salvo datos-vacio trae ese grupo dejado' },
+  { email: 'datos-observador@example.com', que: 'Mis datos: se informa (Pedro). En Grupo familiar, la frase sin botón. «Tus datos» sin pagos ni condiciones' },
+  { email: 'datos-retirada@example.com', que: 'Mis datos: la autorización de la ficha y la de insumos retiradas hace 2 días: notas con ShieldOff, borde punteado y la fecha de borrado; sin «Compras anotadas» ni «Avisos de insumos»' },
+  { email: 'datos-pausa@example.com', que: 'Mis datos: la ficha y los insumos en pausa (revisión vencida): notas con Hourglass, sin borde punteado' },
+  { email: 'datos-borrada@example.com', que: 'Mis datos: la ficha ya borrada (Trash2, borde punteado) y los insumos sin autorizar (ShieldQuestion); el diálogo no promete lo escrito en la ficha' },
+  { email: 'datos-sin-capa3@example.com', que: 'Mis datos: la capa 3 quitada (pedidos: null): sin «Sus pedidos» ni en el índice; «Tus datos» sin pagos ni condiciones' },
+  { email: 'datos-pedidos@example.com', que: 'Mis datos: ocho pedidos en sus estados (sin confirmar, por pagar, venció, en camino, entregado con devolución, cancelado con devolución en curso, cerrado con pago tardío y uno de hace 100 días que solo va en el archivo). «Tus datos» con tres pagos (crédito, débito sin cuotas, sin tarjeta) y dos condiciones' },
+  { email: 'datos-tope@example.com', que: 'Mis datos: las dos copias responden 429 tope-copias con Retry-After: 1260 («Vuelve a intentarlo a las {HH:MM}.», sin «Volver a intentar»)' },
+  { email: 'datos-caido@example.com', que: 'Mis datos: las dos copias responden 503 («No pudimos traer los datos en este momento…», con «Volver a intentar»)' },
+  { email: 'datos-lento@example.com', que: 'Mis datos: las dos copias tardan 2 s («Cargando…» con el h1 ya armado)' },
+  { email: 'datos-historial@example.com', que: 'Mis datos: más de 90 días. Historial con 84 líneas en 90 días (más las copias pedidas) y 12 anteriores, 24 compras, ingresos y avisos enviados de más de 20: «Ver más» de a 20 (de a 10 en compras y de a 5 en aperturas) y «Lo anterior va en el archivo.»' },
+  { email: 'datos-sin-asociar@example.com', que: 'Mis datos: hay_hechos_sin_asociar: «Hay cambios antiguos que no podemos mostrar aquí ni en el archivo…»' },
+  { email: 'datos-vacio@example.com', que: 'Mis datos: María sin dirección, sin enlaces, insumos, compras, avisos ni pedidos, y el historial vacío (los textos de cada bloque vacío). «Tus datos» sin celular ni política aceptada' },
 ]
 
 /** MATU-42: el código de las invitaciones de ejemplo (`/invitacion#…`). */

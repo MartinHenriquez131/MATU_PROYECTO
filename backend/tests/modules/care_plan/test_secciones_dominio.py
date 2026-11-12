@@ -251,6 +251,7 @@ def _entrada(**cambios: object) -> EntradaAuditoria:
         "accion": AccionAuditoria.PLAN_EDITAR,
         "entidad": EntidadAuditoria.PLAN_SECCION,
         "entidad_id": uuid.uuid4(),
+        "persona_cuidada_id": uuid.uuid4(),
     }
     campos.update(cambios)
     return EntradaAuditoria(**campos)  # type: ignore[arg-type]

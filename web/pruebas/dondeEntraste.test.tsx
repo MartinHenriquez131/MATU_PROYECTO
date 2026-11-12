@@ -109,12 +109,12 @@ describe('«Dónde entraste»: los últimos ingresos (2.5)', () => {
 
     const lineas = within(ingresos).getAllByRole('listitem')
     expect(lineas.map((l) => l.textContent)).toEqual([
-      'Entrastea las 10:14 · Chrome en Android (este teléfono)',
+      'Entrastea las 10:14 · Chrome en Android (este teléfono)',
       'Se pidió un código para recuperar tu cuentaa las 09:02Si no lo pediste tú, no compartas el código con nadie.',
       'Cambiaste tu contraseñaa las 21:15',
       'Te sacamos de MATU en Chrome en Windows porque notamos un uso extraño.a las 19:00',
       'Cerraste MATU en Chrome en Windowsa las 12:00',
-      'Salistea las 11:00 · en un teléfono o computador que ya no está en tu lista',
+      'Salistea las 11:00 · en un teléfono o computador que ya no está en tu lista',
       'Activaste los avisos en Chrome en Androida las 12:00',
     ])
     const hora = lineas[0].querySelector('time')!

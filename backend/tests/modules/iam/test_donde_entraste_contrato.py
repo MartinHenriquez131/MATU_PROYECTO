@@ -58,7 +58,9 @@ def test_los_esquemas_no_tienen_campos_prohibidos_y_son_cerrados(esquema: dict[s
     assert esquemas["EventoCuentaVista"]["properties"]["tipo"]["enum"] == [
         "entraste", "saliste", "cerraste_en_dispositivo", "salida_por_seguridad", "contrasena_cambiada",
         "celular_confirmado", "codigo_recuperacion_pedido", "avisos_cambiados", "avisos_activados",
-        "avisos_desactivados"]
+        "avisos_desactivados",
+        # MATU-54 (decisión 376): la copia de «Tus datos», cambio aditivo
+        "pediste_una_copia"]
     # C5 y C7: clase y push_activo en cada dispositivo, sin el endpoint
     vista = esquemas["DispositivoVista"]
     assert {"clase", "push_activo"} <= set(vista["required"]) and "push_token" not in vista["properties"]

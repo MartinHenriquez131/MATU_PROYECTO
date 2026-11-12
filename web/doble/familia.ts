@@ -24,6 +24,7 @@ import {
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 import { atenderGrupo, atenderInvitacionPublica, invitacionPendiente, miembro, type InvitacionDoble, type MiembroDoble } from './grupo'
 import { alEntrar, alSalir, anotarCuenta, atenderDispositivos, dispositivoVivo, usoDe } from './dispositivos'
+import { atenderMisDatos } from './misDatos'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -634,6 +635,51 @@ function sembrarMiembros() {
 }
 sembrarMiembros()
 
+// ---------------------------------------------------------------- MATU-54: las cuentas de «Mis datos»
+
+/**
+ * Las cuentas de MATU-54 (cuentas.ts): María con la ficha completa, dos secciones, dirección, enlaces
+ * con aperturas e insumos. El modo dice qué cambia en la copia (doble/misDatos.ts).
+ */
+function sembrarMisDatos() {
+  const carmen = { id: randomUUID(), nombre: 'Carmen' }
+  const maria = () => {
+    const p = conAperturas(persona('María Soto Pérez', 'María', { rutina: escrito(SU_DIA, carmen), manejo_situaciones: escrito(SI_SE_ALTERA, RODRIGO, 5), red_apoyo: escrito(A_QUIEN, carmen, 3) }, 'cuidador_de_hecho'))
+    p.direccion = { etiqueta: 'Casa', calle: 'Los Aromos', numero: '123', depto: 'depto 4', comuna: 'Ñuñoa', region: 'Región Metropolitana', referencia: 'Reja verde' }
+    return conSecciones(p, carmen, ['quien_es', 'comunicacion'])
+  }
+  const con = (email: string, nombre: string, rol: Rol, modo: string, puedeVer = false) => {
+    const u = cuenta(email, nombre, [grupo('Familia Soto', rol, [maria()], puedeVer)], modo)
+    u.celularVerificado = true
+    insumos(u, 'vigente', true)
+    return u
+  }
+  con('datos-admin@example.com', 'Carmen', 'admin', 'datos-admin')
+  con('datos-cuidador@example.com', 'Rosa', 'cuidador', 'datos-cuidador')
+  con('datos-pagador@example.com', 'Rodrigo', 'pagador', 'datos-pagador')
+  con('datos-observador@example.com', 'Pedro', 'observador', 'datos-observador')
+  {
+    const u = con('datos-retirada@example.com', 'Carmen', 'admin', 'datos-retirada')
+    conRetiro(u.grupos[0].personas[0], 'plan_cuidado', 2 * DIA)
+    conRetiro(u.grupos[0].personas[0], 'consumo', 2 * DIA)
+  }
+  con('datos-pausa@example.com', 'Carmen', 'admin', 'datos-pausa').grupos[0].personas[0].consumo.autorizacion = 'vencida'
+  con('datos-borrada@example.com', 'Carmen', 'admin', 'datos-borrada')
+  con('datos-sin-capa3@example.com', 'Carmen', 'admin', 'datos-sin-capa3')
+  con('datos-pedidos@example.com', 'Carmen', 'admin', 'datos-pedidos')
+  con('datos-tope@example.com', 'Carmen', 'admin', 'datos-tope')
+  con('datos-caido@example.com', 'Carmen', 'admin', 'datos-caido')
+  con('datos-lento@example.com', 'Carmen', 'admin', 'datos-lento')
+  con('datos-historial@example.com', 'Carmen', 'admin', 'datos-historial')
+  con('datos-sin-asociar@example.com', 'Carmen', 'admin', 'datos-sin-asociar')
+  {
+    const u = cuenta('datos-vacio@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto Pérez', 'María')])], 'datos-vacio')
+    u.telefono = null
+    u.politica = null
+  }
+}
+sembrarMisDatos()
+
 // ---------------------------------------------------------------- códigos y envíos (MATU-57)
 // Envío simulado: el código solo se escribe en la consola del servidor de desarrollo, nunca en una
 // respuesta ni en la página. Datos sintéticos. Reglas de las decisiones 81 a 87: 6 dígitos, 10
@@ -719,7 +765,10 @@ function usuarioDe(req: IncomingMessage): Usuario | null {
 }
 
 export const esLento = (req: IncomingMessage, cuerpo: Record<string, unknown> | null) =>
-  usuarioDe(req)?.modo === 'lento' || cuerpo?.email === 'lento@example.com'
+  usuarioDe(req)?.modo === 'lento' ||
+  cuerpo?.email === 'lento@example.com' ||
+  // MATU-54: solo las dos copias tardan, para ver «Cargando…».
+  (usuarioDe(req)?.modo === 'datos-lento' && /\/datos$/.test((req.url ?? '').split('?')[0]))
 
 // ---------------------------------------------------------------- respuestas
 
@@ -913,6 +962,9 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
 
   const u = usuarioDe(req)
   if (!u) return problema(res, req.headers.authorization ? 401 : 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+
+  // ------------------------------------------------ MATU-54: «Datos de…» y «Tus datos»
+  if (atenderMisDatos(req, res, r, u)) return true
 
   // ------------------------------------------------ MATU-55: dónde entraste, los avisos y el push
   const editor = u.grupos.some((g) => g.rol === 'admin' || g.rol === 'cuidador')

@@ -24,9 +24,9 @@ from app.shared.puertos import Reloj
 # Sin RETURNING: matu_app solo ve la auditoría de su grupo, y el id lo genera la base
 _INSERTAR = text(
     "INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, motivo, request_id,"
-    " ocurrido_en, detalle)"
+    " ocurrido_en, detalle, persona_cuidada_id)"
     " VALUES (:grupo_id, :actor_tipo, :actor_ref, :accion, :entidad, :entidad_id, :motivo, :request_id,"
-    " :ocurrido_en, CAST(:detalle AS jsonb))"
+    " :ocurrido_en, CAST(:detalle AS jsonb), :persona_cuidada_id)"
 )
 
 
@@ -60,5 +60,7 @@ class RegistroAuditoriaSql:
                 "request_id": entrada.request_id,
                 "ocurrido_en": self._reloj.ahora(),
                 "detalle": None if (detalle := entrada.detalle()) is None else json.dumps(detalle),
+                # MATU-54 (0028): la persona a quien se refiere la acción, o None
+                "persona_cuidada_id": entrada.persona_cuidada_id,
             },
         )

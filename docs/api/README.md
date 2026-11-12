@@ -21,10 +21,14 @@ docs/api/
     ├── donde-entraste.openapi.yaml  MATU-55: los últimos ingresos de la propia cuenta, la clave pública de push y
                                   la auditoría de la preferencia de avisos (implementado en MATU-55, decisiones
                                   252 a 284; se conserva como explicación y manda openapi.json)
-    └── invitar-familiar.openapi.yaml  MATU-42 y MATU-53: invitar con enlace y código, aceptar, quiénes forman
-                                  el grupo, cambiar roles y el permiso del pagador, sacar a alguien y salir
-                                  (implementado en MATU-42, decisiones 290 a 331; se conserva como explicación
-                                  y manda openapi.json)
+    ├── invitar-familiar.openapi.yaml  MATU-42 y MATU-53: invitar con enlace y código, aceptar, quiénes forman
+    │                             el grupo, cambiar roles y el permiso del pagador, sacar a alguien y salir
+    │                             (implementado en MATU-42, decisiones 290 a 331; se conserva como explicación
+    │                             y manda openapi.json)
+    └── mis-datos.openapi.yaml    MATU-54: ver y descargar todo lo que MATU guarda de la persona cuidada
+                                  («Datos de {nombre_pila}») y de la propia cuenta («Tus datos»), con la
+                                  migración 0028 (implementado en MATU-54, decisiones 342 a 403; se conserva
+                                  como explicación y manda openapi.json)
 ```
 
 ## Propuestos e implementados
@@ -120,6 +124,9 @@ docs/api/
 | `POST /v1/grupos/{grupo_id}/salida` | MATU-42 (D-42-13) | Implementado. En `openapi.json` desde MATU-42 (decisiones 304 a 307 y 327). Todo miembro activo |
 | `GET /v1/personas-cuidadas/{persona_id}/consentimientos` | MATU-42 (D-42-9) | Implementado. `autorizo_alguien_que_ya_no_esta` en `openapi.json` desde MATU-42 (decisiones 311 y 331) |
 | Autor de la ficha, las secciones, los accesos y los perfiles | MATU-42 (D-42-10) | Implementado. `nombre: null` y `autor_activo` en `openapi.json` desde MATU-42 (decisiones 309 y 323) |
+| `GET /v1/personas-cuidadas/{persona_id}/datos` | MATU-54 (D-54-1 a D-54-15) | Implementado. En `openapi.json` desde MATU-54 (decisiones 342 a 357, 361 a 395). Admin y cuidador |
+| `GET /v1/yo/datos` | MATU-54 (D-54-2, D-54-16) | Implementado. En `openapi.json` desde MATU-54 (decisiones 343, 345 a 349, 358 a 364 y 366 a 395). Toda cuenta, sin `X-Grupo-Id` |
+| `GET /v1/yo/ingresos` | MATU-55; cambio aditivo de MATU-54 | `pediste_una_copia` en `EventoCuentaVista.tipo` desde MATU-54 (decisión 376) |
 
 Fuera de `/v1`, la API sirve la aplicación web en el mismo origen (`backend/app/core/web.py`), sin entrar en `openapi.json`: `GET /r` (la página del relevo, MATU-23), `/assets/…` (los archivos del build) y, desde MATU-58, el `index.html` de la app de familia en todo `GET` o `HEAD` que no sea `/v1`, `/r`, `/assets`, `/docs` ni `/openapi.json` (decisión 115). Desde MATU-67, `/version.json` entrega el identificador del build con `Cache-Control: no-store`, y 404 RFC 7807 si no está en el build, nunca el `index.html` (decisión 172). Desde MATU-62 (implementado, decisión 231), `POST /insumos/pedido/pago` recibe la vuelta de Webpay por POST y responde 303 a la misma pantalla con los valores en el fragmento; está declarada en `propuestos/pago.openapi.yaml` con `x-matu-fuera-de-openapi-json`. `/docs` y `/openapi.json` solo existen con `ENTORNO` `local` o `pruebas` (decisión 115).
 
@@ -182,6 +189,7 @@ Mismo formato que `backend/app/core/errores.py`: `type`, `title`, `status`, `det
 | `/errores/ya-eres-parte` | 409 | Aceptar una invitación siendo ya miembro activo del grupo, con `grupo_id` (C27) | **Nuevo** (MATU-42, propuesto) |
 | `/errores/invitacion-cerrada` | 409 | Anular una invitación usada o vencida, con `estado` (P8) | **Nuevo** (MATU-42, propuesto) |
 | `/errores/tope-invitaciones` | 429 | 20 invitaciones por admin y grupo en 24 horas, con `Retry-After` (C31, P9) | **Nuevo** (MATU-42, propuesto) |
+| `/errores/tope-copias` | 429 | 10 copias de datos por cuenta en una hora, sumando «Datos de» y «Tus datos», con `Retry-After` (C23, D-54-10) | Existe (MATU-54, decisiones 346 y 389) |
 
 ## Lo que usa la app de familia (MATU-32)
 
@@ -1747,3 +1755,206 @@ Historia técnica, solo de backend. Revisión previa del analista normativo: `do
 337. **El contrato no cambia.** `AccesoResumenVista.telefono_relevo` ya era `string | null`, y la pantalla ya tiene «Ya no guardamos su teléfono.». `telefono_borrado_en` no se expone. `openapi.json` y `web/src/compartido/api/familia.openapi.ts` no cambian.
 338. **Una prueba existente cambia de error.** `test_un_acceso_cortado_no_se_reabre_y_ninguno_se_alarga` esperaba `insufficient_privilege` al cambiar el teléfono como `matu_app`. Desde la 0027 `matu_app` tiene ese `UPDATE` y lo rechaza el trigger, con `check_violation`. El resultado no cambia: nadie cambia el teléfono desde la aplicación.
 339. **Copias de respaldo** (C14, CL-29). Al restaurar una copia, se corre `python -m app.tareas borrados` antes de reabrir la base. Queda escrito en `infra/railway/README.md`.
+
+## MATU-54 · Mis datos: ver y descargar lo que MATU guarda de la persona y de la cuenta (Ley 21.719, acceso y portabilidad; implementado)
+
+**Implementado en MATU-54 el 12-11** (migración 0028, decisiones 366 a 403): manda `openapi.json`, y `propuestos/mis-datos.openapi.yaml` (0.2.0-implementado) se conserva como explicación. Contrato escrito el 12-11, **antes de implementar**, con la revisión previa del analista normativo (`docs/legal/revision-previa-matu-54.md` del repositorio MATU, condiciones C1 a C30 y su sección 3) y las **decisiones de Jorge del 12-11, D-54-1 a D-54-16** (misma revisión, sección final). Las rutas y sus esquemas están en `propuestos/mis-datos.openapi.yaml` (0.1.0-propuesto). Se apila sobre MATU-46: la migración es la **0028** (`down_revision = "0027"`). Reutiliza lo que dejaron MATU-55 (`auditoria_cuenta_propia` y la lista de eventos de la cuenta, 0025), MATU-42 (`autor_activo`, `nombre: null` y `usuario_comiembro` solo con miembros activos, 0026) y MATU-46 (el teléfono del relevo, que la copia nunca trae, 0027).
+
+**Numeración.** Las decisiones de esta historia van de la **342 a la 365**: MATU-42 usa hasta la 341 (sus observaciones de cierre) y MATU-46 de la 332 a la 339. Si otra historia se fusiona antes con decisiones nuevas, se renumera al fusionar.
+
+### Decisiones de MATU-54 (12-11)
+
+342. **Alcance.** Dos lecturas nuevas, una por copia (D-54-2 a, D-54-13 a):
+    - `GET /v1/personas-cuidadas/{persona_id}/datos`: «Datos de {nombre_pila}», para admin y cuidador (D-54-1 a);
+    - `GET /v1/yo/datos`: «Tus datos», para toda cuenta, también pagador y observador.
+
+    Y la migración 0028. **No** entran: corregir los datos (MATU-91), que la persona cuidada entre con su propia cuenta (MATU-90), la auditoría de los cambios del grupo (MATU-98, decisión 320), un PDF, un HTML o una hoja para imprimir (ADR-029, D-54-3 a), ni cambios a rutas que ya existen. No es capa 3: las dos rutas se montan siempre.
+343. **Un solo GET por copia, para la pantalla y para el archivo** (C7, C8, C9, D-54-3 a).
+    - La respuesta es el JSON completo. Es lo que muestra la pantalla (el formato legible y accesible, C30) y lo que se descarga (el formato estructurado).
+    - Lleva `Content-Disposition: inline; filename="matu-datos-AAAA-MM-DD.json"` en la copia de la persona y `inline; filename="matu-cuenta-AAAA-MM-DD.json"` en la de la cuenta (P7 del diseñador), con el día de Chile según el `Reloj` y **sin el nombre de la persona** (C9). `inline` y no `attachment`, porque la misma respuesta se muestra.
+    - La pantalla pide la respuesta como texto (`responseType: 'text'`), la muestra con `JSON.parse` y, al tocar «Descargar» en el diálogo, guarda **ese mismo texto** en un `Blob` (`application/json`), con `URL.createObjectURL`, el nombre de la cabecera y `revokeObjectURL` de inmediato. No vuelve a llamar a la API.
+    - Así el archivo es exactamente lo que se vio, al mismo instante (`generado_en`), y una copia es una sola fila de auditoría y una sola cuenta en el límite.
+    - Se descartó una segunda ruta `…/datos/archivo` con `attachment`: duplicaba la auditoría y el límite, y el archivo podía diferir de la pantalla (decisión 366).
+344. **La copia de la persona: contexto, quién y orden** (C1 a C3, D-54-1 a).
+    - `sesion_de_grupo` con `X-Grupo-Id`, como las demás rutas de la persona. Admin y cuidador activos.
+    - **Orden:** 401; 404 (sin grupo válido, rol `pagador` u `observador`, `persona_id` que no es UUID, de otro grupo, eliminada o con `datos_borrados_en`); 503 (límite sin Redis o sin `PEPPER_LIMITES`); 429 `tope-copias`; el registro de la descarga; 503 si la custodia no desenvuelve la clave de una ficha vigente; 200.
+    - **Nunca 403:** la copia no exige una autorización vigente (C3). Sin ella, la ficha y los insumos van solo con su estado y la fecha de borrado (D-54-5 a).
+    - No tiene cuerpo ni parámetros de consulta. Uno desconocido se ignora.
+345. **«Tus datos»: contexto y orden.** `sesion_de_usuario`, que fija solo `app.usuario_id`. Sin `X-Grupo-Id` (si llega, se ignora) ni parámetros. Lo que se ve lo deciden las políticas de lo propio que ya existen, no un `WHERE`. **Orden:** 401, 503, 429, registro y 200. No hay 404 ni 422.
+346. **Límite: 10 copias por hora por cuenta** (C23, D-54-10 a, CL-63).
+    - Un contador **común a las dos rutas**, en Redis, con la clave `HMAC-SHA-256(PEPPER_LIMITES, "copia-datos:<usuario_id>")`. Ventana fija de una hora que empieza con la primera copia, como el límite por IP (`app/shared/limite_ip.py`), pero por cuenta: se agrega un límite por cuenta (`copia-datos`, 10) o se generaliza `LimitePorIp`, lo que quede más simple.
+    - Se cuenta solo lo que pasó el 401 y el 404: un intento sobre una persona ajena no gasta el cupo ni revela nada.
+    - La 11.ª responde **429 `/errores/tope-copias`** con `Retry-After` (el TTL de la clave, de 1 a 3600). `type` propio para no confundirlo con el límite por IP (como `tope-invitaciones`, decisión 301). El 429 no se audita.
+    - Sin Redis o sin `PEPPER_LIMITES`: **503** sin entregar nada, como las demás rutas con límite (decisión 114; decisión 378).
+347. **Auditoría de cada copia** (C18 a C21, D-54-8 a).
+    - **`persona.datos_descargar`**: actor `usuario`, grupo, entidad `persona_cuidada` con el id de la persona, `persona_cuidada_id` de la persona (0028), sin detalle.
+    - **`cuenta.datos_descargar`**: actor `usuario`, **sin grupo**, entidad `usuario` con el propio id, sin detalle. Va en `ACCIONES_DE_CUENTA`, y por eso **la 0028 cambia el `CHECK auditoria_cuenta_acotada`** de la 0025 (decisión 370): la revisión previa decía que no hacía falta un `CHECK` nuevo, pero se escribió antes de la 0025.
+    - Se registran **al principio**, en la misma transacción que lee, con `RegistroAuditoria`. Si el registro falla, la transacción se deshace y no se entrega nada (500). La copia de la persona incluye esa misma fila en su historial («Pidió una copia de los datos», C21).
+    - No se registra si el archivo se guardó (C20). No se agrega un `plan.leer`: la fila de la copia ya dice que se leyó la ficha.
+    - Las dos acciones se agregan a `AccionAuditoria`, y `persona.datos_descargar` a la lista nueva `ACCIONES_DE_PERSONA` (decisión 365).
+348. **Lectura coherente** (C8). Cada copia se arma en **una sola transacción `REPEATABLE READ`**: todos los bloques ven el mismo instante de la base. `sesion_tenant` hoy abre la transacción con el nivel por omisión y fija el contexto con `set_config`, que ya es una consulta, así que no se puede cambiar el nivel después: se agrega a `sesion_tenant` un parámetro de aislamiento que se aplica con `execution_options(isolation_level=…)` antes de empezar, y lo usan solo estas dos rutas.
+349. **Formato común** (sección 3 de la revisión previa).
+    - `formato: "matu-datos/1"`, `tipo` (`persona_cuidada` o `cuenta`), `generado_en` y el `aviso` fijo de C10, al principio.
+    - Instantes en RFC 3339 **con el desfase de Chile** (`2026-11-12T10:05:00-03:00`). Es la única parte de la API que no usa UTC, porque el archivo lo lee una persona o un programa fuera de MATU. Días como `AAAA-MM-DD`.
+    - Nombres de campo en español. Enumerados cerrados, nunca texto armado por la API (la pantalla usa `lenguaje.md`, sección 35: la 34 ya es de MATU-42, P12 del diseñador).
+    - Dinero en **pesos enteros con IVA incluido**, sin un campo `iva` ni decimales (ajuste de Jorge del 12-11).
+    - **Sin ids internos**: las personas van por nombre (`PersonaNombrada`, la decisión 309 sin el `id`).
+350. **Qué lleva «Datos de {nombre_pila}»** (sección 3, D-54-14): `persona`, `autorizaciones`, `ficha`, `enlaces_relevo`, `insumos`, `pedidos` e `historial`. **No lleva** los avisos enviados a los miembros (son datos de ellos), la lista de miembros, ni correos o celulares de nadie.
+351. **Autorizaciones** (C4). Todas las filas de `consentimiento` de la persona, de las tres finalidades, también las retiradas y las reemplazadas al renovar, de la más reciente a la más antigua.
+    - Cada una con finalidad, `estado` (`vigente`, `revision_vencida`, `retirada` o `reemplazada`, este último con `revocacion_motivo = 'renovacion'`), calidad, versión de la política, la declaración y el aviso mostrados (identificador, versión y huella, leídos de `evidencia` y nunca copiados en bruto), quién la registró (nombre), fechas de otorgamiento, revisión y retiro.
+    - **Sin `referencia_documento`** (D-54-4 a): `hay_documento_representante` dice que existe, y la pantalla dice que se pide por correo.
+    - `comunicaciones` no se lista: ninguna ruta la otorga.
+352. **Ficha** (D-54-5 a, C28).
+    - Se descifra **solo** con la autorización `plan_cuidado` vigente según el `Reloj`, por la misma dependencia de la ficha (`care_plan/api/dependencias.py`) y el puerto `CifradorSecciones`. Va con los tres campos (en orden, con `texto: null` si no se escribió) y las secciones complementarias, cada una con su texto completo, quién la escribió (nombre) y cuándo. «A quién llamar» va tal como se escribió, con los nombres y teléfonos que tenga (D-54-4 a).
+    - **`estado`:** `disponible`, `retirada` (con `borrado_el`, el retiro más 90 días, el día de la destrucción de la clave, MATU-44), `en_pausa` (la revisión anual venció; sin fecha, vuelve al renovar), `borrada` (la clave ya se destruyó) o `sin_autorizar`. Fuera de `disponible`, `completitud`, `campos` y `secciones` son `null`: ni el texto, ni cuántos campos hay, ni quién los escribió.
+    - Si la ficha está vigente y la custodia no desenvuelve la clave, **503** (decisión 32). Nunca se entrega la copia como si la ficha no tuviera texto.
+353. **Enlaces de relevo.** Todos los accesos de la ficha, también vencidos y cortados, del más reciente al más antiguo: nombre del relevo, motivo, campos y secciones compartidos, estado, creación, vencimiento, corte, el nombre de pila de quien compartió (`nombre_pila_comparte`, lo que vio el relevo), usos y último uso.
+    - **Nunca el teléfono** (D-54-4 a), aunque todavía esté guardado, ni el token, el PIN, sus huellas o los intentos.
+    - Van también con la ficha retirada: dicen a quién se comunicaron los datos (Ley 19.628, art. 12, según la revisión previa).
+    - Cada enlace trae sus `aperturas` (`relevo.presentar`, `.abrir`, `.pin_incorrecto` y `.bloqueo`), con el tipo, el instante y las secciones vistas, como `AperturaVista` de MATU-45 sin el acceso, porque la pantalla las muestra con `LineaApertura` bajo cada enlace (especificación del diseñador, 3.4.4). Admin y cuidador las ven todas (`auditoria_aperturas_relevo`, 0010). No se repiten en el `historial` (P6 del diseñador).
+354. **Insumos** (D-54-5 a). Solo con la autorización `consumo` vigente traen `lista`, `compras` y `avisos`. Si no, `null`, con el estado y, si está retirada, `borrado_el`.
+    - `lista`: todos los perfiles, también los que se dejaron de seguir, con nombre (del catálogo o escrito), unidad, cuánto usa y cada cuántos días, lo que quedaba y cuándo, la fecha estimada en que se acaba, días de aviso, unidades por envase, si se sigue, y quién lo cambió por última vez.
+    - `compras`: **todas las que MATU guarda**. Solo las `declarada` se borran a los 90 días (0017); las `pedido_matu` quedan más tiempo y van en el archivo (corregido por la decisión 403). Es la primera ruta que lee las compras: el registro de tratamientos, entrada 5, tiene que decirlo (revisión previa, sección 6).
+    - `avisos`: las alertas de quiebre guardadas, con fecha prevista, estado y fechas.
+355. **Pedidos y pagos** (D-54-14, D-54-15 a).
+    - Todos los pedidos de la persona que existen (la conservación de MATU-61 borra los viejos), del más reciente al más antiguo: referencia, estado, fechas, líneas (producto, presentación, comercio, cantidad, precio unitario, subtotal y qué hacer si falta), subtotal, envío, total, la dirección copiada **sin el teléfono de contacto**, y el pago: estado, cuándo, **quién pagó (nombre)**, lo cobrado, lo devuelto y las devoluciones. Y `precios_de_ejemplo` y `pago_de_prueba`, para que el archivo no parezca un cobro real en el piloto.
+    - **Nunca** el token, la orden de compra (`buy_order`), la sesión, el código de autorización ni datos de la tarjeta, que van solo en «Tus datos» de quien pagó (D-54-16 a). `referencia` es la de MATU (4 a 6 dígitos, la del comprobante), no la de la pasarela.
+    - Se incluyen igual con la autorización de pedidos retirada o con `CAPA3_HABILITADA` apagada. Se leen por un puerto (decisión 363) cuya implementación vive en `ordering`. **Si la capa 3 está quitada** (el paquete no está), el puerto no se registra y `pedidos` es `null`, sin fallar.
+    - La autorización de pedidos va en `autorizaciones` (finalidad `despacho`).
+356. **Historial: quién abrió o editó la ficha, y lo demás** (C12 a C14, C21, D-54-6 a, D-54-7 a).
+    - Lo que el rol puede leer **por RLS, como hoy**: el admin todo (`auditoria_familia`, 0005), el cuidador sus propias filas y las aperturas del relevo (0005 y 0010). `alcance` dice cuál de los dos (`todo` o `lo_tuyo`). La 0028 no abre ninguna lectura.
+    - **Qué filas son de esta persona:** `persona_cuidada_id = :persona` (0028). Las anteriores a la 0028 (sin persona) se asocian por su entidad mientras exista (`plan_cuidado`, `plan_seccion`, `consentimiento`, `acceso_relevo`, `perfil_consumo`, `alerta_quiebre`, `reposicion`, `clave_datos`, `direccion`, `pedido` y `cargo`), o por el grupo si cuida a una sola persona. Las que no se pueden asociar no van, y `hay_hechos_sin_asociar` lo dice (decisión 374). Sin relleno: `auditoria_solo_insercion` no deja actualizar.
+    - **Tipos:** una lista cerrada (`TipoHecho` del YAML, 26 valores) con un nombre propio de la API, no el de la acción, como la decisión 254. `abrio_la_ficha` es `plan.leer`: la ficha abierta por un miembro en la app (MATU-14), que responde la P6 del diseñador. No entran lo del relevo (`relevo.*` salvo `compartir` y `revocar`), que va en las `aperturas` de cada enlace (decisión 353), `persona.borrar` (una persona borrada da 404) ni las acciones del grupo (`invitacion.*`, `membresia.*`).
+    - **Cada hecho:** tipo, instante y quién: una persona del grupo (nombre y si sigue, como `autor_activo`, C14) o MATU (lo que hace el sistema). Y, si aplica, `campo` (uno de los tres de la ficha) o `seccion` (una complementaria, de `detalle.seccion`).
+    - **El campo de una edición de la ficha básica** no está en la auditoría: `plan.editar` guarda el id de la sección y, en `detalle`, solo el tipo de una complementaria (`auditoria_detalle_acotado`). Se toma de `plan_seccion.tipo` mientras exista. Si la clave ya se destruyó, `campo` es `null` y la pantalla dice «Editó la ficha» (decisión 375).
+    - **Nunca** el texto, `id`, `request_id`, `actor_ref`, `entidad_id`, `detalle` en bruto ni el motivo de un enlace.
+    - La auditoría se conserva 3 años, y el borrado lo construye MATU-89. Mientras tanto, la copia trae todo lo que hay (faltante 11 de la revisión previa).
+357. **90 días en pantalla, todo en el archivo** (C24, D-54-9 a). La respuesta trae **todo**, del más reciente al más antiguo; a igual instante, el de `id` mayor primero. La pantalla muestra solo los hechos y los eventos de los últimos 90 días, y su «Ver más» pagina dentro de esos 90 días, sin otra llamada (corregido por la decisión 383). No hay paginación en la API: en el piloto el volumen es chico y el archivo tiene que estar completo (decisión 381).
+358. **Qué lleva «Tus datos»** (sección 3, C15, C16, D-54-16 a). Nada de una persona cuidada.
+    - `cuenta`: nombre, correo, **celular completo** (el diálogo lo advierte), si está confirmado, el canal de los códigos y la fecha de creación. Nunca la contraseña transformada, el secreto del doble factor, la huella del correo ni los hashes de sesión.
+    - `politica`: versión, huella y fecha de la última aceptación (`aceptacion_propia_leer`, 0021).
+    - `grupos`: los grupos activos, con nombre, rol, fecha de unión y, si es pagador, el permiso de ver la ficha (`membresia_propia`).
+    - `dispositivos`: todos los guardados, también los cerrados, con nombre, clase (decisión 280), creación, último uso, cierre y si tienen avisos activos. Sin id, plataforma ni `push_token`.
+    - `preferencia_avisos`: correo y push.
+    - `eventos`: **todos** los guardados de la lista de la decisión 254, más `pediste_una_copia` (`cuenta.datos_descargar`), leídos con `auditoria_cuenta_propia` (0025), con el dispositivo como en la decisión 256 (sin `actual`). Los fallidos no entran, igual que en `GET /v1/yo/ingresos`.
+    - `avisos_enviados`, `envio_simulado`, `pagos` y `condiciones_aceptadas`: decisiones 359 y 360.
+359. **Avisos enviados** (C16, C17, D-54-11 a). Cada fila de `notificacion` de la cuenta (`notificacion_propia`), con creación, envío, canal y un `resultado`: `en_el_piloto_no_salio` (estado `enviada` con el envío simulado), `salio` (`enviada` con un proveedor real), `no_salio` (`fallida` u `omitida`) o `pendiente`. **Nunca** el texto, la plantilla, el destino, la persona ni el error. `envio_simulado` es el mismo de la decisión 261, y en el semestre siempre es `true`. La fila no guarda si se simuló (decisión 373).
+360. **Pagos y condiciones de «Tus datos»** (D-54-16 a, CL-68).
+    - `pagos`: los pagos aprobados en que la cuenta es la pagadora (`participacion.usuario_id`), con el nombre del grupo, la referencia, la fecha, lo cobrado, lo devuelto, la tarjeta (tipo, últimos 4 y cuotas) y `pago_de_prueba`. **Sin el nombre de la persona ni los productos**, que están en su copia (decisión 379). Nunca el token, la orden, la sesión ni el código de autorización.
+    - `condiciones_aceptadas`: las condiciones del pedido que la cuenta aceptó (`pedido.condiciones_aceptadas_por`), con el grupo, la referencia si se pagó, la versión, la huella y la fecha.
+    - **Cómo se leen sin una política nueva:** por cada grupo en que la cuenta es miembro activo, dentro de la misma transacción, se fija ese grupo en el contexto (`set_config('app.grupo_id', …, true)`) y se lee con las políticas de hoy (`pedido_familia_leer`, `cargo_familia_leer`, `participacion_familia_leer`), filtrando por la cuenta. **Quien salió del grupo no ve en la app los pagos que hizo ahí** (CL-68, decisión 371): los pide por correo.
+    - `null` si la capa 3 está quitada.
+361. **Lo que nunca sale** (C4, C5, D-54-4 a, D-54-16 a): ids internos, `request_id`, la IP, hashes de token, de PIN o de código, `evidencia` en bruto, `referencia_documento`, `push_token`, claves, el teléfono del relevo, correos y celulares de otras personas, el teléfono de contacto del pedido y los datos de la venta. Esquemas Pydantic con `extra="forbid"` y `additionalProperties: false` en el YAML (verificado con un script: ningún objeto sin él, y los tres ejemplos validan contra sus esquemas). Consultas con columnas nombradas, sin `SELECT *` (C6). Una prueba recorre la respuesta de las dos rutas y falla si aparece cualquiera de esos nombres de campo, o el teléfono sembrado del relevo y del pedido.
+362. **Cabeceras y logs** (C27, C29).
+    - `Cache-Control: no-store` en todas las respuestas, 2xx y errores, con los middlewares de `/v1/personas-cuidadas/` y `/v1/yo/` que ya existen, y repetido en la ruta (verificado con un script sobre el YAML: 9 respuestas, ninguna sin la cabecera). No hay un service worker que guarde respuestas, y estas rutas no deben entrar en uno.
+    - La línea de la petición lleva la plantilla de la ruta, el estado y el usuario. **Nunca** el cuerpo de la respuesta, nombres, teléfonos ni texto, tampoco en el `repr` de los objetos. Una prueba con `caplog` lo verifica después de una copia con la ficha llena.
+363. **Dónde vive el código** (faltante 10 de la revisión previa, arquitectura 6.4). La copia junta `care_circle`, `care_plan`, `consumption`, `ordering`, `payments`, `iam` y `notifications`, y las reglas no dejan que un módulo los importe a todos: nadie importa `care_plan` salvo `consumption`, nadie importa `notifications`, `iam` no importa a nadie y `backoffice` no importa `care_plan` ni `consumption`. Se propone el patrón de los efectos del retiro (`registrar_efecto`, decisión 124):
+    - **«Datos de»** vive en `care_circle` (dueño de la persona, sus autorizaciones y el rol que la pide), con un puerto por bloque y un registro. `care_plan` (ficha, enlaces e historial), `consumption` (insumos) y `ordering` (pedidos y pagos, leyendo las tablas del pago con SQL, sin importar `payments`) implementan su bloque en su `infrastructure/`, y `app/main.py` los registra. Sin el bloque de la ficha o de los insumos, la ruta falla cerrada (500), como el retiro. El de pedidos se registra solo si el paquete está.
+    - **«Tus datos»** vive en `iam`, con el mismo patrón: `care_circle` (grupos), `notifications` (preferencia y avisos enviados) y `ordering` (pagos y condiciones) registran su bloque desde `app/main.py`.
+    - `test_arquitectura.py` no cambia (decisión 367).
+364. **`type` nuevo:** `tope-copias` (429). Se reutilizan `no-autenticado`, `token-invalido`, `no-encontrado`, `servicio-no-disponible` y `error-interno`.
+365. **Lo que el contrato pide a la migración 0028:** ver «Plan de la 0028». En el código, `EntradaAuditoria` suma `persona_cuidada_id: uuid.UUID | None`, que exige `grupo_id`, y una lista `ACCIONES_DE_PERSONA` (las acciones que la llevan siempre): una entrada de esas acciones sin persona, o con persona en otra acción, lanza `TypeError`. `RegistroAuditoriaSql` inserta la columna.
+
+### Plan de la 0028 (MATU-54, `down_revision = "0027"`)
+
+En texto, para revisar antes de escribirla. Todo el SQL de restricciones, índices y funciones va con `op.execute` dentro de la migración, y se verifica `upgrade head`, `downgrade -1` y `upgrade head`. Sigue el borrador de la sección 2 de la revisión previa (D-54-7 a), con tres cambios: la FK compuesta (b), el `CHECK` de las acciones de persona (d) y el `CHECK` de la cuenta (e).
+
+a) **Columna.** `ALTER TABLE auditoria ADD COLUMN persona_cuidada_id uuid`, nula y **sin relleno** de las filas anteriores (`auditoria_solo_insercion` rechaza todo `UPDATE` y no se apaga). `COMMENT ON COLUMN`: «MATU-54: la persona a quien se refiere la acción, para su copia de datos. Sin relleno de filas anteriores».
+
+b) **Misma persona, mismo grupo, en la base.** En vez de solo una prueba (la revisión previa descartó un trigger porque el relevo no lee `persona_cuidada` por RLS), una **clave foránea compuesta**:
+- `ALTER TABLE persona_cuidada ADD CONSTRAINT persona_cuidada_id_grupo_uq UNIQUE (id, grupo_id)` (redundante con la clave primaria, pero la exige la FK);
+- `ALTER TABLE auditoria ADD CONSTRAINT auditoria_persona_fk FOREIGN KEY (persona_cuidada_id, grupo_id) REFERENCES persona_cuidada (id, grupo_id)`, `MATCH SIMPLE`, sin `ON DELETE`: la persona no se borra, solo se anonimiza (MATU-72).
+
+Las verificaciones de integridad referencial de PostgreSQL no pasan por RLS, así que valen también para el relevo y para `matu_app`, sin abrirles lecturas, y `matu_app` no necesita el permiso `REFERENCES`. Con `MATCH SIMPLE`, una fila sin persona no se verifica. Cada inserción toma la fila de la persona en `FOR KEY SHARE`, que no choca con el borrado ni con los cambios de la persona (no tocan `id` ni `grupo_id`). Si se prefiere no tocar `persona_cuidada`, queda la FK simple del borrador más la prueba (decisión 369).
+
+c) **`CHECK auditoria_persona_con_grupo`**: `persona_cuidada_id IS NULL OR grupo_id IS NOT NULL`. Con `MATCH SIMPLE`, una fila con persona y sin grupo escaparía a la FK: este `CHECK` lo cierra. Se valida al crearlo (todas las filas tienen la columna nula).
+
+d) **`CHECK auditoria_persona_obligatoria … NOT VALID`**: `persona_cuidada_id IS NOT NULL OR accion NOT IN (…)`, con la lista `ACCIONES_DE_PERSONA`: `plan.leer`, `plan.editar`, `plan.quitar_seccion`, `consentimiento.otorgar`, `consentimiento.revocar`, los siete `relevo.*`, los cinco `consumo.*`, los tres `alerta.*`, `reposicion.declarar`, `clave.destruir`, `persona.borrar`, `persona.datos_descargar`, `direccion.cambiar`, los cuatro `pedido.*` y los tres `pago.*`. **`NOT VALID` a propósito y sin `VALIDATE`:** las filas anteriores no tienen persona y no se pueden actualizar, pero toda fila nueva queda obligada. Así una escritura que olvide la persona falla en la base en vez de desaparecer en silencio de la copia (decisión 368). Una prueba verifica que la lista del `CHECK` es la de `ACCIONES_DE_PERSONA`, como con `ACCIONES_DE_CUENTA`.
+
+e) **`CHECK auditoria_cuenta_acotada`** (decisión 258, 0025): `DROP` y `ADD … NOT VALID` y `VALIDATE`, con las 15 acciones de `ACCIONES_DE_CUENTA` (las 14 de la 0025 más `cuenta.datos_descargar`). La política `auditoria_cuenta_propia` no cambia: su primera rama (`actor_tipo = 'usuario' AND actor_ref = app_usuario()`) ya deja ver la fila nueva a su dueño.
+
+f) **Índice** `auditoria_persona_ix ON auditoria (persona_cuidada_id, ocurrido_en DESC, id DESC) WHERE persona_cuidada_id IS NOT NULL`, para el historial de la copia. Las filas anteriores usan `auditoria_entidad_ix` y `auditoria_grupo_ix`, que ya existen.
+
+g) **`plan_destruir_claves(limite, ahora)`** (0016) escribe `clave.destruir` en SQL. `CREATE OR REPLACE` con el mismo cuerpo, la misma firma, `SECURITY DEFINER`, dueño y `search_path`, y el `INSERT` con `persona_cuidada_id = d.persona_cuidada_id` (ya está en `destruidas`). `CREATE OR REPLACE` conserva el `REVOKE` y el `GRANT`. Las funciones de la 0026 (`invitacion_*`, `membresia_retirar`) escriben acciones del grupo, sin persona, y no cambian.
+
+h) **Permisos y políticas: ninguno nuevo.** `matu_app` tiene `INSERT` y `SELECT` de tabla sobre `auditoria` (`db/03_permisos.sql`), que cubren la columna. Ninguna política de lectura mira la columna (D-54-6 a): la 0028 no abre ninguna fila. `auditoria_detalle_acotado` (0026) no cambia: las acciones nuevas van sin detalle.
+
+i) **Qué escrituras llenan `persona_cuidada_id`** (D-54-7 a), todas en la misma transacción que hoy:
+- la ficha: `care_plan/infrastructure/auditoria_ficha.py` (`plan.leer`, `plan.editar`, `plan.quitar_seccion`);
+- el relevo: `care_plan/infrastructure/repositorio_accesos.py` (`relevo.compartir`, `relevo.revocar`), `care_plan/application/canje_relevo.py` (`relevo.presentar`, `.canje`, `.pin_incorrecto`, `.bloqueo` y `.abrir`; la persona sale del plan del acceso, como ya la lee `repositorio_relevo.py`) y `care_plan/infrastructure/efecto_retiro.py`;
+- las autorizaciones: `care_circle/infrastructure/repositorio_personas.py` (el `INSERT` en SQL de `consentimiento.otorgar` del alta), `repositorio_autorizaciones.py` y `repositorio_retiros.py` (`consentimiento.otorgar` y `.revocar`, también la autorización de pedidos);
+- `care_circle/infrastructure/repositorio_borrado.py` (`persona.borrar`) y `care_circle/application/direccion.py` (`direccion.cambiar`);
+- los insumos: `consumption/application/perfiles.py`, `alertas.py`, `retiro.py` y `trabajo_diario.py` (`consumo.*`, `alerta.*`, `reposicion.declarar`);
+- los pedidos y pagos: `ordering/application/pedidos.py`, `payments/application/pagar.py` y `cobro.py` (`pedido.*`, `pago.*`; la persona sale del pedido);
+- `plan_destruir_claves` (g);
+- y las dos acciones nuevas (decisión 347).
+
+Una prueba verifica que **las filas del sistema llevan `grupo_id`** (D-54-7 a): `clave.destruir`, `alerta.materializar`, el descarte del trabajo diario, y `pago.aprobar` y `pago.anular` de la vuelta y la conciliación.
+
+j) **Downgrade**, en orden inverso, sin borrar nunca un registro de auditoría:
+1. `plan_destruir_claves` vuelve al cuerpo de la 0016.
+2. Si alguna fila tiene persona, la bajada **se detiene** con un mensaje claro («MATU-54: hay auditoría asociada a personas; la bajada no borra registros»). Se decide agregando `CHECK (persona_cuidada_id IS NULL)` dentro de un bloque que captura `check_violation`, y no con un `SELECT`, que como `matu_owner` pasaría por RLS y no vería la auditoría (decisión 331). Si pasa, se quita ese `CHECK` temporal.
+3. `auditoria_cuenta_acotada` vuelve a las 14 acciones: se intenta validar y, si hay filas `cuenta.datos_descargar`, queda `NOT VALID`, como la 0026 con `auditoria_detalle_acotado`.
+4. `DROP INDEX auditoria_persona_ix`; `DROP CONSTRAINT` de `auditoria_persona_obligatoria`, `auditoria_persona_con_grupo` y `auditoria_persona_fk`; `persona_cuidada_id_grupo_uq`; y `DROP COLUMN persona_cuidada_id`.
+
+k) **Pruebas.**
+- `test_migraciones.py`: `upgrade head`, `downgrade -1` y `upgrade head`; la bajada se detiene con una fila con persona; la lista de los dos `CHECK` es la del código.
+- `test_aislamiento.py`: A no lee la auditoría de una persona de B, ni filtrando por `persona_cuidada_id`; una fila con la persona de otro grupo falla por la FK, también desde el relevo; una acción de persona sin persona falla; la columna no abre lecturas (el cuidador sigue viendo solo lo suyo y las aperturas).
+- Asociación: con dos personas en el grupo, una sección quitada, un insumo eliminado y una clave destruida se atribuyen a la persona correcta.
+
+**Sin migración:** las rutas, el límite en Redis, las acciones nuevas en `AccionAuditoria` (texto sin `CHECK` global) y la lectura de los pagos por grupo (decisión 360).
+
+### Decisiones de MATU-54 (12-11, respuestas del orquestador por delegación de Jorge)
+
+Jorge decidió además que MATU-54 va **sin recortes**: con los pedidos, los pagos y el archivo. Las preguntas Q1 a Q18 del contrato ya no están abiertas: quedan como las decisiones 366 a 382, y los ajustes del cruce con la especificación v1.1 del diseñador (C-1 a P15), como las 383 a 387.
+
+366. **Q1 · Un solo GET por copia, con `inline`** (decisión 343), confirmado. La descarga no vuelve a llamar a la API.
+367. **Q2 · Registros de bloques**, confirmado: en `care_circle` (`infrastructure/copia_datos.py`) para «Datos de» y en `iam` (`infrastructure/copia_cuenta.py`) para «Tus datos», armados en `app/main.py`, sin cambiar `test_arquitectura.py`. **Al implementar, la ruta de «Datos de» vive en `care_plan`** (`api/router_copia.py`) y no en `care_circle`: la ficha se descifra con la custodia que inyecta `care_plan` (`obtener_custodia`), y `care_circle` no puede importar `care_plan`. `care_plan` sí importa lo de `care_circle` (la persona, las autorizaciones, el historial y el registro).
+368. **Q3 · `CHECK auditoria_persona_obligatoria NOT VALID`**, confirmado (plan de la 0028, d).
+369. **Q4 · La clave foránea compuesta**, confirmada (plan de la 0028, b). En producción la persona nunca se borra. La limpieza de las pruebas sí la borra, y la auditoría se queda: la fábrica (`tests/fabricas/fabrica.py`) y `tests/modules/care_circle/conftest.py` borran `persona_cuidada` con el rol de réplica, como ya hacían con `consentimiento` y `transaccion_pasarela`.
+370. **Q5 · La 0028 cambia `auditoria_cuenta_acotada`**, confirmado. El analista lo ve en el cierre.
+371. **Q6 · Sin política nueva.** Quien salió de un grupo pide por correo sus pagos de ese grupo, como dicen la CL-66 ampliada y la CL-68 (decisión 360).
+372. **Q7 · Los nombres de los archivos:** `matu-datos-AAAA-MM-DD.json` y `matu-cuenta-AAAA-MM-DD.json`.
+373. **Q8 · Avisos simulados.** En el semestre todo aviso es simulado (`ENVIO_AVISOS_SIMULADO = True`, `notifications/infrastructure/copia_avisos.py`). La marca por fila queda anotada para la historia del envío real.
+374. **Q9 y Q15 · Los textos los escribe el diseñador** en su especificación: `hay_hechos_sin_asociar` y los 26 tipos del historial. La API manda solo claves estables, sin textos.
+375. **Q10 · El campo de una edición de la ficha básica** sale de la sección mientras exista, y se pierde después de destruir la clave. Se acepta, y el analista lo ve en el cierre.
+376. **Q11, C-2 y C-3 · `GET /v1/yo/ingresos` suma `pediste_una_copia`**, solo para la copia de «Tus datos» (`cuenta.datos_descargar`). Es un cambio aditivo del contrato de MATU-55: `TipoEventoCuenta` y `EventoCuentaVista.tipo` suman el valor, sin dispositivo. La copia de una persona no aparece en «Dónde entraste»: va con su grupo, y `auditoria_cuenta_propia` solo deja ver las filas sin grupo.
+377. **Q12 y P14 · El `aviso` fijo** es el texto de la especificación v1.1 del diseñador (sección 9), en `AVISO_COPIA` (`app/shared/copia_datos.py`) y en la `const` del YAML: «Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.»
+378. **Q13 · Sin Redis o sin `PEPPER_LIMITES`, 503**, confirmado.
+379. **Q14 · «Tus datos» de quien pagó no lleva el nombre de la persona ni los productos**, confirmado. «Tus pagos» nombra solo el grupo (P5 del diseñador).
+380. **Q16 · Los documentos** fuera de este perímetro van en el PR de documentos del orquestador.
+381. **Q17 · Sin paginación** hasta MATU-89, confirmado.
+382. **Q18 · Las respuestas al diseñador**, confirmadas: P1 (A), un solo GET; P3, el celular enmascarado en la pantalla y completo en el archivo (la API lo manda completo); P4, sin compras ni avisos de insumos con los insumos retirados o en pausa; P5, solo el grupo; P6, las aperturas van dentro de cada enlace.
+383. **C-1 · Los 90 días** (D-54-9 a de Jorge). La API devuelve todo en el único GET, porque el archivo son los mismos bytes. **La pantalla filtra a los últimos 90 días, y su «Ver más» pagina solo dentro de esos 90 días**: no muestra lo anterior. Corrige la decisión 357, que decía que «Ver más» mostraba el resto. Ningún historial trae hoy un indicador de hechos anteriores a 90 días, y no se agrega: la pantalla lo calcula con la respuesta completa.
+384. **F1 · A qué se refiere cada hecho.** `HechoCopia` suma `finalidad` (en `dio_una_autorizacion` y `retiro_una_autorizacion`) y `referencia` (la de MATU del pedido, en los hechos de pedidos y pagos; `null` si no se pagó o ya no existe). Nada que identifique a una persona.
+385. **F2 · Sin `retirada_por`.** Por minimización, la copia no dice quién retiró una autorización.
+386. **F5 · `unidad` en `CompraCopia`**, la del insumo, para leer la cantidad.
+387. **P15 · Abrir la página cuenta como pedir una copia**, confirmado: cada GET registra su fila y cuenta en el límite.
+
+### Decisiones al implementar MATU-54 (12-11)
+
+388. **Las escrituras que llenan `persona_cuidada_id`** (plan de la 0028, i), todas en su misma transacción:
+    - el relevo la toma del plan de su acceso con una subconsulta a `plan_cuidado` (la política `plan_relevo` se lo permite), en `RepositorioAccesoRelevoSQL.leer`;
+    - cortar un enlace la devuelve en el `RETURNING` del `UPDATE` de `acceso_relevo`, y retirar una autorización en el `RETURNING` del `UPDATE` de `consentimiento`;
+    - compartir la recibe en `AccesoNuevo.persona_cuidada_id`; el trabajo diario usa la persona de cada insumo; el pago (`cobro.py`) la toma de `PedidoCobro`;
+    - `EntradaAuditoria` lanza `TypeError` si una acción de `ACCIONES_DE_PERSONA` llega sin persona, o si otra llega con persona.
+389. **El límite** (`contar_por_cuenta`, `app/core/limite_ip.py`): en «Datos de» se cuenta después del 404, y en «Tus datos» antes de abrir la transacción. El 401 no cuenta. El contador es `LIMITE_COPIAS` (`copia-datos`, 10 por hora), común a las dos rutas.
+390. **El 503 de la custodia, solo si hay texto que descifrar.** Con la ficha vigente y la custodia apagada, la copia de una persona sin ficha escrita sale igual. Si hay una sección, `SinCustodia` y 503. `ClaveNoDisponible` es 503, y otro error del cifrado o la falta de un bloque obligatorio (`insumos`), 500. En todos los casos la transacción se deshace, también el registro.
+391. **Pedidos** (`payments/infrastructure/copia_pagos.py`): un pedido `total_confirmado` con el plazo vencido según el `Reloj` sale como `vencido`, como en el pedido; una línea sin regla va con `otro_comercio` (decisión 200); `precios_de_ejemplo` es `true` si algún comercio de sus líneas es ficticio; `pago_de_prueba` sale de la pasarela configurada (sin pasarela, `true`).
+392. **Pagos de «Tus datos»:** lo cobrado es el monto de la venta aprobada, y lo devuelto, las anulaciones aprobadas de esa venta. `pagado_en` es el cierre de la venta, y `referencia` es `null` si el pago se anuló por tardío y el pedido no quedó pagado. Se leen grupo por grupo fijando `app.grupo_id` en la transacción, y al final se limpia, también si algo falla.
+393. **El historial asocia las filas anteriores a la 0028** por su entidad mientras exista, o por el grupo si cuida a una sola persona. `hay_hechos_sin_asociar` es `true` si queda alguna fila de una acción de persona sin persona que no se pudo asociar.
+394. **La transacción REPEATABLE READ**: `sesion_tenant` suma el parámetro `aislamiento` (solo `REPEATABLE READ`), que se fija con `Session.connection(execution_options=…)` antes de `set_config`. `care_circle` suma la dependencia `sesion_de_grupo_coherente` (`SesionDeGrupoCoherente`).
+395. **Las marcas de las pruebas** llevan el requisito y la ley con la convención de siempre: `@pytest.mark.rf("RF-08")` (o `RF-37`, `RF-25`) y `@pytest.mark.rf("Ley-21.719")`.
+396. **`openapi.json`** suma las dos rutas, sus 35 esquemas y `pediste_una_copia` en `EventoCuentaVista`. Como en el resto de `openapi.json`, los enumerados salen en línea, los errores como `application/problem+json` sin esquema y los instantes como texto (ya formateados con el desfase de Chile). Manda `openapi.json`, y el YAML queda como explicación (0.2.0-implementado).
+397. **`familia.openapi.ts` no lo regenera el backend**: está en `web/`, fuera de su perímetro. Se regenera con `npm run contrato:familia`, desde `web/`.
+398. **Sin variables nuevas.** La API no lee configuración nueva: el límite usa `PEPPER_LIMITES` y Redis, que ya existen.
+399. **Lo que no cambió del plan:** las acciones nuevas no llevan detalle, y `auditoria_detalle_acotado` no cambia; ninguna política ni permiso nuevo.
+400. **Para desplegar** (va en el PR): la 0028 corre con `alembic upgrade head` antes de la API nueva, porque la API escribe la columna. Ninguna fila existente puede romper los `CHECK` validados: `auditoria_persona_con_grupo` mira una columna nueva y vacía, `auditoria_cuenta_acotada` admite todo lo que admitía, y `auditoria_persona_obligatoria` es `NOT VALID`. La bajada se detiene si ya hay auditoría con persona.
+
+### Correcciones del cierre del analista (MATU-54, 12-11)
+
+El analista normativo dio CUMPLE en la revisión de cierre, con dos omisiones. Las decidió el orquestador, por delegación de Jorge.
+
+401. **F2 · Los grupos de los que la cuenta salió** (opción a). «Tus datos» suma `grupos_que_dejaste`: las membresías retiradas de la cuenta, leídas con `membresia_propia` (`care_circle/infrastructure/copia_grupos.py`), con el rol, `unido_en` y `retirado_en`. **Sin el nombre del grupo**, que `grupo_mis_grupos` ya no deja leer, y sin ningún id. Esquema `GrupoQueDejasteCopia`, con `extra="forbid"`. La pantalla lo muestra como «Un grupo del que saliste».
+402. **F3 · `codigo_autorizacion` en `PagoCuentaCopia`.** Solo en «Tus datos» de quien pagó, que ya lo ve en su comprobante (D-62-2). Nunca en la copia de la persona: la prueba de «Datos de» sigue fallando si aparece `codigo_autorizacion`, `tarjeta`, `ultimos4` o `cuotas`, y la de los pagos verifica que el código guardado no está en el texto de esa copia.
+403. **Decisión 354, corregida.** Las compras de la copia son todas las que MATU guarda: solo las `declarada` se borran a los 90 días (0017); las `pedido_matu` quedan más tiempo y van en el archivo.

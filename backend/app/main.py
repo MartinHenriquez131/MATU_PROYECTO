@@ -33,10 +33,13 @@ from app.modules.care_circle.api.router_invitaciones import router_publico as ro
 from app.modules.care_circle.api.router_miembros import router as router_miembros
 from app.modules.care_circle.api.router_personas import router as router_personas
 from app.modules.care_circle.domain.personas import FINALIDAD_CONSUMO, FINALIDAD_DESPACHO, FINALIDAD_PLAN_CUIDADO
+from app.modules.care_circle.infrastructure.copia_datos import BLOQUE_INSUMOS, BLOQUE_PEDIDOS, registrar_bloque
+from app.modules.care_circle.infrastructure.copia_grupos import grupos as bloque_grupos
 from app.modules.care_circle.infrastructure.efectos_retiro import registrar_efecto
 from app.modules.care_circle.infrastructure.enlaces_relevo import registrar_enlaces
 from app.modules.care_plan.api.dependencias import preparar_custodia
 from app.modules.care_plan.api.router import router as router_ficha
+from app.modules.care_plan.api.router_copia import router as router_copia_persona
 from app.modules.care_plan.api.router_relevo import router as router_relevo
 from app.modules.care_plan.api.router_relevo_publico import router as router_relevo_publico
 from app.modules.care_plan.api.router_secciones import router as router_secciones
@@ -46,13 +49,22 @@ from app.modules.consumption.api.router import router as router_consumo
 from app.modules.consumption.api.router_alertas import router as router_alertas
 from app.modules.consumption.api.router_lista import router as router_lista
 from app.modules.consumption.api.router_reposicion import router as router_reposicion
+from app.modules.consumption.infrastructure.copia_insumos import insumos as bloque_insumos
 from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroConsumo
 from app.modules.iam.api.router import router as router_iam
+from app.modules.iam.api.router_datos import router as router_copia_cuenta
 from app.modules.iam.api.router_ingresos import router as router_ingresos
 from app.modules.iam.api.router_politica import router as router_politica
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
+from app.modules.iam.infrastructure.copia_cuenta import (
+    BLOQUE_AVISOS,
+    BLOQUE_GRUPOS,
+    BLOQUE_PAGOS,
+    registrar_bloque_cuenta,
+)
 from app.modules.notifications.api.router import router as router_avisos
+from app.modules.notifications.infrastructure.copia_avisos import avisos as bloque_avisos
 
 log = logging.getLogger("matu.api.arranque")
 
@@ -73,6 +85,15 @@ ROUTERS_CAPA_3: tuple[str, ...] = (
 # MATU-62 (D-62-17, decisión 241): la vuelta de Webpay no se apaga con CAPA3_HABILITADA. Un pago que el banco ya aprobó
 # se registra o se anula igual. Se importa al armar la app, nunca arriba, y se monta si su paquete existe: con la capa 3
 # quitada de verdad (tests/capa3.py) no está y la API arranca igual. Como ("paquete:atributo", prefijo)
+# MATU-54 (D-54-15 a, decisión 355): los bloques de la capa 3 en la copia de los datos. Como la vuelta del pago, no se
+# apagan con CAPA3_HABILITADA y se registran solo si su paquete existe. Como (nombre del bloque, "paquete:atributo")
+BLOQUES_COPIA_CAPA_3: tuple[tuple[str, str], ...] = (
+    (BLOQUE_PEDIDOS, "app.modules.payments.infrastructure.copia_pagos:pedidos"),
+)
+BLOQUES_CUENTA_CAPA_3: tuple[tuple[str, str], ...] = (
+    (BLOQUE_PAGOS, "app.modules.payments.infrastructure.copia_pagos:pagos_de_la_cuenta"),
+)
+
 ROUTERS_PAGO_SIEMPRE: tuple[tuple[str, str], ...] = (
     ("app.modules.payments.api.router_retorno:router", "/v1"),
     ("app.modules.payments.api.router_retorno:router_formulario", ""),
@@ -135,6 +156,35 @@ def incluir_vuelta_del_pago(app: FastAPI) -> None:
         app.include_router(getattr(importado, atributo), prefix=prefijo)
 
 
+def _importar_si_esta(referencia: str) -> object | None:
+    """El atributo de "paquete:atributo", o None si el paquete de la app no está (la capa 3 quitada). Cualquier otro
+    error de importación sube."""
+    modulo, _, atributo = referencia.partition(":")
+    try:
+        importado = importlib.import_module(modulo)
+    except ModuleNotFoundError as error:
+        if error.name and error.name.startswith("app.modules."):
+            return None
+        raise
+    return getattr(importado, atributo)
+
+
+def registrar_bloques_copia() -> None:
+    """MATU-54 (decisiones 363 y 367): los bloques de la copia de los datos que no son del módulo que arma cada copia.
+    Sin un bloque obligatorio la copia falla cerrada; sin la capa 3, pedidos y pagos van en null."""
+    registrar_bloque(BLOQUE_INSUMOS, bloque_insumos)
+    registrar_bloque_cuenta(BLOQUE_GRUPOS, bloque_grupos)
+    registrar_bloque_cuenta(BLOQUE_AVISOS, bloque_avisos)
+    for nombre, referencia in BLOQUES_COPIA_CAPA_3:
+        fuente = _importar_si_esta(referencia)
+        if fuente is not None:
+            registrar_bloque(nombre, fuente)  # type: ignore[arg-type]
+    for nombre, referencia in BLOQUES_CUENTA_CAPA_3:
+        fuente = _importar_si_esta(referencia)
+        if fuente is not None:
+            registrar_bloque_cuenta(nombre, fuente)  # type: ignore[arg-type]
+
+
 def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     config = obtener_configuracion()
     configurar_logs(config.log_nivel, stream_logs)
@@ -152,6 +202,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-42 (decisión 305): sacar, salir y dejar de compartir cortan los enlaces de relevo de esa persona. care_circle
     # no importa care_plan: se arma aquí. Sin él, esas rutas fallan cerradas
     registrar_enlaces(EnlacesOtorgados)
+    # MATU-54: los bloques de las dos copias de los datos
+    registrar_bloques_copia()
     # MATU-94 (decisión 250): el de despacho, siempre. Con la capa 3 apagada no monta ninguna ruta de pedidos
     registrar_efectos_capa_3(config.capa3_habilitada)
 
@@ -212,6 +264,9 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     app.include_router(router_avisos, prefix="/v1")
     # MATU-55: «Dónde entraste», los últimos ingresos de la propia cuenta
     app.include_router(router_ingresos, prefix="/v1")
+    # MATU-54: «Datos de {nombre_pila}» y «Tus datos»
+    app.include_router(router_copia_persona, prefix="/v1")
+    app.include_router(router_copia_cuenta, prefix="/v1")
 
     # MATU-40 (ADR-002): la capa 3 se monta aparte y solo si está habilitada. Las capas 1 y 2, arriba,
     # nunca dependen de ella

@@ -105,5 +105,6 @@ class EfectoRetiroFicha:
                 entidad=EntidadAuditoria.CLAVE_DATOS,
                 entidad_id=clave_id,
                 request_id=request_id,
+                persona_cuidada_id=persona_id,
             )
         )

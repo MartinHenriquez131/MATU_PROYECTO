@@ -1,0 +1,1848 @@
+openapi: 3.1.0
+info:
+  title: MATU API · Mis datos (propuesto)
+  version: 0.2.0-implementado
+  summary: Ver y descargar todo lo que MATU guarda de la persona cuidada y de la propia cuenta (MATU-54, Ley 21.719, acceso y portabilidad).
+  description: |
+    **Implementado en MATU-54 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como explicación
+    de las decisiones, como `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 366 a 403 del
+    README (las respuestas del orquestador a Q1 a Q18, sus ajustes C-1 a P15 y lo que fijó la implementación): las
+    aperturas dentro de cada enlace, `finalidad` y `referencia` en los hechos (F1), `unidad` en las compras (F5),
+    el aviso fijo de la especificación v1.1 del diseñador (P14), `matu-cuenta-AAAA-MM-DD.json`, la referencia del
+    pago de la cuenta anulable y el 503 de la custodia solo si hay texto que descifrar.
+
+    Contrato **propuesto** de MATU-54, escrito el 12-11 **antes de implementar** (arquitectura 15.5,
+    regla 1), con:
+    - la revisión previa del analista normativo (`docs/legal/revision-previa-matu-54.md` del repositorio
+      MATU), sus condiciones **C1 a C30** y su sección 3 («Qué lleva cada copia»);
+    - las **decisiones de Jorge del 12-11, D-54-1 a D-54-16** (misma revisión, sección final).
+
+    Las decisiones de este contrato son las **342 a 365** de `docs/api/README.md`, sección «MATU-54». Se
+    apila sobre MATU-46 (migración 0027): MATU-54 lleva la **0028** (`down_revision = "0027"`), cuyo plan
+    está en el README («Plan de la 0028»).
+
+    **Dos copias separadas** (D-54-2 a, D-54-13 a):
+    - `GET /v1/personas-cuidadas/{persona_id}/datos`: «Datos de {nombre_pila}». La piden **admin y
+      cuidador** (D-54-1 a). Pagador, observador, otro grupo y persona borrada reciben 404.
+    - `GET /v1/yo/datos`: «Tus datos». Cualquier cuenta, también pagador y observador.
+
+    **Un solo GET por copia, para la pantalla y para el archivo** (D-54-3 a, C7, C8, decisión 343). La
+    respuesta es el JSON completo, y es a la vez lo que muestra la pantalla (el formato legible y
+    accesible) y el archivo (el formato estructurado). Lleva `Content-Disposition: inline;
+    filename="…"` con el nombre del archivo. La pantalla pide la respuesta como texto, la muestra con
+    `JSON.parse`, y «Descargar en un archivo» guarda **ese mismo texto**, tal como llegó, en un `Blob`
+    con `URL.createObjectURL` y `revokeObjectURL` de inmediato, con el nombre de la cabecera. Descargar no
+    vuelve a llamar a la API: no hay segunda auditoría ni segunda cuenta en el límite, y el archivo es
+    exactamente lo que se vio. No hay PDF, HTML ni hoja de impresión (ADR-029).
+
+    **Historial** (D-54-9 a, decisiones 357 y 383): la respuesta trae **todo** lo guardado, porque el archivo
+    son los mismos bytes. La pantalla filtra a los últimos 90 días, y su «Ver más» pagina solo dentro de esos
+    90 días. El archivo lo trae todo.
+
+    **Límite** (D-54-10 a, decisión 346): 10 copias por hora por cuenta, en un contador común a las dos
+    rutas. La 11.ª responde **429 `tope-copias`** con `Retry-After`.
+
+    **Auditoría** (D-54-8 a, C18 y C19, decisión 347): cada GET que entrega datos registra
+    `persona.datos_descargar` o `cuenta.datos_descargar`, sin detalle, en la misma transacción y antes de
+    leer. Si el registro falla, no se entrega nada.
+
+    **`Cache-Control: no-store` en todas las respuestas**, 2xx y errores: ya lo ponen los middlewares de
+    `/v1/personas-cuidadas/` y `/v1/yo/` (`app/main.py`), y la ruta lo repite. La pantalla no guarda
+    nada en el almacenamiento del navegador, en la URL, en `history.state` ni en `document.title` (C26).
+
+    **Lo que nunca sale** (C4, D-54-4 a, D-54-16 a): identificadores internos (`id`, `usuario_id`,
+    `grupo_id`, `persona_id`, `acceso_id`…), `request_id`, la IP, hashes de token, de PIN o de código,
+    `evidencia` en bruto, `referencia_documento`, `push_token`, claves, el teléfono del relevo, el correo
+    y el celular de otras personas, el teléfono de contacto del pedido, y los datos de la venta (token,
+    `buy_order`, `session_id`, código de autorización). Todos los esquemas son
+    `additionalProperties: false` (Pydantic `extra="forbid"`) y una prueba falla si aparece cualquiera
+    de esos nombres en una respuesta (C5).
+
+    **Formato** (decisión 349): `formato: "matu-datos/1"`; nombres de campo en español; instantes en
+    RFC 3339 **con el desfase de Chile** (`America/Santiago`, por ejemplo `2026-11-12T10:05:00-03:00`),
+    distinto del resto de la API, que usa UTC; días como `AAAA-MM-DD`; dinero en **pesos enteros con
+    IVA incluido**, sin un campo `iva` ni decimales.
+
+    Los componentes comunes (`ErrorCampo`, `Problema`, `bearerAuth`, `XRequestId`, `CacheControlNoStore`,
+    `WWWAuthenticateBearer`, `XGrupoId`, `PersonaId` y `RetryAfter`) son copias de
+    `donde-entraste.openapi.yaml` e `invitar-familiar.openapi.yaml`.
+
+    Todos los datos de los ejemplos son sintéticos.
+  contact:
+    name: Equipo MATU
+servers:
+  - url: /
+    description: Mismo origen que la aplicación web (sin CORS)
+tags:
+  - name: mis-datos
+    description: La copia de los datos de la persona cuidada y de la propia cuenta (MATU-54)
+
+paths:
+  /v1/personas-cuidadas/{persona_id}/datos:
+    get:
+      tags: [mis-datos]
+      operationId: verDatosPersona
+      summary: "«Datos de {nombre_pila}»: todo lo que MATU guarda de la persona cuidada"
+      description: |
+        La copia de la persona (D-54-1 a, D-54-14, sección 3 de la revisión previa; decisiones 350 a
+        356). La piden **admin y cuidador**, los mismos que retiran y borran (C1). No importa quién dio
+        la autorización (C2). **No exige una autorización vigente** (C3): con la autorización retirada o
+        en pausa la copia sale igual, pero la ficha y los insumos van solo con su estado y la fecha de
+        borrado (D-54-5 a).
+
+        **Orden de evaluación** (decisión 344):
+        1. **401** sin access token válido.
+        2. **404** si `X-Grupo-Id` falta o no es un grupo del que la cuenta es miembro activo, si el rol
+           es `pagador` u `observador`, si `persona_id` no es un UUID, no es del grupo, se eliminó o sus
+           datos se borraron (MATU-72). Nunca 403 (CLAUDE.md, agente 2, punto 4).
+        3. **503** sin Redis o sin `PEPPER_LIMITES` para el límite (como la decisión 301).
+        4. **429** `tope-copias` si la cuenta ya pidió 10 copias en la ventana de una hora. Se cuenta solo
+           lo que pasó el 404.
+        5. Se registra `persona.datos_descargar` (decisión 347).
+        6. **503** si la autorización de la ficha está vigente, hay una sección escrita y la custodia de la
+           clave maestra no está configurada o no desenvuelve la clave de datos (decisiones 32 y 390). Nunca se
+           entrega la copia sin el texto en ese caso: diría «sin texto» de una ficha que sí lo tiene.
+        7. **200** con la copia.
+
+        **Lectura coherente** (C8, decisión 348): todo se lee en una sola transacción `REPEATABLE READ`,
+        con la fila de auditoría escrita primero. La copia incluye esa misma fila en el historial.
+
+        **No lleva cuerpo ni parámetros de consulta.** Un parámetro de consulta desconocido se ignora.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XGrupoId'
+        - $ref: '#/components/parameters/PersonaId'
+      responses:
+        '200':
+          description: La copia completa de los datos de la persona.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Content-Disposition:
+              $ref: '#/components/headers/ContentDispositionPersona'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopiaDatosPersona'
+              examples:
+                vigente:
+                  $ref: '#/components/examples/CopiaPersonaVigente'
+                retirada:
+                  $ref: '#/components/examples/CopiaPersonaRetirada'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoCopia'
+        '404':
+          $ref: '#/components/responses/NoEncontradoCopia'
+        '429':
+          $ref: '#/components/responses/TopeCopias'
+        '503':
+          $ref: '#/components/responses/NoDisponibleCopia'
+
+  /v1/yo/datos:
+    get:
+      tags: [mis-datos]
+      operationId: verDatosPropios
+      summary: "«Tus datos»: todo lo que MATU guarda de la propia cuenta"
+      description: |
+        La copia de la cuenta (D-54-2 a, D-54-16 a; decisiones 358 a 360). La pide cualquier cuenta, con
+        `sesion_de_usuario`, que fija solo `app.usuario_id`. **No lleva `X-Grupo-Id`** (si llega, se
+        ignora) ni parámetros de usuario: lo que se ve lo deciden las políticas de lo propio
+        (`usuario_propio_leer`, `aceptacion_propia_leer`, `membresia_propia`, `dispositivo_propio`,
+        `preferencia_propia`, `notificacion_propia` y `auditoria_cuenta_propia` de la 0025), no un `WHERE`.
+
+        **Nunca trae nada de una persona cuidada** (sección 3 de la revisión previa): ni su nombre, ni lo
+        que se compró para ella. Lo de las personas está en «Datos de {nombre_pila}».
+
+        **Orden de evaluación:** 401, 503 (límite sin Redis o sin `PEPPER_LIMITES`), 429 `tope-copias`
+        (el mismo contador de la otra ruta), registro de `cuenta.datos_descargar` y 200. No hay 404 ni 422:
+        la ruta no tiene parámetros de ruta ni cuerpo.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: La copia completa de los datos de la cuenta.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/XRequestId'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            Content-Disposition:
+              $ref: '#/components/headers/ContentDispositionCuenta'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CopiaDatosCuenta'
+              examples:
+                cuenta:
+                  $ref: '#/components/examples/CopiaCuenta'
+        '401':
+          $ref: '#/components/responses/NoAutenticadoCopia'
+        '429':
+          $ref: '#/components/responses/TopeCopias'
+        '503':
+          $ref: '#/components/responses/NoDisponibleCopia'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token de `POST /v1/sesiones`, de 15 minutos (MATU-05a).
+
+  parameters:
+    XGrupoId:
+      name: X-Grupo-Id
+      in: header
+      required: false
+      description: |
+        Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
+        declara `required: false` porque así la implementa `sesion_de_grupo`
+        (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
+        validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
+        cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
+        miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
+      schema:
+        type: string
+        format: uuid
+      example: 5a7c9e10-0000-4000-8000-0000000000a1
+    PersonaId:
+      name: persona_id
+      in: path
+      required: true
+      description: Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
+      schema:
+        type: string
+        format: uuid
+      example: 7d1e2f30-0000-4000-8000-000000000001
+
+  headers:
+    XRequestId:
+      description: |
+        Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
+        problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
+        lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CacheControlNoStore:
+      description: |
+        La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
+        y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
+      required: true
+      schema:
+        type: string
+        const: no-store
+    WWWAuthenticateBearer:
+      description: Esquema de autenticación esperado.
+      required: true
+      schema:
+        type: string
+        const: Bearer
+    RetryAfter:
+      description: Segundos que faltan para que se abra la ventana del límite.
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ContentDispositionPersona:
+      description: |
+        El nombre con que la pantalla guarda el archivo (C9, decisión 343): `matu-datos-AAAA-MM-DD.json`,
+        con el día en que se generó la copia en hora de Chile, según el `Reloj`. **Sin el nombre de la
+        persona**, porque queda en la lista de descargas del teléfono. `inline` y no `attachment`: la
+        misma respuesta se muestra en pantalla, y el archivo lo arma la pantalla desde la memoria.
+      required: true
+      schema:
+        type: string
+        pattern: '^inline; filename="matu-datos-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json"$'
+      example: inline; filename="matu-datos-2026-11-12.json"
+    ContentDispositionCuenta:
+      description: |
+        Como `ContentDispositionPersona`, con otro nombre para que las dos copias del mismo día no se
+        confundan en las descargas: `matu-cuenta-AAAA-MM-DD.json` (P7 del diseñador, decisión 372 del README).
+      required: true
+      schema:
+        type: string
+        pattern: '^inline; filename="matu-cuenta-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json"$'
+      example: inline; filename="matu-cuenta-2026-11-12.json"
+
+  schemas:
+    ErrorCampo:
+      type: object
+      additionalProperties: false
+      required: [campo, mensaje, tipo]
+      description: Un error de validación. Nombra el campo, nunca repite el valor recibido.
+      properties:
+        campo:
+          type: string
+        mensaje:
+          type: string
+        tipo:
+          type: string
+
+    Problema:
+      type: object
+      required: [type, title, status, detail, errores, request_id]
+      description: |
+        Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
+        llevar miembros de extensión propios de cada error.
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: '^/errores/[a-z0-9-]+$'
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: [string, 'null']
+        errores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorCampo'
+        request_id:
+          type: [string, 'null']
+          format: uuid
+
+    # ---------------------------------------------------------------- comunes de las dos copias
+
+    Instante:
+      type: string
+      format: date-time
+      description: |
+        Un instante en RFC 3339 **con el desfase de Chile** (`America/Santiago`), por ejemplo
+        `2026-11-12T10:05:00-03:00` (decisión 349). Es la única parte de la API que no usa UTC: el archivo
+        lo lee una persona o un programa fuera de MATU.
+      examples: ['2026-11-12T10:05:00-03:00']
+
+    Dia:
+      type: string
+      format: date
+      description: Un día, `AAAA-MM-DD`, sin hora.
+      examples: ['2026-11-20']
+
+    Pesos:
+      type: integer
+      minimum: 0
+      description: Pesos chilenos enteros, con IVA incluido. Sin decimales ni un campo `iva` aparte.
+
+    AvisoCopia:
+      type: string
+      const: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
+      description: |
+        Texto fijo con que empieza la copia (C10). Lo propone este contrato: el texto definitivo es de
+        `lenguaje.md`, sección 35 (decisión 377 del README; la 34 ya es de MATU-42, P12 del diseñador). Va igual en las dos copias.
+
+    PersonaNombrada:
+      type: object
+      additionalProperties: false
+      required: [nombre, activo]
+      description: |
+        Una persona del grupo que hizo algo, por su nombre (D-54-4 a). **Sin id, correo ni celular.**
+        Quien ya no está en el grupo, o una cuenta eliminada, llega con `nombre: null` y `activo: false`
+        (D-42-10 a, C14), y la pantalla escribe «Alguien que ya no está en el grupo».
+      properties:
+        nombre:
+          type: [string, 'null']
+          maxLength: 120
+        activo:
+          type: boolean
+
+    # ---------------------------------------------------------------- copia de la persona
+
+    CopiaDatosPersona:
+      type: object
+      additionalProperties: false
+      required: [formato, tipo, generado_en, aviso, persona, autorizaciones, ficha, enlaces_relevo, insumos, pedidos, historial]
+      description: Respuesta de `GET /v1/personas-cuidadas/{persona_id}/datos` (decisión 350).
+      properties:
+        formato:
+          type: string
+          const: matu-datos/1
+          description: Versión del formato del archivo. Un cambio que quita o renombra campos sube el número.
+        tipo:
+          type: string
+          const: persona_cuidada
+        generado_en:
+          $ref: '#/components/schemas/Instante'
+        aviso:
+          $ref: '#/components/schemas/AvisoCopia'
+        persona:
+          $ref: '#/components/schemas/DatosPersonaCopia'
+        autorizaciones:
+          type: array
+          description: |
+            **Todas** las autorizaciones registradas de la persona, de las tres finalidades, también las
+            retiradas y las reemplazadas al renovar, de la más reciente a la más antigua (decisión 351).
+          items:
+            $ref: '#/components/schemas/AutorizacionCopia'
+        ficha:
+          $ref: '#/components/schemas/FichaCopia'
+        enlaces_relevo:
+          type: array
+          description: Todos los enlaces de relevo de la ficha, del más reciente al más antiguo (decisión 353).
+          items:
+            $ref: '#/components/schemas/EnlaceRelevoCopia'
+        insumos:
+          $ref: '#/components/schemas/InsumosCopia'
+        pedidos:
+          description: |
+            Los pedidos de la persona y su pago (D-54-14, decisión 355), del más reciente al más antiguo.
+            Se incluyen también con la autorización de pedidos retirada o con `CAPA3_HABILITADA` apagada
+            (D-54-15 a). **`null` solo si la capa 3 está quitada** de la instalación (el paquete no está):
+            el bloque se omite sin fallar, y la pantalla no muestra el bloque.
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/PedidoCopia'
+            - type: 'null'
+        historial:
+          $ref: '#/components/schemas/HistorialCopia'
+
+    DatosPersonaCopia:
+      type: object
+      additionalProperties: false
+      required: [nombre, nombre_pila, nivel_apoyo, direccion, alta_en]
+      description: Los datos de la persona (sección 3). Sin id, sin diagnóstico (MATU no lo pide).
+      properties:
+        nombre:
+          type: string
+          maxLength: 120
+        nombre_pila:
+          type: string
+          maxLength: 60
+        nivel_apoyo:
+          type: string
+          enum: [autovalente_con_supervision, apoyo_parcial, apoyo_total]
+        direccion:
+          description: La dirección de entrega guardada hoy, o `null` si no tiene.
+          oneOf:
+            - $ref: '#/components/schemas/DireccionCopia'
+            - type: 'null'
+        alta_en:
+          $ref: '#/components/schemas/Instante'
+
+    DireccionCopia:
+      type: object
+      additionalProperties: false
+      required: [etiqueta, calle, numero, depto, comuna, region, referencia]
+      description: Una dirección, sin `etag` ni id.
+      properties:
+        etiqueta:
+          type: string
+        calle:
+          type: string
+        numero:
+          type: string
+        depto:
+          type: [string, 'null']
+        comuna:
+          type: string
+        region:
+          type: string
+        referencia:
+          type: [string, 'null']
+
+    TextoMostrado:
+      type: object
+      additionalProperties: false
+      required: [identificador, version, huella]
+      description: |
+        Qué declaración o qué aviso se mostró al dar la autorización: su identificador, su versión y, si
+        la evidencia la guarda, su huella SHA-256 (C4: se arma desde `consentimiento.evidencia`, nunca se
+        copia en bruto).
+      properties:
+        identificador:
+          type: string
+          examples: [declaracion_cuidador_de_hecho]
+        version:
+          type: string
+          examples: ['0.16']
+        huella:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+
+    AutorizacionCopia:
+      type: object
+      additionalProperties: false
+      required:
+        - finalidad
+        - estado
+        - calidad_otorgante
+        - version_politica
+        - declaracion
+        - aviso
+        - registrada_por
+        - otorgada_en
+        - revision_vence_en
+        - retirada_en
+        - hay_documento_representante
+      description: |
+        Una autorización (decisión 351). **Sin `referencia_documento`** (D-54-4 a): `hay_documento_representante`
+        dice que existe, y la pantalla dice que se pide por correo. Sin `evidencia` en bruto, sin id.
+      properties:
+        finalidad:
+          type: string
+          enum: [plan_cuidado, consumo, despacho]
+          description: Ficha, insumos o pedidos.
+        estado:
+          type: string
+          enum: [vigente, revision_vencida, retirada, reemplazada]
+          description: |
+            Su estado hoy, según el `Reloj`: `vigente`; `revision_vencida` (cuidador de hecho con la
+            revisión anual vencida, «en pausa»); `retirada` (`revocacion_motivo = 'retiro'`); o
+            `reemplazada` (`revocacion_motivo = 'renovacion'`: se renovó y la vigente es otra fila).
+        calidad_otorgante:
+          type: string
+          enum: [titular, representante_legal, cuidador_de_hecho]
+        version_politica:
+          type: string
+        declaracion:
+          oneOf:
+            - $ref: '#/components/schemas/TextoMostrado'
+            - type: 'null'
+        aviso:
+          description: El aviso que se mostró (solo para algunas calidades), o `null`.
+          oneOf:
+            - $ref: '#/components/schemas/TextoMostrado'
+            - type: 'null'
+        registrada_por:
+          $ref: '#/components/schemas/PersonaNombrada'
+        otorgada_en:
+          $ref: '#/components/schemas/Instante'
+        revision_vence_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        retirada_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        hay_documento_representante:
+          type: boolean
+          description: |
+            `true` si la autorización guarda una referencia al documento del representante legal. Nunca la
+            referencia (D-54-4 a).
+
+    EstadoBloque:
+      type: string
+      enum: [disponible, retirada, en_pausa, borrada, sin_autorizar]
+      description: |
+        Si el bloque trae lo escrito o lo anotado (D-54-5 a, C28, decisión 352):
+        - `disponible`: la autorización está vigente y se trae todo.
+        - `retirada`: la autorización se retiró y lo guardado espera su borrado. **Sin texto**, con `borrado_el`.
+        - `en_pausa`: la revisión anual de un cuidador de hecho venció. **Sin texto ni fecha**: vuelve al renovar.
+        - `borrada`: la clave de datos ya se destruyó (ficha) o lo anotado ya se borró (insumos). Sin texto.
+        - `sin_autorizar`: nunca hubo una autorización para esa finalidad.
+
+    FichaCopia:
+      type: object
+      additionalProperties: false
+      required: [estado, borrado_el, completitud, campos, secciones]
+      description: |
+        La ficha (decisión 352). Se descifra **solo** con `estado: disponible`, por la misma dependencia
+        de la ficha (`care_plan/api/dependencias.py`) y el puerto `CifradorSecciones`. En los demás
+        estados, `completitud`, `campos` y `secciones` son `null`: ni el texto, ni cuántos campos hay, ni
+        quién los escribió.
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoBloque'
+        borrado_el:
+          description: |
+            Con `estado: retirada`, el día en que se destruye la clave: el retiro más 90 días (MATU-44, D3),
+            en hora de Chile. `null` en los demás estados.
+          oneOf:
+            - $ref: '#/components/schemas/Dia'
+            - type: 'null'
+        completitud:
+          oneOf:
+            - type: integer
+              enum: [0, 33, 67, 100]
+            - type: 'null'
+        campos:
+          description: Los tres campos de la ficha de relevo, siempre en este orden, o `null`.
+          oneOf:
+            - type: array
+              minItems: 3
+              maxItems: 3
+              items:
+                $ref: '#/components/schemas/CampoCopia'
+            - type: 'null'
+        secciones:
+          description: Las secciones complementarias que existen (ADR-028), o `null`.
+          oneOf:
+            - type: array
+              maxItems: 6
+              items:
+                $ref: '#/components/schemas/SeccionCopia'
+            - type: 'null'
+
+    CampoCopia:
+      type: object
+      additionalProperties: false
+      required: [campo, texto, escrito_por, actualizado_en]
+      description: |
+        Un campo de la ficha con su texto completo, tal como se escribió. «A quién llamar» (`red_apoyo`)
+        va con los nombres y teléfonos que tenga (D-54-4 a). Un campo sin escribir va con `texto: null`.
+      properties:
+        campo:
+          type: string
+          enum: [rutina, manejo_situaciones, red_apoyo]
+        texto:
+          type: [string, 'null']
+        escrito_por:
+          oneOf:
+            - $ref: '#/components/schemas/PersonaNombrada'
+            - type: 'null'
+        actualizado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+
+    SeccionCopia:
+      type: object
+      additionalProperties: false
+      required: [seccion, texto, escrito_por, creada_en, actualizado_en]
+      properties:
+        seccion:
+          type: string
+          enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
+        texto:
+          type: string
+        escrito_por:
+          oneOf:
+            - $ref: '#/components/schemas/PersonaNombrada'
+            - type: 'null'
+        creada_en:
+          $ref: '#/components/schemas/Instante'
+        actualizado_en:
+          $ref: '#/components/schemas/Instante'
+
+    EnlaceRelevoCopia:
+      type: object
+      additionalProperties: false
+      required:
+        - nombre_relevo
+        - motivo
+        - campos
+        - secciones
+        - estado
+        - creado_en
+        - vence_en
+        - cortado_en
+        - compartido_por
+        - usos
+        - ultimo_uso_en
+        - aperturas
+      description: |
+        Un enlace de relevo (decisión 353). **Sin el teléfono del relevo** (D-54-4 a, aunque todavía esté
+        guardado), sin token, sin PIN ni sus huellas, sin intentos. Va aunque la ficha esté retirada: dice
+        a quién se comunicaron los datos (Ley 19.628, art. 12). Las veces que el relevo vio o abrió el
+        enlace van en `aperturas`, y no se repiten en el `historial` (P6 del diseñador, decisión 353).
+      properties:
+        nombre_relevo:
+          type: string
+          maxLength: 60
+        motivo:
+          type: string
+          enum: [salgo_unas_horas, fin_de_semana_fuera, turno_de_noche, otro]
+        campos:
+          type: array
+          items:
+            type: string
+            enum: [rutina, manejo_situaciones, red_apoyo]
+        secciones:
+          type: array
+          items:
+            type: string
+            enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
+        estado:
+          type: string
+          enum: [vigente, vencido, revocado, bloqueado]
+        creado_en:
+          $ref: '#/components/schemas/Instante'
+        vence_en:
+          $ref: '#/components/schemas/Instante'
+        cortado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        compartido_por:
+          type: string
+          maxLength: 60
+          description: El nombre de pila de quien compartió, el que vio el relevo (`nombre_pila_comparte`).
+        usos:
+          type: integer
+          minimum: 0
+        ultimo_uso_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        aperturas:
+          type: array
+          description: |
+            **Todas** las veces que el relevo vio el enlace, abrió la ficha, se equivocó de PIN o quedó
+            bloqueado, de la más reciente a la más antigua, como `AperturaVista` de `…/plan/aperturas`
+            (MATU-45) sin el acceso. Lo que el rol puede leer por RLS: admin y cuidador las ven todas
+            (`auditoria_aperturas_relevo`, 0010). La pantalla muestra las de los últimos 90 días con
+            `LineaApertura` y «Ver más».
+          items:
+            $ref: '#/components/schemas/AperturaCopia'
+
+    AperturaCopia:
+      type: object
+      additionalProperties: false
+      required: [tipo, ocurrido_en, secciones]
+      description: Una apertura de un enlace. Sin `request_id`, `actor_ref` ni `entidad_id`.
+      properties:
+        tipo:
+          type: string
+          enum: [presentacion, apertura, pin_incorrecto, bloqueo]
+          description: |
+            `relevo.presentar`, `relevo.abrir`, `relevo.pin_incorrecto` o `relevo.bloqueo`, como
+            `TipoApertura` (MATU-45). `relevo.canje` no entra: lo sigue la apertura.
+        ocurrido_en:
+          $ref: '#/components/schemas/Instante'
+        secciones:
+          description: En `apertura`, las secciones complementarias que vio (`detalle.secciones`). `null` en los demás.
+          oneOf:
+            - type: array
+              items:
+                type: string
+                enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
+            - type: 'null'
+
+    InsumosCopia:
+      type: object
+      additionalProperties: false
+      required: [estado, borrado_el, lista, compras, avisos]
+      description: |
+        Los insumos (decisión 354). Solo con la autorización de insumos `disponible` traen `lista`,
+        `compras` y `avisos`; en los demás estados son `null` (D-54-5 a).
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoBloque'
+        borrado_el:
+          description: "Con `estado: retirada`, el día en que se borra lo anotado. `null` en los demás."
+          oneOf:
+            - $ref: '#/components/schemas/Dia'
+            - type: 'null'
+        lista:
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/InsumoCopia'
+            - type: 'null'
+        compras:
+          description: |
+            **Todas** las compras anotadas que MATU guarda, de la más reciente a la más antigua. Solo las
+            `declarada` se borran a los 90 días (MATU-51, 0017); las `pedido_matu` quedan más tiempo y van
+            en el archivo (decisión 403). La pantalla muestra las de los últimos 90 días. Es la primera ruta
+            que lee las compras (registro de tratamientos, entrada 5).
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/CompraCopia'
+            - type: 'null'
+        avisos:
+          description: Los avisos de insumos por acabarse que MATU guarda (alertas de quiebre).
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/AvisoInsumoCopia'
+            - type: 'null'
+
+    InsumoCopia:
+      type: object
+      additionalProperties: false
+      required:
+        - nombre
+        - del_catalogo
+        - unidad
+        - usa_unidades
+        - cada_dias
+        - quedaban_unidades
+        - quedaban_el
+        - se_acaba_el
+        - dias_aviso
+        - unidades_por_envase
+        - se_sigue
+        - agregado_en
+        - actualizado_en
+        - actualizado_por
+      description: Un insumo. Sin id del perfil, del producto ni `etag`.
+      properties:
+        nombre:
+          type: string
+          description: El nombre del producto del catálogo, o el nombre escrito por la familia.
+        del_catalogo:
+          type: boolean
+        unidad:
+          type: string
+          enum: [unidad, sobre, ml, g]
+        usa_unidades:
+          type: integer
+          minimum: 1
+        cada_dias:
+          type: integer
+          minimum: 1
+          maximum: 90
+        quedaban_unidades:
+          type: integer
+          minimum: 0
+        quedaban_el:
+          $ref: '#/components/schemas/Dia'
+        se_acaba_el:
+          $ref: '#/components/schemas/Dia'
+        dias_aviso:
+          type: integer
+          minimum: 0
+          maximum: 60
+        unidades_por_envase:
+          type: [integer, 'null']
+        se_sigue:
+          type: boolean
+          description: '`false` si se dejó de seguir (desactivado).'
+        agregado_en:
+          $ref: '#/components/schemas/Instante'
+        actualizado_en:
+          $ref: '#/components/schemas/Instante'
+        actualizado_por:
+          oneOf:
+            - $ref: '#/components/schemas/PersonaNombrada'
+            - type: 'null'
+
+    CompraCopia:
+      type: object
+      additionalProperties: false
+      required: [insumo, unidad, unidades, el, origen, anotada_en, anotada_por]
+      properties:
+        insumo:
+          type: string
+          description: El nombre del insumo, como en `InsumoCopia.nombre`.
+        unidad:
+          type: string
+          enum: [unidad, sobre, ml, g]
+          description: F5 (decisión 386) la unidad del insumo, para leer la cantidad.
+        unidades:
+          type: integer
+          minimum: 1
+        el:
+          $ref: '#/components/schemas/Dia'
+        origen:
+          type: string
+          enum: [declarada, pedido_matu]
+        anotada_en:
+          $ref: '#/components/schemas/Instante'
+        anotada_por:
+          oneOf:
+            - $ref: '#/components/schemas/PersonaNombrada'
+            - type: 'null'
+
+    AvisoInsumoCopia:
+      type: object
+      additionalProperties: false
+      required: [insumo, fecha_prevista, estado, creado_en, notificado_en, cerrado_en]
+      properties:
+        insumo:
+          type: string
+        fecha_prevista:
+          $ref: '#/components/schemas/Dia'
+        estado:
+          type: string
+          enum: [pendiente, notificada, resuelta, descartada]
+        creado_en:
+          $ref: '#/components/schemas/Instante'
+        notificado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        cerrado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+
+    PedidoCopia:
+      type: object
+      additionalProperties: false
+      required:
+        - referencia
+        - estado
+        - creado_en
+        - total_confirmado_en
+        - lineas
+        - subtotal_productos
+        - costo_envio
+        - total
+        - entrega
+        - pago
+        - precios_de_ejemplo
+      description: |
+        Un pedido (D-54-14, decisión 355). **Sin el teléfono de contacto** ni de dónde salió, sin id, sin
+        `etag`, sin datos de la venta (token, `buy_order`, `session_id`, código de autorización) ni de la
+        tarjeta: la tarjeta va solo en «Tus datos» de quien pagó (D-54-16 a).
+      properties:
+        referencia:
+          type: [string, 'null']
+          pattern: '^[0-9]{4,6}$'
+          description: |
+            La referencia de MATU que trae el comprobante (MATU-62), o `null` si no se pagó. No es la orden
+            de compra de la pasarela.
+        estado:
+          type: string
+          enum:
+            - borrador
+            - total_confirmado
+            - vencido
+            - pagado
+            - enviado_a_comercio
+            - preparando
+            - listo_retiro
+            - asignado
+            - sin_repartidor
+            - retirado
+            - en_ruta
+            - entregado
+            - no_entregado
+            - reprogramado
+            - cerrado
+            - cancelado
+            - cancelado_con_devolucion
+        creado_en:
+          $ref: '#/components/schemas/Instante'
+        total_confirmado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPedidoCopia'
+        subtotal_productos:
+          $ref: '#/components/schemas/Pesos'
+        costo_envio:
+          $ref: '#/components/schemas/Pesos'
+        total:
+          oneOf:
+            - $ref: '#/components/schemas/Pesos'
+            - type: 'null'
+        entrega:
+          description: La dirección copiada en el pedido, sin el teléfono de contacto, o `null` si aún no tenía.
+          oneOf:
+            - $ref: '#/components/schemas/EntregaCopia'
+            - type: 'null'
+        pago:
+          description: El pago del pedido, o `null` si nunca se intentó pagar.
+          oneOf:
+            - $ref: '#/components/schemas/PagoPedidoCopia'
+            - type: 'null'
+        precios_de_ejemplo:
+          type: boolean
+          description: '`true` si los precios son del catálogo de ejemplo del piloto (decisión de MATU-61).'
+
+    LineaPedidoCopia:
+      type: object
+      additionalProperties: false
+      required: [producto, presentacion, comercio, cantidad, precio_unitario, subtotal, si_falta]
+      properties:
+        producto:
+          type: string
+        presentacion:
+          type: string
+        comercio:
+          type: string
+          description: El nombre del comercio que vende la línea.
+        cantidad:
+          type: integer
+          minimum: 1
+        precio_unitario:
+          $ref: '#/components/schemas/Pesos'
+        subtotal:
+          $ref: '#/components/schemas/Pesos'
+        si_falta:
+          type: string
+          enum: [otro_comercio, quitar]
+
+    EntregaCopia:
+      type: object
+      additionalProperties: false
+      required: [calle, numero, depto, comuna, region, referencia]
+      properties:
+        calle:
+          type: string
+        numero:
+          type: string
+        depto:
+          type: [string, 'null']
+        comuna:
+          type: string
+        region:
+          type: string
+        referencia:
+          type: [string, 'null']
+
+    PagoPedidoCopia:
+      type: object
+      additionalProperties: false
+      required: [estado, pagado_en, pagado_por, cobrado, devuelto, devoluciones, pago_de_prueba]
+      description: El pago de un pedido, sin datos de la pasarela ni de la tarjeta (D-54-14).
+      properties:
+        estado:
+          type: string
+          enum: [sin_intento, pendiente, aprobado, no_aprobado, devuelto_parcial, anulado]
+        pagado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        pagado_por:
+          description: "Quién pagó, por su nombre (D-54-4 a: «el nombre de quien pagó sí»), o `null` si no se pagó."
+          oneOf:
+            - $ref: '#/components/schemas/PersonaNombrada'
+            - type: 'null'
+        cobrado:
+          $ref: '#/components/schemas/Pesos'
+        devuelto:
+          $ref: '#/components/schemas/Pesos'
+        devoluciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/DevolucionCopia'
+        pago_de_prueba:
+          type: boolean
+          description: '`true` si se pagó en el ambiente de integración de Webpay (piloto): no se cobró dinero real.'
+
+    DevolucionCopia:
+      type: object
+      additionalProperties: false
+      required: [motivo, producto, monto, estado, solicitada_en, hecha_en]
+      properties:
+        motivo:
+          type: string
+          enum: [pago_tardio, producto_no_entregado, cancelacion]
+        producto:
+          type: [string, 'null']
+        monto:
+          $ref: '#/components/schemas/Pesos'
+        estado:
+          type: string
+          enum: [en_curso, hecha]
+        solicitada_en:
+          $ref: '#/components/schemas/Instante'
+        hecha_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+
+    HistorialCopia:
+      type: object
+      additionalProperties: false
+      required: [alcance, hechos, hay_hechos_sin_asociar]
+      description: |
+        «Quién abrió o editó la ficha», junto con lo que pasó con las autorizaciones, los enlaces, los
+        insumos, la dirección y los pedidos (decisión 356). **Sin el contenido** de nada.
+      properties:
+        alcance:
+          type: string
+          enum: [todo, lo_tuyo]
+          description: |
+            Lo que el rol puede leer por RLS, como hoy (D-54-6 a, C13): `todo` para el admin;
+            `lo_tuyo` para el cuidador, que ve sus propias filas y las aperturas del relevo. Con `lo_tuyo`
+            la pantalla dice «Aquí ves solo lo que hiciste tú. La lista completa la ve quien administra el
+            grupo.».
+        hechos:
+          type: array
+          description: |
+            **Todo** lo guardado, del más reciente al más antiguo; a igual instante, el de `id` mayor primero.
+            La pantalla muestra solo los últimos 90 días, con «Ver más» dentro de ellos; el archivo lo trae todo
+            (D-54-9 a, decisión 383).
+          items:
+            $ref: '#/components/schemas/HechoCopia'
+        hay_hechos_sin_asociar:
+          type: boolean
+          description: |
+            `true` si hay filas de auditoría del grupo anteriores a la 0028 que no se pudieron asociar a esta
+            persona (su entidad ya no existe y el grupo cuida a más de una persona), y por eso no están
+            (decisión 356). La pantalla lo dice (decisión 374 del README). En el piloto, con datos
+            sintéticos, se espera `false`.
+
+    TipoHecho:
+      type: string
+      description: |
+        Qué pasó, de una lista cerrada (decisión 356). Es un nombre de la API, **no** la acción de
+        auditoría, que no sale. La pantalla arma el texto con `lenguaje.md`, sección 35, e ignora un `tipo`
+        que no conoce.
+
+        | `tipo` | Acción de auditoría |
+        |---|---|
+        | `abrio_la_ficha` | `plan.leer` |
+        | `edito_la_ficha` | `plan.editar` (con `campo` o `seccion`) |
+        | `quito_una_seccion` | `plan.quitar_seccion` (con `seccion`) |
+        | `ficha_borrada` | `clave.destruir` (actor MATU) |
+        | `dio_una_autorizacion` | `consentimiento.otorgar` |
+        | `retiro_una_autorizacion` | `consentimiento.revocar` |
+        | `compartio_la_ficha` | `relevo.compartir` |
+        | `corto_un_enlace` | `relevo.revocar` |
+        | `agrego_un_insumo` | `consumo.crear` |
+        | `edito_un_insumo` | `consumo.editar` |
+        | `dejo_de_seguir_un_insumo` | `consumo.desactivar` |
+        | `volvio_a_seguir_un_insumo` | `consumo.activar` |
+        | `quito_un_insumo` | `consumo.eliminar` |
+        | `anoto_una_compra` | `reposicion.declarar` |
+        | `aviso_de_insumo` | `alerta.materializar` (actor MATU) |
+        | `descarto_un_aviso` | `alerta.descartar` |
+        | `resolvio_un_aviso` | `alerta.resolver` |
+        | `cambio_la_direccion` | `direccion.cambiar` |
+        | `creo_un_pedido` | `pedido.crear` |
+        | `confirmo_un_pedido` | `pedido.confirmar` |
+        | `cancelo_un_pedido` | `pedido.cancelar` |
+        | `cambio_que_hacer_si_falta` | `pedido.regla_faltante` |
+        | `inicio_un_pago` | `pago.iniciar` |
+        | `pago_aprobado` | `pago.aprobar` (actor MATU) |
+        | `pago_anulado` | `pago.anular` (actor MATU) |
+        | `pidio_una_copia` | `persona.datos_descargar` (C21: «Pidió una copia de los datos») |
+
+        `abrio_la_ficha` es la ficha abierta por un miembro del grupo en la app (`plan.leer`, MATU-14), no
+        por el relevo (P6 del diseñador).
+
+        **No entran:** lo del relevo (`relevo.presentar`, `.canje`, `.abrir`, `.pin_incorrecto` y
+        `.bloqueo`), que va en `aperturas` de cada enlace, ni `persona.borrar` (una persona borrada
+        responde 404). Las acciones del grupo (`invitacion.*`, `membresia.*`) no son de una persona.
+      enum:
+        - abrio_la_ficha
+        - edito_la_ficha
+        - quito_una_seccion
+        - ficha_borrada
+        - dio_una_autorizacion
+        - retiro_una_autorizacion
+        - compartio_la_ficha
+        - corto_un_enlace
+        - agrego_un_insumo
+        - edito_un_insumo
+        - dejo_de_seguir_un_insumo
+        - volvio_a_seguir_un_insumo
+        - quito_un_insumo
+        - anoto_una_compra
+        - aviso_de_insumo
+        - descarto_un_aviso
+        - resolvio_un_aviso
+        - cambio_la_direccion
+        - creo_un_pedido
+        - confirmo_un_pedido
+        - cancelo_un_pedido
+        - cambio_que_hacer_si_falta
+        - inicio_un_pago
+        - pago_aprobado
+        - pago_anulado
+        - pidio_una_copia
+
+    QuienCopia:
+      type: object
+      additionalProperties: false
+      required: [tipo, nombre, activo]
+      description: |
+        Quién lo hizo: una persona del grupo (`nombre` y `activo`, como `PersonaNombrada`) o MATU (`nombre: null`, `activo: null`, para lo
+        que hace el sistema: la clave destruida, un aviso de insumo, la vuelta del pago).
+      properties:
+        tipo:
+          type: string
+          enum: [persona, matu]
+        nombre:
+          type: [string, 'null']
+        activo:
+          type: [boolean, 'null']
+
+    HechoCopia:
+      type: object
+      additionalProperties: false
+      required: [tipo, ocurrido_en, quien, campo, seccion, finalidad, referencia]
+      description: |
+        Un hecho del historial. **Solo** estos campos: ni el texto, ni `id`, `request_id`, `actor_ref`,
+        `entidad_id`, `detalle` en bruto o el motivo de un enlace (que ya está en `enlaces_relevo`).
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoHecho'
+        ocurrido_en:
+          $ref: '#/components/schemas/Instante'
+        quien:
+          $ref: '#/components/schemas/QuienCopia'
+        campo:
+          description: |
+            En `edito_la_ficha` de uno de los tres campos, cuál. Sale de la sección mientras exista (la
+            auditoría guarda su id y no el campo, decisión 356); si ya no existe, `null` y la pantalla dice
+            «Editó la ficha». `null` en los demás tipos.
+          oneOf:
+            - type: string
+              enum: [rutina, manejo_situaciones, red_apoyo]
+            - type: 'null'
+        seccion:
+          description: En `edito_la_ficha` y `quito_una_seccion` de una sección complementaria, cuál (`detalle.seccion`).
+          oneOf:
+            - type: string
+              enum: [quien_es, preferencias, alimentacion, movilidad, comunicacion, remedios]
+            - type: 'null'
+        finalidad:
+          description: |
+            F1 (decisión 384): en `dio_una_autorizacion` y `retiro_una_autorizacion`, a qué autorización se
+            refiere. `null` en los demás. Nunca quién retiró (F2, decisión 385).
+          oneOf:
+            - type: string
+              enum: [plan_cuidado, consumo, despacho]
+            - type: 'null'
+        referencia:
+          description: |
+            F1 (decisión 384): en los hechos de pedidos y pagos, la referencia de MATU del pedido (la del
+            comprobante), o `null` si el pedido no se pagó o ya no existe.
+          type: [string, 'null']
+
+    # ---------------------------------------------------------------- copia de la cuenta
+
+    CopiaDatosCuenta:
+      type: object
+      additionalProperties: false
+      required:
+        - formato
+        - tipo
+        - generado_en
+        - aviso
+        - cuenta
+        - politica
+        - grupos
+        - dispositivos
+        - preferencia_avisos
+        - eventos
+        - avisos_enviados
+        - envio_simulado
+        - pagos
+        - condiciones_aceptadas
+      description: Respuesta de `GET /v1/yo/datos` (decisiones 358 a 360). Nada de una persona cuidada.
+      properties:
+        formato:
+          type: string
+          const: matu-datos/1
+        tipo:
+          type: string
+          const: cuenta
+        generado_en:
+          $ref: '#/components/schemas/Instante'
+        aviso:
+          $ref: '#/components/schemas/AvisoCopia'
+        cuenta:
+          $ref: '#/components/schemas/CuentaCopia'
+        politica:
+          description: La última aceptación de la política de privacidad, o `null` en una cuenta anterior a MATU-75.
+          oneOf:
+            - $ref: '#/components/schemas/PoliticaCopia'
+            - type: 'null'
+        grupos:
+          type: array
+          description: Los grupos de los que la cuenta es miembro activo, por `unido_en`.
+          items:
+            $ref: '#/components/schemas/GrupoCopia'
+        grupos_que_dejaste:
+          type: array
+          description: |
+            F2 del cierre del analista (decisión 401): las membresías retiradas de la cuenta, leídas con
+            `membresia_propia`, de la más reciente a la más antigua. Sin el nombre del grupo, que
+            `grupo_mis_grupos` ya no deja leer. La pantalla las muestra como «Un grupo del que saliste».
+          items:
+            $ref: '#/components/schemas/GrupoQueDejasteCopia'
+        dispositivos:
+          type: array
+          description: Todos los dispositivos que MATU guarda de la cuenta, también los cerrados (hasta que la conservación los borra).
+          items:
+            $ref: '#/components/schemas/DispositivoCopia'
+        preferencia_avisos:
+          $ref: '#/components/schemas/PreferenciaAvisosCopia'
+        eventos:
+          type: array
+          description: |
+            **Todos** los ingresos y eventos de seguridad guardados de la cuenta, del más reciente al más
+            antiguo (D1 de MATU-55, decisión 254, más `pediste_una_copia`). La pantalla muestra solo los
+            últimos 90 días, con «Ver más» dentro de ellos; el archivo lo trae todo (D-54-9 a, decisión 383).
+          items:
+            $ref: '#/components/schemas/EventoCuentaCopia'
+        avisos_enviados:
+          type: array
+          description: Los avisos que MATU le generó a la cuenta, sin su texto ni su destino (C16), del más reciente al más antiguo.
+          items:
+            $ref: '#/components/schemas/AvisoEnviadoCopia'
+        envio_simulado:
+          type: boolean
+          description: |
+            `true` mientras MATU no tenga un proveedor real de correo o push (decisión 112). En el semestre
+            siempre es `true`, y la pantalla dice «En el piloto los avisos se prueban sin enviarse: aparecen
+            aquí, pero no te llegaron.» (D-54-11 a).
+        pagos:
+          description: |
+            Los pagos que hizo esta cuenta (D-54-16 a, decisión 360), del más reciente al más antiguo, o `null`
+            si la capa 3 está quitada de la instalación.
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/PagoCuentaCopia'
+            - type: 'null'
+        condiciones_aceptadas:
+          description: Las condiciones del pedido que aceptó esta cuenta antes de pagar (D-54-16 a), o `null` si la capa 3 está quitada.
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/CondicionesCopia'
+            - type: 'null'
+
+    CuentaCopia:
+      type: object
+      additionalProperties: false
+      required: [nombre, correo, celular, celular_confirmado, canal_codigos, creada_en]
+      description: |
+        La cuenta. El correo y el **celular completos** (sección 3; el diálogo antes de descargar lo
+        advierte). Nunca la contraseña transformada, el secreto del doble factor, la huella del correo ni
+        los hashes de sesión.
+      properties:
+        nombre:
+          type: string
+        correo:
+          type: string
+          format: email
+        celular:
+          type: [string, 'null']
+          description: En formato E.164, o `null` en una cuenta anterior a MATU-39.
+          examples: ['+56911111111']
+        celular_confirmado:
+          type: boolean
+        canal_codigos:
+          type: string
+          enum: [sms, whatsapp]
+        creada_en:
+          $ref: '#/components/schemas/Instante'
+
+    PoliticaCopia:
+      type: object
+      additionalProperties: false
+      required: [version, huella, aceptada_en]
+      properties:
+        version:
+          type: string
+        huella:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        aceptada_en:
+          $ref: '#/components/schemas/Instante'
+
+    GrupoQueDejasteCopia:
+      type: object
+      additionalProperties: false
+      required: [rol, unido_en, retirado_en]
+      description: Una membresía retirada (decisión 401). Sin el nombre del grupo ni ningún id.
+      properties:
+        rol:
+          type: string
+          enum: [admin, cuidador, pagador, observador]
+        unido_en:
+          $ref: '#/components/schemas/Instante'
+        retirado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+
+    GrupoCopia:
+      type: object
+      additionalProperties: false
+      required: [nombre, rol, unido_en, puede_ver_ficha]
+      properties:
+        nombre:
+          type: string
+        rol:
+          type: string
+          enum: [admin, cuidador, pagador, observador]
+        unido_en:
+          $ref: '#/components/schemas/Instante'
+        puede_ver_ficha:
+          type: [boolean, 'null']
+          description: Solo para `pagador`, el permiso de ver la ficha; `null` en los demás roles.
+
+    DispositivoCopia:
+      type: object
+      additionalProperties: false
+      required: [nombre, clase, creado_en, ultimo_uso_en, cerrado_en, avisos_activos]
+      description: Un dispositivo, sin id, plataforma, `push_token` ni agente de usuario.
+      properties:
+        nombre:
+          type: string
+          maxLength: 60
+        clase:
+          type: string
+          enum: [telefono, computador, otro]
+        creado_en:
+          $ref: '#/components/schemas/Instante'
+        ultimo_uso_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        cerrado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        avisos_activos:
+          type: boolean
+          description: Si tiene un endpoint de push guardado. Nunca el endpoint.
+
+    PreferenciaAvisosCopia:
+      type: object
+      additionalProperties: false
+      required: [correo, push]
+      properties:
+        correo:
+          type: boolean
+        push:
+          type: boolean
+
+    EventoCuentaCopia:
+      type: object
+      additionalProperties: false
+      required: [tipo, ocurrido_en, dispositivo]
+      description: Como `EventoCuentaVista` de `GET /v1/yo/ingresos`, sin `actual`, y con todos los guardados.
+      properties:
+        tipo:
+          type: string
+          enum:
+            - entraste
+            - saliste
+            - cerraste_en_dispositivo
+            - salida_por_seguridad
+            - contrasena_cambiada
+            - celular_confirmado
+            - codigo_recuperacion_pedido
+            - avisos_cambiados
+            - avisos_activados
+            - avisos_desactivados
+            - pediste_una_copia
+        ocurrido_en:
+          $ref: '#/components/schemas/Instante'
+        dispositivo:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [nombre, clase]
+              properties:
+                nombre:
+                  type: string
+                  maxLength: 60
+                clase:
+                  type: string
+                  enum: [telefono, computador, otro]
+            - type: 'null'
+
+    AvisoEnviadoCopia:
+      type: object
+      additionalProperties: false
+      required: [creado_en, enviado_en, canal, resultado]
+      description: |
+        Un aviso (C16, decisión 359). **Nunca** el texto, la plantilla, el destino (correo o endpoint), la
+        persona ni el error.
+      properties:
+        creado_en:
+          $ref: '#/components/schemas/Instante'
+        enviado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
+        canal:
+          type: string
+          enum: [correo, push, sms]
+        resultado:
+          type: string
+          enum: [salio, no_salio, pendiente, en_el_piloto_no_salio]
+          description: |
+            - `en_el_piloto_no_salio`: `notificacion.estado = 'enviada'` con el envío simulado (D-54-11 a,
+              C17). En el semestre, todo aviso «enviado» sale así.
+            - `salio`: `enviada` con un proveedor real (después del semestre).
+            - `no_salio`: `fallida` u `omitida`.
+            - `pendiente`: `pendiente`.
+
+    PagoCuentaCopia:
+      type: object
+      additionalProperties: false
+      required: [grupo, referencia, pagado_en, cobrado, devuelto, tarjeta, codigo_autorizacion, pago_de_prueba]
+      description: |
+        Un pago de esta cuenta (D-54-16 a). **Sin el nombre de la persona cuidada ni los productos**, que
+        están en su copia. Nunca el token, la orden de compra, la sesión ni el código de autorización.
+      properties:
+        grupo:
+          type: string
+          description: El nombre del grupo del pedido.
+        referencia:
+          type: [string, 'null']
+          pattern: '^[0-9]{4,6}$'
+          description: La referencia del pedido, o `null` si el pago se anuló por tardío y el pedido no quedó pagado.
+        pagado_en:
+          $ref: '#/components/schemas/Instante'
+        cobrado:
+          $ref: '#/components/schemas/Pesos'
+        devuelto:
+          $ref: '#/components/schemas/Pesos'
+        tarjeta:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [tipo, ultimos4, cuotas]
+              properties:
+                tipo:
+                  type: string
+                  enum: [credito, debito, prepago]
+                ultimos4:
+                  type: string
+                  pattern: '^[0-9]{4}$'
+                cuotas:
+                  type: integer
+                  minimum: 0
+            - type: 'null'
+        codigo_autorizacion:
+          type: [string, 'null']
+          description: |
+            F3 del cierre del analista (decisión 402): el código de autorización de su propio pago, el mismo que ve
+            en su comprobante. Solo en «Tus datos» de quien pagó; nunca en la copia de la persona.
+        pago_de_prueba:
+          type: boolean
+
+    CondicionesCopia:
+      type: object
+      additionalProperties: false
+      required: [grupo, referencia, version, huella, aceptadas_en]
+      properties:
+        grupo:
+          type: string
+        referencia:
+          type: [string, 'null']
+          pattern: '^[0-9]{4,6}$'
+          description: La referencia del pedido si se pagó; `null` si se aceptaron y el pedido no se pagó.
+        version:
+          type: string
+        huella:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        aceptadas_en:
+          $ref: '#/components/schemas/Instante'
+
+  examples:
+    CopiaPersonaVigente:
+      summary: Ficha e insumos autorizados, vista por el admin (datos sintéticos, recortados)
+      value:
+        formato: matu-datos/1
+        tipo: persona_cuidada
+        generado_en: '2026-11-12T10:05:00-03:00'
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
+        persona:
+          nombre: Elena Prueba Sintética
+          nombre_pila: Elena
+          nivel_apoyo: apoyo_parcial
+          direccion:
+            etiqueta: Casa
+            calle: Calle Ficticia
+            numero: '123'
+            depto: null
+            comuna: Ñuñoa
+            region: Metropolitana
+            referencia: null
+          alta_en: '2026-10-20T18:30:00-03:00'
+        autorizaciones:
+          - finalidad: plan_cuidado
+            estado: vigente
+            calidad_otorgante: cuidador_de_hecho
+            version_politica: '0.16'
+            declaracion:
+              identificador: declaracion_cuidador_de_hecho
+              version: '0.16'
+              huella: null
+            aviso: null
+            registrada_por:
+              nombre: Carmen Soto
+              activo: true
+            otorgada_en: '2026-10-20T18:31:00-03:00'
+            revision_vence_en: '2027-10-20T18:31:00-03:00'
+            retirada_en: null
+            hay_documento_representante: false
+        ficha:
+          estado: disponible
+          borrado_el: null
+          completitud: 33
+          campos:
+            - campo: rutina
+              texto: Se levanta a las 8 y toma desayuno con té.
+              escrito_por:
+                nombre: Carmen Soto
+                activo: true
+              actualizado_en: '2026-11-01T09:12:00-03:00'
+            - campo: manejo_situaciones
+              texto: null
+              escrito_por: null
+              actualizado_en: null
+            - campo: red_apoyo
+              texto: null
+              escrito_por: null
+              actualizado_en: null
+          secciones: []
+        enlaces_relevo:
+          - nombre_relevo: Pedro
+            motivo: salgo_unas_horas
+            campos: [rutina]
+            secciones: []
+            estado: vencido
+            creado_en: '2026-11-02T10:00:00-03:00'
+            vence_en: '2026-11-02T22:00:00-03:00'
+            cortado_en: null
+            compartido_por: Carmen
+            usos: 1
+            ultimo_uso_en: '2026-11-02T11:15:00-03:00'
+            aperturas:
+              - tipo: apertura
+                ocurrido_en: '2026-11-02T11:15:00-03:00'
+                secciones: []
+              - tipo: presentacion
+                ocurrido_en: '2026-11-02T11:14:00-03:00'
+                secciones: null
+        insumos:
+          estado: disponible
+          borrado_el: null
+          lista:
+            - nombre: Pañal adulto talla M
+              del_catalogo: true
+              unidad: unidad
+              usa_unidades: 4
+              cada_dias: 1
+              quedaban_unidades: 30
+              quedaban_el: '2026-11-10'
+              se_acaba_el: '2026-11-17'
+              dias_aviso: 7
+              unidades_por_envase: 10
+              se_sigue: true
+              agregado_en: '2026-10-21T12:00:00-03:00'
+              actualizado_en: '2026-11-10T08:00:00-03:00'
+              actualizado_por:
+                nombre: Carmen Soto
+                activo: true
+          compras:
+            - insumo: Pañal adulto talla M
+              unidad: unidad
+              unidades: 20
+              el: '2026-11-10'
+              origen: declarada
+              anotada_en: '2026-11-10T08:00:00-03:00'
+              anotada_por:
+                nombre: Carmen Soto
+                activo: true
+          avisos: []
+        pedidos: []
+        historial:
+          alcance: todo
+          hechos:
+            - tipo: pidio_una_copia
+              ocurrido_en: '2026-11-12T10:05:00-03:00'
+              quien:
+                tipo: persona
+                nombre: Carmen Soto
+                activo: true
+              campo: null
+              seccion: null
+              finalidad: null
+              referencia: null
+            - tipo: compartio_la_ficha
+              ocurrido_en: '2026-11-02T10:00:00-03:00'
+              quien:
+                tipo: persona
+                nombre: Carmen Soto
+                activo: true
+              campo: null
+              seccion: null
+              finalidad: null
+              referencia: null
+            - tipo: edito_la_ficha
+              ocurrido_en: '2026-11-01T09:12:00-03:00'
+              quien:
+                tipo: persona
+                nombre: Carmen Soto
+                activo: true
+              campo: rutina
+              seccion: null
+              finalidad: null
+              referencia: null
+          hay_hechos_sin_asociar: false
+
+    CopiaPersonaRetirada:
+      summary: Autorización de la ficha retirada, vista por un cuidador (recortado)
+      value:
+        formato: matu-datos/1
+        tipo: persona_cuidada
+        generado_en: '2026-11-12T10:05:00-03:00'
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
+        persona:
+          nombre: Elena Prueba Sintética
+          nombre_pila: Elena
+          nivel_apoyo: apoyo_parcial
+          direccion: null
+          alta_en: '2026-10-20T18:30:00-03:00'
+        autorizaciones: []
+        ficha:
+          estado: retirada
+          borrado_el: '2027-02-08'
+          completitud: null
+          campos: null
+          secciones: null
+        enlaces_relevo: []
+        insumos:
+          estado: sin_autorizar
+          borrado_el: null
+          lista: null
+          compras: null
+          avisos: null
+        pedidos: null
+        historial:
+          alcance: lo_tuyo
+          hechos: []
+          hay_hechos_sin_asociar: false
+
+    CopiaCuenta:
+      summary: La copia de una cuenta (datos sintéticos, recortados)
+      value:
+        formato: matu-datos/1
+        tipo: cuenta
+        generado_en: '2026-11-12T10:07:00-03:00'
+        aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar."
+        cuenta:
+          nombre: Carmen Soto
+          correo: carmen.soto@ejemplo.invalid
+          celular: '+56911111111'
+          celular_confirmado: true
+          canal_codigos: sms
+          creada_en: '2026-10-20T18:20:00-03:00'
+        politica:
+          version: '0.16'
+          huella: '0000000000000000000000000000000000000000000000000000000000000000'
+          aceptada_en: '2026-10-20T18:20:00-03:00'
+        grupos:
+          - nombre: Familia Prueba
+            rol: admin
+            unido_en: '2026-10-20T18:25:00-03:00'
+            puede_ver_ficha: null
+        grupos_que_dejaste: []
+        dispositivos:
+          - nombre: Chrome en Android
+            clase: telefono
+            creado_en: '2026-10-20T18:20:00-03:00'
+            ultimo_uso_en: '2026-11-12T10:00:00-03:00'
+            cerrado_en: null
+            avisos_activos: false
+        preferencia_avisos:
+          correo: true
+          push: false
+        eventos:
+          - tipo: pediste_una_copia
+            ocurrido_en: '2026-11-12T10:07:00-03:00'
+            dispositivo: null
+          - tipo: entraste
+            ocurrido_en: '2026-11-12T10:00:00-03:00'
+            dispositivo:
+              nombre: Chrome en Android
+              clase: telefono
+        avisos_enviados:
+          - creado_en: '2026-11-10T09:00:00-03:00'
+            enviado_en: '2026-11-10T09:00:05-03:00'
+            canal: correo
+            resultado: en_el_piloto_no_salio
+        envio_simulado: true
+        pagos: []
+        condiciones_aceptadas: []
+
+  responses:
+    NoAutenticadoCopia:
+      description: |
+        Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
+        (`/errores/token-invalido`). La app renueva una vez y repite. La pantalla nunca muestra el `detail`.
+        No se cuenta en el límite ni se audita.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticateBearer'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    enum: [/errores/no-autenticado, /errores/token-invalido]
+                  status:
+                    const: 401
+
+    NoEncontradoCopia:
+      description: |
+        Sin grupo válido, rol `pagador` u `observador`, persona de otro grupo, inexistente, eliminada o
+        con sus datos borrados (C1, decisión 344). El mismo 404 en todos los casos. No se cuenta en el
+        límite ni se audita. La pantalla de pagador y observador no ofrece el botón: dice «Los puede ver
+        quien administra el grupo o quien cuida a {nombre_pila}.».
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/no-encontrado
+                  status:
+                    const: 404
+
+    TopeCopias:
+      description: |
+        La cuenta ya pidió 10 copias en la ventana de una hora, sumando las dos rutas (D-54-10 a, C23,
+        decisión 346). `type` propio para no confundirlo con el límite por IP. No se audita. La pantalla
+        dice «Ya pediste los datos varias veces. Vuelve a intentarlo en una hora.».
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/tope-copias
+                  status:
+                    const: 429
+
+    NoDisponibleCopia:
+      description: |
+        Sin Redis o sin `PEPPER_LIMITES` para el límite, o (solo en la copia de la persona) la custodia de
+        la clave maestra no desenvolvió la clave de datos de una ficha vigente (decisión 32). No se entrega
+        nada. Si el registro de la descarga ya se había escrito, se deshace con la transacción.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/XRequestId'
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problema'
+              - properties:
+                  type:
+                    const: /errores/servicio-no-disponible
+                  status:
+                    const: 503

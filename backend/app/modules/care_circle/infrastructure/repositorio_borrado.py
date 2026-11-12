@@ -97,5 +97,6 @@ class RepositorioBorradoSQL:
                 entidad=EntidadAuditoria.PERSONA_CUIDADA,
                 entidad_id=persona.id,
                 request_id=request_id,
+                persona_cuidada_id=persona.id,
             )
         )
