@@ -27,7 +27,7 @@ docs/api/
     │                             y manda openapi.json)
     └── mis-datos.openapi.yaml    MATU-54: ver y descargar todo lo que MATU guarda de la persona cuidada
                                   («Datos de {nombre_pila}») y de la propia cuenta («Tus datos»), con la
-                                  migración 0028 (implementado en MATU-54, decisiones 342 a 400; se conserva
+                                  migración 0028 (implementado en MATU-54, decisiones 342 a 403; se conserva
                                   como explicación y manda openapi.json)
 ```
 
@@ -1755,7 +1755,7 @@ Historia técnica, solo de backend. Revisión previa del analista normativo: `do
 
 ## MATU-54 · Mis datos: ver y descargar lo que MATU guarda de la persona y de la cuenta (Ley 21.719, acceso y portabilidad; implementado)
 
-**Implementado en MATU-54 el 12-11** (migración 0028, decisiones 366 a 400): manda `openapi.json`, y `propuestos/mis-datos.openapi.yaml` (0.2.0-implementado) se conserva como explicación. Contrato escrito el 12-11, **antes de implementar**, con la revisión previa del analista normativo (`docs/legal/revision-previa-matu-54.md` del repositorio MATU, condiciones C1 a C30 y su sección 3) y las **decisiones de Jorge del 12-11, D-54-1 a D-54-16** (misma revisión, sección final). Las rutas y sus esquemas están en `propuestos/mis-datos.openapi.yaml` (0.1.0-propuesto). Se apila sobre MATU-46: la migración es la **0028** (`down_revision = "0027"`). Reutiliza lo que dejaron MATU-55 (`auditoria_cuenta_propia` y la lista de eventos de la cuenta, 0025), MATU-42 (`autor_activo`, `nombre: null` y `usuario_comiembro` solo con miembros activos, 0026) y MATU-46 (el teléfono del relevo, que la copia nunca trae, 0027).
+**Implementado en MATU-54 el 12-11** (migración 0028, decisiones 366 a 403): manda `openapi.json`, y `propuestos/mis-datos.openapi.yaml` (0.2.0-implementado) se conserva como explicación. Contrato escrito el 12-11, **antes de implementar**, con la revisión previa del analista normativo (`docs/legal/revision-previa-matu-54.md` del repositorio MATU, condiciones C1 a C30 y su sección 3) y las **decisiones de Jorge del 12-11, D-54-1 a D-54-16** (misma revisión, sección final). Las rutas y sus esquemas están en `propuestos/mis-datos.openapi.yaml` (0.1.0-propuesto). Se apila sobre MATU-46: la migración es la **0028** (`down_revision = "0027"`). Reutiliza lo que dejaron MATU-55 (`auditoria_cuenta_propia` y la lista de eventos de la cuenta, 0025), MATU-42 (`autor_activo`, `nombre: null` y `usuario_comiembro` solo con miembros activos, 0026) y MATU-46 (el teléfono del relevo, que la copia nunca trae, 0027).
 
 **Numeración.** Las decisiones de esta historia van de la **342 a la 365**: MATU-42 usa hasta la 341 (sus observaciones de cierre) y MATU-46 de la 332 a la 339. Si otra historia se fusiona antes con decisiones nuevas, se renumera al fusionar.
 
@@ -1811,7 +1811,7 @@ Historia técnica, solo de backend. Revisión previa del analista normativo: `do
     - Cada enlace trae sus `aperturas` (`relevo.presentar`, `.abrir`, `.pin_incorrecto` y `.bloqueo`), con el tipo, el instante y las secciones vistas, como `AperturaVista` de MATU-45 sin el acceso, porque la pantalla las muestra con `LineaApertura` bajo cada enlace (especificación del diseñador, 3.4.4). Admin y cuidador las ven todas (`auditoria_aperturas_relevo`, 0010). No se repiten en el `historial` (P6 del diseñador).
 354. **Insumos** (D-54-5 a). Solo con la autorización `consumo` vigente traen `lista`, `compras` y `avisos`. Si no, `null`, con el estado y, si está retirada, `borrado_el`.
     - `lista`: todos los perfiles, también los que se dejaron de seguir, con nombre (del catálogo o escrito), unidad, cuánto usa y cada cuántos días, lo que quedaba y cuándo, la fecha estimada en que se acaba, días de aviso, unidades por envase, si se sigue, y quién lo cambió por última vez.
-    - `compras`: **todas las que MATU guarda**. Las declaradas se borran a los 90 días (0017), así que son las de los últimos 90 días, como dice la tarjeta. Es la primera ruta que lee las compras: el registro de tratamientos, entrada 5, tiene que decirlo (revisión previa, sección 6).
+    - `compras`: **todas las que MATU guarda**. Solo las `declarada` se borran a los 90 días (0017); las `pedido_matu` quedan más tiempo y van en el archivo (corregido por la decisión 403). Es la primera ruta que lee las compras: el registro de tratamientos, entrada 5, tiene que decirlo (revisión previa, sección 6).
     - `avisos`: las alertas de quiebre guardadas, con fecha prevista, estado y fechas.
 355. **Pedidos y pagos** (D-54-14, D-54-15 a).
     - Todos los pedidos de la persona que existen (la conservación de MATU-61 borra los viejos), del más reciente al más antiguo: referencia, estado, fechas, líneas (producto, presentación, comercio, cantidad, precio unitario, subtotal y qué hacer si falta), subtotal, envío, total, la dirección copiada **sin el teléfono de contacto**, y el pago: estado, cuándo, **quién pagó (nombre)**, lo cobrado, lo devuelto y las devoluciones. Y `precios_de_ejemplo` y `pago_de_prueba`, para que el archivo no parezca un cobro real en el piloto.
@@ -1947,3 +1947,11 @@ Jorge decidió además que MATU-54 va **sin recortes**: con los pedidos, los pag
 398. **Sin variables nuevas.** La API no lee configuración nueva: el límite usa `PEPPER_LIMITES` y Redis, que ya existen.
 399. **Lo que no cambió del plan:** las acciones nuevas no llevan detalle, y `auditoria_detalle_acotado` no cambia; ninguna política ni permiso nuevo.
 400. **Para desplegar** (va en el PR): la 0028 corre con `alembic upgrade head` antes de la API nueva, porque la API escribe la columna. Ninguna fila existente puede romper los `CHECK` validados: `auditoria_persona_con_grupo` mira una columna nueva y vacía, `auditoria_cuenta_acotada` admite todo lo que admitía, y `auditoria_persona_obligatoria` es `NOT VALID`. La bajada se detiene si ya hay auditoría con persona.
+
+### Correcciones del cierre del analista (MATU-54, 12-11)
+
+El analista normativo dio CUMPLE en la revisión de cierre, con dos omisiones. Las decidió el orquestador, por delegación de Jorge.
+
+401. **F2 · Los grupos de los que la cuenta salió** (opción a). «Tus datos» suma `grupos_que_dejaste`: las membresías retiradas de la cuenta, leídas con `membresia_propia` (`care_circle/infrastructure/copia_grupos.py`), con el rol, `unido_en` y `retirado_en`. **Sin el nombre del grupo**, que `grupo_mis_grupos` ya no deja leer, y sin ningún id. Esquema `GrupoQueDejasteCopia`, con `extra="forbid"`. La pantalla lo muestra como «Un grupo del que saliste».
+402. **F3 · `codigo_autorizacion` en `PagoCuentaCopia`.** Solo en «Tus datos» de quien pagó, que ya lo ve en su comprobante (D-62-2). Nunca en la copia de la persona: la prueba de «Datos de» sigue fallando si aparece `codigo_autorizacion`, `tarjeta`, `ultimos4` o `cuotas`, y la de los pagos verifica que el código guardado no está en el texto de esa copia.
+403. **Decisión 354, corregida.** Las compras de la copia son todas las que MATU guarda: solo las `declarada` se borran a los 90 días (0017); las `pedido_matu` quedan más tiempo y van en el archivo.

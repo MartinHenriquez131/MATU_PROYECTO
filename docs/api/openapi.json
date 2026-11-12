@@ -14279,6 +14279,17 @@
               }
             ]
           },
+          "codigo_autorizacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codigo Autorizacion"
+          },
           "pago_de_prueba": {
             "type": "boolean",
             "title": "Pago De Prueba"
@@ -14293,6 +14304,7 @@
           "cobrado",
           "devuelto",
           "tarjeta",
+          "codigo_autorizacion",
           "pago_de_prueba"
         ],
         "title": "PagoCuentaCopia"
@@ -15514,6 +15526,13 @@
             "type": "array",
             "title": "Grupos"
           },
+          "grupos_que_dejaste": {
+            "items": {
+              "$ref": "#/components/schemas/GrupoQueDejasteCopia"
+            },
+            "type": "array",
+            "title": "Grupos Que Dejaste"
+          },
           "dispositivos": {
             "items": {
               "$ref": "#/components/schemas/DispositivoCopia"
@@ -15581,6 +15600,7 @@
           "cuenta",
           "politica",
           "grupos",
+          "grupos_que_dejaste",
           "dispositivos",
           "preferencia_avisos",
           "eventos",
@@ -15857,6 +15877,44 @@
           "aperturas"
         ],
         "title": "EnlaceRelevoCopia"
+      },
+      "GrupoQueDejasteCopia": {
+        "properties": {
+          "rol": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "cuidador",
+              "pagador",
+              "observador"
+            ],
+            "title": "Rol"
+          },
+          "unido_en": {
+            "type": "string",
+            "title": "Unido En"
+          },
+          "retirado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirado En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rol",
+          "unido_en",
+          "retirado_en"
+        ],
+        "title": "GrupoQueDejasteCopia",
+        "description": "F2 del cierre del analista (decisión 401): una membresía retirada, sin el nombre del grupo, que ya no se puede\nleer. La pantalla la muestra como «Un grupo del que saliste»."
       }
     },
     "securitySchemes": {

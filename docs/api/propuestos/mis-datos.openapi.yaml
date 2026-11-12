@@ -5,7 +5,7 @@ info:
   summary: Ver y descargar todo lo que MATU guarda de la persona cuidada y de la propia cuenta (MATU-54, Ley 21.719, acceso y portabilidad).
   description: |
     **Implementado en MATU-54 (12-11): manda `docs/api/openapi.json`.** Este archivo se conserva como explicación
-    de las decisiones, como `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 366 a 400 del
+    de las decisiones, como `donde-entraste.openapi.yaml`. Al implementar se sumaron las decisiones 366 a 403 del
     README (las respuestas del orquestador a Q1 a Q18, sus ajustes C-1 a P15 y lo que fijó la implementación): las
     aperturas dentro de cada enlace, `finalidad` y `referencia` en los hechos (F1), `unidad` en las compras (F5),
     el aviso fijo de la especificación v1.1 del diseñador (P14), `matu-cuenta-AAAA-MM-DD.json`, la referencia del
@@ -740,10 +740,10 @@ components:
             - type: 'null'
         compras:
           description: |
-            **Todas** las compras anotadas que MATU guarda, de la más reciente a la más antigua. Las
-            declaradas se borran a los 90 días (MATU-51, 0017), así que son las de los últimos 90 días; la
-            pantalla las titula «Compras anotadas (últimos 90 días)». Es la primera ruta que lee las compras
-            (registro de tratamientos, entrada 5).
+            **Todas** las compras anotadas que MATU guarda, de la más reciente a la más antigua. Solo las
+            `declarada` se borran a los 90 días (MATU-51, 0017); las `pedido_matu` quedan más tiempo y van
+            en el archivo (decisión 403). La pantalla muestra las de los últimos 90 días. Es la primera ruta
+            que lee las compras (registro de tratamientos, entrada 5).
           oneOf:
             - type: array
               items:
@@ -1243,6 +1243,14 @@ components:
           description: Los grupos de los que la cuenta es miembro activo, por `unido_en`.
           items:
             $ref: '#/components/schemas/GrupoCopia'
+        grupos_que_dejaste:
+          type: array
+          description: |
+            F2 del cierre del analista (decisión 401): las membresías retiradas de la cuenta, leídas con
+            `membresia_propia`, de la más reciente a la más antigua. Sin el nombre del grupo, que
+            `grupo_mis_grupos` ya no deja leer. La pantalla las muestra como «Un grupo del que saliste».
+          items:
+            $ref: '#/components/schemas/GrupoQueDejasteCopia'
         dispositivos:
           type: array
           description: Todos los dispositivos que MATU guarda de la cuenta, también los cerrados (hasta que la conservación los borra).
@@ -1324,6 +1332,22 @@ components:
           pattern: '^[0-9a-f]{64}$'
         aceptada_en:
           $ref: '#/components/schemas/Instante'
+
+    GrupoQueDejasteCopia:
+      type: object
+      additionalProperties: false
+      required: [rol, unido_en, retirado_en]
+      description: Una membresía retirada (decisión 401). Sin el nombre del grupo ni ningún id.
+      properties:
+        rol:
+          type: string
+          enum: [admin, cuidador, pagador, observador]
+        unido_en:
+          $ref: '#/components/schemas/Instante'
+        retirado_en:
+          oneOf:
+            - $ref: '#/components/schemas/Instante'
+            - type: 'null'
 
     GrupoCopia:
       type: object
@@ -1443,7 +1467,7 @@ components:
     PagoCuentaCopia:
       type: object
       additionalProperties: false
-      required: [grupo, referencia, pagado_en, cobrado, devuelto, tarjeta, pago_de_prueba]
+      required: [grupo, referencia, pagado_en, cobrado, devuelto, tarjeta, codigo_autorizacion, pago_de_prueba]
       description: |
         Un pago de esta cuenta (D-54-16 a). **Sin el nombre de la persona cuidada ni los productos**, que
         están en su copia. Nunca el token, la orden de compra, la sesión ni el código de autorización.
@@ -1477,6 +1501,11 @@ components:
                   type: integer
                   minimum: 0
             - type: 'null'
+        codigo_autorizacion:
+          type: [string, 'null']
+          description: |
+            F3 del cierre del analista (decisión 402): el código de autorización de su propio pago, el mismo que ve
+            en su comprobante. Solo en «Tus datos» de quien pagó; nunca en la copia de la persona.
         pago_de_prueba:
           type: boolean
 
@@ -1699,6 +1728,7 @@ components:
             rol: admin
             unido_en: '2026-10-20T18:25:00-03:00'
             puede_ver_ficha: null
+        grupos_que_dejaste: []
         dispositivos:
           - nombre: Chrome en Android
             clase: telefono
