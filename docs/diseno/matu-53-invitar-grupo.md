@@ -1,6 +1,6 @@
 # MATU-53 · App de familia: invitar a un familiar y ver el grupo · Especificación de diseño
 
-**Versión 1.0 · 12 de noviembre de 2026** · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
+**Versión 1.1 · 12 de noviembre de 2026** (decisiones del orquestador, por delegación de Jorge: sección 0.4) · Agente UI/UX, a pedido del orquestador · Rama `matu-42-invitar-familiar`
 
 **Fuentes, en este orden:**
 - `Demo/DISENO.md`, con la regla de MATU-93 («ningún texto bajo 17 px», PR MATU_PROYECTO #87, todavía no en esta rama: ver 0.2).
@@ -62,6 +62,27 @@ El backend escribe en paralelo `docs/api/propuestos/invitar-familiar.openapi.yam
 | P12 | **«No quiero unirme»**: ¿avisa algo al servidor? | 4.5 | No. La invitación sigue hasta que venza o quien administra la anule. Así no hace falta «rechazar» (palabra que se evita, L 3.2). Lo confirma el analista |
 | P13 | **Los enlaces que corta la salida por cuenta propia**: ¿la respuesta trae `enlaces_cortados`, y la lista trae los míos antes de confirmar? | 7 | Sí, como al sacar a alguien |
 | P14 | **La persona sola en su grupo**: si es la única persona y administra, no puede salir (C12). ¿Es así, o puede cerrar el grupo? | 7.3 | Que no pueda, con la frase de 7.3. Cerrar el grupo no está en ninguna historia del sprint |
+
+### 0.4 Decisiones del orquestador (12-11, v1.1)
+
+Por delegación de Jorge, que las confirma al fusionar. **Mandan sobre 0.2 y 0.3.**
+
+| Tema | Decisión | Dónde cambia |
+|---|---|---|
+| D-42-9 (0.2, punto 2) | Se acepta «La autorización la dio alguien que ya no está en el grupo. Sigue vigente.». **No** se ofrece renovar: va en MATU-69. Se muestra con `autorizo_alguien_que_ya_no_esta: true` | 5.6 |
+| Ajustes de forma (0.2, punto 3, y 4.2) | Se aceptan «Tu rol: `{rol}`. `{descripción}`» y los infinitivos («para cuidar») | 4.2 y 4.5 |
+| «Salir del grupo» (0.2, punto 4) | Siempre completo | 7.2 |
+| 17 px (0.2, punto 1) | Todo en `text-base` o más, aunque MATU-93 no esté en esta rama | 9 |
+| P1 | El código va antes de la cuenta, con una verificación sin sesión | 4.1 a 4.4 |
+| P4 | Hay tres 410: vencida, usada y no disponible. Sale la fila del 410 único | 4.7 |
+| P5 | `enlaces_vigentes` por miembro, solo para admin | 6.3 y 7.1 |
+| P6 | Hay 412 en el cambio de rol y del permiso de la ficha | 6.6 y 6.7 |
+| P11 | El autor que salió llega con `nombre: null` y `autor_activo: false` | 5.7 |
+| P12 | «No quiero unirme» no llama al servidor | 4.5 |
+| P13 | Salir devuelve `enlaces_cortados` | 7.2 |
+| P14 | Quien está sola en su grupo no puede salir: 409, con un texto que la lleva a «Borrar sus datos» (MATU-72) | 7.3 |
+| P2, P3, P7, P8, P9 | Como se propusieron en 0.3 | 3, 4 y 5.4 |
+| Textos **[NUEVO]** | Aprobados por el orquestador, por delegación de Jorge. Jorge los confirma al fusionar | 11 |
 
 ---
 
@@ -435,10 +456,9 @@ Todos con la forma de los estados del relevo (`PantallasSimples.tsx`): `Baldosa`
 
 | Estado | Ícono y tono | Título | Texto | ¿Qué hago? |
 |---|---|---|---|---|
-| Vencida (410, si P4) | `CalendarX2`, atenta | «Esta invitación venció» **[NUEVO]** | «Las invitaciones duran 7 días, y esta ya terminó.» **[NUEVO]** | «Pídele una nueva a quien te invitó.» **[ANALISTA]** |
-| Ya usada (410, si P4) | `CircleCheck`, neutro | «Esta invitación ya se usó» **[NUEVO]** | «Cada invitación sirve una sola vez.» **[NUEVO]** | Igual |
+| Vencida (410) | `CalendarX2`, atenta | «Esta invitación venció» **[NUEVO]** | «Las invitaciones duran 7 días, y esta ya terminó.» **[NUEVO]** | «Pídele una nueva a quien te invitó.» **[ANALISTA]** |
+| Ya usada (410) | `CircleCheck`, neutro | «Esta invitación ya se usó» **[NUEVO]** | «Cada invitación sirve una sola vez.» **[NUEVO]** | Igual |
 | No disponible (410, inexistente o anulada, C28) | `Link2Off`, neutro | «Esta invitación no está disponible» **[NUEVO]** | «Puede que se haya copiado incompleta o que ya no exista. Revisa que la abriste completa desde el mensaje.» **[NUEVO, como L 7.3]** | Igual |
-| Un solo 410 (si el contrato no distingue) | `Link2Off`, neutro | «Esta invitación ya no sirve» **[ANALISTA, partido]** | — | «Pídele una nueva a quien te invitó.» **[ANALISTA]** |
 | Bloqueada (423) | `Lock`, pronto | «Esta invitación se bloqueó» **[NUEVO]** | «El código se escribió mal cinco veces. Por seguridad, ya no sirve.» **[NUEVO]** | «Pídele a `{nombre_pila_invita}` una nueva.» **[ANALISTA, partido]**. Sin el nombre (P2): «Pídele una nueva a quien te invitó.» |
 | Ya eres parte (409, C27) | `CircleCheck`, ok | «Ya eres parte de este grupo» **[ANALISTA]** | — | Botón secundario «Ir a MATU» **[NUEVO]** en vez de la nota |
 | Demasiados intentos desde la conexión (429) | `Hourglass`, atenta | «Espera un momento» **[L 7.3]** | «Hubo muchos intentos desde esta conexión. Vuelve a intentarlo en `{minutos}` minutos.» **[L 7.3, sin «de entrar»]**, con las reglas de los minutos de L 7.3 | — |
@@ -557,17 +577,17 @@ La bajada cambia: «Quiénes forman `{grupo}`, a quién cuidan y qué permisos d
 - **En la fila propia de la única persona que administra:** «Eres la única persona que administra el grupo. Para dejar ese rol, primero dáselo a otra persona.» **[NUEVO, de la frase del 409 del analista]**, `text-base text-tenue`, sin botón. Explica antes de que choque.
 - **Si igual llega un 409** (otra persona que administraba salió al mismo tiempo), dentro del diálogo, en su región `role="alert"`: «El grupo necesita alguien que lo administre. Primero da ese rol a otra persona.» **[ANALISTA]**. El diálogo no se cierra, y la lista se vuelve a pedir detrás.
 
-### 5.6 El aviso de D-42-9 (pendiente de P10)
+### 5.6 El aviso de D-42-9
 
-Si la autorización de una persona la dio alguien que ya no está, el bloque del permiso (el de MATU-44) suma, bajo su estado, una `Nota tono="rocio"` con `Info`, solo para admin y cuidador:
+Si la vista de la autorización trae `autorizo_alguien_que_ya_no_esta: true`, el bloque del permiso (el de MATU-44) suma, bajo su estado, una `Nota tono="rocio"` con `Info`, solo para admin y cuidador:
 
-> «La autorización la dio alguien que ya no está en el grupo. Sigue vigente.» **[ANALISTA, ajustado: sin el nombre, por D-42-10, y sin «renuévala», que no tiene pantalla]**
+> «La autorización la dio alguien que ya no está en el grupo. Sigue vigente.» **[ANALISTA, ajustado y aprobado: sin el nombre, por D-42-10, y sin «renuévala»]**
 
-Se aplica igual a los tres permisos (ficha, insumos y pedidos), como pide el ajuste de Jorge. Si Jorge decide que haya una forma de renovar, la nota suma su botón. **No se construye hasta que P10 tenga respuesta.**
+Se aplica igual a los tres permisos (ficha, insumos y pedidos), como pide el ajuste de Jorge. **Sin botón ni enlace para renovar:** eso es de MATU-69. Con el campo en `false` o ausente, la nota no aparece.
 
 ### 5.7 «Alguien que ya no está en el grupo»
 
-Es el nombre de toda persona cuya membresía ya no está activa, en cualquier pantalla de la app (D-42-10): quién guardó un campo de la ficha, quién creó un enlace, quién armó, confirmó o pagó un pedido, quién creó una invitación.
+Es el nombre de toda persona cuya membresía ya no está activa, en cualquier pantalla de la app (D-42-10). La API la manda con `nombre: null` y `autor_activo: false`, igual en todas las rutas, y el texto lo pone la pantalla. Aparece en: quién guardó un campo de la ficha, quién creó un enlace, quién armó, confirmó o pagó un pedido, quién creó una invitación.
 
 - Al empezar una oración: «Alguien que ya no está en el grupo» **[ANALISTA]**. Dentro de una oración: «alguien que ya no está en el grupo» **[NUEVO, la misma en minúscula]**. Ejemplo: «Guardado por alguien que ya no está en el grupo.»
 - Se escribe igual que un nombre: mismo tamaño, mismo color y mismo peso que el nombre al que reemplaza. No va en cursiva ni en `tenue`: no es un estado, es quién lo hizo.
@@ -685,7 +705,7 @@ El diálogo se cierra, la fila se actualiza en su lugar y, bajo la fila, una `No
 | 409, último admin | 5.5 |
 | 404 | 5.9 |
 
-### 6.6 Otra persona cambió el rol al mismo tiempo (412, si P6)
+### 6.6 Otra persona cambió el rol al mismo tiempo (412)
 
 El diálogo no se cierra. Se vuelve a pedir el miembro, y la región `role="alert"` dice, en una `Nota tono="atenta"` (412 va en `atenta`, DISENO.md 6): «Otra persona del grupo cambió lo que puede hacer `{nombre}` mientras lo mirabas. Ahora `{nombre}` `{rol en minúscula}`. Revisa y vuelve a elegir.» **[NUEVO]**. «Ahora» se mueve al rol nuevo. Lo que había elegido se pierde, a propósito: se elige sobre lo que hay.
 
@@ -767,7 +787,7 @@ La sección va al final de `/grupo`, después de las personas cuidadas, separada
 ```
 
 - h2: «¿Salir de `{grupo}`?» **[ANALISTA]**.
-- Puntos: «Dejarás de verlo ahora.» · «Se cortan los enlaces de relevo que compartiste.» **[ANALISTA, partido]**, seguido de «Hoy abren `{n}`.» **[L 22, `hoyAbren`]** si P13 da el número. · «Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`.» **[NUEVO, de la política §4]** · «Para volver, alguien que administra el grupo tiene que invitarte de nuevo.» **[NUEVO]**.
+- Puntos: «Dejarás de verlo ahora.» · «Se cortan los enlaces de relevo que compartiste.» **[ANALISTA, partido]**, seguido de «Hoy abren `{n}`.» **[L 22, `hoyAbren`]**, con los enlaces vigentes propios de la lista. · «Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`.» **[NUEVO, de la política §4]** · «Para volver, alguien que administra el grupo tiene que invitarte de nuevo.» **[NUEVO]**.
 - Botones: «Salir del grupo» · «Quedarme» **[ANALISTA]**. Saliendo: «Saliendo del grupo…» **[NUEVO]**.
 - **Después:** la app vuelve a pedir los grupos. Si queda otro, lleva a su inicio. Si no queda ninguno, a `/empezar/grupo`. En los dos casos, el aviso de llegada `tono="ok"`: «Saliste de `{grupo}`.» **[NUEVO]**, más «Cortamos `{n}` enlaces.» si hubo.
 - Sin red: «No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo.» **[NUEVO]**. 409 último admin: 7.3.
@@ -776,9 +796,9 @@ La sección va al final de `/grupo`, después de las personas cuidadas, separada
 
 En lugar del botón, en `text-base`:
 - Con otras personas en el grupo: «Eres la única persona que administra `{grupo}`. Para salir, primero da ese rol a otra persona.» **[NUEVO, de la política §10]**.
-- Sola en el grupo: «Eres la única persona de `{grupo}`. Para salir, primero invita a alguien y dale el rol de administrar.» **[NUEVO, pendiente de P14]**.
+- Sola en el grupo (P14): «Eres la única persona de `{grupo}`, así que no puedes salir. Si ya no usan MATU para cuidar a `{nombres_pila}`, puedes borrar sus datos en «Borrar sus datos», más arriba.» **[NUEVO]**. «Borrar sus datos» es el título del bloque de MATU-72 en esta misma página, sin enlace: el bloque está a la vista.
 
-Si igual llega el 409, el diálogo muestra la frase de 5.5.
+Si igual llega el 409: con otras personas en el grupo, el diálogo muestra la frase de 5.5. Si está sola, muestra la frase de arriba, y al cerrarlo el foco va al primer «Borrar los datos de `{nombre_pila}`» de la página.
 
 ---
 
@@ -845,7 +865,7 @@ Nada escrito a mano: ni colores, ni sombras, ni tamaños fuera de la escala, ni 
 
 ## 11. Textos para `lenguaje.md` (sección 33, al fusionar)
 
-Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEVO]** de esta especificación. Resumen de lo que Jorge tiene que aprobar además de los del analista:
+Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEVO]** de esta especificación. Los **[NUEVO]** quedaron aprobados por el orquestador el 12-11, por delegación de Jorge, que los confirma al fusionar:
 
 | Dónde | Texto **[NUEVO]** |
 |---|---|
@@ -869,9 +889,9 @@ Van tal cual los de la sección 5 del analista, con estos ajustes, y los **[NUEV
 | «Paga» sin capa 3 | Ve los insumos. Ve la ficha solo si quien administra le da permiso. |
 | Permiso del pagador | ¿Dejar que `{nombre}` vea la ficha? · Podrá leer la ficha de `{nombres_pila}` y ver sus enlaces de relevo. No podrá cambiarla ni compartirla. · No por ahora · Ahora `{nombre}` puede ver la ficha. · ¿Quitarle la ficha a `{nombre}`? · `{nombre}` dejará de ver la ficha desde ahora. · No quitar · `{nombre}` ya no ve la ficha. |
 | Sacar | No tiene enlaces de relevo que abran ahora. · Para volver, tendrías que invitar a `{nombre}` de nuevo. · Sacando del grupo… · No pudimos sacar a `{nombre}` del grupo. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. |
-| Salir | Dejarás de ver `{grupo}` y se cortan los enlaces de relevo que compartiste. · Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`. · Para volver, alguien que administra el grupo tiene que invitarte de nuevo. · Saliendo del grupo… · Saliste de `{grupo}`. · No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo. · Eres la única persona que administra `{grupo}`. Para salir, primero da ese rol a otra persona. · Eres la única persona de `{grupo}`. Para salir, primero invita a alguien y dale el rol de administrar. |
+| Salir | Dejarás de ver `{grupo}` y se cortan los enlaces de relevo que compartiste. · Lo que escribiste en la ficha queda, porque es parte del cuidado de `{nombres_pila}`. · Para volver, alguien que administra el grupo tiene que invitarte de nuevo. · Saliendo del grupo… · Saliste de `{grupo}`. · No pudimos sacarte del grupo. Revisa tu conexión y vuelve a intentarlo. Sigues en el grupo. · Eres la única persona que administra `{grupo}`. Para salir, primero da ese rol a otra persona. · Eres la única persona de `{grupo}`, así que no puedes salir. Si ya no usan MATU para cuidar a `{nombres_pila}`, puedes borrar sus datos en «Borrar sus datos», más arriba. |
 
-**Ajustes a textos del analista:** «Con tu rol podrás: `{descripción}`.» pasa a «Tu rol: `{rol}`. `{descripción}`» (0.2). «Ese código no es. Te quedan `{n}` intentos.» suma «Después, la invitación se bloquea.» (4.3). El aviso D-42-9 va sin el nombre y sin «renuévala» hasta P10 (5.6). «Código: `{codigo}`.» sale del texto, porque los dígitos ya están a la vista (3.4).
+**Ajustes a textos del analista:** «Con tu rol podrás: `{descripción}`.» pasa a «Tu rol: `{rol}`. `{descripción}`» (0.2). «Ese código no es. Te quedan `{n}` intentos.» suma «Después, la invitación se bloquea.» (4.3). El aviso D-42-9 va sin el nombre y sin «renuévala» (5.6, aprobado). «Código: `{codigo}`.» sale del texto, porque los dígitos ya están a la vista (3.4).
 
 ---
 
