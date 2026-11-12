@@ -86,6 +86,7 @@ def _auditar_descarte(auditoria: RegistroAuditoria, peticion: PeticionConsumo, a
             entidad=EntidadAuditoria.ALERTA_QUIEBRE,
             entidad_id=alerta_id,
             request_id=peticion.request_id,
+            persona_cuidada_id=peticion.persona_id,
         )
     )
 
@@ -123,6 +124,7 @@ def _auditar(
             entidad=entidad,
             entidad_id=entidad_id,
             request_id=peticion.request_id,
+            persona_cuidada_id=peticion.persona_id,
         )
     )
 

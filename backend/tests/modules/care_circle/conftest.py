@@ -205,7 +205,10 @@ def _borrar_personas(grupos: list[uuid.UUID], usuarios: list[uuid.UUID]) -> None
         cx.execute("SET LOCAL session_replication_role = replica")
         cx.execute("DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])", (ids,))
         cx.execute("SET LOCAL session_replication_role = origin")
+        # MATU-54: la auditoría de la persona la referencia (auditoria_persona_fk, 0028) y se queda
+        cx.execute("SET LOCAL session_replication_role = replica")
         cx.execute("DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])", (ids,))
+        cx.execute("SET LOCAL session_replication_role = origin")
         cx.execute("DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])", (ids,))
 
 

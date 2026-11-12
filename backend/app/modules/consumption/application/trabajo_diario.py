@@ -31,7 +31,13 @@ class ResultadoTrabajo:
     descartadas: int
 
 
-def _auditar(auditoria: RegistroAuditoria, grupo_id: uuid.UUID, accion: AccionAuditoria, alerta_id: uuid.UUID) -> None:
+def _auditar(
+    auditoria: RegistroAuditoria,
+    grupo_id: uuid.UUID,
+    accion: AccionAuditoria,
+    alerta_id: uuid.UUID,
+    persona_id: uuid.UUID,
+) -> None:
     auditoria.registrar(
         EntradaAuditoria(
             grupo_id=grupo_id,
@@ -40,6 +46,8 @@ def _auditar(auditoria: RegistroAuditoria, grupo_id: uuid.UUID, accion: AccionAu
             accion=accion,
             entidad=EntidadAuditoria.ALERTA_QUIEBRE,
             entidad_id=alerta_id,
+            # MATU-54 (0028): la persona del insumo
+            persona_cuidada_id=persona_id,
         )
     )
 
@@ -70,7 +78,7 @@ def recalcular_quiebres(
         )
         for alerta_id in plan.descartar:
             repositorio.descartar(alerta_id, ahora)
-            _auditar(auditoria, grupo_id, AccionAuditoria.ALERTA_DESCARTAR, alerta_id)
+            _auditar(auditoria, grupo_id, AccionAuditoria.ALERTA_DESCARTAR, alerta_id, insumo.persona_cuidada_id)
             descartadas += 1
         if plan.materializar:
             alerta_id = uuid.uuid4()
@@ -81,6 +89,8 @@ def recalcular_quiebres(
                     ),
                     ahora,
                 )
-                _auditar(auditoria, grupo_id, AccionAuditoria.ALERTA_MATERIALIZAR, alerta_id)
+                _auditar(
+                    auditoria, grupo_id, AccionAuditoria.ALERTA_MATERIALIZAR, alerta_id, insumo.persona_cuidada_id
+                )
                 materializadas += 1
     return ResultadoTrabajo(materializadas=materializadas, descartadas=descartadas)

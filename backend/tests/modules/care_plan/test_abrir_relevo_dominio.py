@@ -79,7 +79,7 @@ def _acceso(intentos: int = 0, expira_en: datetime = AHORA + timedelta(days=1), 
         id=acceso_id, grupo_id=uuid.uuid4(), plan_id=uuid.uuid4(), campos=("rutina", "manejo_situaciones"),
         nombre_pila_persona="María", nombre_pila_comparte="Carmen",
         pin_hash=HUELLAS.huella_pin(acceso_id, "4821"), pin_intentos_fallidos=intentos, expira_en=expira_en,
-        creado_en=AHORA - timedelta(hours=1),
+        creado_en=AHORA - timedelta(hours=1), persona_cuidada_id=uuid.uuid4(),
     )
     return replace(base, **cambios)  # type: ignore[arg-type]
 

@@ -19,6 +19,7 @@ def _entrada(accion: AccionAuditoria) -> EntradaAuditoria:
         accion=accion,
         entidad=EntidadAuditoria.PLAN_CUIDADO,
         entidad_id=uuid.uuid4(),
+        persona_cuidada_id=uuid.uuid4(),
     )
 
 

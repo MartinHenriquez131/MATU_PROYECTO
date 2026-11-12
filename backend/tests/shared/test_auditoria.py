@@ -11,6 +11,7 @@ import pytest
 
 from app.shared.auditoria import (
     ACCIONES_DE_CUENTA,
+    ACCIONES_DE_PERSONA,
     AccionAuditoria,
     ActorTipo,
     EntidadAuditoria,
@@ -23,6 +24,7 @@ pytestmark = pytest.mark.rf("RF-08")
 GRUPO = uuid.UUID("00000000-0000-0000-0000-0000000014a1")
 USUARIO = uuid.UUID("00000000-0000-0000-0000-0000000014a2")
 PLAN = uuid.UUID("00000000-0000-0000-0000-0000000014a3")
+PERSONA = uuid.UUID("00000000-0000-0000-0000-0000000014a4")
 
 
 def _campos(**cambios: Any) -> dict[str, Any]:
@@ -35,6 +37,9 @@ def _campos(**cambios: Any) -> dict[str, Any]:
         "entidad_id": PLAN,
     }
     campos.update(cambios)
+    # MATU-54 (0028): una acción de persona lleva siempre su persona, salvo que la prueba diga otra cosa
+    if "persona_cuidada_id" not in cambios and campos["accion"] in ACCIONES_DE_PERSONA:
+        campos["persona_cuidada_id"] = PERSONA
     return campos
 
 
@@ -97,6 +102,9 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "membresia.permiso_ficha",
         "membresia.sacar",
         "membresia.salir",
+        # MATU-54 (decisión 347)
+        "persona.datos_descargar",
+        "cuenta.datos_descargar",
     }
 
 
@@ -173,6 +181,8 @@ def test_entrada_solo_lleva_identificadores_sin_ip_ni_contenido() -> None:
         "secciones",
         # MATU-42: el rol, en las acciones de invitación y membresía
         "rol",
+        # MATU-54: la persona a quien se refiere la acción, un identificador
+        "persona_cuidada_id",
     }
     assert "ip" not in nombres
     # El momento lo pone el adaptador con el Reloj, no quien llama
@@ -318,3 +328,43 @@ def test_las_acciones_del_grupo_llevan_siempre_y_solo_el_rol() -> None:
     sistema = _campos(actor_tipo=ActorTipo.SISTEMA, actor_ref=None, accion=AccionAuditoria.INVITACION_BLOQUEO,
                       entidad=EntidadAuditoria.INVITACION)
     assert EntradaAuditoria(**sistema, rol="pagador").detalle() == {"rol": "pagador"}
+
+
+# --- MATU-54: la persona de cada fila (0028, D-54-7 a) --------------------------------------------------------
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_las_acciones_de_persona_llevan_siempre_y_solo_su_persona() -> None:
+    """Toda acción de una persona lleva su persona_cuidada_id, y ninguna otra la lleva (decisión 365)."""
+    assert EntradaAuditoria(**_campos()).persona_cuidada_id == PERSONA
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**_campos(persona_cuidada_id=None))
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**_campos(persona_cuidada_id=str(PERSONA)))
+    with pytest.raises(TypeError):
+        EntradaAuditoria(
+            **_campos(accion=AccionAuditoria.MEMBRESIA_SACAR, entidad=EntidadAuditoria.MEMBRESIA,
+                      persona_cuidada_id=PERSONA),
+            rol="admin",
+        )
+    # Exige grupo: una acción de persona nunca es de la cuenta
+    with pytest.raises(TypeError):
+        EntradaAuditoria(**_campos(grupo_id=None))
+
+
+@pytest.mark.rf("RF-08")
+@pytest.mark.rf("Ley-21.719")
+def test_la_copia_de_la_cuenta_va_sin_grupo_y_la_de_la_persona_con_su_persona() -> None:
+    assert AccionAuditoria.CUENTA_DATOS_DESCARGAR in ACCIONES_DE_CUENTA
+    assert AccionAuditoria.PERSONA_DATOS_DESCARGAR in ACCIONES_DE_PERSONA
+    assert not ACCIONES_DE_CUENTA & ACCIONES_DE_PERSONA
+    cuenta = EntradaAuditoria(
+        grupo_id=None, actor_tipo=ActorTipo.USUARIO, actor_ref=USUARIO,
+        accion=AccionAuditoria.CUENTA_DATOS_DESCARGAR, entidad=EntidadAuditoria.USUARIO, entidad_id=USUARIO,
+    )
+    assert cuenta.detalle() is None and cuenta.persona_cuidada_id is None
+    persona = EntradaAuditoria(**_campos(
+        accion=AccionAuditoria.PERSONA_DATOS_DESCARGAR, entidad=EntidadAuditoria.PERSONA_CUIDADA, entidad_id=PERSONA,
+    ))
+    assert persona.detalle() is None and persona.persona_cuidada_id == PERSONA

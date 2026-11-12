@@ -81,7 +81,9 @@ _VIDA_PARA_REVOCAR = text(
 
 _REVOCAR_ACCESO = text(
     "UPDATE acceso_relevo SET revocado_en = :ahora"
-    " WHERE id = :id AND grupo_id = :grupo_id AND revocado_en IS NULL RETURNING token_hash"
+    " WHERE id = :id AND grupo_id = :grupo_id AND revocado_en IS NULL RETURNING token_hash,"
+    # MATU-54 (0028): la persona del plan, para relevo.revocar. Quien corta ve el plan (admin o cuidador)
+    " (SELECT p.persona_cuidada_id FROM plan_cuidado p WHERE p.id = acceso_relevo.plan_id) AS persona_cuidada_id"
 )
 
 # indice_token no tiene RLS: se acota por la huella, el grupo y el acceso, y no se borra (decisión 23)
@@ -144,6 +146,7 @@ class RepositorioAccesosSQL:
                 entidad_id=acceso.id,
                 motivo=MotivoAuditoria(acceso.motivo),
                 request_id=acceso.request_id,
+                persona_cuidada_id=acceso.persona_cuidada_id,
             )
         )
 
@@ -206,6 +209,7 @@ class RepositorioAccesosSQL:
                 entidad=EntidadAuditoria.ACCESO_RELEVO,
                 entidad_id=acceso_id,
                 request_id=request_id,
+                persona_cuidada_id=fila.persona_cuidada_id,
             )
         )
 

@@ -52,6 +52,7 @@ def descartar_por_retiro(
                 entidad=EntidadAuditoria.ALERTA_QUIEBRE,
                 entidad_id=alerta_id,
                 request_id=request_id,
+                persona_cuidada_id=persona_id,
             )
         )
         descartadas += 1

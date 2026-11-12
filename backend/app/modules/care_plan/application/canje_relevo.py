@@ -113,6 +113,8 @@ def entrada_relevo(
         entidad_id=acceso.id if entidad_id is None else entidad_id,
         request_id=request_id,
         secciones=secciones,
+        # MATU-54 (0028): la persona del plan del acceso
+        persona_cuidada_id=acceso.persona_cuidada_id,
     )
 
 

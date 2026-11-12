@@ -41,6 +41,8 @@ _RETIRO_ANTERIOR = text(
 _RETIRAR = text(
     "UPDATE consentimiento SET revocado_en = :ahora, revocacion_motivo = :motivo"
     " WHERE id = :id AND grupo_id = :grupo_id AND revocado_en IS NULL"
+    # MATU-54 (0028): la persona de la autorización, para su fila de auditoría
+    " RETURNING persona_cuidada_id"
 )
 
 
@@ -98,10 +100,10 @@ class RepositorioRetirosSQL:
         request_id: str | None,
         motivo: str = MOTIVO_RETIRO,
     ) -> None:
-        resultado = self._sesion.execute(
+        fila = self._sesion.execute(
             _RETIRAR, {"id": consentimiento_id, "grupo_id": self._grupo_id, "ahora": ahora, "motivo": motivo}
-        )
-        if getattr(resultado, "rowcount", 0) != 1:
+        ).first()
+        if fila is None:
             raise RetiroNoEscrito("la autorización no se retiró")
         # Solo identificadores: sin nombre, sin IP y sin detalle (condición 4 del analista)
         self._auditoria.registrar(
@@ -113,5 +115,6 @@ class RepositorioRetirosSQL:
                 entidad=EntidadAuditoria.CONSENTIMIENTO,
                 entidad_id=consentimiento_id,
                 request_id=request_id,
+                persona_cuidada_id=fila.persona_cuidada_id,
             )
         )

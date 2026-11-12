@@ -49,6 +49,8 @@ class AuditoriaFichaRegistro:
             entidad_id=entidad_id,
             request_id=evento.request_id,
             seccion=seccion,
+            # MATU-54 (0028): la persona de la ficha, también cuando la sección ya no existe
+            persona_cuidada_id=evento.persona_cuidada_id,
         )
 
     def registrar_lectura(self, evento: EventoFicha) -> None:

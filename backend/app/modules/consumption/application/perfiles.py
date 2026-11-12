@@ -89,6 +89,7 @@ def _auditar(
             entidad=EntidadAuditoria.PERFIL_CONSUMO,
             entidad_id=perfil_id,
             request_id=peticion.request_id,
+            persona_cuidada_id=peticion.persona_id,
         )
     )
 

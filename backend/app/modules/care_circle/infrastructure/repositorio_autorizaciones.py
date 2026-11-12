@@ -84,5 +84,6 @@ class RepositorioAutorizacionesSQL:
                 entidad=EntidadAuditoria.CONSENTIMIENTO,
                 entidad_id=autorizacion.id,
                 request_id=autorizacion.request_id,
+                persona_cuidada_id=autorizacion.persona_id,
             )
         )

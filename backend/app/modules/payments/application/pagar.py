@@ -169,6 +169,7 @@ def pagar(
             entidad=EntidadAuditoria.CARGO,
             entidad_id=cargo.id,
             request_id=actor.request_id,
+            persona_cuidada_id=pedido.persona_id,
         )
     )
     return Inicio(venta=venta, url=inicio.url, token=inicio.token)

@@ -98,6 +98,7 @@ def _auditar(solicitud: SolicitudDireccion, direccion_id: uuid.UUID, registro: R
             entidad=EntidadAuditoria.DIRECCION,
             entidad_id=direccion_id,
             request_id=solicitud.request_id,
+            persona_cuidada_id=solicitud.persona_id,
         )
     )
 

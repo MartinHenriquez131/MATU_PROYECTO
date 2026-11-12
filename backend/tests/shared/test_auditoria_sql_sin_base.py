@@ -16,6 +16,9 @@ from app.shared.auditoria_sql import RegistroAuditoriaSql
 from app.shared.puertos import RegistroAuditoria
 from tests.dobles.reloj_fijo import RelojFijo
 
+# MATU-54 (0028): la persona de las acciones de persona
+PERSONA = uuid.UUID("00000000-0000-0000-0000-0000000054a1")
+
 pytestmark = pytest.mark.rf("RF-08")
 
 
@@ -45,6 +48,7 @@ def _entrada() -> EntradaAuditoria:
         entidad_id=uuid.uuid4(),
         motivo=MotivoAuditoria.SALGO_UNAS_HORAS,
         request_id="req-sintetico-14",
+        persona_cuidada_id=PERSONA,
     )
 
 
@@ -72,6 +76,8 @@ def test_inserta_una_fila_con_el_instante_del_reloj(reloj_fijo: RelojFijo) -> No
         "ocurrido_en": reloj_fijo.ahora(),
         # MATU-38: sin cantidad, la columna detalle queda nula
         "detalle": None,
+        # MATU-54 (0028): la persona de la acción
+        "persona_cuidada_id": PERSONA,
     }
 
 
@@ -96,6 +102,7 @@ def test_motivo_ausente_va_como_nulo(reloj_fijo: RelojFijo) -> None:
         actor_ref=uuid.uuid4(),
         accion=AccionAuditoria.PLAN_LEER,
         entidad=EntidadAuditoria.PLAN_CUIDADO,
+        persona_cuidada_id=PERSONA,
     )
 
     RegistroAuditoriaSql(cast(Session, sesion), reloj_fijo).registrar(sin_motivo)

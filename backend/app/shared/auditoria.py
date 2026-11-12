@@ -106,6 +106,10 @@ class AccionAuditoria(StrEnum):
     MEMBRESIA_PERMISO_FICHA = "membresia.permiso_ficha"
     MEMBRESIA_SACAR = "membresia.sacar"
     MEMBRESIA_SALIR = "membresia.salir"
+    # MATU-54 (decisiones 347 y 366): la copia de los datos, sin detalle. La de la persona va con su grupo y su
+    # persona_cuidada_id; la de la cuenta, sin grupo
+    PERSONA_DATOS_DESCARGAR = "persona.datos_descargar"
+    CUENTA_DATOS_DESCARGAR = "cuenta.datos_descargar"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
@@ -127,6 +131,48 @@ ACCIONES_DE_CUENTA = frozenset(
         AccionAuditoria.CUENTA_CELULAR_VERIFICAR_FALLIDO,
         # MATU-55 (decisión 259)
         AccionAuditoria.AVISOS_PREFERENCIA,
+        # MATU-54 (decisión 347)
+        AccionAuditoria.CUENTA_DATOS_DESCARGAR,
+    }
+)
+
+# MATU-54 (D-54-7 a, decisión 365): las acciones que se refieren a una persona cuidada y llevan siempre su
+# persona_cuidada_id. Desde la 0028 el CHECK auditoria_persona_obligatoria exige esta misma lista a toda fila nueva, y
+# tests/test_migraciones.py lo verifica. Ninguna otra acción lleva persona
+ACCIONES_DE_PERSONA = frozenset(
+    {
+        AccionAuditoria.PLAN_LEER,
+        AccionAuditoria.PLAN_EDITAR,
+        AccionAuditoria.PLAN_QUITAR_SECCION,
+        AccionAuditoria.CONSENTIMIENTO_OTORGAR,
+        AccionAuditoria.CONSENTIMIENTO_REVOCAR,
+        AccionAuditoria.RELEVO_COMPARTIR,
+        AccionAuditoria.RELEVO_REVOCAR,
+        AccionAuditoria.RELEVO_PRESENTAR,
+        AccionAuditoria.RELEVO_CANJE,
+        AccionAuditoria.RELEVO_PIN_INCORRECTO,
+        AccionAuditoria.RELEVO_BLOQUEO,
+        AccionAuditoria.RELEVO_ABRIR,
+        AccionAuditoria.CONSUMO_CREAR,
+        AccionAuditoria.CONSUMO_EDITAR,
+        AccionAuditoria.CONSUMO_DESACTIVAR,
+        AccionAuditoria.CONSUMO_ACTIVAR,
+        AccionAuditoria.CONSUMO_ELIMINAR,
+        AccionAuditoria.ALERTA_MATERIALIZAR,
+        AccionAuditoria.ALERTA_DESCARTAR,
+        AccionAuditoria.ALERTA_RESOLVER,
+        AccionAuditoria.REPOSICION_DECLARAR,
+        AccionAuditoria.CLAVE_DESTRUIR,
+        AccionAuditoria.PERSONA_BORRAR,
+        AccionAuditoria.PERSONA_DATOS_DESCARGAR,
+        AccionAuditoria.DIRECCION_CAMBIAR,
+        AccionAuditoria.PEDIDO_CREAR,
+        AccionAuditoria.PEDIDO_CONFIRMAR,
+        AccionAuditoria.PEDIDO_CANCELAR,
+        AccionAuditoria.PEDIDO_REGLA_FALTANTE,
+        AccionAuditoria.PAGO_INICIAR,
+        AccionAuditoria.PAGO_APROBAR,
+        AccionAuditoria.PAGO_ANULAR,
     }
 )
 
@@ -235,6 +281,8 @@ class EntradaAuditoria:
     - ``secciones``: solo en relevo.abrir, los tipos de las secciones complementarias mostradas, sin
       repetir (puede ser vacía).
     - ``rol``: solo y siempre en ACCIONES_CON_ROL (MATU-42), uno de los cuatro roles.
+    - ``persona_cuidada_id``: solo y siempre en ACCIONES_DE_PERSONA (MATU-54, 0028), la persona a quien se refiere la
+      acción. Exige grupo_id: la base verifica que la persona es de ese grupo (auditoria_persona_fk).
 
     grupo_id puede faltar solo en ACCIONES_DE_CUENTA, y actor_ref solo con el actor SISTEMA.
 
@@ -254,6 +302,7 @@ class EntradaAuditoria:
     seccion: str | None = None
     secciones: tuple[str, ...] | None = None
     rol: str | None = None
+    persona_cuidada_id: uuid.UUID | None = None
 
     def __post_init__(self) -> None:
         _exigir("accion", self.accion, AccionAuditoria)
@@ -292,6 +341,10 @@ class EntradaAuditoria:
             self.rol is not None and (not isinstance(self.rol, str) or self.rol not in ROLES_AUDITABLES)
         ):
             raise TypeError("rol va solo y siempre en las acciones de invitación y membresía, con uno de los 4 roles")
+        if self.persona_cuidada_id is not None:
+            _exigir("persona_cuidada_id", self.persona_cuidada_id, uuid.UUID)
+        if (self.persona_cuidada_id is not None) != (self.accion in ACCIONES_DE_PERSONA):
+            raise TypeError("persona_cuidada_id va solo y siempre en las acciones de una persona (ACCIONES_DE_PERSONA)")
 
     def detalle(self) -> dict[str, object] | None:
         """El contenido de la columna auditoria.detalle, o None si la entrada no lleva detalle."""
