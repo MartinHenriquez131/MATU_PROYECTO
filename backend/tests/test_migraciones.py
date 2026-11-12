@@ -1129,7 +1129,8 @@ def test_0024_pago_y_baja_al_esquema_de_0023(base_desechable):
     # La conservación: el borrador sin cobro se borra a los 30 días; el pagado no
     with psycopg.connect(_dsn(BASE)) as c:
         c.execute("SET session_replication_role = replica")
-        # Solo el borrador: el pedido pagado de la 0023 no tiene quién aceptó, y pedido_condiciones_completas (NOT VALID)
+        # Solo el borrador: el pedido pagado de la 0023 no tiene quién aceptó, y pedido_condiciones_completas
+        # (NOT VALID)
         # rechaza cualquier escritura nueva de esa fila. Lo pagado no se conserva por fecha
         c.execute(f"UPDATE pedido SET actualizado_en = now() - interval '40 days' WHERE id = '{PED24B}'")
         c.execute("SET session_replication_role = origin")
