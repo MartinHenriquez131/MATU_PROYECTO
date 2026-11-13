@@ -32,15 +32,17 @@ describe('«Tu cuenta» en modo angosto (MATU-57)', () => {
   it.each([
     [true, 'Confirmado'],
     [false, 'Sin confirmar'],
-  ])('celular_verificado=%s: la etiqueta «%s» oculta su ícono con angosto:hidden', async (verificado, palabra) => {
+  ])('celular_verificado=%s: la etiqueta «%s» oculta su ícono en angosto (desde MATU-107, 6, lo hace la Etiqueta)', async (verificado, palabra) => {
     responderCon(apiFamilia, { status: 200, cuerpo: { ...CUENTA, celular_verificado: verificado } })
     responderPolitica()
     render(<TuCuenta />)
 
     const etiqueta = await screen.findByText(palabra)
-    const icono = etiqueta.querySelector('svg')
+    // El ícono es hijo directo y lo oculta la regla del componente, no una clase propia.
+    const icono = etiqueta.querySelector(':scope > svg')
     expect(icono).not.toBeNull()
-    expect(icono).toHaveClass('angosto:hidden')
+    expect(icono).not.toHaveClass('angosto:hidden')
+    expect(etiqueta).toHaveClass('angosto:[&>svg]:hidden')
   })
 
   it('el número de la tarjeta puede partirse en angosto y la tarjeta achica su relleno', async () => {

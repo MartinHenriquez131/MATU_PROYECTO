@@ -65,17 +65,23 @@ Cada historia agrega aquí lo suyo:
   en base64url sin relleno. Opcional: sin ella, GET /v1/dispositivos/actual/push responde clave_publica null y la API
   arranca igual. Un valor que no es una clave P-256 válida impide cargar la configuración. Es distinta en cada entorno
   y se genera con python scripts/generar_vapid.py, que la muestra solo en la terminal de quien lo corre
+- MATU-107 (hallazgo 55-H2, condición C14 del piloto): PUSH_CUENTAS_PERMITIDAS, los usuario_id (UUID separados por
+  coma) de las cuentas del equipo que pueden activar los avisos push. Solo rige fuera de ENTORNOS_PUSH_SIN_LISTA
+  (local y pruebas), incluida produccion, y falla cerrada: ausente o vacía es la lista vacía y nadie activa push. Una
+  entrada que no es UUID impide cargar la configuración, con un mensaje que nombra la variable y nunca el valor. Solo
+  la consulta app/core/push_piloto.py
 """
 
 import base64
 import binascii
+import uuid
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from app.core.vapid import ClaveVapidInvalida, validar_clave_privada
 
@@ -117,6 +123,10 @@ ENTORNOS_PASARELA_FALSA: frozenset[str] = frozenset({"local", "pruebas"})
 # Entornos donde se admite DIAGNOSTICO_PROXY encendido (MATU-25, decisión 114, punto 7). Otra lista más:
 # produccion, o un valor nuevo, quedan fuera
 ENTORNOS_DIAGNOSTICO_PROXY: frozenset[str] = frozenset({"local", "pruebas", "staging"})
+
+# Entornos donde cualquier cuenta puede activar los avisos push, sin PUSH_CUENTAS_PERMITIDAS (MATU-107, C14). Lista
+# permitida: staging, produccion o un valor nuevo exigen que la cuenta esté en la lista
+ENTORNOS_PUSH_SIN_LISTA: frozenset[str] = frozenset({"local", "pruebas"})
 LARGO_KEK = 32
 
 
@@ -261,6 +271,11 @@ class Configuracion(BaseSettings):
     # error, el repr de la configuración ni una respuesta: solo se deriva de ella la pública
     vapid_clave_privada: SecretStr | None = None
 
+    # MATU-107 (C14): las cuentas del equipo que pueden activar los avisos push fuera de local y pruebas. Ver la
+    # cabecera de este archivo. NoDecode: se lee como texto separado por comas, no como JSON. repr=False: la lista
+    # nunca aparece en el repr de la configuración, un log ni un error
+    push_cuentas_permitidas: Annotated[frozenset[uuid.UUID], NoDecode] = Field(default_factory=frozenset, repr=False)
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
@@ -272,6 +287,23 @@ class Configuracion(BaseSettings):
     def _secreto_vacio_es_ausente(cls, valor: object) -> object:
         # PEPPER_EMAIL=, JWT_CLAVE=, KEK_ENTORNO= o CUSTODIA_KEK= en el .env cuentan como no definidas
         return None if valor == "" else valor
+
+    @field_validator("push_cuentas_permitidas", mode="before")
+    @classmethod
+    def _cuentas_push_separadas_por_coma(cls, valor: object) -> object:
+        # Vacía o solo espacios es la lista vacía (falla cerrada). El mensaje fijo nombra la variable, nunca el valor
+        if not isinstance(valor, str):
+            return valor
+        cuentas: set[uuid.UUID] = set()
+        for entrada in valor.split(","):
+            entrada = entrada.strip()
+            if not entrada:
+                continue
+            try:
+                cuentas.add(uuid.UUID(entrada))
+            except ValueError:
+                raise ValueError("PUSH_CUENTAS_PERMITIDAS debe ser una lista de UUID separados por coma") from None
+        return frozenset(cuentas)
 
     @field_validator("dinero_real_autorizado", mode="before")
     @classmethod

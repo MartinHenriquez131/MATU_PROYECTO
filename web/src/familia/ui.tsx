@@ -25,7 +25,7 @@ export function Titulo({ children, className = 'text-3xl @2xl/main:text-4xl', la
   )
 }
 
-export function Pagina({ titulo, bajada, antes, children }: { titulo: ReactNode; bajada?: ReactNode; antes?: ReactNode; children?: ReactNode }) {
+export function Pagina({ titulo, bajada, ayuda, antes, children }: { titulo: ReactNode; bajada?: ReactNode; ayuda?: ReactNode; antes?: ReactNode; children?: ReactNode }) {
   return (
     <>
       <div className="mb-7 flex flex-col gap-3">
@@ -33,9 +33,26 @@ export function Pagina({ titulo, bajada, antes, children }: { titulo: ReactNode;
         <div>
           <Titulo>{titulo}</Titulo>
           {bajada && <p className="mt-1.5 max-w-prose text-base text-tenue">{bajada}</p>}
+          {/* MATU-107 (54-H3): una línea de ayuda bajo la bajada, con su mismo estilo. */}
+          {ayuda && <p className="mt-1.5 max-w-prose text-base text-tenue">{ayuda}</p>}
         </div>
       </div>
       {children}
+    </>
+  )
+}
+
+/**
+ * MATU-107 (especificación 4, DISENO 2): una cola con «·» («El 12/11/2026 · Anotó Carmen»). Fuera del
+ * modo `angosto`, el «·» va entre dos U+00A0 y ningún renglón empieza ni termina con él. En `angosto`
+ * el punto y sus espacios se ocultan y la cola baja a su propio renglón, sin cortar ninguna palabra.
+ * El «·» lo pone esta pieza, nunca el texto. El párrafo que la contiene mantiene `break-words`.
+ */
+export function Cola({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <span className="angosto:hidden">{'\u00a0·\u00a0'}</span>
+      <span className="angosto:block">{children}</span>
     </>
   )
 }
@@ -291,7 +308,8 @@ const TONO_ETIQUETA = { neutro: 'bg-tinta/7 text-tenue', ok: 'bg-ok-fondo text-o
 /** Siempre con ícono y palabra: el tono es un refuerzo, nunca lo único (MATU-48 4.5 y 5.3). */
 export function Etiqueta({ children, tono = 'neutro', className = '' }: { children: ReactNode; tono?: keyof typeof TONO_ETIQUETA; className?: string }) {
   const t = TONO_ETIQUETA[tono]
-  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold ${t} ${className}`}>{children}</span>
+  // MATU-107 (6): en `angosto` la figura (svg hijo directo) se oculta y queda la palabra; la palabra nunca se corta.
+  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold angosto:[&>svg]:hidden ${t} ${className}`}>{children}</span>
 }
 
 /** Avance de la ficha, por campos: tres tramos, siempre con el texto al lado. */

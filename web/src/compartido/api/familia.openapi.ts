@@ -170,12 +170,12 @@ export interface paths {
         };
         /**
          * Ver Push Actual
-         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
+         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Desde MATU-107 (C14), `permitido` dice si la cuenta puede activar los avisos push: durante el piloto, fuera del ambiente local y de pruebas, solo las cuentas del equipo. Con `permitido` false, `clave_publica` es `null`. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
          */
         get: operations["verPushActual"];
         /**
          * Guardar Push Actual
-         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204.
+         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Desde MATU-107 (C14), si la cuenta no puede activar los avisos push (`permitido` false en el `GET`), responde 409 `push-no-permitido`, no guarda nada y no audita. Orden: 401, 404, 422, 409 y 204.
          */
         put: operations["guardar_push_actual_v1_dispositivos_actual_push_put"];
         post?: never;
@@ -3537,9 +3537,14 @@ export interface components {
         PushActualVista: {
             /**
              * Clave Publica
-             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada
+             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada, o si la cuenta no puede activar los avisos push (permitido false)
              */
             clave_publica: string | null;
+            /**
+             * Permitido
+             * @description MATU-107 (C14): si esta cuenta puede activar los avisos push en este teléfono. Durante el piloto, fuera del ambiente local y de pruebas, solo las cuentas del equipo. Con false, clave_publica es null y el PUT responde 409 push-no-permitido
+             */
+            permitido: boolean;
             /**
              * Registrado
              * @description Si el dispositivo del claim did tiene un endpoint de push guardado
@@ -4933,6 +4938,15 @@ export interface operations {
             };
             /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description push-no-permitido: durante el piloto, esta cuenta no puede activar los avisos push (C14) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

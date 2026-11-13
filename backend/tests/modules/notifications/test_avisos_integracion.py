@@ -419,7 +419,12 @@ def test_dos_corridas_que_se_cruzan_no_envian_dos_veces(entorno_avisos: EntornoA
 
     def corrida(nombre: str, correo: Any, push: Any, reloj: RelojFijo) -> None:
         consumidor = ConsumidorQuiebreProximo(
-            unidad=UnidadAvisosSQL(fabrica_sesiones()), correo=correo, push=push, reloj=reloj, origen_web=ORIGEN
+            unidad=UnidadAvisosSQL(fabrica_sesiones()),
+            correo=correo,
+            push=push,
+            reloj=reloj,
+            origen_web=ORIGEN,
+            push_permitido=lambda _usuario_id: True,
         )
         resultados[nombre] = publicar_pendientes(
             almacen, {QUIEBRE_PROXIMO: [consumidor]}, reloj, grupo_id=familia.grupo.id

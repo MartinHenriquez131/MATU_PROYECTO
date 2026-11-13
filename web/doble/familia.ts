@@ -567,6 +567,8 @@ function sembrar() {
     ['avisos-falla@example.com', 'avisos-falla'],
     ['avisos-guardar-falla@example.com', 'avisos-guardar-falla'],
     ['push-sin-clave@example.com', 'push-sin-clave'],
+    ['push-no-permitido@example.com', 'push-no-permitido'],
+    ['push-409@example.com', 'push-409'],
   ])
     cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], modo)
 }

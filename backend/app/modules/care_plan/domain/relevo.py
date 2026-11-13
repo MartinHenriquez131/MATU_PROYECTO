@@ -173,6 +173,11 @@ def puede_revocar(rol: str) -> bool:
 # El teléfono se borra 30 días después del fin del acceso. El nombre, el motivo y las fechas se quedan
 CONSERVACION_TELEFONO = timedelta(days=30)
 
+# MATU-107 (hallazgo 46-H2): relevo_conservar acepta un «ahora» hasta 5 minutos adelantado respecto de now() de la base
+# (migración 0027). El límite descuenta ese margen a favor de conservar: con un reloj adelantado, el plazo nunca se
+# acorta. Un teléfono puede quedar a lo más 5 minutos más, nunca menos de 30 días
+MARGEN_RELOJ = timedelta(minutes=5)
+
 
 def fin_del_acceso(expira_en: datetime, revocado_en: datetime | None) -> datetime:
     """Cuándo terminó el acceso: lo que ocurra primero, el vencimiento o el corte (C1).
@@ -182,8 +187,9 @@ def fin_del_acceso(expira_en: datetime, revocado_en: datetime | None) -> datetim
 
 
 def limite_telefono(ahora: datetime) -> datetime:
-    """Los accesos que terminaron en este instante o antes ya pasaron los 30 días."""
-    return ahora - CONSERVACION_TELEFONO
+    """Los accesos que terminaron en este instante o antes ya pasaron los 30 días, aunque el reloj de quien llama vaya
+    hasta MARGEN_RELOJ adelantado respecto de la base."""
+    return ahora - CONSERVACION_TELEFONO - MARGEN_RELOJ
 
 
 def telefono_por_borrar(expira_en: datetime, revocado_en: datetime | None, ahora: datetime) -> bool:
