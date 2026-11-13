@@ -341,6 +341,7 @@ BEGIN
                pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en
           FROM public.pedido_comercio pc
          WHERE pc.comercio_id = v_comercio AND pc.enviado_en IS NOT NULL
+           AND EXISTS (SELECT 1 FROM public.pedido p WHERE p.id = pc.pedido_id AND p.pagado_en IS NOT NULL)
            AND (pc.estado IN ('enviada', 'preparando', 'lista')
                 OR COALESCE(pc.retirada_en, pc.cancelada_en) >= p_desde)
          ORDER BY pc.enviado_en, pc.id;
@@ -363,6 +364,7 @@ BEGIN
           JOIN public.pedido_comercio pc ON pc.id = l.pedido_comercio_id
           JOIN public.producto pr ON pr.id = l.producto_id
          WHERE pc.id = p_parte AND pc.comercio_id = v_comercio AND pc.enviado_en IS NOT NULL
+           AND EXISTS (SELECT 1 FROM public.pedido p WHERE p.id = pc.pedido_id AND p.pagado_en IS NOT NULL)
          ORDER BY pr.nombre, pr.presentacion, l.id;
     PERFORM set_config('app.funcion', '', true);
 END $$;
