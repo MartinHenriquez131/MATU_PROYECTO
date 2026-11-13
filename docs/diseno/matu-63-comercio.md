@@ -1,6 +1,15 @@
 # MATU-63 · La vista web del comercio · Especificación de diseño
 
-**Versión 1.0 · 13/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.1 · 13/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.1** (después de la primera revisión visual del 13-11, con las decisiones del frontend que confirmé):
+- **O2:** en el piloto, el contacto es el correo de contacto que ya existe.
+- **6.2:** en pantalla ancha, `/comercio/pedido` lleva como `h1` el del pedido, y la privacidad y «Actualizado» van sobre la cola.
+- **6.3:** después de «Empezar a preparar», el foco va al `h2` «Productos».
+- **6.4:** «Marca cada producto» se anuncia por `alert`.
+- **6.6, 6.8 y 7.3:** el foco va a la nota **después** de que se monta. En O3 la nota 6.8 se anuncia y recibe el foco.
+- **7.1:** el resultado va sobre la instrucción y el campo.
+- **7.3:** con el resultado «cancelado» no se agrega 6.8, y con «ya retirado» no se agrega 6.7.
+- **Criterios:** suman el 24 y el 25.
 **Historia:** MATU-63, la preparación y el retiro de cada parte del pedido en el comercio (ADR-027, capa 3). Quien atiende un comercio ve los pedidos que le tocan, marca qué tiene y qué no, avisa que está listo y revisa el código de quien viene a buscarlo. También dice cuántos tiene de cada producto y si lo ofrece en MATU.
 **Dónde se construye:** `web/`, una app aparte bajo `/comercio`, con React 19, TypeScript y Tailwind CSS v4, mobile first.
 
@@ -26,7 +35,7 @@ Ninguno bloquea empezar: cada uno tiene una propuesta, y la pantalla se construy
 | # | Qué | Para quién | Propuesta |
 |---|---|---|---|
 | O1 | **Distinguir una cuenta de comercio de una de familia al entrar.** La pantalla tiene que saber si la cuenta que entró es de un comercio, para ir a `/comercio`, y qué responder si una cuenta de familia entra por `/comercio/entrar` (o al revés) | Backend | La respuesta de la sesión trae el tipo de cuenta (`familia` o `comercio`). Una cuenta de familia en `/comercio/entrar` ve el aviso de 4.4, y una de comercio en `/entrar` va sola a `/comercio`. Nunca se dice si el correo existe |
-| O2 | **«Avisa a MATU» no tiene un canal.** Seis textos del analista terminan en «Avisa a MATU» (código bloqueado, vencido, cuenta inactiva) y no hay en la app un teléfono ni un correo de operación | Jorge y backend | Un solo contacto de operación del piloto (correo o teléfono de la serie 5555), de configuración y no del código, que la pantalla muestra al pie de cada vista (5.6) y que los avisos nombran: «Avisa a MATU: `{contacto}`». Sin él, el texto queda sin canal y es un P2 |
+| O2 | **«Avisa a MATU» no tiene un canal.** Seis textos del analista terminan en «Avisa a MATU» (código bloqueado, vencido, cuenta inactiva) y no hay en la app un teléfono ni un correo de operación | Jorge y backend | Un solo contacto de operación del piloto (correo o teléfono de la serie 5555), de configuración y no del código, que la pantalla muestra al pie de cada vista (5.6) y que los avisos nombran: «Avisa a MATU: `{contacto}`». Sin él, el texto queda sin canal y es un P2. **Resuelto para el piloto (v1.1):** `{contacto}` es el correo de contacto que la API ya publica (el de privacidad), y la pantalla lo muestra también sin entrada (4.2). Si operación necesita un canal propio, lo decide Jorge, y la pantalla solo cambia el valor |
 | O3 | **Todos los productos de una parte faltan.** «Listo para retirar» no tiene sentido si no hay nada que entregar, y D-63-8 dice que entonces se devuelve todo | Backend y Jorge | Con todas las líneas en «No lo tengo», el botón principal dice «Avisar que no tengo ninguno» **[NUEVO]**, la parte pasa a `cancelada` con el motivo `producto_faltante` y la pantalla muestra 6.8. Si el backend prefiere `lista` sin líneas, la pantalla no cambia de texto, solo de estado final |
 | O4 | **Hasta cuándo se puede cambiar una marca.** La pantalla supone que «Lo tengo» y «No lo tengo» se pueden cambiar hasta tocar «Listo para retirar», y que la devolución por un faltante sale recién ahí. Si la devolución saliera al marcar, un toque equivocado le devolvería dinero a una familia | Backend | `comercio_marcar_linea` se puede llamar otra vez sobre la misma línea mientras la parte esté en `preparando`, y el evento de la devolución sale con `comercio_listo` |
 | O5 | **Qué cuenta «Tienes».** La pantalla de productos (8) le pide al encargado lo que cuenta en su local. Hay que saber si `stock` incluye lo apartado y cuándo baja | Backend | `stock` es lo que hay en el local para vender, **incluido lo apartado que todavía no se prepara**. Al marcar «Listo para retirar», lo preparado sale de `stock` y de `apartado` a la vez. «Disponibles» = `stock` − `apartado`, nunca bajo 0. Si el backend lo define distinto, cambian la ayuda del campo y la cifra «Disponibles», no la pantalla |
@@ -163,7 +172,7 @@ Ancho (≥ 48 rem de app)
 | Campos | Tu correo · Tu contraseña · Mostrar · Ocultar | [E39] |
 | Botón | Entrar · mientras envía: Entrando… | [E39] |
 | Faltan datos | Escribe tu correo y tu contraseña. | [E39] |
-| Olvido | ¿Olvidaste tu contraseña? Avisa a MATU: `{contacto}`. | **[NUEVO]**, depende de O2 |
+| Olvido | ¿Olvidaste tu contraseña? Avisa a MATU: `{contacto}`. | **[NUEVO]**. En el piloto, `{contacto}` es el correo de contacto, que se ve también sin entrada (O2, v1.1) |
 | A la familia | ¿Cuidas a alguien? Entra en la `app de MATU para familias`. | **[NUEVO]**, la parte marcada es el enlace a `/entrar` |
 
 ### 4.3 Avisos y errores
@@ -350,6 +359,8 @@ La cola de 5 a la izquierda (19 rem, con la fila elegida marcada) y el detalle a
 
 En el detalle ancho, la cabecera va en una fila con `flex flex-wrap items-start justify-between gap-x-6 gap-y-3`: a la izquierda el `h1` y la `Etiqueta`, a la derecha «Preparar antes de las 16:30» en `text-lg font-bold` y «Llegó a las 14:24 · 3 productos» debajo.
 
+**El `h1` en pantalla ancha (v1.1).** En `/comercio/pedido`, el único `h1` es «Pedido `{ref}`», también cuando la cola se ve al lado (2.1: el `h1` es el de la ruta). La cola no repite «Pedidos de hoy» como título: lo dice la pestaña activa. La privacidad (5.6) y «Actualizado a las `{HH:MM}`.» con «Actualizar» (5.5) van arriba de la cola, en su misma columna de 19 rem.
+
 ### 6.3 Lo que cambia según el estado
 
 | Estado | Etiqueta | Productos | Acción principal | Nota |
@@ -361,6 +372,10 @@ En el detalle ancho, la cabecera va en una fila con `flex flex-wrap items-start 
 | `cancelada` | «Cancelado», tono `neutro`, `Ban` | Solo lectura, sin marcas | Ninguna | 6.8 |
 
 Una sola acción principal por estado. La `Etiqueta` lleva siempre ícono y palabra.
+
+**Después de «Empezar a preparar» (v1.1):** la parte pasa a `preparando` y el foco va al `h2` «Productos» (`tabIndex={-1}`), que es donde sigue el trabajo. No se anuncia nada aparte: la `Etiqueta` cambia a «Preparando» y el `h2` se lee al recibir el foco.
+
+**El foco después de una acción (v1.1).** Cuando una acción cambia lo que se ve, la pantalla enfoca el elemento **después** de que está montado con su contenido final. Nunca enfoca una versión de carga que después se reemplaza. Si el elemento se monta de nuevo al llegar la respuesta, se enfoca el nuevo. Vale para el `h1` al elegir una parte (2.1), la nota de 6.6, la de 6.8 en O3, las notas de 7.3 y «Cambiar cuántos tienes» después de «Guardar» (8.3). **En ningún caso el foco termina en `body`.**
 
 ### 6.4 La línea por marcar (`preparando`)
 
@@ -375,6 +390,9 @@ Una sola acción principal por estado. La `Etiqueta` lleva siempre ícono y pala
 - **Bajo las líneas**, antes del botón: «Después de marcarlo listo ya no puedes cambiar lo que marcaste.» **[NUEVO]** en `text-base text-tenue`.
 
 **«Listo para retirar» con líneas sin marcar:** no envía. Sobre el botón, `MensajeError`: «Marca cada producto: si lo tienes o no.» **[NUEVO]**, y el foco va a la primera opción de la primera línea sin marcar. Esa línea lleva `ring-2 ring-pronto` hasta que se marca. El botón **nunca** está deshabilitado.
+- **(v1.1)** El mensaje también **se anuncia por las regiones vivas, `alert`**, cada vez que se toca «Listo para retirar» con líneas sin marcar. Así lo oye quien usa lector de pantalla, que llega a «Lo tengo» sin ver el mensaje. Además, el id del `MensajeError` va en el `aria-describedby` de cada `fieldset` sin marcar, mientras se ve.
+- **(v1.1)** El anillo de error no cambia el relleno de la línea: en el detalle ancho, el nombre de la línea con error se alinea con el de las otras. Se usa `ring-2 ring-pronto` con `-mx-3 px-3` (o un `ring-offset`), nunca un `px-3` que corre el texto.
+- **(v1.1)** La `legend` va **dentro** del borde de la línea, nunca sobre él: `float-left w-full` en la `legend` y `clear-left` en lo que la sigue. Otra forma: un `div role="group" aria-labelledby` con el nombre en un `p`. El nombre y la presentación quedan juntos dentro de la tarjeta.
 
 ### 6.5 Las líneas en solo lectura
 
@@ -394,7 +412,9 @@ Al responder `comercio_listo`, en el lugar de la acción, `Nota tono="ok" rol="s
 
 ### 6.8 Cancelado
 
-`Nota tono="pronto" borde`, sin rol al abrir y con `rol="alert"` si se canceló mientras se veía (5.5): título «Este pedido se canceló. No lo prepares.» [A45] y texto «Si ya sacaste productos, vuelve a dejarlos en su lugar.» **[NUEVO]**. Las líneas siguen a la vista, sin etiquetas, para saber qué devolver al estante. Con O3 (todo faltaba), el título es el mismo y el texto: «Avisaste que no tienes ninguno de estos productos. MATU se encarga del resto.» **[NUEVO]**.
+`Nota tono="pronto" borde`, sin rol al abrir y con `rol="alert"` si se canceló mientras se veía (5.5): título «Este pedido se canceló. No lo prepares.» [A45] y texto «Si ya sacaste productos, vuelve a dejarlos en su lugar.» **[NUEVO]**. Las líneas siguen a la vista, sin etiquetas, para saber qué devolver al estante. Con O3 (todo faltaba), el título es el mismo y el texto: «Avisaste que no tienes ninguno de estos productos. MATU se encarga del resto.» **[NUEVO]**. **En O3 (v1.1)** la nota lleva `enfocable` y `rol="status"` (lo causó quien atiende, no es una sorpresa): se anuncia una vez y recibe el foco al responder «Avisar que no tengo ninguno».
+
+**Cancelada con el detalle a la vista (v1.1, confirmado):** el aviso de 5.5 se anuncia una sola vez por `alert` («El pedido `{ref}` se canceló. No lo prepares.»). La nota 6.8 va **sin** rol, para no leerse dos veces, y no mueve el foco.
 
 ### 6.9 Errores del pedido
 
@@ -416,21 +436,24 @@ Al responder `comercio_listo`, en el lugar de la acción, `Nota tono="ok" rol="s
 
 ```
 │ Código de retiro                   │  h2 text-xl font-bold
+│ ┌────────────────────────────────┐ │  resultado (7.3), si hay: recibe el foco
+│ │ (!) Ese código no es el de     │ │
+│ │     este pedido.               │ │
+│ │     No entregues el pedido     │ │
+│ │     todavía. Te quedan 4       │ │
+│ │     intentos.                  │ │
+│ └────────────────────────────────┘ │
 │ Pide el código de retiro a quien   │  text-base max-w-prose
 │ viene a buscar el pedido y         │
 │ escríbelo aquí.                    │
 │ Código de retiro (6 números)       │  label font-bold
 │ ┌──────────────────┐               │
-│ │   4 8 2 1 7 3    │               │  input digitos text-3xl, max-w-72, centrado
+│ │   1 1 1 1 1 1    │               │  input digitos text-3xl, max-w-72, centrado
 │ └──────────────────┘               │
 │ [ Revisar código ]                 │  único turquesa macizo
-│ ┌────────────────────────────────┐ │  resultado (7.3), recibe el foco
-│ │ ✓ Código correcto. Entrega el  │ │
-│ │   pedido K4M7XP.               │ │
-│ │   • 2 × Pañal adulto M x30     │ │
-│ │   • 1 × Toallitas húmedas x80  │ │
-│ └────────────────────────────────┘ │
 ```
+
+**El resultado va entre el `h2` y la instrucción (v1.1).** Antes estaba bajo el botón. Arriba queda a la vista aunque el teclado del teléfono tape la parte de abajo, y es lo primero que se lee de la sección. Con un resultado que quita el campo (correcto, bloqueado, vencido, ya retirado, cancelado), la nota queda sola bajo el `h2`.
 
 En pantalla ancha es lo mismo dentro del detalle, bajo los productos, con la columna del campo en `max-w-md`.
 
@@ -446,7 +469,7 @@ En pantalla ancha es lo mismo dentro del detalle, bajo los productos, con la col
 
 ### 7.3 Los resultados
 
-Cada resultado es una `Nota` con `titulo`, `enfocable` y `rol` (el patrón de MATU-44 3.5): se anuncia por las regiones vivas y **el foco va a la nota**, que muestra su título primero. Se monta de nuevo en cada intento (una `key` nueva) para que se anuncie aunque repita el texto.
+Cada resultado es una `Nota` con `titulo`, `enfocable` y `rol` (el patrón de MATU-44 3.5): se anuncia por las regiones vivas y **el foco va a la nota**, que muestra su título primero. Se monta de nuevo en cada intento (una `key` nueva) para que se anuncie aunque repita el texto. **(v1.1)** El foco se mueve después de que la nota está montada y el campo ya se quitó, si se quita (6.3, «El foco después de una acción»). Vale también para «no es», el 429 y el error de red: el foco va a la nota, no se queda en «Revisar código». Para escribir otra vez, se toca el campo, que conserva lo escrito seleccionado.
 
 | Resultado | `Nota` | Título | Texto | Después | Origen |
 |---|---|---|---|---|---|
@@ -454,9 +477,9 @@ Cada resultado es una `Nota` con `titulo`, `enfocable` y `rol` (el patrón de MA
 | No es | `pronto`, `rol="alert"` | «Ese código no es el de este pedido.» | «No entregues el pedido todavía. Te quedan `{n}` intentos.» · con 1: «Te queda 1 intento.» | El campo sigue, con lo escrito seleccionado | [A45] **[AJUSTE]**: suma «No entregues el pedido todavía.», que es lo que tiene que hacer en el mostrador, y separa título y texto |
 | Bloqueado | `pronto`, `rol="alert"` | «El código se bloqueó por demasiados intentos.» | «No entregues el pedido. Avisa a MATU: `{contacto}`.» | Desaparecen el campo y el botón | [A45] **[AJUSTE]**: suma «No entregues el pedido.» |
 | Vencido | `atenta`, `rol="alert"` | «Este código venció.» | «No entregues el pedido todavía. Avisa a MATU para que le den un código nuevo a quien viene a buscarlo: `{contacto}`.» | Desaparecen el campo y el botón hasta que operación genere otro (se ve al actualizar, 5.5) | [A45] **[AJUSTE]**: dice qué pasa después y a quién llega el código nuevo |
-| Ya retirado | `atenta`, `rol="alert"` | «Este pedido ya se retiró.» | «No lo entregues de nuevo.» | Se ve 6.7 | [A45] **[AJUSTE]**: suma la instrucción |
-| Cancelado | `pronto`, `rol="alert"` | «Este pedido se canceló. No lo prepares.» | «No lo entregues. Si ya lo preparaste, vuelve a dejar los productos en su lugar.» | Se ve 6.8 | [A45] **[AJUSTE]**: en el mostrador, el pedido ya está preparado |
-| Demasiados intentos de la cuenta (429) | `atenta`, `rol="status"` | «Hubo muchos intentos con códigos en poco tiempo.» | «Espera `{minutos}` minutos y vuelve a intentarlo.» | El botón queda con `aria-disabled` hasta que pase el tiempo, sin cuenta regresiva (el 429 de Entrar) | **[NUEVO]** |
+| Ya retirado | `atenta`, `rol="alert"` | «Este pedido ya se retiró.» | «No lo entregues de nuevo.» | La `Etiqueta` pasa a «Retirado». **No** se agrega la nota 6.7 (v1.1): diría lo mismo dos veces. Si el contrato trae la hora, el texto suma «Se retiró a las `{HH:MM}`.» | [A45] **[AJUSTE]**: suma la instrucción |
+| Cancelado | `pronto`, `rol="alert"` | «Este pedido se canceló. No lo prepares.» | «No lo entregues. Si ya lo preparaste, vuelve a dejar los productos en su lugar.» | La `Etiqueta` pasa a «Cancelado». **No** se agrega la nota 6.8 (v1.1): esta nota ya trae las dos instrucciones, y dos notas `pronto` con el mismo título confunden. Si se vuelve a abrir la parte después, se ve 6.8 sola | [A45] **[AJUSTE]**: en el mostrador, el pedido ya está preparado |
+| Demasiados intentos de la cuenta (429) | `atenta`, `rol="status"` | «Hubo muchos intentos con códigos en poco tiempo.» | «Espera `{minutos}` minutos y vuelve a intentarlo.» | El botón queda con `aria-disabled` hasta que pase el tiempo, sin cuenta regresiva (el 429 de Entrar). El foco va a la nota, nunca a `body` | **[NUEVO]** |
 | Red o 5xx | `pronto`, `rol="alert"` | «No pudimos revisar el código.» | «Revisa tu conexión y vuelve a intentarlo. No entregues el pedido hasta ver «Código correcto».» | El campo sigue con lo escrito | **[NUEVO]** con [L 8] |
 
 - **Al abrir una parte `lista`** cuyo código ya está `bloqueado`, `vencido` o `usado`, se ve directamente la nota de ese resultado, sin `rol` y sin mover el foco, en lugar del campo. Con `sin_codigo`: `Nota tono="atenta"`: «Todavía no hay un código para este pedido. Avisa a MATU: `{contacto}`.» **[NUEVO]**.
@@ -515,9 +538,11 @@ Cada resultado es una `Nota` con `titulo`, `enfocable` y `rol` (el patrón de MA
 
 Una lista de una columna de `max-w-3xl`, alineada a la izquierda, cada producto en una fila con `@xl:grid @xl:grid-cols-[minmax(0,1fr)_auto] @xl:gap-x-8`: a la izquierda el nombre, la presentación, el precio y la casilla; a la derecha el `dl` de las tres cifras y el botón. Sin tabla: con el editor dentro de la fila, una tabla no refluye a 320 px.
 
+**(v1.1) La columna derecha tiene ancho fijo:** `@xl/main:grid-cols-[minmax(0,1fr)_18rem]`, nunca `auto`. Con `auto`, una nota larga en esa columna la ensanchaba y dejaba unos 40 px a la izquierda: el nombre se partía en sílabas (revisión del 13-11, P1). Las notas de la fila («Tienes menos de los que ya están apartados…», el 412) van en su propia fila de la grilla, a todo el ancho (`@xl/main:col-span-2`), después de las dos columnas. Todas las filas alinean su columna derecha en el mismo lugar.
+
 ### 8.3 Componentes y reglas
 
-- **Cifras:** `dl` con `grid grid-cols-[minmax(0,1fr)_auto] gap-x-4`, cada `dt` en `text-tenue` y cada `dd` en `cifras text-right`. «Disponibles» va en `font-bold`. Con «Disponibles» en 0: «0» y al lado la `Etiqueta tono="atenta"` con `TriangleAlert` «Sin disponibles» **[NUEVO]**.
+- **Cifras:** `dl` con `grid grid-cols-[minmax(0,1fr)_auto] gap-x-4`, cada `dt` en `text-tenue` y cada `dd` en `cifras text-right`. «Disponibles» va en `font-bold`. Con «Disponibles» en 0, el `dd` dice solo «0», y la `Etiqueta tono="atenta"` con `TriangleAlert` «Sin disponibles» **[NUEVO]** va **bajo el `dl`**, en su propio renglón (v1.1). Entre el `dt` y la cifra partía «Disponible/s» a 360 px.
 - **«Lo ofreces en MATU»** es una casilla nativa (`DISENO.md` 6, `size-6 accent-turquesa` en una etiqueta `min-h-12`). Se guarda al tocarla, con `aria-busy` en la casilla mientras guarda. Sin marcar, bajo la casilla: `Etiqueta tono="neutro"` con `Ban` «No se ofrece» **[NUEVO]** y, si hay apartados, «Lo apartado sigue apartado.» **[NUEVO]** en `text-tenue`.
 - **El precio** se lee, no se edita: en `cifras` y, si el comercio es `ficticio`, seguido de «· Precio de ejemplo» [L 11] en `text-tenue`. Sin campo, sin lápiz y sin botón.
 - **«Cambiar cuántos tienes»** (`Boton variante="secundario"`) abre el editor en la misma fila y el foco va al campo. Mientras uno está abierto, los botones «Cambiar cuántos tienes» de las demás filas se ocultan: así hay **un solo** «Guardar», que es la acción principal de la pantalla en ese momento. Sin un editor abierto, la pantalla no tiene botón principal.
@@ -601,6 +626,14 @@ El backend escribe el contrato en paralelo en esta rama. Esta tabla usa nombres 
 21. Las seis cifras del código caben en el campo a 320 px con el texto al 200 % (`text-2xl` en `angosto`).
 22. En el tema oscuro, la barra sigue en `tinta` con texto `papel` (invertida) y todos los pares de 10 se cumplen.
 23. Ningún color, tamaño ni sombra escrito a mano en `web/src/comercio/`: todo sale de los tokens y de las clases de esta especificación.
+24. **(v1.1)** Después de cada una de estas acciones, `document.activeElement` no es `body`:
+    - elegir una parte, en teléfono y en ancho: el `h1`;
+    - «Empezar a preparar»: el `h2` «Productos»;
+    - «Listo para retirar»: la nota 6.6;
+    - O3: la nota 6.8;
+    - cada resultado de 7.3: su nota;
+    - «Guardar» en «Tus productos»: «Cambiar cuántos tienes».
+25. **(v1.1)** A 1280 px y a 1920 px, en «Tus productos», el nombre de cada producto ocupa la columna izquierda sin partirse en sílabas, también en una fila con la nota «Tienes menos…». La columna derecha mide lo mismo en todas las filas.
 
 ---
 
