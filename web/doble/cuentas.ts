@@ -235,3 +235,33 @@ export const CORREOS_CREAR_CUENTA: CuentaDeEjemplo[] = [
   { email: CORREO_POLITICA_CAMBIO, que: 'Crear cuenta responde 409 politica-cambio la primera vez: «Actualizamos la política de privacidad.», la casilla se desmarca y la huella se vuelve a pedir. La segunda vez crea la cuenta' },
   { email: `persona@${DOMINIO_NO_PERMITIDO}`, que: 'Crear cuenta responde 422 dominio_no_permitido, como staging: «En este ambiente de prueba usa un correo terminado en @example.com.»' },
 ]
+
+/**
+ * MATU-63: las cuentas de la consola del comercio (doble/comercio.ts), en `/comercio/entrar`. `modo`
+ * es el comercio de cada una.
+ */
+export const CUENTAS_COMERCIO: (CuentaDeEjemplo & { modo: string })[] = [
+  {
+    email: 'comercio@example.com',
+    modo: 'comercio',
+    que: 'Almacén El Ejemplo (ficticio): por preparar (una atrasada), preparando, cuatro listas (código vigente, vencido, bloqueado y sin código), retirado y cancelado. C9N3FA se cancela 40 s después de abrirla y G4J8RB llega 65 s después de abrir la lista. Seis productos: sin disponibles, con menos de los apartados, sin ofrecer, y los guantes responden 412 la primera vez.',
+  },
+  { email: 'comercio-real@example.com', modo: 'comercio-real', que: 'El mismo, sin ficticio: sin «(comercio ficticio)», sin rótulos ni «Precio de ejemplo».' },
+  { email: 'comercio-inactivo@example.com', modo: 'comercio-inactivo', que: 'La cuenta de comercio no está activa (403).' },
+  { email: 'comercio-vacio@example.com', modo: 'comercio-vacio', que: 'Sin pedidos ni productos.' },
+  { email: 'comercio-falla@example.com', modo: 'comercio-falla', que: 'No se pueden traer los pedidos ni los productos (500).' },
+  { email: 'comercio-lento@example.com', modo: 'comercio-lento', que: 'Todo tarda 2 s: «Cargando los pedidos…» y «Cargando tus productos…».' },
+]
+
+/** MATU-63: los códigos de retiro del doble, en una parte lista con el código vigente (P5Q8ZA). */
+export const CODIGOS_RETIRO: { codigo: string; que: string }[] = [
+  { codigo: '482173', que: 'Correcto: el pedido queda retirado.' },
+  { codigo: '999999', que: 'Vencido.' },
+  { codigo: '888888', que: 'Ya retirado.' },
+  { codigo: '777777', que: 'El pedido se canceló.' },
+  { codigo: '666666', que: 'Bloqueado.' },
+  { codigo: '555555', que: 'Sin código.' },
+  { codigo: '444444', que: 'Demasiados intentos (429, 2 minutos).' },
+  { codigo: '333333', que: 'MATU no responde (503).' },
+  { codigo: 'otro', que: 'No es: quedan 4, 3, 2, 1 intentos y al quinto se bloquea.' },
+]

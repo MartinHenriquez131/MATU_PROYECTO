@@ -2,7 +2,7 @@
 // del diseñador (especificación MATU-23, sección 8). main.tsx lo carga bajo import.meta.env.DEV,
 // así que el build de producción no lo incluye. No es una pantalla de MATU.
 import { ESCENARIOS, PIN_DE_EJEMPLO, SIN_FRAGMENTO, TOKEN_LARGO } from '../../doble/escenarios'
-import { CODIGO_INVITACION_DE_EJEMPLO, CONTRASENA_DE_EJEMPLO, CORREOS_CREAR_CUENTA, CUENTAS, INVITACIONES_DE_EJEMPLO } from '../../doble/cuentas'
+import { CODIGO_INVITACION_DE_EJEMPLO, CODIGOS_RETIRO, CONTRASENA_DE_EJEMPLO, CORREOS_CREAR_CUENTA, CUENTAS, CUENTAS_COMERCIO, INVITACIONES_DE_EJEMPLO } from '../../doble/cuentas'
 import { CompartirDeEjemplo } from './CompartirDeEjemplo'
 
 export function Ejemplos() {
@@ -48,6 +48,28 @@ export function Ejemplos() {
               /invitacion#{e.token}
             </a>
             <span className="text-base text-tenue">{e.que}</span>
+          </li>
+        ))}
+      </ul>
+      <h2 className="text-xl font-bold">Consola del comercio (MATU-63)</h2>
+      <p className="text-tenue">
+        Abre <a className="font-bold text-turquesa underline" href="/comercio/entrar">/comercio/entrar</a> y entra con una de estas cuentas (la misma
+        contraseña). Una cuenta de comercio que entra por /entrar va sola a /comercio, y una de familia en /comercio/entrar ve el aviso.
+      </p>
+      <ul className="flex flex-col gap-3">
+        {CUENTAS_COMERCIO.map((c) => (
+          <li key={c.email} className="flex flex-col">
+            <b className="digitos">{c.email}</b>
+            <span className="text-base text-tenue">{c.que}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-tenue">Códigos de retiro en el pedido P5Q8ZA (o en uno que marques listo):</p>
+      <ul className="flex flex-col gap-3">
+        {CODIGOS_RETIRO.map((c) => (
+          <li key={c.codigo} className="flex flex-col">
+            <b className="digitos">{c.codigo}</b>
+            <span className="text-base text-tenue">{c.que}</span>
           </li>
         ))}
       </ul>
