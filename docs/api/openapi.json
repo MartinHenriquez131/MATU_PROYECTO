@@ -15955,6 +15955,22 @@
               "quitar"
             ],
             "title": "Si Falta"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "sin_stock",
+              "preparada",
+              "faltante",
+              "devuelta",
+              "eliminada"
+            ],
+            "title": "Estado"
+          },
+          "unidades_faltantes": {
+            "type": "integer",
+            "title": "Unidades Faltantes"
           }
         },
         "additionalProperties": false,
@@ -15966,7 +15982,9 @@
           "cantidad",
           "precio_unitario",
           "subtotal",
-          "si_falta"
+          "si_falta",
+          "estado",
+          "unidades_faltantes"
         ],
         "title": "LineaPedidoCopia"
       },
@@ -16416,6 +16434,31 @@
           "precios_de_ejemplo": {
             "type": "boolean",
             "title": "Precios De Ejemplo"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
+          },
+          "partes": {
+            "items": {
+              "$ref": "#/components/schemas/ParteCopia"
+            },
+            "type": "array",
+            "title": "Partes"
+          },
+          "retractos": {
+            "items": {
+              "$ref": "#/components/schemas/RetractoCopia"
+            },
+            "type": "array",
+            "title": "Retractos"
           }
         },
         "additionalProperties": false,
@@ -16431,7 +16474,10 @@
           "total",
           "entrega",
           "pago",
-          "precios_de_ejemplo"
+          "precios_de_ejemplo",
+          "entregado_en",
+          "partes",
+          "retractos"
         ],
         "title": "PedidoCopia"
       },
@@ -16571,7 +16617,8 @@
             "enum": [
               "pago_tardio",
               "producto_no_entregado",
-              "cancelacion"
+              "cancelacion",
+              "retracto"
             ],
             "title": "Motivo"
           },
@@ -16984,6 +17031,20 @@
               }
             ],
             "title": "Condiciones Aceptadas"
+          },
+          "retractos": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RetractoCuentaCopia"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retractos"
           }
         },
         "additionalProperties": false,
@@ -17003,7 +17064,8 @@
           "avisos_enviados",
           "envio_simulado",
           "pagos",
-          "condiciones_aceptadas"
+          "condiciones_aceptadas",
+          "retractos"
         ],
         "title": "CopiaDatosCuenta",
         "description": "Respuesta de GET /v1/yo/datos (MATU-54, decisiones 358 a 360)."
@@ -17038,7 +17100,14 @@
               "inicio_un_pago",
               "pago_aprobado",
               "pago_anulado",
-              "pidio_una_copia"
+              "pidio_una_copia",
+              "devolucion_a_la_tarjeta",
+              "pidio_un_retracto",
+              "codigo_de_retiro_generado",
+              "pedido_en_camino",
+              "pedido_entregado",
+              "pedido_no_entregado",
+              "retracto_resuelto"
             ],
             "title": "Tipo"
           },
@@ -18094,6 +18163,233 @@
           "lineas"
         ],
         "title": "SolicitudRetracto"
+      },
+      "LineaRetractoCopia": {
+        "properties": {
+          "producto": {
+            "type": "string",
+            "title": "Producto"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "producto",
+          "cantidad"
+        ],
+        "title": "LineaRetractoCopia"
+      },
+      "ParteCopia": {
+        "properties": {
+          "comercio": {
+            "type": "string",
+            "title": "Comercio"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "enviada",
+              "preparando",
+              "lista",
+              "retirada",
+              "cancelada"
+            ],
+            "title": "Estado"
+          },
+          "enviado_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enviado En"
+          },
+          "lista_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lista En"
+          },
+          "retirada_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirada En"
+          },
+          "cancelada_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelada En"
+          },
+          "motivo_cancelacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "producto_faltante",
+                  "familia_cancela"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Cancelacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "comercio",
+          "estado",
+          "enviado_en",
+          "lista_en",
+          "retirada_en",
+          "cancelada_en",
+          "motivo_cancelacion"
+        ],
+        "title": "ParteCopia",
+        "description": "MATU-63: la parte de cada comercio, sin su referencia ni nada del encargado."
+      },
+      "RetractoCopia": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "solicitado",
+              "devuelto",
+              "rechazado"
+            ],
+            "title": "Estado"
+          },
+          "solicitado_en": {
+            "type": "string",
+            "title": "Solicitado En"
+          },
+          "plazo_hasta": {
+            "type": "string",
+            "title": "Plazo Hasta"
+          },
+          "incluye_envio": {
+            "type": "boolean",
+            "title": "Incluye Envio"
+          },
+          "resuelto_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelto En"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaRetractoCopia"
+            },
+            "type": "array",
+            "title": "Lineas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estado",
+          "solicitado_en",
+          "plazo_hasta",
+          "incluye_envio",
+          "resuelto_en",
+          "lineas"
+        ],
+        "title": "RetractoCopia",
+        "description": "MATU-63 (R3): el retracto pedido, con sus productos y cómo se resolvió."
+      },
+      "RetractoCuentaCopia": {
+        "properties": {
+          "grupo": {
+            "type": "string",
+            "title": "Grupo"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "solicitado",
+              "devuelto",
+              "rechazado"
+            ],
+            "title": "Estado"
+          },
+          "solicitado_en": {
+            "type": "string",
+            "title": "Solicitado En"
+          },
+          "resuelto_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelto En"
+          },
+          "productos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Productos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grupo",
+          "referencia",
+          "estado",
+          "solicitado_en",
+          "resuelto_en",
+          "productos"
+        ],
+        "title": "RetractoCuentaCopia",
+        "description": "MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona."
       }
     },
     "securitySchemes": {

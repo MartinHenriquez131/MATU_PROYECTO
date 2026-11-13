@@ -312,3 +312,85 @@ def test_la_tarea_despacho_lleva_el_pedido_pagado_con_matu_scheduler(despacho: D
     )
     assert resultado.fallidos == 0 and resultado.avanzados >= 1
     assert d.estado_pedido(pedido["id"]) == "enviado_a_comercio"
+
+
+@pytest.mark.rf("RF-26")
+def test_operacion_genera_el_codigo_desde_la_consola_y_vence_solo(despacho: Despacho, monkeypatch: Any) -> None:
+    """D-63-5 (decisión 426): python -m app.tareas codigo-retiro <parte> con matu_scheduler. El código sale una vez por
+    la consola, nunca por el log, y la auditoría lo registra sin el código. D-63-13: la tarea despacho vacía la huella
+    del código vencido."""
+    import io
+
+    from pydantic import SecretStr
+
+    from app import tareas
+    from app.core.config import obtener_configuracion
+    from app.core.db import obtener_fabrica_sesiones
+    from app.modules.backoffice.infrastructure import tarea_despacho
+    from tests.base_datos import fabrica_scheduler
+    from tests.modules.backoffice.conftest import SECRETO_CODIGO
+
+    d = despacho
+    _, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag)
+    config = obtener_configuracion().model_copy(update={"codigo_retiro_secreto": SecretStr(SECRETO_CODIGO.decode())})
+    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: fabrica_scheduler())
+    logs, consola = io.StringIO(), io.StringIO()
+    assert tareas.codigo_retiro(parte, stream=logs, consola=consola, reloj=d.e.iam.reloj, config=config) == 0
+    [codigo] = re.findall(r"\b[0-9]{6}\b", consola.getvalue())
+    assert codigo not in logs.getvalue() and "codigo_retiro" in logs.getvalue()
+    assert d.sql("SELECT accion, actor_tipo, actor_ref, persona_cuidada_id IS NOT NULL FROM auditoria"
+                 " WHERE entidad_id = %s AND accion = 'codigo_retiro.generar'", uuid.UUID(parte)) == [
+        ("codigo_retiro.generar", "operacion", None, True)]
+    # Una parte que no existe, o un id que no es: falla sin escribir nada
+    assert tareas.codigo_retiro(str(uuid.uuid4()), stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj,
+                                config=config) == 1
+    assert tareas.codigo_retiro("no-es-un-id", stream=logs) == 2
+    # Sin el secreto, tampoco
+    sin_secreto = obtener_configuracion().model_copy(update={"codigo_retiro_secreto": None})
+    assert tareas.codigo_retiro(parte, stream=logs, consola=io.StringIO(), reloj=d.e.iam.reloj,
+                                config=sin_secreto) == 1
+    assert "CODIGO_RETIRO_SECRETO" in logs.getvalue()
+
+    # Vence a los 90 minutos: la tarea despacho vacía su huella sin que nadie lo pruebe
+    d.e.avanzar(VIDA_CODIGO + timedelta(seconds=1))
+    resultado = tarea_despacho.ejecutar(
+        obtener_configuracion(), obtener_fabrica_sesiones(), fabrica_scheduler(), d.e.iam.reloj, d.pasarela
+    )
+    assert resultado.codigos_vencidos >= 1
+    assert d.sql("SELECT codigo_hash FROM pedido_comercio WHERE id = %s", uuid.UUID(parte)) == [(None,)]
+    assert _validar(d, parte, codigo).json()["resultado"] == "vencido"
+
+
+@pytest.mark.rf("RF-37")
+def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despacho: Despacho) -> None:
+    """MATU-54 con MATU-63: «Datos de» suma las partes (sin su referencia), las unidades faltantes, las devoluciones y
+    los retractos; «Tus datos» de quien pidió el retracto, sus retractos."""
+    d = despacho
+    familia, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag, faltan=1)
+    assert _validar(d, parte, _codigo(d, parte)).json()["resultado"] == "correcto"
+    d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino")
+    d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
+    [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                  {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    assert r.status_code == 201, r.text
+    referencia_parte = d.sql("SELECT referencia FROM pedido_comercio WHERE id = %s", uuid.UUID(parte))[0][0]
+
+    copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [p] = [x for x in copia.json()["pedidos"] if x["estado"] == "entregado"]
+    assert [(x["estado"], x["unidades_faltantes"]) for x in p["lineas"]] == [("faltante", 1)]
+    assert [x["estado"] for x in p["partes"]] == ["retirada"] and p["entregado_en"] is not None
+    assert [x["motivo"] for x in p["pago"]["devoluciones"]] == ["producto_no_entregado"]
+    assert [(x["estado"], x["lineas"][0]["cantidad"]) for x in p["retractos"]] == [("solicitado", 1)]
+    assert referencia_parte not in copia.text
+    tipos = {h["tipo"] for h in copia.json()["historial"]["hechos"]}
+    assert {"pedido_entregado", "pidio_un_retracto", "codigo_de_retiro_generado", "devolucion_a_la_tarjeta"} <= tipos
+
+    cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
+    assert cuenta.status_code == 200, cuenta.text
+    assert [x["estado"] for x in cuenta.json()["retractos"]] == ["solicitado"]
