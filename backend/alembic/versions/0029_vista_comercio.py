@@ -175,7 +175,7 @@ PARTE_BORRA_0023 = "grupo_id = app_grupo() AND (SELECT app_escribe_pedido())"
 PARTE_BORRA_0029 = "grupo_id = app_grupo() AND enviado_en IS NULL AND (SELECT app_escribe_pedido())"
 FUNCION = "current_setting('app.funcion', true)"
 # El alfabeto de la referencia opaca (O6): sin 0, O, 1, I ni L
-ALFABETO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ALFABETO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # pragma: allowlist secret
 
 ESCRITURA_0024 = """
 DECLARE

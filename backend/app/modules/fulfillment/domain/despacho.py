@@ -23,7 +23,7 @@ CIFRAS_CODIGO = 6
 # «Preparar antes de»: dos horas desde que la parte llega al comercio. [PENDIENTE: el plazo real lo fija el convenio]
 PLAZO_PREPARAR = timedelta(hours=2)
 # O6: la referencia opaca se dicta en el mostrador. Sin 0, O, 1, I ni L
-ALFABETO_REFERENCIA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ALFABETO_REFERENCIA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # pragma: allowlist secret
 LARGO_REFERENCIA = 6
 
 

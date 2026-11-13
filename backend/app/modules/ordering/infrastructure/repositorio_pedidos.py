@@ -39,7 +39,7 @@ from app.shared.celular import normalizar_celular
 _SIN_PAGAR = ", ".join(f"'{e.value}'" for e in sorted(SIN_PAGAR))
 # Referencia opaca de cada parte por comercio (C22): aleatoria, nunca derivada del pedido ni del grupo
 # MATU-63 (O6): la referencia opaca de cada parte se dicta en el mostrador: 6 caracteres sin 0, O, 1, I ni L, al azar
-ALFABETO_REFERENCIA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ALFABETO_REFERENCIA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # pragma: allowlist secret
 LARGO_REFERENCIA = 6
 
 
