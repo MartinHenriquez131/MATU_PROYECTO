@@ -104,6 +104,15 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
 
     # R3: la familia se arrepiente de un pañal; operación lo recibe y devuelve a la misma tarjeta
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    # Un pedido que aceptó la 0.2 se cumple según la 0.2 (D-63-16): como superusuario, sin triggers, la versión
+    # aceptada pasa a 0.2 (la vigente es la 0.3)
+    import psycopg
+
+    from tests.base_datos import DSN
+
+    with psycopg.connect(DSN) as cx:
+        cx.execute("SET session_replication_role = replica")
+        cx.execute("UPDATE pedido SET condiciones_version = '0.2' WHERE id = %s", (uuid.UUID(pedido["id"]),))
     ver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia)
     assert ver.status_code == 200 and ver.json()["retractos"] == []
     r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
@@ -382,6 +391,8 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                   {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
     assert r.status_code == 201, r.text
+    # Con la 0.3, el envío vuelve solo si vuelve todo lo entregado (D-63-10, b): faltó uno y se devuelve el otro
+    assert (r.json()["monto"], r.json()["incluye_envio"]) == (PRECIO_PANAL + COSTO_ENVIO, True)
     referencia_parte = d.sql("SELECT referencia FROM pedido_comercio WHERE id = %s", uuid.UUID(parte))[0][0]
 
     copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
