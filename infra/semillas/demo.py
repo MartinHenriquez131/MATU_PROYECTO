@@ -1212,8 +1212,12 @@ def main(argv: Sequence[str] = ()) -> int:
         # MATU-59: el catálogo curado primero, porque los insumos se anotan con sus productos
         catalogo = sembrar_catalogo_demo(fabrica)
         resultado = sembrar(sembradora, contrasena, catalogo.productos)
-        _, comercio_creada = sembradora.cuenta_comercio(
-            CUENTA_COMERCIO, contrasena, catalogo.comercios[COMERCIO_DE_LA_CUENTA]
+        # Sin el comercio en el catálogo sembrado, no hay cuenta de comercio que crear
+        comercio_id = catalogo.comercios.get(COMERCIO_DE_LA_CUENTA)
+        comercio_creada = (
+            None
+            if comercio_id is None
+            else sembradora.cuenta_comercio(CUENTA_COMERCIO, contrasena, comercio_id)[1]
         )
     except SemillaInconsistente as error:
         print(f"No se pudo sembrar: {error}.", file=sys.stderr)
@@ -1233,8 +1237,9 @@ def main(argv: Sequence[str] = ()) -> int:
         estado = "creada" if c.creada else "ya existía, conserva su contraseña"
         print(f"  {c.grupo:<18} {c.nombre:<18} {c.rol + permiso:<20} {c.email:<24} {estado}")
 
-    estado = "creada" if comercio_creada else "ya existía, conserva su contraseña"
-    print(f"  {'Comercio':<18} {CUENTA_COMERCIO.nombre:<18} {'encargado':<20} {CUENTA_COMERCIO.email:<24} {estado}")
+    if comercio_creada is not None:
+        estado = "creada" if comercio_creada else "ya existía, conserva su contraseña"
+        print(f"  {'Comercio':<18} {CUENTA_COMERCIO.nombre:<18} {'encargado':<20} {CUENTA_COMERCIO.email:<24} {estado}")
 
     familias = resultado.familias
     print(
