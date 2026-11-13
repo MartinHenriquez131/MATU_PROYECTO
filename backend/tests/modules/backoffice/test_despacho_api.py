@@ -295,3 +295,20 @@ def test_operacion_no_salta_estados(despacho: Despacho) -> None:
     assert r.status_code == 409 and r.json()["type"] == "/errores/estado-pedido"
     parte = d.parte_de(pedido["id"])
     assert d.operacion("POST", f"/partes/{parte}/codigo").status_code == 409
+
+
+def test_la_tarea_despacho_lleva_el_pedido_pagado_con_matu_scheduler(despacho: Despacho) -> None:
+    """python -m app.tareas despacho: despacho_pendiente (matu_scheduler, solo ids) y cada pedido con el sistema."""
+    from app.core.config import obtener_configuracion
+    from app.core.db import obtener_fabrica_sesiones
+    from app.modules.backoffice.infrastructure import tarea_despacho
+    from tests.base_datos import fabrica_scheduler
+
+    d = despacho
+    _, pedido = d.pagado()
+    assert d.estado_pedido(pedido["id"]) == "pagado"
+    resultado = tarea_despacho.ejecutar(
+        obtener_configuracion(), obtener_fabrica_sesiones(), fabrica_scheduler(), d.e.iam.reloj, d.pasarela
+    )
+    assert resultado.fallidos == 0 and resultado.avanzados >= 1
+    assert d.estado_pedido(pedido["id"]) == "enviado_a_comercio"
