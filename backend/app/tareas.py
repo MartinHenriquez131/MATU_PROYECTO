@@ -26,6 +26,9 @@ Tareas:
   reintenta las anulaciones que no terminaron. Cada 5 minutos. Corre siempre, también con CAPA3_HABILITADA apagada
   (D-62-17): un pago que el banco ya aprobó se registra o se anula igual. Usa SCHEDULER_DATABASE_URL para
   pagos_por_conciliar (solo ids) y DATABASE_URL para cerrar cada venta con app.rol = 'sistema' y su grupo.
+- despacho: lleva al día los pedidos pagados y devuelve lo que faltó (backoffice, MATU-63, D-63-8). Cada 5 minutos.
+  Usa SCHEDULER_DATABASE_URL para despacho_pendiente (solo ids) y DATABASE_URL para cada pedido, con app.rol =
+  'sistema' y su grupo.
 - borrados: las seis de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones,
   conservacion_pedidos, conservacion_invitaciones y conservacion_relevo).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
@@ -195,6 +198,16 @@ def _conciliacion_pagos(ctx: Contexto) -> Salida:
     return Salida(FALLO if resultado.fallidas > 0 else OK, asdict(resultado))
 
 
+# MATU-63: se importa al correr (es de backoffice, capa 3). Lleva los pedidos pagados al día y devuelve lo que faltó
+TAREA_DESPACHO = "app.modules.backoffice.infrastructure.tarea_despacho"
+
+
+def _despacho(ctx: Contexto) -> Salida:
+    tarea = importlib.import_module(TAREA_DESPACHO)
+    resultado = tarea.ejecutar(ctx.config, ctx.fabrica, ctx.scheduler(), ctx.reloj)
+    return Salida(FALLO if resultado.fallidos > 0 else OK, asdict(resultado))
+
+
 TAREAS: dict[str, Tarea] = {
     "destruccion_fichas": _destruccion_fichas,
     "conservacion_consumo": _conservacion_consumo,
@@ -205,6 +218,7 @@ TAREAS: dict[str, Tarea] = {
     "quiebres": _quiebres,
     "avisos": _avisos,
     "conciliacion_pagos": _conciliacion_pagos,
+    "despacho": _despacho,
 }
 
 BORRADOS_DIARIOS: tuple[str, ...] = (
@@ -236,6 +250,8 @@ HORARIOS: dict[str, str] = {
     # MATU-62 (D-62-5): cada 5 minutos, el mínimo de Railway. Con la vida de la venta (10 minutos), una vuelta perdida
     # se cierra en menos de 15
     "conciliacion_pagos": "*/5 * * * *",
+    # MATU-63 (D-63-8): cada 5 minutos, para que un faltante se devuelva el mismo día aunque falle la primera vez
+    "despacho": "*/5 * * * *",
 }
 
 # Tope de espera para abrir una conexión, en segundos (connect_timeout de libpq). Sin él, con la base

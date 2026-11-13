@@ -80,6 +80,10 @@ ROUTERS_CAPA_3: tuple[str, ...] = (
     "app.modules.ordering.api.router_condiciones:router",
     # MATU-62: pagar y las lecturas del pago (decisión 241)
     "app.modules.payments.api.router:router",
+    # MATU-63: la vista del comercio, las rutas de operación y la familia después de pagar (decisión 407)
+    "app.modules.backoffice.api.router_comercio:router",
+    "app.modules.backoffice.api.router_operacion:router",
+    "app.modules.backoffice.api.router_familia:router",
 )
 
 # MATU-62 (D-62-17, decisión 241): la vuelta de Webpay no se apaga con CAPA3_HABILITADA. Un pago que el banco ya aprobó
@@ -231,6 +235,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
         "/v1/pedidos", "/v1/pagos",
         # MATU-42 (decisión 315): el grupo, sus miembros y sus invitaciones, también los errores
         "/v1/grupos",
+        # MATU-63: la vista del comercio y las rutas de operación
+        "/v1/comercio", "/v1/operacion",
     ):
         app.add_middleware(MiddlewareCabecerasPrefijo, prefijo=prefijo, cabeceras={"Cache-Control": "no-store"})
     app.add_middleware(MiddlewareRequestId)

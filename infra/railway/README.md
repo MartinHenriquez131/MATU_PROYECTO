@@ -55,6 +55,7 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `JWT_CLAVE` | Secreto nuevo de staging, distinto de los demás |
 | `PEPPER_PIN` | Secreto nuevo de staging, distinto de los demás |
 | `PEPPER_RECUPERACION` | Secreto nuevo de staging, distinto de los demás (MATU-57). Sin él, recuperar el acceso responde 503 |
+| `CODIGO_RETIRO_SECRETO` | MATU-63 (D-63-4): secreto nuevo de staging, de 32 caracteres o más y distinto de los demás. Llave del HMAC del código de retiro: la base guarda solo su huella. Solo en `matu-api`. Sin él, generar y validar el código de retiro responden 503 |
 | `CUSTODIA_KEK` | `entorno_sintetico` (decisión 105): enciende la ficha y el relevo |
 | `KEK_ENTORNO` | KEK nueva **propia de staging**, 32 bytes en base64: `python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"`. Nunca la de un `.env` local |
 | `KEK_VERSION` | `1` |
@@ -243,6 +244,7 @@ y su porqué están en `backend/README.md` (hallazgos H3 y H5):
 | `matu-cron-quiebres` | `python -m app.tareas quiebres` | `0 8 * * *` | 05:00 / 04:00 |
 | `matu-cron-avisos` | `python -m app.tareas avisos` | `*/5 * * * *` | cada 5 minutos, el mínimo de Railway |
 | `matu-cron-conciliacion` | `python -m app.tareas conciliacion_pagos` | `*/5 * * * *` | cada 5 minutos (MATU-62) |
+| `matu-cron-despacho` | `python -m app.tareas despacho` | `*/5 * * * *` | cada 5 minutos (MATU-63): lleva los pedidos pagados al día y devuelve lo que faltó. Con las variables de `conciliacion` (`DATABASE_URL`, `SCHEDULER_DATABASE_URL` y `PASARELA_PAGO`) |
 
 Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van como referencia a `matu-api`
 (`${{matu-api.DATABASE_URL}}`), sin copiar valores:
