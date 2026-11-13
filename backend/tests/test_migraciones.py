@@ -1423,7 +1423,7 @@ INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VAL
 
 
 # MATU-63: las acciones de persona que suma la 0029
-NUEVAS_0029 = {"pago.devolver", "pedido.retracto_solicitar", "despacho.codigo_generar", "despacho.en_camino",
+NUEVAS_0029 = {"pago.devolver", "pedido.retracto_solicitar", "codigo_retiro.generar", "despacho.en_camino",
                "despacho.entregar", "despacho.no_entregado", "retracto.resolver"}
 
 

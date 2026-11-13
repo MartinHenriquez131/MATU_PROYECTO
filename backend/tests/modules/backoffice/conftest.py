@@ -32,7 +32,7 @@ from tests.modules.payments.conftest import (  # noqa: F401
 )
 from tests.modules.payments.conftest import rutas_de_prueba as rutas_del_pago
 
-SECRETO_CODIGO = secrets.token_bytes(32)
+SECRETO_CODIGO = secrets.token_urlsafe(48).encode()
 
 
 @pytest.fixture

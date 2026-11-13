@@ -122,7 +122,7 @@ class AccionAuditoria(StrEnum):
     # MATU-63: la familia, MATU (operación) y el sistema, con el grupo y la persona del pedido. Sin montos ni el código
     PAGO_DEVOLVER = "pago.devolver"
     PEDIDO_RETRACTO_SOLICITAR = "pedido.retracto_solicitar"
-    DESPACHO_CODIGO_GENERAR = "despacho.codigo_generar"
+    CODIGO_RETIRO_GENERAR = "codigo_retiro.generar"
     DESPACHO_EN_CAMINO = "despacho.en_camino"
     DESPACHO_ENTREGAR = "despacho.entregar"
     DESPACHO_NO_ENTREGADO = "despacho.no_entregado"
@@ -207,7 +207,7 @@ ACCIONES_DE_PERSONA = frozenset(
         # MATU-63 (0029)
         AccionAuditoria.PAGO_DEVOLVER,
         AccionAuditoria.PEDIDO_RETRACTO_SOLICITAR,
-        AccionAuditoria.DESPACHO_CODIGO_GENERAR,
+        AccionAuditoria.CODIGO_RETIRO_GENERAR,
         AccionAuditoria.DESPACHO_EN_CAMINO,
         AccionAuditoria.DESPACHO_ENTREGAR,
         AccionAuditoria.DESPACHO_NO_ENTREGADO,

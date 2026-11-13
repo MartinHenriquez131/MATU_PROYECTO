@@ -40,6 +40,12 @@ l) La auditoría del comercio va sin grupo: auditoria_cuenta_acotada suma sus ac
 m) despacho_resolver_parte (sistema, sin grupo ni cuenta) y despacho_pendiente (matu_scheduler, app.rol =
    'operacion'): solo ids, para que el sistema lleve el estado del pedido y devuelva lo que falta.
 n) oferta: el comercio cambia solo stock y disponible (trigger oferta_comercio_acotada).
+o) Operación genera el código desde la consola hasta MATU-81 (python -m app.tareas codigo-retiro):
+   codigo_retiro_guardar, solo para matu_scheduler con app.rol = 'operacion', guarda la huella de una parte lista
+   y audita codigo_retiro.generar sin el código. codigo_retiro_vencer (la tarea despacho) vacía la huella de los
+   códigos vencidos (D-63-4 y D-63-13): el hash se borra al usarse, al bloquearse y al vencer sin que nadie lo pruebe.
+p) D-63-13: el retracto sigue a su pedido (ON DELETE CASCADE) y su anulación queda con el pago (retracto_id ON DELETE
+   SET NULL), como la línea.
 
 backend/db/*.sql no se tocan. downgrade() deja el esquema como en 0028. Falla si quedan filas que no caben en el
 esquema anterior (una devolución parcial, una anulación por retracto o dos consumos de un mismo pedido), como las
@@ -139,7 +145,7 @@ ACCIONES_DE_PERSONA_0029 = (
     *ACCIONES_DE_PERSONA_0028,
     "pago.devolver",
     "pedido.retracto_solicitar",
-    "despacho.codigo_generar",
+    "codigo_retiro.generar",
     "despacho.en_camino",
     "despacho.entregar",
     "despacho.no_entregado",
@@ -319,6 +325,69 @@ REVOKE ALL ON FUNCTION comercio_exigir_sesion() FROM PUBLIC;
 """
 
 DEFINIDOR = "SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp"
+
+FUNCIONES_CODIGO = f"""
+-- (o) La huella del código de una parte lista, desde la consola de operación. Devuelve ok, no_encontrada o estado
+CREATE FUNCTION codigo_retiro_guardar(p_parte uuid, p_hash text, p_generado timestamptz, p_expira timestamptz)
+    RETURNS text LANGUAGE plpgsql VOLATILE {DEFINIDOR} AS
+$$
+DECLARE
+    v_parte public.pedido_comercio%ROWTYPE;
+    v_persona uuid;
+BEGIN
+    IF public.app_rol() IS DISTINCT FROM 'operacion' THEN
+        RAISE EXCEPTION 'codigo_retiro_guardar exige app.rol = operacion' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF p_hash IS NULL OR p_hash !~ '^[0-9a-f]{{64}}$' OR p_generado IS NULL OR p_generado > now() + interval '5 minutes'
+       OR p_expira IS DISTINCT FROM p_generado + interval '90 minutes' THEN
+        RAISE EXCEPTION 'huella o plazo del código fuera de forma' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+    PERFORM set_config('app.funcion', 'codigo_retiro', true);
+    SELECT * INTO v_parte FROM public.pedido_comercio pc WHERE pc.id = p_parte FOR UPDATE;
+    IF NOT FOUND THEN
+        PERFORM set_config('app.funcion', '', true);
+        RETURN 'no_encontrada';
+    END IF;
+    IF v_parte.estado <> 'lista' THEN
+        PERFORM set_config('app.funcion', '', true);
+        RETURN 'estado';
+    END IF;
+    UPDATE public.pedido_comercio SET codigo_hash = p_hash, codigo_generado_en = p_generado,
+           codigo_expira_en = p_expira, codigo_usado_en = NULL, codigo_intentos = 0, codigo_bloqueado_en = NULL,
+           version = version + 1
+     WHERE id = p_parte;
+    SELECT p.persona_cuidada_id INTO v_persona FROM public.pedido p WHERE p.id = v_parte.pedido_id;
+    INSERT INTO public.auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad, entidad_id, persona_cuidada_id,
+                                  ocurrido_en)
+        VALUES (v_parte.grupo_id, 'operacion', NULL, 'codigo_retiro.generar', 'pedido_comercio', p_parte, v_persona,
+                p_generado);
+    PERFORM set_config('app.funcion', '', true);
+    RETURN 'ok';
+END $$;
+REVOKE ALL ON FUNCTION codigo_retiro_guardar(uuid, text, timestamptz, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION codigo_retiro_guardar(uuid, text, timestamptz, timestamptz) TO matu_scheduler;
+
+-- (o) D-63-13: la huella de un código vencido se vacía aunque nadie lo pruebe. Devuelve cuántas
+CREATE FUNCTION codigo_retiro_vencer(p_ahora timestamptz) RETURNS integer LANGUAGE plpgsql VOLATILE {DEFINIDOR} AS
+$$
+DECLARE
+    v_vaciados integer;
+BEGIN
+    IF public.app_rol() IS DISTINCT FROM 'operacion' THEN
+        RAISE EXCEPTION 'codigo_retiro_vencer exige app.rol = operacion' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF p_ahora IS NULL OR p_ahora > now() + interval '5 minutes' THEN
+        RAISE EXCEPTION 'ahora no puede estar en el futuro' USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+    PERFORM set_config('app.funcion', 'codigo_retiro', true);
+    UPDATE public.pedido_comercio SET codigo_hash = NULL WHERE codigo_hash IS NOT NULL AND codigo_expira_en <= p_ahora;
+    GET DIAGNOSTICS v_vaciados = ROW_COUNT;
+    PERFORM set_config('app.funcion', '', true);
+    RETURN v_vaciados;
+END $$;
+REVOKE ALL ON FUNCTION codigo_retiro_vencer(timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION codigo_retiro_vencer(timestamptz) TO matu_scheduler;
+"""
 
 FUNCIONES_COMERCIO = f"""
 -- Las partes del comercio de la sesión: las abiertas y las cerradas desde p_desde. Sin pedido, grupo, persona,
@@ -734,7 +803,10 @@ CREATE POLICY pedido_comercio_funcion_comercio_editar ON pedido_comercio FOR UPD
     USING ({FUNCION} = 'comercio' AND comercio_id = app_comercio() AND enviado_en IS NOT NULL)
     WITH CHECK ({FUNCION} = 'comercio' AND comercio_id = app_comercio() AND enviado_en IS NOT NULL);
 CREATE POLICY pedido_comercio_funcion_leer ON pedido_comercio FOR SELECT TO matu_owner
-    USING ({FUNCION} IN ('disponible', 'despacho'));
+    USING ({FUNCION} IN ('disponible', 'despacho', 'codigo_retiro'));
+-- (o) El código desde la consola de operación
+CREATE POLICY pedido_comercio_funcion_codigo ON pedido_comercio FOR UPDATE TO matu_owner
+    USING ({FUNCION} = 'codigo_retiro') WITH CHECK ({FUNCION} = 'codigo_retiro');
 CREATE POLICY linea_funcion_comercio ON pedido_linea FOR SELECT TO matu_owner
     USING ({FUNCION} = 'comercio' AND EXISTS (SELECT 1 FROM pedido_comercio pc
            WHERE pc.id = pedido_linea.pedido_comercio_id AND pc.comercio_id = app_comercio()));
@@ -746,7 +818,7 @@ CREATE POLICY linea_funcion_comercio_editar ON pedido_linea FOR UPDATE TO matu_o
 CREATE POLICY linea_funcion_leer ON pedido_linea FOR SELECT TO matu_owner
     USING ({FUNCION} IN ('disponible', 'despacho'));
 CREATE POLICY pedido_funcion_leer ON pedido FOR SELECT TO matu_owner
-    USING ({FUNCION} IN ('disponible', 'despacho')
+    USING ({FUNCION} IN ('disponible', 'despacho', 'codigo_retiro')
            OR ({FUNCION} = 'comercio' AND EXISTS (SELECT 1 FROM pedido_comercio pc
                WHERE pc.pedido_id = pedido.id AND pc.comercio_id = app_comercio())));
 -- Solo para bloquear el pedido (FOR UPDATE) al empezar a preparar: nunca escribe
@@ -855,7 +927,7 @@ GRANT SELECT, INSERT ON retracto_linea TO matu_app;
 ALTER TABLE transaccion_pasarela DROP CONSTRAINT transaccion_pasarela_motivo_anulacion_check;
 ALTER TABLE transaccion_pasarela ADD CONSTRAINT transaccion_pasarela_motivo_anulacion_check
     CHECK (motivo_anulacion IN ('pago_tardio', 'producto_no_entregado', 'cancelacion', 'retracto'));
-ALTER TABLE transaccion_pasarela ADD COLUMN retracto_id uuid REFERENCES retracto(id);
+ALTER TABLE transaccion_pasarela ADD COLUMN retracto_id uuid REFERENCES retracto(id) ON DELETE SET NULL;
 ALTER TABLE transaccion_pasarela ADD CONSTRAINT transaccion_retracto_de_anulacion
     CHECK (retracto_id IS NULL OR motivo_anulacion = 'retracto');
 DROP INDEX transaccion_linea_devuelta_uq;
@@ -935,12 +1007,17 @@ CREATE POLICY auditoria_comercio_propia ON auditoria AS RESTRICTIVE FOR INSERT T
 {EXIGIR_SESION}
 {FUNCIONES_COMERCIO}
 {PERMISOS_FUNCIONES}
+{FUNCIONES_CODIGO}
 
 SELECT set_config('app.rol', '', true);
 """
 
 DOWNGRADE = f"""
 SELECT set_config('app.rol', 'operacion', true);
+
+-- (o)
+DROP FUNCTION codigo_retiro_vencer(timestamptz);
+DROP FUNCTION codigo_retiro_guardar(uuid, text, timestamptz, timestamptz);
 
 -- (a) y (m)
 DROP FUNCTION despacho_pendiente(integer);
@@ -1032,6 +1109,7 @@ DROP POLICY pedido_funcion_leer ON pedido;
 DROP POLICY linea_funcion_leer ON pedido_linea;
 DROP POLICY linea_funcion_comercio_editar ON pedido_linea;
 DROP POLICY linea_funcion_comercio ON pedido_linea;
+DROP POLICY pedido_comercio_funcion_codigo ON pedido_comercio;
 DROP POLICY pedido_comercio_funcion_leer ON pedido_comercio;
 DROP POLICY pedido_comercio_funcion_comercio_editar ON pedido_comercio;
 DROP POLICY pedido_comercio_funcion_comercio ON pedido_comercio;

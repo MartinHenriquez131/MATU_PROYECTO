@@ -115,7 +115,7 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "comercio.productos_cambiar",
         "pago.devolver",
         "pedido.retracto_solicitar",
-        "despacho.codigo_generar",
+        "codigo_retiro.generar",
         "despacho.en_camino",
         "despacho.entregar",
         "despacho.no_entregado",

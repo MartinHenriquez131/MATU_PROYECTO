@@ -163,7 +163,7 @@ def generar_codigo(
         )
         if not guardado:
             raise ErrorMATU(409, tipo="estado-parte", detalle="La parte no está lista para retirar")
-        _auditar(u, operador, AccionAuditoria.DESPACHO_CODIGO_GENERAR, EntidadAuditoria.PEDIDO_COMERCIO,
+        _auditar(u, operador, AccionAuditoria.CODIGO_RETIRO_GENERAR, EntidadAuditoria.PEDIDO_COMERCIO,
                  identificador, fila.grupo_id, pedido.persona_id, request)
     respuesta.headers["Cache-Control"] = "no-store"
     return CodigoGenerado(parte_id=identificador, codigo=codigo, expira_en=ahora + VIDA_CODIGO)

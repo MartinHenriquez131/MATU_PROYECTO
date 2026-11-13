@@ -14,9 +14,11 @@ contadores.
 import logging
 from dataclasses import dataclass
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Configuracion
+from app.core.db import sesion_tenant
 from app.modules.backoffice.application.despacho import llevar
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL, pendientes
 from app.modules.payments.application.ports import PasarelaWebpay
@@ -26,6 +28,8 @@ from app.shared.puertos import Reloj
 log = logging.getLogger("matu.backoffice.despacho")
 
 LOTE = 200
+# D-63-13: la huella de los códigos vencidos se vacía aunque nadie los pruebe (codigo_retiro_vencer, 0029)
+_VENCER = text("SELECT codigo_retiro_vencer(:ahora)")
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,7 @@ class ResultadoDespacho:
     revisados: int = 0
     avanzados: int = 0
     fallidos: int = 0
+    codigos_vencidos: int = 0
 
 
 def ejecutar(
@@ -54,5 +59,10 @@ def ejecutar(
         except Exception as error:  # noqa: BLE001 - un pedido que falla no detiene a los demás
             fallidos += 1
             log.warning("pedido del despacho fallo", extra={"tipo_error": type(error).__name__})
-    log.info("despacho: %d revisados, %d avanzados, %d fallidos", revisados, avanzados, fallidos)
-    return ResultadoDespacho(revisados, avanzados, fallidos)
+    with sesion_tenant(fabrica_scheduler, rol="operacion") as sesion:
+        vencidos = int(sesion.execute(_VENCER, {"ahora": reloj.ahora()}).scalar_one())
+    log.info(
+        "despacho: %d revisados, %d avanzados, %d fallidos, %d codigos vencidos", revisados, avanzados, fallidos,
+        vencidos,
+    )
+    return ResultadoDespacho(revisados, avanzados, fallidos, vencidos)

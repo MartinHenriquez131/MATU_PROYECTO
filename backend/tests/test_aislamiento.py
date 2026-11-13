@@ -2668,6 +2668,10 @@ FUNCIONES_SCHEDULER = {
     "relevo_conservar": "SELECT relevo_conservar(now() - interval '30 days', now())",
     # MATU-63 (D-63-8): lo que el despacho tiene que llevar, solo ids
     "despacho_pendiente": "SELECT * FROM despacho_pendiente(10)",
+    # MATU-63 (D-63-5 y D-63-13): el código desde la consola de operación y el vaciado de los vencidos
+    "codigo_retiro_guardar": "SELECT codigo_retiro_guardar(gen_random_uuid(), repeat('a', 64), now(),"
+                             " now() + interval '90 minutes')",
+    "codigo_retiro_vencer": "SELECT codigo_retiro_vencer(now())",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -3887,7 +3891,7 @@ def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
 
 MARCAS_0026 = ("invitacion", "membresia_retirar")
 # MATU-63 (0029): las marcas de las funciones del comercio, del apartado, del despacho y de las cuentas
-MARCAS_0029 = ("comercio", "disponible", "despacho", "cuentas")
+MARCAS_0029 = ("comercio", "disponible", "despacho", "cuentas", "codigo_retiro")
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -4322,3 +4326,35 @@ def test_una_linea_se_anula_una_vez_por_motivo(cx):
     cx.execute(insertar, (CARGO_A, "MATU-A2", "a2", venta, "retracto", linea))
     with pytest.raises(errors.UniqueViolation):
         cx.execute(insertar, (CARGO_A, "MATU-A3", "a3", venta, "retracto", linea))
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_d63_13_las_partes_lineas_y_retractos_siguen_al_pedido_y_las_anulaciones_al_pago(cx):
+    """D-63-13: al borrar un pedido (cuando venza su plazo de 2 años), sus partes, líneas y retractos se van con él; la
+    anulación de un retracto se queda con el pago (6 años), sin el retracto."""
+    reglas = dict(cx.execute("""
+        SELECT conrelid::regclass::text || '.' || a.attname, c.confdeltype
+          FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+         WHERE c.contype = 'f' AND conrelid::regclass::text IN
+               ('pedido_comercio', 'pedido_linea', 'retracto', 'retracto_linea', 'transaccion_pasarela')""").fetchall())
+    assert reglas["pedido_comercio.pedido_id"] == "c" and reglas["pedido_linea.pedido_id"] == "c"
+    assert reglas["retracto.pedido_id"] == "c" and reglas["retracto_linea.retracto_id"] == "c"
+    assert reglas["retracto_linea.pedido_linea_id"] == "c"
+    assert reglas["transaccion_pasarela.retracto_id"] == "n"
+
+
+@pytest.mark.rf("RF-26")
+def test_el_codigo_desde_la_consola_es_solo_para_matu_scheduler_y_parte_lista(cx):
+    """D-63-5: codigo_retiro_guardar no la ejecuta matu_app, ni con operación; con una parte que no está lista no
+    escribe nada."""
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '90 minutes')",
+                   (PARTE_A,))
+    cx.execute("RESET ROLE")
+    como(cx, "matu_scheduler", rol="operacion")
+    assert cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '90 minutes')",
+                      (PARTE_A,)).fetchone() == ("estado",)
+    # Un plazo distinto de 90 minutos no entra
+    with pytest.raises(errors.InvalidParameterValue), cx.transaction():
+        cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '1 day')", (PARTE_A,))
