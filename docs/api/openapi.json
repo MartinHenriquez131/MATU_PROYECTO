@@ -8019,6 +8019,1381 @@
           }
         }
       }
+    },
+    "/v1/comercio": {
+      "get": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Ver Comercio",
+        "description": "El comercio de la cuenta: nombre de fantasía, si es de prueba y el contacto de MATU (O2).",
+        "operationId": "ver_comercio_v1_comercio_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComercioDeLaCuenta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/comercio/partes": {
+      "get": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Listar Partes",
+        "description": "Las partes del comercio: las por preparar, preparando y listas, y las retiradas o canceladas hoy (fecha de Chile). Solo la proyección de D-63-1: referencia opaca, estado, cuándo llegó, «preparar antes de» (dos horas después), el estado del código y el número de productos.",
+        "operationId": "listar_partes_v1_comercio_partes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPartes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/comercio/partes/{parte_id}": {
+      "get": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Ver Parte",
+        "description": "Una parte con sus productos y lo marcado. El ETag es la versión de la parte.",
+        "operationId": "ver_parte_v1_comercio_partes__parte_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParteVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/comercio/partes/{parte_id}/preparar": {
+      "post": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Preparar",
+        "description": "«Empezar a preparar»: de enviada a preparando. Desde aquí la familia ya no cancela (R15).",
+        "operationId": "preparar_v1_comercio_partes__parte_id__preparar_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParteVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-parte: la parte no está en el estado que la acción pide",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual de la parte",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, o lineas-pendientes al marcar listo",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/comercio/partes/{parte_id}/lineas/{linea_id}": {
+      "put": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Marcar Linea",
+        "description": "Marca un producto: «Lo tengo» (preparada) o «No lo tengo» (faltante, con cuántos faltan; sin el número, faltan todos). Se puede cambiar mientras la parte esté preparando (O4). No mueve dinero.",
+        "operationId": "marcar_linea_v1_comercio_partes__parte_id__lineas__linea_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          },
+          {
+            "name": "linea_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Linea Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudMarca"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParteVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-parte: la parte no está en el estado que la acción pide",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual de la parte",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, o lineas-pendientes al marcar listo",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/comercio/partes/{parte_id}/listo": {
+      "post": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Listo",
+        "description": "«Listo para retirar»: con todo marcado, la parte queda lista, y lo preparado sale del stock (O5). Si no tiene ninguno, queda cancelada con motivo producto_faltante (O3). Después, el sistema devuelve lo que faltó a la misma tarjeta (D-63-8).",
+        "operationId": "listo_v1_comercio_partes__parte_id__listo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParteVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-parte: la parte no está en el estado que la acción pide",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual de la parte",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, o lineas-pendientes al marcar listo",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/comercio/partes/{parte_id}/validar-codigo": {
+      "post": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Validar Codigo",
+        "description": "Revisa el código que muestra quien retira. El código va solo en el cuerpo. Correcto: la parte queda retirada. Cinco intentos fallidos lo bloquean; vence a los 90 minutos y sirve una vez (D-63-4).",
+        "operationId": "validar_codigo_v1_comercio_partes__parte_id__validar_codigo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCodigo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoCodigoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "El código no son 6 cifras. No cuenta como intento",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiados-intentos: 20 por hora por cuenta, con Retry-After",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Falta CODIGO_RETIRO_SECRETO o PEPPER_LIMITES, o Redis no responde",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/comercio/productos": {
+      "get": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Listar Productos",
+        "description": "Los productos del comercio: precio (solo lectura), stock, apartado y disponibles (O5).",
+        "operationId": "listar_productos_v1_comercio_productos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaProductos"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/comercio/productos/{oferta_id}": {
+      "patch": {
+        "tags": [
+          "comercio"
+        ],
+        "summary": "Cambiar Producto",
+        "description": "Cambia cuántos tiene (0 a 9.999) y si lo ofrece en MATU. Nunca el precio (D-63-2).",
+        "operationId": "cambiar_producto_v1_comercio_productos__oferta_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "oferta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Oferta Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudProducto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductoDelComercio"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "403": {
+            "description": "comercio-inactivo: la cuenta o el comercio no están activos",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de comercio, o la parte o la línea no son de este comercio",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual de la parte",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido, o lineas-pendientes al marcar listo",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Listar Pedidos",
+        "description": "Los pedidos pagados en curso con sus partes y el estado del código de cada una.",
+        "operationId": "listar_pedidos_v1_operacion_pedidos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPedidosOperacion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/operacion/partes/{parte_id}/codigo": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Generar Codigo",
+        "description": "Genera (o regenera) el código de retiro de una parte lista y lo devuelve una sola vez (D-63-5). Vale 90 minutos y sirve una vez. Quien retira por MATU lo muestra en el comercio; la familia no lo ve.",
+        "operationId": "generar_codigo_v1_operacion_partes__parte_id__codigo_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "parte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Parte Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodigoGenerado"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Falta CODIGO_RETIRO_SECRETO",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/en-camino": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "En Camino",
+        "description": "Retirado (o reprogramado tras no entregarse) → en_ruta (D-63-6).",
+        "operationId": "en_camino_v1_operacion_pedidos__pedido_id__en_camino_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoPedidoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/entregado": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Entregado",
+        "description": "en_ruta → entregado. Fija entregado_en, desde donde corren los 10 días hábiles del retracto, y registra lo que MATU debe a cada comercio por lo retirado (consumo_comercio, RF-31), con la boleta pendiente.",
+        "operationId": "entregado_v1_operacion_pedidos__pedido_id__entregado_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoPedidoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/no-entregado": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "No Entregado",
+        "description": "en_ruta → no_entregado: nadie recibió el pedido (D-63-6).",
+        "operationId": "no_entregado_v1_operacion_pedidos__pedido_id__no_entregado_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoPedidoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/retractos": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Listar Retractos",
+        "description": "Los retractos por resolver, con lo que se devolvería.",
+        "operationId": "listar_retractos_v1_operacion_retractos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaRetractos"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/operacion/retractos/{retracto_id}/resolver": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Resolver Retracto",
+        "description": "Operación recibió el producto. «devolver»: anula a la misma tarjeta los productos y, si corresponde, el envío (motivo retracto). «rechazar»: el sello no venía intacto. Antes de 45 días desde la solicitud (D-63-10).",
+        "operationId": "resolver_retracto_v1_operacion_retractos__retracto_id__resolver_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retracto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Retracto Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudResolverRetracto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetractoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin PASARELA_PAGO no se puede devolver",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pedidos/{pedido_id}/cancelar-con-devolucion": {
+      "post": {
+        "tags": [
+          "pedidos"
+        ],
+        "summary": "Cancelar Con Devolucion",
+        "description": "R15 (D-63-11): el admin cancela un pedido pagado mientras ningún comercio empezó a preparar. Se devuelve todo, envío incluido, a la misma tarjeta, y las partes quedan canceladas. Pantalla en MATU-92.",
+        "operationId": "cancelar_con_devolucion_v1_pedidos__pedido_id__cancelar_con_devolucion_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoPedidoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El rol no alcanza, o el pedido no es del grupo o no se entregó",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "ya-se-prepara: un comercio empezó a preparar, o el pedido no está pagado",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin PASARELA_PAGO no se puede devolver: no se cancela",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pedidos/{pedido_id}/retractos": {
+      "get": {
+        "tags": [
+          "pedidos"
+        ],
+        "summary": "Ver Retractos",
+        "description": "Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92.",
+        "operationId": "ver_retractos_v1_pedidos__pedido_id__retractos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetractosDelPedido"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El rol no alcanza, o el pedido no es del grupo o no se entregó",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pedidos"
+        ],
+        "summary": "Pedir Retracto",
+        "description": "R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. Pantalla en MATU-92.",
+        "operationId": "pedir_retracto_v1_pedidos__pedido_id__retractos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          },
+          {
+            "name": "X-Grupo-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Grupo-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudRetracto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetractoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "El rol no alcanza, o el pedido no es del grupo o no se entregó",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "fuera-de-plazo: pasaron los 10 días hábiles (extensión plazo_hasta)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "producto-no-retractable: un producto no se entregó, ya se pidió o la cantidad no calza",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10440,6 +11815,15 @@
           "expira_en": {
             "type": "integer",
             "title": "Expira En"
+          },
+          "tipo_cuenta": {
+            "type": "string",
+            "enum": [
+              "familia",
+              "comercio"
+            ],
+            "title": "Tipo Cuenta",
+            "default": "familia"
           }
         },
         "type": "object",
@@ -15927,6 +17311,789 @@
         ],
         "title": "GrupoQueDejasteCopia",
         "description": "F2 del cierre del analista (decisión 401): una membresía retirada, sin el nombre del grupo, que ya no se puede\nleer. La pantalla la muestra como «Un grupo del que saliste»."
+      },
+      "CodigoGenerado": {
+        "properties": {
+          "parte_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Parte Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "expira_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira En"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parte_id",
+          "codigo",
+          "expira_en"
+        ],
+        "title": "CodigoGenerado",
+        "description": "El código se muestra **una sola vez**: no se guarda en claro ni se puede volver a leer (D-63-5)."
+      },
+      "ComercioDeLaCuenta": {
+        "properties": {
+          "nombre_fantasia": {
+            "type": "string",
+            "title": "Nombre Fantasia"
+          },
+          "ficticio": {
+            "type": "boolean",
+            "title": "Ficticio"
+          },
+          "contacto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacto",
+            "description": "El correo de contacto de MATU (CORREO_PRIVACIDAD), o null si no está configurado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nombre_fantasia",
+          "ficticio",
+          "contacto"
+        ],
+        "title": "ComercioDeLaCuenta",
+        "description": "GET /v1/comercio: la barra de la consola, el rótulo del piloto y el contacto de «Avisa a MATU» (O2)."
+      },
+      "EstadoPedidoVista": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "estado"
+        ],
+        "title": "EstadoPedidoVista"
+      },
+      "LineaComercioVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "$ref": "#/components/schemas/ProductoLinea"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "estado_linea": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "preparada",
+              "faltante",
+              "devuelta"
+            ],
+            "title": "Estado Linea"
+          },
+          "unidades_faltantes": {
+            "type": "integer",
+            "title": "Unidades Faltantes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "cantidad",
+          "estado_linea",
+          "unidades_faltantes"
+        ],
+        "title": "LineaComercioVista"
+      },
+      "LineaRetracto": {
+        "properties": {
+          "linea_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Linea Id"
+          },
+          "cantidad": {
+            "type": "integer",
+            "maximum": 9999.0,
+            "minimum": 1.0,
+            "title": "Cantidad"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "linea_id",
+          "cantidad"
+        ],
+        "title": "LineaRetracto"
+      },
+      "ListaPartes": {
+        "properties": {
+          "partes": {
+            "items": {
+              "$ref": "#/components/schemas/ParteResumen"
+            },
+            "type": "array",
+            "title": "Partes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "partes"
+        ],
+        "title": "ListaPartes",
+        "description": "GET /v1/comercio/partes: las abiertas y las cerradas hoy (fecha de Chile)."
+      },
+      "ListaPedidosOperacion": {
+        "properties": {
+          "pedidos": {
+            "items": {
+              "$ref": "#/components/schemas/PedidoOperacion"
+            },
+            "type": "array",
+            "title": "Pedidos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pedidos"
+        ],
+        "title": "ListaPedidosOperacion"
+      },
+      "ListaProductos": {
+        "properties": {
+          "productos": {
+            "items": {
+              "$ref": "#/components/schemas/ProductoDelComercio"
+            },
+            "type": "array",
+            "title": "Productos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "productos"
+        ],
+        "title": "ListaProductos"
+      },
+      "ListaRetractos": {
+        "properties": {
+          "retractos": {
+            "items": {
+              "$ref": "#/components/schemas/RetractoVista"
+            },
+            "type": "array",
+            "title": "Retractos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retractos"
+        ],
+        "title": "ListaRetractos"
+      },
+      "ParteOperacion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "comercio": {
+            "type": "string",
+            "title": "Comercio"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "enviada",
+              "preparando",
+              "lista",
+              "retirada",
+              "cancelada"
+            ],
+            "title": "Estado"
+          },
+          "estado_codigo": {
+            "type": "string",
+            "enum": [
+              "sin_codigo",
+              "vigente",
+              "usado",
+              "bloqueado",
+              "vencido"
+            ],
+            "title": "Estado Codigo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "comercio",
+          "referencia",
+          "estado",
+          "estado_codigo"
+        ],
+        "title": "ParteOperacion"
+      },
+      "ParteResumen": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia",
+            "description": "Seis caracteres sin 0, O, 1, I ni L, aleatoria por parte (O6)"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "enviada",
+              "preparando",
+              "lista",
+              "retirada",
+              "cancelada"
+            ],
+            "title": "Estado"
+          },
+          "enviado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Enviado En"
+          },
+          "preparar_antes_de": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Preparar Antes De"
+          },
+          "estado_codigo": {
+            "type": "string",
+            "enum": [
+              "sin_codigo",
+              "vigente",
+              "usado",
+              "bloqueado",
+              "vencido"
+            ],
+            "title": "Estado Codigo"
+          },
+          "numero_lineas": {
+            "type": "integer",
+            "title": "Numero Lineas"
+          },
+          "retirada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirada En"
+          },
+          "cancelada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelada En"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "referencia",
+          "estado",
+          "enviado_en",
+          "preparar_antes_de",
+          "estado_codigo",
+          "numero_lineas",
+          "retirada_en",
+          "cancelada_en"
+        ],
+        "title": "ParteResumen"
+      },
+      "ParteVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia",
+            "description": "Seis caracteres sin 0, O, 1, I ni L, aleatoria por parte (O6)"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "enviada",
+              "preparando",
+              "lista",
+              "retirada",
+              "cancelada"
+            ],
+            "title": "Estado"
+          },
+          "enviado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Enviado En"
+          },
+          "preparar_antes_de": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Preparar Antes De"
+          },
+          "estado_codigo": {
+            "type": "string",
+            "enum": [
+              "sin_codigo",
+              "vigente",
+              "usado",
+              "bloqueado",
+              "vencido"
+            ],
+            "title": "Estado Codigo"
+          },
+          "numero_lineas": {
+            "type": "integer",
+            "title": "Numero Lineas"
+          },
+          "retirada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirada En"
+          },
+          "cancelada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelada En"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaComercioVista"
+            },
+            "type": "array",
+            "title": "Lineas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "referencia",
+          "estado",
+          "enviado_en",
+          "preparar_antes_de",
+          "estado_codigo",
+          "numero_lineas",
+          "retirada_en",
+          "cancelada_en",
+          "lineas"
+        ],
+        "title": "ParteVista",
+        "description": "GET /v1/comercio/partes/{id}, con ETag. Las acciones devuelven la parte como queda."
+      },
+      "PedidoOperacion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
+          },
+          "partes": {
+            "items": {
+              "$ref": "#/components/schemas/ParteOperacion"
+            },
+            "type": "array",
+            "title": "Partes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "estado",
+          "referencia",
+          "entregado_en",
+          "partes"
+        ],
+        "title": "PedidoOperacion"
+      },
+      "ProductoDelComercio": {
+        "properties": {
+          "oferta_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Oferta Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          },
+          "precio": {
+            "type": "integer",
+            "title": "Precio"
+          },
+          "stock": {
+            "type": "integer",
+            "title": "Stock"
+          },
+          "apartado": {
+            "type": "integer",
+            "title": "Apartado"
+          },
+          "disponibles": {
+            "type": "integer",
+            "title": "Disponibles",
+            "description": "stock − apartado, nunca bajo 0 (O5)"
+          },
+          "disponible": {
+            "type": "boolean",
+            "title": "Disponible",
+            "description": "Si lo ofrece en MATU"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "description": "Para el If-Match de PATCH /v1/comercio/productos/{oferta_id}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "oferta_id",
+          "nombre",
+          "presentacion",
+          "precio",
+          "stock",
+          "apartado",
+          "disponibles",
+          "disponible",
+          "etag"
+        ],
+        "title": "ProductoDelComercio"
+      },
+      "ProductoLinea": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nombre",
+          "presentacion"
+        ],
+        "title": "ProductoLinea"
+      },
+      "ResultadoCodigoVista": {
+        "properties": {
+          "resultado": {
+            "type": "string",
+            "enum": [
+              "correcto",
+              "no_es",
+              "bloqueado",
+              "vencido",
+              "usado",
+              "cancelada",
+              "sin_codigo"
+            ],
+            "title": "Resultado"
+          },
+          "intentos_restantes": {
+            "type": "integer",
+            "title": "Intentos Restantes"
+          },
+          "parte": {
+            "$ref": "#/components/schemas/ParteVista"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resultado",
+          "intentos_restantes",
+          "parte"
+        ],
+        "title": "ResultadoCodigoVista"
+      },
+      "RetractoVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "solicitado",
+              "devuelto",
+              "rechazado"
+            ],
+            "title": "Estado"
+          },
+          "solicitado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Solicitado En"
+          },
+          "plazo_hasta": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Plazo Hasta"
+          },
+          "incluye_envio": {
+            "type": "boolean",
+            "title": "Incluye Envio"
+          },
+          "monto": {
+            "type": "integer",
+            "title": "Monto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pedido_id",
+          "estado",
+          "solicitado_en",
+          "plazo_hasta",
+          "incluye_envio",
+          "monto"
+        ],
+        "title": "RetractoVista"
+      },
+      "RetractosDelPedido": {
+        "properties": {
+          "plazo_hasta": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Plazo Hasta"
+          },
+          "retractos": {
+            "items": {
+              "$ref": "#/components/schemas/RetractoVista"
+            },
+            "type": "array",
+            "title": "Retractos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plazo_hasta",
+          "retractos"
+        ],
+        "title": "RetractosDelPedido",
+        "description": "GET /v1/pedidos/{id}/retractos: hasta cuándo se puede pedir (la fecha exacta que muestra la pantalla) y los\nretractos pedidos."
+      },
+      "SolicitudCodigo": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "title": "Codigo",
+            "description": "Las 6 cifras, solo en el cuerpo (D-63-4)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "codigo"
+        ],
+        "title": "SolicitudCodigo"
+      },
+      "SolicitudMarca": {
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "preparada",
+              "faltante"
+            ],
+            "title": "Estado"
+          },
+          "unidades_faltantes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidades Faltantes",
+            "description": "Solo con faltante: cuántos faltan. Sin valor, faltan todos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estado"
+        ],
+        "title": "SolicitudMarca"
+      },
+      "SolicitudProducto": {
+        "properties": {
+          "stock": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock"
+          },
+          "disponible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disponible"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudProducto"
+      },
+      "SolicitudResolverRetracto": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "devolver",
+              "rechazar"
+            ],
+            "title": "Decision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "SolicitudResolverRetracto"
+      },
+      "SolicitudRetracto": {
+        "properties": {
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaRetracto"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lineas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lineas"
+        ],
+        "title": "SolicitudRetracto"
       }
     },
     "securitySchemes": {

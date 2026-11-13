@@ -23,7 +23,7 @@ class _Estricto(BaseModel):
 # --- Comercio ---------------------------------------------------------------------------------------------------
 
 
-class ComercioVista(BaseModel):
+class ComercioDeLaCuenta(BaseModel):
     """GET /v1/comercio: la barra de la consola, el rótulo del piloto y el contacto de «Avisa a MATU» (O2)."""
 
     nombre_fantasia: str
@@ -88,7 +88,7 @@ class ResultadoCodigoVista(BaseModel):
     parte: ParteVista
 
 
-class ProductoVista(BaseModel):
+class ProductoDelComercio(BaseModel):
     oferta_id: uuid.UUID
     nombre: str
     presentacion: str
@@ -101,7 +101,7 @@ class ProductoVista(BaseModel):
 
 
 class ListaProductos(BaseModel):
-    productos: list[ProductoVista]
+    productos: list[ProductoDelComercio]
 
 
 class SolicitudProducto(_Estricto):
@@ -154,7 +154,7 @@ class ListaRetractos(BaseModel):
     retractos: list[RetractoVista]
 
 
-class SolicitudResolver(_Estricto):
+class SolicitudResolverRetracto(_Estricto):
     decision: Literal["devolver", "rechazar"]
 
 

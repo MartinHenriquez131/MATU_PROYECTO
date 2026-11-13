@@ -30,7 +30,7 @@ from app.modules.backoffice.api.esquemas import (
     ParteOperacion,
     PedidoOperacion,
     RetractoVista,
-    SolicitudResolver,
+    SolicitudResolverRetracto,
 )
 from app.modules.backoffice.application.despacho import UnidadDespacho
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
@@ -264,7 +264,7 @@ def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep) -> 
     ),
 )
 def resolver_retracto(
-    retracto_id: _ID, solicitud: SolicitudResolver, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
+    retracto_id: _ID, solicitud: SolicitudResolverRetracto, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
     pasarela: PasarelaDep,
 ) -> RetractoVista:
     identificador = _uuid(retracto_id)

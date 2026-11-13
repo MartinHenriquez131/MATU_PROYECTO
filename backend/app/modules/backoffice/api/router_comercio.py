@@ -30,14 +30,14 @@ from app.modules.backoffice.api.dependencias import (
     contar_intento_de_codigo,
 )
 from app.modules.backoffice.api.esquemas import (
-    ComercioVista,
+    ComercioDeLaCuenta,
     LineaComercioVista,
     ListaPartes,
     ListaProductos,
     ParteResumen,
     ParteVista,
+    ProductoDelComercio,
     ProductoLinea,
-    ProductoVista,
     ResultadoCodigoVista,
     SolicitudCodigo,
     SolicitudMarca,
@@ -187,13 +187,13 @@ def _llevar(fabrica: sessionmaker[Session], reloj: Reloj, pasarela: PasarelaWebp
         log.warning("despacho pendiente", extra={"tipo_error": type(error).__name__})
 
 
-@router.get("", response_model=ComercioVista, responses=_RESPUESTAS,
+@router.get("", response_model=ComercioDeLaCuenta, responses=_RESPUESTAS,
             description="El comercio de la cuenta: nombre de fantasía, si es de prueba y el contacto de MATU (O2).")
-def ver_comercio(contexto: SesionDeComercio) -> ComercioVista:
+def ver_comercio(contexto: SesionDeComercio) -> ComercioDeLaCuenta:
     comercio = RepositorioComercioSQL(contexto.sesion).comercio()
     if comercio is None:
         raise ErrorMATU(404)
-    return ComercioVista(
+    return ComercioDeLaCuenta(
         nombre_fantasia=comercio.nombre_fantasia,
         ficticio=comercio.ficticio,
         contacto=obtener_configuracion().correo_privacidad,
@@ -335,8 +335,8 @@ def _etag_producto(p: ProductoComercio) -> str:
     return f'"o{int(p.actualizado_en.timestamp() * 1_000_000)}"'
 
 
-def _producto(p: ProductoComercio) -> ProductoVista:
-    return ProductoVista(
+def _producto(p: ProductoComercio) -> ProductoDelComercio:
+    return ProductoDelComercio(
         oferta_id=p.oferta_id,
         nombre=p.nombre,
         presentacion=p.presentacion,
@@ -358,14 +358,14 @@ def listar_productos(contexto: SesionDeComercio, reloj: RelojDep) -> ListaProduc
 
 @router.patch(
     "/productos/{oferta_id}",
-    response_model=ProductoVista,
+    response_model=ProductoDelComercio,
     responses={**_RESPUESTAS, 412: _RESPUESTAS_ACCION[412], 422: _RESPUESTAS_ACCION[422]},
     description="Cambia cuántos tiene (0 a 9.999) y si lo ofrece en MATU. Nunca el precio (D-63-2).",
 )
 def cambiar_producto(
     oferta_id: _ID, solicitud: SolicitudProducto, request: Request, contexto: SesionDeComercio, reloj: RelojDep,
     respuesta: Response, if_match: IfMatch = None,
-) -> ProductoVista:
+) -> ProductoDelComercio:
     identificador, repo = _uuid(oferta_id), RepositorioComercioSQL(contexto.sesion)
     actual = next((p for p in repo.productos(reloj.ahora()) if p.oferta_id == identificador), None)
     if actual is None:
