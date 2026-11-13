@@ -108,7 +108,7 @@ Puedes armar un pedido para la persona que cuidas, ver su total y pagarlo. De ca
 - El pago: el monto, la fecha, el código de autorización, si fue con crédito, débito o prepago, las cuotas, los últimos 4 dígitos de la tarjeta y, si hubo, lo devuelto. Si un pago llega cuando el pedido ya cambió o se canceló, lo anulamos completo el mismo día y guardamos el cobro y su anulación.
 - Cómo avanza el pedido: cuándo lo recibió cada comercio, cuándo empezó a prepararlo, cuándo quedó listo, cuándo se retiró y cuándo se entregó. Si un comercio no tenía un producto, cuántas unidades faltaron y cuánto te devolvimos.
 - Si pides arrepentirte de la compra: quién lo pidió, cuándo, qué productos, si se retiraron y cuánto se devolvió.
-- Del código de retiro guardamos solo una huella que no permite reconstruirlo, y la borramos cuando se usa o vence.
+- Del código de retiro guardamos solo una huella que no permite reconstruirlo, y la borramos cuando se usa, cuando vence o cuando se bloquea.
 
 **El pedido no guarda el nombre de la persona que cuidas.** Se une a ella por un número interno.
 
@@ -287,8 +287,8 @@ Antes de usar MATU con datos reales, diremos aquí los demás: dónde se guardan
 - **Arrepentirte de una compra:** lo que pediste se guarda con el pedido, 2 años, y su devolución con los pagos, 6 años.
 - **Código de retiro:** su huella se borra al usarse, al vencer o al bloquearse.
 - **La dirección de entrega de la persona que cuidas:** mientras esté registrada, hasta que la vacíes o pidas borrar sus datos. Retirar la autorización de los pedidos no la borra.
-- **Pedidos pagados y comprobantes de entrega:** 2 años.
-- **Pagos:** 6 años, por obligación tributaria. En el piloto no se emiten boletas.
+- **Pedidos pagados y comprobantes de entrega:** 2 años. Todavía no se borran solos a los 2 años. Lo harán antes de usar MATU con datos reales (sección 13).
+- **Pagos:** 6 años, por obligación tributaria. En el piloto no se emiten boletas. Todavía no se borran solos a los 6 años. Lo harán antes de usar MATU con datos reales (sección 13).
 - **Tu cuenta y las versiones de esta política que aceptaste:** mientras tengas tu cuenta. Todavía no definimos cuánto tiempo se guardan después de que la elimines. Lo publicaremos antes de usar MATU con datos reales.
 - **Registro de autorizaciones:** cada autorización, también las retiradas, con su fecha de retiro. Hoy no se borran. Todavía no definimos su plazo. Lo publicaremos antes de usar MATU con datos reales.
 - **Accesos de relevo:** el nombre del relevo, el motivo y las fechas, 3 años desde que vence o se corta el acceso, igual que el registro de quién abrió la ficha. Todavía no se borran solos a los 3 años (sección 13). El teléfono del relevo se borra 30 días después de que el acceso vence o se corta, lo que ocurra primero, y en ese mismo momento si pides borrar los datos de la persona (sección 10).
@@ -327,7 +327,7 @@ Puedes pedir:
 
 ### Ver y descargar los datos desde la aplicación
 
-**Tus datos.** En «Tu cuenta», «Tus datos», ves lo que MATU guarda de tu cuenta: tu nombre, tu correo, tu celular, si lo confirmaste y por dónde te llegan los códigos, la versión de esta política que aceptaste, los grupos en que estás y tu rol, los grupos de los que saliste, con tu rol y las fechas, tus teléfonos y computadores, lo que pasó en tu cuenta, tu elección de avisos y los avisos que te generamos, con la fecha, el canal y si salieron, sin su texto. Si pagaste un pedido, también tus pagos, con el nombre del grupo, el monto, lo devuelto, el tipo de tarjeta, las cuotas, sus últimos 4 dígitos y el código de autorización, y las condiciones del pedido que aceptaste. No trae nada de la persona que cuidas.
+**Tus datos.** En «Tu cuenta», «Tus datos», ves lo que MATU guarda de tu cuenta: tu nombre, tu correo, tu celular, si lo confirmaste y por dónde te llegan los códigos, la versión de esta política que aceptaste, los grupos en que estás y tu rol, los grupos de los que saliste, con tu rol y las fechas, tus teléfonos y computadores, lo que pasó en tu cuenta, tu elección de avisos y los avisos que te generamos, con la fecha, el canal y si salieron, sin su texto. Si pagaste un pedido, también tus pagos, con el nombre del grupo, el monto, lo devuelto, el tipo de tarjeta, las cuotas, sus últimos 4 dígitos y el código de autorización, y las condiciones del pedido que aceptaste. Si pediste arrepentirte de una compra, también qué productos y cómo se resolvió. No trae nada de la persona que cuidas.
 
 **Los datos de la persona que cuidas.** Quien administra el grupo o quien cuida a la persona los ve en «Grupo familiar», «Datos de» la persona: su nombre, cómo la llaman, su nivel de apoyo, su dirección, sus autorizaciones, su ficha con sus secciones, sus enlaces de relevo y cada vez que se abrieron, sus insumos, las compras anotadas y los avisos de insumos, sus pedidos con quién los pagó, y quién abrió o editó la ficha o cambió sus insumos, sus autorizaciones, su dirección o sus pedidos. Quien administra ve todo ese registro, y quien cuida ve solo lo que hizo él y las veces que un relevo abrió el enlace. Si la persona o su representante legal te lo pide, muéstraselo o entrégale la copia. Quien paga y el observador no piden esta copia.
 
@@ -424,6 +424,7 @@ Si hay una filtración que afecte datos personales, avisaremos sin demora a la A
 ## 13. Lo que todavía no funciona en el piloto
 
 - Borrar solos, a los 3 años, el registro de tu cuenta, los enlaces de relevo (el nombre del relevo, el motivo y las fechas) y el registro de quién abrió la ficha. Mientras no exista, MATU no trata datos reales.
+- Borrar solos, a los 2 y 6 años, los pedidos pagados, lo pedido al arrepentirte y los pagos. Mientras no exista, MATU no trata datos reales.
 - Borrar los datos de la persona cuando lo pide por correo, sin pasar por su grupo. Mientras no exista, MATU no trata datos reales.
 - El recordatorio de los 12 meses.
 - Un aviso automático al equipo cuando una de las tareas diarias falla. Mientras no exista, el equipo revisa a mano el historial de corridas.
@@ -431,7 +432,7 @@ Si hay una filtración que afecte datos personales, avisaremos sin demora a la A
 - Avisos de insumos por notificación o por correo: en el piloto se prueban sin enviarse (los de la aplicación ya funcionan). Ya puedes elegirlos en «Tu cuenta» y activarlos en un teléfono, pero no te llegará nada.
 - Enviar correos solo a direcciones verificadas.
 - En el piloto, después de pagar no buscamos un producto que falta en otro comercio: anulamos su cobro el mismo día. El retiro y la entrega los hace el equipo de MATU.
-- «Arrepentirme de la compra» y cancelar un pedido pagado desde la aplicación. Mientras tanto, pídelo a cuidaconmatu@gmail.com.
+- «Arrepentirme de la compra» y cancelar un pedido pagado desde la aplicación. Mientras tanto, pídelo a cuidaconmatu@gmail.com. Si lo pides por correo, el equipo de MATU lo registra en el sistema a tu nombre y te devolvemos igual que desde la aplicación. Por correo se aceptan retractos hasta 90 días desde la entrega.
 - Pagos con dinero real. En el piloto los pagos son de prueba, en el ambiente de prueba de Transbank, y no se cobra dinero real. El comprobante no es una boleta, y no se envía por correo: queda en MATU y lo puedes imprimir o guardar en PDF.
 - Verificar tu email al crear la cuenta. Mientras no exista, si intentas registrarte con un email que ya tiene cuenta, MATU te lo dirá, y alguien podría registrar un email que no es suyo.
 - Eliminar tu cuenta o cambiar tu nombre o tu correo desde la aplicación. Mientras tanto, pídelo a cuidaconmatu@gmail.com desde el correo de tu cuenta.

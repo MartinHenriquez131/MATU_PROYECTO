@@ -24,13 +24,9 @@ Al pagar te mostramos un comprobante, que queda guardado en MATU, con el número
 
 ## 5. Si falta un producto
 
-Antes de pagar eliges, por cada producto, si lo buscamos en otro comercio o si lo sacamos del pedido. Si no eliges, lo buscamos.
+Antes de pagar eliges, por cada producto, si lo buscamos en otro comercio o si lo sacamos del pedido. Si no eliges, lo buscamos. Lo hacemos al confirmar el total: si el producto pasa a otro comercio o cambia de precio, lo ves antes de pagar. Nunca lo cambiamos por otra marca ni por otro producto.
 
-- Si lo buscamos y otro comercio lo tiene, pagas lo mismo que aceptaste. La diferencia de precio la asume MATU.
-- Nunca lo cambiamos por otra marca ni por otro producto.
-- Si nadie lo tiene, o elegiste sacarlo, anulamos su cobro el mismo día, a la misma tarjeta. Si no se entrega ningún producto, devolvemos también el envío. Cuándo lo ves en tu cuenta depende de tu banco.
-
-Durante el piloto, si después de pagar falta un producto, no lo buscamos en otro comercio: anulamos el cobro de lo que falta el mismo día, a la misma tarjeta. Si falta solo una parte, te devolvemos esas unidades y te llevamos el resto.
+Durante el piloto, si después de pagar falta un producto, no lo buscamos en otro comercio: anulamos el cobro de lo que falta el mismo día, a la misma tarjeta. Si falta solo una parte, te devolvemos esas unidades y te llevamos el resto. Si no se entrega ningún producto, devolvemos también el envío. Cuándo lo ves en tu cuenta depende de tu banco.
 
 ## 6. Cancelar
 
@@ -47,7 +43,7 @@ Durante el piloto, el pedido llega entre 24 y 48 horas hábiles. Te lo mostramos
 
 ## 9. Derecho a retracto
 
-Lo piden quien administra el grupo o quien pagó, en el pedido entregado, con «Arrepentirme de la compra», hasta la fecha que te mostramos (10 días hábiles desde la entrega). Puedes elegir qué productos devuelves. Pasamos a buscarlos sin costo. Cuando los recibimos con su sello cerrado, te devolvemos su precio a la misma tarjeta, y también el envío si devuelves todo. Si no alcanzas a hacerlo en la aplicación, escríbenos a cuidaconmatu@gmail.com.
+Lo piden quien administra el grupo o quien pagó, en el pedido entregado, con «Arrepentirme de la compra», hasta la fecha que te mostramos (10 días hábiles desde la entrega). Puedes elegir qué productos devuelves. Puedes devolverlos en una o varias veces mientras dure el plazo. Pasamos a buscarlos sin costo. Cuando los recibimos con su sello cerrado, te devolvemos su precio a la misma tarjeta, y también el envío si devuelves todo. Si no alcanzas a hacerlo en la aplicación, escríbenos a cuidaconmatu@gmail.com.
 
 En los productos de uso personal o de higiene sellados, el derecho a retracto se pierde solo si abres el sello. [PENDIENTE: CL-41, CL-54, CL-71 y CL-72. Suplemento y bolsas colectoras, cómo se cuenta el plazo, el envío en un retracto parcial y el medio de devolución si se pasa el plazo de anulación de Transbank, CL-55]
 

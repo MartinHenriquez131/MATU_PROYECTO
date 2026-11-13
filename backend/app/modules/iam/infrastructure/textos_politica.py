@@ -36,7 +36,7 @@ PUBLICADAS: dict[str, str] = {
     "0.18": "1bdbac25460ead431a9bd1d39025440a3561e072e8d26cb26b3f5d3e6ed1316d",  # pragma: allowlist secret
     # MATU-63: los comercios preparan los pedidos pagados, el código de retiro y «Arrepentirme de la compra». Nadie
     # vuelve a aceptar (D-63-16); las anteriores siguen
-    "0.19": "4139b8f0654192789323915ea12d73a7afa44baf37d08b971ae9f9f219d6659d",  # pragma: allowlist secret
+    "0.19": "e498a78c4ae7c54a743b95c1e8ae5222cd899f751d85d3dd8dcfa681c9dc5aba",  # pragma: allowlist secret
 }
 
 
