@@ -7,9 +7,16 @@ import { apiFamilia } from './sesion'
 import type { components } from './familia.openapi'
 
 type S = components['schemas']
+/**
+ * Decisión 430: el motivo de una parte cancelada. Está en docs/api/openapi.json, pero los tipos
+ * generados todavía no lo traen: regenerarlos arrastra el cambio de la copia de MATU-54 (decisión
+ * 427), que pide textos nuevos de «Tus datos». Hasta entonces se suma aquí, opcional.
+ */
+export type MotivoCancelacion = 'producto_faltante' | 'cancelada_por_familia' | null
+type ConMotivo = { motivo_cancelacion?: MotivoCancelacion }
 export type ComercioDeLaCuenta = S['ComercioDeLaCuenta']
-export type ParteResumen = S['ParteResumen']
-export type ParteVista = S['ParteVista']
+export type ParteResumen = S['ParteResumen'] & ConMotivo
+export type ParteVista = S['ParteVista'] & ConMotivo
 export type LineaComercio = S['LineaComercioVista']
 export type EstadoParte = ParteResumen['estado']
 export type EstadoCodigo = ParteResumen['estado_codigo']

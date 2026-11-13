@@ -16,7 +16,7 @@ import {
   type SolicitudMarca,
 } from '../compartido/api/comercio'
 import { esVencida } from '../compartido/api/sesion'
-import { anunciar } from '../compartido/ui/Anuncios'
+import { Anunciado, anunciar } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
 import { Nota } from '../compartido/ui/Nota'
 import { useDemora } from '../compartido/useDemora'
@@ -38,12 +38,8 @@ const idLinea = (id: string) => `linea-${id}`
 const ID_PRODUCTOS = 'productos-del-pedido'
 const ID_NOTA_ESTADO = 'nota-del-pedido'
 
-/** Lleva el foco a un elemento cuando ya está pintado. */
-const enfocar = (id: string, selector?: string) =>
-  window.setTimeout(() => {
-    const el = document.getElementById(id)
-    ;(selector ? el?.querySelector<HTMLElement>(selector) : el)?.focus()
-  }, 0)
+const ID_MARCA_CADA = 'marca-cada-producto'
+const RADIO = 'input[type="radio"]'
 
 /** El estado inicial de la revisión del código al abrir una parte `lista` (7.3, «Al abrir…»). */
 function resultadoAlAbrir(p: ParteVista): Resultado | null {
@@ -81,6 +77,26 @@ export function DetallePedido({
   const cola = useRef<Promise<void>>(Promise.resolve())
   const relojes = useRef<Record<string, number>>({})
   const verCargando = useDemora(1000)
+  /** P1-3: «Avisar que no tengo ninguno» acaba de cancelar la parte: la nota se anuncia. */
+  const [recienSinNinguno, setRecienSinNinguno] = useState(false)
+  /** P2-7: cada «Listo para retirar» con una línea sin marcar vuelve a anunciar el mensaje. */
+  const [intentoListo, setIntentoListo] = useState(0)
+
+  /**
+   * P1 de la revisión visual: el foco va a un elemento cuando ya está montado. Un `setTimeout` corría
+   * antes de que React pintara la nota (o con el botón ya desmontado), y el foco caía en `body`.
+   * El efecto corre después de cada render y espera hasta que el elemento exista.
+   */
+  const [foco, setFoco] = useState<{ id: string; selector?: string } | null>(null)
+  const pedirFoco = (id: string, selector?: string) => setFoco({ id, selector })
+  useEffect(() => {
+    if (!foco) return
+    const el = document.getElementById(foco.id)
+    const objetivo = foco.selector ? el?.querySelector<HTMLElement>(foco.selector) : el
+    if (!objetivo) return
+    objetivo.focus()
+    setFoco(null)
+  })
 
   const mostrar = useCallback((p: ParteVista, version: string | null) => {
     etag.current = version
@@ -125,7 +141,12 @@ export function DetallePedido({
     setSinMarcar(null)
     setErrorAccion(false)
     setErrorLinea({})
-    void cargar('abrir')
+    setRecienSinNinguno(false)
+    setFoco(null)
+    void cargar('abrir').then((p) => {
+      // P1-1: si el foco quedó en el cuerpo (la fila elegida se desmontó en el teléfono), vuelve al `h1`.
+      if (p && (document.activeElement === document.body || !document.activeElement)) setFoco({ id: 'titulo-pagina' })
+    })
     const r = relojes.current
     return () => Object.values(r).forEach((t) => window.clearTimeout(t))
     // Solo al elegir otra parte.
@@ -162,7 +183,7 @@ export function DetallePedido({
       const r = await prepararParte(parte.id, etag.current)
       mostrar(r.parte, r.etag)
       onCambio(r.parte)
-      enfocar(ID_PRODUCTOS)
+      pedirFoco(ID_PRODUCTOS)
     } catch (x) {
       if (!comun(x) && !conflicto(x)) setErrorAccion(true)
     } finally {
@@ -219,7 +240,8 @@ export function DetallePedido({
     const falta = parte.lineas.find((l) => !marcas[l.id])
     if (falta) {
       setSinMarcar(falta.id)
-      return enfocar(idLinea(falta.id), 'input[type="radio"]')
+      setIntentoListo((n) => n + 1)
+      return pedirFoco(idLinea(falta.id), RADIO)
     }
     setSinMarcar(null)
     setOcupado('listo')
@@ -237,7 +259,9 @@ export function DetallePedido({
       mostrar(r.parte, r.etag)
       onCambio(r.parte)
       if (r.parte.estado === 'lista') setNota('listo')
-      enfocar(ID_NOTA_ESTADO)
+      if (r.parte.estado === 'cancelada') setRecienSinNinguno(true)
+      // P1-2 y P1-3: a la nota de «listo» o a la de cancelado (O3), cuando ya está montada.
+      pedirFoco(ID_NOTA_ESTADO)
     } catch (x) {
       if (comun(x) || conflicto(x)) return
       const f = leerFallo(x)
@@ -247,7 +271,8 @@ export function DetallePedido({
         const pendiente = p?.lineas.find((l) => !marcaDe(l))
         if (pendiente) {
           setSinMarcar(pendiente.id)
-          enfocar(idLinea(pendiente.id), 'input[type="radio"]')
+          setIntentoListo((n) => n + 1)
+          pedirFoco(idLinea(pendiente.id), RADIO)
         }
         return
       }
@@ -264,181 +289,189 @@ export function DetallePedido({
     navegar('/comercio')
   }
 
-  const enVolver = (
-    <div className="@3xl/main:hidden">
-      <Volver onClick={volver}>{T.volver}</Volver>
-    </div>
-  )
-
-  if (fallo === 'no-esta')
-    return (
-      <div className="flex flex-col items-start gap-4">
-        {enVolver}
-        <Titulo className="text-3xl">{resumen ? T.titulo(resumen.referencia) : PEDIDOS.titulo}</Titulo>
-        <Nota tono="atenta">{T.yaNoEsta}</Nota>
-        <Boton variante="secundario" onClick={volver}>
-          {T.volver}
-        </Boton>
-      </div>
-    )
-  if (fallo === 'red' && !parte)
-    return (
-      <div className="flex flex-col items-start gap-4">
-        {enVolver}
-        <Titulo className="text-3xl">{resumen ? T.titulo(resumen.referencia) : PEDIDOS.titulo}</Titulo>
-        <Nota tono="pronto" rol="alert">
-          {T.error}
-        </Nota>
-        <Boton variante="secundario" onClick={() => void cargar('abrir')}>
-          {PEDIDOS.volverAIntentar}
-        </Boton>
-      </div>
-    )
-  if (!parte)
-    return (
-      <div className="flex flex-col items-start gap-4" aria-busy="true">
-        {enVolver}
-        <Titulo className="text-3xl">{resumen ? T.titulo(resumen.referencia) : PEDIDOS.titulo}</Titulo>
-        <p className="text-tenue">{verCargando ? T.cargando : ''}</p>
-      </div>
-    )
-
-  const etiqueta = ETIQUETA_ESTADO[parte.estado]
-  const elPlazo = plazo(parte.preparar_antes_de, ahora())
-  const todosFaltan = parte.lineas.length > 0 && parte.lineas.every((l) => marcas[l.id]?.estado === 'faltante')
-  const campoVisible = parte.estado === 'lista' && parte.estado_codigo === 'vigente' && (!resultado || !CIERRA.has(resultado.tipo))
-  const conCodigo = parte.estado === 'lista' || resultado !== null
+  const referencia = parte?.referencia ?? resumen?.referencia ?? null
+  const etiqueta = parte ? ETIQUETA_ESTADO[parte.estado] : null
+  const elPlazo = parte ? plazo(parte.preparar_antes_de, ahora()) : null
+  const todosFaltan = !!parte && parte.lineas.length > 0 && parte.lineas.every((l) => marcas[l.id]?.estado === 'faltante')
+  // Decisión 430: «no tenía ninguno» lo dice la API; sin el campo, se deduce de las marcas.
+  const sinNinguno = parte?.motivo_cancelacion !== undefined ? parte.motivo_cancelacion === 'producto_faltante' : todosFaltan
+  const campoVisible = !!parte && parte.estado === 'lista' && parte.estado_codigo === 'vigente' && (!resultado || !CIERRA.has(resultado.tipo))
+  const conCodigo = !!parte && (parte.estado === 'lista' || resultado !== null)
+  // 7.3 (P2-9): si el código dijo «cancelado», se ve solo esa nota, sin la de 6.8.
+  const canceladaPorCodigo = resultado?.vivo === true && resultado.tipo === 'cancelada'
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* 6.1 y 6.2: la cabecera. En el detalle ancho, el plazo a la derecha. */}
+    <div className="flex flex-col gap-6" aria-busy={!parte && !fallo ? true : undefined}>
+      {/* 6.1 y 6.2: la cabecera. Un solo `h1`, que no se desmonta al llegar la parte (P1-1). */}
       <div className="flex flex-col gap-3">
-        {enVolver}
+        <div className="@3xl/main:hidden">
+          <Volver onClick={volver}>{T.volver}</Volver>
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="flex min-w-0 flex-col items-start gap-2">
             <Titulo className="text-3xl">
-              {PEDIDOS.pedido} <span className="digitos">{parte.referencia}</span>
-            </Titulo>
-            <Etiqueta tono={etiqueta.tono}>
-              <IconoEstado estado={parte.estado} enEtiqueta />
-              {etiqueta.texto}
-            </Etiqueta>
-          </div>
-          <div className="flex flex-col gap-1">
-            {enCurso(parte.estado) &&
-              (elPlazo.atrasada ? (
-                <p className="flex items-start gap-1.5 font-bold text-atenta @3xl/main:text-lg">
-                  <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
-                  <span className="cifras whitespace-normal">{elPlazo.texto}</span>
-                </p>
+              {referencia ? (
+                <>
+                  {PEDIDOS.pedido} <span className="digitos">{referencia}</span>
+                </>
               ) : (
-                <p className="cifras whitespace-normal @3xl/main:text-lg @3xl/main:font-bold">{elPlazo.texto}</p>
-              ))}
-            <p className="text-base text-tenue">
-              <span className="cifras whitespace-normal">{T.llego(horaChile(parte.enviado_en))}</span> · {PEDIDOS.productos(parte.lineas.length)}
-            </p>
+                PEDIDOS.titulo
+              )}
+            </Titulo>
+            {parte && etiqueta && (
+              <Etiqueta tono={etiqueta.tono}>
+                <IconoEstado estado={parte.estado} enEtiqueta />
+                {etiqueta.texto}
+              </Etiqueta>
+            )}
           </div>
+          {parte && elPlazo && (
+            <div className="flex flex-col gap-1">
+              {enCurso(parte.estado) &&
+                (elPlazo.atrasada ? (
+                  <p className="flex items-start gap-1.5 font-bold text-atenta @3xl/main:text-lg">
+                    <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
+                    <span className="cifras whitespace-normal">{elPlazo.texto}</span>
+                  </p>
+                ) : (
+                  <p className="cifras whitespace-normal @3xl/main:text-lg @3xl/main:font-bold">{elPlazo.texto}</p>
+                ))}
+              <p className="text-base text-tenue">
+                <span className="cifras whitespace-normal">{T.llego(horaChile(parte.enviado_en))}</span> · {PEDIDOS.productos(parte.lineas.length)}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 6.9: la parte cambió mientras se veía. */}
-      {nota === 'cambio' && (
-        <Nota tono="atenta" rol="status">
-          {T.cambio}
-        </Nota>
-      )}
-
-      <section aria-labelledby={ID_PRODUCTOS} className="flex flex-col gap-3">
-        <div>
-          <h2 id={ID_PRODUCTOS} tabIndex={-1} className="text-xl font-bold outline-none">
-            {T.productosTitulo}
-          </h2>
-          {parte.estado === 'preparando' && <p className="text-base text-tenue">{T.marca}</p>}
-        </div>
-        {parte.estado === 'preparando' ? (
-          <ul className="flex flex-col gap-3 @3xl/main:gap-0 @3xl/main:divide-y @3xl/main:divide-linea">
-            {parte.lineas.map((l) => (
-              <li key={l.id}>
-                <LineaPorMarcar
-                  linea={l}
-                  marca={marcas[l.id] ?? null}
-                  guardando={!!guardando[l.id]}
-                  error={!!errorLinea[l.id]}
-                  sinMarcar={sinMarcar === l.id}
-                  onElegir={(e) => elegir(l, e)}
-                  onFaltan={(n) => cambiarFaltan(l, n)}
-                />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <LineasSoloLectura parte={parte} />
-        )}
-        {parte.estado === 'enviada' && <p className="text-tenue">{T.tocaEmpezar}</p>}
-      </section>
-
-      {/* 6.3: una sola acción principal por estado. */}
-      {parte.estado === 'enviada' && (
-        <div className="flex flex-col gap-3">
-          {errorAccion && <MensajeError>{T.error}</MensajeError>}
-          <Acciones>
-            <Boton ocupado={ocupado === 'empezar'} textoOcupado={T.empezando} onClick={() => void empezar()}>
-              {T.empezar}
-            </Boton>
-          </Acciones>
+      {fallo === 'no-esta' && (
+        <div className="flex flex-col items-start gap-4">
+          <Nota tono="atenta">{T.yaNoEsta}</Nota>
+          <Boton variante="secundario" onClick={volver}>
+            {T.volver}
+          </Boton>
         </div>
       )}
-      {parte.estado === 'preparando' && (
-        <div className="flex flex-col gap-3">
-          <p className="max-w-prose text-base text-tenue">{T.despuesDeListo}</p>
-          {sinMarcar && <MensajeError>{T.marcaCada}</MensajeError>}
-          {errorAccion && <MensajeError>{T.error}</MensajeError>}
-          <Acciones>
-            <Boton ocupado={ocupado === 'listo'} textoOcupado={T.guardando} onClick={() => void terminar()}>
-              {todosFaltan ? T.ningunoBoton : T.listo}
-            </Boton>
-          </Acciones>
+      {fallo === 'red' && !parte && (
+        <div className="flex flex-col items-start gap-4">
+          <Nota tono="pronto" rol="alert">
+            {T.error}
+          </Nota>
+          <Boton variante="secundario" onClick={() => void cargar('abrir')}>
+            {PEDIDOS.volverAIntentar}
+          </Boton>
         </div>
       )}
-      {parte.estado === 'lista' && nota === 'listo' && (
-        <Nota id={ID_NOTA_ESTADO} enfocable tono="ok" rol="status" titulo={T.listoTitulo}>
-          {T.listoTexto}
-        </Nota>
-      )}
+      {!parte && !fallo && <p className="text-tenue">{verCargando ? T.cargando : ''}</p>}
 
-      {conCodigo && (
-        <section aria-labelledby="titulo-codigo" className="flex flex-col gap-4">
-          <h2 id="titulo-codigo" className="text-xl font-bold">
-            {CODIGO_RETIRO.titulo}
-          </h2>
-          {resultado && <NotaResultado key={resultado.n} r={resultado} referencia={parte.referencia} contacto={contacto} />}
-          {campoVisible && (
-            <CampoCodigo
-              parte={parte}
-              resultado={resultado}
-              onInactiva={quedoInactiva}
-              onResultado={(r, p) => {
-                setResultado(r)
-                if (p) {
-                  setParte(p)
-                  onCambio(p)
-                }
-                enfocar(ID_RESULTADO)
-              }}
-            />
+      {parte && fallo !== 'no-esta' && (
+        <>
+          {/* 6.9: la parte cambió mientras se veía. */}
+          {nota === 'cambio' && (
+            <Nota tono="atenta" rol="status">
+              {T.cambio}
+            </Nota>
           )}
-        </section>
-      )}
 
-      {parte.estado === 'retirada' && (
-        <Nota id={ID_NOTA_ESTADO} tono="ok" titulo={T.retiradoTitulo}>
-          {parte.retirada_en ? <span className="cifras whitespace-normal">{T.retiradoTexto(horaChile(parte.retirada_en))}</span> : undefined}
-        </Nota>
-      )}
-      {parte.estado === 'cancelada' && (
-        <Nota id={ID_NOTA_ESTADO} enfocable tono="pronto" borde titulo={T.canceladoTitulo}>
-          {todosFaltan ? T.canceladoNinguno : T.canceladoTexto}
-        </Nota>
+          <section aria-labelledby={ID_PRODUCTOS} className="flex flex-col gap-3">
+            <div>
+              <h2 id={ID_PRODUCTOS} tabIndex={-1} className="text-xl font-bold outline-none">
+                {T.productosTitulo}
+              </h2>
+              {parte.estado === 'preparando' && <p className="text-base text-tenue">{T.marca}</p>}
+            </div>
+            {parte.estado === 'preparando' ? (
+              <ul className="flex flex-col gap-3 @3xl/main:gap-0 @3xl/main:divide-y @3xl/main:divide-linea">
+                {parte.lineas.map((l) => (
+                  <li key={l.id}>
+                    <LineaPorMarcar
+                      linea={l}
+                      marca={marcas[l.id] ?? null}
+                      guardando={!!guardando[l.id]}
+                      error={!!errorLinea[l.id]}
+                      sinMarcar={sinMarcar === l.id}
+                      onElegir={(e) => elegir(l, e)}
+                      onFaltan={(n) => cambiarFaltan(l, n)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <LineasSoloLectura parte={parte} />
+            )}
+            {parte.estado === 'enviada' && <p className="text-tenue">{T.tocaEmpezar}</p>}
+          </section>
+
+          {/* 6.3: una sola acción principal por estado. */}
+          {parte.estado === 'enviada' && (
+            <div className="flex flex-col gap-3">
+              {errorAccion && <MensajeError>{T.error}</MensajeError>}
+              <Acciones>
+                <Boton ocupado={ocupado === 'empezar'} textoOcupado={T.empezando} onClick={() => void empezar()}>
+                  {T.empezar}
+                </Boton>
+              </Acciones>
+            </div>
+          )}
+          {parte.estado === 'preparando' && (
+            <div className="flex flex-col gap-3">
+              <p className="max-w-prose text-base text-tenue">{T.despuesDeListo}</p>
+              {/* P2-7: se anuncia por la región urgente en cada intento, y describe la línea sin marcar. */}
+              {sinMarcar && (
+                <Anunciado key={intentoListo} urgencia="alert" id={ID_MARCA_CADA}>
+                  <MensajeError>{T.marcaCada}</MensajeError>
+                </Anunciado>
+              )}
+              {errorAccion && <MensajeError>{T.error}</MensajeError>}
+              <Acciones>
+                <Boton ocupado={ocupado === 'listo'} textoOcupado={T.guardando} onClick={() => void terminar()}>
+                  {todosFaltan ? T.ningunoBoton : T.listo}
+                </Boton>
+              </Acciones>
+            </div>
+          )}
+          {parte.estado === 'lista' && nota === 'listo' && (
+            <Nota id={ID_NOTA_ESTADO} enfocable tono="ok" rol="status" titulo={T.listoTitulo}>
+              {T.listoTexto}
+            </Nota>
+          )}
+
+          {conCodigo && (
+            <section aria-labelledby="titulo-codigo" className="flex flex-col gap-4">
+              <h2 id="titulo-codigo" className="text-xl font-bold">
+                {CODIGO_RETIRO.titulo}
+              </h2>
+              {resultado && <NotaResultado key={resultado.n} r={resultado} referencia={parte.referencia} contacto={contacto} />}
+              {campoVisible && (
+                <CampoCodigo
+                  parte={parte}
+                  resultado={resultado}
+                  onInactiva={quedoInactiva}
+                  onResultado={(r, p) => {
+                    setResultado(r)
+                    if (p) {
+                      setParte(p)
+                      onCambio(p)
+                    }
+                    // P1-4 y P2-8: a la nota, cuando ya está montada (y el campo, si se va, desmontado).
+                    pedirFoco(ID_RESULTADO)
+                  }}
+                />
+              )}
+            </section>
+          )}
+
+          {parte.estado === 'retirada' && (
+            <Nota id={ID_NOTA_ESTADO} tono="ok" titulo={T.retiradoTitulo}>
+              {parte.retirada_en ? <span className="cifras whitespace-normal">{T.retiradoTexto(horaChile(parte.retirada_en))}</span> : undefined}
+            </Nota>
+          )}
+          {parte.estado === 'cancelada' && !canceladaPorCodigo && (
+            <Nota id={ID_NOTA_ESTADO} enfocable tono="pronto" borde titulo={T.canceladoTitulo} rol={recienSinNinguno ? 'status' : undefined}>
+              {sinNinguno ? T.canceladoNinguno : T.canceladoTexto}
+            </Nota>
+          )}
+        </>
       )}
 
       {/* 6.2: en el detalle ancho, el rótulo queda al pie de la cola y no se repite aquí. */}
@@ -475,9 +508,10 @@ function LineaPorMarcar({
       nombre={id}
       forma="chips"
       ocupado={guardando}
-      describe={falta ? `${id}-nota` : undefined}
+      describe={[falta ? `${id}-nota` : '', sinMarcar ? ID_MARCA_CADA : ''].filter(Boolean).join(' ') || undefined}
+      leyendaDentro
       claseGrupo={`gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ${
-        sinMarcar ? 'ring-2 ring-pronto @3xl/main:px-3' : 'ring-1 ring-linea @3xl/main:rounded-none @3xl/main:bg-transparent @3xl/main:px-0 @3xl/main:ring-0'
+        sinMarcar ? 'ring-2 ring-pronto @3xl/main:-mx-3 @3xl/main:px-3' : 'ring-1 ring-linea @3xl/main:rounded-none @3xl/main:bg-transparent @3xl/main:px-0 @3xl/main:ring-0'
       }`}
       leyenda={
         <>

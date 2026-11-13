@@ -155,6 +155,7 @@ export function apiComercio({
       if (m[3] === 'listo') {
         const ninguno = p.lineas.every((l) => l.estado_linea === 'faltante' && l.unidades_faltantes >= l.cantidad)
         p.estado = ninguno ? 'cancelada' : 'lista'
+        if (ninguno) p.motivo_cancelacion = 'producto_faltante'
         if (!ninguno) p.estado_codigo = 'vigente'
         return responder(config, conVersion(p))
       }

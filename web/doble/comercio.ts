@@ -42,6 +42,8 @@ interface Parte {
   lineas: Linea[]
   version: number
   intentos: number
+  /** Decisión 430: por qué se canceló (O3 o la familia). */
+  motivo?: 'producto_faltante' | 'cancelada_por_familia'
   /** Se cancela sola (la familia o MATU) este instante después de abrirla por primera vez. */
   cancelarAlVer?: number
   cancelaEn?: number
@@ -198,6 +200,7 @@ const resumen = (p: Parte) => ({
   numero_lineas: p.lineas.length,
   retirada_en: p.retirada_en,
   cancelada_en: p.cancelada_en,
+  motivo_cancelacion: p.estado === 'cancelada' ? (p.motivo ?? 'cancelada_por_familia') : null,
 })
 const vista = (p: Parte) => ({ ...resumen(p), lineas: p.lineas.map((l) => ({ ...l, producto: { ...l.producto } })) })
 const productoVista = (p: Producto) => {
@@ -339,6 +342,7 @@ export async function atenderComercio(
     const ninguno = p.lineas.every((l) => l.estado_linea === 'faltante' && l.unidades_faltantes >= l.cantidad)
     if (ninguno) {
       p.estado = 'cancelada'
+      p.motivo = 'producto_faltante'
       p.cancelada_en = new Date().toISOString()
     } else {
       p.estado = 'lista'

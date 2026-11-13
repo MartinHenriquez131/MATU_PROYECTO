@@ -132,7 +132,19 @@ function FilaProducto({
   const [ofreciendo, setOfreciendo] = useState(false)
   const form = useRef<HTMLFormElement>(null)
 
-  const enfocarCambiar = () => window.setTimeout(() => document.getElementById(idCambiar(p.oferta_id))?.focus(), 0)
+  /**
+   * P2-11: el foco vuelve a «Cambiar cuántos tienes» cuando el botón ya está montado (con el editor
+   * cerrado). Un `setTimeout` corría antes y el foco caía en `body`.
+   */
+  const [focoCambiar, setFocoCambiar] = useState(false)
+  const enfocarCambiar = () => setFocoCambiar(true)
+  useEffect(() => {
+    if (!focoCambiar || abierto) return
+    const b = document.getElementById(idCambiar(p.oferta_id))
+    if (!b) return
+    b.focus()
+    setFocoCambiar(false)
+  })
 
   const abrir = () => {
     setValor(String(p.stock))
@@ -210,7 +222,7 @@ function FilaProducto({
   return (
     <article
       aria-labelledby={`${id}-n`}
-      className="flex flex-col gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea @xl/main:grid @xl/main:grid-cols-[minmax(0,1fr)_auto] @xl/main:gap-x-8"
+      className="flex flex-col gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea @xl/main:grid @xl/main:grid-cols-[minmax(0,1fr)_18rem] @xl/main:gap-x-8"
     >
       <div className="flex min-w-0 flex-col gap-1">
         <h2 id={`${id}-n`} className="text-lg font-bold break-words">
@@ -249,16 +261,15 @@ function FilaProducto({
           <dt className="text-tenue">{T.apartados}</dt>
           <dd className="cifras text-right angosto:text-left">{p.apartado}</dd>
           <dt className="font-bold text-tenue">{T.disponibles}</dt>
-          <dd className="flex flex-wrap items-center justify-end gap-2 font-bold angosto:justify-start">
-            {sinDisponibles && (
-              <Etiqueta tono="atenta">
-                <TriangleAlert aria-hidden className="size-4 shrink-0" />
-                {T.sinDisponibles}
-              </Etiqueta>
-            )}
-            <span className="cifras">{Math.max(0, p.disponibles)}</span>
-          </dd>
+          <dd className="cifras text-right font-bold angosto:text-left">{Math.max(0, p.disponibles)}</dd>
         </dl>
+        {/* P2-10: bajo las cifras, para no partir «Disponibles» ni desalinear la columna. */}
+        {sinDisponibles && (
+          <Etiqueta tono="atenta" className="self-start">
+            <TriangleAlert aria-hidden className="size-4 shrink-0" />
+            {T.sinDisponibles}
+          </Etiqueta>
+        )}
         {p.stock < p.apartado && <Nota tono="atenta">{T.menosQueApartados}</Nota>}
         {aviso === 'otra-persona' && (
           <Nota tono="atenta" rol="status">
