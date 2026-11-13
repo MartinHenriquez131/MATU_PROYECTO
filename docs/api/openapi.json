@@ -2656,6 +2656,1426 @@
         "x-matu-historia": "MATU-45 (RF-08), MATU-50 (cambio aditivo: secciones)"
       }
     },
+    "/v1/relevo/presentacion": {
+      "post": {
+        "tags": [
+          "relevo"
+        ],
+        "summary": "Saber quién compartió la ficha y de quién es, antes del PIN",
+        "description": "Ruta pública para la pantalla del PIN (decisión 28). Recibe solo el token, leído del fragmento `/r#<token>`, en el cuerpo y nunca en la URL, y responde los dos nombres de pila para que la página diga «Carmen te compartió la ficha de María» antes de pedir el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.\n\nOrden de evaluación, el mismo del canje hasta el estado:\n\n1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, 429. Sin Redis o sin PEPPER_LIMITES, 503.\n2. Cuerpo válido. Si no, 422. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.\n3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.\n4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23).\n5. Bloqueado (5 PIN incorrectos): 423.\n6. Autorización de la persona no vigente: 410 relevo-pausado, sin decir el motivo (decisión 33).\n7. Si no, 200 con los dos nombres.\n\nNo cuenta como intento de PIN, no crea sesión, no suma usos y no registra relevo.abrir. Cada 200 registra relevo.presentar, sin IP (decisión 30), y la familia lo ve en /plan/aperturas como `presentacion`.",
+        "operationId": "presentarRelevo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudPresentacionVista"
+              },
+              "examples": {
+                "presentacion": {
+                  "summary": "La página de Rosa pide los nombres con el token del enlace",
+                  "value": {
+                    "token": "EjemploSinteticoDeTokenDeRelevoNoValido0000"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Los dos nombres de pila del acceso",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresentacionVista"
+                },
+                "example": {
+                  "nombre_pila_comparte": "Carmen",
+                  "nombre_pila": "María"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "/errores/relevo-vencido",
+                        "/errores/relevo-revocado",
+                        "/errores/relevo-no-disponible",
+                        "/errores/relevo-pausado"
+                      ],
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 410
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/relevo-vencido",
+                  "title": "Ya no está disponible",
+                  "status": 410,
+                  "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Falta el token o el cuerpo trae un campo extra. No revela nada del acceso",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/validacion",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 422
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/validacion",
+                  "title": "Datos inválidos",
+                  "status": 422,
+                  "detail": "Revisa los campos indicados",
+                  "errores": [
+                    {
+                      "campo": "token",
+                      "mensaje": "Field required",
+                      "tipo": "missing"
+                    }
+                  ],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f1"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/relevo-bloqueado",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 423
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/relevo-bloqueado",
+                  "title": "Bloqueado",
+                  "status": 423,
+                  "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Se superó el límite de 30 presentaciones por hora desde la misma IP (MATU-25), en un contador propio, separado del canje (decisión 29), cuya clave es una huella de la IP (decisión 27). El límite es más alto que el del canje porque muchos celulares en Chile comparten IP pública (CGNAT). No toca el acceso",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              },
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "maximum": 3600.0,
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/demasiadas-peticiones",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 429
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/demasiadas-peticiones",
+                  "title": "Demasiadas peticiones",
+                  "status": 429,
+                  "detail": "Espera un rato antes de volver a intentarlo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "El límite por IP falla cerrado: Redis no responde o falta PEPPER_LIMITES (MATU-25, decisión 114)",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/servicio-no-disponible",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 503
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/servicio-no-disponible",
+                  "title": "Servicio no disponible",
+                  "status": 503,
+                  "detail": "No se puede atender esta petición en este momento. Cita el request_id si lo reportas",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-matu-historia": "MATU-19, MATU-23, MATU-25",
+        "x-matu-auditoria": "relevo.presentar"
+      }
+    },
+    "/v1/relevo/canje": {
+      "post": {
+        "tags": [
+          "relevo"
+        ],
+        "summary": "Canjear el enlace y el PIN por una sesión de relevo",
+        "description": "Ruta pública. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo, nunca en la URL. Si son correctos responde 204 con la cookie de sesión de relevo, y la página lee la ficha con GET /v1/relevo/ficha.\n\nOrden de evaluación:\n\n1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, 429, sin tocar el acceso. Sin Redis o sin PEPPER_LIMITES, 503.\n2. Cuerpo válido (PIN de 4 dígitos). Si no, 422. No cuenta como intento. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114).\n3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.\n4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23). No cuenta como intento.\n5. Bloqueado (5 PIN incorrectos): 423, aunque el PIN sea el correcto.\n6. Autorización de la persona no vigente: 410 relevo-pausado (decisión 33). No cuenta como intento ni crea sesión.\n7. Sin PEPPER_PIN: 503, sin comparar el PIN.\n8. PIN incorrecto: suma un intento y registra relevo.pin_incorrecto. Del 1.º al 4.º responde 401 con intentos_restantes; el 5.º bloquea el acceso, registra relevo.bloqueo y responde 423.\n9. PIN correcto: vuelve el contador a 0, registra relevo.canje, crea la sesión en Redis y responde 204 con Set-Cookie. Si Redis no responde, 503: el canje quedó registrado pero sin cookie, y la página vuelve a pedir el PIN.\n\nLa sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso.",
+        "operationId": "canjearRelevo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudCanjeVista"
+              },
+              "examples": {
+                "canje": {
+                  "summary": "Rosa escribe el PIN que le dictó Carmen",
+                  "value": {
+                    "token": "EjemploSinteticoDeTokenDeRelevoNoValido0000",
+                    "pin": "4821"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Cookie de sesión de relevo. Max-Age es el menor entre 43200 (12 horas) y los segundos que le quedan al acceso",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                },
+                "example": "__Secure-matu-relevo=<id-de-sesión>; Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict"
+              }
+            }
+          },
+          "401": {
+            "description": "PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/pin-incorrecto",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 401
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "intentos_restantes": {
+                      "type": "integer",
+                      "maximum": 4.0,
+                      "minimum": 1.0,
+                      "description": "Intentos que quedan antes del bloqueo"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "intentos_restantes"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/pin-incorrecto",
+                  "title": "PIN incorrecto",
+                  "status": 401,
+                  "detail": "El PIN no coincide. Te quedan 3 intentos",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000ea",
+                  "intentos_restantes": 3
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "/errores/relevo-vencido",
+                        "/errores/relevo-revocado",
+                        "/errores/relevo-no-disponible",
+                        "/errores/relevo-pausado"
+                      ],
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 410
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/relevo-vencido",
+                  "title": "Ya no está disponible",
+                  "status": 410,
+                  "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela nada del acceso",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/validacion",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 422
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/validacion",
+                  "title": "Datos inválidos",
+                  "status": 422,
+                  "detail": "Revisa los campos indicados",
+                  "errores": [
+                    {
+                      "campo": "pin",
+                      "mensaje": "String should match pattern '^[0-9]{4}$'",
+                      "tipo": "string_pattern_mismatch"
+                    }
+                  ],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000e9"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/relevo-bloqueado",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 423
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/relevo-bloqueado",
+                  "title": "Bloqueado",
+                  "status": 423,
+                  "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25), en un contador propio (decisión 29) cuya clave es una huella de la IP (decisión 27). No toca el acceso ni cuenta como intento de PIN",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              },
+              "Retry-After": {
+                "description": "Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "maximum": 3600.0,
+                  "minimum": 1.0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/demasiadas-peticiones",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 429
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/demasiadas-peticiones",
+                  "title": "Demasiadas peticiones",
+                  "status": 429,
+                  "detail": "Espera un rato antes de volver a intentarlo",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f0"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Falla cerrado. Antes que todo, el límite por IP sin Redis o sin PEPPER_LIMITES (MATU-25). Después de los 410 y el 423, falta PEPPER_PIN (no cuenta como intento). O Redis no respondió al crear la sesión: el canje quedó registrado como relevo.canje, pero no hay cookie",
+            "headers": {
+              "X-Request-ID": {
+                "description": "Identificador de la petición (UUID), el mismo request_id de los logs y del problema",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Cache-Control": {
+                "description": "Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "description": "El navegador no envía la URL de la página del relevo como Referer a nadie",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Robots-Tag": {
+                "description": "Ningún buscador indexa las respuestas del relevo",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "const": "noindex"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/servicio-no-disponible",
+                      "format": "uri-reference"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 503
+                    },
+                    "detail": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "errores": {
+                      "items": {
+                        "properties": {
+                          "campo": {
+                            "type": "string"
+                          },
+                          "mensaje": {
+                            "type": "string"
+                          },
+                          "tipo": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "campo",
+                          "mensaje",
+                          "tipo"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "request_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id"
+                  ]
+                },
+                "example": {
+                  "type": "/errores/servicio-no-disponible",
+                  "title": "Servicio no disponible",
+                  "status": 503,
+                  "detail": "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
+                  "errores": [],
+                  "request_id": "9b2f4c1e-0000-4000-8000-0000000000f4"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-matu-historia": "MATU-19, MATU-25",
+        "x-matu-auditoria": "relevo.canje, relevo.pin_incorrecto, relevo.bloqueo"
+      }
+    },
     "/v1/relevo/ficha": {
       "get": {
         "tags": [
@@ -10311,6 +11731,25 @@
         "title": "PoliticaVista",
         "description": "GET /v1/politica (MATU-75): la política de privacidad vigente, pública."
       },
+      "PresentacionVista": {
+        "properties": {
+          "nombre_pila_comparte": {
+            "type": "string",
+            "title": "Nombre Pila Comparte"
+          },
+          "nombre_pila": {
+            "type": "string",
+            "title": "Nombre Pila"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_pila_comparte",
+          "nombre_pila"
+        ],
+        "title": "PresentacionVista"
+      },
       "ProductoResumen": {
         "properties": {
           "id": {
@@ -10628,6 +12067,28 @@
         "title": "SolicitudCampo",
         "description": "Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422."
       },
+      "SolicitudCanjeVista": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token"
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$",
+            "title": "Pin"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "pin"
+        ],
+        "title": "SolicitudCanjeVista"
+      },
       "SolicitudCodigoRecuperacion": {
         "properties": {
           "email": {
@@ -10917,6 +12378,22 @@
         ],
         "title": "SolicitudPersona",
         "description": "Cuerpo de POST /v1/grupos/{grupo_id}/personas-cuidadas."
+      },
+      "SolicitudPresentacionVista": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "SolicitudPresentacionVista"
       },
       "SolicitudPush": {
         "properties": {

@@ -392,6 +392,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/relevo/presentacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saber quién compartió la ficha y de quién es, antes del PIN
+         * @description Ruta pública para la pantalla del PIN (decisión 28). Recibe solo el token, leído del fragmento `/r#<token>`, en el cuerpo y nunca en la URL, y responde los dos nombres de pila para que la página diga «Carmen te compartió la ficha de María» antes de pedir el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.
+         *
+         *     Orden de evaluación, el mismo del canje hasta el estado:
+         *
+         *     1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, 429. Sin Redis o sin PEPPER_LIMITES, 503.
+         *     2. Cuerpo válido. Si no, 422. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
+         *     3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.
+         *     4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23).
+         *     5. Bloqueado (5 PIN incorrectos): 423.
+         *     6. Autorización de la persona no vigente: 410 relevo-pausado, sin decir el motivo (decisión 33).
+         *     7. Si no, 200 con los dos nombres.
+         *
+         *     No cuenta como intento de PIN, no crea sesión, no suma usos y no registra relevo.abrir. Cada 200 registra relevo.presentar, sin IP (decisión 30), y la familia lo ve en /plan/aperturas como `presentacion`.
+         */
+        post: operations["presentarRelevo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/relevo/canje": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Canjear el enlace y el PIN por una sesión de relevo
+         * @description Ruta pública. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo, nunca en la URL. Si son correctos responde 204 con la cookie de sesión de relevo, y la página lee la ficha con GET /v1/relevo/ficha.
+         *
+         *     Orden de evaluación:
+         *
+         *     1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, 429, sin tocar el acceso. Sin Redis o sin PEPPER_LIMITES, 503.
+         *     2. Cuerpo válido (PIN de 4 dígitos). Si no, 422. No cuenta como intento. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114).
+         *     3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.
+         *     4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23). No cuenta como intento.
+         *     5. Bloqueado (5 PIN incorrectos): 423, aunque el PIN sea el correcto.
+         *     6. Autorización de la persona no vigente: 410 relevo-pausado (decisión 33). No cuenta como intento ni crea sesión.
+         *     7. Sin PEPPER_PIN: 503, sin comparar el PIN.
+         *     8. PIN incorrecto: suma un intento y registra relevo.pin_incorrecto. Del 1.º al 4.º responde 401 con intentos_restantes; el 5.º bloquea el acceso, registra relevo.bloqueo y responde 423.
+         *     9. PIN correcto: vuelve el contador a 0, registra relevo.canje, crea la sesión en Redis y responde 204 con Set-Cookie. Si Redis no responde, 503: el canje quedó registrado pero sin cookie, y la página vuelve a pedir el PIN.
+         *
+         *     La sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso.
+         */
+        post: operations["canjearRelevo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/relevo/ficha": {
         parameters: {
             query?: never;
@@ -2333,6 +2399,13 @@ export interface components {
              */
             correo_contacto: string | null;
         };
+        /** PresentacionVista */
+        PresentacionVista: {
+            /** Nombre Pila Comparte */
+            nombre_pila_comparte: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+        };
         /** ProductoResumen */
         ProductoResumen: {
             /**
@@ -2471,6 +2544,13 @@ export interface components {
             /** Texto */
             texto: string;
         };
+        /** SolicitudCanjeVista */
+        SolicitudCanjeVista: {
+            /** Token */
+            token: string;
+            /** Pin */
+            pin: string;
+        };
         /**
          * SolicitudCodigoRecuperacion
          * @description Cuerpo de POST /v1/recuperacion/codigo. Solo el email: nunca se pide el celular para recuperar.
@@ -2557,6 +2637,11 @@ export interface components {
             referencia_documento?: string | null;
             aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
             direccion?: components["schemas"]["DireccionNueva"] | null;
+        };
+        /** SolicitudPresentacionVista */
+        SolicitudPresentacionVista: {
+            /** Token */
+            token: string;
         };
         /**
          * SolicitudPush
@@ -6055,6 +6140,582 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    presentarRelevo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPresentacionVista"];
+            };
+        };
+        responses: {
+            /** @description Los dos nombres de pila del acceso */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "nombre_pila_comparte": "Carmen",
+                     *       "nombre_pila": "María"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PresentacionVista"];
+                };
+            };
+            /** @description El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento */
+            410: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-vencido",
+                     *       "title": "Ya no está disponible",
+                     *       "status": 410,
+                     *       "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @enum {string}
+                         */
+                        type: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
+                        title: string;
+                        /** @constant */
+                        status: 410;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falta el token o el cuerpo trae un campo extra. No revela nada del acceso */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/validacion",
+                     *       "title": "Datos inválidos",
+                     *       "status": 422,
+                     *       "detail": "Revisa los campos indicados",
+                     *       "errores": [
+                     *         {
+                     *           "campo": "token",
+                     *           "mensaje": "Field required",
+                     *           "tipo": "missing"
+                     *         }
+                     *       ],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f1"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/validacion";
+                        title: string;
+                        /** @constant */
+                        status: 422;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo */
+            423: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-bloqueado",
+                     *       "title": "Bloqueado",
+                     *       "status": 423,
+                     *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/relevo-bloqueado";
+                        title: string;
+                        /** @constant */
+                        status: 423;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Se superó el límite de 30 presentaciones por hora desde la misma IP (MATU-25), en un contador propio, separado del canje (decisión 29), cuya clave es una huella de la IP (decisión 27). El límite es más alto que el del canje porque muchos celulares en Chile comparten IP pública (CGNAT). No toca el acceso */
+            429: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /** @description Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600 */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/demasiadas-peticiones",
+                     *       "title": "Demasiadas peticiones",
+                     *       "status": 429,
+                     *       "detail": "Espera un rato antes de volver a intentarlo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/demasiadas-peticiones";
+                        title: string;
+                        /** @constant */
+                        status: 429;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El límite por IP falla cerrado: Redis no responde o falta PEPPER_LIMITES (MATU-25, decisión 114) */
+            503: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/servicio-no-disponible",
+                     *       "title": "Servicio no disponible",
+                     *       "status": 503,
+                     *       "detail": "No se puede atender esta petición en este momento. Cita el request_id si lo reportas",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/servicio-no-disponible";
+                        title: string;
+                        /** @constant */
+                        status: 503;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+        };
+    };
+    canjearRelevo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCanjeVista"];
+            };
+        };
+        responses: {
+            /** @description PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo */
+            204: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /**
+                     * @description Cookie de sesión de relevo. Max-Age es el menor entre 43200 (12 horas) y los segundos que le quedan al acceso
+                     * @example __Secure-matu-relevo=<id-de-sesión>; Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
+                     */
+                    "Set-Cookie": string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423 */
+            401: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/pin-incorrecto",
+                     *       "title": "PIN incorrecto",
+                     *       "status": 401,
+                     *       "detail": "El PIN no coincide. Te quedan 3 intentos",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ea",
+                     *       "intentos_restantes": 3
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/pin-incorrecto";
+                        title: string;
+                        /** @constant */
+                        status: 401;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                        /** @description Intentos que quedan antes del bloqueo */
+                        intentos_restantes: number;
+                    };
+                };
+            };
+            /** @description El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento */
+            410: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-vencido",
+                     *       "title": "Ya no está disponible",
+                     *       "status": 410,
+                     *       "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @enum {string}
+                         */
+                        type: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
+                        title: string;
+                        /** @constant */
+                        status: 410;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela nada del acceso */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/validacion",
+                     *       "title": "Datos inválidos",
+                     *       "status": 422,
+                     *       "detail": "Revisa los campos indicados",
+                     *       "errores": [
+                     *         {
+                     *           "campo": "pin",
+                     *           "mensaje": "String should match pattern '^[0-9]{4}$'",
+                     *           "tipo": "string_pattern_mismatch"
+                     *         }
+                     *       ],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e9"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/validacion";
+                        title: string;
+                        /** @constant */
+                        status: 422;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo */
+            423: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-bloqueado",
+                     *       "title": "Bloqueado",
+                     *       "status": 423,
+                     *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/relevo-bloqueado";
+                        title: string;
+                        /** @constant */
+                        status: 423;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25), en un contador propio (decisión 29) cuya clave es una huella de la IP (decisión 27). No toca el acceso ni cuenta como intento de PIN */
+            429: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /** @description Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600 */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/demasiadas-peticiones",
+                     *       "title": "Demasiadas peticiones",
+                     *       "status": 429,
+                     *       "detail": "Espera un rato antes de volver a intentarlo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f0"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/demasiadas-peticiones";
+                        title: string;
+                        /** @constant */
+                        status: 429;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falla cerrado. Antes que todo, el límite por IP sin Redis o sin PEPPER_LIMITES (MATU-25). Después de los 410 y el 423, falta PEPPER_PIN (no cuenta como intento). O Redis no respondió al crear la sesión: el canje quedó registrado como relevo.canje, pero no hay cookie */
+            503: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/servicio-no-disponible",
+                     *       "title": "Servicio no disponible",
+                     *       "status": 503,
+                     *       "detail": "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f4"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/servicio-no-disponible";
+                        title: string;
+                        /** @constant */
+                        status: 503;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
                 };
             };
         };
