@@ -8,8 +8,8 @@ import { esVencida } from '../compartido/api/sesion'
 import { Boton } from '../compartido/ui/Boton'
 import { Nota } from '../compartido/ui/Nota'
 import { Acciones, MensajeError } from '../familia/ui'
-import { aEntregar, CantidadProducto } from './comun'
-import { CODIGO_RETIRO as T } from './textos'
+import { aEntregar, CantidadProducto, horaChile } from './comun'
+import { CODIGO_RETIRO as T, PEDIDO_COMERCIO } from './textos'
 
 /** Lo que se muestra de una revisión. `vivo`: vino de una acción, se anuncia y recibe el foco. */
 export type Resultado =
@@ -26,7 +26,7 @@ export const ID_RESULTADO = 'resultado-codigo'
 const limpiar = (t: string) => t.replace(/\D/g, '').slice(0, 6)
 
 /** 7.3: cada resultado es una `Nota` con título, que recibe el foco. Una `key` nueva en cada intento. */
-export function NotaResultado({ r, referencia, contacto }: { r: Resultado; referencia: string; contacto: string }) {
+export function NotaResultado({ r, referencia, contacto, retiradaEn = null }: { r: Resultado; referencia: string; contacto: string; retiradaEn?: string | null }) {
   const comun = { id: ID_RESULTADO, enfocable: r.vivo, iconoEnLinea: true } as const
   const rolUrgente = r.vivo ? ('alert' as const) : undefined
   switch (r.tipo) {
@@ -72,6 +72,8 @@ export function NotaResultado({ r, referencia, contacto }: { r: Resultado; refer
       return (
         <Nota {...comun} tono="atenta" rol={rolUrgente} titulo={T.usadoTitulo}>
           {T.usadoTexto}
+          {/* v1.1 (7.3): sin la nota 6.7; si el contrato trae la hora, va aquí. */}
+          {retiradaEn && <span className="cifras whitespace-normal"> {PEDIDO_COMERCIO.retiradoTexto(horaChile(retiradaEn))}</span>}
         </Nota>
       )
     case 'cancelada':

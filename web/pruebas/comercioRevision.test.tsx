@@ -182,6 +182,29 @@ describe('P2', () => {
   })
 })
 
+describe('Especificación v1.1', () => {
+  it('7.3: «ya retirado» no agrega la nota 6.7; la hora va en su propia nota', async () => {
+    const parte = { ...partesDeEjemplo().find((p) => p.id === ID.lista)!, estado: 'retirada' as const, retirada_en: '2026-11-13T17:25:00Z' }
+    const { usuario } = await abrirParte('P5Q8ZA', (l) => (l.endsWith('/validar-codigo') ? { status: 200, cuerpo: { resultado: 'usado', intentos_restantes: 0, parte } } : undefined))
+    await usuario.type(screen.getByLabelText(CAMPO), '123456')
+    await usuario.click(screen.getByRole('button', { name: 'Revisar código' }))
+    await screen.findByText('Este pedido ya se retiró.')
+    expect(screen.queryByText('Pedido retirado.')).toBeNull()
+    expect(screen.getByText(/Se retiró a las 14:25\./)).toBeVisible()
+  })
+
+  it('8.2: la nota «Tienes menos…» va en su propia fila, a todo el ancho', async () => {
+    apiComercio()
+    window.history.replaceState(null, '', '/comercio/productos')
+    conRegionesVivas(<AppComercio />)
+    const h2 = await screen.findByRole('heading', { level: 2, name: 'Suplemento vainilla x12' })
+    const fila = h2.closest('article')!
+    const nota = within(fila).getByText(/Tienes menos de los que ya están apartados/)
+    const celda = [...fila.children].find((c) => c.contains(nota))!
+    expect(celda).toHaveClass('@xl/main:col-span-2')
+  })
+})
+
 describe('P3', () => {
   it('13: «Volver a los pedidos» alinea su texto a la izquierda', async () => {
     await abrirParte('R8T2WQ')

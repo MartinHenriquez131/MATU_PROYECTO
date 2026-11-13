@@ -222,7 +222,7 @@ function FilaProducto({
   return (
     <article
       aria-labelledby={`${id}-n`}
-      className="flex flex-col gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea @xl/main:grid @xl/main:grid-cols-[minmax(0,1fr)_18rem] @xl/main:gap-x-8"
+      className="flex flex-col gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea @xl/main:grid @xl/main:grid-cols-[minmax(0,1fr)_18rem] @xl/main:gap-x-8 @xl/main:gap-y-3"
     >
       <div className="flex min-w-0 flex-col gap-1">
         <h2 id={`${id}-n`} className="text-lg font-bold break-words">
@@ -270,12 +270,6 @@ function FilaProducto({
             {T.sinDisponibles}
           </Etiqueta>
         )}
-        {p.stock < p.apartado && <Nota tono="atenta">{T.menosQueApartados}</Nota>}
-        {aviso === 'otra-persona' && (
-          <Nota tono="atenta" rol="status">
-            {T.otraPersona}
-          </Nota>
-        )}
         {abierto ? (
           <form ref={form} noValidate className="flex flex-col gap-3" onSubmit={(e) => void guardar(e)}>
             <CampoTexto
@@ -308,6 +302,17 @@ function FilaProducto({
           )
         )}
       </div>
+      {/* v1.1 (8.2): las notas de la fila van en su propia fila de la grilla, a todo el ancho. */}
+      {(p.stock < p.apartado || aviso === 'otra-persona') && (
+        <div className="flex flex-col gap-3 @xl/main:col-span-2">
+          {p.stock < p.apartado && <Nota tono="atenta">{T.menosQueApartados}</Nota>}
+          {aviso === 'otra-persona' && (
+            <Nota tono="atenta" rol="status">
+              {T.otraPersona}
+            </Nota>
+          )}
+        </div>
+      )}
     </article>
   )
 }

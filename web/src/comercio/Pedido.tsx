@@ -299,6 +299,8 @@ export function DetallePedido({
   const conCodigo = !!parte && (parte.estado === 'lista' || resultado !== null)
   // 7.3 (P2-9): si el código dijo «cancelado», se ve solo esa nota, sin la de 6.8.
   const canceladaPorCodigo = resultado?.vivo === true && resultado.tipo === 'cancelada'
+  // v1.1 (7.3): con «ya retirado», tampoco la de 6.7.
+  const retiradaPorCodigo = resultado?.vivo === true && resultado.tipo === 'usado'
 
   return (
     <div className="flex flex-col gap-6" aria-busy={!parte && !fallo ? true : undefined}>
@@ -441,7 +443,7 @@ export function DetallePedido({
               <h2 id="titulo-codigo" className="text-xl font-bold">
                 {CODIGO_RETIRO.titulo}
               </h2>
-              {resultado && <NotaResultado key={resultado.n} r={resultado} referencia={parte.referencia} contacto={contacto} />}
+              {resultado && <NotaResultado key={resultado.n} r={resultado} referencia={parte.referencia} contacto={contacto} retiradaEn={parte.retirada_en} />}
               {campoVisible && (
                 <CampoCodigo
                   parte={parte}
@@ -461,7 +463,7 @@ export function DetallePedido({
             </section>
           )}
 
-          {parte.estado === 'retirada' && (
+          {parte.estado === 'retirada' && !retiradaPorCodigo && (
             <Nota id={ID_NOTA_ESTADO} tono="ok" titulo={T.retiradoTitulo}>
               {parte.retirada_en ? <span className="cifras whitespace-normal">{T.retiradoTexto(horaChile(parte.retirada_en))}</span> : undefined}
             </Nota>
