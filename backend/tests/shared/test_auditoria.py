@@ -105,6 +105,21 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         # MATU-54 (decisión 347)
         "persona.datos_descargar",
         "cuenta.datos_descargar",
+        # MATU-63 (D-63-12)
+        "comercio.preparar",
+        "comercio.marcar_linea",
+        "comercio.listo",
+        "comercio.codigo_correcto",
+        "comercio.codigo_incorrecto",
+        "comercio.codigo_bloqueo",
+        "comercio.productos_cambiar",
+        "pago.devolver",
+        "pedido.retracto_solicitar",
+        "despacho.codigo_generar",
+        "despacho.en_camino",
+        "despacho.entregar",
+        "despacho.no_entregado",
+        "retracto.resolver",
     }
 
 
@@ -113,7 +128,8 @@ def test_catalogo_de_motivos_es_el_de_la_decision_16() -> None:
 
 
 def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
-    assert {a.value for a in ActorTipo} == {"usuario", "relevo", "sistema"}
+    # MATU-63: el comercio y operación
+    assert {a.value for a in ActorTipo} == {"usuario", "relevo", "sistema", "comercio", "operacion"}
     assert {e.value for e in EntidadAuditoria} == {
         "plan_cuidado",
         "plan_seccion",
@@ -131,6 +147,10 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "cargo",
         "invitacion",
         "membresia",
+        # MATU-63
+        "pedido_comercio",
+        "oferta",
+        "retracto",
     }
 
 
@@ -141,7 +161,7 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         pytest.param(AccionAuditoria, "PLAN.LEER", id="accion-en-mayusculas"),
         pytest.param(MotivoAuditoria, "se fue al hospital", id="motivo-texto-libre"),
         pytest.param(MotivoAuditoria, "", id="motivo-vacio"),
-        pytest.param(ActorTipo, "comercio", id="actor-aun-no-usado"),
+        pytest.param(ActorTipo, "repartidor", id="actor-aun-no-usado"),
         pytest.param(EntidadAuditoria, "comercio", id="entidad-fuera-de-catalogo"),
     ],
 )

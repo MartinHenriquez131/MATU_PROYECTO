@@ -105,6 +105,11 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
     assert fuera == {
         AccionAuditoria.RELEVO_PRESENTAR, AccionAuditoria.RELEVO_CANJE, AccionAuditoria.RELEVO_PIN_INCORRECTO,
         AccionAuditoria.RELEVO_BLOQUEO, AccionAuditoria.RELEVO_ABRIR, AccionAuditoria.PERSONA_BORRAR,
+        # MATU-63: el despacho, la devolución y el retracto todavía no entran al historial de la copia (decisiones de
+        # MATU-63, «faltantes asignados»: la copia de los datos los suma en una tarjeta propia)
+        AccionAuditoria.PAGO_DEVOLVER, AccionAuditoria.PEDIDO_RETRACTO_SOLICITAR,
+        AccionAuditoria.DESPACHO_CODIGO_GENERAR, AccionAuditoria.DESPACHO_EN_CAMINO, AccionAuditoria.DESPACHO_ENTREGAR,
+        AccionAuditoria.DESPACHO_NO_ENTREGADO, AccionAuditoria.RETRACTO_RESOLVER,
     }
     assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 26
     assert alcance_del_historial("admin") == "todo" and alcance_del_historial("cuidador") == "lo_tuyo"

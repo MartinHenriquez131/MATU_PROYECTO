@@ -125,7 +125,7 @@ def test_ciclo_completo_entrar_renovar_renovar_cerrar(
     entrada = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     assert entrada.status_code == 200
     assert entrada.headers["cache-control"] == "no-store"
-    assert set(entrada.json()) == {"access_token", "token_type", "expira_en"}
+    assert set(entrada.json()) == {"access_token", "token_type", "expira_en", "tipo_cuenta"}
     assert entrada.json()["expira_en"] == 900
     refresh_1, atributos = _cookie(entrada)
     assert len(refresh_1) == 43
