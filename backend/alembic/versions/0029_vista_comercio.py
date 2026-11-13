@@ -367,7 +367,7 @@ BEGIN
     PERFORM set_config('app.funcion', '', true);
 END $$;
 
--- Empezar a preparar (D-63-2, D-63-11): bloquea el pedido como la cancelación después de pagar, y nunca prepara un
+-- p_version es la del If-Match, si vino (412 si no calza). Empezar a preparar (D-63-2, D-63-11): bloquea el pedido como la cancelación después de pagar, y nunca prepara un
 -- pedido cancelado. Devuelve ok, no_encontrada, version o estado
 CREATE FUNCTION comercio_preparar(p_parte uuid, p_version integer, p_ahora timestamptz) RETURNS text
     LANGUAGE plpgsql VOLATILE {DEFINIDOR} AS
@@ -387,7 +387,7 @@ BEGIN
     END IF;
     SELECT p.estado INTO v_estado FROM public.pedido p WHERE p.id = v_pedido FOR UPDATE;
     SELECT * INTO v_parte FROM public.pedido_comercio pc WHERE pc.id = p_parte FOR UPDATE;
-    IF p_version IS DISTINCT FROM v_parte.version THEN
+    IF p_version IS NOT NULL AND p_version <> v_parte.version THEN
         PERFORM set_config('app.funcion', '', true);
         RETURN 'version';
     END IF;
@@ -424,7 +424,7 @@ BEGIN
         PERFORM set_config('app.funcion', '', true);
         RETURN 'no_encontrada';
     END IF;
-    IF p_version IS DISTINCT FROM v_parte.version THEN
+    IF p_version IS NOT NULL AND p_version <> v_parte.version THEN
         PERFORM set_config('app.funcion', '', true);
         RETURN 'version';
     END IF;
@@ -460,7 +460,7 @@ BEGIN
         PERFORM set_config('app.funcion', '', true);
         RETURN 'no_encontrada';
     END IF;
-    IF p_version IS DISTINCT FROM v_parte.version THEN
+    IF p_version IS NOT NULL AND p_version <> v_parte.version THEN
         PERFORM set_config('app.funcion', '', true);
         RETURN 'version';
     END IF;

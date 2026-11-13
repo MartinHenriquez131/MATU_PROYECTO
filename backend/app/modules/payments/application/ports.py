@@ -136,6 +136,8 @@ class LineaPagada:
     salio: bool
     monto_devuelto: int
     devuelta_en: datetime | None
+    # MATU-63 (D-63-8): las unidades que el comercio no tenía
+    unidades_faltantes: int = 0
 
     @property
     def subtotal(self) -> int:
