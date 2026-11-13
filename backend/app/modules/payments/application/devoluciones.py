@@ -111,8 +111,10 @@ def devolver_de_linea(
     linea = next((x for x in repo.lineas_pagadas(pedido_id) if x.id == linea_id), None)
     if linea is None or linea.salio or monto <= 0:
         raise SinPagoQueDevolver()
-    if any(a.pedido_linea_id == linea_id and a.motivo is motivo for a in anulaciones):
-        raise DevolucionInvalida("una línea se devuelve una vez por motivo")
+    if any(
+        a.pedido_linea_id == linea_id and a.motivo is motivo and a.retracto_id == retracto_id for a in anulaciones
+    ):
+        raise DevolucionInvalida("una línea se devuelve una vez por motivo y retracto")
     en_curso_linea = sum(a.monto for a in anulaciones if a.pedido_linea_id == linea_id and not a.hecha)
     if linea.monto_devuelto + en_curso_linea + monto > linea.subtotal:
         raise DevolucionInvalida("lo devuelto no supera lo pagado por la línea")

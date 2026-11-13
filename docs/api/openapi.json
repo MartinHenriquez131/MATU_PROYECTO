@@ -9394,6 +9394,152 @@
           }
         }
       }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/cancelar-con-devolucion": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Cancelar Con Devolucion",
+        "description": "H1 y H2 del cierre del analista: operación cancela y devuelve todo, envío incluido, a la misma tarjeta. Desde no_entregado (nadie lo recibió y no hay segunda ventana), o cuando la familia pidió por correo cancelar un pedido pagado que ningún comercio empezó a preparar (R15). Otro estado: 409 no-cancelable.",
+        "operationId": "cancelar_con_devolucion_v1_operacion_pedidos__pedido_id__cancelar_con_devolucion_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoPedidoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Sin PASARELA_PAGO no se puede devolver: no se cancela",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/retractos": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Registrar Retracto Por Correo",
+        "description": "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.",
+        "operationId": "registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudRetractoPorCorreo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetractoVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "producto-no-retractable, o solicitado_por no es quien pagó ni un admin",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -18045,6 +18191,15 @@
           "monto": {
             "type": "integer",
             "title": "Monto"
+          },
+          "origen": {
+            "type": "string",
+            "enum": [
+              "app",
+              "correo"
+            ],
+            "title": "Origen",
+            "default": "app"
           }
         },
         "type": "object",
@@ -18424,6 +18579,38 @@
         ],
         "title": "RetractoCuentaCopia",
         "description": "MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona."
+      },
+      "SolicitudRetractoPorCorreo": {
+        "properties": {
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaRetracto"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lineas"
+          },
+          "solicitado_por": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solicitado Por"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lineas"
+        ],
+        "title": "SolicitudRetractoPorCorreo",
+        "description": "H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;\nsin valor, quien pagó."
       }
     },
     "securitySchemes": {

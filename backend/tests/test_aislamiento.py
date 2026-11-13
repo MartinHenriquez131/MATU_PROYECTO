@@ -4127,7 +4127,9 @@ def test_la_copia_de_la_cuenta_la_lee_solo_su_duena(cx):
 
 TABLAS_SIN_COMERCIO = ("pedido", "pedido_comercio", "pedido_linea", "pedido_transicion", "regla_sustitucion",
                        "pedido_entrega", "cargo", "participacion", "transaccion_pasarela", "evidencia",
-                       "retracto", "retracto_linea", "persona_cuidada", "direccion", "idempotencia")
+                       "retracto", "retracto_linea", "persona_cuidada", "direccion", "idempotencia",
+                       # H9 del cierre del analista: tampoco lo que MATU le debe, hasta que exista la liquidación
+                       "consumo_comercio")
 PARTE_A = uuid.UUID("00000000-0000-0000-0000-0000000009a1")
 
 
@@ -4297,12 +4299,24 @@ def test_el_retracto_lo_pide_el_admin_o_quien_pago_y_lo_ve_solo_su_grupo(cx):
     retracto = uuid.uuid4()
     cx.execute(insertar, (retracto, G_A, PED_A_ENVIADO, U_ADMIN_A))
     [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
-    # Hasta lo entregado (2 pañales)
+    # Hasta lo entregado (2 pañales), también entre varios retractos (H3)
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
                    " VALUES (%s, %s, %s, 3)", (retracto, G_A, linea))
-    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 2)",
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
                (retracto, G_A, linea))
+    otro = uuid.uuid4()
+    cx.execute(insertar, (otro, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
+                   " VALUES (%s, %s, %s, 2)", (otro, G_A, linea))
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (otro, G_A, linea))
+    # H2: la familia no registra un retracto «por correo»
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                   " incluye_envio, origen) VALUES (%s, %s, %s, now(), now() + interval '10 days', true, 'correo')",
+                   (G_A, PED_A_ENVIADO, U_ADMIN_A))
     # La familia no lo resuelve
     assert cx.execute("UPDATE retracto SET estado = 'devuelto', resuelto_en = now() WHERE id = %s RETURNING id",
                       (retracto,)).fetchall() == []
@@ -4323,9 +4337,22 @@ def test_una_linea_se_anula_una_vez_por_motivo(cx):
                 " ('00000000-0000-0000-0000-0000000008a1', %s, 'webpay_plus', 'anulacion', %s, 100, 'iniciada', %s,"
                 " %s, %s, %s)")
     cx.execute(insertar, (CARGO_A, "MATU-A1", "a1", venta, "producto_no_entregado", linea))
-    cx.execute(insertar, (CARGO_A, "MATU-A2", "a2", venta, "retracto", linea))
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        cx.execute(insertar, (CARGO_A, "MATU-A9", "a9", venta, "producto_no_entregado", linea))
+    # H3: una anulación por línea en cada retracto, y dos retractos de la misma línea, dos anulaciones
+    _entregado(cx)
+    retractos = []
+    for _ in range(2):
+        r = uuid.uuid4()
+        cx.execute("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                   " incluye_envio) VALUES (%s, %s, %s, %s, now(), now() + interval '10 days', false)",
+                   (r, G_A, PED_A_ENVIADO, U_ADMIN_A))
+        retractos.append(r)
+    con_retracto = insertar.replace("pedido_linea_id)", "pedido_linea_id, retracto_id)").replace("%s)", "%s, %s)")
+    cx.execute(con_retracto, (CARGO_A, "MATU-A2", "a2", venta, "retracto", linea, retractos[0]))
+    cx.execute(con_retracto, (CARGO_A, "MATU-A3", "a3", venta, "retracto", linea, retractos[1]))
     with pytest.raises(errors.UniqueViolation):
-        cx.execute(insertar, (CARGO_A, "MATU-A3", "a3", venta, "retracto", linea))
+        cx.execute(con_retracto, (CARGO_A, "MATU-A4", "a4", venta, "retracto", linea, retractos[0]))
 
 
 @pytest.mark.rf("Ley-21.719")
@@ -4358,3 +4385,23 @@ def test_el_codigo_desde_la_consola_es_solo_para_matu_scheduler_y_parte_lista(cx
     # Un plazo distinto de 90 minutos no entra
     with pytest.raises(errors.InvalidParameterValue), cx.transaction():
         cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '1 day')", (PARTE_A,))
+
+
+
+@pytest.mark.rf("R3")
+def test_el_plazo_del_retracto_depende_de_su_origen(cx):
+    """H2: en la app, como mucho 16 días corridos desde la entrega (10 hábiles); por correo, 90 días (CL-54). Operación
+    registra solo los de correo."""
+    _entregado(cx)
+    insertar = ("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio,"
+                " origen) VALUES (%s, %s, %s, now(), now() + %s::interval, false, %s)")
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "10 days", "app"))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "120 days", "correo"))
+    cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "80 days", "correo"))
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "30 days", "app"))

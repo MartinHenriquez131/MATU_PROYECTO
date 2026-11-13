@@ -49,7 +49,7 @@ def _rutas(esquema: dict[str, Any]) -> list[str]:
 def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
     exportado = json.loads((DOCS / "openapi.json").read_text(encoding="utf-8"))
     rutas = _rutas(esquema)
-    assert len(rutas) == 18
+    assert len(rutas) == 20
     for ruta in rutas:
         assert exportado["paths"][ruta] == esquema["paths"][ruta], f"vuelve a exportar {ruta}"
     for nombre in VISTAS_DEL_COMERCIO:

@@ -152,6 +152,7 @@ class RetractoVista(BaseModel):
     plazo_hasta: datetime
     incluye_envio: bool
     monto: int
+    origen: Literal["app", "correo"] = "app"
 
 
 class ListaRetractos(BaseModel):
@@ -177,6 +178,13 @@ class LineaRetracto(_Estricto):
 
 class SolicitudRetracto(_Estricto):
     lineas: Annotated[list[LineaRetracto], Field(min_length=1, max_length=100)]
+
+
+class SolicitudRetractoPorCorreo(SolicitudRetracto):
+    """H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
+    sin valor, quien pagó."""
+
+    solicitado_por: uuid.UUID | None = None
 
 
 class RetractosDelPedido(BaseModel):

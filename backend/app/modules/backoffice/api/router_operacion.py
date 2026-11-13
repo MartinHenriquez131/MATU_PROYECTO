@@ -31,8 +31,9 @@ from app.modules.backoffice.api.esquemas import (
     PedidoOperacion,
     RetractoVista,
     SolicitudResolverRetracto,
+    SolicitudRetractoPorCorreo,
 )
-from app.modules.backoffice.application.despacho import UnidadDespacho
+from app.modules.backoffice.application.despacho import NoCancelable, UnidadDespacho, cancelar_por_operacion
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
 from app.modules.care_circle.api.router_autorizaciones import RelojDep
 from app.modules.fulfillment.domain.despacho import (
@@ -50,6 +51,7 @@ from app.modules.payments.application import retractos as casos_retracto
 from app.modules.payments.application.ports import PasarelaWebpay
 from app.modules.payments.application.retractos import Retracto
 from app.modules.payments.domain.cargo import DevolucionInvalida
+from app.modules.payments.domain.retracto import RetractoInvalido
 from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from app.modules.payments.infrastructure.repositorio_retractos import RepositorioRetractosSQL
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
@@ -76,6 +78,15 @@ _PEDIDOS = text(
 )
 _GRUPO_DE_PEDIDO = text("SELECT grupo_id FROM pedido WHERE id = :id")
 _GRUPO_DE_PARTE = text("SELECT pedido_id, grupo_id FROM pedido_comercio WHERE id = :id")
+# H2: a nombre de quién va el retracto por correo: la cuenta que pagó o un admin activo del grupo
+_QUIEN_PAGO = text(
+    "SELECT pa.usuario_id FROM participacion pa JOIN cargo c ON c.id = pa.cargo_id"
+    " WHERE c.pedido_id = :pedido AND pa.monto_cobrado > 0 ORDER BY pa.id LIMIT 1"
+)
+_ES_ADMIN = text(
+    "SELECT EXISTS (SELECT 1 FROM membresia WHERE grupo_id = :grupo AND usuario_id = :usuario AND rol = 'admin'"
+    " AND estado = 'activa')"
+)
 _GRUPO_DE_RETRACTO = text("SELECT grupo_id FROM retracto WHERE id = :id")
 
 
@@ -239,7 +250,83 @@ def _retracto_vista(r: Retracto, monto: int) -> RetractoVista:
     return RetractoVista(
         id=r.id, pedido_id=r.pedido_id, estado=r.estado,  # type: ignore[arg-type]
         solicitado_en=r.solicitado_en, plazo_hasta=r.plazo_hasta, incluye_envio=r.incluye_envio, monto=monto,
+        origen=r.origen,  # type: ignore[arg-type]
     )
+
+
+@router.post(
+    "/pedidos/{pedido_id}/cancelar-con-devolucion",
+    response_model=EstadoPedidoVista,
+    responses={
+        **_RESPUESTAS,
+        503: {"description": "Sin PASARELA_PAGO no se puede devolver: no se cancela", **_PROBLEMA},
+    },
+    description=(
+        "H1 y H2 del cierre del analista: operación cancela y devuelve todo, envío incluido, a la misma tarjeta. Desde"
+        " no_entregado (nadie lo recibió y no hay segunda ventana), o cuando la familia pidió por correo cancelar un"
+        " pedido pagado que ningún comercio empezó a preparar (R15). Otro estado: 409 no-cancelable."
+    ),
+)
+def cancelar_con_devolucion(
+    pedido_id: _ID, request: Request, operador: Operador, fabrica: Fabrica, reloj: RelojDep, pasarela: PasarelaDep
+) -> EstadoPedidoVista:
+    identificador = _uuid(pedido_id)
+    grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_PEDIDO, identificador).grupo_id
+    if pasarela is None:
+        raise ErrorMATU(503, tipo="pasarela-no-disponible", detalle="No se puede devolver en este momento")
+    with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, _):
+        try:
+            cancelar_por_operacion(u, pasarela, identificador, operador, reloj.ahora())
+        except NoCancelable:
+            raise ErrorMATU(409, tipo="no-cancelable", detalle="El estado del pedido no permite cancelarlo") from None
+    return EstadoPedidoVista(pedido_id=identificador, estado="cancelado_con_devolucion")
+
+
+@router.post(
+    "/pedidos/{pedido_id}/retractos",
+    response_model=RetractoVista,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        **_RESPUESTAS,
+        409: {"description": "fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54)", **_PROBLEMA},
+        422: {"description": "producto-no-retractable, o solicitado_por no es quien pagó ni un admin", **_PROBLEMA},
+    },
+    description=(
+        "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la"
+        " entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto."
+    ),
+)
+def registrar_retracto_por_correo(
+    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, operador: Operador, fabrica: Fabrica, reloj: RelojDep
+) -> RetractoVista:
+    identificador = _uuid(pedido_id)
+    grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_PEDIDO, identificador).grupo_id
+    pedidas: dict[uuid.UUID, int] = {}
+    for linea in solicitud.lineas:
+        pedidas[linea.linea_id] = pedidas.get(linea.linea_id, 0) + linea.cantidad
+    with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
+        sesion = u.pagos.repositorio._sesion  # type: ignore[attr-defined]
+        pagador = sesion.execute(_QUIEN_PAGO, {"pedido": identificador}).scalar_one_or_none()
+        solicitado_por = solicitud.solicitado_por or pagador
+        if solicitado_por is None or (
+            solicitado_por != pagador
+            and not sesion.execute(_ES_ADMIN, {"grupo": grupo_id, "usuario": solicitado_por}).scalar()
+        ):
+            raise ErrorMATU(422, tipo="solicitante-invalido", detalle="Va a nombre de quien pagó o de un admin")
+        try:
+            r = casos_retracto.solicitar(
+                u.pagos, retractos, grupo_id, identificador, solicitado_por, pedidas, reloj.ahora(),
+                origen="correo", actor=ActorTipo.OPERACION, actor_ref=operador,
+            )
+        except casos_retracto.SinPedidoEntregado:
+            raise ErrorMATU(404) from None
+        except casos_retracto.FueraDePlazo as error:
+            raise ErrorMATU(409, tipo="fuera-de-plazo", detalle="Pasaron los 90 días desde la entrega",
+                            extension={"plazo_hasta": error.plazo.isoformat()}) from None
+        except RetractoInvalido:
+            raise ErrorMATU(422, tipo="producto-no-retractable",
+                            detalle="Elige productos entregados, hasta lo que queda por devolver") from None
+        return _retracto_vista(r, casos_retracto.monto_de(u.pagos, retractos, r))
 
 
 @router.get("/retractos", response_model=ListaRetractos, responses=_RESPUESTAS,

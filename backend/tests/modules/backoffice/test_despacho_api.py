@@ -130,9 +130,9 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
     ) == [("preparada", PRECIO_PANAL)]
     # Resuelto, no se resuelve otra vez
     assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "devolver"}).status_code == 409
-    # La misma línea no se pide otra vez
+    # H3: la misma línea admite otro retracto, solo por lo que queda (1 de 2)
     otra = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                     {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+                     {"lineas": [{"linea_id": str(linea[0]), "cantidad": 2}]})
     assert otra.status_code == 422
 
     # Logs: ni el código, ni el token, ni la referencia
@@ -409,3 +409,82 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
     assert cuenta.status_code == 200, cuenta.text
     assert [x["estado"] for x in cuenta.json()["retractos"]] == ["solicitado"]
+
+
+
+@pytest.mark.rf("RF-25")
+def test_h1_operacion_cancela_con_devolucion_lo_que_no_se_entrego(despacho: Despacho) -> None:
+    """H1: desde no_entregado, operación devuelve todo, envío incluido, y el pedido queda cancelado_con_devolucion.
+    Desde en_ruta no (la arquitectura 8.1 no tiene esa transición): 409."""
+    d = despacho
+    _, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag)
+    assert _validar(d, parte, _codigo(d, parte)).json()["resultado"] == "correcto"
+    d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino")
+    r = d.operacion("POST", f"/pedidos/{pedido['id']}/cancelar-con-devolucion")
+    assert r.status_code == 409 and r.json()["type"] == "/errores/no-cancelable"
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/no-entregado").json()["estado"] == "no_entregado"
+    r = d.operacion("POST", f"/pedidos/{pedido['id']}/cancelar-con-devolucion")
+    assert r.status_code == 200, r.text
+    total = 2 * PRECIO_PANAL + COSTO_ENVIO
+    assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
+    assert d.cargo(pedido["id"]) == ("anulado", total, total)
+    assert d.sql("SELECT actor_tipo FROM auditoria WHERE entidad_id = %s AND accion = 'pedido.cancelar'",
+                 uuid.UUID(pedido["id"])) == [("operacion",)]
+
+
+@pytest.mark.rf("R15")
+def test_h2_operacion_cancela_por_correo_antes_de_que_preparen(despacho: Despacho) -> None:
+    d = despacho
+    _, pedido = d.pagado()
+    r = d.operacion("POST", f"/pedidos/{pedido['id']}/cancelar-con-devolucion")
+    assert r.status_code == 200, r.text
+    parte = d.parte_de(pedido["id"])
+    assert d.comercio("uno", "GET", f"/partes/{parte}").json()["motivo_cancelacion"] == "cancelada_por_familia"
+    [(motivo, actor)] = d.sql("SELECT motivo, actor_tipo FROM pedido_transicion WHERE pedido_id = %s"
+                              " AND hacia = 'cancelado_con_devolucion'", uuid.UUID(pedido["id"]))
+    assert (motivo, actor) == ("familia_cancela", "operacion")
+
+
+@pytest.mark.rf("R3")
+def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(despacho: Despacho) -> None:
+    """H2: operación registra el retracto pedido por correo, hasta 90 días, a nombre de quien pagó. H3 y H8: un
+    segundo retracto de la misma línea cabe mientras queden unidades; lo rechazado no se vuelve a pedir."""
+    d = despacho
+    familia, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag)
+    assert _validar(d, parte, _codigo(d, parte)).json()["resultado"] == "correcto"
+    d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino")
+    d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
+    [(linea,)] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    cuerpo = {"lineas": [{"linea_id": str(linea), "cantidad": 1}]}
+
+    # Pasados los 10 días hábiles la familia ya no puede en la app, pero sí por correo hasta los 90 días
+    d.e.avanzar(timedelta(days=30))
+    assert d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                     cuerpo).status_code == 409
+    r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
+    assert r.status_code == 201, r.text
+    assert r.json()["origen"] == "correo" and r.json()["incluye_envio"] is False
+    assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
+        (familia.admin.id,)]
+    # Se rechaza (el sello venía abierto): esa unidad no se vuelve a pedir, y queda una
+    assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "rechazar"}).status_code == 200
+    segundo = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
+    assert segundo.status_code == 201, segundo.text
+    # 0.3: lo rechazado no cuenta como devuelto, así que el envío no vuelve
+    assert segundo.json()["incluye_envio"] is False
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo).status_code == 422
+    resuelto = d.operacion("POST", f"/retractos/{segundo.json()['id']}/resolver", {"decision": "devolver"})
+    assert resuelto.status_code == 200
+    total = 2 * PRECIO_PANAL + COSTO_ENVIO
+    assert d.cargo(pedido["id"]) == ("devuelto_parcial", total, PRECIO_PANAL)
+    # A nombre de otra cuenta que no pagó ni administra: 422
+    observador = d.e.fabrica.usuario()
+    r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", {**cuerpo, "solicitado_por": str(observador.id)})
+    assert r.status_code == 422
+    # Pasados los 90 días, tampoco por correo
+    d.e.avanzar(timedelta(days=61))
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo).status_code in (409, 422)

@@ -22,15 +22,16 @@ c) D-63-7 y O5: el apartado. Una parte confirmada y sin pagar aparta hasta apart
    confirmación del pedido.
 d) D-63-8: pedido_linea.unidades_faltantes; pedido_linea_devuelta admite la devolución parcial (una línea con
    faltantes devueltos, o con un retracto, puede no estar devuelta entera).
-e) D-63-10: retracto y retracto_linea, RLS forzado, y transaccion_linea_devuelta_uq pasa a una anulación por línea y
-   motivo; motivo_anulacion suma retracto, y transaccion_pasarela.retracto_id ata la anulación del envío.
+e) D-63-10: retracto y retracto_linea, RLS forzado, y transaccion_linea_devuelta_uq pasa a una anulación por línea,
+   motivo y retracto (H3: varios retractos por línea hasta lo entregado; H2: origen app o correo, con su plazo).
+   motivo_anulacion suma retracto, y transaccion_pasarela.retracto_id ata la anulación del envío.
 f) D-63-14: una cuenta de comercio no es miembro de un grupo, y al revés (trigger en membresia y usuario_comercio).
 g) D-63-15: evidencia sin ubicación (CHECK, antes se vacía).
 h) pedido_escritura_del_pago: después del pago, solo el sistema y operación, sin cuenta, cambian el estado, por las
    transiciones del despacho, y entregado_en una vez al entregar. Nadie más cambia nada de un pedido pagado. La
    familia ya no edita líneas ni borra partes de un pedido pagado (linea_editar y pedido_comercio_familia_borrar).
 i) pedido_comercio por operación y por rol: el sistema (con el grupo) y operación la actualizan.
-j) consumo_comercio (RF-31): el comercio solo lee lo suyo; lo escribe operación al entregar, una fila por parte
+j) consumo_comercio (RF-31): el comercio no la ve (H9 del cierre); la escribe operación al entregar, una fila por parte
    (pedido_comercio_id), con la boleta pendiente (monto_boleta y folio_boleta pueden faltar).
 k) pedido_transicion: motivos producto_faltante y retracto; el sistema escribe también las del comercio y de la cuenta
    (actor_ref es el comercio o la cuenta, nunca la del encargado).
@@ -855,6 +856,8 @@ CREATE TABLE retracto (
     estado         text NOT NULL DEFAULT 'solicitado' CHECK (estado IN ('solicitado', 'devuelto', 'rechazado')),
     resuelto_en    timestamptz,
     resuelto_por   uuid,
+    -- H2: el retracto que la familia pide por correo lo registra operación a su nombre
+    origen         text NOT NULL DEFAULT 'app' CHECK (origen IN ('app', 'correo')),
     CONSTRAINT retracto_resuelto CHECK ((estado = 'solicitado') = (resuelto_en IS NULL)),
     CONSTRAINT retracto_en_plazo CHECK (solicitado_en <= plazo_hasta)
 );
@@ -864,19 +867,28 @@ CREATE TABLE retracto_linea (
     grupo_id        uuid NOT NULL REFERENCES grupo_familiar(id),
     pedido_linea_id uuid NOT NULL REFERENCES pedido_linea(id) ON DELETE CASCADE,
     cantidad        integer NOT NULL CHECK (cantidad > 0),
-    PRIMARY KEY (retracto_id, pedido_linea_id),
-    CONSTRAINT retracto_linea_una_vez UNIQUE (pedido_linea_id)
+    PRIMARY KEY (retracto_id, pedido_linea_id)
 );
+CREATE INDEX retracto_linea_linea_ix ON retracto_linea (pedido_linea_id);
 ALTER TABLE retracto ENABLE ROW LEVEL SECURITY;
 ALTER TABLE retracto FORCE ROW LEVEL SECURITY;
 ALTER TABLE retracto_linea ENABLE ROW LEVEL SECURITY;
 ALTER TABLE retracto_linea FORCE ROW LEVEL SECURITY;
 CREATE FUNCTION retracto_linea_del_pedido() RETURNS trigger LANGUAGE plpgsql AS
 $$ BEGIN
+    -- H3 y H8: varios retractos por línea, mientras la suma de lo pedido (también lo rechazado: el sello ya se abrió)
+    -- no pase de lo entregado. La línea se bloquea para que dos pedidos a la vez no se salten el tope
     IF NOT EXISTS (SELECT 1 FROM retracto r JOIN pedido_linea l ON l.pedido_id = r.pedido_id
-                    WHERE r.id = NEW.retracto_id AND r.grupo_id = NEW.grupo_id AND l.id = NEW.pedido_linea_id
-                      AND NEW.cantidad <= l.cantidad - l.unidades_faltantes) THEN
-        RAISE EXCEPTION 'la línea es del pedido del retracto, hasta lo entregado' USING ERRCODE = 'check_violation';
+                    WHERE r.id = NEW.retracto_id AND r.grupo_id = NEW.grupo_id AND l.id = NEW.pedido_linea_id) THEN
+        RAISE EXCEPTION 'la línea es del pedido del retracto' USING ERRCODE = 'check_violation';
+    END IF;
+    PERFORM 1 FROM pedido_linea l WHERE l.id = NEW.pedido_linea_id FOR UPDATE;
+    IF NEW.cantidad + COALESCE((SELECT sum(x.cantidad) FROM retracto_linea x
+                                 WHERE x.pedido_linea_id = NEW.pedido_linea_id
+                                   AND (x.retracto_id, x.pedido_linea_id)
+                                       IS DISTINCT FROM (NEW.retracto_id, NEW.pedido_linea_id)), 0)
+       > (SELECT l.cantidad - l.unidades_faltantes FROM pedido_linea l WHERE l.id = NEW.pedido_linea_id) THEN
+        RAISE EXCEPTION 'el retracto no pasa de lo entregado' USING ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
 END $$;
@@ -888,9 +900,16 @@ $$ BEGIN
                       AND p.entregado_en IS NOT NULL) THEN
         RAISE EXCEPTION 'el retracto es de un pedido entregado de su grupo' USING ERRCODE = 'check_violation';
     END IF;
+    -- H2: el plazo depende del origen. En la app, 10 días hábiles (como mucho 16 corridos, con un fin de semana
+    -- largo); por correo, 90 días desde la entrega (CL-54, mientras tanto)
+    IF NOT EXISTS (SELECT 1 FROM pedido p WHERE p.id = NEW.pedido_id AND NEW.plazo_hasta <= p.entregado_en
+                      + CASE NEW.origen WHEN 'correo' THEN interval '90 days' ELSE interval '16 days' END) THEN
+        RAISE EXCEPTION 'el plazo del retracto no calza con su origen' USING ERRCODE = 'check_violation';
+    END IF;
     IF TG_OP = 'UPDATE' AND (NEW.grupo_id, NEW.pedido_id, NEW.solicitado_por, NEW.solicitado_en, NEW.plazo_hasta,
-                             NEW.incluye_envio) IS DISTINCT FROM (OLD.grupo_id, OLD.pedido_id, OLD.solicitado_por,
-                             OLD.solicitado_en, OLD.plazo_hasta, OLD.incluye_envio) THEN
+                             NEW.incluye_envio, NEW.origen) IS DISTINCT FROM (OLD.grupo_id, OLD.pedido_id,
+                             OLD.solicitado_por, OLD.solicitado_en, OLD.plazo_hasta, OLD.incluye_envio,
+                             OLD.origen) THEN
         RAISE EXCEPTION 'lo pedido en el retracto no cambia' USING ERRCODE = 'check_violation';
     END IF;
     IF TG_OP = 'UPDATE' AND OLD.estado <> 'solicitado' AND NEW.estado IS DISTINCT FROM OLD.estado THEN
@@ -903,7 +922,7 @@ CREATE TRIGGER retracto_del_grupo BEFORE INSERT OR UPDATE ON retracto
 -- Pide el admin, o quien pagó si sigue en el grupo (D-63-10). Leen admin, cuidador y pagador
 CREATE POLICY retracto_familia_leer ON retracto FOR SELECT USING (grupo_id = app_grupo() AND (SELECT app_ve_entrega()));
 CREATE POLICY retracto_familia_crear ON retracto FOR INSERT WITH CHECK (
-    grupo_id = app_grupo() AND solicitado_por = app_usuario() AND estado = 'solicitado'
+    grupo_id = app_grupo() AND solicitado_por = app_usuario() AND estado = 'solicitado' AND origen = 'app'
     AND ((SELECT app_es_admin()) OR ((SELECT app_ve_entrega()) AND EXISTS (
         SELECT 1 FROM cargo c JOIN participacion pa ON pa.cargo_id = c.id
          WHERE c.pedido_id = retracto.pedido_id AND pa.usuario_id = app_usuario() AND pa.monto_cobrado > 0))));
@@ -913,6 +932,9 @@ CREATE POLICY retracto_sistema_editar ON retracto FOR UPDATE
 CREATE POLICY retracto_operacion_leer ON retracto FOR SELECT USING (app_rol() = 'operacion');
 CREATE POLICY retracto_operacion_editar ON retracto FOR UPDATE
     USING (app_rol() = 'operacion') WITH CHECK (app_rol() = 'operacion');
+-- H2: operación registra el retracto pedido por correo, a nombre de quien pagó o del admin
+CREATE POLICY retracto_operacion_crear ON retracto FOR INSERT
+    WITH CHECK (app_rol() = 'operacion' AND app_usuario() IS NULL AND origen = 'correo' AND estado = 'solicitado');
 CREATE POLICY retracto_linea_familia_leer ON retracto_linea FOR SELECT
     USING (grupo_id = app_grupo() AND (SELECT app_ve_entrega()));
 CREATE POLICY retracto_linea_familia_crear ON retracto_linea FOR INSERT WITH CHECK (
@@ -920,6 +942,9 @@ CREATE POLICY retracto_linea_familia_crear ON retracto_linea FOR INSERT WITH CHE
                                         AND r.solicitado_por = app_usuario() AND r.estado = 'solicitado'));
 CREATE POLICY retracto_linea_sistema_leer ON retracto_linea FOR SELECT USING (grupo_id = app_grupo() AND {SISTEMA});
 CREATE POLICY retracto_linea_operacion_leer ON retracto_linea FOR SELECT USING (app_rol() = 'operacion');
+CREATE POLICY retracto_linea_operacion_crear ON retracto_linea FOR INSERT WITH CHECK (
+    app_rol() = 'operacion' AND app_usuario() IS NULL AND EXISTS (SELECT 1 FROM retracto r
+        WHERE r.id = retracto_linea.retracto_id AND r.origen = 'correo' AND r.estado = 'solicitado'));
 REVOKE ALL ON retracto, retracto_linea FROM matu_app;
 GRANT SELECT, INSERT, UPDATE ON retracto TO matu_app;
 GRANT SELECT, INSERT ON retracto_linea TO matu_app;
@@ -931,7 +956,9 @@ ALTER TABLE transaccion_pasarela ADD COLUMN retracto_id uuid REFERENCES retracto
 ALTER TABLE transaccion_pasarela ADD CONSTRAINT transaccion_retracto_de_anulacion
     CHECK (retracto_id IS NULL OR motivo_anulacion = 'retracto');
 DROP INDEX transaccion_linea_devuelta_uq;
-CREATE UNIQUE INDEX transaccion_linea_devuelta_uq ON transaccion_pasarela (pedido_linea_id, motivo_anulacion)
+-- H3: un faltante por línea, y una anulación por línea en cada retracto (el tope es lo pagado por la línea)
+CREATE UNIQUE INDEX transaccion_linea_devuelta_uq
+    ON transaccion_pasarela (pedido_linea_id, motivo_anulacion, retracto_id) NULLS NOT DISTINCT
     WHERE pedido_linea_id IS NOT NULL;
 CREATE UNIQUE INDEX transaccion_envio_retracto_uq ON transaccion_pasarela (retracto_id)
     WHERE retracto_id IS NOT NULL AND pedido_linea_id IS NULL;
@@ -973,9 +1000,9 @@ CREATE TRIGGER usuario_comercio_no_familia BEFORE INSERT OR UPDATE ON usuario_co
 UPDATE evidencia SET lat = NULL, lng = NULL WHERE lat IS NOT NULL OR lng IS NOT NULL;
 ALTER TABLE evidencia ADD CONSTRAINT evidencia_sin_ubicacion CHECK (lat IS NULL AND lng IS NULL);
 
--- (j) consumo_comercio (RF-31): una fila por parte, la boleta pendiente; el comercio solo lee
+-- (j) consumo_comercio (RF-31): una fila por parte, la boleta pendiente. H9: el comercio no la ve hasta que exista la
+-- liquidación; la leen y escriben solo operación (y el sistema, por las funciones de la liquidación, más adelante)
 DROP POLICY consumo_comercio_propio ON consumo_comercio;
-CREATE POLICY consumo_comercio_propio_leer ON consumo_comercio FOR SELECT USING (comercio_id = app_comercio());
 ALTER TABLE consumo_comercio ADD COLUMN pedido_comercio_id uuid REFERENCES pedido_comercio(id);
 ALTER TABLE consumo_comercio ADD CONSTRAINT consumo_comercio_parte_uq UNIQUE (pedido_comercio_id);
 ALTER TABLE consumo_comercio DROP CONSTRAINT consumo_comercio_pedido_id_key;
@@ -1064,7 +1091,6 @@ ALTER TABLE consumo_comercio ALTER COLUMN monto_boleta SET NOT NULL;
 ALTER TABLE consumo_comercio ADD CONSTRAINT consumo_comercio_pedido_id_key UNIQUE (pedido_id);
 ALTER TABLE consumo_comercio DROP CONSTRAINT consumo_comercio_parte_uq;
 ALTER TABLE consumo_comercio DROP COLUMN pedido_comercio_id;
-DROP POLICY consumo_comercio_propio_leer ON consumo_comercio;
 CREATE POLICY consumo_comercio_propio ON consumo_comercio USING (comercio_id = app_comercio());
 
 -- (g)
@@ -1087,6 +1113,7 @@ ALTER TABLE transaccion_pasarela DROP COLUMN retracto_id;
 ALTER TABLE transaccion_pasarela DROP CONSTRAINT transaccion_pasarela_motivo_anulacion_check;
 ALTER TABLE transaccion_pasarela ADD CONSTRAINT transaccion_pasarela_motivo_anulacion_check
     CHECK (motivo_anulacion IN ('pago_tardio', 'producto_no_entregado', 'cancelacion'));
+DROP POLICY IF EXISTS retracto_linea_operacion_crear ON retracto_linea;
 DROP TABLE retracto_linea;
 DROP TABLE retracto;
 DROP FUNCTION retracto_del_grupo();

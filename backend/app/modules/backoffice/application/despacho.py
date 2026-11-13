@@ -156,3 +156,46 @@ def cancelar_pagado(
     if _devolver_todo(u, pasarela, pedido_id, ahora):
         _auditar_devolucion(u, pedido.grupo_id, pedido.persona_id, pedido_id)
     d.emitir(PEDIDO_CANCELADO, pedido_id, pedido.grupo_id, ahora)
+
+
+def cancelar_por_operacion(
+    u: UnidadDespacho,
+    pasarela: PasarelaWebpay | None,
+    pedido_id: uuid.UUID,
+    operador_id: uuid.UUID,
+    ahora: datetime,
+) -> str:
+    """H1 y H2 del cierre del analista. Operación cancela con devolución de todo, envío incluido:
+
+    - un pedido ``no_entregado`` (nadie lo recibió y no hay segunda ventana, arquitectura 8.1);
+    - un pedido pagado que ningún comercio empezó a preparar, cuando la familia lo pide por correo (R15).
+
+    Bloquea el pedido como comercio_preparar. Devuelve el estado del que salió. Lanza NoCancelable en otro caso."""
+    d = u.despacho
+    pedido = d.pedido(pedido_id, bloquear=True)
+    if pedido is None or pedido.pagado_en is None:
+        raise NoCancelable()
+    partes = d.partes(pedido_id)
+    if pedido.estado == "no_entregado":
+        motivo = None
+    elif cancelable_despues_de_pagar(pedido.estado, [p.estado for p in partes]):
+        motivo = "familia_cancela"
+        d.cancelar_partes(pedido_id, "familia_cancela", ahora)
+    else:
+        raise NoCancelable()
+    d.cambiar_estado(pedido_id, pedido.estado, "cancelado_con_devolucion", "operacion", operador_id, motivo, ahora)
+    u.pagos.registro.registrar(
+        EntradaAuditoria(
+            grupo_id=pedido.grupo_id,
+            actor_tipo=ActorTipo.OPERACION,
+            actor_ref=operador_id,
+            accion=AccionAuditoria.PEDIDO_CANCELAR,
+            entidad=EntidadAuditoria.PEDIDO,
+            entidad_id=pedido_id,
+            persona_cuidada_id=pedido.persona_id,
+        )
+    )
+    if _devolver_todo(u, pasarela, pedido_id, ahora):
+        _auditar_devolucion(u, pedido.grupo_id, pedido.persona_id, pedido_id)
+    d.emitir(PEDIDO_CANCELADO, pedido_id, pedido.grupo_id, ahora)
+    return pedido.estado

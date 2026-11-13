@@ -17,21 +17,24 @@ _PEDIDO = text(
     " WHERE id = :pedido_id AND grupo_id = :grupo_id"
 )
 _LINEAS_PEDIDAS = text(
-    "SELECT rl.pedido_linea_id FROM retracto_linea rl JOIN retracto r ON r.id = rl.retracto_id"
-    " WHERE r.pedido_id = :pedido_id"
+    "SELECT rl.pedido_linea_id, sum(rl.cantidad) AS pedidas,"
+    " COALESCE(sum(rl.cantidad) FILTER (WHERE r.estado <> 'rechazado'), 0) AS vigentes"
+    " FROM retracto_linea rl JOIN retracto r ON r.id = rl.retracto_id"
+    " WHERE r.pedido_id = :pedido_id GROUP BY rl.pedido_linea_id"
 )
 _ENVIO_PEDIDO = text(
     "SELECT EXISTS (SELECT 1 FROM retracto WHERE pedido_id = :pedido_id AND incluye_envio AND estado <> 'rechazado')"
 )
 _CREAR = text(
-    "INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio)"
-    " VALUES (:id, :grupo_id, :pedido_id, :por, :en, :plazo, :envio)"
+    "INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio, origen)"
+    " VALUES (:id, :grupo_id, :pedido_id, :por, :en, :plazo, :envio, :origen)"
 )
 _CREAR_LINEA = text(
     "INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (:r, :grupo_id, :l, :c)"
 )
 _RETRACTO = (
-    "SELECT id, grupo_id, pedido_id, solicitado_en, plazo_hasta, incluye_envio, estado FROM retracto WHERE id = :id"
+    "SELECT id, grupo_id, pedido_id, solicitado_en, plazo_hasta, incluye_envio, estado, origen FROM retracto"
+    " WHERE id = :id"
 )
 _RETRACTO_LEER = text(_RETRACTO)
 _RETRACTO_BLOQUEAR = text(_RETRACTO + " FOR UPDATE")
@@ -41,7 +44,7 @@ _RESOLVER = text(
     " AND estado = 'solicitado'"
 )
 _PENDIENTES = text(
-    "SELECT id, grupo_id, pedido_id, solicitado_en, plazo_hasta, incluye_envio, estado FROM retracto"
+    "SELECT id, grupo_id, pedido_id, solicitado_en, plazo_hasta, incluye_envio, estado, origen FROM retracto"
     " WHERE estado = 'solicitado' ORDER BY solicitado_en, id"
 )
 
@@ -59,8 +62,11 @@ class RepositorioRetractosSQL:
             f.id, f.persona_cuidada_id, f.estado, f.entregado_en, int(f.costo_envio), f.condiciones_version
         )
 
-    def lineas_pedidas(self, pedido_id: uuid.UUID) -> set[uuid.UUID]:
-        return {f.pedido_linea_id for f in self._sesion.execute(_LINEAS_PEDIDAS, {"pedido_id": pedido_id})}
+    def lineas_pedidas(self, pedido_id: uuid.UUID) -> dict[uuid.UUID, tuple[int, int]]:
+        return {
+            f.pedido_linea_id: (int(f.pedidas), int(f.vigentes))
+            for f in self._sesion.execute(_LINEAS_PEDIDAS, {"pedido_id": pedido_id})
+        }
 
     def envio_pedido(self, pedido_id: uuid.UUID) -> bool:
         return bool(self._sesion.execute(_ENVIO_PEDIDO, {"pedido_id": pedido_id}).scalar())
@@ -76,6 +82,7 @@ class RepositorioRetractosSQL:
                 "en": retracto.solicitado_en,
                 "plazo": retracto.plazo_hasta,
                 "envio": retracto.incluye_envio,
+                "origen": retracto.origen,
             },
         )
         for linea_id, cantidad in lineas.items():
@@ -87,11 +94,13 @@ class RepositorioRetractosSQL:
         f = self._sesion.execute(_RETRACTO_BLOQUEAR if bloquear else _RETRACTO_LEER, {"id": retracto_id}).first()
         if f is None:
             return None
-        return Retracto(f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado)
+        return Retracto(
+            f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado, f.origen
+        )
 
     def pendientes(self) -> list[Retracto]:
         return [
-            Retracto(f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado)
+            Retracto(f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado, f.origen)
             for f in self._sesion.execute(_PENDIENTES)
         ]
 

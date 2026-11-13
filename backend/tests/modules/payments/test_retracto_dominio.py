@@ -12,6 +12,7 @@ from app.modules.payments.domain.retracto import (
     en_plazo,
     incluye_envio,
     monto_productos,
+    plazo_por_correo,
     plazo_retracto,
     validar,
 )
@@ -35,9 +36,9 @@ def test_una_entrega_de_noche_cuenta_por_la_fecha_de_chile() -> None:
 
 
 LINEAS = {
-    "a": LineaRetractable("a", entregadas=2, precio_unitario=12990, ya_pedida=False),
-    "b": LineaRetractable("b", entregadas=1, precio_unitario=4490, ya_pedida=False),
-    "c": LineaRetractable("c", entregadas=0, precio_unitario=9990, ya_pedida=False),
+    "a": LineaRetractable("a", entregadas=2, precio_unitario=12990),
+    "b": LineaRetractable("b", entregadas=1, precio_unitario=4490),
+    "c": LineaRetractable("c", entregadas=0, precio_unitario=9990),
 }
 
 
@@ -52,9 +53,31 @@ def test_no_se_pide_lo_que_no_llego(pedidas: dict[str, int]) -> None:
         validar(LINEAS, pedidas)
 
 
-def test_una_linea_ya_pedida_no_se_pide_otra_vez() -> None:
+def test_una_linea_admite_otro_retracto_hasta_lo_entregado() -> None:
+    """H3: varios retractos por línea mientras queden unidades entregadas sin pedir."""
+    validar({"a": LineaRetractable("a", 2, 12990, ya_pedidas=1, vigentes=1)}, {"a": 1})
     with pytest.raises(RetractoInvalido):
-        validar({"a": LineaRetractable("a", 2, 12990, ya_pedida=True)}, {"a": 1})
+        validar({"a": LineaRetractable("a", 2, 12990, ya_pedidas=1, vigentes=1)}, {"a": 2})
+    with pytest.raises(RetractoInvalido):
+        validar({"a": LineaRetractable("a", 2, 12990, ya_pedidas=2, vigentes=2)}, {"a": 1})
+
+
+def test_lo_rechazado_no_se_vuelve_a_pedir_ni_cuenta_como_devuelto() -> None:
+    """H8: el sello ya se abrió. Con 1 rechazado de 2, queda 1 por pedir; con la 0.3 el envío no vuelve, porque lo
+    rechazado no se devolvió."""
+    linea = LineaRetractable("a", 2, 12990, ya_pedidas=1, vigentes=0)
+    validar({"a": linea}, {"a": 1})
+    with pytest.raises(RetractoInvalido):
+        validar({"a": linea}, {"a": 2})
+    assert not incluye_envio("0.3", [linea], {"a": 1}, False)
+    # Con uno por resolver (no rechazado), sí: queda devuelto todo lo entregado
+    assert incluye_envio("0.3", [LineaRetractable("a", 2, 12990, ya_pedidas=1, vigentes=1)], {"a": 1}, False)
+
+
+def test_por_correo_el_plazo_es_de_90_dias_desde_la_entrega() -> None:
+    """H2 (CL-54, mientras tanto)."""
+    entregado = datetime(2026, 11, 13, 15, 0, tzinfo=UTC)
+    assert plazo_por_correo(entregado) == entregado + timedelta(days=90)
 
 
 @pytest.mark.parametrize(

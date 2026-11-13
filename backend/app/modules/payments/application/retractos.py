@@ -37,6 +37,7 @@ class Retracto:
     plazo_hasta: datetime
     incluye_envio: bool
     estado: str
+    origen: str = "app"
 
 
 class RepositorioRetractos(Protocol):
@@ -44,7 +45,9 @@ class RepositorioRetractos(Protocol):
 
     def pedido(self, pedido_id: uuid.UUID) -> PedidoEntregado | None: ...
 
-    def lineas_pedidas(self, pedido_id: uuid.UUID) -> set[uuid.UUID]: ...
+    def lineas_pedidas(self, pedido_id: uuid.UUID) -> dict[uuid.UUID, tuple[int, int]]:
+        """Por línea: lo pedido en todos los retractos y lo pedido en los no rechazados."""
+        ...
 
     def envio_pedido(self, pedido_id: uuid.UUID) -> bool: ...
 
@@ -81,11 +84,17 @@ def solicitar(
     usuario_id: uuid.UUID,
     pedidas: dict[uuid.UUID, int],
     ahora: datetime,
+    origen: str = "app",
+    actor: ActorTipo = ActorTipo.USUARIO,
+    actor_ref: uuid.UUID | None = None,
 ) -> Retracto:
+    """``origen`` = ``correo`` (H2): operación lo registra a nombre de ``usuario_id`` (quien pagó o el admin), con el
+    plazo de 90 días; la auditoría lleva a operación como actor."""
     pedido = retractos.pedido(pedido_id)
     if pedido is None or pedido.entregado_en is None:
         raise SinPedidoEntregado()
-    plazo = reglas.plazo_retracto(pedido.entregado_en)
+    entregado = pedido.entregado_en
+    plazo = reglas.plazo_por_correo(entregado) if origen == "correo" else reglas.plazo_retracto(entregado)
     if ahora > plazo:
         raise FueraDePlazo(plazo)
     ya = retractos.lineas_pedidas(pedido_id)
@@ -94,7 +103,8 @@ def solicitar(
             id=str(x.id),
             entregadas=x.cantidad - x.unidades_faltantes,
             precio_unitario=x.precio_unitario,
-            ya_pedida=x.id in ya,
+            ya_pedidas=ya.get(x.id, (0, 0))[0],
+            vigentes=ya.get(x.id, (0, 0))[1],
         )
         for x in unidad.repositorio.lineas_pagadas(pedido_id)
         if not x.salio
@@ -111,13 +121,14 @@ def solicitar(
             pedido.condiciones_version, list(lineas.values()), por_id, retractos.envio_pedido(pedido_id)
         ),
         estado="solicitado",
+        origen=origen,
     )
     retractos.crear(retracto, usuario_id, pedidas)
     unidad.registro.registrar(
         EntradaAuditoria(
             grupo_id=grupo_id,
-            actor_tipo=ActorTipo.USUARIO,
-            actor_ref=usuario_id,
+            actor_tipo=actor,
+            actor_ref=actor_ref if actor is not ActorTipo.USUARIO else usuario_id,
             accion=AccionAuditoria.PEDIDO_RETRACTO_SOLICITAR,
             entidad=EntidadAuditoria.RETRACTO,
             entidad_id=retracto.id,
