@@ -38,6 +38,8 @@ class ParteComercio:
     codigo_expira_en: datetime | None
     codigo_usado_en: datetime | None
     codigo_bloqueado_en: datetime | None
+    # producto_faltante o familia_cancela (la base). La API lo nombra sin más detalle
+    motivo_cancelacion: str | None = None
 
 
 @dataclass(frozen=True)

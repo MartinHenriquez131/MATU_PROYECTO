@@ -52,6 +52,7 @@ def _parte(f: Row[Any]) -> ParteComercio:
         codigo_expira_en=f.codigo_expira_en,
         codigo_usado_en=f.codigo_usado_en,
         codigo_bloqueado_en=f.codigo_bloqueado_en,
+        motivo_cancelacion=f.motivo_cancelacion,
     )
 
 

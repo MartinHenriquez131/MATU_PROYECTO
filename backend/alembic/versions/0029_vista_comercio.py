@@ -396,7 +396,7 @@ CREATE FUNCTION comercio_partes(p_desde timestamptz)
     RETURNS TABLE (parte_id uuid, referencia text, estado text, version integer, enviado_en timestamptz,
                    lineas integer, retirada_en timestamptz, cancelada_en timestamptz, codigo_generado_en timestamptz,
                    codigo_con_hash boolean, codigo_expira_en timestamptz, codigo_usado_en timestamptz,
-                   codigo_bloqueado_en timestamptz)
+                   codigo_bloqueado_en timestamptz, motivo_cancelacion text)
     LANGUAGE plpgsql VOLATILE {DEFINIDOR} AS
 $$
 DECLARE
@@ -407,7 +407,7 @@ BEGIN
         SELECT pc.id, pc.referencia, pc.estado, pc.version, pc.enviado_en,
                (SELECT count(*)::integer FROM public.pedido_linea l WHERE l.pedido_comercio_id = pc.id),
                pc.retirada_en, pc.cancelada_en, pc.codigo_generado_en, pc.codigo_hash IS NOT NULL,
-               pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en
+               pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en, pc.motivo_cancelacion
           FROM public.pedido_comercio pc
          WHERE pc.comercio_id = v_comercio AND pc.enviado_en IS NOT NULL
            AND EXISTS (SELECT 1 FROM public.pedido p WHERE p.id = pc.pedido_id AND p.pagado_en IS NOT NULL)

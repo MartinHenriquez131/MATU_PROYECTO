@@ -85,6 +85,10 @@ _RESPUESTAS_ACCION: _Respuestas = {
 }
 
 
+# Lo que el comercio sabe de una cancelación, sin quién ni por qué más allá de esto (decisión 430)
+MOTIVO_CANCELACION = {"producto_faltante": "producto_faltante", "familia_cancela": "cancelada_por_familia"}
+
+
 def _uuid(valor: str) -> uuid.UUID:
     try:
         return uuid.UUID(valor)
@@ -123,6 +127,7 @@ def _resumen(p: ParteComercio, ahora: datetime) -> dict[str, object]:
         "numero_lineas": p.lineas,
         "retirada_en": p.retirada_en,
         "cancelada_en": p.cancelada_en,
+        "motivo_cancelacion": MOTIVO_CANCELACION.get(p.motivo_cancelacion or ""),
     }
 
 

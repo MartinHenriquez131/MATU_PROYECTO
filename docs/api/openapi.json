@@ -17703,6 +17703,22 @@
               }
             ],
             "title": "Cancelada En"
+          },
+          "motivo_cancelacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "producto_faltante",
+                  "cancelada_por_familia"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Cancelacion",
+            "description": "Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)"
           }
         },
         "type": "object",
@@ -17715,7 +17731,8 @@
           "estado_codigo",
           "numero_lineas",
           "retirada_en",
-          "cancelada_en"
+          "cancelada_en",
+          "motivo_cancelacion"
         ],
         "title": "ParteResumen"
       },
@@ -17791,6 +17808,22 @@
             ],
             "title": "Cancelada En"
           },
+          "motivo_cancelacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "producto_faltante",
+                  "cancelada_por_familia"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Cancelacion",
+            "description": "Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)"
+          },
           "lineas": {
             "items": {
               "$ref": "#/components/schemas/LineaComercioVista"
@@ -17810,6 +17843,7 @@
           "numero_lineas",
           "retirada_en",
           "cancelada_en",
+          "motivo_cancelacion",
           "lineas"
         ],
         "title": "ParteVista",

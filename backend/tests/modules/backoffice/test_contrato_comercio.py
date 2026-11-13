@@ -88,3 +88,13 @@ def test_la_sesion_dice_el_tipo_de_cuenta_y_nada_mas(esquema: dict[str, Any]) ->
     propiedades = esquema["components"]["schemas"]["SesionRespuesta"]["properties"]
     assert propiedades["tipo_cuenta"]["enum"] == ["familia", "comercio"]
     assert set(propiedades) == {"access_token", "token_type", "expira_en", "tipo_cuenta"}
+
+
+def test_el_motivo_de_cancelacion_es_uno_de_dos_y_nada_mas(esquema: dict[str, Any]) -> None:
+    """Decisión 430: el comercio sabe si no tenía ninguno o si canceló la familia; ni quién ni otro motivo."""
+    for nombre in ("ParteResumen", "ParteVista"):
+        motivo = esquema["components"]["schemas"][nombre]["properties"]["motivo_cancelacion"]
+        valores = {x.get("const") or tuple(x.get("enum", ())) for x in motivo["anyOf"]} - {None}
+        assert {"producto_faltante", "cancelada_por_familia"} == {v for x in valores for v in (
+            x if isinstance(x, tuple) else (x,))}, nombre
+        assert "motivo_cancelacion" in esquema["components"]["schemas"][nombre]["required"], nombre

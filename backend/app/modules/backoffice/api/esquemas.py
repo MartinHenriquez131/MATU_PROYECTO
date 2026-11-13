@@ -43,6 +43,10 @@ class ParteResumen(BaseModel):
     numero_lineas: int
     retirada_en: datetime | None
     cancelada_en: datetime | None
+    motivo_cancelacion: Annotated[
+        Literal["producto_faltante", "cancelada_por_familia"] | None,
+        Field(description="Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)"),
+    ]
 
 
 class ListaPartes(BaseModel):

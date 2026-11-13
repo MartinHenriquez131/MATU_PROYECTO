@@ -61,6 +61,7 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
     [resumen] = [p for p in lista if p["id"] == parte]
     assert re.fullmatch(r"[2-9A-HJKMNP-Z]{6}", resumen["referencia"])
     assert (resumen["estado"], resumen["estado_codigo"], resumen["numero_lineas"]) == ("enviada", "sin_codigo", 1)
+    assert resumen["motivo_cancelacion"] is None
     assert d.comercio("uno", "GET", "").json()["nombre_fantasia"]
 
     # Preparar, marcar y «Listo»: el pedido sigue a la parte, con el comercio como actor (D-63-12)
@@ -160,7 +161,7 @@ def test_si_no_hay_ninguno_se_devuelve_todo_con_el_envio(despacho: Despacho) -> 
     _, pedido = d.pagado()
     parte, etag = _parte(d, pedido)
     cancelada = _preparar_todo(d, parte, etag, faltan=2)
-    assert cancelada["estado"] == "cancelada"
+    assert (cancelada["estado"], cancelada["motivo_cancelacion"]) == ("cancelada", "producto_faltante")
     assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
     assert d.cargo(pedido["id"]) == ("anulado", total, total)
@@ -259,7 +260,10 @@ def test_r15_cancela_con_devolucion_antes_de_que_preparen_y_no_despues(despacho:
     assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
     assert d.cargo(pedido["id"]) == ("anulado", total, total)
     parte = d.parte_de(pedido["id"])
-    assert d.comercio("uno", "GET", f"/partes/{parte}").json()["estado"] == "cancelada"
+    vista = d.comercio("uno", "GET", f"/partes/{parte}").json()
+    assert (vista["estado"], vista["motivo_cancelacion"]) == ("cancelada", "cancelada_por_familia")
+    [resumen] = [p for p in d.comercio("uno", "GET", "/partes").json()["partes"] if p["id"] == parte]
+    assert resumen["motivo_cancelacion"] == "cancelada_por_familia"
     assert d.comercio("uno", "POST", f"/partes/{parte}/preparar").status_code == 409
 
     # Con el comercio preparando, ya no
