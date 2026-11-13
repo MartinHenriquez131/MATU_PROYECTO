@@ -300,7 +300,8 @@ export async function atenderComercio(
       return responder('correcto')
     }
     if (codigo === '999999') return (p.estado_codigo = 'vencido'), responder('vencido')
-    if (codigo === '888888') return responder('usado')
+    // Ya se retiró (por ejemplo, desde otro teléfono del comercio): la parte queda retirada.
+    if (codigo === '888888') return (p.estado = 'retirada'), (p.estado_codigo = 'usado'), (p.retirada_en ??= new Date().toISOString()), p.version++, responder('usado')
     if (codigo === '777777') return (p.estado = 'cancelada'), (p.cancelada_en = new Date().toISOString()), p.version++, responder('cancelada')
     if (codigo === '666666') return (p.estado_codigo = 'bloqueado'), (p.intentos = 0), responder('bloqueado')
     if (codigo === '555555') return responder('sin_codigo')

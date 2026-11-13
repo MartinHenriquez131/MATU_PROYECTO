@@ -205,6 +205,31 @@ describe('Especificación v1.1', () => {
   })
 })
 
+describe('Segunda revisión (P3)', () => {
+  it('«ya retirado» con la parte todavía «lista»: se vuelve a pedir y la Etiqueta dice «Retirado», sin la nota 6.7', async () => {
+    const lista = partesDeEjemplo().find((p) => p.id === ID.lista)!
+    const { api, usuario } = await abrirParte('P5Q8ZA', (l) => (l.endsWith('/validar-codigo') ? { status: 200, cuerpo: { resultado: 'usado', intentos_restantes: 0, parte: lista } } : undefined))
+    Object.assign(api.estado.partes.find((p) => p.id === ID.lista)!, { estado: 'retirada', estado_codigo: 'usado', retirada_en: '2026-11-13T17:25:00Z' })
+    await usuario.type(screen.getByLabelText(CAMPO), '123456')
+    await usuario.click(screen.getByRole('button', { name: 'Revisar código' }))
+    await screen.findByText('Este pedido ya se retiró.')
+    expect(await screen.findByText('Retirado', { selector: 'span' })).toBeVisible()
+    expect(screen.getByText('Este pedido ya se retiró.')).toBeVisible()
+    expect(screen.queryByText('Pedido retirado.')).toBeNull()
+  })
+
+  it('con varias líneas sin marcar, «Marca cada producto…» describe a todas', async () => {
+    const { usuario } = await abrirParte('H6N3VD')
+    await usuario.click(screen.getByRole('button', { name: 'Listo para retirar' }))
+    await screen.findByText('Marca cada producto: si lo tienes o no.')
+    expect(linea(/Pañal adulto M x30/)).toHaveAccessibleDescription(/Marca cada producto/)
+    expect(linea(/Suplemento vainilla x12/)).toHaveAccessibleDescription(/Marca cada producto/)
+    // Al marcar una, deja de describirla.
+    await usuario.click(within(linea(/Suplemento vainilla x12/)).getByRole('radio', { name: 'Lo tengo' }))
+    expect(linea(/Suplemento vainilla x12/)).not.toHaveAccessibleDescription(/Marca cada producto/)
+  })
+})
+
 describe('P3', () => {
   it('13: «Volver a los pedidos» alinea su texto a la izquierda', async () => {
     await abrirParte('R8T2WQ')

@@ -392,6 +392,7 @@ export function DetallePedido({
                       guardando={!!guardando[l.id]}
                       error={!!errorLinea[l.id]}
                       sinMarcar={sinMarcar === l.id}
+                      conAviso={!!sinMarcar && !marcas[l.id]}
                       onElegir={(e) => elegir(l, e)}
                       onFaltan={(n) => cambiarFaltan(l, n)}
                     />
@@ -455,6 +456,16 @@ export function DetallePedido({
                       setParte(p)
                       onCambio(p)
                     }
+                    // Revisión P3: con «ya retirado», la `Etiqueta` dice «Retirado». Si la parte que vino
+                    // no lo dice, se vuelve a pedir, sin tocar el resultado a la vista.
+                    if (r.tipo === 'usado' && p?.estado !== 'retirada')
+                      void verParte(parteId)
+                        .then((v) => {
+                          etag.current = v.etag
+                          setParte(v.parte)
+                          onCambio(v.parte)
+                        })
+                        .catch(() => undefined)
                     // P1-4 y P2-8: a la nota, cuando ya está montada (y el campo, si se va, desmontado).
                     pedirFoco(ID_RESULTADO)
                   }}
@@ -491,6 +502,7 @@ function LineaPorMarcar({
   guardando,
   error,
   sinMarcar,
+  conAviso,
   onElegir,
   onFaltan,
 }: {
@@ -499,6 +511,8 @@ function LineaPorMarcar({
   guardando: boolean
   error: boolean
   sinMarcar: boolean
+  /** Revisión P3: «Marca cada producto…» está a la vista y esta línea sigue sin marcar. */
+  conAviso: boolean
   onElegir: (e: 'preparada' | 'faltante') => void
   onFaltan: (n: number) => void
 }) {
@@ -510,7 +524,7 @@ function LineaPorMarcar({
       nombre={id}
       forma="chips"
       ocupado={guardando}
-      describe={[falta ? `${id}-nota` : '', sinMarcar ? ID_MARCA_CADA : ''].filter(Boolean).join(' ') || undefined}
+      describe={[falta ? `${id}-nota` : '', conAviso ? ID_MARCA_CADA : ''].filter(Boolean).join(' ') || undefined}
       leyendaDentro
       claseGrupo={`gap-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ${
         sinMarcar ? 'ring-2 ring-pronto @3xl/main:-mx-3 @3xl/main:px-3' : 'ring-1 ring-linea @3xl/main:rounded-none @3xl/main:bg-transparent @3xl/main:px-0 @3xl/main:ring-0'
