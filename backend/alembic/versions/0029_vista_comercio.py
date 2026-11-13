@@ -369,7 +369,8 @@ BEGIN
     PERFORM set_config('app.funcion', '', true);
 END $$;
 
--- p_version es la del If-Match, si vino (412 si no calza). Empezar a preparar (D-63-2, D-63-11): bloquea el pedido como la cancelación después de pagar, y nunca prepara un
+-- p_version es la del If-Match, si vino (412 si no calza). Empezar a preparar (D-63-2, D-63-11): bloquea el pedido
+-- como la cancelación después de pagar, y nunca prepara un
 -- pedido cancelado. Devuelve ok, no_encontrada, version o estado
 CREATE FUNCTION comercio_preparar(p_parte uuid, p_version integer, p_ahora timestamptz) RETURNS text
     LANGUAGE plpgsql VOLATILE {DEFINIDOR} AS
@@ -959,10 +960,18 @@ DROP POLICY auditoria_comercio_propia ON auditoria;
 ALTER TABLE auditoria DROP CONSTRAINT auditoria_persona_obligatoria;
 ALTER TABLE auditoria ADD CONSTRAINT auditoria_persona_obligatoria
     CHECK (persona_cuidada_id IS NOT NULL OR accion NOT IN ({_lista(ACCIONES_DE_PERSONA_0028)})) NOT VALID;
+-- Con filas del comercio (sin grupo), vuelve NOT VALID: nunca se borra un registro de auditoría
 ALTER TABLE auditoria DROP CONSTRAINT auditoria_cuenta_acotada;
-ALTER TABLE auditoria ADD CONSTRAINT auditoria_cuenta_acotada
-    CHECK (grupo_id IS NOT NULL OR accion IN ({_lista(ACCIONES_DE_CUENTA_0028)})) NOT VALID;
-ALTER TABLE auditoria VALIDATE CONSTRAINT auditoria_cuenta_acotada;
+DO $$ BEGIN
+    BEGIN
+        ALTER TABLE auditoria ADD CONSTRAINT auditoria_cuenta_acotada
+            CHECK (grupo_id IS NOT NULL OR accion IN ({_lista(ACCIONES_DE_CUENTA_0028)}));
+    EXCEPTION WHEN check_violation THEN
+        RAISE NOTICE 'MATU-63: hay acciones del comercio en la auditoría; el CHECK de la 0028 vuelve NOT VALID';
+        ALTER TABLE auditoria ADD CONSTRAINT auditoria_cuenta_acotada
+            CHECK (grupo_id IS NOT NULL OR accion IN ({_lista(ACCIONES_DE_CUENTA_0028)})) NOT VALID;
+    END;
+END $$;
 
 -- (k)
 ALTER POLICY transicion_sistema_crear ON pedido_transicion WITH CHECK (
