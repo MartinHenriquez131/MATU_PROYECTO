@@ -161,7 +161,7 @@ export const PEDIDO = {
 
   // 9: antes de pagar
   resTitulo: 'Antes de pagar',
-  resBajada: 'Confirmamos que hay cada producto. El total es',
+  resBajada: 'Confirmamos que hay cada producto. El total, con el envío, es', // [CAMBIA] L 31 (MATU-109 D5b)
   cambiarFrase: 'Si cambias algo, antes de pagar confirmamos el total de nuevo.',
   cambiarPedido: 'Cambiar el pedido',
   abriendo: 'Abriendo tu pedido…',
@@ -178,6 +178,8 @@ export const PEDIDO = {
   productosN: (n: number) => `Productos (${n})`,
   envio: 'Envío (uno por pedido)',
   total: 'Total',
+  /** MATU-109 D5: bajo el total de la boleta. Sin la palabra IVA, que cumple lenguaje.md 31 tal como está. */
+  totalAyuda: 'Son los precios finales. El envío es uno solo, por todo el pedido.', // [NUEVO] MATU-109 D5
   valeHasta: 'Este total vale hasta las',
   cobro: 'Se cobra una sola vez este total, con crédito o con débito. No hay reserva ni cobros después.',
   quedan2: 'Quedan 2 minutos para pagar este total.',

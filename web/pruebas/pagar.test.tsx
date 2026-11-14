@@ -79,7 +79,7 @@ describe('Antes de pagar: «Pagar {total}» (4)', () => {
     expect(pagar().querySelector('svg')!.getAttribute('class')).toMatch(/lucide-lock/)
     expect(pagar().querySelector('.cifras')).toHaveTextContent('$34.260')
     // El mismo total en la bajada, la boleta y el botón (criterio 2).
-    expect(screen.getByText(/El total es/).closest('p')).toHaveTextContent('$34.260')
+    expect(screen.getByText(/El total, con el envío, es/).closest('p')).toHaveTextContent('$34.260')
     expect(within(screen.getByRole('region', { name: 'Tu pedido' })).getByText('Total').closest('p')).toHaveTextContent('$34.260')
   })
 
