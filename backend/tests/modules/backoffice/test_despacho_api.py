@@ -488,3 +488,23 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
     # Pasados los 90 días, tampoco por correo
     d.e.avanzar(timedelta(days=61))
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo).status_code in (409, 422)
+
+
+def test_veinte_intentos_por_hora_y_el_21_es_429_con_retry_after(despacho: Despacho) -> None:
+    """D-63-4: el tope por cuenta de comercio en Redis (aquí en memoria), 20 por hora. El 21 responde 429
+    demasiados-intentos con Retry-After, antes de mirar el código, y el código no queda en los logs."""
+    d = despacho
+    _, pedido = d.pagado()
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag)
+    codigo = _codigo(d, parte)
+    malo = f"{(int(codigo) + 7) % 1_000_000:06d}"
+    for _ in range(20):
+        assert _validar(d, parte, malo).status_code == 200
+    r = _validar(d, parte, codigo)
+    assert r.status_code == 429 and r.json()["type"] == "/errores/demasiados-intentos"
+    assert 1 <= int(r.headers["Retry-After"]) <= 3600
+    # El 429 no tocó la parte: sigue lista y sin retirar
+    assert d.comercio("uno", "GET", f"/partes/{parte}").json()["estado"] == "lista"
+    logs = d.e.iam.salida_logs.getvalue()
+    assert codigo not in logs and malo not in logs
