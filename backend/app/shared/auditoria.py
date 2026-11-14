@@ -110,6 +110,23 @@ class AccionAuditoria(StrEnum):
     # persona_cuidada_id; la de la cuenta, sin grupo
     PERSONA_DATOS_DESCARGAR = "persona.datos_descargar"
     CUENTA_DATOS_DESCARGAR = "cuenta.datos_descargar"
+    # MATU-63 (D-63-12): el comercio, sin grupo ni persona y sin productos, cantidades, referencia ni código.
+    # actor_ref es la cuenta del encargado; en pedido_transicion el comercio va con su id
+    COMERCIO_PREPARAR = "comercio.preparar"
+    COMERCIO_MARCAR_LINEA = "comercio.marcar_linea"
+    COMERCIO_LISTO = "comercio.listo"
+    COMERCIO_CODIGO_CORRECTO = "comercio.codigo_correcto"
+    COMERCIO_CODIGO_INCORRECTO = "comercio.codigo_incorrecto"
+    COMERCIO_CODIGO_BLOQUEO = "comercio.codigo_bloqueo"
+    COMERCIO_PRODUCTOS_CAMBIAR = "comercio.productos_cambiar"
+    # MATU-63: la familia, MATU (operación) y el sistema, con el grupo y la persona del pedido. Sin montos ni el código
+    PAGO_DEVOLVER = "pago.devolver"
+    PEDIDO_RETRACTO_SOLICITAR = "pedido.retracto_solicitar"
+    CODIGO_RETIRO_GENERAR = "codigo_retiro.generar"
+    DESPACHO_EN_CAMINO = "despacho.en_camino"
+    DESPACHO_ENTREGAR = "despacho.entregar"
+    DESPACHO_NO_ENTREGADO = "despacho.no_entregado"
+    RETRACTO_RESOLVER = "retracto.resolver"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
@@ -133,6 +150,20 @@ ACCIONES_DE_CUENTA = frozenset(
         AccionAuditoria.AVISOS_PREFERENCIA,
         # MATU-54 (decisión 347)
         AccionAuditoria.CUENTA_DATOS_DESCARGAR,
+    }
+)
+
+# MATU-63 (D-63-12): las del comercio, que tampoco pertenecen a una familia. El CHECK auditoria_cuenta_acotada de la
+# 0029 admite sin grupo estas y las de ACCIONES_DE_CUENTA, y tests/test_migraciones.py lo verifica
+ACCIONES_DEL_COMERCIO = frozenset(
+    {
+        AccionAuditoria.COMERCIO_PREPARAR,
+        AccionAuditoria.COMERCIO_MARCAR_LINEA,
+        AccionAuditoria.COMERCIO_LISTO,
+        AccionAuditoria.COMERCIO_CODIGO_CORRECTO,
+        AccionAuditoria.COMERCIO_CODIGO_INCORRECTO,
+        AccionAuditoria.COMERCIO_CODIGO_BLOQUEO,
+        AccionAuditoria.COMERCIO_PRODUCTOS_CAMBIAR,
     }
 )
 
@@ -173,6 +204,14 @@ ACCIONES_DE_PERSONA = frozenset(
         AccionAuditoria.PAGO_INICIAR,
         AccionAuditoria.PAGO_APROBAR,
         AccionAuditoria.PAGO_ANULAR,
+        # MATU-63 (0029)
+        AccionAuditoria.PAGO_DEVOLVER,
+        AccionAuditoria.PEDIDO_RETRACTO_SOLICITAR,
+        AccionAuditoria.CODIGO_RETIRO_GENERAR,
+        AccionAuditoria.DESPACHO_EN_CAMINO,
+        AccionAuditoria.DESPACHO_ENTREGAR,
+        AccionAuditoria.DESPACHO_NO_ENTREGADO,
+        AccionAuditoria.RETRACTO_RESOLVER,
     }
 )
 
@@ -226,6 +265,9 @@ class ActorTipo(StrEnum):
     RELEVO = "relevo"
     # MATU-38: un inicio de sesión fallido no tiene un usuario conocido (actor_ref vacío)
     SISTEMA = "sistema"
+    # MATU-63: la cuenta del encargado de un comercio, y una persona de MATU (operación)
+    COMERCIO = "comercio"
+    OPERACION = "operacion"
 
 
 class EntidadAuditoria(StrEnum):
@@ -255,6 +297,10 @@ class EntidadAuditoria(StrEnum):
     # MATU-42
     INVITACION = "invitacion"
     MEMBRESIA = "membresia"
+    # MATU-63
+    PEDIDO_COMERCIO = "pedido_comercio"
+    OFERTA = "oferta"
+    RETRACTO = "retracto"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:
@@ -307,7 +353,7 @@ class EntradaAuditoria:
     def __post_init__(self) -> None:
         _exigir("accion", self.accion, AccionAuditoria)
         _exigir("actor_tipo", self.actor_tipo, ActorTipo)
-        if self.grupo_id is not None or self.accion not in ACCIONES_DE_CUENTA:
+        if self.grupo_id is not None or self.accion not in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO:
             _exigir("grupo_id", self.grupo_id, uuid.UUID)
         if self.actor_ref is not None or self.actor_tipo is not ActorTipo.SISTEMA:
             _exigir("actor_ref", self.actor_ref, uuid.UUID)

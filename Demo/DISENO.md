@@ -48,7 +48,7 @@ La pasarela de pago **no** usa la marca: es otra empresa y se ve en grises fijos
 |---|---|
 | **Atkinson Hyperlegible** 400 y 700 | Todo el texto, los botones y las cifras. Diseñada para baja visión. Base de 17 px (`html { font-size: 106.25% }`) |
 | **Bricolage Grotesque** variable, 800 (`titular`) | Solo titulares desde 1,5 rem: el título de cada página, el nombre en la hoja, "Enlace creado". Tracking negativo. Única excepción: la palabra "MATU" junto al logo, a 1,25 rem |
-| **Atkinson Hyperlegible Mono** (`digitos`) | Solo lo que se dicta dígito a dígito: el PIN y el código de retiro. Es también `--font-mono`, para que `pre`, `code` y `kbd` nunca caigan en una fuente del sistema. El `pre` de la lista para exportar hereda la cara del texto |
+| **Atkinson Hyperlegible Mono** (`digitos`) | Solo lo que se dicta dígito a dígito: el PIN, el código de retiro y la referencia del pedido en la consola del comercio, que se dicta letra a letra en el mostrador (13/11/2026, MATU-63). Es también `--font-mono`, para que `pre`, `code` y `kbd` nunca caigan en una fuente del sistema. El `pre` de la lista para exportar hereda la cara del texto |
 
 **Escala.** Son los pasos de Tailwind, en rem sobre 17 px. Reemplazan a la escala del primer borrador (0,85 · 1 · 1,2 · 1,5 · 2,25 · 3,4) por el paso más cercano, porque así se construyó y se ve bien en el proyector:
 
@@ -197,6 +197,8 @@ Sin cuenta, sin navegación y sin nada que no sea la ficha. Antes de la hoja, un
 ```
 
 Más densa y más sobria: la barra superior en `tinta`, la cola a la izquierda como una lista con el estado en la forma, y el pedido elegido a la derecha con sus tres pasos numerados (sí es una secuencia).
+
+**En `web/` (MATU-63, 13/11/2026)** la consola es mobile first y su especificación está en [`docs/diseno/matu-63-comercio.md`](../docs/diseno/matu-63-comercio.md): en el teléfono, la cola y el pedido son dos vistas, y el estado lo dicen la etiqueta y el único botón, sin pasos numerados. **El foco dentro de la barra `tinta` va en `papel`** (14,1:1 en claro y 15,4:1 en oscuro), no en `miel` como en la demo: `miel` mide 1,5:1 contra `tinta` en el tema oscuro, y `turquesa` 2,4:1 y 1,6:1. Por lo mismo, el distintivo del piloto va fuera de la barra, sobre `papel`.
 
 ### El panel del presentador
 

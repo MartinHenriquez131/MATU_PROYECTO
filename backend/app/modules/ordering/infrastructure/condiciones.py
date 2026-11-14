@@ -12,6 +12,8 @@ prueba falla. Un texto nuevo es una versión nueva.
 MATU-62: la vigente pasa a la 0.2 (segunda revisión previa del analista, 5.3, aprobada el 11-11), con el pago y la
 frase del piloto **dentro** del texto con huella (decisión 221). La 0.1 sigue publicada para quien la aceptó:
 condiciones_de(version) entrega cualquier versión publicada (GET /v1/condiciones-pedido?version=, decisión 240).
+
+MATU-63: la vigente pasa a la 0.3 (D-63-16), y la 0.2 y la 0.1 siguen publicadas para quien las aceptó.
 """
 
 from dataclasses import dataclass
@@ -23,7 +25,7 @@ from typing import Final
 from app.modules.iam.domain.politica import huella_de, normalizar_saltos
 
 CARPETA = Path(__file__).resolve().parents[1] / "condiciones"
-VERSION_VIGENTE = "0.2"
+VERSION_VIGENTE = "0.3"
 
 PUBLICADAS: dict[str, tuple[date, str]] = {
     "0.1": (
@@ -34,6 +36,12 @@ PUBLICADAS: dict[str, tuple[date, str]] = {
     "0.2": (
         date(2026, 11, 11),
         "64859e519a0aa19bb56b415256d2d9757f162e278824edffb1092a2985a334b7",  # pragma: allowlist secret
+    ),
+    # MATU-63 (D-63-16): lo que pasa después de pagar (faltantes, cancelar, entrega y retracto). Solo la aceptan los
+    # pedidos nuevos; los que aceptaron la 0.1 o la 0.2 se cumplen según la suya (el envío del retracto, D-63-10)
+    "0.3": (
+        date(2026, 11, 13),
+        "ecd49b57dfd80e55899e07050e30e03fc2627831f0f2c4731ef0bb4d75d94d19",  # pragma: allowlist secret
     ),
 }
 ENLACE: Final = "/v1/condiciones-pedido"

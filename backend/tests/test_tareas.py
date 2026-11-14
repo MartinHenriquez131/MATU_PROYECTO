@@ -71,7 +71,7 @@ def test_todas_diarias_corre_los_borrados_antes_que_los_quiebres() -> None:
     assert tareas.nombres_de("todas_diarias") == tareas.DIARIAS
     assert tareas.DIARIAS[-1] == "quiebres"
     # avisos y conciliacion_pagos (MATU-62) corren cada 5 minutos, no en la corrida diaria
-    assert set(tareas.DIARIAS) == set(tareas.TAREAS) - {"avisos", "conciliacion_pagos"}
+    assert set(tareas.DIARIAS) == set(tareas.TAREAS) - {"avisos", "conciliacion_pagos", "despacho"}
     assert tareas.nombres_de("borrados") == tareas.DIARIAS[:-1]
 
 

@@ -261,11 +261,16 @@ class Configuracion(BaseSettings):
     # error, el repr de la configuración ni una respuesta: solo se deriva de ella la pública
     vapid_clave_privada: SecretStr | None = None
 
+    # MATU-63 (D-63-4): la llave del HMAC-SHA256 del código de retiro. La base guarda solo la huella del código, nunca
+    # el código. Distinta de los otros secretos. Opcional para cargar la configuración; sin ella, generar y validar un
+    # código responden 503 y fallan cerrados. Genérala con: python -c "import secrets; print(secrets.token_urlsafe(48))"
+    codigo_retiro_secreto: SecretStr | None = Field(default=None, min_length=32, repr=False)
+
     @field_validator(
         "pepper_email", "jwt_clave", "kek_entorno", "custodia_kek", "pepper_pin", "pepper_limites",
         "pepper_recuperacion", "enviador_codigos", "registro_envios", "enviador_avisos", "registro_avisos",
         "politica_actualizada_en", "correo_privacidad", "pasarela_pago", "webpay_codigo_comercio", "webpay_llave",
-        "vapid_clave_privada",
+        "vapid_clave_privada", "codigo_retiro_secreto",
         mode="before",
     )
     @classmethod

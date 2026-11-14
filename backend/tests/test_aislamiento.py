@@ -125,8 +125,8 @@ INSERT INTO pedido (id, grupo_id, persona_cuidada_id, comercio_id, estado, subto
 INSERT INTO pedido_entrega (pedido_id, calle, numero, comuna, telefono_contacto) VALUES
  ('{PED_A_ENVIADO}', 'Los Aromos', '123', 'La Reina', '+56911111111');
 INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, enviado_en) VALUES
- ('00000000-0000-0000-0000-0000000009a1', '{G_A}', '{PED_A_ENVIADO}', '{COMERCIO}', 'referencia-opaca-a-uno', now()),
- ('00000000-0000-0000-0000-0000000009b1', '{G_B}', '{PED_B_ENVIADO}', '{COMERCIO}', 'referencia-opaca-b-uno', now());
+ ('00000000-0000-0000-0000-0000000009a1', '{G_A}', '{PED_A_ENVIADO}', '{COMERCIO}', 'AAAA22', now()),
+ ('00000000-0000-0000-0000-0000000009b1', '{G_B}', '{PED_B_ENVIADO}', '{COMERCIO}', 'BBBB22', now());
 INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario, pedido_comercio_id) VALUES
  ('{PED_A_ENVIADO}',  '00000000-0000-0000-0000-000000000f11', '00000000-0000-0000-0000-000000000f01', 2, 12990,
   '00000000-0000-0000-0000-0000000009a1'),
@@ -635,10 +635,11 @@ def test_autorizacion_vigente_solo_en_contexto_de_relevo(cx):
 # ------------------------------------------------------------------ comercio y repartidor
 
 def test_comercio_ve_pedidos_enviados_sin_direccion_ni_pago(cx):
+    """MATU-63 (D-63-1): el comercio no lee ninguna fila del pedido; ve sus partes solo por comercio_partes."""
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
-    assert contar(cx, "pedido") == 2                          # A y B enviados, no el borrador
-    assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 0
-    assert contar(cx, "pedido_linea") == 1                    # solo la del pedido enviado (D7, R8)
+    assert contar(cx, "pedido") == 0 and contar(cx, "pedido_linea") == 0 and contar(cx, "pedido_comercio") == 0
+    assert {r[0] for r in cx.execute("SELECT referencia FROM comercio_partes('-infinity')").fetchall()} == {
+        "AAAA22", "BBBB22"}
     for t in ("pedido_entrega", "cargo", "participacion", "transaccion_pasarela",
               "persona_cuidada", "direccion", "plan_cuidado", "perfil_consumo"):
         assert contar(cx, t) == 0, f"el comercio alcanza {t}"
@@ -867,29 +868,41 @@ def test_pedido_pagado_exige_total_confirmado_y_marca_de_pago(cx):
 
 @pytest.mark.rf("ADR-027")
 def test_el_precio_pagado_queda_fijo(cx):
+    # MATU-63 (0029): la familia ya no alcanza las líneas de un pedido pagado (linea_editar); el trigger
+    # pedido_linea_pagada_fija detiene también al sistema y a operación, que sí las alcanzan
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute("UPDATE pedido_linea SET estado_linea = 'preparada' WHERE pedido_id = %s RETURNING id",
+                      (PED_A_ENVIADO,)).fetchall() == []
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(f"""INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)
+                       VALUES ('{PED_A_ENVIADO}', '{OFERTA}', '{PRODUCTO}', 1, 12990)""")
+    # Antes de pagar el precio todavía puede cambiar
+    cx.execute("UPDATE pedido_linea SET precio_unitario = 11990 WHERE pedido_id = %s", (PED_A_BORRADOR,))
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
     for sql in (
         f"UPDATE pedido_linea SET precio_unitario = 9990 WHERE pedido_id = '{PED_A_ENVIADO}'",
         f"UPDATE pedido_linea SET cantidad = 3 WHERE pedido_id = '{PED_A_ENVIADO}'",
-        f"DELETE FROM pedido_linea WHERE pedido_id = '{PED_A_ENVIADO}'",
-        f"""INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario)
-            VALUES ('{PED_A_ENVIADO}', '{OFERTA}', '{PRODUCTO}', 1, 12990)""",
     ):
         with pytest.raises(errors.CheckViolation), cx.transaction():
             cx.execute(sql)
-    # El estado de la línea sí avanza, y antes de pagar el precio todavía puede cambiar
+    # El estado de la línea sí avanza
     cx.execute("UPDATE pedido_linea SET estado_linea = 'preparada' WHERE pedido_id = %s", (PED_A_ENVIADO,))
-    cx.execute("UPDATE pedido_linea SET precio_unitario = 11990 WHERE pedido_id = %s", (PED_A_BORRADOR,))
 
 
 @pytest.mark.rf("ADR-027")
 def test_la_devolucion_de_una_linea_no_supera_lo_pagado(cx):
-    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    como(cx, rol="operacion")  # MATU-63: la devolución la marcan el sistema y operación
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("""UPDATE pedido_linea SET estado_linea = 'devuelta', devuelta_en = now(),
                       monto_devuelto = 2 * 12990 + 1 WHERE pedido_id = %s""", (PED_A_ENVIADO,))
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("UPDATE pedido_linea SET estado_linea = 'devuelta' WHERE pedido_id = %s", (PED_A_ENVIADO,))
+    # D-63-8: lo devuelto lleva su fecha, y una devolución parcial no deja la línea devuelta
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido_linea SET monto_devuelto = 12990 WHERE pedido_id = %s", (PED_A_ENVIADO,))
+    cx.execute("""UPDATE pedido_linea SET estado_linea = 'faltante', unidades_faltantes = 1, devuelta_en = now(),
+                  monto_devuelto = 12990 WHERE pedido_id = %s""", (PED_A_ENVIADO,))
     cx.execute("""UPDATE pedido_linea SET estado_linea = 'devuelta', devuelta_en = now(),
                   monto_devuelto = 2 * 12990 WHERE pedido_id = %s""", (PED_A_ENVIADO,))
 
@@ -906,7 +919,7 @@ def test_reasignacion_solo_al_mismo_producto_nunca_otra_marca(cx):
         INSERT INTO oferta (id, producto_id, comercio_id, precio) VALUES
          ('{misma}', '{PRODUCTO}', '{otro_comercio}', 13990), ('{distinta}', '{otra_marca}', '{otro_comercio}', 9990);
     """)
-    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    como(cx, rol="operacion")  # MATU-63: después del pago, la línea la escriben el sistema y operación
     reasignar = """UPDATE pedido_linea SET oferta_reasignada_id = %s, precio_reasignado = %s,
                    reasignada_en = now() WHERE pedido_id = %s"""
     with pytest.raises(errors.CheckViolation), cx.transaction():
@@ -939,9 +952,13 @@ def test_comercio_no_ve_pedidos_sin_pagar_o_sin_enviar(cx, estado):
                 U_ADMIN_A)).fetchone()[0]
     # Aunque tenga su parte enviada: sin pagar o sin enviar, el comercio no lo ve
     cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia, enviado_en)"
-               " VALUES (%s, %s, %s, 'referencia-opaca-prueba', now())", (G_A, pedido, COMERCIO))
+               " VALUES (%s, %s, %s, 'PRUEBA', now())", (G_A, pedido, COMERCIO))
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
-    assert contar(cx, "pedido") == 2                          # solo los dos pagados y enviados de la semilla
+    # MATU-63: ninguna fila del pedido, y por la función solo las partes pagadas: desde la 0029, la parte llega al
+    # comercio con el pago (enviado_en), así que la del pedido pagado sí aparece
+    assert contar(cx, "pedido") == 0
+    assert {r[0] for r in cx.execute("SELECT referencia FROM comercio_partes('-infinity')").fetchall()} == {
+        "AAAA22", "BBBB22", *(["PRUEBA"] if pagado else [])}
 
 
 @pytest.mark.rf("ADR-027")
@@ -962,9 +979,18 @@ def test_el_pedido_pagado_no_se_reabre(cx, quien, cambio):
     ctx = {"usuario_id": U_ADMIN_A, "grupo_id": G_A} if quien == "familia" else \
           {"usuario_id": U_ENC, "comercio_id": COMERCIO}
     como(cx, **ctx)
-    with pytest.raises(errors.CheckViolation), cx.transaction():
-        cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (PED_A_ENVIADO,))
-    # El pedido pagado sí avanza en su ciclo, y lo cobrado sigue igual
+    if quien == "familia":
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (PED_A_ENVIADO,))
+        # MATU-63 (0029): tampoco lo mueve en su ciclo
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
+    else:
+        # MATU-63 (D-63-2): el comercio no alcanza la fila
+        assert cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s RETURNING id", (PED_A_ENVIADO,)).fetchall() == []
+    # El pedido pagado sí avanza en su ciclo, por el sistema, y lo cobrado sigue igual
+    cx.execute("RESET ROLE")
+    como(cx, grupo_id=G_A, rol="sistema")
     cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
     assert cx.execute("SELECT subtotal_productos, costo_envio, total FROM pedido WHERE id = %s",
                       (PED_A_ENVIADO,)).fetchone() == (25980, 2990, 28970)
@@ -2640,6 +2666,12 @@ FUNCIONES_SCHEDULER = {
     "invitacion_conservar": "SELECT invitacion_conservar(now() - interval '30 days', now())",
     # MATU-46 (decisión 25): el teléfono del relevo a los 30 días
     "relevo_conservar": "SELECT relevo_conservar(now() - interval '30 days', now())",
+    # MATU-63 (D-63-8): lo que el despacho tiene que llevar, solo ids
+    "despacho_pendiente": "SELECT * FROM despacho_pendiente(10)",
+    # MATU-63 (D-63-5 y D-63-13): el código desde la consola de operación y el vaciado de los vencidos
+    "codigo_retiro_guardar": "SELECT codigo_retiro_guardar(gen_random_uuid(), repeat('a', 64), now(),"
+                             " now() + interval '90 minutes')",
+    "codigo_retiro_vencer": "SELECT codigo_retiro_vencer(now())",
 }
 FUNCIONES_PUBLISHER = {
     "outbox_tomar": "SELECT * FROM outbox_tomar(1, now() - interval '1 day')",
@@ -2794,8 +2826,8 @@ def _pedido_de_dos_comercios(cx, enviado: bool = True):
                " creado_por) VALUES (%s, %s, %s, 'borrador', 17480, 2990, 20470, %s)",
                (PED_A_DOS, G_A, P_A2, U_ADMIN_A))
     enviado_en = "now()" if enviado else "NULL"
-    for parte, comercio, referencia in ((uuid.UUID(int=0xA31), COMERCIO, "referencia-opaca-dos-uno"),
-                                         (uuid.UUID(int=0xA32), COMERCIO_2, "referencia-opaca-dos-dos")):
+    for parte, comercio, referencia in ((uuid.UUID(int=0xA31), COMERCIO, "DDDU22"),
+                                         (uuid.UUID(int=0xA32), COMERCIO_2, "DDDD22")):
         cx.execute("INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, enviado_en)"
                    f" VALUES (%s, %s, %s, %s, %s, {enviado_en})", (parte, G_A, PED_A_DOS, comercio, referencia))
     cx.execute("INSERT INTO pedido_linea (pedido_id, oferta_id, producto_id, cantidad, precio_unitario,"
@@ -2880,16 +2912,19 @@ def test_el_observador_no_ve_la_entrega_y_el_pagador_si(cx):
 
 @pytest.mark.rf("RF-21")
 def test_cada_comercio_ve_solo_su_parte_y_sus_lineas(cx):
-    """D7 y R8: el segundo comercio ve el pedido con su línea, nunca la del otro ni su referencia."""
+    """D7 y R8: el segundo comercio ve su parte con su línea, nunca la del otro ni su referencia. Desde la 0029, solo
+    por las funciones del comercio (D-63-1)."""
     _pedido_de_dos_comercios(cx)
     como(cx, usuario_id=U_ENC_2, comercio_id=COMERCIO_2)
-    assert [r[0] for r in cx.execute("SELECT id FROM pedido").fetchall()] == [PED_A_DOS]
-    assert [r[0] for r in cx.execute("SELECT producto_id FROM pedido_linea").fetchall()] == [PRODUCTO_2]
-    assert [r[0] for r in cx.execute("SELECT referencia FROM pedido_comercio").fetchall()] == [
-        "referencia-opaca-dos-dos"]
+    assert contar(cx, "pedido") == 0 and contar(cx, "pedido_linea") == 0 and contar(cx, "pedido_comercio") == 0
+    assert [r[0] for r in cx.execute("SELECT referencia FROM comercio_partes('-infinity')").fetchall()] == ["DDDD22"]
+    assert [r[0] for r in cx.execute("SELECT producto_nombre FROM comercio_lineas(%s)",
+                                     (uuid.UUID(int=0xA32),)).fetchall()] == ["Toallitas húmedas"]
+    # La parte del otro comercio: cero líneas
+    assert cx.execute("SELECT * FROM comercio_lineas(%s)", (uuid.UUID(int=0xA31),)).fetchall() == []
     cx.execute("RESET ROLE")
     como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
-    assert contar(cx, "pedido_linea", f"pedido_id = '{PED_A_DOS}'") == 1
+    assert len(cx.execute("SELECT * FROM comercio_lineas(%s)", (uuid.UUID(int=0xA31),)).fetchall()) == 1
     # R8 y D7: tampoco la elección de la familia si falta un producto (regla_sustitucion, cierre del analista)
     for t in ("pedido_entrega", "pedido_transicion", "idempotencia", "persona_cuidada", "direccion",
               "regla_sustitucion"):
@@ -2901,6 +2936,7 @@ def test_la_parte_no_enviada_no_la_ve_el_comercio(cx):
     _pedido_de_dos_comercios(cx, enviado=False)
     como(cx, usuario_id=U_ENC_2, comercio_id=COMERCIO_2)
     assert contar(cx, "pedido") == 0 and contar(cx, "pedido_linea") == 0 and contar(cx, "pedido_comercio") == 0
+    assert cx.execute("SELECT * FROM comercio_partes('-infinity')").fetchall() == []
 
 
 @pytest.mark.rf("RF-21")
@@ -2913,7 +2949,7 @@ def test_pedido_comercio_tiene_rls_forzado_y_el_grupo_de_su_pedido(cx):
         cx.execute("SAVEPOINT s")
         with pytest.raises((errors.InsufficientPrivilege, errors.CheckViolation)):
             cx.execute("INSERT INTO pedido_comercio (grupo_id, pedido_id, comercio_id, referencia)"
-                       " VALUES (%s, %s, %s, 'referencia-de-otro-grupo')", (grupo, PED_B_ENVIADO, COMERCIO))
+                       " VALUES (%s, %s, %s, 'TTRGRP')", (grupo, PED_B_ENVIADO, COMERCIO))
         cx.execute("ROLLBACK TO SAVEPOINT s")
     como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
     assert contar(cx, "pedido_comercio", f"pedido_id = '{PED_A_ENVIADO}'") == 0
@@ -3854,6 +3890,8 @@ def test_una_invitacion_vencida_no_se_acepta_con_un_instante_del_pasado(cx):
 
 
 MARCAS_0026 = ("invitacion", "membresia_retirar")
+# MATU-63 (0029): las marcas de las funciones del comercio, del apartado, del despacho y de las cuentas
+MARCAS_0029 = ("comercio", "disponible", "despacho", "cuentas", "codigo_retiro")
 
 
 def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
@@ -3863,7 +3901,7 @@ def _lo_que_ve(cx, usuario_id=None, grupo_id=None):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
 @pytest.mark.parametrize("contexto", [{}, {"usuario_id": U_NUEVO}, {"usuario_id": U_OBS_A, "grupo_id": G_A}])
 def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
     """O2: las políticas del marcador son TO matu_owner. matu_app que fija app.funcion no ve ni escribe más."""
@@ -3879,7 +3917,7 @@ def test_matu_app_no_gana_nada_fijando_el_marcador(cx, marca, contexto):
 
 
 @pytest.mark.rf("RF-38")
-@pytest.mark.parametrize("marca", MARCAS_0026)
+@pytest.mark.parametrize("marca", MARCAS_0026 + MARCAS_0029)
 def test_el_marcador_puesto_por_matu_app_no_abre_las_otras_funciones_definer(cx, marca):
     """O2: con el marcador puesto, las funciones SECURITY DEFINER que matu_app ejecuta devuelven lo mismo, y las de la
     0026 lo pisan con el suyo y lo limpian al salir."""
@@ -3913,7 +3951,11 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
         "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosecdef"
         " AND has_function_privilege('matu_app', oid, 'EXECUTE')").fetchall()}
     assert ejecuta == {"relevo_autorizacion_vigente", "iam_credencial", "pago_resolver_venta", "membresia_retirar",
-                       "invitacion_presentar", "invitacion_verificar", "invitacion_aceptar"}
+                       "invitacion_presentar", "invitacion_verificar", "invitacion_aceptar",
+                       # MATU-63 (0029): cada una pisa el marcador con el suyo y lo limpia al salir
+                       "comercio_partes", "comercio_lineas", "comercio_preparar", "comercio_marcar_linea",
+                       "comercio_listo", "comercio_validar_codigo", "comercio_existencias", "oferta_disponible",
+                       "despacho_resolver_parte"}
 
 
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
@@ -4079,3 +4121,309 @@ def test_la_copia_de_la_cuenta_la_lee_solo_su_duena(cx):
     como(cx, usuario_id=U_ADMIN_A)
     assert {r[0] for r in cx.execute(
         "SELECT actor_ref FROM auditoria WHERE accion = 'cuenta.datos_descargar'").fetchall()} == {U_ADMIN_A}
+
+
+# ---- MATU-63 (migración 0029): la vista del comercio por funciones, el despacho y el retracto
+
+TABLAS_SIN_COMERCIO = ("pedido", "pedido_comercio", "pedido_linea", "pedido_transicion", "regla_sustitucion",
+                       "pedido_entrega", "cargo", "participacion", "transaccion_pasarela", "evidencia",
+                       "retracto", "retracto_linea", "persona_cuidada", "direccion", "idempotencia",
+                       # H9 del cierre del analista: tampoco lo que MATU le debe, hasta que exista la liquidación
+                       "consumo_comercio")
+PARTE_A = uuid.UUID("00000000-0000-0000-0000-0000000009a1")
+
+
+@pytest.mark.rf("RF-26")
+@pytest.mark.rf("Ley-21.719")
+def test_el_comercio_lee_cero_filas_de_las_tablas_del_pedido(cx):
+    """D-63-1: ni el pedido, ni su parte, ni sus líneas, transiciones, reglas, entrega, pago, evidencia o retracto."""
+    _pedido_de_dos_comercios(cx)
+    for usuario, comercio in ((U_ENC, COMERCIO), (U_ENC_2, COMERCIO_2)):
+        cx.execute("RESET ROLE")
+        como(cx, usuario_id=usuario, comercio_id=comercio)
+        for t in TABLAS_SIN_COMERCIO:
+            assert contar(cx, t) == 0, f"el comercio alcanza {t}"
+
+
+@pytest.mark.rf("RF-26")
+def test_la_proyeccion_del_comercio_no_trae_nada_de_la_familia(cx):
+    """D-63-1 y R7: las columnas de las funciones, sin pedido_id, grupo, persona, montos, referencia de la familia ni
+    hash."""
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    prohibidas = {"pedido_id", "grupo_id", "persona_cuidada_id", "creado_por", "total", "costo_envio",
+                  "precio_unitario", "monto_devuelto", "codigo_hash", "condiciones_version"}
+    for funcion in ("comercio_partes('-infinity')", f"comercio_lineas('{PARTE_A}')", "comercio_existencias(now())"):
+        columnas = {d.name for d in cx.execute(f"SELECT * FROM {funcion}").description}
+        assert not columnas & prohibidas, funcion
+
+
+@pytest.mark.rf("RF-26")
+def test_el_comercio_no_cambia_grupo_estado_lineas_ni_dinero(cx):
+    """D-63-2: el comercio escribe solo por sus funciones. Directo no alcanza ninguna fila del pedido ni del pago."""
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    for sql in (
+        f"UPDATE pedido SET estado = 'entregado' WHERE id = '{PED_A_ENVIADO}' RETURNING id",
+        f"UPDATE pedido_comercio SET grupo_id = '{G_B}', estado = 'retirada' WHERE id = '{PARTE_A}' RETURNING id",
+        f"UPDATE pedido_linea SET monto_devuelto = 1, estado_linea = 'devuelta' WHERE pedido_id = '{PED_A_ENVIADO}'"
+        " RETURNING id",
+        f"UPDATE cargo SET monto_devuelto = 1 WHERE id = '{CARGO_A}' RETURNING id",
+        "UPDATE transaccion_pasarela SET estado = 'error' RETURNING id",
+    ):
+        assert cx.execute(sql).fetchall() == [], sql
+    for sql in (
+        f"INSERT INTO consumo_comercio (comercio_id, pedido_id, monto_autorizado) VALUES ('{COMERCIO}',"
+        f" '{PED_A_ENVIADO}', 1)",
+        f"INSERT INTO evidencia (pedido_id, tipo, objeto_clave, sha256, registrada_por_tipo, registrada_por)"
+        f" VALUES ('{PED_A_ENVIADO}', 'boleta', 'x', sha256('x'), 'comercio', '{U_ENC}')",
+        # P3: su auditoría, solo como comercio, sin grupo ni persona
+        f"INSERT INTO auditoria (grupo_id, actor_tipo, actor_ref, accion, entidad) VALUES"
+        f" ('{G_A}', 'comercio', '{U_ENC}', 'pedido.crear', 'pedido')",
+        f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad) VALUES"
+        f" ('usuario', '{U_ENC}', 'sesion.iniciar', 'usuario')",
+    ):
+        cx.execute("SAVEPOINT s")
+        with pytest.raises((errors.InsufficientPrivilege, errors.CheckViolation)):
+            cx.execute(sql)
+        cx.execute("ROLLBACK TO SAVEPOINT s")
+    cx.execute(f"INSERT INTO auditoria (actor_tipo, actor_ref, accion, entidad, entidad_id) VALUES"
+               f" ('comercio', '{U_ENC}', 'comercio.preparar', 'pedido_comercio', '{PARTE_A}')")
+    # De su oferta, solo el stock y si la ofrece (trigger oferta_comercio_acotada), nunca el precio
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE oferta SET precio = 1 WHERE comercio_id = %s", (COMERCIO,))
+    assert cx.execute("UPDATE oferta SET stock = 3, disponible = false WHERE comercio_id = %s RETURNING id",
+                      (COMERCIO,)).fetchall() != []
+
+
+@pytest.mark.rf("RF-26")
+def test_cada_comercio_mueve_solo_sus_partes_tambien_en_el_mismo_pedido(cx):
+    """D7 y R8 con escritura: el comercio que reemplaza o comparte el pedido no toca la parte del otro."""
+    _pedido_de_dos_comercios(cx)
+    parte_uno, parte_dos = uuid.UUID(int=0xA31), uuid.UUID(int=0xA32)
+    [(linea_uno,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_comercio_id = %s", (parte_uno,)).fetchall()
+    como(cx, usuario_id=U_ENC_2, comercio_id=COMERCIO_2)
+    assert cx.execute("SELECT comercio_preparar(%s, NULL, now())", (parte_uno,)).fetchone() == ("no_encontrada",)
+    assert cx.execute("SELECT comercio_listo(%s, NULL, now())", (parte_uno,)).fetchone() == ("no_encontrada",)
+    assert cx.execute("SELECT * FROM comercio_validar_codigo(%s, repeat('a', 64), now())",
+                      (parte_uno,)).fetchone()[0] == "no_encontrada"
+    assert cx.execute("SELECT comercio_preparar(%s, NULL, now())", (parte_dos,)).fetchone() == ("ok",)
+    # Su propia parte, con la línea del otro: no la encuentra
+    assert cx.execute("SELECT comercio_marcar_linea(%s, %s, 'faltante', 1, NULL)",
+                      (parte_dos, linea_uno)).fetchone() == ("no_encontrada",)
+    cx.execute("RESET ROLE")
+    assert cx.execute("SELECT estado FROM pedido_comercio WHERE id = %s", (parte_uno,)).fetchone() == ("enviada",)
+    assert cx.execute("SELECT unidades_faltantes FROM pedido_linea WHERE id = %s", (linea_uno,)).fetchone() == (0,)
+
+
+@pytest.mark.rf("RF-26")
+@pytest.mark.parametrize("contexto", [
+    {"usuario_id": U_ADMIN_A, "comercio_id": COMERCIO},
+    {"usuario_id": U_ENC, "comercio_id": COMERCIO, "grupo_id": G_A},
+    {"usuario_id": U_ENC, "comercio_id": COMERCIO, "rol": "sistema"},
+    {"comercio_id": COMERCIO},
+], ids=["otra-cuenta", "con-grupo", "con-rol", "sin-cuenta"])
+def test_las_funciones_del_comercio_exigen_su_cuenta_activa(cx, contexto):
+    como(cx, **contexto)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM comercio_partes('-infinity')")
+
+
+@pytest.mark.rf("RF-26")
+def test_una_cuenta_de_comercio_inactiva_no_entra(cx):
+    cx.execute("UPDATE usuario_comercio SET activo = false WHERE usuario_id = %s", (U_ENC,))
+    como(cx, usuario_id=U_ENC, comercio_id=COMERCIO)
+    with pytest.raises(errors.InsufficientPrivilege):
+        cx.execute("SELECT * FROM comercio_partes('-infinity')")
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_una_cuenta_de_comercio_no_es_miembro_de_un_grupo_y_al_reves(cx):
+    """D-63-14, en la base: también como superusuario."""
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'observador')", (G_A, U_ENC))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES (%s, %s)", (U_ADMIN_A, COMERCIO))
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_la_evidencia_no_guarda_ubicacion(cx):
+    """D-63-15."""
+    with pytest.raises(errors.CheckViolation):
+        cx.execute("INSERT INTO evidencia (pedido_id, tipo, objeto_clave, sha256, lat, lng, registrada_por_tipo,"
+                   " registrada_por) VALUES (%s, 'entrega', 'x', sha256('x'), -33.4, -70.6, 'operacion', %s)",
+                   (PED_A_ENVIADO, U_ADMIN_A))
+
+
+@pytest.mark.rf("RF-26")
+def test_despues_del_pago_el_sistema_mueve_el_pedido_solo_por_el_despacho(cx):
+    """pedido_escritura_del_pago (0029): ni saltarse estados, ni tocar otra columna, ni fijar entregado_en a mano."""
+    como(cx, grupo_id=G_A, rol="sistema")
+    for cambio in ("estado = 'entregado'", "estado = 'cerrado'", "referencia = '9999'",
+                   "entregado_en = now()", "condiciones_version = '0.9'"):
+        cx.execute("SAVEPOINT s")
+        with pytest.raises(errors.CheckViolation):
+            cx.execute(f"UPDATE pedido SET {cambio} WHERE id = %s", (PED_A_ENVIADO,))
+        cx.execute("ROLLBACK TO SAVEPOINT s")
+    cx.execute("UPDATE pedido SET estado = 'preparando' WHERE id = %s", (PED_A_ENVIADO,))
+    # Operación tampoco salta; avanza por las transiciones
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE pedido SET estado = 'en_ruta' WHERE id = %s", (PED_A_ENVIADO,))
+
+
+def _entregado(cx):
+    """Como superusuario, sin triggers: el pedido pagado de A, entregado."""
+    cx.execute("SET LOCAL session_replication_role = replica")
+    cx.execute("UPDATE pedido SET estado = 'entregado', entregado_en = now() WHERE id = %s", (PED_A_ENVIADO,))
+    cx.execute("SET LOCAL session_replication_role = origin")
+
+
+@pytest.mark.rf("R3")
+def test_el_retracto_lo_pide_el_admin_o_quien_pago_y_lo_ve_solo_su_grupo(cx):
+    """D-63-10, en la base: retracto_familia_crear y RLS forzado en retracto y retracto_linea."""
+    _entregado(cx)
+    assert cx.execute("SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM pg_class"
+                      " WHERE relname IN ('retracto', 'retracto_linea')").fetchone() == (True,)
+    insertar = ("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                " incluye_envio) VALUES (%s, %s, %s, %s, now(), now() + interval '10 days', true)")
+    # El pagador que no pagó este pedido y el observador: no
+    for usuario in (U_PAG_A, U_OBS_A):
+        cx.execute("RESET ROLE")
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        cx.execute("SAVEPOINT s")
+        with pytest.raises(errors.InsufficientPrivilege):
+            cx.execute(insertar, (uuid.uuid4(), G_A, PED_A_ENVIADO, usuario))
+        cx.execute("ROLLBACK TO SAVEPOINT s")
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    retracto = uuid.uuid4()
+    cx.execute(insertar, (retracto, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    # Hasta lo entregado (2 pañales), también entre varios retractos (H3)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
+                   " VALUES (%s, %s, %s, 3)", (retracto, G_A, linea))
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (retracto, G_A, linea))
+    otro = uuid.uuid4()
+    cx.execute(insertar, (otro, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
+                   " VALUES (%s, %s, %s, 2)", (otro, G_A, linea))
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (otro, G_A, linea))
+    # H2: la familia no registra un retracto «por correo»
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                   " incluye_envio, origen) VALUES (%s, %s, %s, now(), now() + interval '10 days', true, 'correo')",
+                   (G_A, PED_A_ENVIADO, U_ADMIN_A))
+    # La familia no lo resuelve
+    assert cx.execute("UPDATE retracto SET estado = 'devuelto', resuelto_en = now() WHERE id = %s RETURNING id",
+                      (retracto,)).fetchall() == []
+    for usuario, grupo, comercio in ((U_ADMIN_B, G_B, None), (U_ENC, None, COMERCIO)):
+        cx.execute("RESET ROLE")
+        como(cx, usuario_id=usuario, grupo_id=grupo, comercio_id=comercio)
+        assert contar(cx, "retracto") == 0 and contar(cx, "retracto_linea") == 0
+
+
+@pytest.mark.rf("RF-25")
+def test_una_linea_se_anula_una_vez_por_motivo(cx):
+    """transaccion_linea_devuelta_uq (0029): un faltante y un retracto de la misma línea, nunca dos del mismo motivo."""
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    [(venta,)] = cx.execute("SELECT id FROM transaccion_pasarela WHERE tipo = 'venta' AND cargo_id = %s",
+                            (CARGO_A,)).fetchall()
+    insertar = ("INSERT INTO transaccion_pasarela (participacion_id, cargo_id, proveedor, tipo, buy_order, monto,"
+                " estado, idempotency_key, venta_id, motivo_anulacion, pedido_linea_id) VALUES"
+                " ('00000000-0000-0000-0000-0000000008a1', %s, 'webpay_plus', 'anulacion', %s, 100, 'iniciada', %s,"
+                " %s, %s, %s)")
+    cx.execute(insertar, (CARGO_A, "MATU-A1", "a1", venta, "producto_no_entregado", linea))
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        cx.execute(insertar, (CARGO_A, "MATU-A9", "a9", venta, "producto_no_entregado", linea))
+    # H3: una anulación por línea en cada retracto, y dos retractos de la misma línea, dos anulaciones
+    _entregado(cx)
+    retractos = []
+    for _ in range(2):
+        r = uuid.uuid4()
+        cx.execute("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                   " incluye_envio) VALUES (%s, %s, %s, %s, now(), now() + interval '10 days', false)",
+                   (r, G_A, PED_A_ENVIADO, U_ADMIN_A))
+        retractos.append(r)
+    con_retracto = insertar.replace("pedido_linea_id)", "pedido_linea_id, retracto_id)").replace("%s)", "%s, %s)")
+    cx.execute(con_retracto, (CARGO_A, "MATU-A2", "a2", venta, "retracto", linea, retractos[0]))
+    cx.execute(con_retracto, (CARGO_A, "MATU-A3", "a3", venta, "retracto", linea, retractos[1]))
+    with pytest.raises(errors.UniqueViolation):
+        cx.execute(con_retracto, (CARGO_A, "MATU-A4", "a4", venta, "retracto", linea, retractos[0]))
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_d63_13_las_partes_lineas_y_retractos_siguen_al_pedido_y_las_anulaciones_al_pago(cx):
+    """D-63-13: al borrar un pedido (cuando venza su plazo de 2 años), sus partes, líneas y retractos se van con él; la
+    anulación de un retracto se queda con el pago (6 años), sin el retracto."""
+    reglas = dict(cx.execute("""
+        SELECT conrelid::regclass::text || '.' || a.attname, c.confdeltype
+          FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+         WHERE c.contype = 'f' AND conrelid::regclass::text IN
+               ('pedido_comercio', 'pedido_linea', 'retracto', 'retracto_linea', 'transaccion_pasarela')""").fetchall())
+    assert reglas["pedido_comercio.pedido_id"] == "c" and reglas["pedido_linea.pedido_id"] == "c"
+    assert reglas["retracto.pedido_id"] == "c" and reglas["retracto_linea.retracto_id"] == "c"
+    assert reglas["retracto_linea.pedido_linea_id"] == "c"
+    assert reglas["transaccion_pasarela.retracto_id"] == "n"
+
+
+@pytest.mark.rf("RF-26")
+def test_el_codigo_desde_la_consola_es_solo_para_matu_scheduler_y_parte_lista(cx):
+    """D-63-5: codigo_retiro_guardar no la ejecuta matu_app, ni con operación; con una parte que no está lista no
+    escribe nada."""
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '90 minutes')",
+                   (PARTE_A,))
+    cx.execute("RESET ROLE")
+    como(cx, "matu_scheduler", rol="operacion")
+    assert cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '90 minutes')",
+                      (PARTE_A,)).fetchone() == ("estado",)
+    # Un plazo distinto de 90 minutos no entra
+    with pytest.raises(errors.InvalidParameterValue), cx.transaction():
+        cx.execute("SELECT codigo_retiro_guardar(%s, repeat('a', 64), now(), now() + interval '1 day')", (PARTE_A,))
+
+
+
+@pytest.mark.rf("R3")
+def test_el_plazo_del_retracto_depende_de_su_origen(cx):
+    """H2: en la app, como mucho 16 días corridos desde la entrega (10 hábiles); por correo, 90 días (CL-54). Operación
+    registra solo los de correo."""
+    _entregado(cx)
+    insertar = ("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta, incluye_envio,"
+                " origen) VALUES (%s, %s, %s, now(), now() + %s::interval, false, %s)")
+    como(cx, rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "10 days", "app"))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "120 days", "correo"))
+    cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "80 days", "correo"))
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "30 days", "app"))
+
+
+@pytest.mark.rf("R3")
+def test_la_familia_no_suma_lineas_a_un_retracto_por_correo(cx):
+    """P3 del cierre: aunque el retracto de correo vaya a su nombre, la familia no le agrega productos; solo
+    operación."""
+    _entregado(cx)
+    retracto = uuid.uuid4()
+    como(cx, rol="operacion")
+    cx.execute("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+               " incluye_envio, origen) VALUES (%s, %s, %s, %s, now(), now() + interval '80 days', false, 'correo')",
+               (retracto, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
+                   " VALUES (%s, %s, %s, 1)", (retracto, G_A, linea))
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (retracto, G_A, linea))

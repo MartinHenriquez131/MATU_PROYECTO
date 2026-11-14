@@ -86,6 +86,60 @@ def devolver_todo(
     return anular(unidad, pasarela, venta, saldo, MotivoAnulacion.CANCELACION, ahora)
 
 
+def _saldo_libre(unidad: Unidad, venta: Venta, anulaciones: list[Anulacion]) -> int:
+    cargo = unidad.repositorio.cargo(venta.cargo_id, bloquear=True)
+    assert cargo is not None
+    en_curso = sum(a.monto for a in anulaciones if not a.hecha and a.motivo is not MotivoAnulacion.PAGO_TARDIO)
+    return cargo_con_saldo(cargo) - en_curso
+
+
+def devolver_de_linea(
+    unidad: Unidad,
+    pasarela: PasarelaWebpay,
+    pedido_id: uuid.UUID,
+    linea_id: uuid.UUID,
+    monto: int,
+    motivo: MotivoAnulacion,
+    ahora: datetime,
+    retracto_id: uuid.UUID | None = None,
+) -> EstadoAnulacion:
+    """MATU-63 (D-63-8 y D-63-10): anula una parte del precio pagado de una línea, por lo que faltó
+    (producto_no_entregado) o por un retracto. Una anulación por línea y motivo (transaccion_linea_devuelta_uq de la
+    0029), y lo devuelto de la línea nunca supera lo pagado por ella ni lo cobrado."""
+    repo = unidad.repositorio
+    venta, anulaciones = _venta_pagada(unidad, pedido_id)
+    linea = next((x for x in repo.lineas_pagadas(pedido_id) if x.id == linea_id), None)
+    if linea is None or linea.salio or monto <= 0:
+        raise SinPagoQueDevolver()
+    if any(
+        a.pedido_linea_id == linea_id and a.motivo is motivo and a.retracto_id == retracto_id for a in anulaciones
+    ):
+        raise DevolucionInvalida("una línea se devuelve una vez por motivo y retracto")
+    en_curso_linea = sum(a.monto for a in anulaciones if a.pedido_linea_id == linea_id and not a.hecha)
+    if linea.monto_devuelto + en_curso_linea + monto > linea.subtotal:
+        raise DevolucionInvalida("lo devuelto no supera lo pagado por la línea")
+    if monto > _saldo_libre(unidad, venta, anulaciones):
+        raise DevolucionInvalida("lo devuelto no supera lo cobrado")
+    return anular(unidad, pasarela, venta, monto, motivo, ahora, linea_id, retracto_id=retracto_id)
+
+
+def devolver_envio_de_retracto(
+    unidad: Unidad,
+    pasarela: PasarelaWebpay,
+    pedido_id: uuid.UUID,
+    monto: int,
+    retracto_id: uuid.UUID,
+    ahora: datetime,
+) -> EstadoAnulacion:
+    """MATU-63 (D-63-10): el envío de un retracto, una sola vez por retracto (transaccion_envio_retracto_uq)."""
+    venta, anulaciones = _venta_pagada(unidad, pedido_id)
+    if any(a.retracto_id == retracto_id and a.pedido_linea_id is None for a in anulaciones):
+        raise DevolucionInvalida("el envío del retracto ya se devolvió")
+    if monto <= 0 or monto > _saldo_libre(unidad, venta, anulaciones):
+        raise DevolucionInvalida("lo devuelto no supera lo cobrado")
+    return anular(unidad, pasarela, venta, monto, MotivoAnulacion.RETRACTO, ahora, retracto_id=retracto_id)
+
+
 def reintentar(
     unidad: Unidad, pasarela: PasarelaWebpay, anulacion_id: uuid.UUID, ahora: datetime
 ) -> EstadoAnulacion | None:

@@ -16,7 +16,14 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from app.core.config import obtener_configuracion
 from app.core.errores import ErrorMATU
 from app.core.vapid import clave_publica
-from app.modules.iam.api.dependencias import UsuarioActual, obtener_emisor_tokens, obtener_reloj, usuario_actual
+from app.modules.iam.api.dependencias import (
+    TipoCuenta,
+    UsuarioActual,
+    obtener_emisor_tokens,
+    obtener_reloj,
+    obtener_tipo_cuenta,
+    usuario_actual,
+)
 from app.modules.iam.api.esquemas import (
     DispositivoVista,
     ListaDispositivos,
@@ -102,6 +109,7 @@ def renovar_sesion(
     unidad: UnidadDep,
     emisor: Annotated[EmisorTokens, Depends(obtener_emisor_tokens)],
     reloj: RelojDep,
+    tipo_cuenta: Annotated[TipoCuenta, Depends(obtener_tipo_cuenta)],
 ) -> SesionRespuesta:
     try:
         sesion = renovar(
@@ -116,7 +124,11 @@ def renovar_sesion(
     request.state.usuario_id = str(sesion.usuario_id)
     respuesta.headers["Cache-Control"] = "no-store"
     fijar_cookie(respuesta, sesion.refresh)
-    return SesionRespuesta(access_token=sesion.access_token, expira_en=sesion.duracion_segundos)
+    return SesionRespuesta(
+        access_token=sesion.access_token,
+        expira_en=sesion.duracion_segundos,
+        tipo_cuenta=tipo_cuenta(sesion.usuario_id),  # type: ignore[arg-type]
+    )
 
 
 @router.post(

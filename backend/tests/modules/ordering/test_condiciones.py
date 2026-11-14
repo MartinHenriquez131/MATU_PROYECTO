@@ -7,6 +7,8 @@ aceptó (?version=0.1).
 """
 
 import hashlib
+import os
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -36,8 +38,8 @@ def test_el_texto_empieza_en_la_seccion_1_y_calza_con_su_huella() -> None:
     vigentes = condiciones_vigentes()
     assert vigentes.texto.startswith("## 1. Quién vende\n")
     assert "# Condiciones del pedido" not in vigentes.texto
-    assert vigentes.huella == hashlib.sha256(vigentes.texto.encode("utf-8")).hexdigest() == PUBLICADAS["0.2"][1]
-    assert vigentes.version == VERSION_VIGENTE == "0.2"
+    assert vigentes.huella == hashlib.sha256(vigentes.texto.encode("utf-8")).hexdigest() == PUBLICADAS["0.3"][1]
+    assert vigentes.version == VERSION_VIGENTE == "0.3"
     for parte in (
         "Nunca lo cambiamos por otra marca ni por otro producto",
         "24 y 48 horas hábiles",
@@ -49,8 +51,10 @@ def test_el_texto_empieza_en_la_seccion_1_y_calza_con_su_huella() -> None:
 @pytest.mark.rf("RF-25")
 def test_la_0_2_trae_el_pago_y_la_frase_del_piloto_dentro_de_la_huella() -> None:
     """Decisión 221 y segunda revisión previa, 5.3: el piloto, quién paga, el pago en curso, el pago tardío, la
-    anulación si el pedido cambió y qué pasa si no se puede devolver, todo dentro del texto con huella."""
-    texto = condiciones_vigentes().texto
+    anulación si el pedido cambió y qué pasa si no se puede devolver, todo dentro del texto con huella. Sigue
+    publicada para quien la aceptó (MATU-63)."""
+    texto = condiciones_de("0.2").texto
+    assert condiciones_de("0.2").huella == PUBLICADAS["0.2"][1]
     for parte in (
         "Los pagos son de prueba: ocurren en el ambiente de prueba de Transbank y no se cobra dinero real.",
         "El comprobante no es una boleta.",
@@ -88,14 +92,15 @@ def test_la_ruta_es_publica_y_se_revalida() -> None:
     cuerpo = respuesta.json()
     assert set(cuerpo) == {"version", "actualizada_en", "huella", "texto"}
     assert cuerpo["huella"] == condiciones_vigentes().huella
-    assert cuerpo["version"] == "0.2"
+    assert cuerpo["version"] == "0.3"
 
 
 @pytest.mark.rf("RF-25")
 @pytest.mark.parametrize(("consulta", "codigo", "version"), [
     ("?version=0.1", 200, "0.1"),
     ("?version=0.2", 200, "0.2"),
-    ("?version=0.3", 404, None),
+    ("?version=0.3", 200, "0.3"),
+    ("?version=0.4", 404, None),
     ("?version=uno", 422, None),
     ("?version=0.1.2", 422, None),
 ])
@@ -108,3 +113,28 @@ def test_version_entrega_la_aceptada_y_no_otra(consulta: str, codigo: int, versi
         assert respuesta.json()["huella"] == PUBLICADAS[version][1]
     else:
         assert "uno" not in respuesta.text and "0.1.2" not in respuesta.text
+
+
+@pytest.mark.rf("R3")
+@pytest.mark.rf("R15")
+def test_la_0_3_trae_lo_que_pasa_despues_de_pagar_y_las_anteriores_siguen() -> None:
+    """MATU-63 (D-63-16): la 0.3 es la vigente para los pedidos nuevos; la 0.2 y la 0.1, con sus huellas, siguen."""
+    vigente = condiciones_vigentes()
+    assert (vigente.version, str(vigente.actualizada_en)) == ("0.3", "2026-11-13")
+    assert vigente.texto != condiciones_de("0.2").texto
+    assert condiciones_de("0.2").huella == PUBLICADAS["0.2"][1] and condiciones_de("0.1").huella == PUBLICADAS["0.1"][1]
+    assert [f"## {n}." for n in range(1, 14)] == [linea[: len(f"## {n}.")] for n, linea in enumerate(
+        (x for x in vigente.texto.splitlines() if x.startswith("## ")), start=1)]
+    assert "## 9. Derecho a retracto" in vigente.texto and "## 6. Cancelar" in vigente.texto
+
+
+@pytest.mark.skipif(not os.environ.get("MATU_DOCS_LEGAL"), reason="sin MATU_DOCS_LEGAL (docs/legal del repo MATU)")
+def test_la_0_3_es_la_del_documento_desde_la_seccion_1() -> None:
+    """La huella publicada es la del documento del repositorio MATU desde «## 1. Quién vende» hasta el final. Corre con
+    MATU_DOCS_LEGAL=<repo MATU>/docs/legal."""
+    from app.modules.iam.domain.politica import huella_de, normalizar_saltos
+
+    fuente = normalizar_saltos((Path(os.environ["MATU_DOCS_LEGAL"]) / "condiciones-pedido.md").read_text("utf-8"))
+    assert "`0.3`" in fuente
+    texto = fuente[fuente.index("## 1. Quién vende"):].rstrip("\n") + "\n"
+    assert huella_de(texto) == PUBLICADAS["0.3"][1] == condiciones_vigentes().huella

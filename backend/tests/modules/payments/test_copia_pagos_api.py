@@ -96,7 +96,7 @@ def test_tus_datos_de_quien_pago_trae_su_pago_y_sus_condiciones(
     # F3 (decisión 402): el código de su propio pago, el mismo de su comprobante
     assert pago["codigo_autorizacion"] == _codigo(pago["referencia"]) and pago["codigo_autorizacion"]
     [condiciones] = cuerpo["condiciones_aceptadas"]
-    assert condiciones["referencia"] == pago["referencia"] and condiciones["version"] == "0.2"
+    assert condiciones["referencia"] == pago["referencia"] and condiciones["version"] == "0.3"
     # Nada de la persona cuidada ni de la venta. Los nombres de la fábrica pueden repetirse: se busca el de la persona
     # solo si no es también el de quien pide o el del grupo
     for nombre in (familia.persona.nombre, familia.persona.nombre_pila):

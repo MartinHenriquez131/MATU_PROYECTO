@@ -87,6 +87,9 @@ def sesion_tenant(
         raise ValueError(f"aislamiento no permitido: {aislamiento!r}")
     if rol is not None and rol not in ROLES_CONTEXTO:
         raise ValueError(f"rol de contexto no permitido: {rol!r}")
+    if grupo_id is not None and comercio_id is not None:
+        # MATU-63 (D-63-14): una sesión de comercio nunca fija app.grupo_id
+        raise ValueError("una sesión de comercio nunca fija app.grupo_id")
     if grupo_id is not None and (acceso_relevo_id is not None or rol == "relevo"):
         raise ValueError("una sesión de relevo nunca fija app.grupo_id (modelo de datos, sección 5.4, hallazgo 2)")
 

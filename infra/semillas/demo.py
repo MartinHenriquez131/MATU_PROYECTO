@@ -318,6 +318,18 @@ FICHA_HERNAN = FichaDemo(
     },
 )
 
+# MATU-63 (D-63-14): la cuenta de prueba del encargado del primer comercio ficticio. No es miembro de ningún grupo (la
+# base lo exige), entra por /v1/sesiones como cualquier cuenta y la app la lleva a /comercio. Su contraseña es la de
+# las demás cuentas de la semilla (SEMILLA_CONTRASENA o la que se genera). El rol "encargado" es el de usuario_comercio
+CUENTA_COMERCIO = CuentaDemo("Encargada de Prueba", "comercio@example.com", "encargado", "+56900000009")
+COMERCIO_DE_LA_CUENTA = "uno"
+
+_USUARIO_COMERCIO = text(
+    "INSERT INTO usuario_comercio (usuario_id, comercio_id, rol, activo)"
+    " VALUES (:usuario, :comercio, 'encargado', true)"
+    " ON CONFLICT (usuario_id, comercio_id) DO UPDATE SET activo = true"
+)
+
 FAMILIAS: tuple[FamiliaDemo, ...] = (
     FamiliaDemo(
         grupo="Familia Soto",
@@ -524,6 +536,13 @@ class Sembradora:
                 ) from None
             self._celular(existente.usuario_id, cuenta.telefono)
             return existente.usuario_id, False
+
+    def cuenta_comercio(self, cuenta: CuentaDemo, contrasena: str, comercio_id: uuid.UUID) -> tuple[uuid.UUID, bool]:
+        """MATU-63: la cuenta del encargado y su enlace con el comercio, como operación (usuario_comercio_operacion)."""
+        usuario_id, creada = self.cuenta(cuenta, contrasena)
+        with sesion_tenant(self.fabrica, rol="operacion") as sesion:
+            sesion.execute(_USUARIO_COMERCIO, {"usuario": usuario_id, "comercio": comercio_id})
+        return usuario_id, creada
 
     def _celular(self, usuario_id: uuid.UUID, telefono: str) -> None:
         """MATU-64: una cuenta de una semilla anterior pasa a su propio celular, en su propio contexto."""
@@ -1193,6 +1212,13 @@ def main(argv: Sequence[str] = ()) -> int:
         # MATU-59: el catálogo curado primero, porque los insumos se anotan con sus productos
         catalogo = sembrar_catalogo_demo(fabrica)
         resultado = sembrar(sembradora, contrasena, catalogo.productos)
+        # Sin el comercio en el catálogo sembrado, no hay cuenta de comercio que crear
+        comercio_id = catalogo.comercios.get(COMERCIO_DE_LA_CUENTA)
+        comercio_creada = (
+            None
+            if comercio_id is None
+            else sembradora.cuenta_comercio(CUENTA_COMERCIO, contrasena, comercio_id)[1]
+        )
     except SemillaInconsistente as error:
         print(f"No se pudo sembrar: {error}.", file=sys.stderr)
         return 1
@@ -1210,6 +1236,10 @@ def main(argv: Sequence[str] = ()) -> int:
         permiso = ", ve el plan" if c.puede_ver_plan else ""
         estado = "creada" if c.creada else "ya existía, conserva su contraseña"
         print(f"  {c.grupo:<18} {c.nombre:<18} {c.rol + permiso:<20} {c.email:<24} {estado}")
+
+    if comercio_creada is not None:
+        estado = "creada" if comercio_creada else "ya existía, conserva su contraseña"
+        print(f"  {'Comercio':<18} {CUENTA_COMERCIO.nombre:<18} {'encargado':<20} {CUENTA_COMERCIO.email:<24} {estado}")
 
     familias = resultado.familias
     print(
@@ -1237,7 +1267,8 @@ def main(argv: Sequence[str] = ()) -> int:
         "\nListo para probar los recorridos 1 a 5: cuenta, persona, autorización y ficha; compartir con un relevo y"
         " cortar el acceso; insumos y aviso de que se acaba; lista de insumos y anotar una compra; y el pedido y el"
         " pago con las tarjetas de prueba de Transbank."
-        "\nEl retiro (recorrido 6) llega con MATU-63."
+        "\nEl retiro (recorrido 6): entra con la cuenta del comercio para preparar el pedido pagado. El código de"
+        " retiro lo genera operación (POST /v1/operacion/partes/{id}/codigo) hasta la pantalla de MATU-81."
     )
     return 0
 

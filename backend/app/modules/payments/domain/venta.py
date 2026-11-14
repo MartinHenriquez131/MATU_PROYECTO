@@ -64,6 +64,8 @@ class MotivoAnulacion(StrEnum):
     PAGO_TARDIO = "pago_tardio"
     PRODUCTO_NO_ENTREGADO = "producto_no_entregado"
     CANCELACION = "cancelacion"
+    # MATU-63 (D-63-10): la devolución por retracto, por línea y la del envío
+    RETRACTO = "retracto"
 
 
 class ResultadoPago(StrEnum):
@@ -150,6 +152,8 @@ class Anulacion:
     pedido_linea_id: uuid.UUID | None = None
     hecha_en: datetime | None = None
     intentos: int = 0
+    # MATU-63: el retracto de una anulación por retracto (la del envío no tiene línea)
+    retracto_id: uuid.UUID | None = None
 
     @property
     def hecha(self) -> bool:

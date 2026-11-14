@@ -38,7 +38,13 @@ from app.shared.celular import normalizar_celular
 
 _SIN_PAGAR = ", ".join(f"'{e.value}'" for e in sorted(SIN_PAGAR))
 # Referencia opaca de cada parte por comercio (C22): aleatoria, nunca derivada del pedido ni del grupo
-BYTES_REFERENCIA = 16
+# MATU-63 (O6): la referencia opaca de cada parte se dicta en el mostrador: 6 caracteres sin 0, O, 1, I ni L, al azar
+ALFABETO_REFERENCIA = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # pragma: allowlist secret
+LARGO_REFERENCIA = 6
+
+
+def nueva_referencia_parte() -> str:
+    return "".join(secrets.choice(ALFABETO_REFERENCIA) for _ in range(LARGO_REFERENCIA))
 
 _PEDIDO = (
     "SELECT p.id, p.grupo_id, p.persona_cuidada_id, p.estado, p.version, p.costo_envio, p.total_confirmado_en,"
@@ -135,8 +141,8 @@ _LINEA = text(
 _LINEA_PARTE = text("UPDATE pedido_linea SET pedido_comercio_id = :parte WHERE id = :id AND pedido_id = :pedido_id")
 _BORRAR_PARTES = text("DELETE FROM pedido_comercio WHERE pedido_id = :pedido_id AND grupo_id = :grupo_id")
 _INSERTAR_PARTE = text(
-    "INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, creado_en)"
-    " VALUES (:id, :grupo_id, :pedido_id, :comercio_id, :referencia, :ahora)"
+    "INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia, creado_en, apartado_hasta)"
+    " VALUES (:id, :grupo_id, :pedido_id, :comercio_id, :referencia, :ahora, :apartado_hasta)"
 )
 _BORRAR_ENTREGA = text("DELETE FROM pedido_entrega WHERE pedido_id = :pedido_id")
 _GUARDAR_ENTREGA = text(
@@ -157,6 +163,20 @@ _DIRECCION = text(
     " WHERE p.id = :persona_id AND p.grupo_id = :grupo_id AND p.eliminado_en IS NULL"
 )
 _CELULAR = text("SELECT telefono FROM usuario WHERE id = app_usuario() AND celular_verificado_en IS NOT NULL")
+# MATU-63 (D-63-7): stock menos lo apartado por otras familias, para confirmar (oferta_disponible, migración 0029)
+_DISPONIBLE = text("SELECT comercio_id, producto_id, disponible FROM oferta_disponible(:comercios, :ahora)")
+
+
+def disponibles_para_confirmar(
+    sesion: Session, comercios: list[uuid.UUID], ahora: datetime
+) -> dict[tuple[uuid.UUID, uuid.UUID], int]:
+    """(comercio_id, producto_id) → lo que queda para apartar, sin lo que ya apartaron otras familias."""
+    if not comercios:
+        return {}
+    filas = sesion.execute(_DISPONIBLE, {"comercios": comercios, "ahora": ahora})
+    return {(f.comercio_id, f.producto_id): int(f.disponible) for f in filas}
+
+
 # MATU-62 (D-62-4, regla 1): una venta autorizando, o iniciada hace menos de VIDA_VENTA_WEBPAY (desde)
 _PAGO_EN_CURSO = text(
     "SELECT EXISTS (SELECT 1 FROM cargo c JOIN transaccion_pasarela t ON t.cargo_id = c.id"
@@ -388,8 +408,13 @@ class RepositorioPedidosSQL:
                             "grupo_id": self._grupo_id,
                             "pedido_id": pedido.id,
                             "comercio_id": comercio_id,
-                            "referencia": secrets.token_urlsafe(BYTES_REFERENCIA),
+                            "referencia": nueva_referencia_parte(),
                             "ahora": pedido.total_confirmado_en,
+                            # MATU-63 (D-63-7): el stock queda apartado mientras el total vale, más la vida de un pago
+                            # que empezó al final
+                            "apartado_hasta": None
+                            if pedido.total_vence_en is None
+                            else pedido.total_vence_en + self._vida_venta,
                         },
                     )
                     partes[comercio_id] = parte

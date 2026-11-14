@@ -25,6 +25,7 @@ import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 import { atenderGrupo, atenderInvitacionPublica, invitacionPendiente, miembro, type InvitacionDoble, type MiembroDoble } from './grupo'
 import { alEntrar, alSalir, anotarCuenta, atenderDispositivos, dispositivoVivo, usoDe } from './dispositivos'
 import { atenderMisDatos } from './misDatos'
+import { atenderComercio, CUENTAS_COMERCIO, esCuentaDeComercio } from './comercio'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type CampoApi = 'rutina' | 'manejo_situaciones' | 'red_apoyo'
@@ -571,6 +572,8 @@ function sembrar() {
     cuenta(email, 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto', 'María', { rutina: escrito(SU_DIA, yo) })])], modo)
 }
 sembrar()
+// MATU-63: las cuentas de comercio de doble/comercio.ts, sin grupos.
+for (const c of CUENTAS_COMERCIO) cuenta(c.email, 'Encargado', [], c.modo)
 
 // ---------------------------------------------------------------- MATU-42: las cuentas del grupo
 
@@ -736,7 +739,8 @@ function emitirToken(u: Usuario, did: string) {
   const t = randomUUID()
   usoDe(did)
   tokens.set(t, { email: u.email, vence: Date.now() + (u.modo === 'vence' ? 20_000 : 15 * 60_000), did })
-  return { access_token: t, token_type: 'bearer', expira_en: u.modo === 'vence' ? 20 : 900 }
+  // MATU-63 (decisión 408): la sesión dice si la cuenta es de un comercio.
+  return { access_token: t, token_type: 'bearer', expira_en: u.modo === 'vence' ? 20 : 900, tipo_cuenta: esCuentaDeComercio(u.modo) ? 'comercio' : 'familia' }
 }
 function emitirRefresh(res: ServerResponse, u: Usuario, did: string, vence?: number) {
   const id = randomUUID()
@@ -956,6 +960,14 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
       })
       return true
     }
+  }
+
+  // MATU-63: la consola del comercio (doble/comercio.ts), sin grupo.
+  if (ruta === '/v1/comercio' || ruta.startsWith('/v1/comercio/')) {
+    const yo = usuarioDe(req)
+    if (!yo) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+    await atenderComercio(req, res, cuerpo, r, { email: yo.email, modo: yo.modo })
+    return true
   }
 
   if (!ruta.startsWith('/v1/grupos') && !ruta.startsWith('/v1/personas-cuidadas') && !ruta.startsWith('/v1/cuenta') && !ruta.startsWith('/v1/accesos-relevo') && !ruta.startsWith('/v1/pedidos') && !ruta.startsWith('/v1/dispositivos') && !ruta.startsWith('/v1/yo/')) return false

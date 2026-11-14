@@ -26,6 +26,13 @@ Tareas:
   reintenta las anulaciones que no terminaron. Cada 5 minutos. Corre siempre, también con CAPA3_HABILITADA apagada
   (D-62-17): un pago que el banco ya aprobó se registra o se anula igual. Usa SCHEDULER_DATABASE_URL para
   pagos_por_conciliar (solo ids) y DATABASE_URL para cerrar cada venta con app.rol = 'sistema' y su grupo.
+- despacho: lleva al día los pedidos pagados y devuelve lo que faltó (backoffice, MATU-63, D-63-8). Cada 5 minutos.
+  Usa SCHEDULER_DATABASE_URL para despacho_pendiente (solo ids) y DATABASE_URL para cada pedido, con app.rol =
+  'sistema' y su grupo.
+- codigo-retiro <parte_id>: no es una tarea programada. Operación genera o regenera el código de retiro de una parte
+  lista desde la consola hasta la pantalla de MATU-81 (MATU-63, D-63-5). Usa SCHEDULER_DATABASE_URL y
+  CODIGO_RETIRO_SECRETO, audita codigo_retiro.generar y escribe el código una sola vez en la salida estándar, nunca en
+  el log.
 - borrados: las seis de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones,
   conservacion_pedidos, conservacion_invitaciones y conservacion_relevo).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
@@ -61,6 +68,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import TextIO
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
@@ -78,6 +86,8 @@ from app.shared.puertos import Reloj
 from app.shared.reloj_sistema import RelojSistema
 
 log = logging.getLogger("matu.tareas")
+
+ZONA_CHILE = ZoneInfo("America/Santiago")
 
 SALIDA_OK = 0
 SALIDA_FALLO = 1
@@ -195,6 +205,16 @@ def _conciliacion_pagos(ctx: Contexto) -> Salida:
     return Salida(FALLO if resultado.fallidas > 0 else OK, asdict(resultado))
 
 
+# MATU-63: se importa al correr (es de backoffice, capa 3). Lleva los pedidos pagados al día y devuelve lo que faltó
+TAREA_DESPACHO = "app.modules.backoffice.infrastructure.tarea_despacho"
+
+
+def _despacho(ctx: Contexto) -> Salida:
+    tarea = importlib.import_module(TAREA_DESPACHO)
+    resultado = tarea.ejecutar(ctx.config, ctx.fabrica, ctx.scheduler(), ctx.reloj)
+    return Salida(FALLO if resultado.fallidos > 0 else OK, asdict(resultado))
+
+
 TAREAS: dict[str, Tarea] = {
     "destruccion_fichas": _destruccion_fichas,
     "conservacion_consumo": _conservacion_consumo,
@@ -205,6 +225,7 @@ TAREAS: dict[str, Tarea] = {
     "quiebres": _quiebres,
     "avisos": _avisos,
     "conciliacion_pagos": _conciliacion_pagos,
+    "despacho": _despacho,
 }
 
 BORRADOS_DIARIOS: tuple[str, ...] = (
@@ -236,6 +257,8 @@ HORARIOS: dict[str, str] = {
     # MATU-62 (D-62-5): cada 5 minutos, el mínimo de Railway. Con la vida de la venta (10 minutos), una vuelta perdida
     # se cierra en menos de 15
     "conciliacion_pagos": "*/5 * * * *",
+    # MATU-63 (D-63-8): cada 5 minutos, para que un faltante se devuelva el mismo día aunque falle la primera vez
+    "despacho": "*/5 * * * *",
 }
 
 # Tope de espera para abrir una conexión, en segundos (connect_timeout de libpq). Sin él, con la base
@@ -322,10 +345,56 @@ def _uso(stream: TextIO) -> None:
     # No repite el argumento recibido: solo la lista de nombres válidos
     opciones = ", ".join([*TAREAS, *GRUPOS])
     print(f"uso: python -m app.tareas <tarea>, con <tarea> una de: {opciones}", file=stream)
+    print(f"     python -m app.tareas {CODIGO_RETIRO} <parte_id>", file=stream)
+
+
+# MATU-63 (D-63-5): el código de retiro desde la consola, hasta MATU-81. Se importa al correr (es de la capa 3)
+CODIGO_RETIRO = "codigo-retiro"
+TAREA_CODIGO_RETIRO = "app.modules.backoffice.infrastructure.tarea_codigo_retiro"
+
+
+def codigo_retiro(
+    parte: str, *, stream: TextIO | None = None, consola: TextIO | None = None, reloj: Reloj | None = None,
+    config: Configuracion | None = None,
+) -> int:
+    """Genera el código de una parte lista y lo escribe una vez en ``consola`` (la salida estándar), nunca en el log.
+    La línea del log lleva el resultado y, si falla, el tipo del error o la variable que falta."""
+    try:
+        parte_id = uuid.UUID(parte)
+    except ValueError:
+        _uso(sys.stderr)
+        return SALIDA_USO
+    config = config or obtener_configuracion()
+    configurar_logs(config.log_nivel, stream)
+    extra: dict[str, object] = {"tarea": "codigo_retiro", "corrida": str(uuid.uuid4())}
+    fabrica = fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER)
+    if fabrica is None:
+        log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
+        return SALIDA_FALLO
+    tarea = importlib.import_module(TAREA_CODIGO_RETIRO)
+    try:
+        codigo, expira = tarea.generar(config, fabrica, reloj or RelojSistema(), parte_id)
+    except tarea.SinSecretoCodigo:
+        log.error("tarea", extra={**extra, "resultado": FALLO, "falta": "CODIGO_RETIRO_SECRETO"})
+        return SALIDA_FALLO
+    except tarea.ParteSinCodigo as error:
+        log.error("tarea", extra={**extra, "resultado": FALLO, "motivo": error.motivo})
+        return SALIDA_FALLO
+    except Exception as error:  # noqa: BLE001 - de una excepción, solo su tipo (R1)
+        log.error("tarea", extra={**extra, "resultado": FALLO, "tipo_error": type(error).__name__})
+        return SALIDA_FALLO
+    hora = expira.astimezone(ZONA_CHILE).strftime("%H:%M")
+    salida = consola or sys.stdout
+    salida.write(f"Código de retiro: {codigo}\nVale hasta las {hora} (hora de Chile) y sirve una vez.\n")
+    salida.flush()
+    log.info("tarea", extra={**extra, "resultado": OK})
+    return SALIDA_OK
 
 
 def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> int:
     argumentos = list(sys.argv[1:] if argv is None else argv)
+    if len(argumentos) == 2 and argumentos[0] == CODIGO_RETIRO:
+        return codigo_retiro(argumentos[1], stream=stream)
     nombres = nombres_de(argumentos[0]) if len(argumentos) == 1 else None
     if nombres is None:
         _uso(sys.stderr)

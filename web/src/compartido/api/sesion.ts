@@ -20,6 +20,12 @@ const CLIENTE = { 'X-MATU-Cliente': 'web' } as const
 
 let accessToken: string | null = null
 let grupoActual: string | null = null
+/**
+ * MATU-63 (decisión 408): de qué tipo es la cuenta que entró, según la última respuesta de
+ * `/v1/sesiones` o `/renovar`. Una cuenta de comercio va a `/comercio`; una de familia, a la app.
+ */
+export type TipoCuenta = SesionRespuesta['tipo_cuenta']
+let tipoCuenta: TipoCuenta | null = null
 
 /** Cliente de la app de la familia: mismo origen, con el token y el grupo elegidos en memoria. */
 export const apiFamilia = axios.create({
@@ -61,6 +67,9 @@ canal?.addEventListener('message', (e: MessageEvent<unknown>) => {
 
 export const hayToken = () => accessToken !== null
 
+/** MATU-63: el tipo de la cuenta que entró, o `null` sin entrada. Sin el campo, `familia` (su valor por omisión). */
+export const tipoDeCuenta = (): TipoCuenta | null => (accessToken === null ? null : tipoCuenta)
+
 /** Fija el grupo de `X-Grupo-Id` (o lo quita con `null`). */
 export function fijarGrupo(id: string | null) {
   grupoActual = id
@@ -69,6 +78,7 @@ export function fijarGrupo(id: string | null) {
 function olvidarTodo() {
   accessToken = null
   grupoActual = null
+  tipoCuenta = null
 }
 
 // ---------------------------------------------------------------- renovar
@@ -98,6 +108,7 @@ export function renovar(): Promise<boolean> {
         headers: { ...CLIENTE, Accept: 'application/json' },
       })
       accessToken = r.data.access_token
+      tipoCuenta = r.data.tipo_cuenta ?? 'familia'
       canal?.postMessage('renovado')
       return true
     } catch (e) {
@@ -115,10 +126,15 @@ export function renovar(): Promise<boolean> {
 
 // ---------------------------------------------------------------- entrar y salir
 
-/** `POST /v1/sesiones`. Guarda el access token en memoria; la cookie del refresh la fija la API. */
-export async function entrar(email: string, contrasena: string): Promise<void> {
+/**
+ * `POST /v1/sesiones`. Guarda el access token en memoria; la cookie del refresh la fija la API.
+ * MATU-63: devuelve el tipo de la cuenta (`familia` o `comercio`).
+ */
+export async function entrar(email: string, contrasena: string): Promise<TipoCuenta> {
   const r = await apiFamilia.post<SesionRespuesta>('/v1/sesiones', { email, contrasena }, { headers: { ...CLIENTE } })
   accessToken = r.data.access_token
+  tipoCuenta = r.data.tipo_cuenta ?? 'familia'
+  return tipoCuenta
 }
 
 /**

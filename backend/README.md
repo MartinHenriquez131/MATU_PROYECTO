@@ -24,6 +24,20 @@ python -m app.tareas <tarea>
 | `quiebres` | Recalcula los quiebres de cada grupo y conserva alertas, eventos, notificaciones y compras (MATU-37 y MATU-51) | 05:00 en horario de verano, 04:00 en invierno | `0 8 * * *` |
 | `avisos` | Publica el outbox y envía los avisos de quiebre (MATU-41) | cada 5 minutos | `*/5 * * * *` |
 | `conciliacion_pagos` | Cierra las ventas de Webpay sin respuesta y reintenta las anulaciones que no terminaron (MATU-62, D-62-5 y D-62-6). Corre siempre, también con `CAPA3_HABILITADA` apagada (D-62-17). Sin `PASARELA_PAGO` no llama a nadie | cada 5 minutos | `*/5 * * * *` |
+| `despacho` | Lleva al día los pedidos pagados según sus partes y devuelve lo que faltó a la misma tarjeta (MATU-63, D-63-8). Usa `SCHEDULER_DATABASE_URL` para `despacho_pendiente` (solo ids) y `DATABASE_URL` para cada pedido. Sin `PASARELA_PAGO` el estado avanza y la devolución queda pendiente | cada 5 minutos | `*/5 * * * *` |
+
+**El código de retiro, desde la consola (MATU-63, D-63-5).** En la demo, operación genera el código con este comando
+hasta MATU-81, que trae su pantalla. No es una tarea programada:
+
+```
+python -m app.tareas codigo-retiro <parte_id>
+```
+
+Genera o regenera el código de una parte `lista` (la ve operación en `GET /v1/operacion/pedidos`) y lo escribe **una
+sola vez** en la salida estándar, nunca en el log. Usa `SCHEDULER_DATABASE_URL` (`matu_scheduler`, con
+`app.rol = 'operacion'`), nunca la conexión de la API, y `CODIGO_RETIRO_SECRETO`. La base guarda solo la huella y la
+auditoría registra `codigo_retiro.generar` sin el código. Vale 90 minutos y sirve una vez. Sale con 2 si el id no es
+válido y con 1 si falta una variable o la parte no está lista.
 | `todas_diarias` | `borrados` y después `quiebres`, en ese orden | a mano | — |
 
 Los horarios viven en `HORARIOS` de `app/tareas.py`, y `tests/test_tareas.py` verifica cada día de un año que
