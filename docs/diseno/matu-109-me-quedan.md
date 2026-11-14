@@ -1,6 +1,12 @@
 # MATU-109 · «Me quedan» con envases cerrados y sueltos, y el total con el envío · Especificación de diseño
 
-**Versión 1.0 · 13/11/2026** · Agente 6, UI/UX. Especifica y no construye. Por aprobar por Jorge (decisiones D1 a D5).
+**Versión 1.1 · 13/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la 1.1** (decisiones y revisión visual del 13-11):
+- D1, D2, D3, D4 y D5b, tal como se propusieron.
+- D5 con la **alternativa sin la palabra «IVA»**: «Son los precios finales. El envío es uno solo, por todo el pedido.». Cumple la regla de `lenguaje.md` 31 tal como está, que no cambia.
+- El P3 de la sección 3 (el campo del envase cortado a 320 px con el texto al 200 %) **quedó construido** con `angosto:w-full` en `CampoEnvase`. Lo verifiqué en la revisión.
+- Revisión visual del 13-11: aprobadas el panel «Me quedan», el alta y «Antes de pagar» con la boleta. La edición queda pendiente: no se pudo abrir por un defecto de «Cambiar» que ya estaba en `main` y que se está corrigiendo aparte.
 
 **Viene de:** la ronda 2 de usabilidad (`docs/usabilidad/ronda-2-informe.md` del repositorio MATU, 12/11/2026):
 - **H1 (P2):** en U3, declarar lo que queda cuando hay envases cerrados y unidades sueltas a la vez fue lo que más costó. P1 confundió unidades con envases cerrados y necesitó una aclaración.
@@ -157,12 +163,10 @@ Los de MATU-84 10, sin cambios: enviando, éxito, error, 412 y límites. Las ayu
 
 | # | Qué | Propuesta | Por qué |
 |---|---|---|---|
-| D5 | Una línea bajo el total de la boleta | «Cada precio ya incluye el IVA. El envío es uno solo, por todo el pedido.» | Responde las dos dudas posibles: el IVA no se suma aparte y el envío no se cobra por producto. Está escrita en positivo y nunca presenta el IVA como algo que se suma |
+| D5 | Una línea bajo el total de la boleta | **Decidido (1.1): «Son los precios finales. El envío es uno solo, por todo el pedido.»** Se había propuesto «Cada precio ya incluye el IVA. El envío es uno solo, por todo el pedido.» | Responde las dos dudas posibles: que no se agrega nada después y que el envío no se cobra por producto |
 | D5b | La bajada nombra el envío | «Confirmamos que hay cada producto. El total, con el envío, es $46.130.» **[CAMBIA]** L 31 | A 360 px la bajada es lo primero que se ve, y la boleta queda varias pantallas más abajo. Explica allí mismo el salto desde «Productos: $42.140» del borrador |
 
-**Contradicción con `lenguaje.md` 31, que decide Jorge:** la regla de la sección dice que «"IVA" solo va en "Precio de ejemplo · IVA incluido" (sección 27)». La línea de D5 usa «IVA» en otro lugar. No contradice el fondo de la regla, porque no presenta el IVA como algo que se suma ni dice «con IVA», pero sí su letra. Hay dos caminos:
-- **Si Jorge aprueba D5:** la regla de la sección 31 agrega «y en la línea bajo el total: «Cada precio ya incluye el IVA. …»».
-- **Si no:** la línea queda sin la palabra: «Son los precios finales. El envío es uno solo, por todo el pedido.». Responde peor la duda del IVA, pero cumple la regla tal como está.
+**La regla de `lenguaje.md` 31, resuelta (1.1):** la regla dice que «"IVA" solo va en "Precio de ejemplo · IVA incluido" (sección 27)». Se eligió la alternativa sin la palabra, así que la línea cumple la regla tal como está y la regla no cambia.
 
 **No se toca:** la etiqueta «Envío (uno por pedido)» ni «Total», que nunca pasa a «Total con IVA». Tampoco se agrega una línea de IVA a la boleta (el IVA va incluido en cada precio y nunca se muestra como una suma).
 
@@ -177,9 +181,9 @@ Los de MATU-84 10, sin cambios: enviando, éxito, error, 412 y límites. Las ayu
 │ Envío (uno por pedido)  $3.990   │  text-lg
 │ ──────────────────────────────── │  border-t-2 border-tinta
 │ Total                  $46.130   │  text-2xl font-bold
-│ Cada precio ya incluye el IVA.   │  text-base text-tenue  [NUEVO]
-│ El envío es uno solo, por todo   │
-│ el pedido.                       │
+│ Son los precios finales. El      │  text-base text-tenue  [NUEVO]
+│ envío es uno solo, por todo el   │
+│ pedido.                          │
 │ Este total vale hasta las 23:21. │  sin cambios
 │ Se cobra una sola vez este       │  sin cambios
 │ total, con crédito o con débito. │
@@ -209,7 +213,7 @@ Los de MATU-84 10, sin cambios: enviando, éxito, error, 412 y límites. Las ayu
 
 | Dónde | Texto | Marca |
 |---|---|---|
-| Bajo el total de la boleta | Cada precio ya incluye el IVA. El envío es uno solo, por todo el pedido. | [NUEVO] (D5) · sin IVA: Son los precios finales. El envío es uno solo, por todo el pedido. |
+| Bajo el total de la boleta | Son los precios finales. El envío es uno solo, por todo el pedido. | [NUEVO] (D5, alternativa sin «IVA», 1.1) |
 | Bajada de «Antes de pagar» | Confirmamos que hay cada producto. El total, con el envío, es {total}. | [CAMBIA] L 31 (D5b) |
 
 **Aplica igual** al pagador (`pedido-pagador@example.com`), que ve la misma boleta. El comprobante del pago (MATU-62) no cambia: ya se pagó y lleva «Envío (uno por pedido)».
@@ -227,7 +231,7 @@ Los de MATU-84 10, sin cambios: enviando, éxito, error, 412 y límites. Las ayu
 - **Sin desplazamiento horizontal** a 320 px con el texto al 200 %. Hoy se cumple (medido el 13-11) y las líneas nuevas son texto que refluye.
 - **`prefers-reduced-motion`:** nada se anima.
 
-**Hallazgo aparte, fuera del alcance (P3, para que el orquestador decida si va aquí):** a 320 px con el texto al 200 %, el campo del envase (`w-32`, 16 rem efectivos) **se ve cortado por el borde derecho del `li`**. `scrollWidth` no lo detecta porque lo recorta la tarjeta. La corrección propuesta es `angosto:w-full` en `CampoEnvase`, con tokens existentes.
+**Hallazgo aparte (P3), construido en esta historia (1.1):** a 320 px con el texto al 200 %, el campo del envase (`w-32`, 16 rem efectivos) se veía cortado por el borde derecho del `li`. `scrollWidth` no lo detectaba porque lo recortaba la tarjeta. Se corrigió con `angosto:w-full` en `CampoEnvase`, y el 13-11 verifiqué que ya no se corta, en claro y en oscuro.
 
 ---
 
@@ -241,7 +245,7 @@ Los de MATU-84 10, sin cambios: enviando, éxito, error, 412 y límites. Las ayu
 6. El lector anuncia cada ayuda de contador al enfocar su campo, y los «−» y «+» dicen «Uno más: Envases cerrados».
 7. Con 2 envases cerrados de 20 y 5 sueltas, el total sigue en «En total, quedan unas 45 unidades.» y `recontar` recibe `{"stock_unidades": 45}`, igual que antes.
 8. En «Antes de pagar», la bajada dice «… El total, con el envío, es $46.130.».
-9. En la boleta, inmediatamente bajo «Total $46.130», se lee la línea de D5 en `text-base text-tenue`, y no hay ningún renglón que sume IVA.
+9. En la boleta, inmediatamente bajo «Total $46.130», se lee «Son los precios finales. El envío es uno solo, por todo el pedido.» en `text-base text-tenue`, y no hay ningún renglón que sume IVA.
 10. «Anotar lo que queda», «Guardar» y «Pagar» siguen siendo el único `turquesa` macizo de su pantalla.
 11. A 320 px con el texto al 200 %, en los dos temas, sin desplazamiento horizontal y sin texto cortado en el panel ni en la boleta.
 12. Ninguna clase nueva lleva un valor escrito a mano.
@@ -257,7 +261,7 @@ Con el doble del contrato: `carmen@example.com` (panel en unidades y en sobres, 
 ## 6. Para el orquestador
 
 - **Sin cambios de API, contrato, base ni cálculo.**
-- **Textos para `lenguaje.md`:** una sección nueva, «36. MATU-109», con los [NUEVO] y [CAMBIA] de 1.6 y 2.4. Los [CAMBIA] tocan las secciones 23, 30 y 31, y la regla de la 31 si se aprueba D5.
-- **Contradicción con la regla de `lenguaje.md` 31** («IVA» solo en «Precio de ejemplo · IVA incluido»): decide Jorge (2.2). Hay una alternativa que cumple la regla tal como está.
+- **Textos para `lenguaje.md`:** una sección nueva, «36. MATU-109», con los [NUEVO] y [CAMBIA] de 1.6 y 2.4. Los [CAMBIA] tocan las secciones 23, 30 y 31. La regla de la sección 31 no cambia, porque D5 quedó sin la palabra «IVA» (1.1).
+- **Revisión pendiente:** la edición (criterio 7 y la ayuda de 1.6), cuando se corrija el defecto de «Cambiar» que ya estaba en `main` (`AppFamilia.tsx`: `Insumos` se vuelve a montar entre `/insumos` y `/insumos/cambiar`).
 - **Datos de la demo (no es de diseño):** en la demo de la ronda 2 ningún insumo tenía envase anotado, así que todas abrieron el modo sueltos. Si un insumo de la demo trae `unidades_por_envase`, «Me quedan» abre directo en envases. Es un cambio de datos sintéticos, que decide el orquestador.
 - **MATU-84** queda con una nota que remite a esta especificación en 7 (los textos que cambian). La nota la agrego cuando Jorge apruebe.
