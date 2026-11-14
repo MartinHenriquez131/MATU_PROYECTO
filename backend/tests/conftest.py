@@ -32,6 +32,36 @@ def pytest_configure(config: pytest.Config) -> None:
     rechazo = exigir_bases_de_prueba()
     if rechazo is not None:
         raise pytest.UsageError(rechazo)
+    config.stash[_SALTADAS_SIN_BASE] = 0
+
+
+# MATU-105: cuántas pruebas con requiere_base se saltaron por falta de base, para el resumen de la corrida
+_SALTADAS_SIN_BASE = pytest.StashKey[int]()
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Una prueba marcada con requiere_base sin la base: en CI falla con un mensaje claro y en local se salta y se
+    cuenta. Corre antes de preparar las fixtures, que se conectarían a una base que no está."""
+    if item.get_closest_marker("requiere_base") is None:
+        return
+    from tests.base_datos import MENSAJE_CI_SIN_BASE, MOTIVO_SIN_BASE, en_ci, variables_de_base_faltantes
+
+    faltan = variables_de_base_faltantes()
+    if not faltan:
+        return
+    if en_ci():
+        pytest.fail(MENSAJE_CI_SIN_BASE.format(faltan=" y ".join(faltan)), pytrace=False)
+    item.config.stash[_SALTADAS_SIN_BASE] = item.config.stash.get(_SALTADAS_SIN_BASE, 0) + 1
+    pytest.skip(MOTIVO_SIN_BASE.format(faltan=" y ".join(faltan)))
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter, config: pytest.Config) -> None:
+    saltadas = config.stash.get(_SALTADAS_SIN_BASE, 0)
+    if saltadas:
+        terminalreporter.write_sep(
+            "!", f"{saltadas} pruebas con base saltadas: falta la base de pruebas (detalle con -rs)", yellow=True
+        )
 
 
 @pytest.fixture

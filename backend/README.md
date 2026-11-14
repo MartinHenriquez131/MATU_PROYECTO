@@ -1,7 +1,7 @@
 # Backend de MATU
 
 La API (FastAPI) y las tareas programadas. Cómo levantar todo está en el `README.md` de la raíz y en
-`infra/railway/README.md`. Este archivo explica solo el programador de tareas.
+`infra/railway/README.md`. Este archivo explica el programador de tareas y las pruebas con base.
 
 ## Programador de tareas (MATU-74)
 
@@ -113,3 +113,21 @@ superusuario y agrega las dos URL a tu `.env`, con el formato de `.env.example`.
   entorno (hallazgo H4). El archivo `REGISTRO_AVISOS` (por omisión `.dev/avisos.jsonl`), con una línea por
   aviso, se escribe solo con `ENTORNO` `local` o `pruebas`: en staging no se escribe, porque se perdía con cada
   contenedor del cron. Nunca va a stdout.
+
+## Pruebas con base (MATU-105)
+
+Las pruebas que necesitan PostgreSQL llevan la marca `requiere_base` (`tests/base_datos.py`) y piden dos
+variables: `DATABASE_URL` (la conexión de la API, como `matu_app`) y `MATU_TEST_DSN` (el superusuario que siembra
+y limpia). Las dos tienen que apuntar a una base de pruebas (`*_test` o `matu_wt*`); si no, pytest no arranca
+(MATU-94, `tests/proteccion_base.py`).
+
+Si falta alguna de las dos, la prueba no se salta en silencio. `tests/conftest.py` decide al prepararla:
+
+- **En CI** (variable `CI` definida y distinta de vacío, `0`, `false` o `no`; GitHub Actions la fija en `true`), la
+  prueba falla con `En CI las pruebas con base no se saltan: falta …`, que nombra la variable que falta, nunca su
+  valor. Así el pipeline no queda en verde sin haber probado el aislamiento.
+- **En local**, la prueba se salta con el motivo `sin base de pruebas: falta …`, que se ve con `pytest -rs`, y al
+  final de la corrida una línea cuenta cuántas se saltaron: `N pruebas con base saltadas: falta la base de pruebas`.
+
+Lo prueba `tests/test_requiere_base.py`. Una prueba nueva que toca la base se marca con `@requiere_base` o con
+`pytestmark = [requiere_base, ...]`, nunca con un `skipif` propio.
