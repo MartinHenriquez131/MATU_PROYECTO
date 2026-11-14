@@ -127,7 +127,7 @@ describe('lenguaje 18 y 30 · el envase dice «sobres» en los insumos en sobres
     expect(screen.getByRole('textbox', { name: TEXTOS[unidad].campo })).toBeInTheDocument()
     // En envases, con envases enteros y sin envase: el error bajo el envase.
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await u.type(screen.getByRole('textbox', { name: 'Envases enteros' }), '2')
+    await u.type(screen.getByRole('textbox', { name: 'Envases cerrados' }), '2')
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
     const campo = screen.getByRole('textbox', { name: TEXTOS[unidad].campo })
     expect(campo).toBeInvalid()
@@ -145,7 +145,7 @@ describe('lenguaje 18 y 30 · el envase dice «sobres» en los insumos en sobres
     const u = montar()
     await u.click(await screen.findByRole('button', { name: `Me quedan: ${p.nombre_libre}` }))
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
     const campo = screen.getByRole('textbox', { name: TEXTOS[unidad].campo })
     expect(campo).toBeInvalid()
