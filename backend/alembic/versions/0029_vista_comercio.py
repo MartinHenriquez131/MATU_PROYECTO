@@ -939,7 +939,8 @@ CREATE POLICY retracto_linea_familia_leer ON retracto_linea FOR SELECT
     USING (grupo_id = app_grupo() AND (SELECT app_ve_entrega()));
 CREATE POLICY retracto_linea_familia_crear ON retracto_linea FOR INSERT WITH CHECK (
     grupo_id = app_grupo() AND EXISTS (SELECT 1 FROM retracto r WHERE r.id = retracto_linea.retracto_id
-                                        AND r.solicitado_por = app_usuario() AND r.estado = 'solicitado'));
+                                        AND r.solicitado_por = app_usuario() AND r.estado = 'solicitado'
+                                        AND r.origen = 'app'));
 CREATE POLICY retracto_linea_sistema_leer ON retracto_linea FOR SELECT USING (grupo_id = app_grupo() AND {SISTEMA});
 CREATE POLICY retracto_linea_operacion_leer ON retracto_linea FOR SELECT USING (app_rol() = 'operacion');
 CREATE POLICY retracto_linea_operacion_crear ON retracto_linea FOR INSERT WITH CHECK (

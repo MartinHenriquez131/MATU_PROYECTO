@@ -41,7 +41,7 @@ PUBLICADAS: dict[str, tuple[date, str]] = {
     # pedidos nuevos; los que aceptaron la 0.1 o la 0.2 se cumplen según la suya (el envío del retracto, D-63-10)
     "0.3": (
         date(2026, 11, 13),
-        "b228a65bc9d58b3d669dc45574567b92d00789e6f218ce44461789250d95739c",  # pragma: allowlist secret
+        "ecd49b57dfd80e55899e07050e30e03fc2627831f0f2c4731ef0bb4d75d94d19",  # pragma: allowlist secret
     ),
 }
 ENLACE: Final = "/v1/condiciones-pedido"

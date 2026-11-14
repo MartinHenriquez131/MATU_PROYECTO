@@ -39,7 +39,7 @@ Si la anulación en Transbank no se puede hacer, la reintentamos y te escribimos
 
 ## 8. Entrega
 
-Durante el piloto, el pedido llega entre 24 y 48 horas hábiles. Te lo mostramos antes de pagar. Si no podemos cumplirlo, te avisamos y eliges entre esperar o recibir la devolución. Si no hay nadie para recibirlo, coordinamos otra entrega o te devolvemos el total.
+Durante el piloto, el pedido llega entre 24 y 48 horas hábiles. Te lo mostramos antes de pagar. Si no podemos cumplirlo, te avisamos. Mientras ningún comercio empiece a preparar, puedes cancelar y te devolvemos el total. Si no hay nadie para recibirlo, coordinamos otra entrega o te devolvemos el total.
 
 ## 9. Derecho a retracto
 

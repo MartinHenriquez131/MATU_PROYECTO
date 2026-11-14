@@ -4405,3 +4405,25 @@ def test_el_plazo_del_retracto_depende_de_su_origen(cx):
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute(insertar, (G_A, PED_A_ENVIADO, U_ADMIN_A, "30 days", "app"))
+
+
+@pytest.mark.rf("R3")
+def test_la_familia_no_suma_lineas_a_un_retracto_por_correo(cx):
+    """P3 del cierre: aunque el retracto de correo vaya a su nombre, la familia no le agrega productos; solo
+    operación."""
+    _entregado(cx)
+    retracto = uuid.uuid4()
+    como(cx, rol="operacion")
+    cx.execute("INSERT INTO retracto (id, grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+               " incluye_envio, origen) VALUES (%s, %s, %s, %s, now(), now() + interval '80 days', false, 'correo')",
+               (retracto, G_A, PED_A_ENVIADO, U_ADMIN_A))
+    [(linea,)] = cx.execute("SELECT id FROM pedido_linea WHERE pedido_id = %s", (PED_A_ENVIADO,)).fetchall()
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad)"
+                   " VALUES (%s, %s, %s, 1)", (retracto, G_A, linea))
+    cx.execute("RESET ROLE")
+    como(cx, rol="operacion")
+    cx.execute("INSERT INTO retracto_linea (retracto_id, grupo_id, pedido_linea_id, cantidad) VALUES (%s, %s, %s, 1)",
+               (retracto, G_A, linea))
