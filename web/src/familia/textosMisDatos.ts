@@ -340,7 +340,7 @@ export interface ObjetoHecho {
 const DE_LA_FINALIDAD: Record<FinalidadCopia, string> = { plan_cuidado: 'de la ficha', consumo: 'de los insumos', despacho: 'de los pedidos' }
 
 /**
- * 3.4.9: los 26 tipos del historial. `campo` y `seccion` ya vienen con su nombre de L 14.1. Las
+ * 3.4.9: los 26 tipos del historial, más los siete de MATU-63 (especificación 14.1). `campo` y `seccion` ya vienen con su nombre de L 14.1. Las
  * marcadas MATU son del sistema: su cola no lleva nombre. Las de pedidos y pagos tienen dos formas
  * (1.2, F1): `FRASE_CON_REFERENCIA` termina en la referencia, que la pantalla pone en `cifras`, y
  * sin referencia se usa la general de aquí.
@@ -372,6 +372,14 @@ export const FRASE_HECHO: Record<TipoHecho, (o: ObjetoHecho) => string> = {
   pago_aprobado: () => 'Se aprobó el pago de un pedido', // [README Q15, ajustado]
   pago_anulado: () => 'Se devolvió dinero de un pago', // [README Q15, ajustado]
   pidio_una_copia: () => 'Pidió una copia de los datos', // [ANALISTA]
+  // MATU-63, especificación 14.1: los pasos del pedido después de pagar. [NUEVO]
+  devolucion_a_la_tarjeta: () => 'MATU devolvió dinero a la tarjeta',
+  pidio_un_retracto: () => 'Pidió un retracto',
+  codigo_de_retiro_generado: () => 'MATU preparó un código de retiro',
+  pedido_en_camino: () => 'MATU salió a entregar un pedido',
+  pedido_entregado: () => 'MATU entregó un pedido',
+  pedido_no_entregado: () => 'MATU no pudo entregar un pedido',
+  retracto_resuelto: () => 'MATU respondió un retracto',
 }
 
 /** (1.2, F1) Con `referencia`: la frase sin el número, que la pantalla agrega en `cifras`. [NUEVO] */
@@ -383,4 +391,12 @@ export const FRASE_CON_REFERENCIA: Partial<Record<TipoHecho, string>> = {
   inicio_un_pago: 'Empezó a pagar el pedido ',
   pago_aprobado: 'Se aprobó el pago del pedido ',
   pago_anulado: 'Se devolvió dinero del pago del pedido ',
+  // MATU-63, especificación 14.1. [NUEVO]
+  devolucion_a_la_tarjeta: 'MATU devolvió dinero a la tarjeta por el pedido ',
+  pidio_un_retracto: 'Pidió un retracto del pedido ',
+  codigo_de_retiro_generado: 'MATU preparó el código de retiro del pedido ',
+  pedido_en_camino: 'MATU salió a entregar el pedido ',
+  pedido_entregado: 'MATU entregó el pedido ',
+  pedido_no_entregado: 'MATU no pudo entregar el pedido ',
+  retracto_resuelto: 'MATU respondió el retracto del pedido ',
 }
