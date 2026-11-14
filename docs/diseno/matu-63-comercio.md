@@ -1,6 +1,7 @@
 # MATU-63 · La vista web del comercio · Especificación de diseño
 
-**Versión 1.1 · 13/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.2 · 14/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.2:** la sección 14 nueva. Trae las frases y los íconos de los siete hechos nuevos del historial en la copia «Datos de» (MATU-54, decisión 427 del contrato). Va como sección 14 y no como 7, para no cambiar el número de las secciones 7 a 13, que el código y las pruebas ya citan.
 **Cambios de la 1.1** (después de la primera revisión visual del 13-11, con las decisiones del frontend que confirmé):
 - **O2:** en el piloto, el contacto es el correo de contacto que ya existe.
 - **6.2:** en pantalla ancha, `/comercio/pedido` lleva como `h1` el del pedido, y la privacidad y «Actualizado» van sobre la cola.
@@ -660,3 +661,57 @@ Todos los **[NUEVO]** y **[AJUSTE]** de este documento entran a `lenguaje.md` en
 Dos frases, sin tokens nuevos (hechos en este mismo commit):
 - **Sección 2, `digitos`:** suma «la referencia del pedido en la consola del comercio», que se dicta letra a letra en el mostrador (la demo ya la usaba así).
 - **Sección 3, «El comercio»:** una nota que apunta a esta especificación para `web/`, y la regla del foco dentro de la barra `tinta`: contorno `papel` (14,1:1 y 15,4:1), no `miel`, que en el tema oscuro mide 1,5:1 contra `tinta`.
+
+---
+
+## 14. Los hechos del pedido en la copia de los datos (MATU-54, v1.2)
+
+**Objetivo:** que quien pide la copia de los datos de la persona («Datos de», MATU-54) entienda cada paso del pedido después de pagar, en el mismo historial y con el mismo molde de línea.
+
+**Dónde:** `FRASE_HECHO`, `FRASE_CON_REFERENCIA` y `TipoHecho` en `web/src/familia/textosMisDatos.ts`, e `ICONO_HECHO` en `web/src/familia/PiezasMisDatos.tsx`. Se agregan siete entradas, sin cambiar el componente `LineaHistorial`:
+- el ícono va en la baldosa `bg-rocio text-turquesa`;
+- la frase va en `font-bold`;
+- la referencia va al final, en `cifras`;
+- la cola es «a las `{HH:MM}`», con «· `{nombre}`» solo si quien lo hizo es una persona.
+
+### 14.1 Las frases
+
+Las siete llevan la referencia del pedido (decisión 427). La frase con referencia termina en un espacio, y la pantalla agrega `{referencia}` en `cifras`, igual que `pago_anulado` (`lenguaje.md` 35). La frase sin referencia queda por si un hecho llega sin ella (por ejemplo, de un pedido ya borrado). Todas son **[NUEVO]**.
+
+| `tipo` | Quién (`quien.tipo`) | `FRASE_CON_REFERENCIA` (más `{referencia}`) | `FRASE_HECHO` (sin referencia) | Ícono (`ICONO_HECHO`) |
+|---|---|---|---|---|
+| `devolucion_a_la_tarjeta` | MATU | «MATU devolvió dinero a la tarjeta por el pedido » | «MATU devolvió dinero a la tarjeta» | `HandCoins` |
+| `pidio_un_retracto` | una persona del grupo | «Pidió un retracto del pedido » | «Pidió un retracto» | `RotateCcw` |
+| `codigo_de_retiro_generado` | MATU | «MATU preparó el código de retiro del pedido » | «MATU preparó un código de retiro» | `KeyRound` |
+| `pedido_en_camino` | MATU | «MATU salió a entregar el pedido » | «MATU salió a entregar un pedido» | `Truck` |
+| `pedido_entregado` | MATU | «MATU entregó el pedido » | «MATU entregó un pedido» | `PackageCheck` |
+| `pedido_no_entregado` | MATU | «MATU no pudo entregar el pedido » | «MATU no pudo entregar un pedido» | `PackageX` |
+| `retracto_resuelto` | MATU | «MATU respondió el retracto del pedido » | «MATU respondió un retracto» | `MessageSquareReply` |
+
+Así se ve una línea, con la referencia en `cifras` y sin el nombre de nadie, porque la hizo MATU:
+
+```
+(⛟)  MATU salió a entregar el pedido 4821        Truck en la baldosa rocio, frase en negrita
+     a las 16:05                                  text-base text-tenue
+```
+
+### 14.2 Por qué así
+
+- **Sujeto explícito «MATU»** en los seis hechos que hace MATU, como «MATU borró lo escrito en la ficha» y «MATU avisó que un insumo se está acabando». La línea de MATU no lleva nombre en la cola, así que sin el sujeto no se sabría quién lo hizo. «Pidió un retracto» lo hace una persona, y la cola dice quién.
+- **Ni el código ni el comercio.** «Preparó el código de retiro» dice que existe, nunca los números ni quién lo recibió (D-63-4 y D-63-5). Ninguna frase nombra el comercio, al encargado ni la dirección. La copia trae el comercio en `partes`, fuera del historial.
+- **«devolvió dinero a la tarjeta»**, no «anuló» ni «reembolsó». Es el mismo verbo de `pago_anulado` («Se devolvió dinero del pago…») y de las garantías del pago («te devolvemos su precio… a la misma tarjeta»). No dice el monto: la copia lo trae en `devoluciones`.
+- **«retracto»** es la palabra que la familia ya ve en el catálogo, el pedido y el pago («Derecho a retracto: tienes 10 días desde que lo recibes.», `lenguaje.md` 27 y 32). Sinónimos como «devolver productos» se confundirían con la devolución de dinero.
+- **«respondió el retracto»**, sin decir si se aceptó o no. El hecho no trae el resultado, que está en `retractos[].resolucion` de la copia. Una frase que dijera «aceptó» podría ser falsa.
+- **«no pudo entregar»**: dice qué pasó sin culpar a la familia, que quizás no estaba (`lenguaje.md` 2.5). No dice por qué.
+- **Íconos:** ninguno repite uno de `ICONO_HECHO`. `Undo2` ya es de `pago_anulado`, así que la devolución a la tarjeta usa `HandCoins`, y el retracto, que va en sentido contrario al pedido, usa `RotateCcw`. Son decorativos (`aria-hidden`), porque la frase lo dice todo, y van en la baldosa de siempre: el estado nunca se dice con color.
+- Ningún término prohibido de `lenguaje.md` 3. Tampoco dicen «stock», «reserva», «despacho», «auditoría» ni «sesión».
+
+### 14.3 Criterios verificables
+
+26. Los siete `tipo` de 14.1 se muestran en el historial de «Datos de», con la frase y el ícono de la tabla. Hoy se ocultan porque `seMuestraHecho` no los conoce.
+27. Con `referencia`, la frase termina en la referencia, envuelta en `cifras`. Sin ella, se usa la frase general.
+28. Los seis hechos de MATU no llevan «· `{nombre}`» en la cola. `pidio_un_retracto` lleva el nombre de quien lo pidió, o «alguien que ya no está…» si salió del grupo.
+29. Ninguna línea del historial contiene seis dígitos seguidos, el nombre de un comercio ni una dirección.
+30. A 320 px con el texto al 200 %, la línea más larga («MATU devolvió dinero a la tarjeta por el pedido 4821») refluye sin desplazamiento horizontal, con el ícono arriba en el modo `angosto`, como las demás líneas.
+
+**Para `lenguaje.md`:** estas siete filas se suman a la sección 35, con la numeración que sigue a `pidio_una_copia` (27 a 33) y la marca **[NUEVO]**, en el PR de documentos de MATU-63. Jorge las aprueba al fusionar.
