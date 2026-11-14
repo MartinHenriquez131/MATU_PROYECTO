@@ -115,7 +115,7 @@ async function abrir(escribir: (p: Pedida) => RespuestaFalsa = () => ({ status: 
 const escritas = (pedidas: Pedida[]) => pedidas.filter((p) => !p.linea.startsWith('GET'))
 const fila = (p: Perfil) => document.getElementById(`insumo-${p.id}`)!
 const grupo = () => screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })
-const envasesEnteros = () => screen.getByRole('textbox', { name: 'Envases enteros' })
+const envasesCerrados = () => screen.getByRole('textbox', { name: 'Envases cerrados' })
 const campoEnvase = () => screen.getByRole('textbox', { name: '¿Cuántas unidades trae cada envase?' })
 const macizos = () => screen.getAllByRole('button').filter((b) => /\bbg-turquesa\b/.test(b.className))
 const ok = (p: Perfil, cambios: Partial<Perfil> = {}): RespuestaFalsa => ({ status: 200, cuerpo: { ...p, stock_medido_en: hoy, etag: '"v2"', ...cambios } })
@@ -134,15 +134,15 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     try {
       await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
       await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
-      await u.click(envasesEnteros())
+      await u.click(envasesCerrados())
       await u.keyboard('5')
       act(() => retenidos.splice(0).forEach((fn) => fn()))
       await u.keyboard('000')
     } finally {
       espia.mockRestore()
     }
-    expect(envasesEnteros()).toHaveValue('5000')
-    expect(envasesEnteros()).toHaveFocus()
+    expect(envasesCerrados()).toHaveValue('5000')
+    expect(envasesCerrados()).toHaveFocus()
     expect(grupo()).toHaveTextContent('En total, quedan unas 100.000 unidades.')
     expect(escritas(pedidas)).toEqual([])
   })
@@ -154,9 +154,9 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     await waitFor(() => expect(grupo()).toHaveFocus())
     // El foco no está en un campo: el teclado del teléfono no se abre.
     expect(document.activeElement?.tagName).not.toBe('INPUT')
-    expect(envasesEnteros()).toHaveValue('')
+    expect(envasesCerrados()).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('')
-    expect(envasesEnteros()).toHaveAccessibleDescription('Cuenta los envases enteros y, a ojo, lo suelto. Reemplaza lo que calculábamos.')
+    expect(envasesCerrados()).toHaveAccessibleDescription('Cuenta los envases cerrados y, a ojo, lo suelto. Reemplaza lo que calculábamos. Los que todavía no abres.')
     expect(grupo()).toHaveTextContent('envases de 20 unidades')
     // El envase ya está guardado: no se pide otra vez, y sin total todavía.
     expect(screen.queryByRole('textbox', { name: '¿Cuántas unidades trae cada envase?' })).toBeNull()
@@ -174,7 +174,7 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     const fecha = sumar(hoy, 11)
     const { pedidas, u } = await abrir(() => ok(PANAL, { stock_unidades: 45, fecha_quiebre_estimada: fecha, dias_restantes: 11, avisando: false, alerta_id: null }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    const mas = screen.getByRole('button', { name: 'Uno más: Envases enteros' })
+    const mas = screen.getByRole('button', { name: 'Uno más: Envases cerrados' })
     await u.click(mas)
     await u.click(mas)
     expect(grupo()).toHaveTextContent('envases de 20 unidades')
@@ -202,63 +202,63 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
   it('con un solo campo el otro vale 0; «−» en vacío deja 0 y «no queda nada» (criterio 3)', async () => {
     const { pedidas, u } = await abrir(() => ok(PANAL, { stock_unidades: 40 }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    await u.click(screen.getByRole('button', { name: 'Uno menos: Envases enteros' }))
-    expect(envasesEnteros()).toHaveValue('0')
+    await u.click(screen.getByRole('button', { name: 'Uno menos: Envases cerrados' }))
+    expect(envasesCerrados()).toHaveValue('0')
     expect(grupo()).toHaveTextContent('En total, no queda nada.')
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     expect(grupo()).toHaveTextContent('En total, quedan unas 40 unidades.')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0].cuerpo).toEqual({ stock_unidades: 40 })
   })
 
-  it('los dos vacíos: el error bajo «Envases enteros», con el foco, y nada se envía (criterio 3)', async () => {
+  it('los dos vacíos: el error bajo «Envases cerrados», con el foco, y nada se envía (criterio 3)', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    expect(envasesEnteros()).toBeInvalid()
-    expect(envasesEnteros()).toHaveAccessibleDescription(/Escribe cuántos quedan\. Si no queda nada, escribe 0\.$/)
-    await waitFor(() => expect(envasesEnteros()).toHaveFocus())
+    expect(envasesCerrados()).toBeInvalid()
+    expect(envasesCerrados()).toHaveAccessibleDescription(/Escribe cuántos quedan\. Si no queda nada, escribe 0\.$/)
+    await waitFor(() => expect(envasesCerrados()).toHaveFocus())
     expect(escritas(pedidas)).toEqual([])
   })
 
-  it('el total sobre 100.000: el error bajo «Envases enteros» y nada se envía', async () => {
+  it('el total sobre 100.000: el error bajo «Envases cerrados» y nada se envía', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    await u.type(envasesEnteros(), '5000')
+    await u.type(envasesCerrados(), '5000')
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '1')
     expect(grupo()).toHaveTextContent('En total, quedan unas 100.001 unidades.')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    expect(envasesEnteros()).toHaveAccessibleDescription(/Con eso quedarían más de 100\.000 unidades\. Revisa cuántos envases y sueltos anotaste\.$/)
-    await waitFor(() => expect(envasesEnteros()).toHaveFocus())
+    expect(envasesCerrados()).toHaveAccessibleDescription(/Con eso quedarían más de 100\.000 unidades\. Revisa cuántos envases y sueltos anotaste\.$/)
+    await waitFor(() => expect(envasesCerrados()).toHaveFocus())
     expect(escritas(pedidas)).toEqual([])
   })
 
   it('«+» no pasa de ⌊100.000 / u⌋ envases', async () => {
     const { u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    await u.type(envasesEnteros(), '5000')
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
-    expect(envasesEnteros()).toHaveValue('5000')
+    await u.type(envasesCerrados(), '5000')
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
+    expect(envasesCerrados()).toHaveValue('5000')
   })
 
-  it('422 cobertura_maxima: el error bajo «Envases enteros», con lo escrito', async () => {
+  it('422 cobertura_maxima: el error bajo «Envases cerrados», con lo escrito', async () => {
     const { u } = await abrir(() => ({ status: 422, cuerpo: problema422({ campo: 'stock_unidades', tipo: 'cobertura_maxima' }) }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    await u.type(envasesEnteros(), '3')
+    await u.type(envasesCerrados(), '3')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    await waitFor(() => expect(envasesEnteros()).toBeInvalid())
-    expect(envasesEnteros()).toHaveAccessibleDescription(/Con esa cantidad alcanzaría para más de 10 años\. Revisa cuántos quedan\.$/)
-    await waitFor(() => expect(envasesEnteros()).toHaveFocus())
-    expect(envasesEnteros()).toHaveValue('3')
+    await waitFor(() => expect(envasesCerrados()).toBeInvalid())
+    expect(envasesCerrados()).toHaveAccessibleDescription(/Con esa cantidad alcanzaría para más de 10 años\. Revisa cuántos quedan\.$/)
+    await waitFor(() => expect(envasesCerrados()).toHaveFocus())
+    expect(envasesCerrados()).toHaveValue('3')
     expect(document.body).not.toHaveTextContent('texto de la API')
   })
 
   it('en sobres: «Sobres sueltos», «envases de 10 sobres» y «quedan unos 12 sobres»', async () => {
     const { pedidas, u } = await abrir(() => ok(CHAMPU, { stock_unidades: 12 }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     expect(grupo()).toHaveTextContent('envase de 10 sobres')
     await u.type(screen.getByRole('textbox', { name: 'Sobres sueltos' }), '2')
     expect(grupo()).toHaveTextContent('En total, quedan unos 12 sobres.')
@@ -274,19 +274,19 @@ describe('Cambiar de modo sin perder lo escrito (3, criterio 5)', () => {
   it('«Contar sueltos» lleva el total al campo único; «Contar en envases» con 65 deja 3 y 5', async () => {
     const { pedidas, u } = await abrir(() => ok(PANAL, { stock_unidades: 65 }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    await u.type(envasesEnteros(), '2')
+    await u.type(envasesCerrados(), '2')
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '3')
     await u.click(screen.getByRole('button', { name: 'Contar sueltos' }))
     const unico = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
     expect(unico).toHaveValue('43')
     await waitFor(() => expect(unico).toHaveFocus())
-    expect(unico).toHaveAccessibleDescription('Reemplaza lo que calculábamos. Si no queda nada, escribe 0.')
+    expect(unico).toHaveAccessibleDescription('Cuenta unidades, no envases. Si tienes envases cerrados, toca «Contar en envases». Reemplaza lo que calculábamos. Si no queda nada, escribe 0.')
     // El envase sigue guardado: «Contar en envases» vuelve sin pedirlo.
     await u.clear(unico)
     await u.type(unico, '65')
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await waitFor(() => expect(envasesEnteros()).toHaveFocus())
-    expect(envasesEnteros()).toHaveValue('3')
+    await waitFor(() => expect(envasesCerrados()).toHaveFocus())
+    expect(envasesCerrados()).toHaveValue('3')
     expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('5')
     expect(screen.queryByRole('button', { name: 'Contar en envases' })).toBeNull()
     expect(grupo()).toHaveTextContent('En total, quedan unas 65 unidades.')
@@ -327,19 +327,19 @@ describe('«Me quedan» sin envase (4.2)', () => {
     await waitFor(() => expect(campoEnvase()).toHaveFocus())
     expect(campoEnvase()).toHaveAccessibleDescription('Lo guardamos para la próxima vez y para la lista.')
     expect(campoEnvase()).toHaveAttribute('inputmode', 'numeric')
-    expect(envasesEnteros()).toHaveValue('')
+    expect(envasesCerrados()).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('5')
     // Mientras falta el envase, el sufijo dice solo «envases» y el total cuenta solo los sueltos.
-    const sufijo = () => envasesEnteros().parentElement!.textContent
+    const sufijo = () => envasesCerrados().parentElement!.textContent
     expect(sufijo()).toBe('envases')
     expect(grupo()).toHaveTextContent('En total, quedan unas 5 unidades.')
     // El campo del envase va antes de los dos contadores.
-    expect(campoEnvase().compareDocumentPosition(envasesEnteros()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(campoEnvase().compareDocumentPosition(envasesCerrados()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await u.type(campoEnvase(), '20')
     expect(sufijo()).toBe('envases de 20 unidades')
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     expect(grupo()).toHaveTextContent('En total, quedan unas 45 unidades.')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
 
@@ -360,7 +360,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
     expect(campoEnvase()).toBeInvalid()
     expect(campoEnvase()).toHaveAccessibleDescription('Lo guardamos para la próxima vez y para la lista. Escribe cuántas unidades trae cada envase.')
@@ -373,7 +373,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     const confirmar = screen.getByRole('button', { name: 'Anotar lo que queda' })
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     expect(grupo()).not.toHaveTextContent('En total')
     expect(confirmar).not.toHaveAttribute('aria-describedby')
     // Fuera de rango, igual.
@@ -385,8 +385,8 @@ describe('«Me quedan» sin envase (4.2)', () => {
     expect(grupo()).toHaveTextContent('En total, quedan unas 20 unidades.')
     expect(confirmar).toHaveAccessibleDescription('En total, quedan unas 20 unidades.')
     await u.clear(campoEnvase())
-    await u.click(screen.getByRole('button', { name: 'Uno menos: Envases enteros' }))
-    expect(envasesEnteros()).toHaveValue('0')
+    await u.click(screen.getByRole('button', { name: 'Uno menos: Envases cerrados' }))
+    expect(envasesCerrados()).toHaveValue('0')
     expect(grupo()).toHaveTextContent('En total, no queda nada.')
   })
 
@@ -424,7 +424,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     await u.type(campoEnvase(), '20')
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
     await waitFor(() => expect(campoEnvase()).toBeInvalid())
     expect(campoEnvase()).toHaveAccessibleDescription(/Escribe un número de 1 a 10\.000\.$/)
@@ -437,7 +437,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     await u.type(campoEnvase(), '20')
-    await u.type(envasesEnteros(), '1')
+    await u.type(envasesCerrados(), '1')
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '5')
     await u.click(screen.getByRole('button', { name: 'Contar sueltos' }))
     expect(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveValue('25')
@@ -468,7 +468,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
     await waitFor(() => expect(unico).toHaveFocus())
     expect(grupo()).toHaveTextContent(unidad)
     expect(screen.queryByRole('button', { name: 'Contar en envases' })).toBeNull()
-    expect(screen.queryByRole('textbox', { name: 'Envases enteros' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Envases cerrados' })).toBeNull()
   })
 })
 
@@ -482,7 +482,7 @@ describe('«Compré» sigue igual', () => {
     await waitFor(() => expect(panel).toHaveFocus())
     expect(within(panel).getByRole('textbox', { name: '¿Cuántos envases compraste?' })).toHaveValue('1')
     expect(within(panel).queryByRole('button', { name: /^Contar/ })).toBeNull()
-    expect(within(panel).queryByRole('textbox', { name: 'Envases enteros' })).toBeNull()
+    expect(within(panel).queryByRole('textbox', { name: 'Envases cerrados' })).toBeNull()
     await u.click(within(panel).getByRole('button', { name: 'Anotar la compra' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/reponer`, cuerpo: { envases: 1 }, ifMatch: '"v1"' })
@@ -537,13 +537,13 @@ describe('El alta (5.1)', () => {
     const bloque = screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })
     expect(bloque).toContainElement(envase)
     expect(envase.compareDocumentPosition(aviso) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(envasesEnteros()).toHaveAccessibleDescription('Cuenta los envases enteros y, a ojo, lo suelto.')
+    expect(envasesCerrados()).toHaveAccessibleDescription('Cuenta los envases cerrados y, a ojo, lo suelto. Los que todavía no abres.')
     expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('65')
 
     await u.type(envase, '20')
     await u.clear(screen.getByRole('textbox', { name: 'Unidades sueltas' }))
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '5')
-    await u.type(envasesEnteros(), '3')
+    await u.type(envasesCerrados(), '3')
     expect(bloque).toHaveTextContent('En total, quedan unas 65 unidades.')
     // La vista previa usa el total (criterio 8): 65 / 1 al día.
     // La vista previa visible (el anuncio sr-only llega a los 500 ms y no se cuenta aquí).
@@ -561,7 +561,7 @@ describe('El alta (5.1)', () => {
     const { u } = await abrirFormulario('/insumos/nuevo')
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     await u.type(envases()[0], '20')
-    await u.type(envasesEnteros(), '2')
+    await u.type(envasesCerrados(), '2')
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '1')
     await u.click(screen.getByRole('button', { name: 'Contar sueltos' }))
     const unico = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
@@ -573,15 +573,15 @@ describe('El alta (5.1)', () => {
     expect(aviso.compareDocumentPosition(envases()[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('los dos vacíos al anotar: el error bajo «Envases enteros»; sin envase con envases: el error bajo el envase', async () => {
+  it('los dos vacíos al anotar: el error bajo «Envases cerrados»; sin envase con envases: el error bajo el envase', async () => {
     const { pedidas, u } = await abrirFormulario('/insumos/nuevo')
     await u.type(screen.getByRole('textbox', { name: '¿Qué insumo es?' }), 'Gasas')
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
-    expect(envasesEnteros()).toHaveAccessibleDescription(/Escribe cuántos quedan\. Si no queda nada, escribe 0\.$/)
-    expect(envasesEnteros()).toHaveFocus()
+    expect(envasesCerrados()).toHaveAccessibleDescription(/Escribe cuántos quedan\. Si no queda nada, escribe 0\.$/)
+    expect(envasesCerrados()).toHaveFocus()
 
-    await u.type(envasesEnteros(), '2')
+    await u.type(envasesCerrados(), '2')
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(envases()[0]).toHaveAccessibleDescription(/Escribe cuántas unidades trae cada envase\.$/)
     expect(envases()[0]).toHaveFocus()
@@ -591,7 +591,7 @@ describe('El alta (5.1)', () => {
   it('1.2: en el alta, con envases enteros y sin envase, no hay total (criterio 14)', async () => {
     const { u } = await abrirFormulario('/insumos/nuevo')
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await u.type(envasesEnteros(), '3')
+    await u.type(envasesCerrados(), '3')
     const bloque = screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })
     expect(bloque).not.toHaveTextContent('En total')
     await u.type(envases()[0], '20')
@@ -602,8 +602,8 @@ describe('El alta (5.1)', () => {
     const { u } = await abrirFormulario('/insumos/nuevo')
     const previa = () => screen.queryByText(/^Así, /, { selector: 'p' })
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
-    await u.click(screen.getByRole('button', { name: 'Uno más: Envases enteros' }))
-    expect(envasesEnteros()).toHaveValue('1')
+    await u.click(screen.getByRole('button', { name: 'Uno más: Envases cerrados' }))
+    expect(envasesCerrados()).toHaveValue('1')
     expect(previa()).toBeNull()
     await u.type(envases()[0], '20')
     // 20 unidades a 1 al día.
@@ -615,9 +615,9 @@ describe('El alta (5.1)', () => {
     await u.type(screen.getByRole('textbox', { name: '¿Qué insumo es?' }), 'Gasas')
     await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
     await u.type(envases()[0], '10000')
-    await u.type(envasesEnteros(), '11')
+    await u.type(envasesCerrados(), '11')
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
-    expect(envasesEnteros()).toHaveAccessibleDescription(/Con eso quedarían más de 100\.000 unidades\. Revisa cuántos envases y sueltos anotaste\.$/)
+    expect(envasesCerrados()).toHaveAccessibleDescription(/Con eso quedarían más de 100\.000 unidades\. Revisa cuántos envases y sueltos anotaste\.$/)
     expect(escritas(pedidas)).toEqual([])
   })
 })
@@ -625,13 +625,13 @@ describe('El alta (5.1)', () => {
 describe('La edición (5.2)', () => {
   it('con envase guardado: abre en envases con el envase a la vista y los dos vacíos; guardar así no cambia lo que queda (criterio 7)', async () => {
     const { pedidas, u } = await abrirFormulario({ cambiar: PANAL })
-    expect(envasesEnteros()).toHaveValue('')
+    expect(envasesCerrados()).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('')
     expect(envases()).toHaveLength(1)
     expect(envases()[0]).toHaveValue('20')
     expect(screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })).toContainElement(envases()[0])
-    expect(envasesEnteros()).toHaveAccessibleDescription(
-      `El ${fechaCorta('2026-11-04')} anotaste 24. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes. Cuenta los envases enteros y, a ojo, lo suelto.`,
+    expect(envasesCerrados()).toHaveAccessibleDescription(
+      `El ${fechaCorta('2026-11-04')} anotaste 24. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes. Cuenta los envases cerrados y, a ojo, lo suelto. Los que todavía no abres.`,
     )
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(await screen.findByText('No había cambios.')).toBeInTheDocument()
@@ -640,7 +640,7 @@ describe('La edición (5.2)', () => {
 
   it('con envase guardado: el `PATCH` lleva el total, y el envase solo si cambió', async () => {
     const { pedidas, u } = await abrirFormulario({ cambiar: PANAL }, () => ok(PANAL, { stock_unidades: 47 }))
-    await u.type(envasesEnteros(), '2')
+    await u.type(envasesCerrados(), '2')
     await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '7')
     await u.click(screen.getByRole('button', { name: 'Guardar' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
@@ -651,12 +651,12 @@ describe('La edición (5.2)', () => {
     await abrirFormulario({ cambiar: TOALLITAS })
     expect(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Contar en envases' })).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Envases enteros' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Envases cerrados' })).toBeNull()
   })
 
   it('D6: con envase de 1 abre en sueltos, y el envase muestra 1 al final', async () => {
     await abrirFormulario({ cambiar: GUANTES })
-    expect(screen.queryByRole('textbox', { name: 'Envases enteros' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Envases cerrados' })).toBeNull()
     expect(envases()[0]).toHaveValue('1')
   })
 
@@ -664,6 +664,143 @@ describe('La edición (5.2)', () => {
     await abrirFormulario({ cambiar: CREMA })
     expect(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Contar en envases' })).toBeNull()
-    expect(screen.queryByRole('textbox', { name: 'Envases enteros' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Envases cerrados' })).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------- MATU-109
+
+// MATU-109 (especificación docs/diseno/matu-109-me-quedan.md v1.0): qué se cuenta en modo sueltos
+// (D1), «Envases cerrados» (D2), la ayuda de cada contador entre su etiqueta y su campo (D3), y el
+// campo del envase a todo el ancho en angosto. El cálculo no cambia.
+const ayudaUnidades = 'Cuenta unidades, no envases. Si tienes envases cerrados, toca «Contar en envases».'
+const quedan = 'Reemplaza lo que calculábamos. Si no queda nada, escribe 0.'
+const ayudaDe = (campo: HTMLElement) => document.getElementById(`${campo.id}-a`)!
+/** La ayuda propia del campo va después de su etiqueta y antes del campo, en `text-base text-tenue`. */
+const entreEtiquetaYCampo = (campo: HTMLElement) => {
+  const etiqueta = document.getElementById(`${campo.id}-l`)!
+  const ayuda = ayudaDe(campo)
+  expect(etiqueta.compareDocumentPosition(ayuda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(ayuda.compareDocumentPosition(campo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(ayuda).toHaveClass('text-base', 'text-tenue')
+}
+
+describe('MATU-109: el modo sueltos dice qué se cuenta (D1)', () => {
+  it('en unidades sin envase: la ayuda empieza con «Cuenta unidades, no envases.» y está en la descripción del campo', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
+    const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(campo).toHaveAccessibleDescription(`${ayudaUnidades} ${quedan}`)
+    expect(campo.getAttribute('aria-describedby')!.split(' ')).toContain(`${campo.id}-a`)
+    entreEtiquetaYCampo(campo)
+    expect(within(grupo()).getByRole('button', { name: 'Contar en envases' })).toBeInTheDocument()
+  })
+
+  it('en sobres, tras «Contar sueltos»: «Cuenta sobres, no envases.»', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
+    await u.click(screen.getByRole('button', { name: 'Contar sueltos' }))
+    const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(campo).toHaveAccessibleDescription(`Cuenta sobres, no envases. Si tienes envases cerrados, toca «Contar en envases». ${quedan}`)
+  })
+
+  it('en gramos y en ml la ayuda no nombra «Contar en envases»', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Talco' }))
+    expect(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveAccessibleDescription(quedan)
+    expect(grupo()).not.toHaveTextContent('Contar en envases')
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Crema humectante' }))
+    expect(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveAccessibleDescription(quedan)
+    expect(grupo()).not.toHaveTextContent('Contar en envases')
+  })
+
+  it('en el alta, en unidades: la ayuda nueva, sola, en la descripción del campo', async () => {
+    await abrirFormulario('/insumos/nuevo')
+    const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(campo).toHaveAccessibleDescription(ayudaUnidades)
+    entreEtiquetaYCampo(campo)
+  })
+
+  it('en la edición: la ayuda de hoy y después la nueva', async () => {
+    await abrirFormulario({ cambiar: TOALLITAS })
+    const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(campo).toHaveAccessibleDescription(
+      `El ${fechaCorta('2026-11-04')} anotaste 6. Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes. ${ayudaUnidades}`,
+    )
+  })
+
+  it('en la edición de un insumo en ml, solo la ayuda de hoy', async () => {
+    await abrirFormulario({ cambiar: CREMA })
+    const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
+    expect(campo).toHaveAccessibleDescription(/^El .* Escribe cuántos quedan hoy, o déjalo en blanco si no lo sabes\.$/)
+  })
+})
+
+describe('MATU-109: «Envases cerrados» y la ayuda de cada contador (D2 y D3)', () => {
+  it('cada contador con su ayuda entre la etiqueta y el campo, en su descripción después de la común; los − y + con el nombre nuevo', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+    const comun = 'Cuenta los envases cerrados y, a ojo, lo suelto. Reemplaza lo que calculábamos.'
+    const cerrados = envasesCerrados()
+    const sueltos = screen.getByRole('textbox', { name: 'Unidades sueltas' })
+    expect(cerrados).toHaveAccessibleDescription(`${comun} Los que todavía no abres.`)
+    expect(sueltos).toHaveAccessibleDescription(`${comun} Las del envase abierto y las que están fuera de su envase.`)
+    entreEtiquetaYCampo(cerrados)
+    entreEtiquetaYCampo(sueltos)
+    expect(screen.getByRole('button', { name: 'Uno menos: Envases cerrados' })).toBeInTheDocument()
+    // Los − y + ya nombran su campo: la ayuda no va en ellos.
+    expect(screen.getByRole('button', { name: 'Uno más: Envases cerrados' })).not.toHaveAttribute('aria-describedby')
+    expect(grupo()).not.toHaveTextContent('Envases enteros')
+  })
+
+  it('en sobres: «Los del envase abierto y los que están fuera de su envase.»', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
+    expect(screen.getByRole('textbox', { name: 'Sobres sueltos' })).toHaveAccessibleDescription(
+      'Cuenta los envases cerrados y, a ojo, lo suelto. Reemplaza lo que calculábamos. Los del envase abierto y los que están fuera de su envase.',
+    )
+  })
+
+  it('con un error, la ayuda sigue arriba y el error va debajo del campo, en ese orden en la descripción', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+    await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
+    const cerrados = envasesCerrados()
+    const error = await waitFor(() => {
+      const e = document.getElementById(`${cerrados.id}-e`)
+      expect(e).not.toBeNull()
+      return e!
+    })
+    expect(ayudaDe(cerrados)).toHaveTextContent('Los que todavía no abres.')
+    expect(cerrados.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const comun = cerrados.id.replace(/-envases$/, '-a')
+    expect(cerrados.getAttribute('aria-describedby')!.split(' ')).toEqual([comun, `${cerrados.id}-a`, `${cerrados.id}-e`])
+  })
+
+  it('el cálculo no cambia: 3 envases cerrados de 20 y 7 sueltas son 67, y `recontar` recibe 67', async () => {
+    const { pedidas, u } = await abrir(() => ok(PANAL, { stock_unidades: 67 }))
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
+    await u.type(envasesCerrados(), '3')
+    await u.type(screen.getByRole('textbox', { name: 'Unidades sueltas' }), '7')
+    expect(grupo()).toHaveTextContent('En total, quedan unas 67 unidades.')
+    await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
+    await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
+    expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/recontar`, cuerpo: { stock_unidades: 67 }, ifMatch: '"v1"' })
+  })
+})
+
+describe('MATU-109: el campo del envase no se corta en angosto (P3)', () => {
+  it('en el alta, al final y dentro del bloque de envases, a todo el ancho en angosto', async () => {
+    const { u } = await abrirFormulario('/insumos/nuevo')
+    expect(envases()[0]).toHaveClass('w-32', 'angosto:w-full')
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    expect(envases()[0]).toHaveClass('w-32', 'angosto:w-full')
+  })
+
+  it('en el panel de un insumo sin envase, tras «Contar en envases»', async () => {
+    const { u } = await abrir()
+    await u.click(screen.getByRole('button', { name: 'Me quedan: Toallitas húmedas' }))
+    await u.click(screen.getByRole('button', { name: 'Contar en envases' }))
+    expect(campoEnvase()).toHaveClass('angosto:w-full')
   })
 })
