@@ -43,6 +43,7 @@ function parte(id: string, referencia: string, estado: ParteVista['estado'], lin
     numero_lineas: lineas.length,
     retirada_en: null,
     cancelada_en: null,
+    motivo_cancelacion: null,
     lineas,
     ...extra,
   }

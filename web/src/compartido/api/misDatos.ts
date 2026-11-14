@@ -46,7 +46,15 @@ export type PagoPedidoCopia = S['PagoPedidoCopia']
 export type DevolucionCopia = S['DevolucionCopia']
 export type HistorialCopia = S['HistorialCopia']
 export type QuienCopia = S['QuienCopia']
-export type TipoHecho = S['HechoCopia']['tipo']
+/**
+ * Los tipos del historial que la pantalla sabe decir (3.4.9). Los siete de MATU-63 (despacho y
+ * retracto) ya están en el contrato, pero todavía no tienen frase ni ícono especificados: hasta
+ * entonces `seMuestraHecho` los deja fuera, como a cualquier tipo que no conoce.
+ */
+export type TipoHecho = Exclude<
+  S['HechoCopia']['tipo'],
+  'devolucion_a_la_tarjeta' | 'pidio_un_retracto' | 'codigo_de_retiro_generado' | 'pedido_en_camino' | 'pedido_entregado' | 'pedido_no_entregado' | 'retracto_resuelto'
+>
 /**
  * Un hecho del historial. El contrato cierra la lista de tipos, pero la pantalla ignora uno que no
  * conoce sin romperse (3.4.9): aquí `tipo` también admite otro texto.

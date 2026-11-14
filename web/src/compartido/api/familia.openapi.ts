@@ -1721,6 +1721,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operacion/pedidos/{pedido_id}/cancelar-con-devolucion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar Con Devolucion
+         * @description H1 y H2 del cierre del analista: operación cancela y devuelve todo, envío incluido, a la misma tarjeta. Desde no_entregado (nadie lo recibió y no hay segunda ventana), o cuando la familia pidió por correo cancelar un pedido pagado que ningún comercio empezó a preparar (R15). Otro estado: 409 no-cancelable.
+         */
+        post: operations["cancelar_con_devolucion_v1_operacion_pedidos__pedido_id__cancelar_con_devolucion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/retractos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registrar Retracto Por Correo
+         * @description H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.
+         */
+        post: operations["registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4446,6 +4486,13 @@ export interface components {
              * @enum {string}
              */
             si_falta: "otro_comercio" | "quitar";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "sin_stock" | "preparada" | "faltante" | "devuelta" | "eliminada";
+            /** Unidades Faltantes */
+            unidades_faltantes: number;
         };
         /** CondicionesCopia */
         CondicionesCopia: {
@@ -4584,6 +4631,12 @@ export interface components {
             pago: components["schemas"]["PagoPedidoCopia"] | null;
             /** Precios De Ejemplo */
             precios_de_ejemplo: boolean;
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Partes */
+            partes: components["schemas"]["ParteCopia"][];
+            /** Retractos */
+            retractos: components["schemas"]["RetractoCopia"][];
         };
         /** PoliticaCopia */
         PoliticaCopia: {
@@ -4631,7 +4684,7 @@ export interface components {
              * Motivo
              * @enum {string}
              */
-            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
             /** Producto */
             producto: string | null;
             /** Monto */
@@ -4758,6 +4811,8 @@ export interface components {
             pagos: components["schemas"]["PagoCuentaCopia"][] | null;
             /** Condiciones Aceptadas */
             condiciones_aceptadas: components["schemas"]["CondicionesCopia"][] | null;
+            /** Retractos */
+            retractos: components["schemas"]["RetractoCuentaCopia"][] | null;
         };
         /** HechoCopia */
         HechoCopia: {
@@ -4765,7 +4820,7 @@ export interface components {
              * Tipo
              * @enum {string}
              */
-            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia";
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto";
             /** Ocurrido En */
             ocurrido_en: string;
             quien: components["schemas"]["QuienCopia"];
@@ -4993,6 +5048,11 @@ export interface components {
             retirada_en: string | null;
             /** Cancelada En */
             cancelada_en: string | null;
+            /**
+             * Motivo Cancelacion
+             * @description Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)
+             */
+            motivo_cancelacion: ("producto_faltante" | "cancelada_por_familia") | null;
         };
         /**
          * ParteVista
@@ -5035,6 +5095,11 @@ export interface components {
             retirada_en: string | null;
             /** Cancelada En */
             cancelada_en: string | null;
+            /**
+             * Motivo Cancelacion
+             * @description Solo en cancelada: no tenía ninguno (O3) o la familia canceló antes de preparar (R15)
+             */
+            motivo_cancelacion: ("producto_faltante" | "cancelada_por_familia") | null;
             /** Lineas */
             lineas: components["schemas"]["LineaComercioVista"][];
         };
@@ -5136,6 +5201,12 @@ export interface components {
             incluye_envio: boolean;
             /** Monto */
             monto: number;
+            /**
+             * Origen
+             * @default app
+             * @enum {string}
+             */
+            origen: "app" | "correo";
         };
         /**
          * RetractosDelPedido
@@ -5191,6 +5262,89 @@ export interface components {
         SolicitudRetracto: {
             /** Lineas */
             lineas: components["schemas"]["LineaRetracto"][];
+        };
+        /** LineaRetractoCopia */
+        LineaRetractoCopia: {
+            /** Producto */
+            producto: string;
+            /** Cantidad */
+            cantidad: number;
+        };
+        /**
+         * ParteCopia
+         * @description MATU-63: la parte de cada comercio, sin su referencia ni nada del encargado.
+         */
+        ParteCopia: {
+            /** Comercio */
+            comercio: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /** Enviado En */
+            enviado_en: string | null;
+            /** Lista En */
+            lista_en: string | null;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Cancelada En */
+            cancelada_en: string | null;
+            /** Motivo Cancelacion */
+            motivo_cancelacion: ("producto_faltante" | "familia_cancela") | null;
+        };
+        /**
+         * RetractoCopia
+         * @description MATU-63 (R3): el retracto pedido, con sus productos y cómo se resolvió.
+         */
+        RetractoCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /** Solicitado En */
+            solicitado_en: string;
+            /** Plazo Hasta */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetractoCopia"][];
+        };
+        /**
+         * RetractoCuentaCopia
+         * @description MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona.
+         */
+        RetractoCuentaCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /** Solicitado En */
+            solicitado_en: string;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /** Productos */
+            productos: string[];
+        };
+        /**
+         * SolicitudRetractoPorCorreo
+         * @description H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
+         *     sin valor, quien pagó.
+         */
+        SolicitudRetractoPorCorreo: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetracto"][];
+            /** Solicitado Por */
+            solicitado_por?: string | null;
         };
     };
     responses: never;
@@ -11660,6 +11814,135 @@ export interface operations {
                 };
             };
             /** @description producto-no-retractable: un producto no se entregó, ya se pidió o la cantidad no calza */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cancelar_con_devolucion_v1_operacion_pedidos__pedido_id__cancelar_con_devolucion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadoPedidoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Sin PASARELA_PAGO no se puede devolver: no se cancela */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRetractoPorCorreo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractoVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description producto-no-retractable, o solicitado_por no es quien pagó ni un admin */
             422: {
                 headers: {
                     [name: string]: unknown;
