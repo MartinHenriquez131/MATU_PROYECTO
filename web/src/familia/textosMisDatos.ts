@@ -374,7 +374,7 @@ export const FRASE_HECHO: Record<TipoHecho, (o: ObjetoHecho) => string> = {
   pidio_una_copia: () => 'Pidió una copia de los datos', // [ANALISTA]
   // MATU-63, especificación 14.1: los pasos del pedido después de pagar. [NUEVO]
   devolucion_a_la_tarjeta: () => 'MATU devolvió dinero a la tarjeta',
-  pidio_un_retracto: () => 'Pidió un retracto',
+  pidio_un_retracto: () => 'Pidió arrepentirse de una compra',
   codigo_de_retiro_generado: () => 'MATU preparó un código de retiro',
   pedido_en_camino: () => 'MATU salió a entregar un pedido',
   pedido_entregado: () => 'MATU entregó un pedido',
@@ -393,7 +393,7 @@ export const FRASE_CON_REFERENCIA: Partial<Record<TipoHecho, string>> = {
   pago_anulado: 'Se devolvió dinero del pago del pedido ',
   // MATU-63, especificación 14.1. [NUEVO]
   devolucion_a_la_tarjeta: 'MATU devolvió dinero a la tarjeta por el pedido ',
-  pidio_un_retracto: 'Pidió un retracto del pedido ',
+  pidio_un_retracto: 'Pidió arrepentirse de la compra del pedido ',
   codigo_de_retiro_generado: 'MATU preparó el código de retiro del pedido ',
   pedido_en_camino: 'MATU salió a entregar el pedido ',
   pedido_entregado: 'MATU entregó el pedido ',

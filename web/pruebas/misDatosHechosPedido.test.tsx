@@ -30,7 +30,7 @@ const SALIO = { tipo: 'persona' as const, nombre: null, activo: false }
 /** Tabla 14.1: tipo, quién, frase con referencia (sin el número), frase general y la clase del ícono de lucide. */
 const SIETE: [Hecho['tipo'], Hecho['quien'], string, string, string][] = [
   ['devolucion_a_la_tarjeta', MATU, 'MATU devolvió dinero a la tarjeta por el pedido ', 'MATU devolvió dinero a la tarjeta', 'lucide-hand-coins'],
-  ['pidio_un_retracto', CARMEN, 'Pidió un retracto del pedido ', 'Pidió un retracto', 'lucide-rotate-ccw'],
+  ['pidio_un_retracto', CARMEN, 'Pidió arrepentirse de la compra del pedido ', 'Pidió arrepentirse de una compra', 'lucide-rotate-ccw'],
   ['codigo_de_retiro_generado', MATU, 'MATU preparó el código de retiro del pedido ', 'MATU preparó un código de retiro', 'lucide-key-round'],
   ['pedido_en_camino', MATU, 'MATU salió a entregar el pedido ', 'MATU salió a entregar un pedido', 'lucide-truck'],
   ['pedido_entregado', MATU, 'MATU entregó el pedido ', 'MATU entregó un pedido', 'lucide-package-check'],
