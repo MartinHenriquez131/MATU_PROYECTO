@@ -68,4 +68,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     'rf(requisito): requisito funcional que verifica la prueba, por ejemplo @pytest.mark.rf("RF-37")',
+    "requiere_base: necesita DATABASE_URL y MATU_TEST_DSN; sin ellas falla en CI y se salta a la vista en local (MATU-105)",
 ]
