@@ -224,7 +224,8 @@ def test_ver_push_actual_con_la_clave_publica(
     respuesta = entorno_iam.cliente.get(RUTA_PUSH, headers=_bearer(token))
     assert respuesta.status_code == 200
     assert respuesta.headers["cache-control"] == "no-store"
-    assert respuesta.json() == {"clave_publica": clave_vapid, "registrado": False, "envio_simulado": True}
+    assert respuesta.json() == {
+        "clave_publica": clave_vapid, "permitido": True, "registrado": False, "envio_simulado": True}
     assert len(clave_vapid) == 87 and clave_vapid.startswith("B")
 
     assert entorno_iam.cliente.put(RUTA_PUSH, json={"push_token": PUSH}, headers=_bearer(token)).status_code == 204
@@ -245,7 +246,7 @@ def test_ver_push_sin_clave_configurada_responde_null(
     entorno_iam.cliente.app.dependency_overrides[obtener_clave_publica_vapid] = lambda: None  # type: ignore[attr-defined]
     token = _entrar(entorno_iam, email_sintetico, contrasena_sintetica)
     assert entorno_iam.cliente.get(RUTA_PUSH, headers=_bearer(token)).json() == {
-        "clave_publica": None, "registrado": False, "envio_simulado": True}
+        "clave_publica": None, "permitido": True, "registrado": False, "envio_simulado": True}
 
 
 @pytest.mark.rf("RF-39")

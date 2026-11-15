@@ -138,7 +138,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     const b = bloque('Últimos ingresos')
     expect(within(b).getByText('Los de los últimos 90 días. Lo anterior va en el archivo.')).toBeInTheDocument()
     const lineas = within(b).getAllByRole('listitem')
-    expect(lineas.map((l) => l.textContent)).toEqual(['Pediste una copia de tus datosa las 10:14', 'Entrastea las 10:00 · Chrome en Android'])
+    expect(lineas.map((l) => l.textContent)).toEqual(['Pediste una copia de tus datosa las 10:14', 'Entrastea las 10:00 · Chrome en Android'])
     expect(lineas[0].querySelector('svg.lucide-download')).not.toBeNull()
     expect(within(b).queryByText(/No reconoces/)).toBeNull()
   })
@@ -151,9 +151,9 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     expect(within(b).getAllByText('En el piloto los avisos se prueban sin enviarse: aparecen aquí, pero no te llegaron.')).toHaveLength(1)
     const lineas = within(b).getAllByRole('listitem')
     expect(lineas.map((l) => l.textContent)).toEqual([
-      '10/11/2026 a las 08:00 · Por correo · En el piloto no salió',
-      '09/11/2026 a las 08:00 · En tus teléfonos · No salió',
-      '12/11/2026 a las 09:00 · Por SMS · Todavía no sale',
+      '10/11/2026 a las 08:00 · Por correo · En el piloto no salió',
+      '09/11/2026 a las 08:00 · En tus teléfonos · No salió',
+      '12/11/2026 a las 09:00 · Por SMS · Todavía no sale',
     ])
     expect(lineas[0].querySelector('svg.lucide-circle-dashed')).not.toBeNull()
     expect(lineas[1].querySelector('svg.lucide-x')).not.toBeNull()
@@ -168,7 +168,7 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
     expect(within(credito).getByRole('heading', { level: 3 })).toHaveTextContent('Pago 4821')
     expect(credito).toHaveTextContent('08/11/2026 a las 11:24$37.260 en Familia SotoTarjeta de crédito terminada en 4242 · 3 cuotasDevuelto: $5.290Código de autorización: 1213Pago de prueba: no se cobró dinero real.')
     // 1.2 (P3-4): espacio duro antes del «·», para que un renglón nunca empiece con el punto.
-    expect(credito.textContent).toContain('4242 · 3 cuotas')
+    expect(credito.textContent).toContain('4242\u00A0·\u00A03 cuotas')
     // F3 (decisión 402): el código solo si lo hay.
     expect(debito).not.toHaveTextContent('Código de autorización')
     expect(within(sinReferencia).getByRole('heading', { level: 3 })).toHaveTextContent('Pago del 10/11/2026')
@@ -238,8 +238,8 @@ describe('«Tus datos»: el diálogo y los estados (5.6)', () => {
   it('429 con la hora, sin «Volver a intentar», y el foco en la nota', async () => {
     apiCopia(problemaCopia(429, 'tope-copias', { 'retry-after': '60' }))
     render(<TusDatos />)
-    const nota = (await screen.findByText(/Ya pediste los datos varias veces/)).closest('[data-aviso]')!
-    expect(nota).toHaveTextContent('Ya pediste los datos varias veces. Vuelve a intentarlo a las 10:15.')
+    const nota = (await screen.findByText(/Abriste o descargaste los datos varias veces en la última hora/)).closest('[data-aviso]')!
+    expect(nota).toHaveTextContent('Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo a las 10:15.')
     await waitFor(() => expect(nota).toHaveFocus())
     expect(screen.queryByRole('button', { name: 'Volver a intentar' })).toBeNull()
   })

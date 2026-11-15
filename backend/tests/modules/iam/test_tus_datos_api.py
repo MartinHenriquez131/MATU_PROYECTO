@@ -12,6 +12,7 @@ import psycopg
 import pytest
 
 from app.core.limite_ip import obtener_pepper_limites
+from app.modules.iam.api import router_datos
 from app.modules.iam.infrastructure import copia_cuenta
 from app.shared.copia_datos import AVISO_COPIA
 from tests.base_datos import DSN, requiere_base
@@ -107,6 +108,43 @@ def test_la_copia_de_la_cuenta_se_registra_sin_grupo_ni_detalle(entorno_iam: Ent
             "SELECT grupo_id, actor_tipo, entidad, entidad_id, persona_cuidada_id, detalle FROM auditoria"
             " WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s", (usuario.id,)).fetchall()
     assert filas == [(None, "usuario", "usuario", usuario.id, None, None)]
+
+
+def test_si_el_registro_falla_no_se_entrega_nada(
+    entorno_iam: EntornoIam, fabrica_iam: Fabrica, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MATU-107 (hallazgo 54-H1, C19): el registro de cuenta.datos_descargar va primero y en la misma transacción. Si
+    la base lo rechaza, la respuesta es un 500 sin nada de la copia, y no queda registro."""
+    usuario = fabrica_iam.usuario()
+    token = _token(entorno_iam, usuario)
+    copiada: list[bool] = []
+
+    class RegistroQueFalla(router_datos.RegistroAuditoriaSql):
+        def registrar(self, entrada: Any) -> None:
+            raise RuntimeError("la base rechazó la fila")
+
+    def cuenta_espia(ctx: Any) -> Any:
+        copiada.append(True)
+        return cuenta_real(ctx)
+
+    cuenta_real = copia_cuenta.cuenta
+    monkeypatch.setattr(router_datos, "RegistroAuditoriaSql", RegistroQueFalla)
+    monkeypatch.setattr(copia_cuenta, "cuenta", cuenta_espia)
+
+    respuesta = _pedir(entorno_iam, token)
+
+    assert respuesta.status_code == 500
+    assert respuesta.headers["content-type"].startswith("application/problem+json")
+    assert "content-disposition" not in respuesta.headers
+    assert usuario.email not in respuesta.text and AVISO_COPIA not in respuesta.text
+    assert not _claves(respuesta.json()) & {"cuenta", "grupos", "dispositivos", "eventos", "pagos"}
+    # Ni siquiera se leyó la cuenta: el registro va antes que la copia
+    assert copiada == []
+    with psycopg.connect(DSN) as cx:
+        filas = cx.execute(
+            "SELECT count(*) FROM auditoria WHERE accion = 'cuenta.datos_descargar' AND actor_ref = %s",
+            (usuario.id,)).fetchall()
+    assert filas == [(0,)]
 
 
 def test_los_avisos_simulados_no_salen_como_enviados(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:

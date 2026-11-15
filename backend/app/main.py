@@ -23,6 +23,7 @@ from app.core.cabeceras import CABECERAS_RELEVO, PREFIJO_RELEVO, MiddlewareCabec
 from app.core.config import ENTORNOS_DOCUMENTACION, obtener_configuracion
 from app.core.errores import registrar_manejadores
 from app.core.logs import MiddlewareRequestId, configurar_logs
+from app.core.push_piloto import avisar_al_arrancar
 from app.core.web import montar_app_familia, montar_pagina_relevo
 from app.modules.care_circle.api.router import router as router_grupos
 from app.modules.care_circle.api.router_autorizaciones import router as router_autorizaciones
@@ -192,6 +193,8 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # "entorno=staging" en el log, un despliegue de staging no se da por bueno. Va en WARNING para que se
     # vea aunque LOG_NIVEL=WARNING: el despliegue siempre deja la marca
     log.warning("entorno=%s", config.entorno)
+    # MATU-107 (C-107-7): fuera de local y pruebas, una línea fija de que push está restringido. Nunca la lista
+    avisar_al_arrancar(config)
     # MATU-12: la custodia de la KEK se arma al arrancar. Si está encendida fuera de su lista permitida,
     # la API no arranca; si está encendida, deja un WARNING (decisión D-A)
     preparar_custodia()

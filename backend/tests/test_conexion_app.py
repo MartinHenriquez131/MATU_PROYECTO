@@ -14,10 +14,10 @@ from psycopg import errors
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.core.config import obtener_configuracion
 from app.core.db import obtener_engine
+from tests.base_datos import requiere_base
 
-requiere_base = pytest.mark.skipif(not obtener_configuracion().database_url, reason="DATABASE_URL no está definida")
+# MATU-105: sin la base, falla en CI y se salta a la vista en local (tests/base_datos.py)
 
 
 @requiere_base
