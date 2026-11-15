@@ -16,6 +16,7 @@ import psycopg
 import pytest
 
 from app.core.db import fabrica_sesiones
+from app.core.push_piloto import PoliticaPush
 from app.modules.consumption.infrastructure.tarea_quiebres import recalcular_grupo
 from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo
 from app.modules.notifications.infrastructure.repositorio_avisos import UnidadAvisosSQL
@@ -54,6 +55,8 @@ class EntornoAvisos:
     reloj: RelojFijo
     correo: EnviadorCorreoEnMemoria = field(default_factory=EnviadorCorreoEnMemoria)
     push: EnviadorPushEnMemoria = field(default_factory=EnviadorPushEnMemoria)
+    # MATU-107: la política de push del consumidor. Por omisión la del ambiente de pruebas: toda cuenta puede
+    politica: PoliticaPush = field(default_factory=lambda: PoliticaPush(entorno="pruebas"))
 
     def consumidor(self) -> ConsumidorQuiebreProximo:
         return ConsumidorQuiebreProximo(
@@ -62,6 +65,7 @@ class EntornoAvisos:
             push=self.push,
             reloj=self.reloj,
             origen_web=ORIGEN,
+            push_permitido=self.politica.permite,
         )
 
     def familia(self, *, calidad: str = "titular", otorgado_en: datetime | None = None) -> FamiliaCreada:

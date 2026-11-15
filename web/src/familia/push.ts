@@ -9,10 +9,12 @@ import { borrarPushActual, guardarPushActual, type PushActual } from '../compart
 export const RUTA_SW = '/sw.js'
 
 /**
- * Los estados de la tabla 3.4. El orden en que se decide es E, D, F, C y después A o B: en un iPhone
- * sin instalar manda E; si falta el soporte, D; sin clave pública, F.
+ * Los estados de la tabla 3.4. El orden en que se decide es G, E, D, F, C y después A o B: con
+ * `permitido: false` manda G sin mirar el navegador (MATU-107, 2.2); en un iPhone sin instalar, E;
+ * si falta el soporte, D; sin clave pública, F. `no-permitido-inscrito` es G con un teléfono que
+ * quedó inscrito antes de la regla C14: se ve la nota G con «Desactivar en este…».
  */
-export type EstadoPush = 'ios-sin-instalar' | 'sin-soporte' | 'sin-clave' | 'bloqueado' | 'activados' | 'sin-activar'
+export type EstadoPush = 'no-permitido' | 'no-permitido-inscrito' | 'ios-sin-instalar' | 'sin-soporte' | 'sin-clave' | 'bloqueado' | 'activados' | 'sin-activar'
 
 /** `serviceWorker`, `PushManager` y `Notification`: los tres, o el navegador no recibe avisos (D). */
 export function haySoporte(): boolean {
@@ -58,6 +60,7 @@ async function suscripcionActual(): Promise<PushSubscription | null> {
 
 /** El estado de este teléfono, con lo que dice el servidor y lo que dice el navegador. No pide permiso. */
 export async function estadoPush(servidor: PushActual): Promise<EstadoPush> {
+  if (servidor.permitido === false) return servidor.registrado ? 'no-permitido-inscrito' : 'no-permitido'
   if (esIos() && !estaInstalada()) return 'ios-sin-instalar'
   if (!haySoporte()) return 'sin-soporte'
   if (!servidor.clave_publica) return 'sin-clave'

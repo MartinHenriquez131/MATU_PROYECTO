@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Check, Circle, Info, Share } from 'lucide-react'
 import { guardarAvisos, leerAvisos, leerPushActual, listarDispositivos, type ClaseDispositivo, type PreferenciaAvisos, type PushActual } from '../compartido/api/familia'
+import { leerFallo } from '../compartido/api/cliente'
 import { esVencida } from '../compartido/api/sesion'
 import { Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
@@ -207,6 +208,13 @@ export function AvisosCuenta() {
 const ID_ACTIVAR = 'push-activar'
 const ID_DESACTIVAR = 'push-desactivar'
 const ID_BLOQUEADO = 'push-bloqueado'
+const ID_NO_PERMITIDO = 'push-no-permitido'
+
+/** MATU-107 (2.3): el `PUT` responde 409 `push-no-permitido` si la regla cambió entre la lectura y el toque. */
+const esNoPermitido = (e: unknown) => {
+  const f = leerFallo(e)
+  return f.status === 409 && f.tipo === '/errores/push-no-permitido'
+}
 
 export function EsteTelefono({
   push,
@@ -227,6 +235,8 @@ export function EsteTelefono({
   const [ocupado, setOcupado] = useState<'activar' | 'desactivar' | null>(null)
   const [mensaje, setMensaje] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // MATU-107 (2.3): tras el 409, la nota G se anuncia una vez por `status`. Al cargar en G, no.
+  const [anunciarG, setAnunciarG] = useState(false)
   // 1.2 (criterio 16): el foco va al botón que aparece, o a la nota de C, después del render.
   const [foco, setFoco] = useState<{ id: string } | null>(null)
   useEffect(() => {
@@ -266,7 +276,13 @@ export function EsteTelefono({
         setFoco({ id: ID_BLOQUEADO })
       } else setMensaje(PUSH.noActivamos)
     } catch (e) {
-      if (!esVencida(e)) setError(PUSH.errActivar)
+      if (esVencida(e)) return
+      // 2.3: sin MensajeError. `activarPush` ya borró la suscripción del navegador; pasa a G con el foco en la nota.
+      if (esNoPermitido(e)) {
+        setEstado('no-permitido')
+        setAnunciarG(true)
+        setFoco({ id: ID_NO_PERMITIDO })
+      } else setError(PUSH.errActivar)
     } finally {
       setOcupado(null)
     }
@@ -280,9 +296,11 @@ export function EsteTelefono({
     onAccion?.()
     try {
       await desactivarPush()
-      setEstado('sin-activar')
+      // 2.2, caso borde: sin permiso, queda solo la nota G y el foco va a ella.
+      const sinPermiso = estado === 'no-permitido-inscrito'
+      setEstado(sinPermiso ? 'no-permitido' : 'sin-activar')
       setMensaje(PUSH.desactivaste(s))
-      setFoco({ id: ID_ACTIVAR })
+      setFoco({ id: sinPermiso ? ID_NO_PERMITIDO : ID_ACTIVAR })
     } catch (e) {
       if (!esVencida(e)) setError(PUSH.errDesactivar)
     } finally {
@@ -290,9 +308,39 @@ export function EsteTelefono({
     }
   }
 
+  const avisos = (
+    <>
+      {mensaje && (
+        <Anunciado urgencia="status" como="p" className="text-base">
+          {mensaje}
+        </Anunciado>
+      )}
+      {error && (
+        <Anunciado urgencia="alert">
+          <MensajeError>{error}</MensajeError>
+        </Anunciado>
+      )}
+    </>
+  )
+
   let cuerpo
   if (push.estado === 'error') cuerpo = <ErrorLectura texto={PUSH.errCargar(s)} reintentar={reintentar} />
   else if (!estado || clase === undefined) cuerpo = <Cargando />
+  // MATU-107, estado G (2.2): manda sobre los demás. Sin Etiqueta ni «Activar», y el permiso nunca se pide.
+  else if (estado === 'no-permitido' || estado === 'no-permitido-inscrito')
+    cuerpo = (
+      <>
+        <Nota id={ID_NO_PERMITIDO} tono="rocio" iconoEnLinea enfocable rol={anunciarG ? 'status' : undefined}>
+          {PUSH.noPermitido}
+        </Nota>
+        {estado === 'no-permitido-inscrito' && (
+          <Boton id={ID_DESACTIVAR} variante="secundario" className="angosto:self-stretch" ocupado={ocupado === 'desactivar'} textoOcupado={PUSH.desactivando} onClick={() => void desactivar()}>
+            {PUSH.desactivar(s)}
+          </Boton>
+        )}
+        {avisos}
+      </>
+    )
   else if (estado === 'ios-sin-instalar')
     cuerpo = (
       <Nota tono="rocio" titulo={PUSH.iosTitulo} iconoEnLinea>
@@ -342,16 +390,7 @@ export function EsteTelefono({
             {PUSH.activar(s)}
           </Boton>
         )}
-        {mensaje && (
-          <Anunciado urgencia="status" como="p" className="text-base">
-            {mensaje}
-          </Anunciado>
-        )}
-        {error && (
-          <Anunciado urgencia="alert">
-            <MensajeError>{error}</MensajeError>
-          </Anunciado>
-        )}
+        {avisos}
       </>
     )
 

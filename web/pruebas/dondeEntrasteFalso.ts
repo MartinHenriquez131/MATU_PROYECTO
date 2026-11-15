@@ -52,7 +52,7 @@ export const CUENTA: Cuenta = {
 
 /** Una clave VAPID sintética con la forma del contrato: «B» y 86 caracteres base64url (65 bytes). */
 export const CLAVE = `B${'A'.repeat(86)}`
-export const PUSH_LIBRE: PushActual = { clave_publica: CLAVE, registrado: false, envio_simulado: true }
+export const PUSH_LIBRE: PushActual = { clave_publica: CLAVE, permitido: true, registrado: false, envio_simulado: true }
 
 export interface Respuesta {
   status: number
