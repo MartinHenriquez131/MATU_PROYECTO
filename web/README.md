@@ -21,7 +21,7 @@ npm run dev:api        # /v1 va por proxy a la API local
 npm run preview:api
 ```
 
-`npm run typecheck` revisa los tipos. `npm run contrato` regenera `src/compartido/api/relevo.openapi.ts` desde `docs/api/propuestos/relevo.openapi.yaml`.
+`npm run typecheck` revisa los tipos. `npm run contrato` regenera `src/compartido/api/relevo.openapi.ts` desde `docs/api/openapi.json` (desde MATU-106, cuando la presentación y el canje salieron de `propuestos/relevo.openapi.yaml`).
 
 ## Pruebas de interfaz
 

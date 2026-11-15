@@ -53,11 +53,17 @@ describe('Antes de pagar, con el total vigente', () => {
     abrir()
     await titulo()
     // 2 pañales de 12.990 y 1 toallita de 4.290, más 3.990 de envío.
-    expect(screen.getByText(/Confirmamos que hay cada producto. El total es/).closest('p')).toHaveTextContent('Confirmamos que hay cada producto. El total es $34.260.')
+    // MATU-109 D5b: la bajada nombra el envío.
+    expect(screen.getByText(/Confirmamos que hay cada producto. El total, con el envío, es/).closest('p')).toHaveTextContent('Confirmamos que hay cada producto. El total, con el envío, es $34.260.')
     const boleta = screen.getByRole('region', { name: 'Tu pedido' })
     expect(within(boleta).getByText('Productos (2)').closest('p')).toHaveTextContent('Productos (2)$30.270')
     expect(within(boleta).getByText('Envío (uno por pedido)').closest('p')).toHaveTextContent('$3.990')
     expect(within(boleta).getByText('Total').closest('p')).toHaveTextContent('Total$34.260')
+    // MATU-109 D5: inmediatamente bajo el total, en text-base text-tenue, sin la palabra IVA.
+    const ayudaTotal = within(boleta).getByText('Son los precios finales. El envío es uno solo, por todo el pedido.')
+    expect(ayudaTotal.tagName).toBe('P')
+    expect(ayudaTotal).toHaveClass('text-base', 'text-tenue')
+    expect(within(boleta).getByText('Total').closest('p')!.nextElementSibling).toBe(ayudaTotal)
     expect(within(boleta).getByText('Este total vale hasta las', { exact: false })).toHaveTextContent('Este total vale hasta las 16:45.')
     expect(within(boleta).getByText('Se cobra una sola vez este total, con crédito o con débito. No hay reserva ni cobros después.')).toBeVisible()
     // JC-IVA y 16.20: «IVA» solo en la marca del precio de ejemplo de la línea… que el resumen no lleva; nunca «Boleta» de título.
@@ -173,6 +179,8 @@ describe('El total vencido (9.6)', () => {
     expect(within(boleta).getByText('Este total venció a las', { exact: false })).toHaveTextContent('Este total venció a las 16:45.')
     // Los montos siguen a la vista, sin opacidad.
     expect(within(boleta).getByText('Total').closest('p')).toHaveTextContent('$34.260')
+    // MATU-109 D5: la línea bajo el total también con el total vencido.
+    expect(within(boleta).getByText('Total').closest('p')!.nextElementSibling).toHaveTextContent('Son los precios finales. El envío es uno solo, por todo el pedido.')
     expect(boleta.outerHTML).not.toMatch(/opacity/)
     expect(screen.getAllByText('Pasaron 15 minutos y el total venció. Vuelve a confirmar para ver lo que hay y su precio.')[0]).toBeVisible()
     expect(screen.queryByRole('checkbox')).toBeNull()

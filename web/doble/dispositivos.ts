@@ -259,13 +259,15 @@ export function atenderDispositivos(
     if (!d || d.revocado) return problema(res, 404, '/errores/no-encontrado'), true
     if (metodo === 'GET') {
       if (falla('avisos-falla')) return problema(res, 500, '/errores/interno'), true
-      return json(res, 200, { clave_publica: modo === 'push-sin-clave' ? null : CLAVE_PUBLICA, registrado: d.push !== null, envio_simulado: true }), true
+      return json(res, 200, { clave_publica: modo === 'push-sin-clave' || modo === 'push-no-permitido' ? null : CLAVE_PUBLICA, permitido: modo !== 'push-no-permitido', registrado: d.push !== null, envio_simulado: true }), true
     }
     if (metodo === 'PUT') {
       const token = cuerpo?.push_token
       if (typeof token !== 'string' || !/^https:\/\/\S+$/.test(token) || token.length < 12 || token.length > 1024)
         return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'push_token', mensaje: 'MENSAJE DEL DOBLE', tipo: 'push_no_admitido' }] }), true
       if (falla('avisos-guardar-falla')) return problema(res, 500, '/errores/interno'), true
+      // MATU-107 (C14): fuera del equipo del piloto, o la regla cambió con la pantalla abierta.
+      if (modo === 'push-no-permitido' || modo === 'push-409') return problema(res, 409, '/errores/push-no-permitido'), true
       if (d.push !== token) anotar(email, 'avisos_activados', 0, d.id)
       d.push = token
       return sinCuerpo(res), true

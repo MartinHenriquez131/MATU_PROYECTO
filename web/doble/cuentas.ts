@@ -176,6 +176,8 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'avisos-falla@example.com', que: 'Tu cuenta: los avisos y el push de este teléfono responden 500 (errores con «Volver a intentar»; la nota del piloto se ve igual)' },
   { email: 'avisos-guardar-falla@example.com', que: 'Tu cuenta: guardar una casilla, activar y desactivar responden 500' },
   { email: 'push-sin-clave@example.com', que: 'Tu cuenta: el servidor no tiene clave pública (clave_publica null): «Por ahora no se pueden activar los avisos en este…» (estado F)' },
+  { email: 'push-no-permitido@example.com', que: 'Tu cuenta (MATU-107, C14): la cuenta no está en el equipo del piloto (permitido false): la nota G, sin etiqueta ni «Activar»' },
+  { email: 'push-409@example.com', que: 'Tu cuenta (MATU-107, 2.3): permitido true, pero «Activar en este…» responde 409 push-no-permitido: pasa a la nota G con el foco en ella' },
   // MATU-54: «Datos de María» (/grupo/datos, desde Grupo familiar) y «Tus datos» (/cuenta/datos, desde Tu cuenta).
   // Abrir cualquiera de las dos es pedir una copia: 10 por hora por cuenta, sumando las dos (la 11.ª da el 429 con la hora).
   { email: 'datos-admin@example.com', que: 'Mis datos: admin con la copia completa. Ficha 3 de 3 con dos secciones, dirección, cuatro autorizaciones (una «Se renovó» y el documento del representante), cinco enlaces con aperturas, insumos con compras y avisos, un pedido con devolución y pago de prueba, y el historial con los 26 tipos (MATU, alguien que ya no está y un tipo desconocido que no se muestra). «Tus datos» con un pago y sus condiciones' },

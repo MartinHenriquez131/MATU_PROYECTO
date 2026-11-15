@@ -60,9 +60,11 @@ export const MIS_DATOS = {
   // estados de la página (3.6)
   errCarga: 'No pudimos traer los datos. Revisa tu conexión y vuelve a intentarlo.', // [ANALISTA]
   errNoDisponible: 'No pudimos traer los datos en este momento. Vuelve a intentarlo en unos minutos.', // [NUEVO]
-  /** 429 con `Retry-After`: «… a las {HH:MM}.» [ANALISTA, ajustado] */
-  tope: ['Ya pediste los datos varias veces. Vuelve a intentarlo a las ', '.'] as Partes,
-  topeSinHora: 'Ya pediste los datos varias veces. Vuelve a intentarlo en una hora.', // [ANALISTA]
+  /** 429 con `Retry-After`: «… a las {HH:MM}.» [ANALISTA, ajustado; lenguaje 35, MATU-107] */
+  tope: ['Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo a las ', '.'] as Partes,
+  topeSinHora: 'Abriste o descargaste los datos varias veces en la última hora. Vuelve a intentarlo en una hora.', // [ANALISTA; lenguaje 35, MATU-107]
+  /** MATU-107 (54-H3): bajo la bajada de «Datos de…» y de «Tus datos». [ANALISTA; lenguaje 35] */
+  limiteCopias: 'Cada vez que abres esta pantalla cuenta como una copia de los datos. Puedes abrirla hasta 10 veces por hora.',
 
   // frases de los historiales (3.4.9)
   noventaConMas: 'Los de los últimos 90 días. Lo anterior va en el archivo.', // [NUEVO]
@@ -181,8 +183,9 @@ export const MIS_DATOS = {
     // Espacio duro entre la cifra y su unidad: al cortar la línea no quedan separadas.
     return `${miles(n)} ${palabra} de ${insumo}`
   },
-  anoto: (nombre: string) => ` · Anotó ${nombre}`, // [NUEVO]; espacio duro antes del «·» (P3 de la tercera revisión)
-  llegoConPedido: ' · Llegó con un pedido de MATU', // [NUEVO]
+  // MATU-107 (4): sin el «·»; lo pone la pieza Cola.
+  anoto: (nombre: string) => `Anotó ${nombre}`, // [NUEVO]
+  llegoConPedido: 'Llegó con un pedido de MATU', // [NUEVO]
   el: 'El ', // [NUEVO]
 
   // 3.4.7 Avisos de insumos
@@ -201,7 +204,7 @@ export const MIS_DATOS = {
   pedidoDel: 'Pedido del ', // [NUEVO] + fecha
   loArmaron: ['Lo armaron el ', '.'] as Partes, // [NUEVO]
   enComercio: (comercio: string) => `En ${comercio}`, // [NUEVO]
-  siFalta: (que: string) => ` · Si falta: ${que}`, // [NUEVO]
+  siFalta: (que: string) => `Si falta: ${que}`, // [NUEVO]; el «·» lo pone Cola (MATU-107)
   productos: 'Productos', // [NUEVO]
   envio: 'Envío', // [L 27]
   total: 'Total', // [L 27]
@@ -316,8 +319,8 @@ export const MIS_DATOS = {
   enGrupo: (grupo: string) => ` en ${grupo}`, // [NUEVO], tras el monto
   tarjeta: (tipo: NonNullable<PagoCuentaCopia['tarjeta']>['tipo']) =>
     tipo === 'credito' ? 'Tarjeta de crédito terminada en ' : tipo === 'debito' ? 'Tarjeta de débito terminada en ' : 'Tarjeta de prepago terminada en ', // [NUEVO]
-  /** (1.2, P3-4) Con espacio duro antes del «·»: un renglón nunca empieza con el punto. [NUEVO] */
-  cuotas: (n: number) => (n >= 2 ? ` · ${n} cuotas` : ' · Sin cuotas'),
+  /** (1.2, P3-4) Sin el «·», que lo pone la pieza Cola (MATU-107, 4). [NUEVO] */
+  cuotas: (n: number) => (n >= 2 ? `${n} cuotas` : 'Sin cuotas'),
   /** Con `referencia: null` (decisión 392, pago anulado por tardío). [NUEVO] */
   pagoDel: 'Pago del ',
   /** F3 (decisión 402): el mismo código que ya ve en su comprobante. [NUEVO] */
