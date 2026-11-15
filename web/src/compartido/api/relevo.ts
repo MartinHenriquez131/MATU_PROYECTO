@@ -1,10 +1,10 @@
-// Las tres rutas públicas del relevo (contrato docs/api/propuestos/relevo.openapi.yaml).
+// Las tres rutas públicas del relevo (contrato docs/api/openapi.json desde MATU-106).
 // El token viaja solo en el cuerpo de un POST, nunca en la URL ni en una cabecera.
 import { api } from './cliente'
 import type { components } from './relevo.openapi'
 import type { components as Api } from './familia.openapi'
 
-export type Presentacion = components['schemas']['Presentacion']
+export type Presentacion = components['schemas']['PresentacionVista']
 /**
  * `GET /v1/relevo/ficha` salió de propuestos/relevo.openapi.yaml y vive en docs/api/openapi.json
  * (MATU-50): los campos compartidos y `secciones`, las secciones compartidas en el orden de ADR-028.
@@ -12,8 +12,8 @@ export type Presentacion = components['schemas']['Presentacion']
 export type FichaRelevo = Api['schemas']['FichaRelevoVista']
 export type SeccionRelevo = Api['schemas']['SeccionRelevoVista']
 export type CampoFicha = components['schemas']['CampoFicha']
-type SolicitudPresentacion = components['schemas']['SolicitudPresentacion']
-type SolicitudCanje = components['schemas']['SolicitudCanje']
+type SolicitudPresentacion = components['schemas']['SolicitudPresentacionVista']
+type SolicitudCanje = components['schemas']['SolicitudCanjeVista']
 
 /** POST /v1/relevo/presentacion: los dos nombres de pila, antes del PIN. */
 export async function presentar(token: string): Promise<Presentacion> {

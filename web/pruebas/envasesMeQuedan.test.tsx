@@ -107,7 +107,9 @@ async function abrir(escribir: (p: Pedida) => RespuestaFalsa = () => ({ status: 
       <Insumos />
     </>,
   )
-  const u = userEvent.setup()
+  // MATU-107: sin la espera de un macrotask entre cada evento, que bajo carga llevaba las pruebas
+  // de muchos toques sobre los 15 s. Las esperas que importan son las de waitFor y findBy.
+  const u = userEvent.setup({ delay: null })
   await screen.findByRole('button', { name: 'Me quedan: Pañal adulto talla M' })
   return { pedidas, u }
 }
@@ -174,18 +176,23 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     const fecha = sumar(hoy, 11)
     const { pedidas, u } = await abrir(() => ok(PANAL, { stock_unidades: 45, fecha_quiebre_estimada: fecha, dias_restantes: 11, avisando: false, alerta_id: null }))
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
-    const mas = screen.getByRole('button', { name: 'Uno más: Envases enteros' })
+    // MATU-107: lo del panel se busca dentro del panel, y cada botón una sola vez. getByRole sobre
+    // toda la pantalla de Insumos tarda cientos de ms por búsqueda; bajo carga pasaba los 15 s.
+    const panel = grupo()
+    const enPanel = within(panel)
+    const mas = enPanel.getByRole('button', { name: 'Uno más: Envases enteros' })
     await u.click(mas)
     await u.click(mas)
-    expect(grupo()).toHaveTextContent('envases de 20 unidades')
-    for (let i = 0; i < 5; i++) await u.click(screen.getByRole('button', { name: 'Uno más: Unidades sueltas' }))
-    expect(screen.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('5')
-    const total = screen.getByText(/^En total, quedan unas/)
+    expect(panel).toHaveTextContent('envases de 20 unidades')
+    const masSueltas = enPanel.getByRole('button', { name: 'Uno más: Unidades sueltas' })
+    for (let i = 0; i < 5; i++) await u.click(masSueltas)
+    expect(enPanel.getByRole('textbox', { name: 'Unidades sueltas' })).toHaveValue('5')
+    const total = enPanel.getByText(/^En total, quedan unas/)
     expect(total).toHaveTextContent('En total, quedan unas 45 unidades.')
     // Sin región viva: el total va en la descripción del botón (8).
     expect(total.closest('[aria-live]')).toBeNull()
     expect(total).not.toHaveAttribute('role')
-    const confirmar = screen.getByRole('button', { name: 'Anotar lo que queda' })
+    const confirmar = enPanel.getByRole('button', { name: 'Anotar lo que queda' })
     expect(confirmar).toHaveAccessibleDescription('En total, quedan unas 45 unidades.')
 
     await u.click(confirmar)

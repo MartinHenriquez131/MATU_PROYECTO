@@ -12,7 +12,7 @@
     "preview:api": "vite preview --mode api",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "contrato": "openapi-typescript ../docs/api/propuestos/relevo.openapi.yaml -o src/compartido/api/relevo.openapi.ts",
+    "contrato": "openapi-typescript ../docs/api/openapi.json -o src/compartido/api/relevo.openapi.ts",
     "contrato:familia": "openapi-typescript ../docs/api/openapi.json -o src/compartido/api/familia.openapi.ts"
   },
   "dependencies": {
