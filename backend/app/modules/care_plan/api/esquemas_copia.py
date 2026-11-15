@@ -172,6 +172,9 @@ class LineaPedidoCopia(_Cerrado):
     precio_unitario: Pesos
     subtotal: Pesos
     si_falta: Literal["otro_comercio", "quitar"]
+    # MATU-63: lo que marcó el comercio y cuántos faltaron (D-63-8)
+    estado: Literal["pendiente", "sin_stock", "preparada", "faltante", "devuelta", "eliminada"]
+    unidades_faltantes: int
 
 
 class EntregaCopia(_Cerrado):
@@ -184,7 +187,7 @@ class EntregaCopia(_Cerrado):
 
 
 class DevolucionCopia(_Cerrado):
-    motivo: Literal["pago_tardio", "producto_no_entregado", "cancelacion"]
+    motivo: Literal["pago_tardio", "producto_no_entregado", "cancelacion", "retracto"]
     producto: str | None
     monto: Pesos
     estado: Literal["en_curso", "hecha"]
@@ -202,6 +205,34 @@ class PagoPedidoCopia(_Cerrado):
     pago_de_prueba: bool
 
 
+class ParteCopia(_Cerrado):
+    """MATU-63: la parte de cada comercio, sin su referencia ni nada del encargado."""
+
+    comercio: str
+    estado: Literal["enviada", "preparando", "lista", "retirada", "cancelada"]
+    enviado_en: Instante | None
+    lista_en: Instante | None
+    retirada_en: Instante | None
+    cancelada_en: Instante | None
+    motivo_cancelacion: Literal["producto_faltante", "familia_cancela"] | None
+
+
+class LineaRetractoCopia(_Cerrado):
+    producto: str
+    cantidad: int
+
+
+class RetractoCopia(_Cerrado):
+    """MATU-63 (R3): el retracto pedido, con sus productos y cómo se resolvió."""
+
+    estado: Literal["solicitado", "devuelto", "rechazado"]
+    solicitado_en: Instante
+    plazo_hasta: Instante
+    incluye_envio: bool
+    resuelto_en: Instante | None
+    lineas: list[LineaRetractoCopia]
+
+
 class PedidoCopia(_Cerrado):
     referencia: str | None
     estado: EstadoPedido
@@ -214,6 +245,10 @@ class PedidoCopia(_Cerrado):
     entrega: EntregaCopia | None
     pago: PagoPedidoCopia | None
     precios_de_ejemplo: bool
+    # MATU-63
+    entregado_en: Instante | None
+    partes: list[ParteCopia]
+    retractos: list[RetractoCopia]
 
 
 TipoHecho = Literal[
@@ -223,6 +258,9 @@ TipoHecho = Literal[
     "descarto_un_aviso", "resolvio_un_aviso", "cambio_la_direccion", "creo_un_pedido", "confirmo_un_pedido",
     "cancelo_un_pedido", "cambio_que_hacer_si_falta", "inicio_un_pago", "pago_aprobado", "pago_anulado",
     "pidio_una_copia",
+    # MATU-63
+    "devolucion_a_la_tarjeta", "pidio_un_retracto", "codigo_de_retiro_generado", "pedido_en_camino", "pedido_entregado",
+    "pedido_no_entregado", "retracto_resuelto",
 ]
 
 

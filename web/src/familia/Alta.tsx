@@ -9,6 +9,7 @@ import { esperaDe, leerFallo } from '../compartido/api/cliente'
 import { crearCuenta, crearGrupo, nombrePilaDe, registrarPersona, type Calidad, type SolicitudPersona } from '../compartido/api/familia'
 import { leerPolitica } from '../compartido/api/politica'
 import { entrar, esVencida, fijarGrupo } from '../compartido/api/sesion'
+import { irA } from '../compartido/irA'
 import { POLITICA } from '../compartido/textosPolitica'
 import { Boton } from '../compartido/ui/Boton'
 import { EnlacePoliticaEnFrase, LeePoliticaAntesDeAutorizar } from '../compartido/ui/Enlaces'
@@ -390,7 +391,8 @@ export function Entrar() {
     setFalla(null)
     setOcupado(true)
     try {
-      await entrar(email.trim(), clave)
+      // MATU-63 (O1): una cuenta de comercio va sola a su consola, sin pedir los grupos.
+      if ((await entrar(email.trim(), clave)) === 'comercio') return irA('/comercio')
       await alEntrar()
       fijar({ correo: '', destino: null, avisoEntrar: null })
       navegar(destino ?? '/', { reemplazar: true })

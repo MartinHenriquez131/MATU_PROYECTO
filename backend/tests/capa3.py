@@ -24,7 +24,8 @@ from types import ModuleType
 
 PAQUETES_CAPA_3 = tuple(
     f"app.modules.{m}"
-    for m in ("catalog", "ordering", "payments", "fulfillment", "settlement", "replenishment", "rx")
+    # MATU-63: backoffice tiene hoy solo la vista del comercio, operación del despacho y la familia después de pagar
+    for m in ("catalog", "ordering", "payments", "fulfillment", "settlement", "replenishment", "rx", "backoffice")
 )
 
 

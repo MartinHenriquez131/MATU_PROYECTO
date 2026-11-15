@@ -106,7 +106,7 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
         AccionAuditoria.RELEVO_PRESENTAR, AccionAuditoria.RELEVO_CANJE, AccionAuditoria.RELEVO_PIN_INCORRECTO,
         AccionAuditoria.RELEVO_BLOQUEO, AccionAuditoria.RELEVO_ABRIR, AccionAuditoria.PERSONA_BORRAR,
     }
-    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 26
+    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 33
     assert alcance_del_historial("admin") == "todo" and alcance_del_historial("cuidador") == "lo_tuyo"
 
 

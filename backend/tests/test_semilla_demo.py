@@ -1087,3 +1087,38 @@ def test_los_archivos_de_credenciales_son_solo_del_dueno(tmp_path: Path) -> None
 @requiere_base
 def test_la_conexion_de_la_api_entra_como_matu_app() -> None:
     assert demo.rol_de_la_conexion(fabrica_sesiones()) == "matu_app"
+
+
+# --- MATU-63: la cuenta de prueba del comercio ---------------------------------------------------------------------
+
+
+def test_la_cuenta_del_comercio_es_de_un_dominio_reservado_y_no_repite_celular() -> None:
+    cuenta = demo.CUENTA_COMERCIO
+    assert cuenta.email.endswith("@example.com")
+    assert cuenta.email not in {c.email for c in _cuentas()}
+    assert cuenta.telefono not in {c.telefono for c in _cuentas()}
+    assert demo.COMERCIO_DE_LA_CUENTA in {c.clave for c in CATALOGO.comercios}
+
+
+@requiere_base
+@pytest.mark.rf("RF-26")
+def test_siembra_la_cuenta_del_comercio_sin_grupo_y_es_idempotente(fabrica: Fabrica, sembradora: Any) -> None:
+    catalogo = demo.cargar_catalogo_demo().sembrar_catalogo(fabrica_sesiones(), _catalogo_unico())
+    cuenta = replace(demo.CUENTA_COMERCIO, email=f"comercio.{uuid.uuid4().hex[:8]}@example.com")
+    comercio_id = catalogo.comercios[demo.COMERCIO_DE_LA_CUENTA]
+    try:
+        usuario_id, creada = sembradora.cuenta_comercio(cuenta, f"clave-{secrets.token_hex(8)}", comercio_id)
+        fabrica.anotar("usuario", usuario_id)
+        assert creada
+        assert sembradora.cuenta_comercio(cuenta, "otra-clave-cualquiera", comercio_id) == (usuario_id, False)
+        assert _filas("SELECT comercio_id, rol, activo FROM usuario_comercio WHERE usuario_id = %s", usuario_id) == [
+            (comercio_id, "encargado", True)
+        ]
+        assert _filas("SELECT count(*) FROM membresia WHERE usuario_id = %s", usuario_id) == [(0,)]
+    finally:
+        with psycopg.connect(DSN, autocommit=True) as cx:
+            cx.execute("DELETE FROM usuario_comercio WHERE comercio_id = %s", (comercio_id,))
+            cx.execute("DELETE FROM oferta WHERE id = ANY(%s)", (list(catalogo.ofertas.values()),))
+            cx.execute("DELETE FROM producto WHERE id = ANY(%s)", (list(catalogo.productos.values()),))
+            cx.execute("DELETE FROM comercio WHERE id = ANY(%s)", (list(catalogo.comercios.values()),))
+            cx.execute("DELETE FROM categoria_cuidado WHERE id = ANY(%s)", (list(catalogo.categorias.values()),))

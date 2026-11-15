@@ -295,6 +295,7 @@ def anular(
     ahora: datetime,
     pedido_linea_id: uuid.UUID | None = None,
     monto_pasarela: int | None = None,
+    retracto_id: uuid.UUID | None = None,
 ) -> EstadoAnulacion:
     """Registra la anulación **antes** de llamar a Transbank (arquitectura 8.4) y la intenta. Si falla, queda para
     la conciliación, que la reintenta sin devolver dos veces (D-62-6).
@@ -313,6 +314,7 @@ def anular(
         solicitada_en=ahora,
         buy_order=nuevo_buy_order(),
         pedido_linea_id=pedido_linea_id,
+        retracto_id=retracto_id,
     )
     unidad.repositorio.insertar_anulacion(anulacion, nueva_clave_pasarela())
     return intentar_anulacion(unidad, pasarela, venta, anulacion, ahora, monto_pasarela)

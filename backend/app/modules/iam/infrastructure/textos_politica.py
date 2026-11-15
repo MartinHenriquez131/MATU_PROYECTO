@@ -34,6 +34,9 @@ PUBLICADAS: dict[str, str] = {
     "0.17": "6560f6c4a38b563282ba3f1d97f0c3a0ad3dce6168038549d2437e174976beae",  # pragma: allowlist secret
     # MATU-107: la sección 6 dice, igual que la 10, qué ve quien cuida en «Datos de». Las anteriores siguen
     "0.18": "1bdbac25460ead431a9bd1d39025440a3561e072e8d26cb26b3f5d3e6ed1316d",  # pragma: allowlist secret
+    # MATU-63: los comercios preparan los pedidos pagados, el código de retiro y «Arrepentirme de la compra». Nadie
+    # vuelve a aceptar (D-63-16); las anteriores siguen
+    "0.19": "c5b79d87898f6624cb97996ded97df9d50334ba5b717b12901a9a5efd93a1ff9",  # pragma: allowlist secret
 }
 
 

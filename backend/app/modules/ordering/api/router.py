@@ -33,7 +33,6 @@ from app.modules.care_circle.api.dependencias import ContextoGrupo, SesionDeGrup
 from app.modules.care_circle.api.router_autorizaciones import RegistroDep, RelojDep
 from app.modules.catalog.application.ports import CatalogoComercio
 from app.modules.catalog.infrastructure.catalogo_simulado import CatalogoComercioDesdeOfertas
-from app.modules.catalog.infrastructure.repositorio_catalogo import existencias_publicadas
 from app.modules.ordering.api.esquemas import (
     PedidoVista,
     PedidoVistaObservador,
@@ -70,7 +69,7 @@ from app.modules.ordering.domain.pedido import (
 )
 from app.modules.ordering.infrastructure.condiciones import condiciones_vigentes
 from app.modules.ordering.infrastructure.repositorio_idempotencia import RepositorioIdempotenciaSQL
-from app.modules.ordering.infrastructure.repositorio_pedidos import RepositorioPedidosSQL
+from app.modules.ordering.infrastructure.repositorio_pedidos import RepositorioPedidosSQL, disponibles_para_confirmar
 from app.shared.puertos import Reloj
 
 router = APIRouter(tags=["pedidos"])
@@ -117,9 +116,11 @@ def obtener_repositorio_pedidos(contexto: SesionDeGrupo) -> RepositorioPedidos:
     return RepositorioPedidosSQL(contexto.sesion, contexto.grupo_id, vida)
 
 
-def obtener_catalogo_comercio_pedido(contexto: SesionDeGrupo) -> CatalogoComercio:
-    """El CatalogoComercio de la confirmación: hoy el simulado, con el stock de oferta. Las pruebas lo sobreescriben."""
-    return CatalogoComercioDesdeOfertas(lambda comercios: existencias_publicadas(contexto.sesion, comercios))
+def obtener_catalogo_comercio_pedido(contexto: SesionDeGrupo, reloj: RelojDep) -> CatalogoComercio:
+    """El CatalogoComercio de la confirmación: hoy el simulado, con el stock de oferta menos lo apartado por otras
+    familias (MATU-63, D-63-7). Las pruebas lo sobreescriben."""
+    ahora = reloj.ahora()
+    return CatalogoComercioDesdeOfertas(lambda comercios: disponibles_para_confirmar(contexto.sesion, comercios, ahora))
 
 
 def obtener_costo_envio() -> int:

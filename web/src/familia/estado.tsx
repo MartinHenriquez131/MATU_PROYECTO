@@ -18,7 +18,8 @@ import { verCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
 import { anunciar as anunciarEnRegion } from '../compartido/ui/Anuncios'
 import type { FuenteSinGuardar } from '../compartido/version'
-import { escucharSesion, fijarGrupo, renovar, salir as cerrarSesion } from '../compartido/api/sesion'
+import { escucharSesion, fijarGrupo, renovar, salir as cerrarSesion, tipoDeCuenta } from '../compartido/api/sesion'
+import { irA } from '../compartido/irA'
 import type { Apoyo } from './datos'
 import { navegar, type Ruta } from './ruteo'
 
@@ -230,6 +231,8 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
     try {
       const ok = await renovar()
       if (!ok) return setS((x) => ({ ...x, fase: 'fuera' }))
+      // MATU-63 (O1): la entrada es de una cuenta de comercio: su consola, sin pedir los grupos.
+      if (tipoDeCuenta() === 'comercio') return irA('/comercio', { reemplazar: true })
       await alEntrar()
     } catch {
       setS((x) => ({ ...x, fase: 'error' }))

@@ -13,7 +13,7 @@ from app.core.config import ENTORNOS_SOLO_DOMINIOS_RESERVADOS, obtener_configura
 from app.core.db import fabrica_sesiones
 from app.core.errores import TITULOS, ErrorMATU
 from app.core.limite_ip import RESPUESTAS_LIMITE, limite_por_ip
-from app.modules.iam.api.dependencias import obtener_emisor_tokens, obtener_reloj
+from app.modules.iam.api.dependencias import TipoCuenta, obtener_emisor_tokens, obtener_reloj, obtener_tipo_cuenta
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
     ProblemaEmailRegistradoVista,
@@ -235,6 +235,7 @@ def crear_sesion(
     unidad: UnidadDep,
     emisor: Annotated[EmisorTokens, Depends(obtener_emisor_tokens)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
+    tipo_cuenta: Annotated[TipoCuenta, Depends(obtener_tipo_cuenta)],
 ) -> SesionRespuesta:
     if pepper_limites is None:
         log.error("falta PEPPER_LIMITES: la entrada falla cerrada")
@@ -276,4 +277,8 @@ def crear_sesion(
     respuesta.headers["Cache-Control"] = "no-store"
     fijar_cookie(respuesta, sesion.refresh)
     request.state.usuario_id = str(sesion.usuario_id)
-    return SesionRespuesta(access_token=sesion.access_token, expira_en=sesion.duracion_segundos)
+    return SesionRespuesta(
+        access_token=sesion.access_token,
+        expira_en=sesion.duracion_segundos,
+        tipo_cuenta=tipo_cuenta(sesion.usuario_id),  # type: ignore[arg-type]
+    )

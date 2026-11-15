@@ -105,7 +105,7 @@ def test_las_condiciones_del_pedido_son_publicas_y_calzan_con_el_resumen(entorno
     assert respuesta.status_code == 200 and respuesta.headers["Cache-Control"] == "no-cache"
     assert respuesta.json()["huella"] == pedido["resumen"]["condiciones"]["huella"]
     # MATU-62: la vigente es la 0.2
-    assert respuesta.json()["version"] == VERSION_VIGENTE == "0.2"
+    assert respuesta.json()["version"] == VERSION_VIGENTE == "0.3"
 
 
 # --- Si falta un producto (C5) --------------------------------------------------------------------------------------

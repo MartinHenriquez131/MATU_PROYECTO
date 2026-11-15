@@ -105,6 +105,17 @@ class PagoCuentaCopia(_Cerrado):
     pago_de_prueba: bool
 
 
+class RetractoCuentaCopia(_Cerrado):
+    """MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona."""
+
+    grupo: str
+    referencia: str | None
+    estado: Literal["solicitado", "devuelto", "rechazado"]
+    solicitado_en: Instante
+    resuelto_en: Instante | None
+    productos: list[str]
+
+
 class CondicionesCopia(_Cerrado):
     grupo: str
     referencia: str | None
@@ -131,3 +142,4 @@ class CopiaDatosCuenta(_Cerrado):
     envio_simulado: bool
     pagos: list[PagoCuentaCopia] | None
     condiciones_aceptadas: list[CondicionesCopia] | None
+    retractos: list[RetractoCuentaCopia] | None

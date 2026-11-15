@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { AppFamilia } from './familia/AppFamilia'
+import { AppComercio } from './comercio/AppComercio'
 import { PaginaRelevo } from './relevo/PaginaRelevo'
 import { PaginaPrivacidad } from './privacidad/PaginaPrivacidad'
 import { PaginaCondiciones } from './privacidad/PaginaCondiciones'
@@ -37,6 +38,15 @@ if (/^\/r\/?$/.test(ruta)) {
     <StrictMode>
       <RegionesVivas />
       <PaginaCondiciones />
+    </StrictMode>,
+  )
+} else if (/^\/comercio(\/|$)/.test(ruta)) {
+  // MATU-63 (2.1): la consola del comercio, su propia rama, sin `ProveedorFamilia`. La parte elegida
+  // vive en memoria: ninguna ruta de /comercio lleva ids ni la referencia.
+  raiz.render(
+    <StrictMode>
+      <RegionesVivas />
+      <AppComercio />
     </StrictMode>,
   )
 } else if (import.meta.env.DEV && import.meta.env.MODE !== 'api' && /^\/ejemplos\/?$/.test(ruta)) {

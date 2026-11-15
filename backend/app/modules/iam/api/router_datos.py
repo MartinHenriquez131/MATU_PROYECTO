@@ -105,6 +105,7 @@ def ver_datos_propios(
                 "envio_simulado": de_avisos["envio_simulado"],
                 "pagos": None if de_pagos is None else de_pagos["pagos"],
                 "condiciones_aceptadas": None if de_pagos is None else de_pagos["condiciones_aceptadas"],
+                "retractos": None if de_pagos is None else de_pagos["retractos"],
             }
         )
     respuesta.headers["Content-Disposition"] = content_disposition(ARCHIVO_CUENTA, ahora)

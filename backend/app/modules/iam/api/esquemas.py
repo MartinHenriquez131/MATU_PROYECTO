@@ -149,6 +149,8 @@ class SesionRespuesta(BaseModel):
     token_type: Literal["bearer"] = "bearer"
     # Segundos de vida del access token
     expira_en: int
+    # MATU-63 (O1): a qué pantalla va la cuenta. Sin otro dato de la cuenta
+    tipo_cuenta: Literal["familia", "comercio"] = "familia"
 
 
 _CLASE = Annotated[

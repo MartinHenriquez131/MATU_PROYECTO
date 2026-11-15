@@ -245,6 +245,14 @@ TIPO_HECHO: dict[AccionAuditoria, str] = {
     AccionAuditoria.PAGO_APROBAR: "pago_aprobado",
     AccionAuditoria.PAGO_ANULAR: "pago_anulado",
     AccionAuditoria.PERSONA_DATOS_DESCARGAR: "pidio_una_copia",
+    # MATU-63: el despacho, la devolución y el retracto, con la referencia del pedido y sin el código ni el comercio
+    AccionAuditoria.PAGO_DEVOLVER: "devolucion_a_la_tarjeta",
+    AccionAuditoria.PEDIDO_RETRACTO_SOLICITAR: "pidio_un_retracto",
+    AccionAuditoria.CODIGO_RETIRO_GENERAR: "codigo_de_retiro_generado",
+    AccionAuditoria.DESPACHO_EN_CAMINO: "pedido_en_camino",
+    AccionAuditoria.DESPACHO_ENTREGAR: "pedido_entregado",
+    AccionAuditoria.DESPACHO_NO_ENTREGADO: "pedido_no_entregado",
+    AccionAuditoria.RETRACTO_RESOLVER: "retracto_resuelto",
 }
 
 CAMPOS_BASE = frozenset({"rutina", "manejo_situaciones", "red_apoyo"})
@@ -269,6 +277,10 @@ _PERSONA_POR_ENTIDAD = (
     " WHEN 'pedido' THEN (SELECT x.persona_cuidada_id FROM pedido x WHERE x.id = a.entidad_id)"
     " WHEN 'cargo' THEN (SELECT x.persona_cuidada_id FROM cargo c JOIN pedido x ON x.id = c.pedido_id"
     "  WHERE c.id = a.entidad_id)"
+    " WHEN 'retracto' THEN (SELECT x.persona_cuidada_id FROM retracto r JOIN pedido x ON x.id = r.pedido_id"
+    "  WHERE r.id = a.entidad_id)"
+    " WHEN 'pedido_comercio' THEN (SELECT x.persona_cuidada_id FROM pedido_comercio pc JOIN pedido x"
+    "  ON x.id = pc.pedido_id WHERE pc.id = a.entidad_id)"
     " END"
 )
 
@@ -286,7 +298,11 @@ _HISTORIAL = text(
     "  (SELECT c.finalidad FROM consentimiento c WHERE c.id = a.entidad_id) END AS finalidad,"
     " CASE a.entidad WHEN 'pedido' THEN (SELECT x.referencia FROM pedido x WHERE x.id = a.entidad_id)"
     "  WHEN 'cargo' THEN (SELECT x.referencia FROM cargo c JOIN pedido x ON x.id = c.pedido_id"
-    "  WHERE c.id = a.entidad_id) END AS referencia"
+    "  WHERE c.id = a.entidad_id)"
+    "  WHEN 'retracto' THEN (SELECT x.referencia FROM retracto r JOIN pedido x ON x.id = r.pedido_id"
+    "  WHERE r.id = a.entidad_id)"
+    "  WHEN 'pedido_comercio' THEN (SELECT x.referencia FROM pedido_comercio pc JOIN pedido x ON x.id = pc.pedido_id"
+    "  WHERE pc.id = a.entidad_id) END AS referencia"
     " FROM auditoria a"
     " LEFT JOIN usuario u ON a.actor_tipo = 'usuario' AND u.id = a.actor_ref AND u.eliminado_en IS NULL"
     " WHERE a.grupo_id = :grupo_id AND a.accion = ANY(:acciones)"
@@ -341,7 +357,9 @@ def hecho(
         "seccion": seccion if tipo in ("edito_la_ficha", "quito_una_seccion") else None,
         # F1 (decisión 384): a qué autorización o a qué pedido se refiere, nada que identifique a una persona
         "finalidad": finalidad if tipo in ("dio_una_autorizacion", "retiro_una_autorizacion") else None,
-        "referencia": referencia if accion.startswith(("pedido.", "pago.")) else None,
+        "referencia": referencia
+        if accion.startswith(("pedido.", "pago.", "despacho.", "codigo_retiro.", "retracto."))
+        else None,
     }
 
 

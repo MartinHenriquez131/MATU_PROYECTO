@@ -1422,6 +1422,11 @@ INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo) VAL
 """
 
 
+# MATU-63: las acciones de persona que suma la 0029
+NUEVAS_0029 = {"pago.devolver", "pedido.retracto_solicitar", "codigo_retiro.generar", "despacho.en_camino",
+               "despacho.entregar", "despacho.no_entregado", "retracto.resolver"}
+
+
 def _lista_del_check(nombre: str) -> set[str]:
     [(definicion,)] = consultar(f"SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = '{nombre}'")
     return set(definicion.split("ARRAY[", 1)[1].split("]", 1)[0].replace("::text", "").replace("'", "")
@@ -1456,7 +1461,8 @@ def test_0028_auditoria_con_persona_y_baja_al_esquema_de_0027(base_desechable):
                          "auditoria_persona_obligatoria": False, "auditoria_cuenta_acotada": True,
                          "persona_cuidada_id_grupo_uq": True}
     # Las listas de los dos CHECK son las del código
-    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    # Sin las acciones que suma la 0029 (MATU-63)
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0029
     assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA}
     assert consultar("SELECT indexdef LIKE '%WHERE (persona_cuidada_id IS NOT NULL)' FROM pg_indexes"
                      " WHERE indexname = 'auditoria_persona_ix'") == [(True,)]
@@ -1506,4 +1512,83 @@ def test_0028_auditoria_con_persona_y_baja_al_esquema_de_0027(base_desechable):
                   f" VALUES ('{G}', 'usuario', '{U}', 'persona.datos_descargar', 'persona_cuidada', '{P}')")
     assert "la bajada de la 0028 no borra registros" in _alembic_falla("downgrade", "0027")
     assert consultar("SELECT count(*) FROM auditoria WHERE persona_cuidada_id IS NOT NULL") == [(1,)]
+    alembic("upgrade", "head")
+
+
+# MATU-63 (0029): una parte con la referencia de antes (16 a 64 caracteres) y una evidencia con ubicación
+PED29, PARTE29, CAT29, PROD29, COM29, OF29 = (
+    "00000000-0000-0000-0000-0000000029" + s for s in ("d1", "e1", "c1", "f1", "a1", "b1")
+)
+FILAS_0028_DESPACHO = f"""
+INSERT INTO categoria_cuidado (id, nombre) VALUES ('{CAT29}', 'Higiene 29');
+INSERT INTO producto (id, categoria_id, nombre, presentacion, unidad, unidades_por_envase)
+    VALUES ('{PROD29}', '{CAT29}', 'Pañal 29', 'x30', 'unidad', 30);
+INSERT INTO comercio (id, razon_social, nombre_fantasia, rut, direccion, comuna)
+    VALUES ('{COM29}', 'Comercio 29', 'Comercio 29', '76.000.029-0', 'Calle de Prueba 29', 'Ñuñoa');
+INSERT INTO oferta (id, producto_id, comercio_id, precio, stock) VALUES ('{OF29}', '{PROD29}', '{COM29}', 12990, 5);
+INSERT INTO pedido (id, grupo_id, persona_cuidada_id, estado, subtotal_productos, costo_envio, total, creado_por)
+    VALUES ('{PED29}', '{G}', '{P}', 'borrador', 0, 0, 0, '{U}');
+INSERT INTO pedido_comercio (id, grupo_id, pedido_id, comercio_id, referencia)
+    VALUES ('{PARTE29}', '{G}', '{PED29}', '{COM29}', 'referencia-opaca-de-la-0028');
+INSERT INTO evidencia (pedido_id, tipo, objeto_clave, sha256, lat, lng, registrada_por_tipo, registrada_por)
+    VALUES ('{PED29}', 'entrega', 'x', sha256('x'), -33.4, -70.6, 'operacion', '{U}');
+"""
+FUNCIONES_0029 = {
+    "comercio_partes": "matu_app", "comercio_lineas": "matu_app", "comercio_preparar": "matu_app",
+    "comercio_marcar_linea": "matu_app", "comercio_listo": "matu_app", "comercio_validar_codigo": "matu_app",
+    "comercio_existencias": "matu_app", "oferta_disponible": "matu_app", "despacho_resolver_parte": "matu_app",
+    "despacho_pendiente": "matu_scheduler",
+}
+
+
+@pytest.mark.rf("RF-26")
+@pytest.mark.rf("Ley-21.719")
+def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
+    from app.shared.auditoria import ACCIONES_DE_CUENTA, ACCIONES_DE_PERSONA, ACCIONES_DEL_COMERCIO
+
+    alembic("upgrade", "0028")
+    esquema_0028 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_ACCESO + FILAS_0028_DESPACHO)
+
+    alembic("upgrade", "0029")
+    # D-63-1: el comercio ya no tiene políticas sobre el pedido, sus partes ni sus líneas (solo las de las funciones,
+    # TO matu_owner)
+    politicas = consultar(
+        "SELECT policyname, roles::text FROM pg_policies WHERE tablename IN ('pedido', 'pedido_comercio',"
+        " 'pedido_linea') AND coalesce(qual, '') || coalesce(with_check, '') LIKE '%= app_comercio()%'")
+    assert politicas and {roles for _, roles in politicas} == {"{matu_owner}"}
+    # Las funciones nuevas, solo para su rol
+    filas = consultar("SELECT proname, proacl::text, prosecdef FROM pg_proc WHERE proname = ANY(%s)"
+                      % ("ARRAY[" + ", ".join(f"'{f}'" for f in FUNCIONES_0029) + "]"))
+    assert {f[0] for f in filas} == set(FUNCIONES_0029)
+    for nombre, acl, definer in filas:
+        entradas = set(acl.strip("{}").split(","))
+        assert definer and entradas == {"matu_owner=X/matu_owner", f"{FUNCIONES_0029[nombre]}=X/matu_owner"}, nombre
+    # O6: la referencia de antes se rehízo con el alfabeto que se dicta
+    [(referencia,)] = consultar(f"SELECT referencia FROM pedido_comercio WHERE id = '{PARTE29}'")
+    assert len(referencia) == 6 and not set(referencia) & set("0O1IL")
+    # D-63-15: la ubicación de la evidencia se vació
+    assert consultar("SELECT lat, lng FROM evidencia") == [(None, None)]
+    # Las listas de los CHECK de la auditoría son las del código
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO}
+    assert consultar("SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM pg_class"
+                     " WHERE relname IN ('retracto', 'retracto_linea')") == [(True,)]
+    with psycopg.connect(_dsn(BASE)) as c:
+        # Una referencia que no se dicta, rechazada
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute(f"UPDATE pedido_comercio SET referencia = 'K4M7X0' WHERE id = '{PARTE29}'")
+        # Una cuenta de comercio no entra a un grupo (D-63-14)
+        c.execute(f"INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES ('{G}', '{U}', 'admin')")
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute(f"INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES ('{U}', '{COM29}')")
+
+    alembic("downgrade", "0028")
+    despues = catalogo()
+    for parte, filas_0028 in esquema_0028.items():
+        assert despues[parte] == filas_0028, f"downgrade no restaura {parte}: {set(filas_0028) ^ set(despues[parte])}"
+    # La referencia vuelve a caber en el CHECK de la 0023 (16 a 64)
+    [(referencia,)] = consultar(f"SELECT referencia FROM pedido_comercio WHERE id = '{PARTE29}'")
+    assert 16 <= len(referencia) <= 64
     alembic("upgrade", "head")

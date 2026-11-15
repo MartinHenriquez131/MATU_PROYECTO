@@ -94,8 +94,8 @@ def test_pagar_volver_y_el_comprobante(
     }
     # Decisión 249: en el piloto el comprobante no se envía por correo, y correo va en null
     assert comprobante["pago_de_prueba"] is True and comprobante["correo"] is None
-    assert comprobante["condiciones"]["version"] == "0.2"
-    assert comprobante["condiciones"]["enlace"] == "/v1/condiciones-pedido?version=0.2"
+    assert comprobante["condiciones"]["version"] == "0.3"
+    assert comprobante["condiciones"]["enlace"] == "/v1/condiciones-pedido?version=0.3"
     assert 4 <= len(comprobante["referencia"]) <= 6 and comprobante["referencia"].isdigit()
     # El pedido quedó pagado, con sus condiciones fijas y quién las aceptó
     assert _consultar(
@@ -255,7 +255,7 @@ def test_condiciones_que_cambiaron_409_con_la_vigente(
     viejas = {"acepta_condiciones": True, "condiciones": {"version": "0.1", "huella": "a" * 64}}
     respuesta = pagar(e, familia, pedido, cuerpo=viejas)
     assert (respuesta.status_code, respuesta.json()["type"]) == (409, "/errores/condiciones-cambiaron")
-    assert respuesta.json()["version_vigente"] == "0.2"
+    assert respuesta.json()["version_vigente"] == "0.3"
     assert pasarela_falsa.llamadas == []
 
 

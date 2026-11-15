@@ -514,6 +514,8 @@ TABLAS_CAPA_3 = frozenset(
         "cargo", "participacion", "transaccion_pasarela", "medio_pago_inscrito",
         "repartidor", "oferta_asignacion", "asignacion", "evidencia",
         "liquidacion", "consumo_comercio",
+        # MATU-63 (D-63-10)
+        "retracto", "retracto_linea",
     }
 )
 

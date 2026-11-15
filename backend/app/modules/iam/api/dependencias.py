@@ -9,12 +9,13 @@ sesion_de_grupo, de care_circle.
 """
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import obtener_configuracion
@@ -91,3 +92,23 @@ def sesion_de_usuario(
 # scope="function": la transacción se cierra (commit o rollback) antes de enviar la respuesta,
 # para que un commit fallido no llegue al cliente como un 200
 SesionDeUsuario = Annotated[Session, Depends(sesion_de_usuario, scope="function")]
+
+
+# --- MATU-63 (O1): el tipo de cuenta en la respuesta de la sesión ---------------------------------------------------
+
+_ES_COMERCIO = text("SELECT EXISTS (SELECT 1 FROM usuario_comercio WHERE usuario_id = app_usuario() AND activo)")
+
+TipoCuenta = Callable[[uuid.UUID], str]
+
+
+def obtener_tipo_cuenta(
+    fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)],
+) -> TipoCuenta:
+    """``comercio`` si la cuenta tiene una cuenta activa de comercio (usuario_comercio_propio la deja leer), si no
+    ``familia``. Sin otro dato: ni el comercio ni si existe un correo. Las pruebas lo sobreescriben."""
+
+    def tipo(usuario_id: uuid.UUID) -> str:
+        with sesion_tenant(fabrica, usuario_id=usuario_id) as sesion:
+            return "comercio" if sesion.execute(_ES_COMERCIO).scalar() else "familia"
+
+    return tipo

@@ -6,7 +6,7 @@
 // Alta.tsx) se ve y se anuncia igual, conserva el foco, y la pantalla ignora el envío mientras espera.
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
-type Variante = 'principal' | 'secundario' | 'texto' | 'peligro' | 'textoPeligro' | 'peligroPrincipal'
+type Variante = 'principal' | 'secundario' | 'texto' | 'textoSobreTinta' | 'peligro' | 'textoPeligro' | 'peligroPrincipal'
 
 const VARIANTES: Record<Variante, string> = {
   principal: 'px-5 angosto:px-3 bg-turquesa text-papel hover:brightness-110 active:brightness-95',
@@ -16,6 +16,9 @@ const VARIANTES: Record<Variante, string> = {
   // De la demo (Ui.tsx): texto subrayado, sin fondo y sin relleno a los lados: se alinea con el
   // texto de la página. Mide 48 px de alto igual que los otros.
   texto: 'px-0 text-turquesa underline underline-offset-4 decoration-turquesa/40 hover:decoration-turquesa',
+  // MATU-63 (especificación 3): «Salir» en la barra `tinta` de la consola del comercio. Como `texto`,
+  // en `papel` (14,1:1 y 15,4:1), porque `turquesa` sobre `tinta` mide 2,4:1 y 1,6:1.
+  textoSobreTinta: 'px-0 text-papel underline underline-offset-4 decoration-papel/40 hover:decoration-papel',
   // MATU-49, sección 8: lo que borra. Secundario con texto y anillo `pronto`, foco `pronto`.
   // Nunca macizo: borrar no es la acción principal de ninguna pantalla.
   peligro: 'px-5 angosto:px-3 bg-hoja text-pronto ring-2 ring-inset ring-pronto hover:bg-pronto-fondo active:bg-pronto-fondo focus-visible:outline-pronto',

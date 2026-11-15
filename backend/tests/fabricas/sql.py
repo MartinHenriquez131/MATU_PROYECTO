@@ -107,6 +107,8 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     "DELETE FROM participacion WHERE cargo_id IN (SELECT c.id FROM cargo c JOIN pedido p ON p.id = c.pedido_id"
     " WHERE p.grupo_id = ANY(%s::uuid[]))",
     "DELETE FROM cargo WHERE pedido_id IN (SELECT id FROM pedido WHERE grupo_id = ANY(%s::uuid[]))",
+    # MATU-63: lo que MATU debe al comercio por esos pedidos (RF-31)
+    "DELETE FROM consumo_comercio WHERE pedido_id IN (SELECT id FROM pedido WHERE grupo_id = ANY(%s::uuid[]))",
     "DELETE FROM pedido WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",

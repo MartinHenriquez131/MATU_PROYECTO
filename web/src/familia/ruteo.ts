@@ -47,6 +47,12 @@ export type Ruta =
   | '/grupo/invitar/listo'
   | '/invitacion'
 
+/**
+ * MATU-63 (especificación 2.1): las rutas de la consola del comercio, otra raíz de main.tsx. Usan el
+ * mismo `navegar` y `useRuta`. Nunca llevan ids ni la referencia: la parte elegida vive en memoria.
+ */
+export type RutaComercio = '/comercio' | '/comercio/entrar' | '/comercio/pedido' | '/comercio/productos'
+
 export const RUTAS: readonly Ruta[] = [
   '/',
   '/crear-cuenta',
@@ -113,7 +119,7 @@ export function useRuta(): string {
 }
 
 /** Cambia de ruta. Con `reemplazar` no deja una entrada nueva en el historial (redirecciones). */
-export function navegar(ruta: Ruta, { reemplazar = false }: { reemplazar?: boolean } = {}) {
+export function navegar(ruta: Ruta | RutaComercio, { reemplazar = false }: { reemplazar?: boolean } = {}) {
   if (leer() === ruta) {
     avisar()
     return

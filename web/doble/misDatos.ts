@@ -316,6 +316,14 @@ const TIPOS: [string, 'persona' | 'matu' | 'salio', string | null, string | null
   ['pago_aprobado', 'matu', null, null],
   ['pago_anulado', 'matu', null, null],
   ['cancelo_un_pedido', 'persona', null, null],
+  // MATU-63 (especificación 14.1): los pasos del pedido después de pagar.
+  ['codigo_de_retiro_generado', 'matu', null, null],
+  ['pedido_en_camino', 'matu', null, null],
+  ['pedido_entregado', 'matu', null, null],
+  ['pedido_no_entregado', 'matu', null, null],
+  ['pidio_un_retracto', 'persona', null, null],
+  ['retracto_resuelto', 'matu', null, null],
+  ['devolucion_a_la_tarjeta', 'matu', null, null],
   ['un_tipo_que_no_existe', 'persona', null, null],
   ['dio_una_autorizacion', 'persona', null, null],
   ['retiro_una_autorizacion', 'salio', null, null],
@@ -343,7 +351,7 @@ function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo
   visibles.sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
   // F1 (decisión 384): la finalidad en los hechos de autorizaciones y la referencia en los de pedidos y pagos.
   const AUTORIZACION = new Set(['dio_una_autorizacion', 'retiro_una_autorizacion'])
-  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado'])
+  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto'])
   const conObjeto = (h: Hecho, i: number) => ({
     ...h,
     ocurrido_en: chile(h.ocurrido_en),

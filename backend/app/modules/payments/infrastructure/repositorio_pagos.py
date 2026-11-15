@@ -60,18 +60,27 @@ _MARCAR_PAGADO = text(
     "UPDATE pedido SET estado = 'pagado', pagado_en = :en, referencia = :referencia"
     " WHERE id = :pedido_id AND grupo_id = :grupo_id"
 )
+# MATU-63 (D-63-7): con el pago, cada parte llega a su comercio y su apartado deja de vencer
+_ENVIAR_PARTES = text(
+    "UPDATE pedido_comercio SET enviado_en = :en, apartado_hasta = NULL"
+    " WHERE pedido_id = :pedido_id AND grupo_id = :grupo_id AND enviado_en IS NULL"
+)
 _TRANSICION = text(
     "INSERT INTO pedido_transicion (pedido_id, desde, hacia, actor_tipo, actor_ref, motivo, ocurrido_en)"
     " VALUES (:pedido_id, :desde, :hacia, 'sistema', NULL, :motivo, :ocurrido_en)"
 )
 _LINEAS = text(
     "SELECT l.id, pr.id AS producto_id, pr.nombre, pr.presentacion, pr.unidad, pr.unidades_por_envase, l.cantidad,"
-    " l.precio_unitario, l.estado_linea, l.monto_devuelto, l.devuelta_en"
+    " l.precio_unitario, l.estado_linea, l.monto_devuelto, l.devuelta_en, l.unidades_faltantes"
     " FROM pedido_linea l JOIN producto pr ON pr.id = l.producto_id"
     " WHERE l.pedido_id = :pedido_id ORDER BY l.creado_en, l.id"
 )
+# MATU-63 (D-63-8): lo devuelto se suma (un faltante parcial y después un retracto); la línea queda devuelta solo
+# cuando vuelve entera
 _DEVOLVER_LINEA = text(
-    "UPDATE pedido_linea SET estado_linea = 'devuelta', monto_devuelto = :monto, devuelta_en = :en WHERE id = :id"
+    "UPDATE pedido_linea SET monto_devuelto = monto_devuelto + :monto, devuelta_en = COALESCE(devuelta_en, :en),"
+    " estado_linea = CASE WHEN monto_devuelto + :monto >= cantidad * precio_unitario THEN 'devuelta'"
+    " ELSE estado_linea END WHERE id = :id"
 )
 # Sin RETURNING: matu_app solo inserta en el outbox (03_permisos.sql)
 _EMITIR = text(
@@ -141,16 +150,17 @@ _GUARDAR_VENTA = text(
 )
 _ANULACION = (
     "SELECT id, venta_id, cargo_id, participacion_id, monto, motivo_anulacion, estado, creado_en, buy_order,"
-    " pedido_linea_id, cerrada_en, intentos FROM transaccion_pasarela WHERE tipo = 'anulacion' AND venta_id IS NOT NULL"
+    " pedido_linea_id, cerrada_en, intentos, retracto_id FROM transaccion_pasarela"
+    " WHERE tipo = 'anulacion' AND venta_id IS NOT NULL"
 )
 _ANULACIONES = text(_ANULACION + " AND cargo_id = :cargo_id ORDER BY creado_en, id")
 _ANULACION_ID = text(_ANULACION + " AND id = :id")
 _ANULACION_ID_BLOQUEAR = text(_ANULACION + " AND id = :id FOR UPDATE")
 _INSERTAR_ANULACION = text(
     "INSERT INTO transaccion_pasarela (id, participacion_id, cargo_id, proveedor, tipo, buy_order, monto, estado,"
-    " idempotency_key, venta_id, motivo_anulacion, pedido_linea_id, creado_en, actualizado_en)"
+    " idempotency_key, venta_id, motivo_anulacion, pedido_linea_id, retracto_id, creado_en, actualizado_en)"
     " VALUES (:id, :participacion_id, :cargo_id, :proveedor, 'anulacion', :buy_order, :monto, :estado, :clave,"
-    " :venta_id, :motivo, :linea_id, :ahora, :ahora)"
+    " :venta_id, :motivo, :linea_id, :retracto_id, :ahora, :ahora)"
 )
 _GUARDAR_ANULACION = text(
     "UPDATE transaccion_pasarela SET estado = :estado, cerrada_en = :hecha_en, intentos = :intentos"
@@ -219,6 +229,7 @@ def _anulacion(f: Row[Any]) -> Anulacion:
         pedido_linea_id=f.pedido_linea_id,
         hecha_en=f.cerrada_en,
         intentos=int(f.intentos),
+        retracto_id=f.retracto_id,
     )
 
 
@@ -286,6 +297,7 @@ class RepositorioPagosSQL:
             _MARCAR_PAGADO,
             {"pedido_id": pedido_id, "grupo_id": self._grupo_id, "en": pagado_en, "referencia": referencia},
         )
+        self._sesion.execute(_ENVIAR_PARTES, {"pedido_id": pedido_id, "grupo_id": self._grupo_id, "en": pagado_en})
 
     def transicion(
         self, pedido_id: uuid.UUID, desde: str, hacia: str, motivo: str | None, ocurrido_en: datetime
@@ -309,6 +321,7 @@ class RepositorioPagosSQL:
                 salio=f.estado_linea == "sin_stock",
                 monto_devuelto=int(f.monto_devuelto),
                 devuelta_en=f.devuelta_en,
+                unidades_faltantes=int(f.unidades_faltantes),
             )
             for f in self._sesion.execute(_LINEAS, {"pedido_id": pedido_id})
         ]
@@ -471,6 +484,7 @@ class RepositorioPagosSQL:
                 "venta_id": anulacion.venta_id,
                 "motivo": anulacion.motivo.value,
                 "linea_id": anulacion.pedido_linea_id,
+                "retracto_id": anulacion.retracto_id,
                 "ahora": anulacion.solicitada_en,
             },
         )

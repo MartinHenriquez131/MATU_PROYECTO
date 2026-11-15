@@ -574,21 +574,33 @@ def test_la_0_17_sigue_publicada_para_quien_la_acepto() -> None:
 
 
 @pytest.mark.rf("Ley-21.719")
-def test_la_0_18_esta_publicada_y_es_la_de_env_example() -> None:
-    """MATU-107: la 0.18 hace que la sección 6 diga, igual que la 10, que quien cuida ve en «Datos de» lo que hizo él
-    y las veces que un relevo abrió el enlace. No cambia lo que se ve y nadie vuelve a aceptar; de la 0.11 a la 0.17
-    siguen publicadas."""
-    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.18", "2026-11-12")
+def test_la_0_18_sigue_publicada_para_quien_la_acepto() -> None:
+    """MATU-107: la 0.18 aclara en la sección 6 lo que ve quien cuida en «Datos de». MATU-63 la publica con el mismo
+    archivo y la misma huella que MATU-107, para que las dos ramas se fusionen sin chocar."""
+    huella = "1bdbac25460ead431a9bd1d39025440a3561e072e8d26cb26b3f5d3e6ed1316d"  # pragma: allowlist secret
+    assert PUBLICADAS["0.18"] == huella
     texto = texto_publicado("0.18")
     assert texto != texto_publicado("0.17")
+    assert "- La versión 0.18 aclara en la sección 6 lo que ve quien cuida en «Datos de» la persona." in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.rf("RF-26")
+def test_la_0_19_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-63 (D-63-16): la 0.19 agrega cómo los comercios preparan el pedido, el código de retiro y arrepentirse de
+    la compra. Nadie vuelve a aceptar; de la 0.11 a la 0.18 siguen publicadas."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19"} <= set(PUBLICADAS)
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.19", "2026-11-13")
+    texto = texto_publicado("0.19")
+    assert texto != texto_publicado("0.18")
     for parte in (
-        "quien cuida ve solo lo que hizo él y las veces que un relevo abrió el enlace (más abajo)",
-        "y en «Grupo familiar», «Datos de» la persona, quien administra y quien cuida. El observador no lo ve.",
-        "- La versión 0.18 aclara en la sección 6 lo que ve quien cuida en «Datos de» la persona. No cambia lo que se"
-        " ve, y no te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones.",
+        "Quien retira por MATU le dice un código de retiro, y el comercio solo puede revisar si es correcto: no lo ve.",
+        "Quienes trabajan en el comercio entran a MATU con su propia cuenta.",
+        "Arrepentirse de la compra lo pueden pedir quien administra y quien pagó.",
+        "- La versión 0.19 agrega cómo los comercios preparan tu pedido y el código de retiro, y arrepentirte de una"
+        " compra. No te pedimos aceptar de nuevo esta política",
     ):
         assert parte in texto, parte
-    # Lo de la 0.17 sigue en el texto vigente
-    assert "### Ver y descargar los datos desde la aplicación" in texto
+    # Lo de la 0.18 sigue en el texto vigente
+    assert "- La versión 0.18 aclara en la sección 6" in texto
