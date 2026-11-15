@@ -220,14 +220,17 @@ function Rutas() {
   else if (ruta === '/grupo/autorizar-insumos') pantalla = <AutorizarInsumos />
   else if (ruta === '/grupo/autorizar-pedidos') pantalla = <AutorizarPedidosDesdeGrupo />
   // MATU-53 (4.6 y 7.2): «Ya eres parte de…» y «Saliste de…» al llegar al inicio del pagador o del observador.
-  else if (ruta === '/insumos')
+  // MATU-109 (P1 de la revisión visual): /insumos, /insumos/nuevo y /insumos/cambiar tienen la misma
+  // forma, con Insumos siempre en la segunda posición del fragmento. Si cambiara, React remontaría
+  // Insumos al abrir «Cambiar», se perdería el insumo en edición y la pantalla volvería a /insumos.
+  // El aviso de llegada sigue solo en /insumos.
+  else
     pantalla = (
       <>
-        <AvisoDeLlegada />
+        {ruta === '/insumos' && <AvisoDeLlegada />}
         <Insumos />
       </>
     )
-  else pantalla = <Insumos />
 
   return (
     <ShellFamilia>

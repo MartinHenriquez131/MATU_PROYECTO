@@ -264,7 +264,8 @@ describe('«Me quedan»', () => {
     const campo = screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' })
     await waitFor(() => expect(campo).toHaveFocus())
     expect(campo).toHaveValue('')
-    expect(campo).toHaveAccessibleDescription('Reemplaza lo que calculábamos. Si no queda nada, escribe 0.')
+    // MATU-109 D1: en unidades, primero qué se cuenta y cómo pasar a envases.
+    expect(campo).toHaveAccessibleDescription('Cuenta unidades, no envases. Si tienes envases cerrados, toca «Contar en envases». Reemplaza lo que calculábamos. Si no queda nada, escribe 0.')
     expect(screen.getByRole('group', { name: '¿Cuántos quedan hoy, más o menos?' })).toHaveTextContent('unidades')
 
     // Vacío no se envía.

@@ -589,6 +589,8 @@ function Boleta({ pedido, vencido, hora }: { pedido: PedidoVista; vencido: boole
           <span>{PEDIDO.total}</span>
           <span className="cifras">{pesos(pedido.total ?? 0)}</span>
         </p>
+        {/* MATU-109 D5: inmediatamente bajo el total, vigente o vencido. */}
+        <p className="text-base text-tenue">{PEDIDO.totalAyuda}</p>
         {vencido && (
           <span>
             <Etiqueta tono="atenta">

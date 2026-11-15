@@ -298,12 +298,25 @@ export const REGISTRO = {
 export const EN_ENVASES = {
   contarEnvases: 'Contar en envases', // [L 30]
   contarSueltos: 'Contar sueltos', // [L 30]
-  ayudaPanel: 'Cuenta los envases enteros y, a ojo, lo suelto. Reemplaza lo que calculábamos.', // [L 30]
+  // MATU-109 (especificación docs/diseno/matu-109-me-quedan.md v1.0, 1.6): «enteros» pasa a «cerrados» (D2).
+  ayudaPanel: 'Cuenta los envases cerrados y, a ojo, lo suelto. Reemplaza lo que calculábamos.', // [CAMBIA] L 30 (MATU-109 D2)
   /** Alta y edición. En la edición se suma a `INSUMOS.stockAyuda` [L 18]. */
-  ayudaFormulario: 'Cuenta los envases enteros y, a ojo, lo suelto.', // [L 30]
-  envasesEnteros: 'Envases enteros', // [L 30]
+  ayudaFormulario: 'Cuenta los envases cerrados y, a ojo, lo suelto.', // [CAMBIA] L 30 (MATU-109 D2)
+  envasesCerrados: 'Envases cerrados', // [CAMBIA] L 30 (MATU-109 D2)
+  /** MATU-109 D3: la ayuda de «Envases cerrados», entre su etiqueta y su campo. */
+  ayudaCerrados: 'Los que todavía no abres.', // [NUEVO] MATU-109 D3
   sueltos: (unidad: Unidad) => (unidad === 'sobre' ? 'Sobres sueltos' : 'Unidades sueltas'), // [L 30]
-  /** Sufijo de «Envases enteros» mientras falta el envase o no es válido. */
+  /** MATU-109 D3: la ayuda de los sueltos, entre su etiqueta y su campo. */
+  ayudaSueltos: (unidad: Unidad) =>
+    unidad === 'sobre' ? 'Los del envase abierto y los que están fuera de su envase.' : 'Las del envase abierto y las que están fuera de su envase.', // [NUEVO] MATU-109 D3
+  /**
+   * MATU-109 D1: en modo sueltos, qué se cuenta y cómo pasar a envases. Solo en unidades y sobres
+   * (en ml y g no hay «Contar en envases»). En el panel va antes de `REGISTRO.ayudaQuedan`; en la
+   * edición, después de `INSUMOS.stockAyuda`; en el alta, sola.
+   */
+  ayudaModoSueltos: (unidad: Unidad) =>
+    `${unidad === 'sobre' ? 'Cuenta sobres, no envases.' : 'Cuenta unidades, no envases.'} Si tienes envases cerrados, toca «Contar en envases».`, // [CAMBIA] L 23 en el panel, [NUEVO] en el alta y la edición (MATU-109 D1)
+  /** Sufijo de «Envases cerrados» mientras falta el envase o no es válido. */
   sufijoSinEnvase: 'envases', // [L 30]
   /**
    * El total en vivo, en partes para poner la cifra en `cifras`: «En total, quedan unas 45

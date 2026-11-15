@@ -911,7 +911,9 @@ function EnlaceModo({ children, onClick, ocupado = false }: { children: ReactNod
 }
 
 /**
- * MATU-84 (4.1, 5.1 y 6): «Envases enteros» y los sueltos, uno debajo del otro, y el total en vivo.
+ * MATU-84 (4.1, 5.1 y 6): «Envases cerrados» y los sueltos, uno debajo del otro, y el total en vivo.
+ * MATU-109 D3: cada contador lleva su ayuda de una línea entre la etiqueta y el campo, en su
+ * `aria-describedby` después de la ayuda común.
  * `u` es el envase válido, o `null` mientras falta. `antes` es el campo del envase, cuando se anota
  * aquí. El total no es región viva: el panel lo pone en el `aria-describedby` de su confirmar (8).
  */
@@ -949,7 +951,8 @@ function BloqueEnvases({
       {antes}
       <Stepper
         id={`${id}-envases`}
-        etiqueta={EN_ENVASES.envasesEnteros}
+        etiqueta={EN_ENVASES.envasesCerrados}
+        ayuda={EN_ENVASES.ayudaCerrados}
         sufijo={u === null ? EN_ENVASES.sufijoSinEnvase : sufijoCantidad(nEnvases ?? 0, unidad, u)}
         valor={envases}
         onCambio={onEnvases}
@@ -963,6 +966,7 @@ function BloqueEnvases({
       <Stepper
         id={`${id}-sueltos`}
         etiqueta={EN_ENVASES.sueltos(unidad)}
+        ayuda={EN_ENVASES.ayudaSueltos(unidad)}
         sufijo={INSUMOS.sufijoStock(unidad)}
         valor={sueltos}
         onCambio={onSueltos}
@@ -1086,7 +1090,7 @@ function PanelRegistro({
     return () => window.clearTimeout(t)
   }, [falla, id, idFalla])
 
-  /** Un error de lo que queda: bajo «Envases enteros» en modo envases (7), o bajo el campo único. */
+  /** Un error de lo que queda: bajo «Envases cerrados» en modo envases (7), o bajo el campo único. */
   const errorDeCampo = (texto: string) => {
     if (enEnvases) {
       setErrores({ envases: texto })
@@ -1292,7 +1296,7 @@ function PanelRegistro({
             <Stepper
               id={campo}
               etiqueta={compre ? (conEnvase ? REGISTRO.preguntaEnvases : REGISTRO.pregunta(p.unidad)) : REGISTRO.preguntaQuedan}
-              ayuda={compre ? REGISTRO.ayudaCompre : REGISTRO.ayudaQuedan}
+              ayuda={compre ? REGISTRO.ayudaCompre : contable ? `${EN_ENVASES.ayudaModoSueltos(p.unidad)} ${REGISTRO.ayudaQuedan}` : REGISTRO.ayudaQuedan}
               sufijo={conEnvase ? sufijoCantidad(n ?? 0, p.unidad, envase) : sufijoUnidad}
               valor={valor}
               onCambio={(v) => {
@@ -1854,6 +1858,9 @@ function Formulario({
   }
 
   const idAyudaEnvases = `${ids.stock}-ayuda-envases`
+  // MATU-109 D1: en modo sueltos y en unidades o sobres, qué se cuenta; en la edición, tras la ayuda de hoy.
+  const ayudaModo = seCuentaEnEnvases(unidad) ? EN_ENVASES.ayudaModoSueltos(unidad) : undefined
+  const ayudaSueltosForm = ayudaStock && ayudaModo ? `${ayudaStock} ${ayudaModo}` : (ayudaStock ?? ayudaModo)
   const campoStock = enEnvases ? (
     <fieldset className="flex min-w-0 flex-col gap-4">
       <legend className="mb-1.5 font-bold">{INSUMOS.stock}</legend>
@@ -1878,7 +1885,7 @@ function Formulario({
     </fieldset>
   ) : (
     <div className="flex min-w-0 flex-col gap-1">
-      <Stepper id={ids.stock} etiqueta={INSUMOS.stock} ayuda={ayudaStock} sufijo={INSUMOS.sufijoStock(unidad)} valor={stock} onCambio={setStock} min={0} max={100_000} error={errores.stock} />
+      <Stepper id={ids.stock} etiqueta={INSUMOS.stock} ayuda={ayudaSueltosForm} sufijo={INSUMOS.sufijoStock(unidad)} valor={stock} onCambio={setStock} min={0} max={100_000} error={errores.stock} />
       {seCuentaEnEnvases(unidad) && (
         <EnlaceModo ocupado={ocupado} onClick={aEnvases}>
           {EN_ENVASES.contarEnvases}
@@ -2009,7 +2016,7 @@ function CampoEnvase({
           aria-invalid={error ? true : undefined}
           aria-describedby={describe}
           onChange={(e) => onCambio(soloDigitos(e.target.value, 5))}
-          className={`cifras min-h-12 w-32 rounded-xl bg-hoja px-4 text-xl ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
+          className={`cifras min-h-12 w-32 angosto:w-full rounded-xl bg-hoja px-4 text-xl ring-2 ring-inset focus-visible:ring-turquesa ${error ? 'ring-pronto' : 'ring-borde'}`}
         />
         <span className="text-base text-tenue">{sufijo}</span>
       </div>
