@@ -4,6 +4,394 @@
  */
 
 export interface paths {
+    "/v1/salud": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Salud */
+        get: operations["salud_v1_salud_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/usuarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear Cuenta
+         * @description Crea una cuenta (MATU-04). Desde MATU-39 pide el celular chileno, obligatorio, que se guarda en E.164 y nunca se registra en logs ni en la auditoría (decisión 65). Con ENTORNO=staging solo acepta correos de dominios reservados (example.com, example.org, example.net y sus subdominios, y los terminados en .test, .example, .invalid o .localhost): otro responde 422 con errores[].campo = email y errores[].tipo = dominio_no_permitido (decisión 105). Orden: 422 si el cuerpo no es JSON, 429, 422 de campos y 409. Desde MATU-25, 5 cuentas por hora por IP (decisión 114). Desde MATU-75 exige acepta_politica = true y huella_politica (la de GET /v1/politica), y guarda, en la misma transacción, la versión y la huella de la política vigente (decisiones 176 a 178 y 182). Orden desde MATU-75: 422 si el cuerpo no es JSON, 429, 422 de campos, 503 si la política no está disponible, 409 politica-cambio y 409 email-registrado.
+         */
+        post: operations["crear_cuenta_v1_usuarios_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sesiones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear Sesion
+         * @description Inicia sesión (MATU-05a). MATU-38 agrega la cookie `__Secure-matu-refresh` (HttpOnly, Secure, SameSite=Strict, Path=/v1/sesiones, Max-Age de 30 días), el dispositivo, el claim `did` del access token y la demora progresiva (429 con Retry-After; sin Redis, 503). Orden: 422, 429 o 503, 401 y 200. Ver docs/api/propuestos/app-familia.openapi.yaml y las decisiones 47 a 49 y 57.
+         */
+        post: operations["crear_sesion_v1_sesiones_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/politica": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Politica
+         * @description La política de privacidad vigente (MATU-75): versión, fecha, huella y texto en Markdown. Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, y es la que POST /v1/usuarios acepta en huella_politica. correo_contacto es CORREO_PRIVACIDAD, o null. Cache-Control: no-cache (decisión 175). 503 si falta POLITICA_VERSION o POLITICA_ACTUALIZADA_EN, si la versión no tiene un texto publicado con su huella, o si el texto todavía tiene un marcador (decisión 174).
+         */
+        get: operations["ver_politica_v1_politica_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sesiones/renovar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renovar Sesion
+         * @description Rota el refresh de la cookie `__Secure-matu-refresh` (ventana deslizante de 30 días, decisión 57) y entrega un access token nuevo de 15 minutos. Un refresh ya usado revoca toda su familia (`reutilizacion`). Todo fallo es el mismo 401 `sesion-expirada`, que borra la cookie.
+         */
+        post: operations["renovar_sesion_v1_sesiones_renovar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sesiones/cerrar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cerrar Sesion
+         * @description Revoca la familia de la cookie (`logout`), el dispositivo y su endpoint de push (decisión 47). Idempotente: sin cookie o con una que no sirve, también 204. Siempre borra la cookie. Un access token ya emitido sigue valiendo hasta sus 15 minutos.
+         */
+        post: operations["cerrar_sesion_v1_sesiones_cerrar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dispositivos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Dispositivos
+         * @description Los dispositivos propios no revocados: primero el actual (claim `did`) y después por último uso. Nunca devuelve `push_token`. Desde MATU-55, cada uno trae `clase` (C7) y `push_activo` (C5).
+         */
+        get: operations["ver_dispositivos_v1_dispositivos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dispositivos/{dispositivo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sacar
+         * @description Revoca las sesiones del dispositivo (`dispositivo`), el dispositivo y su endpoint de push, en una transacción. Ajeno, inexistente o con un id que no es UUID: 404. Ya revocado: 204. Si es el actual, borra además la cookie del refresh.
+         */
+        delete: operations["sacar_v1_dispositivos__dispositivo_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dispositivos/actual/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Push Actual
+         * @description Lo que la pantalla necesita para «Recibir avisos en este teléfono» (MATU-55, decisión 261): la clave pública VAPID (`null` si no está configurada), si el dispositivo del claim `did` tiene un endpoint guardado (nunca lo devuelve) y si el envío es simulado. Sin `did`, o con el dispositivo revocado, el mismo 404 del `PUT` y del `DELETE`. No se audita. Orden: 401, 404 y 200.
+         */
+        get: operations["verPushActual"];
+        /**
+         * Guardar Push Actual
+         * @description Guarda el endpoint de Web Push del dispositivo del claim `did`. Solo se escribe: nunca aparece en una respuesta, un error, un log ni la auditoría. El envío es de MATU-41. Audita `dispositivo.push_registrar` solo si el endpoint guardado cambió (MATU-55, decisión 260). Orden: 401, 404, 422 y 204.
+         */
+        put: operations["guardar_push_actual_v1_dispositivos_actual_push_put"];
+        post?: never;
+        /**
+         * Borrar Push Actual
+         * @description Pone `push_token = NULL` en el dispositivo del claim `did`. Idempotente: con el endpoint ya vacío responde 204 sin auditar (MATU-55, decisión 260).
+         */
+        delete: operations["borrar_push_actual_v1_dispositivos_actual_push_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar */
+        get: operations["listar_v1_grupos_get"];
+        put?: never;
+        /** Crear */
+        post: operations["crear_v1_grupos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/personas-cuidadas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar */
+        get: operations["listar_v1_grupos__grupo_id__personas_cuidadas_get"];
+        put?: never;
+        /** Crear */
+        post: operations["crear_v1_grupos__grupo_id__personas_cuidadas_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/ficha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer */
+        get: operations["leer_v1_personas_cuidadas__persona_id__plan_ficha_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar un campo de la ficha
+         * @description Escribe **un** campo. Toda escritura es condicional (MATU-13, ADR-015) y lleva exactamente una
+         *     de dos cabeceras:
+         *
+         *     | Situación | Cabecera | Si otra persona se adelantó |
+         *     |---|---|---|
+         *     | El campo nunca se escribió (`etag: null` en la lectura) | `If-None-Match: *` | 412 con lo que ella guardó |
+         *     | El campo ya existe | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+         *
+         *     - Sin ninguna, o con `If-Match` vacío o `*`, responde **428**.
+         *     - `If-Match` sobre un campo que nunca se escribió responde **412** con `actual.etag: null`.
+         *     - Las dos a la vez, o `If-None-Match` distinto de `*`, responde **422**.
+         *     - `texto` vacío con `If-Match` vacía el campo, que conserva su `etag`. Con `If-None-Match: *`, **422**
+         *       `vacio_sin_crear`.
+         *
+         *     Orden de evaluación: 401, 404 (grupo, rol, persona, campo), 403 (consentimiento), 503 (custodia), 422 (cuerpo
+         *     y cabeceras) y al final la precondición (428 o 412). Responde **201** si creó el campo y **200** si lo
+         *     actualizó. Escriben `admin` y `cuidador`. Registra `plan.editar`; el 412, `plan.leer`.
+         */
+        put: operations["guardar_v1_personas_cuidadas__persona_id__plan_ficha__campo__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/secciones/{seccion}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Agregar o editar una sección complementaria
+         * @description Agrega o edita **una** sección complementaria (ADR-028). Mismo patrón que un campo de la
+         *     ficha (MATU-13), con exactamente una cabecera:
+         *
+         *     | Situación | Cabecera | Si otra persona se adelantó |
+         *     |---|---|---|
+         *     | La sección no está agregada | `If-None-Match: *` | 412 con lo que esa persona guardó |
+         *     | La sección ya está | `If-Match: "<etag leído>"` | 412 con el contenido actual |
+         *
+         *     - Sin ninguna, o con `If-Match` vacío o `*`, **428**. Con las dos, **422**.
+         *     - `If-Match` sobre una sección que no está (nunca agregada, o quitada): **412** con `actual: null`.
+         *     - `texto` vacío o solo espacios: **422** `vacio`. Una sección no se vacía: se quita con `DELETE`.
+         *     - Más de 500 caracteres (800 en `remedios`): **422** `largo_maximo`.
+         *     - `seccion` fuera de las seis (incluidos `rutina`, `horarios`, `actividades` y `red_apoyo`): **404**.
+         *
+         *     La primera escritura crea el plan y la clave de datos de la persona si no existían. **201** si se agregó,
+         *     **200** si se editó. Escriben `admin` y `cuidador`. Registra `plan.editar` con el tipo de la sección, sin el
+         *     texto; el 412, `plan.leer`. Las secciones no cuentan para la completitud.
+         */
+        put: operations["guardarSeccionFicha"];
+        post?: never;
+        /**
+         * Quitar una sección complementaria
+         * @description Quita una sección complementaria **borrando su fila**: el texto cifrado deja de
+         *     existir. Exige `If-Match: "<etag leído>"`, para no borrar lo que otra persona acaba de escribir:
+         *
+         *     - Sin `If-Match`, o con `If-Match` vacío o `*`: **428**. `If-None-Match`: **422**.
+         *     - ETag distinto del actual: **412** con el contenido actual.
+         *     - La sección no está (nunca agregada, o ya quitada): **412** con `actual: null`. No es 404, para que la
+         *       pantalla distinga "ya la quitó otra persona" de "no tienes acceso".
+         *     - **204** sin cuerpo.
+         *
+         *     Registra `plan.quitar_seccion` con el tipo de la sección, sin el texto. Un acceso de relevo que la compartía
+         *     deja de mostrarla; si se vuelve a agregar, ese acceso no la ve.
+         */
+        delete: operations["quitarSeccionFicha"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/accesos-relevo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar Accesos */
+        get: operations["listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get"];
+        put?: never;
+        /** Crear Acceso */
+        post: operations["crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accesos-relevo/{acceso_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revocar Acceso
+         * @description Revoca el acceso en la transacción de la petición. Idempotente: ya revocado o vencido, 204.
+         */
+        delete: operations["revocar_acceso_v1_accesos_relevo__acceso_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/plan/aperturas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver quién abrió la ficha con un acceso de relevo
+         * @description Lo que hicieron los relevos con sus accesos, del más reciente al más antiguo: cada presentación (página abierta antes del PIN), cada apertura de la ficha, cada PIN incorrecto y cada bloqueo. Se lee de `auditoria`. Una presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN (decisión 30). Muestra la fecha y el acceso; **nunca** la IP, el teléfono ni el `request_id`.
+         *
+         *     Listan `admin`, `cuidador` y `pagador` con `puede_ver_plan`; cualquier otro caso, otro grupo o una persona inexistente responde el mismo **404**. No exige consentimiento vigente (decisión 18).
+         *
+         *     Las lecturas de los miembros del grupo también quedan auditadas (`plan.leer`), pero no se listan aquí.
+         *
+         *     MATU-50: cada ítem de `tipo: apertura` trae `secciones`, los tipos de las secciones complementarias que se mostraron (leídos del `detalle` de `relevo.abrir`; `[]` en las aperturas anteriores). Los demás tipos no la traen. Nunca trae texto.
+         */
+        get: operations["listarAperturasRelevo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/relevo/presentacion": {
         parameters: {
             query?: never;
@@ -15,38 +403,19 @@ export interface paths {
         put?: never;
         /**
          * Saber quién compartió la ficha y de quién es, antes del PIN
-         * @description Ruta **pública** para la pantalla del PIN (decisión 28). Recibe solo el token, leído del
-         *     fragmento `/r#<token>`, en el cuerpo y nunca en la URL. Responde los dos nombres de pila
-         *     para que la página diga "Carmen te compartió la ficha de María" antes de pedir el PIN.
+         * @description Ruta pública para la pantalla del PIN (decisión 28). Recibe solo el token, leído del fragmento `/r#<token>`, en el cuerpo y nunca en la URL, y responde los dos nombres de pila para que la página diga «Carmen te compartió la ficha de María» antes de pedir el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.
          *
-         *     Jorge aceptó el riesgo: quien reciba un enlace reenviado ve los dos nombres de pila sin
-         *     el PIN. Nada más sale de esta ruta: ni los campos, ni el vencimiento, ni el relevo.
+         *     Orden de evaluación, el mismo del canje hasta el estado:
          *
-         *     **Orden de evaluación**, el mismo del canje hasta el estado:
+         *     1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, 429. Sin Redis o sin PEPPER_LIMITES, 503.
+         *     2. Cuerpo válido. Si no, 422. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
+         *     3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.
+         *     4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23).
+         *     5. Bloqueado (5 PIN incorrectos): 423.
+         *     6. Autorización de la persona no vigente: 410 relevo-pausado, sin decir el motivo (decisión 33).
+         *     7. Si no, 200 con los dos nombres.
          *
-         *     1. Límite por IP de MATU-25: 30 presentaciones por hora, en un contador propio, separado
-         *        del canje (decisión 29), en una ventana fija (decisión 114). Si se supera, **429**. Sin
-         *        Redis o sin `PEPPER_LIMITES`, **503**.
-         *     2. Cuerpo válido. Si no, **422**. Un cuerpo que no es JSON válido responde 422 antes del
-         *        paso 1 y no cuenta en el límite (decisión 114); todo cuerpo JSON válido se cuenta en el
-         *        paso 1, antes de validar sus campos.
-         *     3. El token corresponde a un acceso (`indice_token`). Si no, **410**
-         *        `/errores/relevo-no-disponible`.
-         *     4. Estado del acceso, con `indice_token.revocado_en` y `expira_en` (decisión 23):
-         *        revocado → **410** `/errores/relevo-revocado`, vencido → **410**
-         *        `/errores/relevo-vencido`.
-         *     5. Bloqueado (5 PIN incorrectos) → **423**.
-         *     5b. Autorización de la persona no vigente (consentimiento retirado, o revisión anual del
-         *        cuidador de hecho vencida según el reloj del servidor) → **410** `/errores/relevo-pausado`,
-         *        sin decir el motivo (decisión 33 en el relevo, de Martín del 28-10, pendiente de revisión
-         *        de Jorge).
-         *     6. Si no, **200** con los dos nombres. Se leen de `acceso_relevo` con `app.rol = 'relevo'`
-         *        y `app.acceso_relevo_id`, igual que la sesión de relevo.
-         *
-         *     No cuenta como intento de PIN, no crea sesión, no suma `usos` y no registra
-         *     `relevo.abrir`: no muestra la ficha. Cada 200 registra `relevo.presentar`, sin IP
-         *     (decisión 30). La familia lo ve en `/plan/aperturas` (implementada en MATU-45, en `openapi.json`) como `presentacion`: una
-         *     presentación sin apertura después indica un enlace reenviado o que nadie escribió el PIN.
+         *     No cuenta como intento de PIN, no crea sesión, no suma usos y no registra relevo.abrir. Cada 200 registra relevo.presentar, sin IP (decisión 30), y la familia lo ve en /plan/aperturas como `presentacion`.
          */
         post: operations["presentarRelevo"];
         delete?: never;
@@ -66,38 +435,988 @@ export interface paths {
         put?: never;
         /**
          * Canjear el enlace y el PIN por una sesión de relevo
-         * @description Ruta **pública**. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo,
-         *     nunca en la URL. Si son correctos, responde **204** con la cookie de sesión de relevo, y la
-         *     página lee la ficha con `GET /v1/relevo/ficha`.
+         * @description Ruta pública. Recibe el token (leído del fragmento `/r#<token>`) y el PIN en el cuerpo, nunca en la URL. Si son correctos responde 204 con la cookie de sesión de relevo, y la página lee la ficha con GET /v1/relevo/ficha.
          *
-         *     **Orden de evaluación:**
+         *     Orden de evaluación:
          *
-         *     1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación
-         *        (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, **429**, sin
-         *        tocar el acceso. Sin Redis o sin `PEPPER_LIMITES`, **503**.
-         *     2. Cuerpo válido (PIN de 4 dígitos). Si no, **422**. No cuenta como intento. Un cuerpo que
-         *        no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114);
-         *        todo cuerpo JSON válido se cuenta en el paso 1, antes de validar sus campos.
-         *     3. El token corresponde a un acceso (`indice_token`). Si no, **410**
-         *        `/errores/relevo-no-disponible`: token desconocido, cortado, o ya purgado tras vencer.
-         *     4. Estado del acceso: revocado → **410** `/errores/relevo-revocado`; vencido → **410**
-         *        `/errores/relevo-vencido`. Se decide con `indice_token.revocado_en` y `expira_en`
-         *        (decisión 23). Revocar no borra `indice_token`, así que un enlace revocado siempre
-         *        llega a este paso. No cuenta como intento.
-         *     5. Bloqueado (5 PIN incorrectos) → **423**, aunque el PIN sea el correcto.
-         *     5b. Autorización de la persona no vigente → **410** `/errores/relevo-pausado` (decisión 33 en
-         *        el relevo). No cuenta como intento ni crea sesión. Si la familia renueva la autorización,
-         *        el mismo enlace vuelve a servir.
-         *     6. PIN incorrecto: suma un intento y registra `relevo.pin_incorrecto`. Del 1.º al 4.º
-         *        responde **401** con `intentos_restantes`; el 5.º bloquea el acceso, registra
-         *        `relevo.bloqueo` y responde **423**. Un acceso bloqueado se reemplaza creando otro.
-         *     7. PIN correcto: vuelve el contador a 0, crea la sesión en Redis, registra `relevo.canje` y
-         *        responde **204** con `Set-Cookie`.
+         *     1. Límite por IP: 10 canjes por hora, en un contador propio, separado de la presentación (MATU-25, decisión 29), en una ventana fija (decisión 114). Si se supera, 429, sin tocar el acceso. Sin Redis o sin PEPPER_LIMITES, 503.
+         *     2. Cuerpo válido (PIN de 4 dígitos). Si no, 422. No cuenta como intento. Un cuerpo que no es JSON válido responde 422 antes del paso 1 y no cuenta en el límite (decisión 114).
+         *     3. El token corresponde a un acceso (indice_token). Si no, 410 relevo-no-disponible.
+         *     4. Revocado: 410 relevo-revocado. Vencido: 410 relevo-vencido (decisión 23). No cuenta como intento.
+         *     5. Bloqueado (5 PIN incorrectos): 423, aunque el PIN sea el correcto.
+         *     6. Autorización de la persona no vigente: 410 relevo-pausado (decisión 33). No cuenta como intento ni crea sesión.
+         *     7. Sin PEPPER_PIN: 503, sin comparar el PIN.
+         *     8. PIN incorrecto: suma un intento y registra relevo.pin_incorrecto. Del 1.º al 4.º responde 401 con intentos_restantes; el 5.º bloquea el acceso, registra relevo.bloqueo y responde 423.
+         *     9. PIN correcto: vuelve el contador a 0, registra relevo.canje, crea la sesión en Redis y responde 204 con Set-Cookie. Si Redis no responde, 503: el canje quedó registrado pero sin cookie, y la página vuelve a pedir el PIN.
          *
-         *     La sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso. Después,
-         *     el relevo vuelve a escribir el PIN.
+         *     La sesión dura hasta lo que ocurra primero: 12 horas o el vencimiento del acceso.
          */
         post: operations["canjearRelevo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/relevo/ficha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer Ficha Como Relevo */
+        get: operations["leer_ficha_como_relevo_v1_relevo_ficha_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consentimientos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** El estado de las autorizaciones de la persona: dos, o tres con la capa 3 o con un registro de despacho */
+        get: operations["estado_v1_personas_cuidadas__persona_id__consentimientos_get"];
+        put?: never;
+        /** Dar la autorización para calcular los insumos o para usar la ficha */
+        post: operations["otorgar_v1_personas_cuidadas__persona_id__consentimientos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consentimientos/{finalidad}/retiro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retirar la autorización de una finalidad y cortar lo que depende de ella */
+        post: operations["retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/borrado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Borrar al tiro todo lo guardado de la persona y sacarla de MATU */
+        post: operations["borrar_v1_personas_cuidadas__persona_id__borrado_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/catalogo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver el catálogo
+         * @description El catálogo curado (MATU-59, RF-20, ADR-027): categorías con sus productos y, por producto, cada comercio con su precio exacto en pesos enteros con IVA y si hay stock (disponible), nunca la cantidad (decisión 161), por nombre_fantasia y nunca por precio. Entran solo productos con al menos una oferta publicada de un comercio activo. Del comercio viajan solo comercio_id y nombre_fantasia. precios_de_ejemplo es true mientras no haya convenio. Lo ve cualquier sesión de familia, sin X-Grupo-Id y sin autorización de consumo ni de pedidos; el relevo no (401). Sin parámetros de consulta. No se audita. Cache-Control: private, max-age=60. Es capa 3: existe solo con CAPA3_HABILITADA=true
+         */
+        get: operations["ver_catalogo_v1_catalogo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/por-acabarse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Qué se acaba pronto
+         * @description Los perfiles activos con fecha_quiebre_estimada - hoy <= dias_aviso (hoy en America/Santiago con el Reloj), incluidos los ya pasados. Por fecha estimada y después por id, sin paginar. Sale de perfil_consumo, no de alerta_quiebre (decisión 53). Cada ítem trae avisando y alerta_id (decisión 74)
+         */
+        get: operations["por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/lista": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista de insumos
+         * @description Lo que se acaba pronto, con una cantidad sugerida para 30 días (MATU-60, RF-15, ADR-031). Entra cada insumo de «Se acaban pronto» con avisando = true, calculado al momento: activo, en su ventana y sin una alerta resuelta ni descartada para su fecha estimada actual (decisión 117). La cantidad es lo que falta para 30 días, descontando lo que MATU estima que queda hoy, al menos 1, y en envases enteros si el perfil tiene unidades_por_envase (decisiones 119 a 121). Orden: fecha estimada, nombre sin tildes, nombre y perfil_id. Sin el nombre de la persona, la ficha ni acciones. Leen los cuatro roles. No se audita y no crea ni cierra alertas. No hay exportación ni enlace (decisión 122)
+         */
+        get: operations["ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver las alertas de la persona
+         * @description Por fecha_prevista y después por id. Sin estado, las abiertas (pendiente y notificada). Las crea el trabajo diario, una por perfil y fecha prevista, solo con la autorización para consumo vigente
+         */
+        get: operations["listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/alertas/{alerta_id}/descartar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * No avisar esta vez
+         * @description Pasa la alerta a descartada y fija cerrada_en con el Reloj. Nunca la borra. Sin cuerpo. Solo admin y cuidador (decisión 58). Desde resuelta o descartada, 409 alerta-cerrada. Registra alerta.descartar
+         */
+        post: operations["descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/resolver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ya lo resolví
+         * @description Cierra el aviso del insumo para su fecha estimada actual, aunque el trabajo diario aún no haya creado la alerta (decisiones 76, 79 y 147). Sin envases ni cantidad: la alerta pasa a descartada (o se crea ya descartada) y el perfil no cambia; registra alerta.descartar. Con envases (× unidades_por_envase) o cantidad, como en «Compré»: el stock pasa a lo que MATU estima que queda hoy (nunca negativo) más la cantidad, medido hoy, con la fecha recalculada y un ETag nuevo; se anota una compra (`reposicion`) y la alerta queda resuelta; registra reposicion.declarar y alerta.resolver, sin la cantidad. Devuelve el insumo recalculado. Solo admin y cuidador. Nunca crea un pedido
+         */
+        post: operations["resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ver los insumos declarados de la persona */
+        get: operations["listar_v1_personas_cuidadas__persona_id__consumo_get"];
+        put?: never;
+        /** Anotar cuánto se usa de un insumo y cuánto queda */
+        post: operations["crear_v1_personas_cuidadas__persona_id__consumo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ver un insumo declarado */
+        get: operations["ver_v1_personas_cuidadas__persona_id__consumo__perfil_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Eliminar un insumo
+         * @description Borra el perfil en el acto, activo o desactivado (decisión 69). Sus compras anotadas (`reposicion`) y alertas se borran con él. No se puede deshacer. Escriben admin y cuidador. Registra consumo.eliminar
+         */
+        delete: operations["eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete"];
+        options?: never;
+        head?: never;
+        /** Corregir cuánto se usa o anotar cuánto queda */
+        patch: operations["editar_v1_personas_cuidadas__persona_id__consumo__perfil_id__patch"];
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/desactivar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dejar de seguir un insumo
+         * @description activo = false, sin borrar (decisión 46). Las alertas abiertas pasan a descartada. Idempotente, sin If-Match. Registra consumo.desactivar
+         */
+        post: operations["desactivar_v1_personas_cuidadas__persona_id__consumo__perfil_id__desactivar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/activar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volver a seguir un insumo
+         * @description activo = true (decisión 68). Idempotente, sin cuerpo y sin If-Match, igual que desactivar. Conserva el stock y la fecha estimada que tenía. Registra consumo.activar
+         */
+        post: operations["activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/reponer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compré
+         * @description Suma lo comprado a lo que MATU estima que queda hoy (nunca negativo), en cualquier insumo activo, tenga alerta o no (decisiones 137 y 138). Exactamente uno de envases (× unidades_por_envase) o cantidad. El stock queda medido hoy, con la fecha recalculada y un ETag nuevo. Anota una compra (`reposicion`) con la fecha de hoy según el Reloj; la API no acepta fecha. La alerta abierta de la fecha anterior queda resuelta y las demás abiertas que dejan de corresponder, descartadas; nunca crea una alerta y no responde 409 si la de la fecha ya estaba cerrada. Registra reposicion.declarar (y alerta.resolver o alerta.descartar), sin la cantidad. Solo admin y cuidador. Nunca crea un pedido
+         */
+        post: operations["reponer_v1_personas_cuidadas__persona_id__consumo__perfil_id__reponer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/consumo/{perfil_id}/recontar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Me quedan
+         * @description Reemplaza lo que queda por lo que se contó hoy, como un PATCH con solo stock_unidades (decisión 139): medido hoy, con la fecha recalculada y un ETag nuevo. No anota una compra. Las alertas abiertas que con la fecha nueva dejan de corresponder quedan descartadas; no crea alertas. Registra consumo.editar (y alerta.descartar), sin el stock. Solo admin y cuidador
+         */
+        post: operations["recontar_v1_personas_cuidadas__persona_id__consumo__perfil_id__recontar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recuperacion/codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pedir Codigo Recuperacion
+         * @description Pide un código para recuperar el acceso (MATU-57). Recibe solo el email. Responde siempre 202 sin cuerpo, exista o no la cuenta y aunque se haya alcanzado el límite (decisión 84): el envío corre después de responder. El código va al celular verificado o, si no hay, al correo; con `canal: "correo"`, al correo. Pedir otro invalida el anterior. Orden: 422, 503 y 202.
+         */
+        post: operations["pedir_codigo_recuperacion_v1_recuperacion_codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recuperacion/contrasena": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cambiar Contrasena
+         * @description Cambia la contraseña con el código (MATU-57). Un código incorrecto, vencido, ya usado, con los 5 intentos agotados o de un email sin cuenta responde el mismo 422 `codigo-invalido`. Al cambiarla revoca todas las sesiones (`cambio_clave`), invalida los códigos pendientes y avisa por el otro canal. No emite tokens: la persona vuelve a entrar. Orden: 422 del cuerpo, 503, 429, 422 codigo-invalido y 204.
+         */
+        post: operations["cambiar_contrasena_v1_recuperacion_contrasena_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Cuenta
+         * @description La cuenta propia, con el celular enmascarado y si está verificado (MATU-57). Desde MATU-75, también la última política de privacidad que aceptó (politica_aceptada), o null si la cuenta no tiene registro (decisión 179).
+         */
+        get: operations["ver_cuenta_v1_cuenta_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta/celular/codigo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pedir Codigo Del Celular
+         * @description Envía un código al celular de la cuenta para verificarlo (MATU-57). 60 s entre envíos, 3 por hora y 10 al día por cuenta y por número. Pedir otro invalida el anterior. Orden: 401, 503, 409, 429 y 202.
+         */
+        post: operations["pedir_codigo_del_celular_v1_cuenta_celular_codigo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cuenta/celular/verificar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmar Celular
+         * @description Confirma el celular con el código (MATU-57). Todo código que no sirve responde el mismo 422 `codigo-invalido`. Desde aquí, la recuperación va al celular. Orden: 401, 422 del cuerpo, 503, 429, 422 codigo-invalido y 204.
+         */
+        post: operations["confirmar_celular_v1_cuenta_celular_verificar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/yo/avisos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leer Avisos
+         * @description Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). Orden: 401 y 200.
+         */
+        get: operations["leerPreferenciaAvisos"];
+        /**
+         * Guardar Avisos
+         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). Orden: 401, 422 y 200.
+         */
+        put: operations["guardarPreferenciaAvisos"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/direccion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Guardar o cambiar la dirección de entrega de la persona
+         * @description MATU-61 (D4, decisiones 189 a 191 y 219). admin y cuidador; el resto, 404. If-None-Match: * la primera vez, If-Match con el etag después (428 sin ninguna, 422 las dos juntas, 412 con actual). Sin lat ni lng. Cambia la dirección de esa persona y solo de ella. No pide la autorización de pedidos (C8). Registra direccion.cambiar sin el contenido. Cache-Control: no-store
+         */
+        put: operations["guardar_v1_personas_cuidadas__persona_id__direccion_put"];
+        post?: never;
+        /**
+         * Vaciar la dirección de entrega de la persona
+         * @description MATU-61 (C6, decisiones 216 y 219). admin y cuidador; el resto, 404. If-Match obligatorio (428 sin él o con *, 412 con actual). Sin dirección, 404. La persona queda sin dirección y la fila se borra si nadie más la usa. No pide la autorización de pedidos (C8). Registra direccion.cambiar sin el contenido. Cache-Control: no-store
+         */
+        delete: operations["vaciar_v1_personas_cuidadas__persona_id__direccion_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedidos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear el carrito (borrador) con productos del catálogo
+         * @description MATU-61 (decisiones 193 a 196). admin y cuidador, con la autorización despacho vigente. Idempotency-Key obligatoria. Un solo pedido sin pagar por persona (409 pedido-abierto, C4). El servidor fija el precio y el comercio de cada línea desde la oferta (C15) y no lee el consumo (C20). Registra pedido.crear. Capa 3
+         */
+        post: operations["crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedido-en-curso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El pedido sin pagar de la persona, para volver al carrito
+         * @description MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3
+         */
+        get: operations["ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leer el pedido, con el resumen antes de pagar si el total está confirmado
+         * @description MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3
+         */
+        get: operations["ver_pedido_v1_pedidos__pedido_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/lineas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ajustar el carrito: cantidades, agregar y sacar productos
+         * @description MATU-61 (decisión 199). Solo en borrador (con el total confirmado, primero POST …/cambiar). Reemplaza todas las líneas; admite []. If-Match obligatorio. No se audita. Capa 3
+         */
+        put: operations["reemplazar_lineas_v1_pedidos__pedido_id__lineas_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/reglas-faltante": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Qué hacer si falta cada producto (RF-21)
+         * @description MATU-61 (decisión 200). otro_comercio o quitar, nunca otra marca. En borrador, total confirmado y vencido; no cambia el total ni el plazo. If-Match obligatorio. Registra pedido.regla_faltante, sin las acciones. Capa 3
+         */
+        put: operations["reemplazar_reglas_v1_pedidos__pedido_id__reglas_faltante_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/confirmar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmar que haya cada producto y fijar el total por 15 minutos
+         * @description MATU-61 (decisiones 201 a 205; C1 y C5). Desde borrador, vencido o un total vigente, que se reemplaza. Una consulta de stock por comercio. Con otro_comercio busca el mismo producto en el comercio de menor precio; con quitar, lo que falta sale. Total = subtotal + un envío, con IVA incluido. Idempotency-Key obligatoria. Registra pedido.confirmar. No crea el cargo (MATU-62). Capa 3
+         */
+        post: operations["confirmar_v1_pedidos__pedido_id__confirmar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/contacto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Cambiar el teléfono de contacto desde el resumen
+         * @description MATU-61 (decisión 203). En total confirmado y vencido; no toca el total ni el plazo. If-Match obligatorio. No se audita. Capa 3
+         */
+        put: operations["cambiar_contacto_v1_pedidos__pedido_id__contacto_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/cambiar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volver al carrito desde el total confirmado o vencido («Cambiar el pedido»)
+         * @description MATU-61 (decisión 218; C1 y C9). total_confirmado o vencido → borrador: descarta el total, las partes por comercio y la entrega; cada línea vuelve al carrito. Idempotency-Key obligatoria. No se audita. Capa 3
+         */
+        post: operations["cambiar_pedido_v1_pedidos__pedido_id__cambiar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/cancelar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancelar un pedido sin pagar, sin costo
+         * @description MATU-61 (decisión 206). Desde borrador, total confirmado o vencido; borra la copia de la entrega. No pide la autorización despacho. Idempotency-Key obligatoria: la repetición responde 200. Registra pedido.cancelar. Capa 3
+         */
+        post: operations["cancelar_v1_pedidos__pedido_id__cancelar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/condiciones-pedido": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Las condiciones del pedido vigentes, con su versión y su huella
+         * @description MATU-61 (decisión 207, D6). Pública: sin sesión, sin cookies y sin auditoría. La huella es el SHA-256 del texto exacto que se entrega, la que el resumen del pedido muestra. Versión propia, separada de la política. Cache-Control: no-cache. MATU-62 (decisión 240): con ?version=, una versión publicada alguna vez. Capa 3
+         */
+        get: operations["ver_condiciones_v1_condiciones_pedido_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/pagar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceptar las condiciones y abrir el pago del total confirmado en Webpay
+         * @description MATU-62 (decisiones 224 a 230). admin y pagador, con la autorización despacho vigente. El total tiene que estar vigente (con el total vencido, 409 estado-pedido con vencido, sin llamar a la pasarela). If-Match e Idempotency-Key obligatorios. Un solo pago en curso por pedido (409 pago-en-curso). Guarda la aceptación de las condiciones, crea o reutiliza el cargo y abre la venta de Webpay Plus por el total confirmado; el cuerpo no trae montos. Registra pago.iniciar. Capa 3
+         */
+        post: operations["pagar_v1_pedidos__pedido_id__pagar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/pago": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El estado del pago del pedido, sus devoluciones y el comprobante
+         * @description MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3
+         */
+        get: operations["ver_pago_v1_pedidos__pedido_id__pago_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/pedido-pagado": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * El último pedido pagado de la persona, con su comprobante
+         * @description MATU-62 (decisión 237). El pedido de pagado_en más reciente de la persona, con las vistas por rol de GET …/pago. 404 si no hay pedido pagado. No pide despacho. MATU-63 la reemplaza por el seguimiento. Capa 3
+         */
+        get: operations["ver_pedido_pagado_v1_personas_cuidadas__persona_id__pedido_pagado_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pagos/retorno": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * La vuelta de Webpay que manda la app; hace el commit y responde el resultado
+         * @description MATU-62 (decisiones 231 a 235). Pública e idempotente por token; la sesión es opcional y la vuelta nunca responde 401. token_ws de una venta iniciada: commit. Retorno repetido: no llama a Transbank (ya_registrado). TBK_TOKEN: sin commit, status y abandonado. Solo TBK_ORDEN_COMPRA y TBK_ID_SESION: tiempo_agotado. Valores que no son de MATU: 404. Sin montos ni tarjeta. No se apaga con la capa 3 (decisión 241)
+         */
+        post: operations["retorno_v1_pagos_retorno_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/yo/ingresos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Ingresos Propios
+         * @description Los eventos de la propia cuenta de los últimos 90 días, hasta 20, del más reciente al más antiguo (MATU-55, decisiones 254 y 255): entrar, salir, cerrar MATU en un dispositivo, la salida por seguridad, el cambio de contraseña, el celular confirmado, el pedido de un código de recuperación y los cambios de los avisos. Nunca los fallidos. Sin parámetros: un parámetro de consulta desconocido se ignora. `hay_mas` dice si hay más de 20. No se audita. Orden: 401 y 200.
+         */
+        get: operations["verIngresosPropios"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/invitaciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver las invitaciones sin usar
+         * @description MATU-42 (C10, P7). Solo admin. Pendientes y bloqueadas, de la más nueva a la más antigua.
+         */
+        get: operations["listarInvitaciones"];
+        put?: never;
+        /**
+         * Crear una invitación con un rol
+         * @description MATU-42 (decisiones 294 a 297). Solo admin. Vence a los 7 días. url y codigo salen una sola vez. Sin Idempotency-Key. Registra invitacion.crear con el rol.
+         */
+        post: operations["crearInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/invitaciones/{invitacion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Anular una invitación
+         * @description MATU-42 (decisión 308). Solo admin. Pendiente o bloqueada: 204 e invitacion.anular. Ya anulada: 204.
+         */
+        delete: operations["anularInvitacion"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/presentacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saber quién invita y para qué rol, antes del código
+         * @description MATU-42 (C1, D-42-4 a, P2). Sin sesión. No cuenta como intento, no cambia nada y no se audita.
+         */
+        post: operations["presentarInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/verificacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verificar el código y ver a qué grupo se une, antes de pedir la cuenta
+         * @description MATU-42 (P1, P3, C30). Sin sesión. No une a nadie. El 5.º código incorrecto bloquea. Registra invitacion.codigo_incorrecto e invitacion.bloqueo con actor sistema.
+         */
+        post: operations["verificarCodigoInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invitaciones/aceptacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unirse al grupo con la invitación y el código
+         * @description MATU-42 (C22, C27). Con sesión y sin X-Grupo-Id. Un solo uso. Inserta la membresía activa con el rol de la invitación y registra invitacion.aceptar con la cuenta. No crea ni copia autorizaciones (C7).
+         */
+        post: operations["aceptarInvitacion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/miembros": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Quiénes forman el grupo
+         * @description MATU-42 (decisión 302). Todo miembro activo. Sin email, celular ni usuario_id. No se audita.
+         */
+        get: operations["listarMiembros"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/miembros/{membresia_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sacar a alguien del grupo
+         * @description MATU-42 (decisiones 305 a 307). Solo admin. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. La propia membresía es salir. No es idempotente: una retirada es 404.
+         */
+        delete: operations["sacarMiembro"];
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar el rol de alguien o el permiso del pagador para ver la ficha
+         * @description MATU-42 (decisiones 303 a 305 y 307). Solo admin. Dejar de ser admin o cuidador corta los enlaces de relevo que compartió; dejar de ser admin anula sus invitaciones sin usar. Orden: 401, 404, 428, 422, 412, 409, 200.
+         */
+        patch: operations["cambiarMiembro"];
+        trace?: never;
+    };
+    "/v1/grupos/{grupo_id}/salida": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Salir del grupo por cuenta propia
+         * @description MATU-42 (D-42-13). Todo miembro activo. Corta sus enlaces de relevo, anula sus invitaciones si era admin y deja la membresía retirada. 409 ultimo-admin o unica-persona.
+         */
+        post: operations["salirDelGrupo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/yo/datos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * «Tus datos»: todo lo que MATU guarda de la propia cuenta
+         * @description MATU-54 (D-54-2 a, D-54-16 a). Cualquier cuenta. La copia completa de la cuenta, para la pantalla y para el archivo (Content-Disposition inline). Nada de una persona cuidada. 10 copias por hora por cuenta, sumando «Datos de» (429 tope-copias). Registra cuenta.datos_descargar. Orden: 401, 503, 429 y 200
+         */
+        get: operations["verDatosPropios"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/personas-cuidadas/{persona_id}/datos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * «Datos de {nombre_pila}»: todo lo que MATU guarda de la persona cuidada
+         * @description MATU-54 (D-54-1 a D-54-15). Admin y cuidador. La copia completa, para la pantalla y para el archivo (Content-Disposition inline). Sin la autorización vigente, la ficha y los insumos van solo con su estado. 10 copias por hora por cuenta (429 tope-copias). Registra persona.datos_descargar. Orden: 401, 404, 503, 429 y 200
+         */
+        get: operations["verDatosPersona"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -108,858 +1427,4723 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * @description `rutina` = Su día · `manejo_situaciones` = Si se altera · `red_apoyo` = A quién llamar.
-         *     Son los tipos de `plan_seccion` que forman la ficha de relevo (ADR-023).
-         * @enum {string}
-         */
-        CampoFicha: "rutina" | "manejo_situaciones" | "red_apoyo";
-        /** @description Quién guardó el campo. Solo su identificador y su nombre, nunca su email. */
-        Autor: {
-            /** Format: uuid */
+        /** AccesoCreadoVista */
+        AccesoCreadoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
             id: string;
-            nombre: string;
-        };
-        /** @description Una línea, sin espacios en los extremos ni caracteres de control. */
-        TextoUnaLinea: string;
-        /** @enum {string} */
-        EstadoAcceso: "vigente" | "vencido" | "revocado" | "bloqueado";
-        /**
-         * @description Para qué se comparte. Es un **enumerado sin texto libre**: queda en `acceso_relevo.motivo` y
-         *     en la auditoría, que se conserva 3 años, y un texto libre podría terminar guardando un dato
-         *     de salud imposible de borrar. Los valores son los chips de la demo:
-         *
-         *     | Valor | Texto en la interfaz (`docs/lenguaje.md`) |
-         *     |---|---|
-         *     | `salgo_unas_horas` | Salgo unas horas |
-         *     | `fin_de_semana_fuera` | Fin de semana fuera |
-         *     | `turno_de_noche` | Turno de noche |
-         *     | `otro` | Otro motivo (sin campo para escribir) |
-         *
-         *     Un valor fuera de la lista responde 422. La columna es `text NOT NULL`, así que no requiere
-         *     migración; la restricción vive en la API (un `CHECK` sería una migración aparte).
-         * @enum {string}
-         */
-        MotivoAcceso: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
-        /** @description Cuerpo de la creación. Un campo extra responde 422. */
-        SolicitudAcceso: {
-            /** @description Cómo se llama quien reemplaza. Se muestra a la familia en la lista de accesos. */
-            nombre_relevo: components["schemas"]["TextoUnaLinea"];
-            /**
-             * @description Celular chileno del relevo: 9 y ocho dígitos, con o sin el prefijo `+56` (o `56`) y con
-             *     o sin espacios. Valen `+56 9 5555 0137`, `+56955550137`, `56 9 5555 0137` y
-             *     `9 5555 0137`; no vale un fijo (`+56 2 …`). Se guarda normalizado
-             *     (`+569XXXXXXXX`) en `acceso_relevo.otorgado_a_telefono`. Solo lo devuelve la lista de
-             *     accesos, y solo a `admin` y `cuidador` (decisión 31).
-             *
-             *     **Finalidad** (decisión de Jorge del 27-10): que quien comparte le envíe el enlace al
-             *     relevo, por WhatsApp o SMS desde su propio teléfono, y que la familia pueda contactarlo.
-             *     La API no envía nada (decisión 21).
-             *
-             *     **Conservación** (decisión 25): el teléfono se borra 30 días después de que el acceso
-             *     vence o se revoca. El nombre del relevo, el motivo y las fechas del acceso se conservan
-             *     3 años, igual que la auditoría. La migración y la tarea que lo borran son de la
-             *     tarjeta "S3 · Borrar el teléfono del relevo y anonimizar el nombre de pila".
-             */
-            telefono_relevo: string;
-            /** @description Campos que verá el relevo. Al menos uno. */
-            campos: components["schemas"]["CampoFicha"][];
-            /**
-             * Format: date-time
-             * @description Hasta cuándo vale el enlace, con zona. Opcional: por defecto, 24 horas desde ahora.
-             *     Máximo 30 días desde ahora.
-             */
-            expira_en?: string;
-            motivo: components["schemas"]["MotivoAcceso"];
-            /**
-             * @description **Informar y declarar** (decisión 34 de Jorge, 28-10). Quien comparte declara que le avisó
-             *     al relevo que MATU guarda su nombre y su teléfono. Obligatorio y `true`: si falta o es
-             *     `false`, 422 con `errores[].campo = relevo_informado` y no se crea nada. Se guarda la fecha
-             *     en `acceso_relevo.relevo_informado_en`, con el reloj del servidor. La base de licitud es el
-             *     interés legítimo de la familia, informado; el relevo además ve el aviso "Tus datos en
-             *     MATU" (`docs/lenguaje.md`, 7.5) antes del PIN.
-             *
-             *     Texto de la casilla en la pantalla (referencia; la API no lo devuelve):
-             *     "Le avisé a {nombre_relevo} que MATU guarda su nombre y su teléfono para enviarle la ficha".
-             * @constant
-             */
-            relevo_informado: true;
-        };
-        AccesoCreado: {
-            /** Format: uuid */
-            id: string;
-            /**
-             * Format: uri
-             * @description Enlace para el relevo, con el token en el fragmento. Se entrega solo aquí.
-             */
+            /** Url */
             url: string;
-            /** @description PIN de 4 dígitos. Se entrega solo aquí y se guarda solo su HMAC con pepper. */
+            /** Pin */
             pin: string;
+            /** Campos */
             campos: components["schemas"]["CampoFicha"][];
-            /** Format: date-time */
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
+            /**
+             * Expira En
+             * Format: date-time
+             */
             expira_en: string;
+            /** Nombre Relevo */
             nombre_relevo: string;
-            /** @description Lo único de la persona que verá el relevo. */
+            /** Nombre Pila Persona */
             nombre_pila_persona: string;
         };
         /**
-         * @description Un acceso en la lista. Sin token y sin PIN. `telefono_relevo` solo para `admin` y
-         *     `cuidador` (decisión 31).
+         * AccesoDeAperturaVista
+         * @description El acceso de una apertura: su id y el nombre que le puso la familia. Nunca el teléfono.
          */
-        AccesoResumen: {
-            /** Format: uuid */
-            id: string;
-            nombre_relevo: string;
+        AccesoDeAperturaVista: {
             /**
-             * @description Celular del relevo, normalizado. Solo aparece para `admin` y `cuidador`. Para
-             *     `pagador` la propiedad no viene. `null` cuando ya se borró, 30 días después de que el
-             *     acceso venció o se revocó (decisión 25).
+             * Id
+             * Format: uuid
              */
+            id: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+        };
+        /**
+         * AccesoResumenVista
+         * @description telefono_relevo solo para admin y cuidador: para el pagador la propiedad no viene (decisión 31).
+         *     otorgado_por.nombre es el nombre de pila de quien compartió, nunca el completo (decisión 35).
+         */
+        AccesoResumenVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
             telefono_relevo?: string | null;
+            /** Campos */
             campos: components["schemas"]["CampoFicha"][];
+            /** Secciones Adicionales */
+            secciones_adicionales: components["schemas"]["SeccionComplementaria"][];
             motivo: components["schemas"]["MotivoAcceso"];
             estado: components["schemas"]["EstadoAcceso"];
-            /** Format: date-time */
+            /**
+             * Creado En
+             * Format: date-time
+             */
             creado_en: string;
-            /** Format: date-time */
+            /**
+             * Expira En
+             * Format: date-time
+             */
             expira_en: string;
-            /** Format: date-time */
+            /** Revocado En */
             revocado_en: string | null;
-            /** @description Cuántas veces el relevo abrió la ficha. */
+            /** Usos */
             usos: number;
-            /** Format: date-time */
+            /** Ultimo Uso En */
             ultimo_uso_en: string | null;
+            otorgado_por: components["schemas"]["AutorAccesoVista"] | null;
+        };
+        /**
+         * AlertaVista
+         * @description Una alerta. Solo identificadores, fechas y estado: el nombre del insumo sale del perfil.
+         */
+        AlertaVista: {
             /**
-             * @description Quién compartió: su `id` y, en `nombre`, **solo su nombre de pila** copiado en el acceso
-             *     (`nombre_pila_comparte`), nunca el nombre completo (decisión 35). `null` si su cuenta ya
-             *     no existe.
+             * Id
+             * Format: uuid
              */
-            otorgado_por: components["schemas"]["Autor"] | null;
-        };
-        ListaAccesos: {
-            items: components["schemas"]["AccesoResumen"][];
-            /** @description `null` si no hay más. */
-            siguiente_cursor: string | null;
-        };
-        SolicitudCanje: {
+            id: string;
             /**
-             * @description Lo que viene después de `#` en el enlace. No se valida su forma: un token desconocido o
-             *     cortado responde 410, para que la página muestre "Pídele a quien te envió el enlace uno
-             *     nuevo".
+             * Perfil Id
+             * Format: uuid
              */
-            token: string;
-            pin: string;
-        };
-        SolicitudPresentacion: {
+            perfil_id: string;
             /**
-             * @description Lo que viene después de `#` en el enlace. No se valida su forma: un token desconocido o
-             *     cortado responde 410, igual que en el canje.
+             * Fecha Prevista
+             * Format: date
+             * @description La fecha estimada del perfil cuando se creó la alerta
              */
-            token: string;
+            fecha_prevista: string;
+            estado: components["schemas"]["EstadoAlerta"];
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /** Notificada En */
+            notificada_en: string | null;
+            /** Cerrada En */
+            cerrada_en: string | null;
         };
-        /** @description Lo único que ve el relevo antes del PIN (decisión 28). */
-        Presentacion: {
-            /** @description Nombre de pila de quien compartió, guardado en el acceso al crearlo. */
-            nombre_pila_comparte: string;
-            /** @description Nombre de pila de la persona, guardado en el acceso al crearlo. */
-            nombre_pila: string;
+        /** AperturaVista */
+        AperturaVista: {
+            /**
+             * Ocurrido En
+             * Format: date-time
+             */
+            ocurrido_en: string;
+            tipo: components["schemas"]["TipoApertura"];
+            acceso: components["schemas"]["AccesoDeAperturaVista"];
+            /**
+             * Secciones
+             * @description Solo en `tipo: apertura`. Tipos mostrados, sin texto
+             */
+            secciones?: components["schemas"]["SeccionComplementaria"][];
         };
-        CampoRelevo: {
-            /** @description `null` = "Sin completar". */
+        /** AutorAccesoVista */
+        AutorAccesoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
+        };
+        /**
+         * AutorPerfilVista
+         * @description Quién guardó el perfil por última vez: su id y su nombre de pila, nunca el email.
+         */
+        AutorPerfilVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
+        };
+        /** AutorVista */
+        AutorVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Nombre
+             * @description null si esa persona ya no es miembro activo del grupo o eliminó su cuenta (decisión 309)
+             */
+            nombre: string | null;
+            /**
+             * Autor Activo
+             * @description false si ya no está en el grupo: «Alguien que ya no está en el grupo»
+             */
+            autor_activo: boolean;
+        };
+        /** AutorizacionCreada */
+        AutorizacionCreada: {
+            consentimiento: components["schemas"]["ConsentimientoVista"];
+            aviso: components["schemas"]["AvisoVista"] | null;
+        };
+        /**
+         * AutorizacionVista
+         * @description El estado de una autorización (decisión 127, C1). Sin la referencia al documento, la evidencia, la
+         *     versión de la política ni quién la dio. La pantalla no calcula fechas: ``borrado_en`` y ``borrada``
+         *     salen de aquí.
+         */
+        AutorizacionVista: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"] | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+            /**
+             * Autorizo Alguien Que Ya No Esta
+             * @description MATU-42 (D-42-9 a, decisión 311): true si no está retirada y quien la registró ya no es miembro activo. Sigue vigente. No dice quién
+             */
+            autorizo_alguien_que_ya_no_esta: boolean;
+            /**
+             * Se Puede Otorgar
+             * @description false si la finalidad no se otorga ahora: despacho con la capa 3 apagada, que viene solo si la persona tiene un registro, para poder retirarla. La pantalla no ofrece «Volver a autorizar» (decisión 251)
+             */
+            se_puede_otorgar: boolean;
+        };
+        /**
+         * AutorizacionVistaResumen
+         * @description Lo que ven el pagador y el observador (P2 y C5 de Jorge): el estado y sus fechas, sin la calidad del
+         *     otorgante. Es un DTO distinto, no la misma vista con el campo en null (arquitectura 11.1 y 11.2).
+         */
+        AutorizacionVistaResumen: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
+            estado: components["schemas"]["EstadoVista"];
+            /** Id */
+            id: string | null;
+            /** Otorgado En */
+            otorgado_en: string | null;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Revocado En */
+            revocado_en: string | null;
+            /** Borrado En */
+            borrado_en: string | null;
+            /** Borrada */
+            borrada: boolean;
+            /**
+             * Se Puede Otorgar
+             * @description Como en AutorizacionVista (decisión 251)
+             */
+            se_puede_otorgar: boolean;
+        };
+        /**
+         * AutorizacionesPersona
+         * @description plan_cuidado y consumo, en ese orden, y despacho con la capa 3 (C2) o, con la capa 3 apagada, si la persona
+         *     tiene un registro de ella (decisión 251). Lo que ven admin y cuidador.
+         */
+        AutorizacionesPersona: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVista"][];
+        };
+        /**
+         * AutorizacionesPersonaResumen
+         * @description Los mismos ítems de AutorizacionesPersona. Lo que ven el pagador y el observador.
+         */
+        AutorizacionesPersonaResumen: {
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionVistaResumen"][];
+        };
+        /**
+         * AvisoMostradoEntrada
+         * @description El aviso que se mostró al elegir la calidad: solo su identificador y su versión.
+         */
+        AvisoMostradoEntrada: {
+            /** Id */
+            id: string;
+            /** Version */
+            version: string;
+        };
+        /**
+         * AvisoVista
+         * @description El aviso canónico que se mostró, con su texto completo y su huella.
+         */
+        AvisoVista: {
+            /** Id */
+            id: string;
+            /** Version */
+            version: string;
+            /** Titulo */
+            titulo: string;
+            /** Parrafos */
+            parrafos: string[];
+            /** Sha256 */
+            sha256: string;
+        };
+        /**
+         * BorradoPersona
+         * @description Respuesta del borrado (decisión 152). Sin el nombre ni nada de la persona: los contadores van solo aquí.
+         */
+        BorradoPersona: {
+            /**
+             * Persona Id
+             * Format: uuid
+             */
+            persona_id: string;
+            /**
+             * Borrado En
+             * Format: date-time
+             * @description El instante del borrado, el mismo de toda su auditoría
+             */
+            borrado_en: string;
+            /**
+             * Enlaces Cortados
+             * @description Accesos de relevo cortados: vigentes, bloqueados y en pausa
+             */
+            enlaces_cortados: number;
+            /**
+             * Autorizaciones Retiradas
+             * @description Autorizaciones no revocadas que se retiraron
+             */
+            autorizaciones_retiradas: number;
+        };
+        /**
+         * CalidadOtorgante
+         * @enum {string}
+         */
+        CalidadOtorgante: "titular" | "representante_legal" | "cuidador_de_hecho";
+        /**
+         * CampoFicha
+         * @enum {string}
+         */
+        CampoFicha: "rutina" | "manejo_situaciones" | "red_apoyo";
+        /**
+         * CampoGuardadoVista
+         * @description Respuesta 200 o 201 de PUT …/plan/ficha/{campo}.
+         */
+        CampoGuardadoVista: {
+            /**
+             * Campo
+             * @enum {string}
+             */
+            campo: "rutina" | "manejo_situaciones" | "red_apoyo";
+            /** Texto */
+            texto: string | null;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"];
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+            /**
+             * Completitud
+             * @enum {integer}
+             */
+            completitud: 0 | 33 | 67 | 100;
+        };
+        /** CampoRelevoVista */
+        CampoRelevoVista: {
+            /** Texto */
             texto: string | null;
         };
-        FichaRelevo: {
-            /** @description Nombre de pila de la persona, guardado en el acceso. */
+        /** CamposVista */
+        CamposVista: {
+            rutina: components["schemas"]["EstadoCampoVista"];
+            manejo_situaciones: components["schemas"]["EstadoCampoVista"];
+            red_apoyo: components["schemas"]["EstadoCampoVista"];
+        };
+        /**
+         * ConsentimientoVista
+         * @description El consentimiento vigente para plan_cuidado. Sin la referencia al documento ni la evidencia.
+         */
+        ConsentimientoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"];
+            /** Finalidad */
+            finalidad: string;
+            /** Version Politica */
+            version_politica: string;
+            /**
+             * Otorgado En
+             * Format: date-time
+             */
+            otorgado_en: string;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+        };
+        /** CuentaCreadaRespuesta */
+        CuentaCreadaRespuesta: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Email */
+            email: string;
+        };
+        /**
+         * CuentaVista
+         * @description GET /v1/cuenta: la cuenta propia. El celular va enmascarado, nunca completo.
+         */
+        CuentaVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Email */
+            email: string;
+            /**
+             * Celular Enmascarado
+             * @example +56 9 •••• ••37
+             */
+            celular_enmascarado: string | null;
+            /** Celular Verificado */
+            celular_verificado: boolean;
+            /**
+             * Celular Canal
+             * @enum {string}
+             */
+            celular_canal: "sms" | "whatsapp";
+            /** @description MATU-75: la última política que aceptó al crear la cuenta. null si la cuenta es anterior a MATU-75 y no tiene registro («No tenemos registro de qué versión aceptaste.») */
+            politica_aceptada: components["schemas"]["PoliticaAceptadaVista"] | null;
+        };
+        /**
+         * DireccionNueva
+         * @description Dirección de entrega opcional del alta. Sin lat ni lng: un campo extra responde 422.
+         */
+        DireccionNueva: {
+            /**
+             * Etiqueta
+             * @default Casa
+             */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto?: string | null;
+            /** Comuna */
+            comuna: string;
+            /**
+             * Region
+             * @default Metropolitana
+             */
+            region: string;
+            /** Referencia */
+            referencia?: string | null;
+        };
+        /** DireccionVista */
+        DireccionVista: {
+            /** Etiqueta */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Etag
+             * @description La versión de la dirección, "v<version>" (If-Match)
+             */
+            etag: string;
+        };
+        /**
+         * DispositivoVista
+         * @description Un dispositivo propio. Nunca lleva push_token, familia_id, hashes, la IP ni el agente de usuario.
+         */
+        DispositivoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Plataforma
+             * @enum {string}
+             */
+            plataforma: "android" | "ios" | "web";
+            /** Nombre */
+            nombre: string;
+            /**
+             * Clase
+             * @description MATU-55 (C7): qué sustantivo usa la pantalla, «teléfono», «computador» o «navegador». Lo deduce el servidor del sistema del nombre, que salió del agente de usuario al entrar (Android e iPhone son telefono; Windows, Mac, Linux y ChromeOS, computador; iPad y «Navegador web», otro). El agente no se guarda
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            /** Actual */
+            actual: boolean;
+            /**
+             * Push Activo
+             * @description MATU-55 (C5): si el dispositivo tiene un endpoint de push guardado («Avisos activados»). Nunca el endpoint
+             */
+            push_activo: boolean;
+        };
+        /**
+         * EstadoAcceso
+         * @enum {string}
+         */
+        EstadoAcceso: "vigente" | "vencido" | "revocado" | "bloqueado";
+        /**
+         * EstadoAlerta
+         * @enum {string}
+         */
+        EstadoAlerta: "pendiente" | "notificada" | "resuelta" | "descartada";
+        /**
+         * EstadoCampoVista
+         * @description Un campo: nunca escrito (todo null), vaciado (texto null con etag) o escrito.
+         */
+        EstadoCampoVista: {
+            /** Texto */
+            texto: string | null;
+            /** Etag */
+            etag: string | null;
+            actualizado_por: components["schemas"]["AutorVista"] | null;
+            /** Actualizado En */
+            actualizado_en: string | null;
+        };
+        /**
+         * EstadoSeccionVista
+         * @description Una sección complementaria agregada (MATU-50). No hay estado "vacío": una sección que no está no viene.
+         */
+        EstadoSeccionVista: {
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"] | null;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /**
+         * EstadoVista
+         * @enum {string}
+         */
+        EstadoVista: "vigente" | "revision_vencida" | "retirada" | "borrada" | "sin_autorizar";
+        /** FichaRelevoVista */
+        FichaRelevoVista: {
+            /** Nombre Pila */
             nombre_pila: string;
-            /** @description Nombre de pila de quien compartió, guardado en el acceso (decisión 28). */
+            /** Nombre Pila Comparte */
             nombre_pila_comparte: string;
             /**
+             * Vence En
              * Format: date-time
-             * @description `expira_en` del acceso.
              */
             vence_en: string;
-            /** @description Solo los campos habilitados. Un campo no habilitado no aparece. */
+            /** Campos */
             campos: {
-                rutina?: components["schemas"]["CampoRelevo"];
-                manejo_situaciones?: components["schemas"]["CampoRelevo"];
-                red_apoyo?: components["schemas"]["CampoRelevo"];
+                [key: string]: components["schemas"]["CampoRelevoVista"];
             };
-        };
-        /** @description Un error de validación. Nombra el campo, nunca repite el valor recibido. */
-        ErrorCampo: {
-            campo: string;
-            mensaje: string;
-            tipo: string;
+            /** Secciones */
+            secciones: components["schemas"]["SeccionRelevoVista"][];
         };
         /**
-         * @description Problema RFC 7807 (`application/problem+json`) tal como lo arma `app/core/errores.py`. Puede
-         *     llevar miembros de extensión propios de cada error.
+         * FichaVista
+         * @description Respuesta 200 de GET …/plan/ficha: siempre los tres campos, y solo las secciones agregadas.
          */
-        Problema: {
-            /** Format: uri-reference */
+        FichaVista: {
+            /**
+             * Persona Id
+             * Format: uuid
+             */
+            persona_id: string;
+            /**
+             * Completitud
+             * @enum {integer}
+             */
+            completitud: 0 | 33 | 67 | 100;
+            /** Actualizado En */
+            actualizado_en: string | null;
+            campos: components["schemas"]["CamposVista"];
+            /**
+             * Secciones
+             * @description Solo las secciones complementarias agregadas (MATU-50). Las que no están no vienen
+             */
+            secciones: {
+                [key: string]: components["schemas"]["EstadoSeccionVista"];
+            };
+        };
+        /** GrupoRespuesta */
+        GrupoRespuesta: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Rol */
+            rol: string;
+            /**
+             * Puede Ver Plan
+             * @description Si quien consulta ve el plan de cuidado (la ficha y los accesos de relevo) en este grupo: admin y cuidador siempre, pagador solo con el permiso explícito, observador nunca (decisión 66)
+             */
+            puede_ver_plan: boolean;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * InsumoPorAcabarseVista
+         * @description Un insumo en su ventana de aviso, con lo que la pantalla necesita para el bloque «Se acaban pronto».
+         */
+        InsumoPorAcabarseVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoResumen"] | null;
+            /** Nombre Libre */
+            nombre_libre: string | null;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /** Tasa Dias */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Stock Medido En
+             * Format: date
+             */
+            stock_medido_en: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
+            /**
+             * Fecha Quiebre Estimada
+             * Format: date
+             * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
+             */
+            fecha_quiebre_estimada: string;
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó
+             */
+            dias_restantes: number;
+            /** Activo */
+            activo: boolean;
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor */
+            actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
+            /** Etag */
+            etag: string;
+            /**
+             * Avisando
+             * @description true si dias_restantes <= dias_aviso y no hay una alerta resuelta ni descartada para la fecha_quiebre_estimada actual (decisión 74). Después de «Ya lo resolví» pasa a false
+             */
+            avisando: boolean;
+            /**
+             * Alerta Id
+             * @description La alerta de la fecha estimada actual, en cualquier estado. null si el trabajo diario aún no la creó
+             */
+            alerta_id: string | null;
+        };
+        /** ListaAccesosVista */
+        ListaAccesosVista: {
+            /** Items */
+            items: components["schemas"]["AccesoResumenVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaAlertas */
+        ListaAlertas: {
+            /** Items */
+            items: components["schemas"]["AlertaVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaAperturasVista */
+        ListaAperturasVista: {
+            /** Items */
+            items: components["schemas"]["AperturaVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaDispositivos */
+        ListaDispositivos: {
+            /** Items */
+            items: components["schemas"]["DispositivoVista"][];
+        };
+        /** ListaPerfiles */
+        ListaPerfiles: {
+            /** Items */
+            items: components["schemas"]["PerfilConsumoVista"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaPorAcabarse */
+        ListaPorAcabarse: {
+            /** Items */
+            items: components["schemas"]["InsumoPorAcabarseVista"][];
+        };
+        /**
+         * LineaListaInsumos
+         * @description Una línea de la lista (decisión 118). Sin la tasa, el stock, la fecha estimada, precios, comercios, la
+         *     alerta ni el etag. El nombre puede decir algo de la salud de la persona: nunca va a logs ni errores.
+         */
+        LineaListaInsumos: {
+            /**
+             * Perfil Id
+             * Format: uuid
+             * @description El perfil de consumo de esta línea (PerfilConsumoVista.id)
+             */
+            perfil_id: string;
+            /**
+             * Nombre
+             * @description producto.nombre si el perfil es de un producto, o nombre_libre si no. Nunca la presentación
+             */
+            nombre: string;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos fecha, en días, como en PerfilConsumoVista. Solo para la pantalla: el texto que se imprime o se comparte no lo lleva (ADR-031, punto 4)
+             */
+            dias_restantes: number;
+            /**
+             * Unidades Sugeridas
+             * @description Lo que falta para 30 días, en la unidad del insumo: max(1, techo(30 × tasa_unidades / tasa_dias) - lo que MATU estima que queda hoy) (decisiones 119 y 120)
+             */
+            unidades_sugeridas: number;
+            /**
+             * Unidades Por Envase
+             * @description El del perfil, nunca el del catálogo (decisión 121). null si no se anotó
+             */
+            unidades_por_envase: number | null;
+            /**
+             * Envases Sugeridos
+             * @description techo(unidades_sugeridas / unidades_por_envase), o null si el perfil no tiene unidades_por_envase
+             */
+            envases_sugeridos: number | null;
+            /**
+             * Producto Id
+             * @description MATU-61 (decisión 215): el producto del catálogo del perfil, o null si el insumo se anotó con nombre_libre. «Pedir estos productos» pasa al pedido solo las líneas con producto
+             */
+            producto_id: string | null;
+        };
+        /**
+         * ListaInsumos
+         * @description La lista de insumos de hoy (decisión 118): sin el nombre de la persona, el grupo, la ficha ni acciones.
+         */
+        ListaInsumos: {
+            /**
+             * Fecha
+             * Format: date
+             * @description Hoy en America/Santiago según el Reloj de la API, el mismo de dias_restantes
+             */
+            fecha: string;
+            /**
+             * Items
+             * @description En el orden de la decisión 117. Vacía si ningún insumo de «Se acaban pronto» está avisando
+             */
+            items: components["schemas"]["LineaListaInsumos"][];
+        };
+        /**
+         * MotivoAcceso
+         * @description Enumerado sin texto libre (decisión 16): queda 3 años en la auditoría.
+         * @enum {string}
+         */
+        MotivoAcceso: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
+        /**
+         * PerfilConsumoVista
+         * @description Un perfil. Exactamente uno de producto y nombre_libre no es null. Sin grupo_id ni precios.
+         */
+        PerfilConsumoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            producto: components["schemas"]["ProductoResumen"] | null;
+            /** Nombre Libre */
+            nombre_libre: string | null;
+            unidad: components["schemas"]["UnidadConsumo"];
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /** Tasa Dias */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Stock Medido En
+             * Format: date
+             */
+            stock_medido_en: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /**
+             * Unidades Por Envase
+             * @description Unidades por envase, en la unidad del insumo. null si no se anotó (decisión 121)
+             */
+            unidades_por_envase: number | null;
+            /**
+             * Fecha Quiebre Estimada
+             * Format: date
+             * @description Es una estimación con lo que anotó la familia, no una promesa: stock_medido_en + días de cobertura
+             */
+            fecha_quiebre_estimada: string;
+            /**
+             * Dias Restantes
+             * @description fecha_quiebre_estimada menos hoy (America/Santiago). Negativo: ya pasó
+             */
+            dias_restantes: number;
+            /** Activo */
+            activo: boolean;
+            /** @description Quién guardó la última vez, con su nombre de pila (decisión 73). Si ya no está en el grupo, nombre null y autor_activo false (decisión 309). null solo sin autor */
+            actualizado_por: components["schemas"]["AutorPerfilVista"] | null;
+            /** Etag */
+            etag: string;
+        };
+        /**
+         * PersonaCreada
+         * @description Respuesta 201 del alta. ``aviso`` es el texto del aviso de limitación para un cuidador de
+         *     hecho, y null para las demás calidades.
+         */
+        PersonaCreada: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+            /**
+             * Nivel Apoyo
+             * @enum {string}
+             */
+            nivel_apoyo: "autovalente_con_supervision" | "apoyo_parcial" | "apoyo_total";
+            direccion: components["schemas"]["DireccionVista"] | null;
+            consentimiento: components["schemas"]["ConsentimientoVista"];
+            aviso: components["schemas"]["AvisoVista"] | null;
+        };
+        /**
+         * PersonaVistaCompleta
+         * @description Lo que ven admin y cuidador.
+         */
+        PersonaVistaCompleta: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+            /**
+             * Nivel Apoyo
+             * @enum {string}
+             */
+            nivel_apoyo: "autovalente_con_supervision" | "apoyo_parcial" | "apoyo_total";
+            direccion: components["schemas"]["DireccionVista"] | null;
+            consentimiento: components["schemas"]["ConsentimientoVista"] | null;
+        };
+        /**
+         * PersonaVistaObservador
+         * @description Lo que ve el observador: el nombre.
+         */
+        PersonaVistaObservador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+        };
+        /**
+         * PersonaVistaPagador
+         * @description Lo que ve el pagador: nombre y dirección.
+         */
+        PersonaVistaPagador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            direccion: components["schemas"]["DireccionVista"] | null;
+        };
+        /**
+         * PoliticaAceptadaVista
+         * @description La última política que aceptó la cuenta (MATU-75): «Aceptaste la versión {version} el {DD/MM/AAAA}.»
+         */
+        PoliticaAceptadaVista: {
+            /**
+             * Version
+             * @example 0.11
+             */
+            version: string;
+            /**
+             * Huella
+             * @description SHA-256 del texto que se mostró
+             */
+            huella: string;
+            /**
+             * Aceptada En
+             * Format: date-time
+             */
+            aceptada_en: string;
+        };
+        /**
+         * PoliticaVista
+         * @description GET /v1/politica (MATU-75): la política de privacidad vigente, pública.
+         */
+        PoliticaVista: {
+            /**
+             * Version
+             * @example 0.11
+             */
+            version: string;
+            /**
+             * Actualizada En
+             * Format: date
+             * @description Fecha de la versión, AAAA-MM-DD. La pantalla la muestra DD/MM/AAAA
+             */
+            actualizada_en: string;
+            /**
+             * Huella
+             * @description SHA-256 en hexadecimal de texto, en UTF-8 con saltos LF. Es la que se envía al crear la cuenta
+             */
+            huella: string;
+            /**
+             * Texto
+             * @description La política en Markdown, desde «En un minuto» hasta el final, ya completa: el correo de contacto ya viene puesto. Se muestra tal cual, sin HTML crudo; es exactamente lo que entra en la huella
+             */
+            texto: string;
+            /**
+             * Correo Contacto
+             * @description El correo de contacto para temas de privacidad (CORREO_PRIVACIDAD), para un mailto: en «Tu cuenta». null si no está configurado: la pantalla oculta ese párrafo
+             * @example privacidad@example.com
+             */
+            correo_contacto: string | null;
+        };
+        /** PresentacionVista */
+        PresentacionVista: {
+            /** Nombre Pila Comparte */
+            nombre_pila_comparte: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+        };
+        /** ProductoResumen */
+        ProductoResumen: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+        };
+        /**
+         * RetiroAutorizacion
+         * @description Respuesta del retiro. ``enlaces_cortados`` es 0 al retirar consumo y despacho (decisión 126, C2).
+         *     ``pedidos_cancelados`` (MATU-61, decisión 192): los pedidos sin pagar que canceló el retiro de despacho; 0 con
+         *     las otras finalidades.
+         */
+        RetiroAutorizacion: {
+            autorizacion: components["schemas"]["AutorizacionVista"];
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+            /** Pedidos Cancelados */
+            pedidos_cancelados: number;
+        };
+        /**
+         * SeccionComplementaria
+         * @enum {string}
+         */
+        SeccionComplementaria: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+        /**
+         * SeccionGuardadaVista
+         * @description Respuesta 200 o 201 de PUT …/plan/secciones/{seccion}. Sin completitud: las secciones no cuentan.
+         */
+        SeccionGuardadaVista: {
+            seccion: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+            /** Etag */
+            etag: string;
+            actualizado_por: components["schemas"]["AutorVista"];
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** SeccionRelevoVista */
+        SeccionRelevoVista: {
+            tipo: components["schemas"]["SeccionComplementaria"];
+            /** Texto */
+            texto: string;
+        };
+        /**
+         * SesionRespuesta
+         * @description Respuesta de POST /v1/sesiones y de POST /v1/sesiones/renovar. Nunca lleva el refresh.
+         */
+        SesionRespuesta: {
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default bearer
+             * @constant
+             */
+            token_type: "bearer";
+            /** Expira En */
+            expira_en: number;
+        };
+        /** SolicitudAccesoVista */
+        SolicitudAccesoVista: {
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /** Telefono Relevo */
+            telefono_relevo: string;
+            /**
+             * Campos
+             * @deprecated
+             * @description Deprecado. Si viene, debe tener los tres campos base; si no, 422 campos_base_obligatorios
+             */
+            campos?: components["schemas"]["CampoFicha"][] | null;
+            /**
+             * Secciones Adicionales
+             * @description Secciones complementarias que también ve el relevo, sin repetir. Cada una debe estar agregada (si no, 422 seccion_no_agregada). El servidor nunca agrega una por su cuenta
+             */
+            secciones_adicionales?: components["schemas"]["SeccionComplementaria"][];
+            /** Expira En */
+            expira_en?: string | null;
+            motivo: components["schemas"]["MotivoAcceso"];
+            /** Relevo Informado */
+            relevo_informado: boolean;
+        };
+        /**
+         * SolicitudAutorizacionEntrada
+         * @description Cuerpo de la autorización: ``consumo`` (MATU-36), ``plan_cuidado`` para volver a autorizar la ficha
+         *     (MATU-44, decisión 128) o ``despacho``, la de pedidos (MATU-61, D1), solo con la capa 3. Un campo extra
+         *     responde 422.
+         */
+        SolicitudAutorizacionEntrada: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "consumo" | "plan_cuidado" | "despacho";
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"];
+            /** Referencia Documento */
+            referencia_documento?: string | null;
+            aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
+            /**
+             * Huella Declaracion
+             * @description MATU-61 (P13): SHA-256 del texto exacto de declaracion_pedidos_<calidad> que se mostró (política, sección 5). Obligatoria con despacho y prohibida con las otras dos (422). Otra huella: 422 declaracion_no_vigente
+             */
+            huella_declaracion?: string | null;
+        };
+        /**
+         * SolicitudCambioContrasena
+         * @description Cuerpo de POST /v1/recuperacion/contrasena. La contraseña nueva cumple lo mismo que en el alta.
+         */
+        SolicitudCambioContrasena: {
+            /** Email */
+            email: string;
+            /**
+             * Codigo
+             * @description El código de 6 dígitos del mensaje. Nunca se registra ni se repite en un error
+             * @example 123456
+             */
+            codigo: string;
+            /** Contrasena Nueva */
+            contrasena_nueva: string;
+        };
+        /**
+         * SolicitudCampo
+         * @description Cuerpo de PUT /v1/personas-cuidadas/{persona_id}/plan/ficha/{campo}. Un campo extra responde 422.
+         */
+        SolicitudCampo: {
+            /** Texto */
+            texto: string;
+        };
+        /** SolicitudCanjeVista */
+        SolicitudCanjeVista: {
+            /** Token */
+            token: string;
+            /** Pin */
+            pin: string;
+        };
+        /**
+         * SolicitudCodigoRecuperacion
+         * @description Cuerpo de POST /v1/recuperacion/codigo. Solo el email: nunca se pide el celular para recuperar.
+         */
+        SolicitudCodigoRecuperacion: {
+            /** Email */
+            email: string;
+            /**
+             * Canal
+             * @description Con "correo", el código va al correo aunque el celular esté verificado (reenviar al correo). Sin él, va al celular verificado o, si no hay, al correo. La respuesta nunca dice a cuál
+             */
+            canal?: "correo" | null;
+        };
+        /**
+         * SolicitudEdicionPerfil
+         * @description Edición parcial. Al menos un campo; null no se admite (422 null_no_admitido), salvo en
+         *     unidades_por_envase, donde null lo borra (decisión 121).
+         */
+        SolicitudEdicionPerfil: {
+            /** Nombre Libre */
+            nombre_libre?: string | null;
+            /** Tasa Unidades */
+            tasa_unidades?: number | null;
+            /** Tasa Dias */
+            tasa_dias?: number | null;
+            /** Stock Unidades */
+            stock_unidades?: number | null;
+            /** Dias Aviso */
+            dias_aviso?: number | null;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
+        };
+        /**
+         * SolicitudGrupo
+         * @description Cuerpo de POST /v1/grupos.
+         */
+        SolicitudGrupo: {
+            /** Nombre */
+            nombre: string;
+        };
+        /**
+         * SolicitudPerfil
+         * @description Cuerpo de la creación. producto_id o nombre_libre, exactamente uno (si no, 422 producto_o_nombre).
+         */
+        SolicitudPerfil: {
+            /** Producto Id */
+            producto_id?: string | null;
+            /** Nombre Libre */
+            nombre_libre?: string | null;
+            unidad?: components["schemas"]["UnidadConsumo"] | null;
+            /** Tasa Unidades */
+            tasa_unidades: number;
+            /**
+             * Tasa Dias
+             * @default 1
+             */
+            tasa_dias: number;
+            /** Stock Unidades */
+            stock_unidades: number;
+            /**
+             * Dias Aviso
+             * @default 7
+             */
+            dias_aviso: number;
+            /** Unidades Por Envase */
+            unidades_por_envase?: number | null;
+        };
+        /**
+         * SolicitudPersona
+         * @description Cuerpo de POST /v1/grupos/{grupo_id}/personas-cuidadas.
+         */
+        SolicitudPersona: {
+            /** Nombre */
+            nombre: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+            /**
+             * Nivel Apoyo
+             * @enum {string}
+             */
+            nivel_apoyo: "autovalente_con_supervision" | "apoyo_parcial" | "apoyo_total";
+            calidad_otorgante: components["schemas"]["CalidadOtorgante"];
+            /** Referencia Documento */
+            referencia_documento?: string | null;
+            aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
+            direccion?: components["schemas"]["DireccionNueva"] | null;
+        };
+        /** SolicitudPresentacionVista */
+        SolicitudPresentacionVista: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * SolicitudPush
+         * @description Cuerpo de PUT /v1/dispositivos/actual/push. El valor nunca se repite en un error.
+         */
+        SolicitudPush: {
+            /**
+             * Push Token
+             * Format: uri
+             * @description Endpoint de Web Push del navegador (RFC 8030), solo escritura. https, de hasta 1024 caracteres, con el host en la lista cerrada de servicios de push
+             */
+            push_token: string;
+        };
+        /**
+         * SolicitudRecuento
+         * @description Cuerpo de «Me quedan N» (decisión 139): el stock contado hoy, de 0 a 100.000.
+         */
+        SolicitudRecuento: {
+            /**
+             * Stock Unidades
+             * @description Cuánto queda hoy, en la unidad del insumo. De 0 a 100.000
+             */
+            stock_unidades: number;
+        };
+        /** SolicitudRegistro */
+        SolicitudRegistro: {
+            /** Nombre */
+            nombre: string;
+            /** Email */
+            email: string;
+            /** Contrasena */
+            contrasena: string;
+            /**
+             * Telefono
+             * @description Celular chileno, obligatorio (decisión 65): 9 y ocho dígitos, con o sin +56 y con o sin espacios. Se guarda en E.164 (+569XXXXXXXX). Sirve para recuperar el acceso (MATU-57). Nunca aparece en logs ni en la auditoría
+             * @example +56 9 1234 5678
+             */
+            telefono: string;
+            /**
+             * Acepta Politica
+             * @description Obligatorio y en true: la persona marcó «Leí y acepto la política de privacidad.» (MATU-75). Sin él o en false, 422 con errores[].campo = acepta_politica. El servidor guarda la versión y la huella vigentes, nunca las que diga el cliente
+             * @constant
+             */
+            acepta_politica: true;
+            /**
+             * Huella Politica
+             * @description Obligatoria. La huella (SHA-256 en hexadecimal) de la política que se mostró, tal como la entregó GET /v1/politica. Sin ella o mal formada, 422 con errores[].campo = huella_politica. Si no es la vigente, 409 politica-cambio y la cuenta no se crea
+             */
+            huella_politica: string;
+        };
+        /**
+         * SolicitudReposicion
+         * @description Cuerpo de «Compré» (decisión 137): exactamente uno de envases y cantidad (si no, 422 envases_o_cantidad).
+         *     Siempre pide la cantidad: el valor por omisión de 1 envase lo pone la pantalla.
+         */
+        SolicitudReposicion: {
+            /**
+             * Envases
+             * @description Cuántos envases se compraron, de 1 a 99. Solo si el perfil tiene unidades_por_envase (si no, 422 sin_unidades_por_envase). Lo comprado es envases × unidades_por_envase y puede pasar de 10.000
+             */
+            envases?: number | null;
+            /**
+             * Cantidad
+             * @description Cuánto se compró en la unidad del insumo (unidades, sobres, ml o g), de 1 a 10.000
+             */
+            cantidad?: number | null;
+        };
+        /**
+         * SolicitudResolver
+         * @description Cuerpo opcional de «Ya lo resolví» (decisiones 76, 79 y 147). Sin envases ni cantidad (u omitido o
+         *     null): la alerta pasa a descartada. Con uno de los dos: se suma a lo que MATU estima que queda hoy, se anota
+         *     la compra (`reposicion`) y la alerta pasa a resuelta. Los dos: 422 envases_o_cantidad.
+         */
+        SolicitudResolver: {
+            /**
+             * Envases
+             * @description Cuántos envases se compraron, de 1 a 99. Solo si el perfil tiene unidades_por_envase (si no, 422 sin_unidades_por_envase). Lo comprado es envases × unidades_por_envase y puede pasar de 10.000
+             */
+            envases?: number | null;
+            /**
+             * Cantidad
+             * @description Cuánto se compró en la unidad del insumo (unidades, sobres, ml o g), de 1 a 10.000
+             */
+            cantidad?: number | null;
+        };
+        /**
+         * SolicitudSeccion
+         * @description Cuerpo de PUT …/plan/secciones/{seccion} (MATU-50). Un campo extra responde 422.
+         */
+        SolicitudSeccion: {
+            /**
+             * Texto
+             * @description Texto libre, con saltos de línea. Máximo 500 caracteres, 800 en `remedios`, contados después de quitar los espacios de los extremos. Vacío o solo espacios responde 422 `vacio`
+             */
+            texto: string;
+        };
+        /**
+         * SolicitudSesion
+         * @description Cuerpo de POST /v1/sesiones.
+         *
+         *     Sin largo mínimo ni forma de email: un 422 por esas razones distinguiría casos que el login
+         *     responde siempre con el mismo 401. Sí hay tope, para no hashear cuerpos enormes.
+         */
+        SolicitudSesion: {
+            /** Email */
+            email: string;
+            /** Contrasena */
+            contrasena: string;
+        };
+        /**
+         * SolicitudVerificarCelular
+         * @description Cuerpo de POST /v1/cuenta/celular/verificar.
+         */
+        SolicitudVerificarCelular: {
+            /**
+             * Codigo
+             * @description El código de 6 dígitos del mensaje. Nunca se registra ni se repite en un error
+             * @example 123456
+             */
+            codigo: string;
+            /**
+             * Canal
+             * @description Canal preferido del celular, elegido al verificarlo (decisión 90). Por omisión sms
+             * @default sms
+             * @enum {string}
+             */
+            canal: "sms" | "whatsapp";
+        };
+        /**
+         * TipoApertura
+         * @enum {string}
+         */
+        TipoApertura: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
+        /**
+         * UnidadConsumo
+         * @enum {string}
+         */
+        UnidadConsumo: "unidad" | "sobre" | "ml" | "g";
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
             type: string;
-            title: string;
-            status: number;
-            detail: string | null;
-            errores: components["schemas"]["ErrorCampo"][];
-            /** Format: uuid */
-            request_id: string | null;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
-        ProblemaValidacion: components["schemas"]["Problema"] & {
-            /** @constant */
-            type?: "/errores/validacion";
-            /** @constant */
-            status?: 422;
-            errores?: unknown;
+        /**
+         * PreferenciaAvisosVista
+         * @description Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia
+         *     guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo.
+         */
+        PreferenciaAvisosVista: {
+            /**
+             * Correo
+             * @description Avisos por correo
+             */
+            correo: boolean;
+            /**
+             * Push
+             * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)
+             */
+            push: boolean;
         };
-        ProblemaPinIncorrecto: components["schemas"]["Problema"] & {
-            /** @constant */
-            type?: "/errores/pin-incorrecto";
-            /** @constant */
-            status?: 401;
-            /** @description Intentos que quedan antes del bloqueo. */
-            intentos_restantes: number;
+        /** Catalogo */
+        Catalogo: {
+            /**
+             * Precios De Ejemplo
+             * @description true mientras MATU no tenga convenio con comercios (adaptador simulado): la pantalla rotula los precios
+             */
+            precios_de_ejemplo: boolean;
+            /** Categorias */
+            categorias: components["schemas"]["CategoriaCatalogo"][];
+        };
+        /** CategoriaCatalogo */
+        CategoriaCatalogo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Orden
+             * @description El orden de la categoría; la lista ya viene en este orden
+             */
+            orden: number;
+            /** Productos */
+            productos: components["schemas"]["ProductoCatalogo"][];
+        };
+        /** OfertaCatalogo */
+        OfertaCatalogo: {
+            /**
+             * Oferta Id
+             * Format: uuid
+             */
+            oferta_id: string;
+            /**
+             * Comercio Id
+             * Format: uuid
+             */
+            comercio_id: string;
+            /**
+             * Nombre Fantasia
+             * @description El nombre del comercio que se muestra. Con ficticio, la pantalla agrega «(comercio ficticio)»
+             */
+            nombre_fantasia: string;
+            /**
+             * Precio
+             * @description Precio exacto en pesos enteros, con IVA. Nunca neto (ADR-027)
+             */
+            precio: number;
+            /**
+             * Disponible
+             * @description Si el comercio tiene el producto. No promete disponibilidad: se confirma antes de pagar
+             */
+            disponible: boolean;
+            /**
+             * Ficticio
+             * @description MATU-61 (D9): comercio.ficticio. La pantalla agrega «(comercio ficticio)» solo con true
+             */
+            ficticio: boolean;
+        };
+        /** ProductoCatalogo */
+        ProductoCatalogo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Presentacion
+             * @description Cómo viene, por ejemplo «Paquete de 30 unidades». No repite el nombre (N3)
+             */
+            presentacion: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades Por Envase */
+            unidades_por_envase: number;
+            /**
+             * Retracto Pierde Al Abrir
+             * @description true si el derecho a retracto no aplica al abrir el sello (higiene y uso personal, D2)
+             */
+            retracto_pierde_al_abrir: boolean;
+            /**
+             * Comercios
+             * @description Cada comercio con su precio y si hay stock, por nombre_fantasia y comercio_id, nunca por precio
+             */
+            comercios: components["schemas"]["OfertaCatalogo"][];
+        };
+        /** CambioDeLinea */
+        CambioDeLinea: {
+            /**
+             * Precio Antes
+             * @description El precio del carrito, si el confirmado es distinto
+             */
+            precio_antes: number | null;
+            /** @description El comercio del carrito, si el producto pasó a otro */
+            comercio_antes: components["schemas"]["ComercioVista"] | null;
+        };
+        /** ComercioVista */
+        ComercioVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre Fantasia */
+            nombre_fantasia: string;
+            /**
+             * Ficticio
+             * @description comercio.ficticio (D9). Con true, la pantalla agrega «(comercio ficticio)»
+             */
+            ficticio: boolean;
+        };
+        /** CondicionesPedidoVista */
+        CondicionesPedidoVista: {
+            /** Version */
+            version: string;
+            /**
+             * Actualizada En
+             * Format: date
+             */
+            actualizada_en: string;
+            /** Huella */
+            huella: string;
+            /** Texto */
+            texto: string;
+        };
+        /** CondicionesVigentes */
+        CondicionesVigentes: {
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /**
+             * Enlace
+             * @constant
+             */
+            enlace: "/v1/condiciones-pedido";
+        };
+        /**
+         * DireccionEntrada
+         * @description Cuerpo de PUT …/direccion: los campos y largos de DireccionNueva del alta. Sin lat ni lng (C8): un campo
+         *     extra responde 422. Reemplaza la dirección completa.
+         */
+        DireccionEntrada: {
+            /**
+             * Etiqueta
+             * @default Casa
+             */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto?: string | null;
+            /** Comuna */
+            comuna: string;
+            /**
+             * Region
+             * @default Metropolitana
+             */
+            region: string;
+            /** Referencia */
+            referencia?: string | null;
+        };
+        /** EntregaVista */
+        EntregaVista: {
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Telefono Contacto
+             * @description El celular de una cuenta va enmascarado (celular_cuenta); uno escrito, completo en E.164
+             */
+            telefono_contacto: string;
+            /**
+             * Telefono Origen
+             * @enum {string}
+             */
+            telefono_origen: "celular_cuenta" | "escrito";
+            /** Telefono Es Tuyo */
+            telefono_es_tuyo: boolean;
+        };
+        /**
+         * Estado
+         * @enum {string}
+         */
+        Estado: "borrador" | "total_confirmado" | "vencido" | "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "asignado" | "sin_repartidor" | "retirado" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cerrado" | "cancelado" | "cancelado_con_devolucion";
+        /** LineaPedido */
+        LineaPedido: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Oferta Id
+             * Format: uuid
+             * @description La oferta del carrito de esta línea, la que se reenvía en PUT …/lineas para conservarla, también si dejó de estar publicada. Es un id opaco, nunca va a la URL del navegador
+             */
+            oferta_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+            /**
+             * Precio Unitario
+             * @description Precio exacto en pesos enteros, con IVA incluido
+             */
+            precio_unitario: number;
+            /**
+             * Subtotal
+             * @description cantidad × precio_unitario
+             */
+            subtotal: number;
+            regla_faltante: components["schemas"]["Regla"];
+            /** Retracto Pierde Al Abrir */
+            retracto_pierde_al_abrir: boolean;
+            cambio: components["schemas"]["CambioDeLinea"] | null;
+            /** @description MATU-62: la devolución de esta línea por anulación parcial. null si no se devolvió */
+            devolucion: components["schemas"]["DevolucionLinea"] | null;
+        };
+        /** LineaSalida */
+        LineaSalida: {
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+            comercio: components["schemas"]["ComercioVista"];
+        };
+        /** LineaSolicitud */
+        LineaSolicitud: {
+            /**
+             * Oferta Id
+             * Format: uuid
+             */
+            oferta_id: string;
+            /**
+             * Cantidad
+             * @description Envases del producto, de 1 a 99
+             */
+            cantidad: number;
+        };
+        /** ParteComercio */
+        ParteComercio: {
+            comercio: components["schemas"]["ComercioVista"];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+        };
+        /**
+         * PedidoVista
+         * @description El pedido de la familia, como un solo pedido (D7). Lo ven admin, cuidador y pagador (C3).
+         */
+        PedidoVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Persona Cuidada Id
+             * Format: uuid
+             */
+            persona_cuidada_id: string;
+            estado: components["schemas"]["Estado"];
+            /** Etag */
+            etag: string;
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedido"][];
+            /** Salieron */
+            salieron: components["schemas"]["LineaSalida"][];
+            /** Comercios */
+            comercios: components["schemas"]["ParteComercio"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /**
+             * Costo Envio
+             * @description Un solo envío por pedido (ADR-027), con IVA incluido
+             */
+            costo_envio: number;
+            /**
+             * Total
+             * @description subtotal_productos + costo_envio, con IVA incluido
+             */
+            total: number | null;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Vence En */
+            vence_en: string | null;
+            /** Vigencia Segundos */
+            vigencia_segundos: number | null;
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            entrega: components["schemas"]["EntregaVista"] | null;
+            resumen: components["schemas"]["ResumenAntesDePagar"] | null;
+            /**
+             * Pago En Curso
+             * @description MATU-62 (decisión 230): hay una venta iniciada vigente o autorizando. Mientras sea true, confirmar, cambiar, lineas, reglas-faltante y contacto responden 409 pago-en-curso
+             */
+            pago_en_curso: boolean;
+            /**
+             * Pagado En
+             * @description MATU-62: cuándo se pagó. El pago se lee en GET …/pago
+             */
+            pagado_en: string | null;
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /**
+         * PedidoVistaObservador
+         * @description Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag.
+         */
+        PedidoVistaObservador: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Persona Cuidada Id
+             * Format: uuid
+             */
+            persona_cuidada_id: string;
+            estado: components["schemas"]["Estado"];
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedido"][];
+            /** Salieron */
+            salieron: components["schemas"]["LineaSalida"][];
+            /** Comercios */
+            comercios: components["schemas"]["ParteComercio"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number | null;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Vence En */
+            vence_en: string | null;
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            /**
+             * Creado En
+             * Format: date-time
+             */
+            creado_en: string;
+            /**
+             * Actualizado En
+             * Format: date-time
+             */
+            actualizado_en: string;
+        };
+        /** ProductoPedido */
+        ProductoPedido: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Presentacion */
+            presentacion: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades Por Envase */
+            unidades_por_envase: number;
+        };
+        /**
+         * Regla
+         * @description RF-21: qué hacer si falta un producto. Nunca otra marca: no existe otra acción.
+         * @enum {string}
+         */
+        Regla: "otro_comercio" | "quitar";
+        /** ReglaProducto */
+        ReglaProducto: {
+            /**
+             * Producto Id
+             * Format: uuid
+             */
+            producto_id: string;
+            accion: components["schemas"]["Regla"];
+        };
+        /** ResumenAntesDePagar */
+        ResumenAntesDePagar: {
+            /**
+             * Vendedor
+             * @constant
+             */
+            vendedor: "MATU, piloto académico, sin persona jurídica";
+            /**
+             * Boleta
+             * @constant
+             */
+            boleta: "En este piloto no se emite boleta";
+            /**
+             * Ventana Entrega
+             * @constant
+             */
+            ventana_entrega: "Entre 24 y 48 horas hábiles";
+            /** Canal Reclamo */
+            canal_reclamo: string;
+            condiciones: components["schemas"]["CondicionesVigentes"];
+        };
+        /** SolicitudConfirmar */
+        SolicitudConfirmar: {
+            /** Telefono Contacto */
+            telefono_contacto?: string | null;
+        };
+        /** SolicitudContacto */
+        SolicitudContacto: {
+            /**
+             * Telefono Contacto
+             * @description Celular chileno, con la regla de POST /v1/usuarios; se guarda en E.164
+             */
+            telefono_contacto: string;
+        };
+        /** SolicitudLineas */
+        SolicitudLineas: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaSolicitud"][];
+        };
+        /** SolicitudPedido */
+        SolicitudPedido: {
+            /** Lineas */
+            lineas: components["schemas"]["LineaSolicitud"][];
+        };
+        /** SolicitudReglasFaltante */
+        SolicitudReglasFaltante: {
+            /** Reglas */
+            reglas: components["schemas"]["ReglaProducto"][];
+        };
+        /**
+         * Comprobante
+         * @description La confirmación escrita del pago (R4, decisión 238). **No es una boleta.**
+         */
+        Comprobante: {
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /** Lineas */
+            lineas: components["schemas"]["LineaComprobante"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number;
+            /** Pagaste Tu */
+            pagaste_tu: boolean;
+            tarjeta: components["schemas"]["Tarjeta"] | null;
+            /** Codigo Autorizacion */
+            codigo_autorizacion: string | null;
+            /**
+             * Vendedor
+             * @constant
+             */
+            vendedor: "MATU, piloto académico, sin persona jurídica";
+            /** Ventana Entrega */
+            ventana_entrega: string;
+            /** Canal Reclamo */
+            canal_reclamo: string;
+            condiciones: components["schemas"]["CondicionesComprobante"];
+            /** Tardio */
+            tardio: boolean;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["Devolucion"][];
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+            /** @description Solo quien pagó y solo si se envió. En el piloto no se envía: null (decisión 249) */
+            correo: components["schemas"]["CorreoComprobante"] | null;
+        };
+        /** CondicionesComprobante */
+        CondicionesComprobante: {
+            /** Version */
+            version: string;
+            /**
+             * Aceptadas En
+             * Format: date-time
+             */
+            aceptadas_en: string;
+            /** Huella */
+            huella: string;
+            /**
+             * Enlace
+             * @description La versión aceptada, no la vigente (decisión 240)
+             */
+            enlace: string;
+        };
+        /** CondicionesQueSeAceptan */
+        CondicionesQueSeAceptan: {
+            /** Version */
+            version: string;
+            /**
+             * Huella
+             * @description SHA-256 del texto exacto, desde «## 1. Quién vende» (decisión 221)
+             */
+            huella: string;
+        };
+        /** CorreoComprobante */
+        CorreoComprobante: {
+            /**
+             * Destino
+             * @description El correo de la cuenta de quien pagó
+             */
+            destino: string;
+            /**
+             * Enviado
+             * @description Si se envió. Decisión 249: mientras no se envíe, Comprobante.correo va en null (D-62-3)
+             */
+            enviado: boolean;
+        };
+        /**
+         * Devolucion
+         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado.
+         */
+        Devolucion: {
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            /** Monto */
+            monto: number;
+            producto: components["schemas"]["ProductoPedido"] | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /**
+             * Solicitada En
+             * Format: date-time
+             */
+            solicitada_en: string;
+            /** Hecha En */
+            hecha_en: string | null;
+            /**
+             * Ultimos4
+             * @description Solo para quien pagó (D-62-2)
+             */
+            ultimos4: string | null;
+        };
+        /**
+         * DevolucionLinea
+         * @description MATU-62 (decisión 239): la anulación parcial de la línea, a la misma tarjeta. La crea MATU-63. Sin los
+         *     últimos 4.
+         */
+        DevolucionLinea: {
+            /**
+             * Monto
+             * @description Pesos enteros devueltos o por devolver
+             */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /** Hecha En */
+            hecha_en: string | null;
+        };
+        /**
+         * InicioPago
+         * @description La venta abierta (decisiones 228 y 229). Sin datos de tarjeta. La pantalla envía un formulario POST a ``url``
+         *     con el campo token_ws = ``token``; el token nunca va en la URL de la app.
+         */
+        InicioPago: {
+            /**
+             * Intento Id
+             * Format: uuid
+             */
+            intento_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "iniciada" | "autorizando" | "aprobada" | "rechazada" | "error";
+            /**
+             * Monto
+             * @description El total confirmado, en pesos enteros con IVA, envío incluido
+             */
+            monto: number;
+            /**
+             * Total Confirmado En
+             * Format: date-time
+             */
+            total_confirmado_en: string;
+            /**
+             * Url
+             * @description El action del formulario de Webpay. null si la venta ya no está iniciada
+             */
+            url: string | null;
+            /**
+             * Token
+             * @description El valor de token_ws. null con url null
+             */
+            token: string | null;
+        };
+        /** IntentoPago */
+        IntentoPago: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "aprobado" | "aprobado_tardio" | "no_aprobado" | "abandonado" | "tiempo_agotado" | "pendiente" | "anulado" | "en_webpay";
+            /**
+             * Iniciado En
+             * Format: date-time
+             */
+            iniciado_en: string;
+            /** Cerrado En */
+            cerrado_en: string | null;
+            /** Es Tuyo */
+            es_tuyo: boolean;
+        };
+        /** LineaComprobante */
+        LineaComprobante: {
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /** Precio Unitario */
+            precio_unitario: number;
+            /** Subtotal */
+            subtotal: number;
+        };
+        /**
+         * PagoVista
+         * @description El pago del pedido para admin, cuidador y pagador (decisión 236).
+         */
+        PagoVista: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "sin_intento" | "pendiente" | "aprobado" | "no_aprobado" | "devuelto_parcial" | "anulado";
+            /** Pago En Curso */
+            pago_en_curso: boolean;
+            intento: components["schemas"]["IntentoPago"] | null;
+            comprobante: components["schemas"]["Comprobante"] | null;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["Devolucion"][];
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción. Está aunque no haya comprobante, para el sello de un pago anulado (diseño 7.9)
+             */
+            pago_de_prueba: boolean;
+        };
+        /**
+         * PagoVistaObservador
+         * @description Lo que ve el observador: solo si está pagado (D-62-2, decisión 127).
+         */
+        PagoVistaObservador: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pagado" | "sin_pagar";
+        };
+        /**
+         * ResultadoRetorno
+         * @description El resultado de la vuelta (decisiones 232 a 234). Sin montos ni tarjeta, con o sin sesión.
+         */
+        ResultadoRetorno: {
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "aprobado" | "aprobado_tardio" | "no_aprobado" | "abandonado" | "tiempo_agotado" | "pendiente" | "anulado";
+            /** Ya Registrado */
+            ya_registrado: boolean;
+            /** Anulacion */
+            anulacion: ("en_curso" | "hecha") | null;
+            /** Volver A Preguntar En */
+            volver_a_preguntar_en: number | null;
+            /**
+             * Grupo Id
+             * @description Solo con la sesión de un admin, cuidador o pagador del grupo
+             */
+            grupo_id: string | null;
+            /** Persona Cuidada Id */
+            persona_cuidada_id: string | null;
+            /** Pedido Id */
+            pedido_id: string | null;
+            /**
+             * Pago De Prueba
+             * @description Decisión 248: true si la pasarela no es la de producción (no se movió dinero real, D-62-7)
+             */
+            pago_de_prueba: boolean;
+        };
+        /**
+         * SolicitudPago
+         * @description Lo que quien paga aceptó (R5, D6, D-62-16). **No lleva montos**: el monto sale del pedido, y If-Match asegura
+         *     que es el que la pantalla mostró (decisión 226).
+         */
+        SolicitudPago: {
+            /**
+             * Acepta Condiciones
+             * @description La casilla marcada por quien paga. Con false o sin ella, 422
+             * @constant
+             */
+            acepta_condiciones: true;
+            condiciones: components["schemas"]["CondicionesQueSeAceptan"];
+        };
+        /**
+         * SolicitudRetorno
+         * @description Lo que trajo la dirección de la vuelta, con los nombres de Transbank (decisión 232). Al menos uno.
+         */
+        SolicitudRetorno: {
+            /** Token Ws */
+            token_ws?: string | null;
+            /** Tbk Token */
+            TBK_TOKEN?: string | null;
+            /** Tbk Orden Compra */
+            TBK_ORDEN_COMPRA?: string | null;
+            /** Tbk Id Sesion */
+            TBK_ID_SESION?: string | null;
+        };
+        /**
+         * Tarjeta
+         * @description Lo que Transbank devuelve y MATU guarda (R14). Solo la ve quien pagó (D-62-2).
+         */
+        Tarjeta: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "credito" | "debito" | "prepago";
+            /** Ultimos4 */
+            ultimos4: string;
+            /**
+             * Cuotas
+             * @description 0 o 1: sin cuotas. Las cuotas las reparte el banco
+             */
+            cuotas: number;
+        };
+        /**
+         * UltimosIngresosVista
+         * @description GET /v1/yo/ingresos (decisiones 253 a 256).
+         */
+        UltimosIngresosVista: {
+            /** Eventos */
+            eventos: components["schemas"]["EventoCuentaVista"][];
+            /**
+             * Hay Mas
+             * @description true si en los últimos 90 días hay más de 20 eventos. No dice cuántos. Lo que no se muestra se pide por correo (política, §10)
+             */
+            hay_mas: boolean;
+        };
+        /**
+         * PushActualVista
+         * @description GET /v1/dispositivos/actual/push (decisión 261). Nunca lleva el endpoint ni la clave privada.
+         */
+        PushActualVista: {
+            /**
+             * Clave Publica
+             * @description Clave pública VAPID (RFC 8292): el punto P-256 sin comprimir (65 bytes) en base64url sin relleno, 87 caracteres. Es la applicationServerKey de PushManager.subscribe(). null si VAPID_CLAVE_PRIVADA no está configurada
+             */
+            clave_publica: string | null;
+            /**
+             * Registrado
+             * @description Si el dispositivo del claim did tiene un endpoint de push guardado
+             */
+            registrado: boolean;
+            /**
+             * Envio Simulado
+             * @description true mientras no exista un adaptador real de push (decisión 112): no se envía nada a nadie
+             */
+            envio_simulado: boolean;
+        };
+        /**
+         * DispositivoEventoVista
+         * @description El dispositivo de un evento (C3): nunca el id, la plataforma, el push_token, la IP ni el agente de usuario.
+         */
+        DispositivoEventoVista: {
+            /**
+             * Nombre
+             * @example Chrome en Android
+             */
+            nombre: string;
+            /**
+             * Clase
+             * @description MATU-55 (C7): qué sustantivo usa la pantalla, «teléfono», «computador» o «navegador». Lo deduce el servidor del sistema del nombre, que salió del agente de usuario al entrar (Android e iPhone son telefono; Windows, Mac, Linux y ChromeOS, computador; iPad y «Navegador web», otro). El agente no se guarda
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /**
+             * Actual
+             * @description true si es el dispositivo del claim did de esta sesión. Con un access token sin did, siempre false
+             */
+            actual: boolean;
+        };
+        /**
+         * EventoCuentaVista
+         * @description Un evento de la propia cuenta: solo tipo, ocurrido_en y dispositivo (C3 a C5).
+         */
+        EventoCuentaVista: {
+            /**
+             * Tipo
+             * @description Qué pasó, de una lista cerrada (decisión 254). No es el nombre de la acción de auditoría. La pantalla arma el texto con lenguaje.md e ignora un tipo que no conoce. MATU-54 (decisión 376): pediste_una_copia es la copia de «Tus datos»; la de una persona no entra
+             * @enum {string}
+             */
+            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados" | "pediste_una_copia";
+            /**
+             * Ocurrido En
+             * Format: date-time
+             * @description El instante, en UTC. La pantalla lo muestra en America/Santiago
+             */
+            ocurrido_en: string;
+            /** @description El dispositivo del evento (en cerraste_en_dispositivo, el que se cerró; el de origen no se muestra), o null: siempre en contrasena_cambiada, celular_confirmado, codigo_recuperacion_pedido y avisos_cambiados, y en los demás si el dispositivo ya no existe porque la conservación lo borró (decisión 59) */
+            dispositivo: components["schemas"]["DispositivoEventoVista"] | null;
+        };
+        /**
+         * InvitacionCreada
+         * @description La invitación recién creada (P9). url y codigo salen solo aquí y una sola vez.
+         */
+        InvitacionCreada: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Url
+             * @description `{ORIGEN_WEB}/invitacion#<token>`, con el token de 256 bits en el fragmento (C21)
+             */
+            url: string;
+            /**
+             * Codigo
+             * @description 4 dígitos que se dictan aparte. Se guarda solo su HMAC
+             */
+            codigo: string;
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /**
+         * InvitacionVista
+         * @description Una invitación sin usar, para quien administra. Nunca el token, el código ni los intentos.
+         */
+        InvitacionVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "bloqueada";
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+            invitada_por: components["schemas"]["InvitadaPor"];
+        };
+        /** InvitadaPor */
+        InvitadaPor: {
+            /**
+             * Nombre
+             * @description Nombre de pila copiado en la invitación, o null si ya no es miembro activo
+             */
+            nombre: string | null;
+            /** Autor Activo */
+            autor_activo: boolean;
+            /** Eres Tu */
+            eres_tu: boolean;
+        };
+        /** ListaInvitaciones */
+        ListaInvitaciones: {
+            /** Invitaciones */
+            invitaciones: components["schemas"]["InvitacionVista"][];
+        };
+        /** ListaMiembros */
+        ListaMiembros: {
+            /** Miembros */
+            miembros: components["schemas"]["MiembroVista"][];
+        };
+        /**
+         * MiembroVista
+         * @description Un miembro activo (C9). Nunca el email, el celular ni el usuario_id.
+         */
+        MiembroVista: {
+            /**
+             * Id
+             * Format: uuid
+             * @description El id de la membresía, que usan PATCH y DELETE …/miembros/{membresia_id}
+             */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Puede Ver Plan
+             * @description Solo del pagador; null para los demás roles
+             */
+            puede_ver_plan: boolean | null;
+            /**
+             * Unido En
+             * Format: date-time
+             */
+            unido_en: string;
+            /** Eres Tu */
+            eres_tu: boolean;
+            /** Etag */
+            etag: string;
+            /**
+             * Enlaces Vigentes
+             * @description Accesos de relevo vigentes que compartió: para quien administra y en la propia fila
+             */
+            enlaces_vigentes: number | null;
+        };
+        /**
+         * PresentacionInvitacion
+         * @description Lo único que se ve antes del código (C1, D-42-4 a, P2).
+         */
+        PresentacionInvitacion: {
+            /** Nombre Pila Invita */
+            nombre_pila_invita: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /** ResultadoCambioMiembro */
+        ResultadoCambioMiembro: {
+            miembro: components["schemas"]["MiembroVista"];
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /** ResultadoSalida */
+        ResultadoSalida: {
+            /** Enlaces Cortados */
+            enlaces_cortados: number;
+        };
+        /**
+         * SolicitudCambioMiembro
+         * @description rol, puede_ver_plan o los dos. null en cualquiera es 422.
+         */
+        SolicitudCambioMiembro: {
+            /** Rol */
+            rol?: ("admin" | "cuidador" | "pagador" | "observador") | null;
+            /** Puede Ver Plan */
+            puede_ver_plan?: boolean | null;
+        };
+        /** SolicitudCanjeInvitacion */
+        SolicitudCanjeInvitacion: {
+            /** Token */
+            token: string;
+            /** Codigo */
+            codigo: string;
+        };
+        /**
+         * SolicitudInvitacion
+         * @description Solo el rol (C8). Sin correo, teléfono ni puede_ver_plan (D-42-1 a).
+         */
+        SolicitudInvitacion: {
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+        };
+        /** SolicitudPresentacionInvitacion */
+        SolicitudPresentacionInvitacion: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * Union
+         * @description El grupo al que se unió, para fijar X-Grupo-Id en memoria.
+         */
+        Union: {
+            /**
+             * Grupo Id
+             * Format: uuid
+             */
+            grupo_id: string;
+            /**
+             * Membresia Id
+             * Format: uuid
+             */
+            membresia_id: string;
+            /** Grupo */
+            grupo: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Puede Ver Plan */
+            puede_ver_plan: boolean;
+        };
+        /**
+         * VerificacionInvitacion
+         * @description Lo que C2 pide mostrar antes de «Unirme al grupo» (P3). Sin intentos_restantes (decisión 325).
+         */
+        VerificacionInvitacion: {
+            /** Nombre Pila Invita */
+            nombre_pila_invita: string;
+            /** Grupo */
+            grupo: string;
+            /** Personas */
+            personas: string[];
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /**
+             * Expira En
+             * Format: date-time
+             */
+            expira_en: string;
+        };
+        /** AperturaCopia */
+        AperturaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "presentacion" | "apertura" | "pin_incorrecto" | "bloqueo";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            /** Secciones */
+            secciones: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios")[] | null;
+        };
+        /** TarjetaCopia */
+        TarjetaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "credito" | "debito" | "prepago";
+            /** Ultimos4 */
+            ultimos4: string;
+            /** Cuotas */
+            cuotas: number;
+        };
+        /** CompraCopia */
+        CompraCopia: {
+            /** Insumo */
+            insumo: string;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Unidades */
+            unidades: number;
+            /** El */
+            el: string;
+            /**
+             * Origen
+             * @enum {string}
+             */
+            origen: "declarada" | "pedido_matu";
+            /** Anotada En */
+            anotada_en: string;
+            anotada_por: components["schemas"]["PersonaNombrada"] | null;
+        };
+        /** InsumoCopia */
+        InsumoCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Del Catalogo */
+            del_catalogo: boolean;
+            /**
+             * Unidad
+             * @enum {string}
+             */
+            unidad: "unidad" | "sobre" | "ml" | "g";
+            /** Usa Unidades */
+            usa_unidades: number;
+            /** Cada Dias */
+            cada_dias: number;
+            /** Quedaban Unidades */
+            quedaban_unidades: number;
+            /** Quedaban El */
+            quedaban_el: string;
+            /** Se Acaba El */
+            se_acaba_el: string;
+            /** Dias Aviso */
+            dias_aviso: number;
+            /** Unidades Por Envase */
+            unidades_por_envase: number | null;
+            /** Se Sigue */
+            se_sigue: boolean;
+            /** Agregado En */
+            agregado_en: string;
+            /** Actualizado En */
+            actualizado_en: string;
+            actualizado_por: components["schemas"]["PersonaNombrada"] | null;
+        };
+        /** TextoMostrado */
+        TextoMostrado: {
+            /** Identificador */
+            identificador: string;
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string | null;
+        };
+        /** DireccionCopia */
+        DireccionCopia: {
+            /** Etiqueta */
+            etiqueta: string;
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** FichaCopia */
+        FichaCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "disponible" | "retirada" | "en_pausa" | "borrada" | "sin_autorizar";
+            /** Borrado El */
+            borrado_el: string | null;
+            /** Completitud */
+            completitud: (0 | 33 | 67 | 100) | null;
+            /** Campos */
+            campos: components["schemas"]["CampoCopia"][] | null;
+            /** Secciones */
+            secciones: components["schemas"]["SeccionCopia"][] | null;
+        };
+        /** AvisoInsumoCopia */
+        AvisoInsumoCopia: {
+            /** Insumo */
+            insumo: string;
+            /** Fecha Prevista */
+            fecha_prevista: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pendiente" | "notificada" | "resuelta" | "descartada";
+            /** Creado En */
+            creado_en: string;
+            /** Notificado En */
+            notificado_en: string | null;
+            /** Cerrado En */
+            cerrado_en: string | null;
+        };
+        /** PagoCuentaCopia */
+        PagoCuentaCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Pagado En */
+            pagado_en: string;
+            /** Cobrado */
+            cobrado: number;
+            /** Devuelto */
+            devuelto: number;
+            tarjeta: components["schemas"]["TarjetaCopia"] | null;
+            /** Codigo Autorizacion */
+            codigo_autorizacion: string | null;
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+        };
+        /** CampoCopia */
+        CampoCopia: {
+            /**
+             * Campo
+             * @enum {string}
+             */
+            campo: "rutina" | "manejo_situaciones" | "red_apoyo";
+            /** Texto */
+            texto: string | null;
+            escrito_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Actualizado En */
+            actualizado_en: string | null;
+        };
+        /** DispositivoDelEventoCopia */
+        DispositivoDelEventoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Clase
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+        };
+        /** QuienCopia */
+        QuienCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "persona" | "matu";
+            /** Nombre */
+            nombre: string | null;
+            /** Activo */
+            activo: boolean | null;
+        };
+        /** CuentaCopia */
+        CuentaCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Correo */
+            correo: string;
+            /** Celular */
+            celular: string | null;
+            /** Celular Confirmado */
+            celular_confirmado: boolean;
+            /**
+             * Canal Codigos
+             * @enum {string}
+             */
+            canal_codigos: "sms" | "whatsapp";
+            /** Creada En */
+            creada_en: string;
+        };
+        /** AvisoEnviadoCopia */
+        AvisoEnviadoCopia: {
+            /** Creado En */
+            creado_en: string;
+            /** Enviado En */
+            enviado_en: string | null;
+            /**
+             * Canal
+             * @enum {string}
+             */
+            canal: "correo" | "push" | "sms";
+            /**
+             * Resultado
+             * @enum {string}
+             */
+            resultado: "salio" | "no_salio" | "pendiente" | "en_el_piloto_no_salio";
+        };
+        /** LineaPedidoCopia */
+        LineaPedidoCopia: {
+            /** Producto */
+            producto: string;
+            /** Presentacion */
+            presentacion: string;
+            /** Comercio */
+            comercio: string;
+            /** Cantidad */
+            cantidad: number;
+            /** Precio Unitario */
+            precio_unitario: number;
+            /** Subtotal */
+            subtotal: number;
+            /**
+             * Si Falta
+             * @enum {string}
+             */
+            si_falta: "otro_comercio" | "quitar";
+        };
+        /** CondicionesCopia */
+        CondicionesCopia: {
+            /** Grupo */
+            grupo: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /** Aceptadas En */
+            aceptadas_en: string;
+        };
+        /** GrupoCopia */
+        GrupoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Unido En */
+            unido_en: string;
+            /** Puede Ver Ficha */
+            puede_ver_ficha: boolean | null;
+        };
+        /**
+         * CopiaDatosPersona
+         * @description Respuesta de GET /v1/personas-cuidadas/{persona_id}/datos (MATU-54, decisión 350).
+         */
+        CopiaDatosPersona: {
+            /**
+             * Formato
+             * @constant
+             */
+            formato: "matu-datos/1";
+            /**
+             * Tipo
+             * @constant
+             */
+            tipo: "persona_cuidada";
+            /** Generado En */
+            generado_en: string;
+            /**
+             * Aviso
+             * @constant
+             */
+            aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.";
+            persona: components["schemas"]["DatosPersonaCopia"];
+            /** Autorizaciones */
+            autorizaciones: components["schemas"]["AutorizacionCopia"][];
+            ficha: components["schemas"]["FichaCopia"];
+            /** Enlaces Relevo */
+            enlaces_relevo: components["schemas"]["EnlaceRelevoCopia"][];
+            insumos: components["schemas"]["InsumosCopia"];
+            /** Pedidos */
+            pedidos: components["schemas"]["PedidoCopia"][] | null;
+            historial: components["schemas"]["HistorialCopia"];
+        };
+        /** PreferenciaAvisosCopia */
+        PreferenciaAvisosCopia: {
+            /** Correo */
+            correo: boolean;
+            /** Push */
+            push: boolean;
+        };
+        /** EventoCuentaCopia */
+        EventoCuentaCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "entraste" | "saliste" | "cerraste_en_dispositivo" | "salida_por_seguridad" | "contrasena_cambiada" | "celular_confirmado" | "codigo_recuperacion_pedido" | "avisos_cambiados" | "avisos_activados" | "avisos_desactivados" | "pediste_una_copia";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            dispositivo: components["schemas"]["DispositivoDelEventoCopia"] | null;
+        };
+        /** PagoPedidoCopia */
+        PagoPedidoCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "sin_intento" | "pendiente" | "aprobado" | "no_aprobado" | "devuelto_parcial" | "anulado";
+            /** Pagado En */
+            pagado_en: string | null;
+            pagado_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Cobrado */
+            cobrado: number;
+            /** Devuelto */
+            devuelto: number;
+            /** Devoluciones */
+            devoluciones: components["schemas"]["DevolucionCopia"][];
+            /** Pago De Prueba */
+            pago_de_prueba: boolean;
+        };
+        /** EntregaCopia */
+        EntregaCopia: {
+            /** Calle */
+            calle: string;
+            /** Numero */
+            numero: string;
+            /** Depto */
+            depto: string | null;
+            /** Comuna */
+            comuna: string;
+            /** Region */
+            region: string;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** PedidoCopia */
+        PedidoCopia: {
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "borrador" | "total_confirmado" | "vencido" | "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "asignado" | "sin_repartidor" | "retirado" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cerrado" | "cancelado" | "cancelado_con_devolucion";
+            /** Creado En */
+            creado_en: string;
+            /** Total Confirmado En */
+            total_confirmado_en: string | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaPedidoCopia"][];
+            /** Subtotal Productos */
+            subtotal_productos: number;
+            /** Costo Envio */
+            costo_envio: number;
+            /** Total */
+            total: number | null;
+            entrega: components["schemas"]["EntregaCopia"] | null;
+            pago: components["schemas"]["PagoPedidoCopia"] | null;
+            /** Precios De Ejemplo */
+            precios_de_ejemplo: boolean;
+        };
+        /** PoliticaCopia */
+        PoliticaCopia: {
+            /** Version */
+            version: string;
+            /** Huella */
+            huella: string;
+            /** Aceptada En */
+            aceptada_en: string;
+        };
+        /** AutorizacionCopia */
+        AutorizacionCopia: {
+            /**
+             * Finalidad
+             * @enum {string}
+             */
+            finalidad: "plan_cuidado" | "consumo" | "despacho";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "vigente" | "revision_vencida" | "retirada" | "reemplazada";
+            /**
+             * Calidad Otorgante
+             * @enum {string}
+             */
+            calidad_otorgante: "titular" | "representante_legal" | "cuidador_de_hecho";
+            /** Version Politica */
+            version_politica: string;
+            declaracion: components["schemas"]["TextoMostrado"] | null;
+            aviso: components["schemas"]["TextoMostrado"] | null;
+            registrada_por: components["schemas"]["PersonaNombrada"];
+            /** Otorgada En */
+            otorgada_en: string;
+            /** Revision Vence En */
+            revision_vence_en: string | null;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Hay Documento Representante */
+            hay_documento_representante: boolean;
+        };
+        /** DevolucionCopia */
+        DevolucionCopia: {
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            /** Producto */
+            producto: string | null;
+            /** Monto */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha";
+            /** Solicitada En */
+            solicitada_en: string;
+            /** Hecha En */
+            hecha_en: string | null;
+        };
+        /** SeccionCopia */
+        SeccionCopia: {
+            /**
+             * Seccion
+             * @enum {string}
+             */
+            seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            /** Texto */
+            texto: string;
+            escrito_por: components["schemas"]["PersonaNombrada"] | null;
+            /** Creada En */
+            creada_en: string;
+            /** Actualizado En */
+            actualizado_en: string;
+        };
+        /** DatosPersonaCopia */
+        DatosPersonaCopia: {
+            /** Nombre */
+            nombre: string;
+            /** Nombre Pila */
+            nombre_pila: string;
+            /**
+             * Nivel Apoyo
+             * @enum {string}
+             */
+            nivel_apoyo: "autovalente_con_supervision" | "apoyo_parcial" | "apoyo_total";
+            direccion: components["schemas"]["DireccionCopia"] | null;
+            /** Alta En */
+            alta_en: string;
+        };
+        /** InsumosCopia */
+        InsumosCopia: {
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "disponible" | "retirada" | "en_pausa" | "borrada" | "sin_autorizar";
+            /** Borrado El */
+            borrado_el: string | null;
+            /** Lista */
+            lista: components["schemas"]["InsumoCopia"][] | null;
+            /** Compras */
+            compras: components["schemas"]["CompraCopia"][] | null;
+            /** Avisos */
+            avisos: components["schemas"]["AvisoInsumoCopia"][] | null;
+        };
+        /** DispositivoCopia */
+        DispositivoCopia: {
+            /** Nombre */
+            nombre: string;
+            /**
+             * Clase
+             * @enum {string}
+             */
+            clase: "telefono" | "computador" | "otro";
+            /** Creado En */
+            creado_en: string;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            /** Cerrado En */
+            cerrado_en: string | null;
+            /** Avisos Activos */
+            avisos_activos: boolean;
+        };
+        /** PersonaNombrada */
+        PersonaNombrada: {
+            /** Nombre */
+            nombre: string | null;
+            /** Activo */
+            activo: boolean;
+        };
+        /**
+         * CopiaDatosCuenta
+         * @description Respuesta de GET /v1/yo/datos (MATU-54, decisiones 358 a 360).
+         */
+        CopiaDatosCuenta: {
+            /**
+             * Formato
+             * @constant
+             */
+            formato: "matu-datos/1";
+            /**
+             * Tipo
+             * @constant
+             */
+            tipo: "cuenta";
+            /** Generado En */
+            generado_en: string;
+            /**
+             * Aviso
+             * @constant
+             */
+            aviso: "Esta es una copia de los datos que MATU guarda, para que puedas conocerlos o llevarlos a otro lugar. No es la ficha para un relevo, y no se usa para compartirla. MATU no guarda esta copia. Este archivo queda donde lo descargaste, fuera de MATU: no vence y MATU no lo puede borrar.";
+            cuenta: components["schemas"]["CuentaCopia"];
+            politica: components["schemas"]["PoliticaCopia"] | null;
+            /** Grupos */
+            grupos: components["schemas"]["GrupoCopia"][];
+            /** Grupos Que Dejaste */
+            grupos_que_dejaste: components["schemas"]["GrupoQueDejasteCopia"][];
+            /** Dispositivos */
+            dispositivos: components["schemas"]["DispositivoCopia"][];
+            preferencia_avisos: components["schemas"]["PreferenciaAvisosCopia"];
+            /** Eventos */
+            eventos: components["schemas"]["EventoCuentaCopia"][];
+            /** Avisos Enviados */
+            avisos_enviados: components["schemas"]["AvisoEnviadoCopia"][];
+            /** Envio Simulado */
+            envio_simulado: boolean;
+            /** Pagos */
+            pagos: components["schemas"]["PagoCuentaCopia"][] | null;
+            /** Condiciones Aceptadas */
+            condiciones_aceptadas: components["schemas"]["CondicionesCopia"][] | null;
+        };
+        /** HechoCopia */
+        HechoCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia";
+            /** Ocurrido En */
+            ocurrido_en: string;
+            quien: components["schemas"]["QuienCopia"];
+            /** Campo */
+            campo: ("rutina" | "manejo_situaciones" | "red_apoyo") | null;
+            /** Seccion */
+            seccion: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios") | null;
+            /** Finalidad */
+            finalidad: ("plan_cuidado" | "consumo" | "despacho") | null;
+            /** Referencia */
+            referencia: string | null;
+        };
+        /** HistorialCopia */
+        HistorialCopia: {
+            /**
+             * Alcance
+             * @enum {string}
+             */
+            alcance: "todo" | "lo_tuyo";
+            /** Hechos */
+            hechos: components["schemas"]["HechoCopia"][];
+            /** Hay Hechos Sin Asociar */
+            hay_hechos_sin_asociar: boolean;
+        };
+        /** EnlaceRelevoCopia */
+        EnlaceRelevoCopia: {
+            /** Nombre Relevo */
+            nombre_relevo: string;
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "salgo_unas_horas" | "fin_de_semana_fuera" | "turno_de_noche" | "otro";
+            /** Campos */
+            campos: ("rutina" | "manejo_situaciones" | "red_apoyo")[];
+            /** Secciones */
+            secciones: ("quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios")[];
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "vigente" | "vencido" | "revocado" | "bloqueado";
+            /** Creado En */
+            creado_en: string;
+            /** Vence En */
+            vence_en: string;
+            /** Cortado En */
+            cortado_en: string | null;
+            /** Compartido Por */
+            compartido_por: string;
+            /** Usos */
+            usos: number;
+            /** Ultimo Uso En */
+            ultimo_uso_en: string | null;
+            /** Aperturas */
+            aperturas: components["schemas"]["AperturaCopia"][];
+        };
+        /**
+         * GrupoQueDejasteCopia
+         * @description F2 del cierre del analista (decisión 401): una membresía retirada, sin el nombre del grupo, que ya no se puede
+         *     leer. La pantalla la muestra como «Un grupo del que saliste».
+         */
+        GrupoQueDejasteCopia: {
+            /**
+             * Rol
+             * @enum {string}
+             */
+            rol: "admin" | "cuidador" | "pagador" | "observador";
+            /** Unido En */
+            unido_en: string;
+            /** Retirado En */
+            retirado_en: string | null;
         };
     };
-    responses: {
-        /**
-         * @description No hay una autorización vigente para compartir la ficha de la persona (MATU-18). Dos `type`,
-         *     igual que en `ficha.openapi.yaml`:
-         *
-         *     - `/errores/sin-consentimiento`: no hay consentimiento no revocado para `plan_cuidado`.
-         *     - `/errores/revision-vencida`: lo dio un cuidador de hecho y su revisión anual
-         *       (`revision_vence_en`) ya pasó, según el reloj del servidor (decisión 33). La pantalla
-         *       muestra el aviso de `docs/lenguaje.md`, 6.4b; la API no lo devuelve.
-         *
-         *     Listar y revocar accesos no lo exigen (decisión 18).
-         */
-        SinAutorizacion: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @enum {unknown} */
-                    type?: "/errores/sin-consentimiento" | "/errores/revision-vencida";
-                    /** @constant */
-                    status?: 403;
-                };
-            };
-        };
-        /** @description Error inesperado, genérico. Nunca lleva el token, el PIN ni datos del relevo. */
-        ErrorInterno: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/error-interno",
-                 *       "title": "Error interno",
-                 *       "status": 500,
-                 *       "detail": "No pudimos compartir la ficha. Cita el request_id si lo reportas",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e9"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/error-interno";
-                    /** @constant */
-                    status?: 500;
-                };
-            };
-        };
-        /**
-         * @description Falta `PEPPER_PIN`, la llave del HMAC del PIN. Compartir falla cerrado: no se crea el acceso
-         *     ni se guarda un PIN sin pepper.
-         */
-        ServicioNoDisponible: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/servicio-no-disponible",
-                 *       "title": "Servicio no disponible",
-                 *       "status": 503,
-                 *       "detail": "No se puede compartir la ficha en este momento. Cita el request_id si lo reportas",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e8"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/servicio-no-disponible";
-                    /** @constant */
-                    status?: 503;
-                };
-            };
-        };
-        /**
-         * @description Falta el access token (`/errores/no-autenticado`), o es inválido, alterado o vencido
-         *     (`/errores/token-invalido`).
-         */
-        NoAutenticado: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "WWW-Authenticate": components["headers"]["WWWAuthenticateBearer"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/token-invalido",
-                 *       "title": "No autenticado",
-                 *       "status": 401,
-                 *       "detail": "Inicia sesión de nuevo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e1"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @enum {unknown} */
-                    type?: "/errores/no-autenticado" | "/errores/token-invalido";
-                    /** @constant */
-                    status?: 401;
-                };
-            };
-        };
-        /**
-         * @description La persona no tiene consentimiento vigente para `plan_cuidado` (arquitectura 11.1 y 11.5).
-         *     Es la única causa de 403 en la ficha y en el relevo: un rol sin permiso recibe 404.
-         */
-        SinConsentimiento: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/sin-consentimiento",
-                 *       "title": "Sin permiso",
-                 *       "status": 403,
-                 *       "detail": "Falta la autorización para usar la ficha de esta persona",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e2"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/sin-consentimiento";
-                    /** @constant */
-                    status?: 403;
-                };
-            };
-        };
-        /**
-         * @description El mismo 404 para todos estos casos, para no revelar qué existe: falta `X-Grupo-Id` o no
-         *     es un UUID; el usuario no es miembro activo del grupo; su rol no alcanza (`observador`;
-         *     `pagador` sin `puede_ver_plan`; `pagador` que intenta compartir o revocar); la persona o el
-         *     acceso no existen o son de otro grupo.
-         */
-        NoEncontrado: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/no-encontrado",
-                 *       "title": "No encontrado",
-                 *       "status": 404,
-                 *       "detail": null,
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e3"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/no-encontrado";
-                    /** @constant */
-                    status?: 404;
-                };
-            };
-        };
-        /**
-         * @description Cuerpo inválido: falta un campo, `campos` vacío o repetido, teléfono que no es un celular
-         *     chileno, `relevo_informado` ausente o `false`, `motivo` fuera del enumerado, `expira_en` sin zona, en el pasado
-         *     (`tipo: vigencia_pasada`) o a más de 30 días (`tipo: vigencia_maxima`), o un campo extra.
-         *     `errores[]` nombra el campo y nunca repite el valor.
-         */
-        ValidacionAcceso: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/validacion",
-                 *       "title": "Datos inválidos",
-                 *       "status": 422,
-                 *       "detail": "Revisa los campos indicados",
-                 *       "errores": [
-                 *         {
-                 *           "campo": "expira_en",
-                 *           "mensaje": "El enlace puede durar como máximo 30 días",
-                 *           "tipo": "vigencia_maxima"
-                 *         }
-                 *       ],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e7"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["ProblemaValidacion"];
-            };
-        };
-        /** @description `cursor` inválido o `limite` fuera de 1 a 100. */
-        ValidacionConsulta: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/validacion",
-                 *       "title": "Datos inválidos",
-                 *       "status": 422,
-                 *       "detail": "Revisa los campos indicados",
-                 *       "errores": [
-                 *         {
-                 *           "campo": "limite",
-                 *           "mensaje": "Input should be less than or equal to 100",
-                 *           "tipo": "less_than_equal"
-                 *         }
-                 *       ],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e8"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["ProblemaValidacion"];
-            };
-        };
-        /**
-         * @description Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela
-         *     nada del acceso.
-         */
-        ValidacionCanje: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/validacion",
-                 *       "title": "Datos inválidos",
-                 *       "status": 422,
-                 *       "detail": "Revisa los campos indicados",
-                 *       "errores": [
-                 *         {
-                 *           "campo": "pin",
-                 *           "mensaje": "String should match pattern '^[0-9]{4}$'",
-                 *           "tipo": "string_pattern_mismatch"
-                 *         }
-                 *       ],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e9"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["ProblemaValidacion"];
-            };
-        };
-        /** @description Falta el token o el cuerpo trae un campo extra. No revela nada del acceso. */
-        ValidacionPresentacion: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/validacion",
-                 *       "title": "Datos inválidos",
-                 *       "status": 422,
-                 *       "detail": "Revisa los campos indicados",
-                 *       "errores": [
-                 *         {
-                 *           "campo": "token",
-                 *           "mensaje": "Field required",
-                 *           "tipo": "missing"
-                 *         }
-                 *       ],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f1"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["ProblemaValidacion"];
-            };
-        };
-        /**
-         * @description PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de
-         *     la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423.
-         */
-        PinIncorrecto: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/pin-incorrecto",
-                 *       "title": "PIN incorrecto",
-                 *       "status": 401,
-                 *       "detail": "El PIN no coincide. Te quedan 3 intentos",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ea",
-                 *       "intentos_restantes": 3
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["ProblemaPinIncorrecto"];
-            };
-        };
-        /**
-         * @description El enlace ya no sirve. Tres `type`, para que la página muestre el texto de cada estado:
-         *     `/errores/relevo-vencido`, `/errores/relevo-revocado` (revocar no borra `indice_token`, así
-         *     que un enlace revocado siempre responde este), o `/errores/relevo-no-disponible` cuando el
-         *     token no corresponde a ningún acceso (cortado al copiarlo, o ya purgado de `indice_token`
-         *     después de vencer). Además `/errores/relevo-pausado`: la autorización de la persona no está
-         *     vigente (decisión 33 en el relevo). Su `title` es «Ya no está disponible» y su `detail` no
-         *     dice el motivo.
-         */
-        RelevoNoDisponibleCanje: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/relevo-vencido",
-                 *       "title": "Ya no está disponible",
-                 *       "status": 410,
-                 *       "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @enum {unknown} */
-                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
-                    /** @constant */
-                    status?: 410;
-                };
-            };
-        };
-        /**
-         * @description El acceso de la sesión se revocó (`/errores/relevo-revocado`) o venció
-         *     (`/errores/relevo-vencido`). La cookie sigue siendo válida en forma y su sesión existe en
-         *     Redis: el 410 sale de verificar el estado del acceso en esta petición. La respuesta borra
-         *     la cookie y descarta la sesión.
-         */
-        RelevoNoDisponibleSesion: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Set-Cookie": components["headers"]["BorrarCookieRelevo"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/relevo-revocado",
-                 *       "title": "Ya no está disponible",
-                 *       "status": 410,
-                 *       "detail": "Quien te compartió la ficha cortó este enlace. Pídele a quien te envió el enlace uno nuevo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ec"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @enum {unknown} */
-                    type?: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-pausado";
-                    /** @constant */
-                    status?: 410;
-                };
-            };
-        };
-        /**
-         * @description El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se
-         *     desbloquea: la familia revoca y crea un acceso nuevo.
-         */
-        RelevoBloqueado: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/relevo-bloqueado",
-                 *       "title": "Bloqueado",
-                 *       "status": 423,
-                 *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/relevo-bloqueado";
-                    /** @constant */
-                    status?: 423;
-                };
-            };
-        };
-        /**
-         * @description El acceso se bloqueó después de que esta sesión se abrió: alguien probó 5 PIN incorrectos
-         *     con el mismo enlace. Se trata como enlace comprometido. La respuesta borra la cookie.
-         */
-        RelevoBloqueadoSesion: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Set-Cookie": components["headers"]["BorrarCookieRelevo"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/relevo-bloqueado",
-                 *       "title": "Bloqueado",
-                 *       "status": 423,
-                 *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ee"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/relevo-bloqueado";
-                    /** @constant */
-                    status?: 423;
-                };
-            };
-        };
-        /**
-         * @description Falla cerrado (MATU-19). En el canje: falta `PEPPER_PIN` (después de los 410 y el 423, antes de
-         *     comparar el PIN; no cuenta como intento), o el almacén de sesiones (Redis) no respondió al crear
-         *     la sesión: el canje ya quedó registrado como `relevo.canje`, pero no hay cookie y la página
-         *     vuelve a pedir el PIN. En la ficha: Redis no respondió, la custodia de la clave no está
-         *     configurada o no pudo descifrar. Nunca devuelve texto de la ficha ni dice qué falló.
-         *     En la presentación y el canje, antes que todo lo demás: el límite por IP falla cerrado si
-         *     Redis no responde o falta `PEPPER_LIMITES` (MATU-25, decisión 114).
-         */
-        RelevoSinServicio: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/servicio-no-disponible",
-                 *       "title": "Servicio no disponible",
-                 *       "status": 503,
-                 *       "detail": "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/servicio-no-disponible";
-                    /** @constant */
-                    status?: 503;
-                };
-            };
-        };
-        /**
-         * @description Falta la cookie de sesión de relevo, o no corresponde a ninguna sesión en Redis (alterada,
-         *     o vencida por su propio TTL de 12 horas o el vencimiento del acceso). Revocar **no** lleva
-         *     aquí: un acceso revocado con cookie válida responde 410. La página vuelve a pedir el PIN.
-         */
-        SinSesionRelevo: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/sin-sesion-relevo",
-                 *       "title": "No autenticado",
-                 *       "status": 401,
-                 *       "detail": "Abre de nuevo el enlace y escribe el PIN",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ef"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/sin-sesion-relevo";
-                    /** @constant */
-                    status?: 401;
-                };
-            };
-        };
-        /**
-         * @description Canje: se superó el límite de 10 canjes por hora desde la misma IP (MATU-25). El contador
-         *     es propio del canje (decisión 29) y su clave es una huella de la IP (decisión 27). No toca
-         *     el acceso ni cuenta como intento de PIN.
-         */
-        DemasiadasPeticiones: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Retry-After": components["headers"]["RetryAfter"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/demasiadas-peticiones",
-                 *       "title": "Demasiadas peticiones",
-                 *       "status": 429,
-                 *       "detail": "Espera un rato antes de volver a intentarlo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f0"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/demasiadas-peticiones";
-                    /** @constant */
-                    status?: 429;
-                };
-            };
-        };
-        /**
-         * @description Presentación: se superó el límite de 30 presentaciones por hora desde la misma IP
-         *     (MATU-25). El contador es propio de la presentación, separado del canje (decisión 29), y
-         *     su clave es una huella de la IP (decisión 27). El límite es más alto porque muchos
-         *     celulares en Chile comparten IP pública (CGNAT), y la presentación no permite adivinar
-         *     enlaces ni muestra más que dos nombres de pila. No toca el acceso.
-         */
-        DemasiadasPresentaciones: {
-            headers: {
-                "X-Request-ID": components["headers"]["XRequestId"];
-                "Retry-After": components["headers"]["RetryAfter"];
-                "Cache-Control": components["headers"]["CacheControlNoStore"];
-                "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                "X-Robots-Tag": components["headers"]["XRobotsTag"];
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "type": "/errores/demasiadas-peticiones",
-                 *       "title": "Demasiadas peticiones",
-                 *       "status": 429,
-                 *       "detail": "Espera un rato antes de volver a intentarlo",
-                 *       "errores": [],
-                 *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
-                 *     }
-                 */
-                "application/problem+json": components["schemas"]["Problema"] & {
-                    /** @constant */
-                    type?: "/errores/demasiadas-peticiones";
-                    /** @constant */
-                    status?: 429;
-                };
-            };
-        };
-    };
-    parameters: {
-        /**
-         * @description Grupo familiar en el que actúa el usuario (MATU-02). **Se debe enviar siempre**, pero se
-         *     declara `required: false` porque así la implementa `sesion_de_grupo`
-         *     (`backend/app/modules/care_circle/api/dependencias.py`): su ausencia no la rechaza la
-         *     validación (que respondería 422) sino la propia dependencia, con **404**. La API verifica en
-         *     cada petición que el usuario es miembro activo. Si falta, no es un UUID o el usuario no es
-         *     miembro, responde **404**, nunca 403 ni 422: no revela si el grupo existe.
-         * @example 5a7c9e10-0000-4000-8000-0000000000a1
-         */
-        XGrupoId: string;
-        /**
-         * @description Persona cuidada. Si no es un UUID o no es del grupo de `X-Grupo-Id`, responde **404**.
-         * @example 7d1e2f30-0000-4000-8000-000000000001
-         */
-        PersonaId: string;
-        /** @description Valor opaco de `siguiente_cursor` de la página anterior. Uno inválido responde 422. */
-        Cursor: string;
-        /** @description Elementos por página. */
-        Limite: number;
-    };
+    responses: never;
+    parameters: never;
     requestBodies: never;
-    headers: {
-        /**
-         * @description Identificador de la petición (UUID). Es el mismo `request_id` de los logs y del cuerpo de un
-         *     problema RFC 7807. Si el cliente envía un `X-Request-ID` que es un UUID, se reutiliza; si no,
-         *     lo genera la API (`app/core/logs.py`). Va en **toda** respuesta, también las de error.
-         */
-        XRequestId: string;
-        /**
-         * @description La respuesta lleva texto de la ficha, un PIN, un enlace de relevo, o quién recibió un acceso
-         *     y cuándo lo usó, y no se guarda en ninguna caché (del navegador ni intermedia).
-         */
-        CacheControlNoStore: "no-store";
-        /** @description El navegador no envía la URL de la página del relevo como `Referer` a nadie. */
-        ReferrerPolicy: "no-referrer";
-        /** @description Ningún buscador indexa las respuestas del relevo. */
-        XRobotsTag: "noindex";
-        /** @description Esquema de autenticación esperado. */
-        WWWAuthenticateBearer: "Bearer";
-        /**
-         * @description Cookie de sesión de relevo. `Max-Age` es el menor entre 43200 (12 horas) y los segundos
-         *     que le quedan al acceso.
-         * @example __Secure-matu-relevo=<id-de-sesión>; Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
-         */
-        SetCookieRelevo: string;
-        /**
-         * @description Borra la cookie de sesión de relevo.
-         * @example __Secure-matu-relevo=; Max-Age=0; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
-         */
-        BorrarCookieRelevo: string;
-        /** @description Segundos que faltan para que se abra la ventana del límite por IP. */
-        RetryAfter: number;
-    };
+    headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    salud_v1_salud_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    crear_cuenta_v1_usuarios_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRegistro"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CuentaCreadaRespuesta"];
+                };
+            };
+            /** @description email-registrado: ese email ya tiene una cuenta. El detalle nunca repite el email. Desde MATU-75, también politica-cambio: huella_politica no es la de la política vigente, y no se crea nada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/email-registrado";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 409;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                    } | {
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/politica-cambio";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 409;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Cuerpo inválido, incluidos celular_invalido, politica_no_aceptada (errores[].campo = acepta_politica, MATU-75), la huella_politica que falta o está mal formada (decisión 182) y, solo en staging, dominio_no_permitido (errores[].campo = email). Nunca repite el valor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_sesion_v1_sesiones_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSesion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Cookie del refresh */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SesionRespuesta"];
+                };
+            };
+            /** @description credenciales-invalidas, el mismo exista o no el email */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. No cuenta como intento */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: la huella de la IP o la del email están en espera */
+            429: {
+                headers: {
+                    /** @description Segundos, de 1 a 900 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: la entrada falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_politica_v1_politica_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-cache: se revalida cada vez */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoliticaVista"];
+                };
+            };
+            /** @description La política no se puede servir. El motivo va al log, nunca a la respuesta */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    renovar_sesion_v1_sesiones_renovar_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45) */
+                "X-MATU-Cliente": "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description Cookie del refresh */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SesionRespuesta"];
+                };
+            };
+            /** @description sesion-expirada */
+            401: {
+                headers: {
+                    /** @description Cookie del refresh */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta X-MATU-Cliente: web o trae otro valor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cerrar_sesion_v1_sesiones_cerrar_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Cabecera fija anti-CSRF de las rutas que usan la cookie del refresh. Si falta o trae otro valor, 422 (decisión 45) */
+                "X-MATU-Cliente": "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description Cookie del refresh */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta X-MATU-Cliente: web o trae otro valor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_dispositivos_v1_dispositivos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaDispositivos"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    sacar_v1_dispositivos__dispositivo_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dispositivo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verPushActual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushActualVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardar_push_actual_v1_dispositivos_actual_push_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPush"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description push_token inválido o de un servicio no admitido (push_no_admitido) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    borrar_push_actual_v1_dispositivos_actual_push_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El dispositivo no existe, es de otro usuario o el token no trae did */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_v1_grupos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrupoRespuesta"][];
+                };
+            };
+        };
+    };
+    crear_v1_grupos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudGrupo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrupoRespuesta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_v1_grupos__grupo_id__personas_cuidadas_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonaVistaCompleta"][] | components["schemas"]["PersonaVistaPagador"][] | components["schemas"]["PersonaVistaObservador"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crear_v1_grupos__grupo_id__personas_cuidadas_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPersona"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonaCreada"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leer_v1_personas_cuidadas__persona_id__plan_ficha_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FichaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardar_v1_personas_cuidadas__persona_id__plan_ficha__campo__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del campo tal como se leyó, por ejemplo "v3". Obligatorio si el campo ya existe. Un solo valor, comparado en forma fuerte: otro valor no coincide y responde 412. Vacío o * responde 428 */
+                "If-Match"?: string | null;
+                /** @description Solo *, en la primera escritura de un campo que nunca se escribió. Otro valor responde 422, y enviarla junto con If-Match también */
+                "If-None-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                campo: "rutina" | "manejo_situaciones" | "red_apoyo";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCampo"];
+            };
+        };
+        responses: {
+            /** @description Campo actualizado, con If-Match */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión del campo recién guardado, por ejemplo "v4". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta lleva texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampoGuardadoVista"];
+                };
+            };
+            /** @description Campo creado: primera escritura, con If-None-Match: * */
+            201: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión del campo recién guardado, por ejemplo "v4". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta lleva texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampoGuardadoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona guardó el campo después de que lo leíste (If-Match desactualizado), lo creó antes que tú (If-None-Match: * sobre un campo que ya existe), o enviaste If-Match sobre un campo que nunca se escribió (actual.etag null). `actual` trae el contenido vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual del campo. Ausente si el campo nunca se escribió */
+                    ETag?: string;
+                    /** @description La respuesta lleva texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió este contenido",
+                     *       "status": 412,
+                     *       "detail": "Pedro guardó este campo mientras lo editabas. Revisa su versión antes de guardar la tuya",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e4",
+                     *       "campo": "rutina",
+                     *       "actual": {
+                     *         "texto": "8:00 se levanta y toma desayuno en la cocina.\n13:00 almuerza con Pedro los domingos.",
+                     *         "etag": "\"v4\"",
+                     *         "actualizado_por": {
+                     *           "id": "0c4b5a10-0000-4000-8000-00000000000d",
+                     *           "nombre": "Pedro"
+                     *         },
+                     *         "actualizado_en": "2026-10-30T18:01:00Z"
+                     *       }
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        /**
+                         * Campo
+                         * @enum {string}
+                         */
+                        campo: "rutina" | "manejo_situaciones" | "red_apoyo";
+                        actual: components["schemas"]["EstadoCampoVista"];
+                    };
+                };
+            };
+            /** @description Cuerpo inválido (texto falta, supera 500 caracteres o trae caracteres de control, o hay un campo extra); llegaron If-Match e If-None-Match a la vez (tipo precondicion_doble); If-None-Match distinto de * (tipo precondicion_invalida); o texto vacío con If-None-Match: * (tipo vacio_sin_crear). errores[] nombra el campo o la cabecera, nunca el valor */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La escritura no fue condicional: faltan If-Match e If-None-Match, o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir el campo y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e6"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio si la sección ya está. Vacío o * responde 428 */
+                "If-Match"?: string | null;
+                /** @description Solo *, para agregar una sección que no está. Otro valor, o junto con If-Match, responde 422 */
+                "If-None-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSeccion"];
+            };
+        };
+        responses: {
+            /** @description Sección editada, con If-Match */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Sección agregada, con If-None-Match: * */
+            201: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión de la sección recién guardada, por ejemplo "v2". Se envía tal cual en el próximo If-Match */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeccionGuardadaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Cuerpo inválido: `texto` falta, no es texto, trae caracteres de control (tipo value_error), está vacío o solo con espacios (tipo vacio) o supera 500 caracteres, 800 en remedios (tipo largo_maximo); o hay un campo extra. También If-Match e If-None-Match a la vez (precondicion_doble) o If-None-Match distinto de * (precondicion_invalida). errores[] nombra el campo o la cabecera, nunca el valor */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    quitarSeccionFicha: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag de la sección tal como se leyó, por ejemplo "v2". Obligatorio. Vacío o * responde 428. If-None-Match no se admite al quitar: responde 422 */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+                /** @description Una de las seis secciones complementarias. Otro valor responde 404 */
+                seccion: "quien_es" | "preferencias" | "alimentacion" | "movilidad" | "comunicacion" | "remedios";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sección quitada: su fila se borró */
+            204: {
+                headers: {
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una sección que no es una de las seis (también un campo base). Nunca 403 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona se adelantó: la sección cambió, ya estaba agregada (If-None-Match: *) o no está (If-Match sobre una sección nunca agregada o ya quitada: `actual` null). `actual` trae la sección vigente para que la persona decida: no hay fusión automática (ADR-015). Leer `actual` queda auditado como plan.leer */
+            412: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Versión actual de la sección. Ausente si la sección no está */
+                    ETag?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/version-desactualizada",
+                     *       "title": "Otra persona cambió esta sección",
+                     *       "status": 412,
+                     *       "detail": "Esta sección ya no está. Vuelve a abrir la ficha",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/version-desactualizada";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 412;
+                        actual: components["schemas"]["EstadoSeccionVista"] | null;
+                    };
+                };
+            };
+            /** @description Vino If-None-Match: quitar solo admite If-Match (tipo precondicion_invalida) */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match (o If-None-Match: * al agregar), o vino If-Match vacío o * */
+            428: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description La respuesta puede llevar texto de la ficha y no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/falta-version",
+                     *       "title": "Falta la versión del contenido",
+                     *       "status": 428,
+                     *       "detail": "Vuelve a abrir la sección y guarda de nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/falta-version";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 428;
+                    };
+                };
+            };
+            /** @description Error inesperado o sección ilegible, sin el texto */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description La custodia de la clave maestra no está configurada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_accesos_v1_personas_cuidadas__persona_id__plan_accesos_relevo_get: {
+        parameters: {
+            query?: {
+                estado?: components["schemas"]["EstadoAcceso"] | null;
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaAccesosVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_acceso_v1_personas_cuidadas__persona_id__plan_accesos_relevo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudAccesoVista"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccesoCreadoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin consentimiento vigente para plan_cuidado, o revisión anual vencida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo, nunca el valor. MATU-50: `campos` con menos de los tres campos base, vacío o null (tipo campos_base_obligatorios); `secciones_adicionales` con una sección repetida (tipo duplicado) o que no está agregada (tipo seccion_no_agregada) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Error inesperado */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta PEPPER_PIN: compartir falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    revocar_acceso_v1_accesos_relevo__acceso_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                acceso_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, acceso de otro grupo, inexistente o id no UUID */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listarAperturasRelevo: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Página de aperturas. */
+            200: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID"?: string;
+                    /** @description Dice quién abrió la ficha y cuándo: no se guarda en ninguna caché */
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "items": [
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:02:00Z",
+                     *           "tipo": "apertura",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           },
+                     *           "secciones": [
+                     *             "comunicacion",
+                     *             "remedios"
+                     *           ]
+                     *         },
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:01:30Z",
+                     *           "tipo": "pin_incorrecto",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           }
+                     *         },
+                     *         {
+                     *           "ocurrido_en": "2026-10-31T13:01:00Z",
+                     *           "tipo": "presentacion",
+                     *           "acceso": {
+                     *             "id": "2e8a6b40-0000-4000-8000-0000000000b1",
+                     *             "nombre_relevo": "Rosa"
+                     *           }
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ListaAperturasVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     presentarRelevo: {
         parameters: {
             query?: never;
@@ -969,28 +6153,261 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SolicitudPresentacion"];
+                "application/json": components["schemas"]["SolicitudPresentacionVista"];
             };
         };
         responses: {
-            /** @description Los dos nombres de pila del acceso. */
+            /** @description Los dos nombres de pila del acceso */
             200: {
                 headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                    "X-Robots-Tag": components["headers"]["XRobotsTag"];
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Presentacion"];
+                    /**
+                     * @example {
+                     *       "nombre_pila_comparte": "Carmen",
+                     *       "nombre_pila": "María"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["PresentacionVista"];
                 };
             };
-            410: components["responses"]["RelevoNoDisponibleCanje"];
-            422: components["responses"]["ValidacionPresentacion"];
-            423: components["responses"]["RelevoBloqueado"];
-            429: components["responses"]["DemasiadasPresentaciones"];
-            503: components["responses"]["RelevoSinServicio"];
+            /** @description El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento */
+            410: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-vencido",
+                     *       "title": "Ya no está disponible",
+                     *       "status": 410,
+                     *       "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @enum {string}
+                         */
+                        type: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
+                        title: string;
+                        /** @constant */
+                        status: 410;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falta el token o el cuerpo trae un campo extra. No revela nada del acceso */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/validacion",
+                     *       "title": "Datos inválidos",
+                     *       "status": 422,
+                     *       "detail": "Revisa los campos indicados",
+                     *       "errores": [
+                     *         {
+                     *           "campo": "token",
+                     *           "mensaje": "Field required",
+                     *           "tipo": "missing"
+                     *         }
+                     *       ],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f1"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/validacion";
+                        title: string;
+                        /** @constant */
+                        status: 422;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo */
+            423: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-bloqueado",
+                     *       "title": "Bloqueado",
+                     *       "status": 423,
+                     *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/relevo-bloqueado";
+                        title: string;
+                        /** @constant */
+                        status: 423;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Se superó el límite de 30 presentaciones por hora desde la misma IP (MATU-25), en un contador propio, separado del canje (decisión 29), cuya clave es una huella de la IP (decisión 27). El límite es más alto que el del canje porque muchos celulares en Chile comparten IP pública (CGNAT). No toca el acceso */
+            429: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /** @description Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600 */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/demasiadas-peticiones",
+                     *       "title": "Demasiadas peticiones",
+                     *       "status": 429,
+                     *       "detail": "Espera un rato antes de volver a intentarlo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f2"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/demasiadas-peticiones";
+                        title: string;
+                        /** @constant */
+                        status: 429;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El límite por IP falla cerrado: Redis no responde o falta PEPPER_LIMITES (MATU-25, decisión 114) */
+            503: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/servicio-no-disponible",
+                     *       "title": "Servicio no disponible",
+                     *       "status": 503,
+                     *       "detail": "No se puede atender esta petición en este momento. Cita el request_id si lo reportas",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f3"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/servicio-no-disponible";
+                        title: string;
+                        /** @constant */
+                        status: 503;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
         };
     };
     canjearRelevo: {
@@ -1002,28 +6419,4012 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SolicitudCanje"];
+                "application/json": components["schemas"]["SolicitudCanjeVista"];
             };
         };
         responses: {
-            /** @description PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo. */
+            /** @description PIN correcto. La sesión de relevo queda en la cookie. Sin cuerpo */
             204: {
                 headers: {
-                    "X-Request-ID": components["headers"]["XRequestId"];
-                    "Set-Cookie": components["headers"]["SetCookieRelevo"];
-                    "Cache-Control": components["headers"]["CacheControlNoStore"];
-                    "Referrer-Policy": components["headers"]["ReferrerPolicy"];
-                    "X-Robots-Tag": components["headers"]["XRobotsTag"];
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /**
+                     * @description Cookie de sesión de relevo. Max-Age es el menor entre 43200 (12 horas) y los segundos que le quedan al acceso
+                     * @example __Secure-matu-relevo=<id-de-sesión>; Max-Age=43200; Path=/v1/relevo; HttpOnly; Secure; SameSite=Strict
+                     */
+                    "Set-Cookie": string;
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            401: components["responses"]["PinIncorrecto"];
-            410: components["responses"]["RelevoNoDisponibleCanje"];
-            422: components["responses"]["ValidacionCanje"];
-            423: components["responses"]["RelevoBloqueado"];
-            429: components["responses"]["DemasiadasPeticiones"];
-            503: components["responses"]["RelevoSinServicio"];
+            /** @description PIN incorrecto, del 1.º al 4.º intento. Solo dice cuántos intentos quedan: ni el nombre de la persona, ni quién compartió, ni cuándo vence. El 5.º intento responde 423 */
+            401: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/pin-incorrecto",
+                     *       "title": "PIN incorrecto",
+                     *       "status": 401,
+                     *       "detail": "El PIN no coincide. Te quedan 3 intentos",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ea",
+                     *       "intentos_restantes": 3
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/pin-incorrecto";
+                        title: string;
+                        /** @constant */
+                        status: 401;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                        /** @description Intentos que quedan antes del bloqueo */
+                        intentos_restantes: number;
+                    };
+                };
+            };
+            /** @description El enlace ya no sirve. Cuatro `type`, para que la página muestre el texto de cada estado: relevo-vencido, relevo-revocado (revocar no borra indice_token, así que un enlace revocado siempre responde este), relevo-no-disponible (el token no corresponde a ningún acceso: cortado al copiarlo, o ya purgado después de vencer) y relevo-pausado (la autorización de la persona no está vigente, decisión 33; el `detail` no dice el motivo). No cuenta como intento */
+            410: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-vencido",
+                     *       "title": "Ya no está disponible",
+                     *       "status": 410,
+                     *       "detail": "Este enlace venció. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000eb"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @enum {string}
+                         */
+                        type: "/errores/relevo-vencido" | "/errores/relevo-revocado" | "/errores/relevo-no-disponible" | "/errores/relevo-pausado";
+                        title: string;
+                        /** @constant */
+                        status: 410;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falta el token o el PIN, o el PIN no son 4 dígitos. No cuenta como intento y no revela nada del acceso */
+            422: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/validacion",
+                     *       "title": "Datos inválidos",
+                     *       "status": 422,
+                     *       "detail": "Revisa los campos indicados",
+                     *       "errores": [
+                     *         {
+                     *           "campo": "pin",
+                     *           "mensaje": "String should match pattern '^[0-9]{4}$'",
+                     *           "tipo": "string_pattern_mismatch"
+                     *         }
+                     *       ],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000e9"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/validacion";
+                        title: string;
+                        /** @constant */
+                        status: 422;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description El acceso está bloqueado por 5 PIN incorrectos, o este intento fue el 5.º. No se desbloquea: la familia revoca y crea un acceso nuevo */
+            423: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/relevo-bloqueado",
+                     *       "title": "Bloqueado",
+                     *       "status": 423,
+                     *       "detail": "El enlace se bloqueó por PIN incorrecto. Pídele a quien te envió el enlace uno nuevo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000ed"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/relevo-bloqueado";
+                        title: string;
+                        /** @constant */
+                        status: 423;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Se superó el límite de 10 canjes por hora desde la misma IP (MATU-25), en un contador propio (decisión 29) cuya clave es una huella de la IP (decisión 27). No toca el acceso ni cuenta como intento de PIN */
+            429: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    /** @description Segundos que faltan para que se abra la ventana del límite por IP, de 1 a 3600 */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/demasiadas-peticiones",
+                     *       "title": "Demasiadas peticiones",
+                     *       "status": 429,
+                     *       "detail": "Espera un rato antes de volver a intentarlo",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f0"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/demasiadas-peticiones";
+                        title: string;
+                        /** @constant */
+                        status: 429;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+            /** @description Falla cerrado. Antes que todo, el límite por IP sin Redis o sin PEPPER_LIMITES (MATU-25). Después de los 410 y el 423, falta PEPPER_PIN (no cuenta como intento). O Redis no respondió al crear la sesión: el canje quedó registrado como relevo.canje, pero no hay cookie */
+            503: {
+                headers: {
+                    /** @description Identificador de la petición (UUID), el mismo request_id de los logs y del problema */
+                    "X-Request-ID": string;
+                    /** @description Ninguna respuesta del relevo se guarda en una caché, del navegador ni intermedia */
+                    "Cache-Control": "no-store";
+                    /** @description El navegador no envía la URL de la página del relevo como Referer a nadie */
+                    "Referrer-Policy": "no-referrer";
+                    /** @description Ningún buscador indexa las respuestas del relevo */
+                    "X-Robots-Tag": "noindex";
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/errores/servicio-no-disponible",
+                     *       "title": "Servicio no disponible",
+                     *       "status": 503,
+                     *       "detail": "La ficha no está disponible en este momento. Cita el request_id si lo reportas",
+                     *       "errores": [],
+                     *       "request_id": "9b2f4c1e-0000-4000-8000-0000000000f4"
+                     *     }
+                     */
+                    "application/problem+json": {
+                        /**
+                         * Format: uri-reference
+                         * @constant
+                         */
+                        type: "/errores/servicio-no-disponible";
+                        title: string;
+                        /** @constant */
+                        status: 503;
+                        detail: string | null;
+                        errores: {
+                            campo: string;
+                            mensaje: string;
+                            tipo: string;
+                        }[];
+                        /** Format: uuid */
+                        request_id: string | null;
+                    };
+                };
+            };
+        };
+    };
+    leer_ficha_como_relevo_v1_relevo_ficha_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FichaRelevoVista"];
+                };
+            };
+            /** @description Sin cookie, o cookie sin sesión en Redis */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description relevo-vencido, relevo-revocado o relevo-pausado. Borra la cookie */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Bloqueado después del canje. Borra la cookie */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis o la custodia de la clave no responden */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    estado_v1_personas_cuidadas__persona_id__consentimientos_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutorizacionesPersona"] | components["schemas"]["AutorizacionesPersonaResumen"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    otorgar_v1_personas_cuidadas__persona_id__consentimientos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudAutorizacionEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutorizacionCreada"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/autorizacion-vigente: ya hay una autorización no revocada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido o una combinación que no cumple las reglas de la calidad */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    retirar_v1_personas_cuidadas__persona_id__consentimientos__finalidad__retiro_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                /** @description plan_cuidado, consumo o despacho. Con la capa 3 apagada, despacho solo se retira (decisión 250). Otro valor responde 404 */
+                finalidad: "plan_cuidado" | "consumo" | "despacho";
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetiroAutorizacion"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, persona de otro grupo o inexistente, o una finalidad que no es una de las tres o que nunca se autorizó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/ya-retirada: la autorización ya estaba retirada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    borrar_v1_personas_cuidadas__persona_id__borrado_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BorradoPersona"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada sin borrado */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/ya-borrada: los datos de la persona ya se borraron */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_catalogo_v1_catalogo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalogo"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido. También la sesión del relevo, que no tiene uno */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    por_acabarse_v1_personas_cuidadas__persona_id__consumo_por_acabarse_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPorAcabarse"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_lista_v1_personas_cuidadas__persona_id__consumo_lista_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaInsumos"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta X-Grupo-Id o no es un UUID, no miembro activo del grupo, o la persona es de otro grupo, no existe o su id no es un UUID. Leen los cuatro roles, así que el rol nunca es la causa */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_alertas_v1_personas_cuidadas__persona_id__consumo_alertas_get: {
+        parameters: {
+            query?: {
+                /** @description Uno o más estados (?estado=pendiente&estado=notificada). Sin el parámetro, las abiertas */
+                estado?: string[] | null;
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaAlertas"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado, cursor o limite inválidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    descartar_v1_personas_cuidadas__persona_id__consumo_alertas__alerta_id__descartar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                alerta_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertaVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/alerta-cerrada: la alerta ya está resuelta o descartada; trae el `estado` actual */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolver_v1_personas_cuidadas__persona_id__consumo__perfil_id__resolver_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó (el campo etag del ítem), por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin sumar ni cerrar nada (decisión 80) */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SolicitudResolver"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsumoPorAcabarseVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/alerta-cerrada (la alerta de la fecha estimada actual ya está cerrada, con su `estado`) o /errores/perfil-inactivo */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El If-Match no es la versión vigente del perfil (otra persona o una pestaña anterior ya guardó): no se suma ni se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description envases fuera de 1..99 o cantidad fuera de 1..10000 (decisiones 144 y 147); envases_o_cantidad (los dos a la vez, en cantidad); sin_unidades_por_envase (envases en un perfil sin unidades_por_envase, en envases); stock_maximo: lo que queda más lo comprado pasa de 100.000; o cobertura_maxima: con lo comprado alcanzaría para más de 3650 días, en el campo que vino. Nunca repite el valor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_v1_personas_cuidadas__persona_id__consumo_get: {
+        parameters: {
+            query?: {
+                /** @description `true` (por omisión) los que se siguen; `false` los desactivados; `todos` los dos, en una sola lista (decisión 72) */
+                activo?: "true" | "false" | "todos";
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPerfiles"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor, limite o activo inválidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_v1_personas_cuidadas__persona_id__consumo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPerfil"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-duplicado: ya se sigue ese producto */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_v1_personas_cuidadas__persona_id__consumo__perfil_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    eliminar_v1_personas_cuidadas__persona_id__consumo__perfil_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    editar_v1_personas_cuidadas__persona_id__consumo__perfil_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó, por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudEdicionPerfil"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no se edita */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Otra persona cambió el perfil desde que se leyó. `actual` trae el perfil vigente, con su etag y quién lo guardó (actualizado_por) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description Cuerpo inválido. errores[] nombra el campo y nunca repite el valor. Tipos propios: producto_o_nombre, producto_no_admitido, unidad_distinta, cobertura_maxima, nombre_libre_con_producto, null_no_admitido, cuerpo_vacio; value_error en nombre_libre si trae saltos de línea o caracteres de control. unidades_por_envase fuera de 1 a 10.000 responde con los tipos de Pydantic */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    desactivar_v1_personas_cuidadas__persona_id__consumo__perfil_id__desactivar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activar_v1_personas_cuidadas__persona_id__consumo__perfil_id__activar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerfilConsumoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza para escribir (pagador u observador), persona de otro grupo o inexistente, o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-duplicado: ya se sigue ese producto en otro perfil */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reponer_v1_personas_cuidadas__persona_id__consumo__perfil_id__reponer_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó (el campo etag), por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141) */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudReposicion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsumoPorAcabarseVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El If-Match no es la versión vigente del perfil: no se suma, no se anota la compra y no se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description Cuerpo inválido, sin repetir el valor: envases fuera de 1..99 o cantidad fuera de 1..10000 (tipos de Pydantic); envases_o_cantidad (los dos o ninguno, en cantidad); sin_unidades_por_envase (envases en un perfil sin unidades_por_envase, en envases); stock_maximo (lo que queda más lo comprado pasa de 100.000) o cobertura_maxima (más de 3650 días), en el campo que vino */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    recontar_v1_personas_cuidadas__persona_id__consumo__perfil_id__recontar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description ETag del perfil tal como se leyó (el campo etag), por ejemplo "v3". Obligatorio: vacío o * responde 428; otro valor que no coincide responde 412 sin cambiar nada (decisión 141) */
+                "If-Match"?: string | null;
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                perfil_id: string;
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRecuento"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsumoPorAcabarseVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin autorización vigente para consumo: /errores/sin-consentimiento o /errores/revision-vencida, con el miembro de extensión finalidad: consumo. Se evalúa antes de leer nada del consumo */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo o inexistente, o la alerta o el perfil no es de esa persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/perfil-inactivo: un insumo que no se sigue no anota compras ni recuentos */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El If-Match no es la versión vigente del perfil: no se suma, no se anota la compra y no se cierra nada. `actual` trae el perfil vigente, con su etag y quién lo guardó */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /** Type */
+                        type: string;
+                        /** Title */
+                        title: string;
+                        /** Status */
+                        status: number;
+                        /** Detail */
+                        detail: string | null;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        actual: components["schemas"]["PerfilConsumoVista"];
+                    };
+                };
+            };
+            /** @description Cuerpo inválido, sin repetir el valor: stock_unidades falta o está fuera de 0..100000 (tipos de Pydantic), o cobertura_maxima en stock_unidades (más de 3650 días) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta If-Match, está vacío o es * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    pedir_codigo_recuperacion_v1_recuperacion_codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCodigoRecuperacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_contrasena_v1_recuperacion_contrasena_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCambioContrasena"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cuerpo inválido (validacion) o codigo-invalido. Nunca repite valores */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_cuenta_v1_cuenta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CuentaVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    pedir_codigo_del_celular_v1_cuenta_celular_codigo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description celular-verificado (ya lo está) o sin-celular (la cuenta no tiene) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    confirmar_celular_v1_cuenta_celular_verificar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudVerificarCelular"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (validacion) o codigo-invalido. Nunca repite valores */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones */
+            429: {
+                headers: {
+                    /** @description Segundos de espera */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta un pepper o el envío, o Redis no responde: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    leerPreferenciaAvisos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciaAvisosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardarPreferenciaAvisos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferenciaAvisosVista"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciaAvisosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    guardar_v1_personas_cuidadas__persona_id__direccion_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+                "If-None-Match"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DireccionEntrada"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DireccionVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada; al vaciar, también la persona sin dirección */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con la dirección vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version: falta If-Match (o If-None-Match: * la primera vez) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    vaciar_v1_personas_cuidadas__persona_id__direccion_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza (pagador u observador), persona de otro grupo, inexistente o eliminada; al vaciar, también la persona sin dirección */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con la dirección vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description /errores/falta-version: falta If-Match (o If-None-Match: * la primera vez) */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPedido"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"] | components["schemas"]["PedidoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_pedido_v1_pedidos__pedido_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"] | components["schemas"]["PedidoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reemplazar_lineas_v1_pedidos__pedido_id__lineas_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudLineas"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    reemplazar_reglas_v1_pedidos__pedido_id__reglas_faltante_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudReglasFaltante"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    confirmar_v1_pedidos__pedido_id__confirmar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SolicitudConfirmar"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_contacto_v1_pedidos__pedido_id__contacto_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudContacto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_pedido_v1_pedidos__pedido_id__cambiar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cancelar_v1_pedidos__pedido_id__cancelar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoVista"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, rol que no alcanza, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado), sin-direccion, pedido-vacio, nada-disponible, pedido-abierto (con pedido_id), idempotencia-en-curso o pago-en-curso (MATU-62: confirmar, cambiar, lineas, reglas-faltante y contacto) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos (nombra el campo, nunca el valor), o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-version (If-Match) o /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_condiciones_v1_condiciones_pedido_get: {
+        parameters: {
+            query?: {
+                version?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-cache: se revalida cada vez */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CondicionesPedidoVista"];
+                };
+            };
+            /** @description MATU-62: esa versión nunca se publicó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description MATU-62: version no tiene la forma MAYOR.MENOR */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El texto publicado no está o no calza con su huella */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    pagar_v1_pedidos__pedido_id__pagar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPago"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InicioPago"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/sin-autorizacion-pedidos o /errores/revision-vencida, con finalidad: despacho */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, cuidador u observador, pedido de otro grupo, inexistente o de una persona eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/estado-pedido (con estado; con el total vencido, vencido), /errores/pago-en-curso, /errores/condiciones-cambiaron (con version_vigente) o /errores/idempotencia-en-curso */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/version-desactualizada, con el pedido vigente en actual. No se cobró nada */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo o cabeceras inválidos, o /errores/idempotencia-reutilizada */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia o /errores/falta-version */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/pasarela-no-disponible, con Retry-After: Webpay no respondió y no se cobró nada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_pago_v1_pedidos__pedido_id__pago_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagoVista"] | components["schemas"]["PagoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Un identificador que no es UUID responde 404; 422 queda para la forma */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_pedido_pagado_v1_personas_cuidadas__persona_id__pedido_pagado_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagoVista"] | components["schemas"]["PagoVistaObservador"];
+                };
+            };
+            /** @description Falta el access token, o es inválido o vencido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No miembro, pedido o persona de otro grupo, inexistente o eliminada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Un identificador que no es UUID responde 404; 422 queda para la forma */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    retorno_v1_pagos_retorno_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudRetorno"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoRetorno"];
+                };
+            };
+            /** @description Los valores no son de ninguna venta de MATU */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No trae ninguno de los cuatro campos, o uno no tiene la forma de Transbank */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verIngresosPropios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UltimosIngresosVista"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listarInvitaciones: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaInvitaciones"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    crearInvitacion: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitacionCreada"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description tope-invitaciones: 20 por admin y grupo en 24 horas, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis, sin PEPPER_LIMITES o sin PEPPER_PIN. No se creó nada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    anularInvitacion: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                invitacion_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no es admin o invitación inexistente o de otro grupo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-cerrada: ya se usó o venció, con estado */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presentarInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPresentacionInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresentacionInvitacion"];
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verificarCodigoInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCanjeInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificacionInvitacion"];
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (no cuenta como intento), o codigo-incorrecto */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    aceptarInvitacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCanjeInvitacion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Union"];
+                };
+            };
+            /** @description Sin sesión o con un access token inválido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ya-eres-parte, con grupo_id. No consume la invitación */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-no-disponible, invitacion-usada o invitacion-vencida */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido (no cuenta como intento), o codigo-incorrecto */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description invitacion-bloqueada por 5 códigos incorrectos */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description demasiadas-peticiones: se superó el límite por IP de la ruta, en una ventana fija de 1 hora */
+            429: {
+                headers: {
+                    /** @description Segundos que faltan para que se abra la ventana, de 1 a 3600 */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde o falta PEPPER_LIMITES: el límite por IP falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listarMiembros: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaMiembros"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sacarMiembro: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                membresia_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoSalida"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin o unica-persona. No cambia nada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cambiarMiembro: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                membresia_id: string;
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudCambioMiembro"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description "v<version>" */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoCambioMiembro"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin: el grupo quedaría sin nadie que lo administre */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada, con la membresía vigente en actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido, o permiso_solo_pagador */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description falta-version: sin If-Match, vacío o * */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    salirDelGrupo: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                grupo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultadoSalida"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Grupo ajeno, rol que no alcanza, o membresía inexistente, retirada o ajena */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description ultimo-admin o unica-persona. No cambia nada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verDatosPropios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description inline; filename="matu-cuenta-AAAA-MM-DD.json": el nombre con que la pantalla guarda el archivo */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopiaDatosCuenta"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description tope-copias: 10 copias por hora por cuenta, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis o sin PEPPER_LIMITES: el límite falla cerrado */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verDatosPersona: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description no-store */
+                    "Cache-Control"?: string;
+                    /** @description inline; filename="matu-datos-AAAA-MM-DD.json": el nombre con que la pantalla guarda el archivo */
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopiaDatosPersona"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin grupo, rol pagador u observador, o persona de otro grupo o borrada */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description tope-copias: 10 copias por hora por cuenta, con Retry-After */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
         };
     };
 }

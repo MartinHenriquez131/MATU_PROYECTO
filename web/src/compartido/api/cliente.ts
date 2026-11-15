@@ -2,7 +2,7 @@
 // relativas (/v1/...), sin CORS, y la cookie HttpOnly del relevo viaja sola con `withCredentials`.
 // Nunca se registra ni se guarda el cuerpo de una petición o de una respuesta.
 import axios, { isAxiosError } from 'axios'
-import type { components } from './relevo.openapi'
+import type { operations } from './relevo.openapi'
 
 export const api = axios.create({
   baseURL: '/',
@@ -11,7 +11,10 @@ export const api = axios.create({
   headers: { Accept: 'application/json' },
 })
 
-export type Problema = components['schemas']['Problema']
+// MATU-106: openapi.json declara el problema RFC 7807 en línea en cada error, sin un componente Problema.
+// Se toma el del 401 del canje, sin lo propio de ese error (su type y status fijos e intentos_restantes).
+type ProblemaPin = operations['canjearRelevo']['responses'][401]['content']['application/problem+json']
+export type Problema = Omit<ProblemaPin, 'type' | 'status' | 'intentos_restantes'> & { type: string; status: number }
 
 /** Lo que la pantalla necesita de un error: nunca `title`, `detail`, `mensaje` ni `request_id`. */
 export interface FalloApi {
