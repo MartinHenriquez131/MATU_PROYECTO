@@ -166,12 +166,46 @@ describe('Tu pedido: el carrito (7)', () => {
     abrir()
     await cargado()
     const campo = screen.getByRole('textbox', { name: 'Cantidad Pañal adulto M x30' })
+    // 55-H3: el borrado ya no se pierde bajo carga (lo prueba «lo primero que se escribe…», abajo).
     await userEvent.clear(campo)
+    expect(campo).toHaveValue('')
     await userEvent.tab()
     expect(campo).toBeInvalid()
     expect(campo).toHaveAccessibleDescription('Escribe una cantidad de 1 a 99.')
+    // Más que los 600 ms del guardado automático (7.5): si se fuera a enviar, ya se habría pedido.
     await new Promise((r) => setTimeout(r, 700))
     expect(api.escrituras()).toEqual([])
+  })
+
+  it('55-H3: lo primero que se escribe, apenas aparece el carrito, no lo pisa la cantidad guardada', async () => {
+    // El defecto: el efecto que copia las cantidades del pedido a los campos corría también al montar,
+    // después de pintar, y se colaba en lo primero que la persona escribía. Para verlo sin depender de
+    // la carga de la máquina, se escribe en el mismo instante en que el campo aparece en la página
+    // (MutationObserver), antes de que React corra sus efectos: sin act, como en el navegador.
+    apiPedido({})
+    const global = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previo = global.IS_REACT_ACT_ENVIRONMENT
+    abrir()
+    global.IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      const fijarValor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      const campo = await new Promise<HTMLInputElement>((listo) => {
+        const observador = new MutationObserver(() => {
+          const c = document.getElementById(`cantidad-${PANAL.id}`) as HTMLInputElement | null
+          if (!c) return
+          observador.disconnect()
+          fijarValor.call(c, '')
+          c.dispatchEvent(new Event('input', { bubbles: true }))
+          listo(c)
+        })
+        observador.observe(document.body, { childList: true, subtree: true })
+      })
+      // Lo que tarde React en correr sus efectos pendientes.
+      await new Promise((r) => setTimeout(r, 30))
+      expect(campo).toHaveValue('')
+    } finally {
+      global.IS_REACT_ACT_ENVIRONMENT = previo
+    }
   })
 
   it('si no se pudo guardar la cantidad, vuelve a la guardada con su error', async () => {

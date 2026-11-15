@@ -1958,3 +1958,17 @@ El analista normativo dio CUMPLE en la revisión de cierre, con dos omisiones. L
 401. **F2 · Los grupos de los que la cuenta salió** (opción a). «Tus datos» suma `grupos_que_dejaste`: las membresías retiradas de la cuenta, leídas con `membresia_propia` (`care_circle/infrastructure/copia_grupos.py`), con el rol, `unido_en` y `retirado_en`. **Sin el nombre del grupo**, que `grupo_mis_grupos` ya no deja leer, y sin ningún id. Esquema `GrupoQueDejasteCopia`, con `extra="forbid"`. La pantalla lo muestra como «Un grupo del que saliste».
 402. **F3 · `codigo_autorizacion` en `PagoCuentaCopia`.** Solo en «Tus datos» de quien pagó, que ya lo ve en su comprobante (D-62-2). Nunca en la copia de la persona: la prueba de «Datos de» sigue fallando si aparece `codigo_autorizacion`, `tarjeta`, `ultimos4` o `cuotas`, y la de los pagos verifica que el código guardado no está en el texto de esa copia.
 403. **Decisión 354, corregida.** Las compras de la copia son todas las que MATU guarda: solo las `declarada` se borran a los 90 días (0017); las `pedido_matu` quedan más tiempo y van en el archivo.
+
+## MATU-107 · Avisos push solo en teléfonos del equipo durante el piloto (hallazgo 55-H2, condición C14; implementado)
+
+Decisión de Jorge (PO) del 12-11, con las condiciones C-107-1 a C-107-8 de la revisión previa del analista normativo.
+
+### Decisiones de MATU-107 (12-11)
+
+404. **C14 pasa a ser un control técnico.** `PUSH_CUENTAS_PERMITIDAS` (UUID de `usuario_id` separados por coma) dice qué cuentas pueden activar los avisos push. Solo rige con `ENTORNO` fuera de local y pruebas, incluida producción, y falla cerrada: ausente o vacía, nadie los activa; una entrada que no es UUID impide cargar la configuración, con un mensaje que nombra la variable y nunca el valor. La lista solo la lee `app/core/push_piloto.py` (`PoliticaPush.permite`), que consultan `iam` y `notifications`; nunca aparece en una respuesta, un error, un log, `/docs` ni este contrato.
+    - **`GET /v1/dispositivos/actual/push`** suma `permitido` (booleano, obligatorio) en `PushActualVista`, que sigue con `extra="forbid"`. Con `permitido` false, `clave_publica` es `null`. En local y pruebas, `permitido` es siempre `true`.
+    - **`PUT /v1/dispositivos/actual/push`** de una cuenta sin permiso responde **409** RFC 7807 con `type` `/errores/push-no-permitido` y un `detail` fijo, sin repetir el `push_token` ni nombrar la lista. No guarda nada ni audita (`dispositivo.push_registrar` solo cuando se guarda). Orden: 401, 404, 422, 409 y 204.
+    - **`DELETE /v1/dispositivos/actual/push`**, salir y sacar un dispositivo funcionan siempre, con o sin permiso.
+    - **Segunda barrera:** el consumidor de `QuiebreProximo` no lee los dispositivos de una cuenta sin permiso; su fila push queda `omitida` con el código existente `sin_destino`. El envío sigue simulado.
+    - **Logs:** el rechazo deja solo la línea de la petición (request_id, ruta, estado, tipo_error, usuario_id). Al arrancar fuera de local y pruebas, una línea fija en WARNING, sin valores.
+    - Sin migración ni permisos nuevos. `openapi.json` suma `permitido` y el 409 en esas rutas. **Para desplegar:** cargar `PUSH_CUENTAS_PERMITIDAS` en `matu-api` y en `matu-cron-avisos` (`infra/railway/README.md`).

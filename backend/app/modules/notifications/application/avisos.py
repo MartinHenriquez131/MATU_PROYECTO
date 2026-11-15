@@ -10,7 +10,8 @@ aviso no revierte la alerta (arquitectura 6.4, regla 4).
    que la persona apagó no tiene fila.
 4. Por cada fila por intentar, en su propia transacción y con la fila bloqueada, revisa de nuevo la
    autorización de ``consumo`` con el Reloj, la alerta, el miembro y el canal, y solo con el canal activo lee
-   el destino. Si algo falla,
+   el destino. Desde MATU-107 (C14, C-107-5), el push de una cuenta que no puede recibirlo (``push_permitido``) no
+   lee sus dispositivos: queda sin destino. Si algo falla,
    la fila queda ``omitida`` con su código y no se envía nada. Si no, arma el mensaje (nunca se guarda) y
    envía. Una fila ``enviada`` nunca se reenvía.
 5. Con al menos un envío ``enviada``, la alerta pasa a ``notificada``.
@@ -104,12 +105,15 @@ class ConsumidorQuiebreProximo:
         push: EnviadorPush,
         reloj: Reloj,
         origen_web: str,
+        push_permitido: Callable[[uuid.UUID], bool],
     ) -> None:
         self._unidad = unidad
         self._correo = correo
         self._push = push
         self._reloj = reloj
         self._origen_web = origen_web
+        # MATU-107 (C-107-5): la segunda barrera de C14. La arma quien crea el consumidor; sin ella no hay consumidor
+        self._push_permitido = push_permitido
 
     def __repr__(self) -> str:
         return "ConsumidorQuiebreProximo()"
@@ -162,7 +166,8 @@ class ConsumidorQuiebreProximo:
         activo = miembro is not None and _canal_activo(miembro, fila.canal)
         # El destino (email o push_token) solo se lee si el canal sigue activo
         correo = repo.correo(fila.usuario_id) if activo and fila.canal is Canal.CORREO else None
-        destinos = repo.destinos_push(fila.usuario_id) if activo and fila.canal is Canal.PUSH else []
+        push = activo and fila.canal is Canal.PUSH and self._push_permitido(fila.usuario_id)
+        destinos = repo.destinos_push(fila.usuario_id) if push else []
         revision = Revision(
             autorizado=estado_autorizacion(contexto.autorizacion, ahora) is EstadoAutorizacion.VIGENTE,
             alerta_abierta=contexto.alerta_abierta,

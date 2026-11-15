@@ -71,6 +71,7 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `PROXY_SALTOS` | Vacía al principio (0). `1` en Railway, en el paso 5 |
 | `DIAGNOSTICO_PROXY` | **No se carga**, salvo durante la verificación del paso 5: `true` y después se borra |
 | `PASARELA_PAGO` | MATU-62: `integracion` en staging. Webpay Plus en el ambiente de integración de Transbank, con el código de comercio y la llave públicas que trae su SDK: no se cargan. Sin la variable, pagar responde 503 y no se cobra nada. `falsa` no carga fuera de local y pruebas |
+| `PUSH_CUENTAS_PERMITIDAS` | MATU-107 (C14 del piloto): los `usuario_id` de las cuentas del equipo que pueden activar los avisos push, UUID separados por coma. Vacía o ausente, nadie los activa (`PUT /v1/dispositivos/actual/push` responde 409 `push-no-permitido`); una entrada que no es UUID impide arrancar. El `usuario_id` sale de la base, no de un `.env`. No se escribe en el chat ni en un PR. Va también en `matu-cron-avisos` |
 | `VIDA_VENTA_WEBPAY_MINUTOS` | MATU-62: opcional, `8` por omisión (decisión 230; MATU-94: la venta de integración vence a los 7 minutos). Cuánto dura un pago en curso con la venta iniciada. Va en `matu-api` y en los cron |
 
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
@@ -257,6 +258,7 @@ Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van co
 | `MATU_PUBLISHER_PASSWORD` | — | — | secreto nuevo, distinto |
 | `PUBLISHER_DATABASE_URL` | — | — | `postgresql+psycopg://matu_publisher:${{MATU_PUBLISHER_PASSWORD}}@${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/matu` |
 | `ENVIADOR_AVISOS` | — | — | `simulado` |
+| `PUSH_CUENTAS_PERMITIDAS` | — | — | referencia (MATU-107: sin ella, ningún push sale) |
 | `ORIGEN_WEB` | — | — | referencia |
 
 Desde MATU-61, `borrados` corre además `conservacion_pedidos` (los pedidos no pagados a los 30 días, migración

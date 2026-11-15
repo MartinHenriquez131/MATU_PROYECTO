@@ -29,6 +29,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import ENTORNOS_REGISTRO_AVISOS, RAIZ_REPOSITORIO, Configuracion
+from app.core.push_piloto import PoliticaPush
 from app.modules.consumption.events import QUIEBRE_PROXIMO
 from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo
 from app.modules.notifications.infrastructure.enviadores_simulados import (
@@ -76,6 +77,8 @@ def consumidores(
         push=EnviadorPushSimulado(registro),
         reloj=reloj,
         origen_web=config.origen_web,
+        # MATU-107 (C-107-5): fuera de local y pruebas, push solo a las cuentas de PUSH_CUENTAS_PERMITIDAS
+        push_permitido=PoliticaPush.desde(config).permite,
     )
     return {QUIEBRE_PROXIMO: [consumidor]}
 

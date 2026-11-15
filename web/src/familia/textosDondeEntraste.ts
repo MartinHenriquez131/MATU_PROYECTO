@@ -117,4 +117,6 @@ export const PUSH = {
   desactivando: 'Desactivando…', // [nuevo]
   desactivaste: (s: string) => `Desactivaste los avisos en este ${s}.`, // [nuevo]
   errDesactivar: 'No pudimos desactivar los avisos. Revisa tu conexión y vuelve a intentarlo.', // [nuevo]
+  /** [lenguaje 33, G; analista, C14] MATU-107: la cuenta no está en el equipo del piloto (`permitido: false`). Igual en un computador. */
+  noPermitido: 'En el piloto, los avisos en el teléfono solo se prueban en los teléfonos del equipo de MATU.',
 }
