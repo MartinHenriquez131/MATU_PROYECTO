@@ -54,7 +54,7 @@ function Navegacion() {
       aria-label={MARCO.secciones}
       className="telefono:fixed telefono:inset-x-0 telefono:bottom-0 telefono:z-20 telefono:border-t telefono:border-linea telefono:bg-hoja telefono:px-1 telefono:py-1"
     >
-      <ul className={`flex flex-wrap gap-1 angosto:flex-col @4xl/app:flex-col telefono:grid ${columnas} telefono:gap-1`}>
+      <ul className={`flex flex-wrap gap-1 angosto:flex-col @4xl/app:flex-col telefono:grid ${columnas} telefono:gap-0.5`}>
         {visibles.map(({ id, texto, corto, Icono, ruta: destino }) => {
           const on = actual === id
           return (
@@ -66,11 +66,13 @@ function Navegacion() {
                   e.preventDefault()
                   navegar(destino)
                 }}
-                className={`flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap telefono:min-h-14 telefono:flex-col telefono:flex-nowrap telefono:justify-center telefono:gap-0.5 telefono:px-1 telefono:text-center telefono:text-sm telefono:leading-tight ${
-                  on ? 'bg-hoja font-bold text-turquesa ring-1 ring-linea telefono:bg-rocio telefono:ring-0' : 'text-tinta hover:bg-tinta/6'
+                className={`flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-0.5 rounded-xl px-3 py-1 text-left @4xl/app:flex-nowrap telefono:min-h-14 telefono:flex-col telefono:flex-nowrap telefono:justify-center relative telefono:gap-0.5 telefono:px-0.5 telefono:text-center telefono:leading-tight estrecho:text-sm ${
+                  on ? 'bg-hoja font-bold text-turquesa ring-1 ring-linea telefono:bg-rocio telefono:font-normal telefono:text-tinta telefono:ring-0' : 'text-tinta hover:bg-tinta/6'
                 }`}
               >
-                <Icono aria-hidden className="size-5 shrink-0" strokeWidth={on ? 2.4 : 2} />
+                {/* MATU-107 (1.4): el indicador del activo, solo en el teléfono. */}
+                {on && <span aria-hidden className="absolute top-0 left-1/2 hidden h-1 w-8 -translate-x-1/2 rounded-b-full bg-turquesa telefono:block" />}
+                <Icono aria-hidden className={`size-5 shrink-0${on ? ' text-turquesa' : ''}`} strokeWidth={on ? 2.4 : 2} />
                 <span className="flex-1 @4xl/app:whitespace-nowrap telefono:flex-none">
                   <span className="telefono:hidden">{texto}</span>
                   <span className="hidden telefono:inline">{corto}</span>

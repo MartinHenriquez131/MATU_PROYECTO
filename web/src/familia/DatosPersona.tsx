@@ -35,7 +35,7 @@ import { navegar } from './ruteo'
 import { COMPARTIR } from './textos'
 import { MIS_DATOS as T } from './textosMisDatos'
 import { PEDIDO } from './textosPedido'
-import { Etiqueta, Nota, Pagina, Volver } from './ui'
+import { Cola, Etiqueta, Nota, Pagina, Volver } from './ui'
 import {
   AvisoDeCarga,
   Bloque,
@@ -93,7 +93,7 @@ function PaginaDatosPersona({ persona }: { persona: PersonaListada }) {
   ) : undefined
 
   return (
-    <Pagina titulo={T.titulo(pila)} bajada={bajada} antes={<Volver onClick={volver}>{T.volverAGrupo}</Volver>}>
+    <Pagina titulo={T.titulo(pila)} bajada={bajada} ayuda={T.limiteCopias} antes={<Volver onClick={volver}>{T.volverAGrupo}</Volver>}>
       {estado.estado === 'cargando' && <Cargando />}
       {estado.estado !== 'cargando' && estado.estado !== 'lista' && <AvisoDeCarga e={estado} reintentar={reintentar} />}
       {copia && (
@@ -541,7 +541,7 @@ function Compras({ compras, generadoEn }: { compras: CompraCopia[]; generadoEn: 
             <span className="text-base text-tenue break-words">
               {T.el}
               <Dia dia={c.el} />
-              {c.origen === 'pedido_matu' ? T.llegoConPedido : T.anoto(nombreDe(c.anotada_por))}
+              <Cola>{c.origen === 'pedido_matu' ? T.llegoConPedido : T.anoto(nombreDe(c.anotada_por))}</Cola>
             </span>
           </li>
         ))}
@@ -660,7 +660,7 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
               </dd>
               <dd className="col-span-full text-base text-tenue break-words">
                 {T.enComercio(l.comercio)}
-                {T.siFalta(siFalta(l.si_falta))}
+                <Cola>{T.siFalta(siFalta(l.si_falta))}</Cola>
               </dd>
             </div>
           ))}
@@ -728,18 +728,18 @@ function PagoDelPedido({ pago }: { pago: PedidoCopia['pago'] }) {
       <p className="max-w-prose text-base break-words">
         <ConFechaHora partes={[T.loPago(nombreDe(pago.pagado_por))[0], '.']} iso={pago.pagado_en} />
       </p>
-      <p className="text-base">
+      {/* 54-H4 (MATU-107, 4): la cola con «·» y break-words como red. */}
+      <p className="text-base break-words">
         {T.cobrado}
         <span className="cifras">
           {pesos(pago.cobrado)}
           {pago.devuelto > 0 ? '' : '.'}
         </span>
         {pago.devuelto > 0 && (
-          <>
-            {' · '}
+          <Cola>
             {T.devuelto}
             <span className="cifras">{pesos(pago.devuelto)}.</span>
-          </>
+          </Cola>
         )}
       </p>
     </>

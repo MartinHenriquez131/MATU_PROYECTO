@@ -77,6 +77,33 @@ function abrirApp() {
 }
 
 describe('El catálogo en la app de la familia', () => {
+  it('MATU-107 (42-H2): la barra del teléfono marca la sección activa con el indicador turquesa y el rótulo en tinta, sin negrita', async () => {
+    apiApp('admin', [MARIA])
+    abrirApp()
+    await screen.findByRole('heading', { level: 3, name: 'Pañal adulto M x30' }, { timeout: 5000 })
+    const barra = screen.getByRole('navigation', { name: /secciones/i })
+    const enlaces = within(barra).getAllByRole('link')
+    expect(enlaces.length).toBeGreaterThan(1)
+    for (const a of enlaces) {
+      const clases = a.className.split(/\s+/)
+      // 1.4: 17 px heredados desde 21 rem, text-sm solo en estrecho; relative para el indicador.
+      expect(clases).not.toContain('telefono:text-sm')
+      expect(clases).toContain('estrecho:text-sm')
+      expect(clases).toContain('relative')
+      const indicador = a.querySelector('span.bg-turquesa')
+      if (a.getAttribute('aria-current') === 'page') {
+        expect(clases).toEqual(expect.arrayContaining(['telefono:font-normal', 'telefono:text-tinta']))
+        expect(indicador).not.toBeNull()
+        expect(indicador).toHaveAttribute('aria-hidden')
+        expect(indicador!.className.split(/\s+/)).toEqual(expect.arrayContaining(['hidden', 'telefono:block', 'absolute', 'top-0', 'h-1', 'w-8', 'rounded-b-full']))
+        expect(a.querySelector('svg')!.getAttribute('class')).toMatch(/\btext-turquesa\b/)
+      } else {
+        expect(indicador).toBeNull()
+      }
+    }
+    expect(enlaces.filter((a) => a.getAttribute('aria-current') === 'page')).toHaveLength(1)
+  })
+
   it.each<Rol>(['admin', 'cuidador', 'pagador', 'observador'])('%s llega a /insumos/catalogo, con Insumos activa en la barra', async (rol) => {
     const pedidas = apiApp(rol, [MARIA])
     abrirApp()

@@ -1,7 +1,7 @@
 // MATU-93: ningún texto de la app queda bajo 17 px (1 rem, `text-base`). `text-sm` (14,9 px) y
 // `text-xs` no se usan en ningún componente. La única excepción aprobada por el diseñador son los
-// rótulos de la barra inferior del teléfono (`telefono:text-sm` en Shell.tsx, anotada en
-// Demo/DISENO.md). Tampoco hay tamaños arbitrarios bajo 17 px ni `fontSize` a mano en un estilo.
+// rótulos de la barra inferior del teléfono cuando la app mide entre 16 y 21 rem (`estrecho:text-sm` en
+// Shell.tsx, MATU-107 1.4; desde 21 rem van a 17 px). Anotada en Demo/DISENO.md. Tampoco hay tamaños arbitrarios bajo 17 px ni `fontSize` a mano en un estilo.
 // jsdom no aplica Tailwind, así que se lee el texto de cada .ts y .tsx de web/src.
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '../src')
 
 /** La lista blanca: archivo y la clase exacta que puede usar. */
-const EXCEPCIONES: Record<string, string[]> = { 'familia/Shell.tsx': ['telefono:text-sm'] }
+const EXCEPCIONES: Record<string, string[]> = { 'familia/Shell.tsx': ['estrecho:text-sm'] }
 
 function archivos(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -92,6 +92,10 @@ describe('MATU-93: ningún texto bajo 17 px', () => {
 
   it('la excepción sigue en Shell.tsx una sola vez', () => {
     const shell = readFileSync(join(raiz, 'familia/Shell.tsx'), 'utf-8')
-    expect(shell.match(/telefono:text-sm/g)).toHaveLength(1)
+    expect(shell.match(/estrecho:text-sm/g)).toHaveLength(1)
+    // MATU-107 (42-H2): desde 21 rem el rótulo de la barra hereda text-base.
+    expect(shell).not.toMatch(/telefono:text-sm/)
+    const css = readFileSync(join(raiz, 'index.css'), 'utf-8')
+    expect(css).toMatch(/@custom-variant estrecho \{\s*@media \(width < 40rem\) \{\s*@container app \(16rem <= width < 21rem\)/)
   })
 })

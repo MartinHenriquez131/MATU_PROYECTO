@@ -84,8 +84,14 @@ def test_telefono_relevo_se_borra_a_los_30_dias(entorno: EntornoAbrir) -> None:
     for acceso in (vigente, *terminados, reciente):
         assert _telefono(acceso) == (TELEFONO_GUARDADO, None), acceso
 
-    # A los 30 días, los tres terminados, con el instante de la tarea. El vigente y el reciente, no
-    instante = FIN + timedelta(days=30)
+    # MATU-107 (46-H2): a los 30 días exactos, todavía ninguno. La tarea descuenta los 5 minutos que relevo_conservar
+    # admite de adelanto en el reloj, a favor de conservar
+    _tarea(FIN + timedelta(days=30))
+    for acceso in (vigente, *terminados, reciente):
+        assert _telefono(acceso) == (TELEFONO_GUARDADO, None), acceso
+
+    # A los 30 días y 5 minutos, los tres terminados, con el instante de la tarea. El vigente y el reciente, no
+    instante = FIN + timedelta(days=30, minutes=5)
     assert _tarea(instante) >= 3
     for acceso in terminados:
         assert _telefono(acceso) == (None, instante), acceso
@@ -117,7 +123,7 @@ def test_la_tarea_no_lleva_el_telefono_al_log(entorno: EntornoAbrir, caplog: pyt
     contexto = tareas.Contexto(
         config=obtener_configuracion(),
         fabrica=_Prohibida(),  # type: ignore[arg-type]
-        reloj=RelojFijo(FIN + timedelta(days=30)),
+        reloj=RelojFijo(FIN + timedelta(days=30, minutes=5)),
         fabrica_scheduler=fabrica_scheduler(),
     )
 
@@ -126,7 +132,7 @@ def test_la_tarea_no_lleva_el_telefono_al_log(entorno: EntornoAbrir, caplog: pyt
     with caplog.at_level(logging.DEBUG):
         assert tareas.correr(["conservacion_relevo"], contexto) == tareas.SALIDA_OK
 
-    assert _telefono(acceso) == (None, FIN + timedelta(days=30))
+    assert _telefono(acceso) == (None, FIN + timedelta(days=30, minutes=5))
     formateador = FormateadorJSON()
     texto = "\n".join(formateador.format(r) for r in caplog.records) + caplog.text
     assert not aparece_celular(TELEFONO, texto)
