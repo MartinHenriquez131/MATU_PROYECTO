@@ -572,7 +572,7 @@ Antes de pagar ves el total exacto: los productos con su precio y un solo envío
 
 ## 3. Si falta un producto
 
-Si al retirar falta un producto, lo buscamos en otro comercio y pagas lo mismo. Si nadie lo tiene, o elegiste sacarlo, anulamos su cobro el mismo día, a la misma tarjeta.
+Durante el piloto, si falta un producto después de pagar, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.
 
 ## 4. Nunca otra marca
 
