@@ -473,7 +473,7 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 | No, `plazo_app_vencido` (hasta 90 días) | El `h2` y la frase con `EnlaceEnFrase mailto:` | El plazo para arrepentirte desde la aplicación terminó el `{DD/MM/AAAA}`. Si todavía quieres devolver productos, o tienes un problema con el pedido, escríbenos a `{correo}`. | [L 38] (C22) |
 | No, `plazo_vencido` (después de 90 días) | Igual | El plazo para arrepentirte terminó el `{DD/MM/AAAA}`. Si tienes un problema con el pedido, escríbenos a `{correo}`. | [L 38], [L 36] (C22) |
 
-- La fecha sale de `plazo_hasta` (C19, O6), en `cifras`.
+- La fecha sale de `plazo_hasta` (C19, O6), en `cifras`, **salvo con `plazo_vencido`**: ahí es `plazo_correo_hasta`, el fin de los 90 días, porque es el plazo que todavía valía (cierre del analista, H1 de C22).
 - **El botón lleva solo su texto**, sin flecha ni ícono (DISENO.md 5). Es el mismo verbo del `h2`, del `h1` de 5 y de su `<title>`.
 
 #### 4.6.2 Cancelar el pedido
