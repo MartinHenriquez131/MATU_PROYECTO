@@ -664,7 +664,7 @@ function PagasteTuPedido({ pago, yaRegistrado }: { pago: PagoVista & { comproban
 /** 7.7: una nota por devolución, con la tarjeta solo para quien pagó (D-62-2). */
 function NotaDevolucion({ devolucion: d, pagasteTu }: { devolucion: Devolucion; pagasteTu: boolean }) {
   const monto = <span className="cifras font-bold">{pesos(d.monto)}</span>
-  const por = PAGO.devolvimosTuya(d.producto?.nombre ?? null)
+  const por = PAGO.devolvimosTuya(d.producto?.nombre ?? null, d.motivo)
   const icono = (tono: string) => <Undo2 aria-hidden className={`mt-0.5 size-5 shrink-0 ${tono}`} />
   if (d.estado === 'hecha')
     return (
@@ -745,7 +745,7 @@ export function ComprobanteBoleta({ c }: { c: Comprobante }) {
           <>
             {devueltas.map((d) => (
               <p key={`${d.solicitada_en}-${d.monto}`} className={`${RENGLON} text-lg`}>
-                <span className="break-words">{PAGO.renglonDevolvimos(d.producto?.nombre ?? null)}</span>
+                <span className="break-words">{PAGO.renglonDevolvimos(d.producto?.nombre ?? null, d.motivo)}</span>
                 <span className="cifras">−{pesos(d.monto)}</span>
               </p>
             ))}
@@ -838,7 +838,7 @@ export function Garantias({ c, className = '' }: { c: Comprobante; className?: s
         <li>{PAGO.siNoLlega}</li>
         <li>{PAGO.puedeCancelar}</li>
         <li>
-          {PAGO.algoNoEsta} <EnlaceEnFrase href={`mailto:${c.canal_reclamo}`}>{c.canal_reclamo}</EnlaceEnFrase>.
+          {PAGO.algoNoEsta} <EnlaceEnFrase href={`mailto:${c.canal_reclamo}`} className="[overflow-wrap:anywhere]">{c.canal_reclamo}</EnlaceEnFrase>.
         </li>
       </ul>
     </section>
@@ -885,7 +885,7 @@ export function HojaComprobante({ c }: { c: Comprobante }) {
         </li>
         {devueltas.map((d) => (
           <li key={`${d.solicitada_en}-${d.monto}`} className={fila}>
-            <span className="min-w-0 break-words">{PAGO.renglonDevolvimos(d.producto?.nombre ?? null)}</span>
+            <span className="min-w-0 break-words">{PAGO.renglonDevolvimos(d.producto?.nombre ?? null, d.motivo)}</span>
             <span className="text-right">−{pesos(d.monto)}</span>
           </li>
         ))}

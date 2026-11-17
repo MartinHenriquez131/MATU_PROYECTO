@@ -84,7 +84,7 @@ function abrir(rol: Rol, ruta: string, elegido: PedidoElegido | null = null) {
 type Rutas = Record<string, Respuesta | ((p: Pedida) => Respuesta | Promise<Respuesta>)>
 const api = (r: Rutas) => apiPedido(r, { pedido: null })
 /** El nombre accesible, con un espacio después de cada coma (jsdom recorta el del separador `sr-only`). */
-const conComas = (texto: string) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&').replace(/, /g, ',\\s?')}$`)
+const conComas = (texto: string) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\$]/g, '\\$&').replace(/([,.]) /g, '$1\\s?')}$`)
 const macizos = () => screen.queryAllByRole('button').filter((b) => /\bbg-turquesa\b/.test(b.className))
 const h1 = (nombre: string | RegExp) => screen.findByRole('heading', { level: 1, name: nombre })
 const claves = (pedidas: Pedida[], fin: string) => pedidas.filter((p) => p.metodo === 'POST' && p.ruta.endsWith(fin)).map((p) => p.cabeceras['Idempotency-Key'])
@@ -104,7 +104,10 @@ describe('La lista (3)', () => {
     expect(screen.getByText('Los pedidos pagados de María, de los últimos 2 años.')).toBeVisible()
     const filas = await screen.findAllByRole('button', { name: /^Pedido \d+/ })
     expect(filas).toHaveLength(3)
-    expect(filas[0]).toHaveAccessibleName(conComas('Pedido 4821, 11/11/2026, Pagado, Lo estamos enviando al comercio. Puede tardar unos minutos., Total pagado: $57.460'))
+    expect(filas[0]).toHaveAccessibleName(conComas('Pedido 4821, 11/11/2026, Pagado, Lo estamos enviando al comercio. Puede tardar unos minutos. Total pagado: $57.460'))
+    // P3-1: sin la coma de más después de la frase, y el «·» no se lee.
+    expect(filas[0].textContent).not.toContain('.,')
+    for (const f of filas) for (const s of f.querySelectorAll('span')) if (s.textContent === '\u00a0·\u00a0') expect(s).toHaveAttribute('aria-hidden')
     expect(filas[0].querySelector('svg')!.getAttribute('class')).toMatch(/lucide-check/)
     expect(filas[1]).toHaveAccessibleName(conComas('Pedido 4790, 02/11/2026, Entregado el 04/11/2026, Pañal adulto M x30 y 2 productos más, Total pagado: $31.980, Devuelto: $5.290'))
     expect(filas[2]).toHaveTextContent('Devolvimos $22.980, envío incluido, a la tarjeta con que se pagó.')
@@ -287,7 +290,8 @@ describe('El detalle (4)', () => {
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
     const [pedida, devuelta, rechazada] = s.getAllByRole('listitem').filter((li) => li.parentElement?.parentElement?.tagName === 'SECTION')
     expect(within(pedida).getByText('Devolución pedida')).toBeVisible()
-    expect(pedida).toHaveTextContent('Te devolvemos $30.480 cuando recibamos los productos con su sello cerrado. También te devolvemos el envío.')
+    expect(pedida).toHaveTextContent('Te devolvemos $30.480, envío incluido, cuando recibamos los productos con su sello cerrado.')
+    expect(pedida).not.toHaveTextContent('También te devolvemos el envío.')
     expect(devuelta).toHaveTextContent('Devuelto el 08/11/2026')
     expect(devuelta).toHaveTextContent('La pidió otra persona de tu grupo.')
     expect(rechazada).toHaveTextContent('No se aceptó la devolución')
@@ -321,7 +325,7 @@ describe('El detalle (4)', () => {
     let n = 0
     api(rutasDelEntregado({ 'GET /pago$': () => (n++ === 0 ? { status: 500 } : { status: 200, cuerpo: pago({ pedido_id: PEDIDO_2 }) }) }))
     abrir('admin', DETALLE, ELEGIDO_2)
-    expect(await screen.findByText('No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo.')).toBeVisible()
+    expect(await screen.findByText('No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. Tampoco pudimos mostrar lo que se devolvió.', { selector: ':not([aria-live])' })).toBeVisible()
     expect(screen.getByRole('heading', { level: 2, name: 'Cómo va' })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: 'Volver a intentar' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Comprobante' })).toBeVisible()
@@ -369,6 +373,11 @@ describe('Arrepentirse en el detalle: lo dice el servidor (4.6.1, O1, C22)', () 
       'El plazo para arrepentirte desde la aplicación terminó el 18/11/2026. Si todavía quieres devolver productos, o tienes un problema con el pedido, escríbenos a cuidaconmatu@gmail.com.',
     )
     expect(s.getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toHaveAttribute('href', 'mailto:cuidaconmatu@gmail.com')
+    // P1-1 y P1-2: a 320 px con el texto al 200 %, el título y el correo se parten en vez de salirse.
+    expect(s.getByRole('link', { name: 'cuidaconmatu@gmail.com' }).className).toContain('[overflow-wrap:anywhere]')
+    const h2 = screen.getByRole('heading', { level: 2, name: 'Arrepentirme de la compra' })
+    expect(h2.className).toContain('[overflow-wrap:anywhere]')
+    expect(h2.className).toContain('angosto:text-xl')
     expect(s.queryByRole('button')).toBeNull()
   })
 
@@ -382,7 +391,7 @@ describe('Arrepentirse en el detalle: lo dice el servidor (4.6.1, O1, C22)', () 
 
   it.each([
     ['rol', 'Pueden arrepentirse de la compra quien administra el grupo y quien la pagó.'],
-    ['nada_disponible', 'Ya pediste devolver todos los productos de este pedido.'],
+    ['nada_disponible', 'Ya se pidió devolver todos los productos de este pedido.'],
   ] as const)('motivo %s: la frase, sin botón', async (motivo, texto) => {
     api(rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: seguimientoEntregado({ puede_arrepentirse: false, arrepentirse_motivo: motivo }) } }))
     abrir('cuidador', DETALLE, ELEGIDO_2)
@@ -423,8 +432,9 @@ describe('Arrepentirme de la compra (5)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Uno más: Pañal adulto M x30' }))
     await userEvent.click(screen.getByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
     await userEvent.click(screen.getByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
-    expect(resumen.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $82.950 cuando')
-    expect(resumen.getByText('También te devolvemos el envío.')).toBeVisible()
+    // P3-3: con todo elegido, el monto ya lleva el envío y lo dice en la misma frase.
+    expect(resumen.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $82.950, envío incluido, cuando recibamos los productos con su sello cerrado.')
+    expect(resumen.queryByText('También te devolvemos el envío.')).toBeNull()
     // El único macizo es «Devolver estos productos».
     expect(macizos()).toHaveLength(1)
     expect(macizos()[0]).toHaveAccessibleName('Devolver estos productos')
@@ -479,6 +489,33 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(escrituras).toEqual([])
   })
 
+  it('P1-4: después del 201, el foco queda en el h1 del detalle cuando termina de recargar, y no cae al body', async () => {
+    const lento = (r: Respuesta) => () => new Promise<Respuesta>((ok) => window.setTimeout(() => ok(r), 80))
+    api({
+      ...rutasDelEntregado(),
+      'GET /seguimiento$': lento({ status: 200, cuerpo: seguimientoEntregado() }),
+      'POST /retractos$': { status: 201, cuerpo: retracto() },
+    })
+    abrir('pagador', ARREPENTIRME, ELEGIDO_2)
+    await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Devolver estos productos' }))
+    await waitFor(() => expect(window.location.pathname).toBe(DETALLE))
+    // Lo que hace AppFamilia al cambiar de ruta: el foco al h1 de «Cargando».
+    screen.getByRole('heading', { level: 1, name: 'Pedido 4790' }).focus()
+    await screen.findByRole('heading', { level: 2, name: 'Cómo va' })
+    const titulo = screen.getByRole('heading', { level: 1, name: 'Pedido 4790' })
+    await waitFor(() => expect(titulo).toHaveFocus())
+    await act(() => new Promise((ok) => window.setTimeout(ok, 900)))
+    expect(document.activeElement).toBe(titulo)
+  })
+
+  it('P2-1: una línea que no se recibió (entregadas 0) no se muestra', async () => {
+    api({ 'GET /retractos$': { status: 200, cuerpo: retractos({ lineas: [lineaParaRetracto(), lineaParaRetracto({ linea_id: LINEA_SUPLEMENTO, producto: SUPLEMENTO_C, entregadas: 0, disponibles: 0 })] }) } })
+    abrir('admin', ARREPENTIRME, ELEGIDO_2)
+    expect(await screen.findByRole('heading', { level: 3, name: 'Pañal adulto M x30' })).toBeVisible()
+    expect(screen.queryByRole('heading', { level: 3, name: 'Suplemento vainilla x12' })).toBeNull()
+  })
+
   it.each([
     ['422 producto-no-retractable', problema(422, 'producto-no-retractable')],
     ['409 de lo ya pedido', problema(409, 'producto-no-retractable')],
@@ -500,7 +537,8 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(nota).toHaveAttribute('data-aviso', 'alert')
     await waitFor(() => expect(nota).toHaveFocus())
     expect(screen.getByRole('textbox', { name: /Pañal/ })).toHaveValue('1')
-    expect(screen.getByText('Ya pediste devolver 1.')).toBeVisible()
+    expect(screen.getByText('Ya se pidió devolver 1.')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('Ya pediste')
     expect(window.location.pathname).toBe(ARREPENTIRME)
     expect(a.pedidas.filter((p) => p.ruta.endsWith('/retractos') && p.metodo === 'GET')).toHaveLength(2)
   })

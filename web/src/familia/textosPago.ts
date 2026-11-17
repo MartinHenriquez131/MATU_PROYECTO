@@ -84,7 +84,8 @@ export const PAGO = {
   tardioCierre: ', el precio que aceptaste.',
 
   // 7.7: devoluciones
-  devolvimosTuya: (producto: string | null) => (producto ? `por ${producto}` : 'por tu pedido completo'),
+  /** MATU-92 (P1-3): sin producto, «tu pedido completo» solo con `cancelacion`; si no, es el envío. */
+  devolvimosTuya: (producto: string | null, motivo: string) => (producto ? `por ${producto}` : motivo === 'cancelacion' ? 'por tu pedido completo' : 'por el envío'),
   devolvimosAntes: 'Devolvimos',
   aTuTarjeta: 'a tu tarjeta terminada en',
   aLaTarjeta: 'a la tarjeta con que se pagó',
@@ -94,7 +95,7 @@ export const PAGO = {
   aTuTarjetaSola: 'a tu tarjeta.',
   devolviendoTuya: 'Si no se completa hoy, te escribimos. MATU nunca te pide los datos de tu banco por mensaje.',
   devolviendoAjena: 'Si no se completa hoy, le escribimos a quien pagó. MATU nunca pide los datos de un banco por mensaje.',
-  renglonDevolvimos: (producto: string | null) => `Devolvimos: ${producto ?? 'tu pedido completo'}`,
+  renglonDevolvimos: (producto: string | null, motivo: string) => `Devolvimos: ${producto ?? (motivo === 'cancelacion' ? 'tu pedido completo' : 'el envío')}`,
   pagasteEnTotal: 'Pagaste en total',
 
   // 7.9: pago tardío anulado

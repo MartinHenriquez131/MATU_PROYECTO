@@ -97,7 +97,8 @@ export const TUS_PEDIDOS = {
   /** «Te devolvemos $26.490 cuando recibamos los productos con su sello cerrado.», partido para la cifra. */
   teDevolvemos: 'Te devolvemos', // [L 38]
   cuandoRecibamos: 'cuando recibamos los productos con su sello cerrado.', // [L 38]
-  tambienEnvio: 'También te devolvemos el envío.', // [L 38]
+  /** P3-3: «Te devolvemos $82.950, envío incluido, cuando recibamos…» cuando el monto ya lo incluye. */
+  envioIncluido: ', envío incluido,', // [AJUSTE]
   siTienesDudas: 'Si tienes dudas, escríbenos a', // [L 38]
   laPidioOtra: 'La pidió otra persona de tu grupo.', // [NUEVO]
   porCorreoTuya: 'Esta devolución la pediste por correo. La registró el equipo de MATU.', // [L 38]
@@ -109,7 +110,8 @@ export const TUS_PEDIDOS = {
   puedesHastaDespues: 'Pasamos a buscar los productos sin costo y te devolvemos su precio a la misma tarjeta cuando los recibimos con su sello cerrado.', // [L 36]
   siDevuelvesTodo: 'Si devuelves todo, también el envío.', // [L 36], solo si las condiciones lo incluyen (C9)
   arrepentirseRol: 'Pueden arrepentirse de la compra quien administra el grupo y quien la pagó.', // [L 38]
-  nadaDisponible: 'Ya pediste devolver todos los productos de este pedido.', // [NUEVO]
+  /** P2-2: impersonal, porque puede haberlo pedido otra persona del grupo. */
+  nadaDisponible: 'Ya se pidió devolver todos los productos de este pedido.', // [NUEVO]
   /** C22: «El plazo para arrepentirte desde la aplicación terminó el {fecha}. Si todavía quieres…». */
   plazoAppAntes: 'El plazo para arrepentirte desde la aplicación terminó el', // [L 38]
   plazoAppDespues: 'Si todavía quieres devolver productos, o tienes un problema con el pedido, escríbenos a', // [L 38]
@@ -124,6 +126,8 @@ export const TUS_PEDIDOS = {
   // 4.9: los estados del detalle
   errDetalle: 'No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo.', // [L 31]
   errComprobante: 'No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo.', // [NUEVO]
+  /** P2-3: sin el pago tampoco llegan las devoluciones. */
+  errComprobanteDevuelto: 'Tampoco pudimos mostrar lo que se devolvió.', // [NUEVO]
   noEncontrado: 'No encontramos este pedido.', // [L 31]
 
   // 5: la pantalla de arrepentirse
@@ -133,12 +137,13 @@ export const TUS_PEDIDOS = {
   pagaste: 'Pagaste',
   cadaUno: 'cada uno.',
   sello: 'Si abres el sello, ya no se puede devolver.', // [L 38]
-  yaPediste: (n: number) => `Ya pediste devolver ${n}.`, // [NUEVO]
+  /** P2-2: un solo texto, sirva quien lo haya pedido. */
+  yaSePidioN: (n: number) => `Ya se pidió devolver ${n}.`, // [NUEVO]
   cuantos: '¿Cuántos devuelves?', // [NUEVO]
   unoMenos: (producto: string) => `Uno menos: ${producto}`, // [NUEVO]
   unoMas: (producto: string) => `Uno más: ${producto}`, // [NUEVO]
   hasta: (n: number) => `Puedes devolver hasta ${n}.`, // [NUEVO]
-  yaTodos: 'Ya pediste devolver todos.', // [NUEVO]
+  yaTodos: 'Ya se pidió devolver todos.', // [NUEVO] (P2-2)
   errRango: (n: number) => `Escribe un número de 0 a ${n}.`, // [NUEVO]
   loQueVas: 'Lo que vas a devolver', // [NUEVO]
   nadaElegido: 'Todavía no eliges ningún producto.', // [NUEVO]

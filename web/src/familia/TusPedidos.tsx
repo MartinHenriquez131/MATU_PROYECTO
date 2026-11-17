@@ -84,6 +84,8 @@ const mailto = `mailto:${CORREO_CONTACTO}`
 
 /** Separa las partes de una fila para el lector («Pedido 4821, 11/11/2026, Pagado, …»). No se ve. */
 const Sep = () => <span className="sr-only">, </span>
+/** P3-1: después de una frase que ya termina en punto, solo un espacio: sin la coma de más («minutos., Total»). */
+const Espacio = () => <span className="sr-only"> </span>
 /** La cola «·» de DISENO.md 2: se ve y no se lee. En `angosto` se oculta y lo que sigue baja de renglón. */
 const Punto = () => (
   <span aria-hidden className="angosto:hidden">
@@ -415,12 +417,12 @@ export function FilaDelPedido({ fila: f, onAbrir }: { fila: FilaPedido; onAbrir:
         </span>
         {resumen && (
           <span className="block max-w-prose break-words text-base @2xl/main:col-start-1">
-            <Sep />
+            {estado.explicacion ? <Espacio /> : <Sep />}
             {resumen}
           </span>
         )}
         <span className="block text-base @2xl/main:col-start-2 @2xl/main:row-start-1 @2xl/main:text-right">
-          <Sep />
+          {estado.explicacion && !resumen ? <Espacio /> : <Sep />}
           {T.totalPagado} <span className="cifras font-bold">{pesos(f.total)}</span>
           {f.devuelto > 0 && (
             <>
@@ -570,6 +572,17 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
     if (nota) enfocar(ID_NOTA_DETALLE, 60)
   }, [nota])
 
+  // P1-4 (y 4.1, 5.6): el `h1` de «Cargando» se reemplaza por el del detalle cuando termina la lectura
+  // (seguimiento, pago y retractos). Si el foco quedó ahí o cayó al `body`, lo recibe el `h1` nuevo.
+  const cargaAntes = useRef<CargaDetalle>(carga)
+  useEffect(() => {
+    const venia = cargaAntes.current
+    cargaAntes.current = carga
+    if (venia !== 'cargando' || carga === 'cargando') return
+    const activo = document.activeElement
+    if (activo === null || activo === document.body || activo.id === 'titulo-pagina' || !activo.isConnected) enfocar('titulo-pagina', 0)
+  }, [carga])
+
   const reintentarPago = async () => {
     if (reintentandoPago) return
     setReintentandoPago(true)
@@ -715,7 +728,7 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
             pagoFalla && (
               <Nota tono="atenta" icono={<CloudOff aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
                 <Anunciado urgencia="alert" como="p">
-                  {T.errComprobante}
+                  {T.errComprobante} {T.errComprobanteDevuelto}
                 </Anunciado>
                 <Boton variante="secundario" className="mt-3" ocupado={reintentandoPago} textoOcupado={GENERAL.cargando} onClick={() => void reintentarPago()}>
                   {GENERAL.volverAIntentar}
@@ -952,13 +965,16 @@ function ParaDevolver({ retractos }: { retractos: RetractoFamilia[] }) {
               </ul>
               {r.estado === 'solicitado' && (
                 <p className="max-w-prose text-base">
-                  {T.teDevolvemos} <span className="cifras font-bold">{pesos(r.monto)}</span> {T.cuandoRecibamos}
-                  {r.incluye_envio && ` ${T.tambienEnvio}`}
+                  {T.teDevolvemos} <span className="cifras font-bold">{pesos(r.monto)}</span>
+                  {r.incluye_envio ? `${T.envioIncluido} ` : ' '}
+                  {T.cuandoRecibamos}
                 </p>
               )}
               {r.estado === 'rechazado' && (
                 <p className="max-w-prose text-base">
-                  {T.siTienesDudas} <EnlaceEnFrase href={mailto}>{CORREO_CONTACTO}</EnlaceEnFrase>.
+                  {T.siTienesDudas} <EnlaceEnFrase href={mailto} className="[overflow-wrap:anywhere]">
+          {CORREO_CONTACTO}
+        </EnlaceEnFrase>.
                 </p>
               )}
               {!r.es_tuyo && <p className="max-w-prose text-base text-tenue">{T.laPidioOtra}</p>}
@@ -1013,12 +1029,14 @@ function BloqueArrepentirme({ seg, retractos }: { seg: Seguimiento; retractos: R
     cuerpo = (
       <p className="max-w-prose text-base">
         {motivo === 'plazo_app_vencido' ? T.plazoAppAntes : T.plazoAntes} <FechaDelPlazo iso={seg.plazo_hasta} />. {motivo === 'plazo_app_vencido' ? T.plazoAppDespues : T.plazoDespues}{' '}
-        <EnlaceEnFrase href={mailto}>{CORREO_CONTACTO}</EnlaceEnFrase>.
+        <EnlaceEnFrase href={mailto} className="[overflow-wrap:anywhere]">
+          {CORREO_CONTACTO}
+        </EnlaceEnFrase>.
       </p>
     )
   return (
     <section aria-labelledby="arrepentirme-t" className="flex min-w-0 flex-col items-start gap-3">
-      <h2 id="arrepentirme-t" className="titular text-2xl">
+      <h2 id="arrepentirme-t" className="titular max-w-full text-2xl angosto:text-xl [overflow-wrap:anywhere]">
         {T.arrepentirme}
       </h2>
       {cuerpo}
@@ -1031,7 +1049,7 @@ function BloqueCancelar({ seg, onAbrir }: { seg: Seguimiento; onAbrir: () => voi
   if (!seg.puede_cancelar && seg.cancelar_motivo !== 'rol') return null
   return (
     <section aria-labelledby="cancelar-t" className="flex min-w-0 flex-col items-start gap-3">
-      <h2 id="cancelar-t" className="titular text-2xl">
+      <h2 id="cancelar-t" className="titular max-w-full text-2xl angosto:text-xl [overflow-wrap:anywhere]">
         {T.cancelar}
       </h2>
       {seg.puede_cancelar ? (
@@ -1224,7 +1242,8 @@ function Arrepentirme({ elegido, alPedir }: { elegido: PedidoElegido; alPedir: (
             {T.elige}
           </h2>
           <ul className="flex flex-col gap-3">
-            {datos.lineas.map((l) => {
+            {/* P2-1: lo que no se recibió no se puede devolver, y no se muestra. */}
+            {datos.lineas.filter((l) => l.entregadas > 0).map((l) => {
               const id = idCampo(l.linea_id)
               return (
                 <li key={l.linea_id} className="grid min-w-0 grid-cols-1 gap-y-3 rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
@@ -1235,7 +1254,7 @@ function Arrepentirme({ elegido, alPedir }: { elegido: PedidoElegido; alPedir: (
                     {T.recibiste} {l.entregadas}. {T.pagaste} {pesos(l.precio_pagado)} {T.cadaUno}
                   </p>
                   {l.retracto_pierde_al_abrir && <p className="max-w-prose text-lg font-bold">{T.sello}</p>}
-                  {l.ya_pedidas > 0 && <p className="text-base text-tenue">{T.yaPediste(l.ya_pedidas)}</p>}
+                  {l.ya_pedidas > 0 && <p className="text-base text-tenue">{T.yaSePidioN(l.ya_pedidas)}</p>}
                   {l.disponibles > 0 ? (
                     <div className="flex min-w-0 flex-col gap-1.5">
                       <Stepper
@@ -1289,9 +1308,10 @@ function Arrepentirme({ elegido, alPedir }: { elegido: PedidoElegido; alPedir: (
                   ))}
                 </ul>
                 <p className="max-w-prose text-lg">
-                  {T.teDevolvemos} <span className="cifras font-bold">{pesos(previa.total)}</span> {T.cuandoRecibamos}
+                  {T.teDevolvemos} <span className="cifras font-bold">{pesos(previa.total)}</span>
+                  {previa.conEnvio ? `${T.envioIncluido} ` : ' '}
+                  {T.cuandoRecibamos}
                 </p>
-                {previa.conEnvio && <p className="text-lg">{T.tambienEnvio}</p>}
                 {pierde && <p className="text-lg font-bold">{T.sello}</p>}
               </div>
             )}
