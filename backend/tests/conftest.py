@@ -26,6 +26,8 @@ def pytest_configure(config: pytest.Config) -> None:
     """MATU-94: antes de recolectar, toda conexión de la suite apunta a una base de pruebas (tests/proteccion_base.py).
     Primero se carga el .env, como lo harán tests/base_datos.py y la configuración; si algo apunta a otra base, pytest
     termina sin correr nada y sin mostrar la cadena de conexión."""
+    # MATU-80: los seis recorridos críticos de MATU-64, en tests/e2e/. Se corren solos con pytest -m e2e
+    config.addinivalue_line("markers", "e2e: recorrido crítico de punta a punta contra la API (MATU-64, MATU-80)")
     import tests.base_datos  # noqa: F401 - carga el .env en os.environ
     from tests.proteccion_base import exigir_bases_de_prueba
 
