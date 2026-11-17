@@ -40,7 +40,11 @@ def dek() -> bytes:
 def test_la_nota_se_cifra_y_se_descifra_con_su_incidencia_y_su_campo(dek: bytes, texto: str) -> None:
     incidencia = uuid.uuid4()
     cifrado = cifrar_nota(dek, incidencia, "descripcion", texto)
-    assert texto.encode("utf-8") not in cifrado
+    # El cuerpo cifrado no es el texto. Con un texto corto («x»), un byte al azar del nonce o de la etiqueta puede
+    # coincidir con él: la búsqueda como subcadena solo vale desde 8 bytes (antes fallaba ~1 de cada 9 corridas)
+    assert cifrado[12:-16] != texto.encode("utf-8")
+    if len(texto.encode("utf-8")) >= 8:
+        assert texto.encode("utf-8") not in cifrado
     assert CIFRADO_MIN <= len(cifrado) <= CIFRADO_MAX
     assert descifrar_nota(dek, incidencia, "descripcion", cifrado) == texto
 
