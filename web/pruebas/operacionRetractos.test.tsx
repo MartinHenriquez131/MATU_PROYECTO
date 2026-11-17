@@ -367,4 +367,31 @@ describe('Incidencias', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Cómo se resolvió' })).toBeVisible()
     expect(screen.getByText(/^Resuelta el \d{2}\/\d{2}\/\d{4} a las \d{2}:\d{2}\.$/)).toBeVisible()
   })
+
+  it('decisión 471: una resuelta con su nota y su resolución no dice que la nota se borró', async () => {
+    const { usuario } = await abrir('/operacion/incidencias')
+    await usuario.click(await screen.findByRole('radio', { name: 'Resueltas' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Reclamo de la familia, Resueltas/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Reclamo de la familia' })).toBeVisible()
+    expect(screen.getByText('La familia escribió que la caja llegó abierta.')).toBeVisible()
+    expect(screen.getByText('Se revisó con el comercio: los productos estaban completos.')).toBeVisible()
+    expect(screen.queryByText(/ya no está disponible/)).toBeNull()
+  })
+
+  it('decisión 471: sin la clave de las notas, «La nota ya no está disponible…» en vez de la nota y la resolución', async () => {
+    const { api, usuario } = await abrir('/operacion/incidencias')
+    api.consola.estado.incidencias.find((x) => x.id === ID.incidenciaResuelta)!.nota_disponible = false
+    const escrito = vigilarAlmacenamiento()
+    await usuario.click(await screen.findByRole('radio', { name: 'Resueltas' }))
+    await usuario.click(await screen.findByRole('button', { name: /^Reclamo de la familia, Resueltas/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Reclamo de la familia' })).toBeVisible()
+    const nota = screen.getByRole('region', { name: 'Nota' })
+    expect(within(nota).getByText('La nota ya no está disponible: se borró con los datos de la persona.')).toBeVisible()
+    expect(screen.queryByText('La familia escribió que la caja llegó abierta.')).toBeNull()
+    expect(screen.queryByText('Se revisó con el comercio: los productos estaban completos.')).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Cómo se resolvió' })).toBeVisible()
+    expect(screen.getByText(/^Resuelta el \d{2}\/\d{2}\/\d{4} a las \d{2}:\d{2}\.$/)).toBeVisible()
+    expect(escrito).toEqual([])
+    expect(window.location.href).not.toMatch(/nota|borr/i)
+  })
 })

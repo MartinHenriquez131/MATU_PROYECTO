@@ -29,16 +29,18 @@ afterEach(() => {
 
 const MATU = { tipo: 'matu' as const, nombre: null, activo: null }
 
-function conLoQuePaso(): CopiaDatosPersona {
+type LoQuePasoCopia = NonNullable<CopiaDatosPersona['pedidos']>[number]['lo_que_paso'][number]
+
+function conLoQuePaso(items?: LoQuePasoCopia[]): CopiaDatosPersona {
   const base = copiaPersona()
   const [primero, ...resto] = base.pedidos ?? []
   return copiaPersona({
     pedidos: [
       {
         ...primero,
-        lo_que_paso: [
-          { tipo: 'faltante', estado: 'resuelta', anotado_en: antes(1, 30), resuelto_en: antes(0, 30), nota: 'El comercio avisó que faltó la crema.', resolucion: 'Se devolvió la crema a la misma tarjeta.' },
-          { tipo: 'entrega_fallida', estado: 'en_gestion', anotado_en: antes(0, 10), resuelto_en: null, nota: 'Nadie pudo recibir el pedido.', resolucion: null },
+        lo_que_paso: items ?? [
+          { tipo: 'faltante', estado: 'resuelta', anotado_en: antes(1, 30), resuelto_en: antes(0, 30), nota: 'El comercio avisó que faltó la crema.', resolucion: 'Se devolvió la crema a la misma tarjeta.', nota_disponible: true },
+          { tipo: 'entrega_fallida', estado: 'en_gestion', anotado_en: antes(0, 10), resuelto_en: null, nota: 'Nadie pudo recibir el pedido.', resolucion: null, nota_disponible: true },
         ],
       },
       ...resto,
@@ -72,7 +74,25 @@ describe('MATU-81 en la copia de los datos de la familia', () => {
     expect(within(seccion).getByText('MATU lo está revisando')).toBeVisible()
     expect(within(seccion).getAllByText(/^Lo anotamos el/)).toHaveLength(2)
     expect(within(seccion).getAllByText(/^Se resolvió el/)).toHaveLength(1)
+    expect(within(seccion).queryByText(/ya no está disponible/)).toBeNull()
     expect(document.body.textContent).not.toMatch(/incidente|incidencia/i)
+  })
+
+  it('decisión 471: sin la clave de las notas, «La nota ya no está disponible…» en vez de la nota y la resolución', async () => {
+    await abrir(
+      conLoQuePaso([
+        { tipo: 'faltante', estado: 'resuelta', anotado_en: antes(1, 30), resuelto_en: antes(0, 30), nota: null, resolucion: null, nota_disponible: false },
+        { tipo: 'entrega_fallida', estado: 'en_gestion', anotado_en: antes(0, 10), resuelto_en: null, nota: 'Nadie pudo recibir el pedido.', resolucion: null, nota_disponible: true },
+      ]),
+    )
+    const seccion = screen.getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' }).closest('section')!
+    const [borrada, vigente] = within(seccion).getAllByRole('listitem')
+    expect(within(borrada).getByText('Faltó un producto')).toBeVisible()
+    expect(within(borrada).getByText('La nota ya no está disponible: se borró con los datos de la persona.')).toBeVisible()
+    expect(within(borrada).queryByText('Cómo se resolvió:')).toBeNull()
+    expect(within(borrada).getAllByText(/^Se resolvió el/)).toHaveLength(1)
+    expect(within(vigente).getByText('Nadie pudo recibir el pedido.')).toBeVisible()
+    expect(within(vigente).queryByText(/ya no está disponible/)).toBeNull()
   })
 
   it('sin nada anotado, el pedido no muestra la sección', async () => {
