@@ -18,6 +18,7 @@ from fastapi import FastAPI
 
 from app.modules.backoffice.api.dependencias import obtener_secreto_codigo
 from app.modules.backoffice.api.router_comercio import router as router_comercio
+from app.modules.backoffice.api.router_consola import router as router_consola
 from app.modules.backoffice.api.router_familia import router as router_familia
 from app.modules.backoffice.api.router_operacion import router as router_operacion
 from app.modules.payments.infrastructure.pasarela_falsa import PasarelaFalsa
@@ -44,6 +45,7 @@ def rutas_de_prueba(existencias: Existencias, pasarela_falsa: PasarelaFalsa) -> 
         montar_pago(app)
         app.include_router(router_comercio, prefix="/v1")
         app.include_router(router_operacion, prefix="/v1")
+        app.include_router(router_consola, prefix="/v1")
         app.include_router(router_familia, prefix="/v1")
         app.dependency_overrides[obtener_secreto_codigo] = lambda: SECRETO_CODIGO
 

@@ -420,8 +420,9 @@ def operacion_alta(
     except tarea.FaltaConfiguracion as error:
         log.error("tarea", extra={**extra, "resultado": FALLO, "falta": error.variable})
         return SALIDA_FALLO
-    except tarea.AltaRechazada as error:
-        log.error("tarea", extra={**extra, "resultado": FALLO, "motivo": error.motivo})
+    except tarea.AltaRechazada:
+        # El motivo lo dice la consola a quien corre el alta; el log, solo el tipo (CAMPOS_PERMITIDOS)
+        log.error("tarea", extra={**extra, "resultado": FALLO, "tipo_error": "AltaRechazada"})
         return SALIDA_FALLO
     except Exception as error:  # noqa: BLE001 - de una excepción, solo su tipo (R1)
         log.error("tarea", extra={**extra, "resultado": FALLO, "tipo_error": type(error).__name__})
