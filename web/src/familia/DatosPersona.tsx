@@ -27,6 +27,7 @@ import type { EntradaIndice } from '../compartido/ui/Indice'
 import { useCorreoPrivacidad } from './Cuenta'
 import { APOYOS, CAMPOS } from './datos'
 import { useFamilia } from './estado'
+import { cantidadEnTexto } from './textoLista'
 import { INSUMOS } from './textosInsumos'
 import { pesos } from './textosCatalogo'
 import { AvisoPiloto } from './PiezasPedido'
@@ -507,7 +508,7 @@ function Insumo({ x }: { x: InsumoCopia }) {
         </p>
       )}
       <p className="max-w-prose text-base">{T.avisa(x.dias_aviso)}</p>
-      {x.unidades_por_envase !== null && <p className="max-w-prose text-base">{T.porEnvase(x.unidades_por_envase)}</p>}
+      {x.unidades_por_envase !== null && <p className="max-w-prose text-base">{T.porEnvase(cantidadEnTexto(x.unidades_por_envase, x.unidad, null))}</p>}
       <p className="max-w-prose text-base text-tenue break-words">
         {T.loAgregaron[0]}
         <DiaDeInstante iso={x.agregado_en} fin={T.loAgregaron[1]} />

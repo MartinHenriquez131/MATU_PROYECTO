@@ -168,7 +168,8 @@ export const MIS_DATOS = {
   sinInsumos: 'Todavía no hay insumos.', // [NUEVO]
   seAcaba: ['Se acaba el ', '.'] as Partes, // [NUEVO]
   avisa: (n: number) => (n === 0 ? 'Avisa el mismo día.' : `Avisa ${n} ${n === 1 ? 'día' : 'días'} antes.`), // [NUEVO]
-  porEnvase: (n: number) => `${n} por envase.`, // [NUEVO]
+  /** MATU-110 (6): con la unidad, «400 ml por envase.»; `cantidad` ya viene con punto de miles y su sufijo. */
+  porEnvase: (cantidad: string) => `${cantidad} por envase.`, // [NUEVO]
   loAgregaron: ['Lo agregaron el ', '.'] as Partes, // [NUEVO]
   loCambio: (nombre: string) => [` Lo cambió por última vez ${nombre} el `, '.'] as const, // [NUEVO]
   yaNoSeSigue: 'Ya no se sigue', // [NUEVO]
