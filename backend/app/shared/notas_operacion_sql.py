@@ -67,15 +67,28 @@ def clave_para_cifrar(
 def deks(
     sesion: Session, custodia: CustodiaNotas | None, ids: Iterable[uuid.UUID | None]
 ) -> dict[uuid.UUID, bytes | None]:
-    """La DEK de cada clave pedida, o None si está destruida, no se ve, no se desenvuelve o no hay custodia."""
+    """La DEK de cada clave pedida, o None si está destruida: solo entonces la nota sale como no disponible.
+
+    Falla cerrada (decisión de Jorge del 17-11) con NotasNoDisponibles, para que la ruta responda 503 y nunca muestre
+    una nota que existe como si se hubiera borrado: si una clave vigente no se puede abrir porque falta la custodia (sin
+    la KEK) o no se desenvuelve con ella, o si una clave pedida no se ve. Sin claves pedidas no se lee nada, y sin la
+    KEK tampoco falla."""
     pedidas = sorted({i for i in ids if i is not None}, key=str)
     if not pedidas:
         return {}
-    if custodia is None:
-        return dict.fromkeys(pedidas)
-    filas = list(sesion.execute(_CLAVES, {"ids": pedidas}))
-    resultado: dict[uuid.UUID, bytes | None] = dict.fromkeys(pedidas)
-    for f in filas:
-        if f.dek_cifrada_con_kek is not None:
-            resultado[f.id] = custodia.desenvolver(bytes(f.dek_cifrada_con_kek), int(f.kek_version))
+    filas = {f.id: f for f in sesion.execute(_CLAVES, {"ids": pedidas})}
+    resultado: dict[uuid.UUID, bytes | None] = {}
+    for pedida in pedidas:
+        fila = filas.get(pedida)
+        if fila is None:
+            raise NotasNoDisponibles()
+        if fila.dek_cifrada_con_kek is None:
+            resultado[pedida] = None
+            continue
+        if custodia is None:
+            raise NotasNoDisponibles()
+        dek = custodia.desenvolver(bytes(fila.dek_cifrada_con_kek), int(fila.kek_version))
+        if dek is None:
+            raise NotasNoDisponibles()
+        resultado[pedida] = dek
     return resultado

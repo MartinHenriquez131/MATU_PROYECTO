@@ -8,13 +8,18 @@ perfil_consumo (se capturan las sentencias). C11 y C7: ni la nota, ni la referen
 """
 
 import re
+import secrets
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
+from app.shared.notas_operacion import CustodiaNotas, obtener_custodia_notas
 from tests.base_datos import requiere_base
 from tests.modules.backoffice.conftest import Despacho
 from tests.modules.backoffice.test_despacho_api import PRECIO_PANAL, _codigo, _parte, _preparar_todo, _validar
@@ -284,6 +289,73 @@ def test_destruir_la_clave_de_la_ficha_no_destruye_la_nota(despacho: Despacho) -
     assert otra.status_code == 201
     assert d.sql("SELECT clave_notas_id FROM incidencia WHERE id = %s", uuid.UUID(otra.json()["id"])) == [(clave,)]
     assert nota not in d.e.iam.texto_log()
+
+
+@contextmanager
+def _con_custodia(d: Despacho, custodia: CustodiaNotas | None) -> Iterator[None]:
+    """La custodia de las notas cambiada solo dentro del bloque: None (sin la KEK) u otra KEK."""
+    app = d.e.iam.cliente.app
+    assert isinstance(app, FastAPI)
+    sobreescritas = app.dependency_overrides
+    antes = sobreescritas[obtener_custodia_notas]
+    sobreescritas[obtener_custodia_notas] = lambda: custodia
+    try:
+        yield
+    finally:
+        sobreescritas[obtener_custodia_notas] = antes
+
+
+def _problema_503(r: Any, detalle: str) -> None:
+    assert r.status_code == 503, r.text
+    assert r.headers["content-type"].startswith("application/problem+json")
+    assert (r.json()["status"], r.json()["detail"]) == (503, detalle)
+
+
+DETALLE_CONSOLA = "Las notas no están disponibles en este momento"
+DETALLE_COPIA = "Los datos no están disponibles en este momento. Cita el request_id si lo reportas"
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("sin", ["kek", "otra_kek"])
+def test_sin_la_kek_la_consola_y_la_copia_fallan_cerradas_con_503(despacho: Despacho, sin: str) -> None:
+    """Decisión de Jorge del 17-11: sin la KEK de las notas, o con una que no abre la clave vigente, la copia de los
+    datos responde 503 como la consola, con mensaje fijo y RFC 7807: nunca muestra como no disponible
+    (``nota_disponible: false``) una nota que existe. Con la KEK de vuelta, la nota se lee."""
+    d = despacho
+    familia, pedido = d.pagado()
+    nota = f"Nota sintética {uuid.uuid4().hex}"
+    inc = _incidencia_con_resolucion(d, pedido, nota)
+    persona = familia.persona.id
+    ruta_copia = f"/v1/personas-cuidadas/{persona}/datos"
+    custodia = None if sin == "kek" else CustodiaNotas(secrets.token_bytes(32), 1)
+    with _con_custodia(d, custodia):
+        for ruta in (f"/incidencias/{inc['id']}", "/incidencias"):
+            _problema_503(d.operacion("GET", ruta), DETALLE_CONSOLA)
+        copia = d.e.pedir("GET", ruta_copia, familia.admin, familia)
+        _problema_503(copia, DETALLE_COPIA)
+        assert nota not in copia.text and "nota_disponible" not in copia.text
+        assert copia.headers["cache-control"] == "no-store"
+    # La copia fallida no se registró (la transacción se revierte entera, C19)
+    assert d.sql("SELECT count(*) FROM auditoria WHERE accion = 'persona.datos_descargar'"
+                 " AND persona_cuidada_id = %s", persona) == [(0,)]
+    copia = d.e.pedir("GET", ruta_copia, familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
+    assert [(x["nota"], x["nota_disponible"]) for x in p["lo_que_paso"]] == [(nota, True)]
+    assert nota not in d.e.iam.texto_log()
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_sin_la_kek_la_copia_sin_notas_se_entrega(despacho: Despacho) -> None:
+    """Sin notas de operación no hay nada que abrir: sin la KEK de las notas, la copia se entrega igual."""
+    d = despacho
+    familia, pedido = d.pagado()
+    with _con_custodia(d, None):
+        copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [(referencia,)] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))
+    [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == referencia]
+    assert p["lo_que_paso"] == []
 
 
 def test_una_incidencia_solo_va_sobre_un_pedido_pagado(despacho: Despacho) -> None:

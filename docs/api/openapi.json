@@ -9602,7 +9602,7 @@
             }
           },
           "503": {
-            "description": "Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir",
+            "description": "Sin Redis o PEPPER_LIMITES, la ficha vigente no se puede abrir, o hay notas de operación con su clave vigente y falta la KEK de las notas",
             "content": {
               "application/problem+json": {}
             }
@@ -11750,7 +11750,7 @@
             }
           },
           "503": {
-            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
             "content": {
               "application/problem+json": {}
             }
@@ -11813,7 +11813,7 @@
             }
           },
           "503": {
-            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
             "content": {
               "application/problem+json": {}
             }
@@ -11916,7 +11916,7 @@
             }
           },
           "503": {
-            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
             "content": {
               "application/problem+json": {}
             }
@@ -11995,7 +11995,7 @@
             }
           },
           "503": {
-            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
             "content": {
               "application/problem+json": {}
             }

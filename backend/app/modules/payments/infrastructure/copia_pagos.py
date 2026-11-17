@@ -147,7 +147,8 @@ def _retractos(ctx: ContextoCopia, pedido_id: uuid.UUID) -> list[dict[str, Any]]
 
 def _lo_que_paso(ctx: ContextoCopia, pedido_id: uuid.UUID) -> list[dict[str, Any]]:
     """Lo que el equipo anotó, descifrado con la clave de las notas de la persona, que la familia del grupo lee
-    (clave_notas_familia_leer). Con la clave destruida, la nota sale como no disponible, sin error."""
+    (clave_notas_familia_leer). Con la clave destruida (el borrado de la persona), la nota sale como no disponible,
+    sin error. Con la clave vigente y sin la KEK, NotasNoDisponibles: la ruta responde 503 (falla cerrada)."""
     filas = ctx.sesion.execute(_LO_QUE_PASO, {"pedido_id": pedido_id}).all()
     claves = deks(ctx.sesion, ctx.custodia_notas, [x for f in filas for x in (f.clave_notas_id, f.resolucion_clave_id)])
     pasos = []

@@ -10,7 +10,8 @@ marca). Toda transacción corre con app.rol = 'operacion'. Lo ajeno o lo que no 
 - Las incidencias: crear (incidencia.crear) y resolver (incidencia.resolver) se auditan sin el texto (C14). El PATCH
   exige If-Match con la versión (428 sin él, 412 si cambió). La nota y la resolución se guardan cifradas con la clave
   de las notas de la persona del pedido (decisión 471, app/shared/notas_operacion.py) y se descifran al leer; si esa
-  clave se destruyó, la incidencia sale con ``nota_disponible: false``, sin error. Sin la KEK, 503 (falla cerrada).
+  clave se destruyó (solo con el borrado de la persona), la incidencia sale con ``nota_disponible: false``, sin error.
+  Sin la KEK, o con una clave vigente que no se abre, 503 (falla cerrada).
 - El catálogo: solo las ofertas de los comercios ficticios (D-81-7; trigger oferta_operacion_ficticia, C1). El PATCH
   exige If-Match (C4) y se audita como catalogo.oferta_cambiar, sin grupo y sin los valores. Un precio nuevo vale solo
   para las confirmaciones nuevas: pedido_linea guarda el precio confirmado (C3).
@@ -362,7 +363,8 @@ def _etag(version: int) -> str:
 
 
 _SIN_NOTAS: dict[int | str, dict[str, Any]] = {
-    503: {"description": "Las notas no se pueden cifrar ni descifrar: falta la KEK", **_PROBLEMA},
+    503: {"description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+          **_PROBLEMA},
 }
 
 
@@ -408,8 +410,11 @@ def listar_incidencias(
     estado: Annotated[str | None, Query(pattern="^(abierta|en_gestion|resuelta)$")] = None,
 ) -> ListaIncidencias:
     con_kek = _custodia(custodia)
-    with sesion_tenant(fabrica, rol="operacion") as sesion:
-        vistas = _vistas(sesion, con_kek, sql.incidencias(sesion, estado), operador)
+    try:
+        with sesion_tenant(fabrica, rol="operacion") as sesion:
+            vistas = _vistas(sesion, con_kek, sql.incidencias(sesion, estado), operador)
+    except NotasNoDisponibles:
+        raise ErrorMATU(503, detalle="Las notas no están disponibles en este momento") from None
     _no_store(respuesta)
     return ListaIncidencias(incidencias=vistas)
 
@@ -419,11 +424,14 @@ def listar_incidencias(
 def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, respuesta: Response,
                    custodia: CustodiaNotasDep) -> IncidenciaVista:
     con_kek = _custodia(custodia)
-    with sesion_tenant(fabrica, rol="operacion") as sesion:
-        fila = sql.incidencia(sesion, _uuid(incidencia_id))
-        if fila is None:
-            raise ErrorMATU(404)
-        [vista] = _vistas(sesion, con_kek, [fila], operador)
+    try:
+        with sesion_tenant(fabrica, rol="operacion") as sesion:
+            fila = sql.incidencia(sesion, _uuid(incidencia_id))
+            if fila is None:
+                raise ErrorMATU(404)
+            [vista] = _vistas(sesion, con_kek, [fila], operador)
+    except NotasNoDisponibles:
+        raise ErrorMATU(503, detalle="Las notas no están disponibles en este momento") from None
     _no_store(respuesta)
     respuesta.headers["ETag"] = _etag(int(fila.version))
     return vista

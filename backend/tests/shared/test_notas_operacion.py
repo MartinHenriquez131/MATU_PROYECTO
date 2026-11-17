@@ -4,9 +4,12 @@ nada sensible salga en un repr o en un error."""
 
 import secrets
 import uuid
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from pydantic import SecretStr
+from sqlalchemy.orm import Session
 
 from app.shared.notas_operacion import (
     LARGO_MAXIMO_NOTA,
@@ -19,6 +22,7 @@ from app.shared.notas_operacion import (
     descifrar_nota,
     validar_nota,
 )
+from app.shared.notas_operacion_sql import deks
 
 pytestmark = [pytest.mark.rf("RF-40"), pytest.mark.rf("Ley-21.719")]
 
@@ -109,3 +113,51 @@ def test_sin_custodia_encendida_no_hay_custodia_de_notas() -> None:
         kek_version=1,
     )
     assert isinstance(custodia_notas_de(encendida), CustodiaNotas)
+
+
+class _SesionFalsa:
+    """Devuelve las filas de clave_notas que se le dan; cuenta las lecturas."""
+
+    def __init__(self, filas: list[SimpleNamespace]) -> None:
+        self.filas = filas
+        self.lecturas = 0
+
+    def execute(self, *_: object) -> list[SimpleNamespace]:
+        self.lecturas += 1
+        return self.filas
+
+
+def _deks(filas: list[SimpleNamespace], custodia: CustodiaNotas | None, ids: list[uuid.UUID | None]) -> dict:
+    return deks(cast(Session, _SesionFalsa(filas)), custodia, ids)
+
+
+def test_deks_con_la_clave_destruida_da_none_y_con_la_vigente_su_dek() -> None:
+    custodia = CustodiaNotas(secrets.token_bytes(32), 1)
+    dek, envuelta = custodia.nueva_dek()
+    vigente, destruida = uuid.uuid4(), uuid.uuid4()
+    filas = [SimpleNamespace(id=vigente, dek_cifrada_con_kek=envuelta, kek_version=1),
+             SimpleNamespace(id=destruida, dek_cifrada_con_kek=None, kek_version=1)]
+    assert _deks(filas, custodia, [vigente, destruida, None]) == {vigente: dek, destruida: None}
+    # Solo destruidas: sin la KEK no hay nada que abrir, y no falla
+    assert _deks(filas[1:], None, [destruida]) == {destruida: None}
+
+
+def test_deks_sin_claves_pedidas_no_lee_nada() -> None:
+    sesion = _SesionFalsa([])
+    assert deks(cast(Session, sesion), None, [None]) == {}
+    assert sesion.lecturas == 0
+
+
+@pytest.mark.parametrize("caso", ["sin_kek", "otra_kek", "otra_version", "no_se_ve"])
+def test_deks_falla_cerrada_con_una_clave_vigente_que_no_se_abre(caso: str) -> None:
+    """Decisión de Jorge del 17-11: nota_disponible false queda solo para la clave destruida. Una vigente que no se
+    abre (sin la KEK, con otra KEK u otra versión) o que no se ve es NotasNoDisponibles: la ruta responde 503."""
+    custodia = CustodiaNotas(secrets.token_bytes(32), 1)
+    _, envuelta = custodia.nueva_dek()
+    clave = uuid.uuid4()
+    filas = [] if caso == "no_se_ve" else [
+        SimpleNamespace(id=clave, dek_cifrada_con_kek=envuelta, kek_version=2 if caso == "otra_version" else 1)]
+    usada = {"sin_kek": None, "otra_kek": CustodiaNotas(secrets.token_bytes(32), 1)}.get(caso, custodia)
+    with pytest.raises(NotasNoDisponibles) as error:
+        _deks(filas, usada, [clave])
+    assert str(error.value) == "las notas de operación no se pueden cifrar"

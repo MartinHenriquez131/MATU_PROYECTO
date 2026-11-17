@@ -44,7 +44,7 @@ class ContextoCopia:
     estado_ficha: EstadoDeAutorizacion
     estado_insumos: EstadoDeAutorizacion
     # MATU-81 (decisión 471): la custodia de las notas de operación, para descifrar «Lo que pasó con tu pedido». Sin
-    # ella, las notas salen como no disponibles
+    # ella, una nota con su clave vigente hace fallar la copia con 503 (decisión de Jorge del 17-11)
     custodia_notas: CustodiaNotas | None = None
 
     def __repr__(self) -> str:
