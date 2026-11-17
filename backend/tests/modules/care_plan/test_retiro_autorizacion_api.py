@@ -23,6 +23,7 @@ from app.modules.care_circle.infrastructure.repositorio_retiros import Repositor
 from app.modules.care_plan.infrastructure.repositorio_accesos import RepositorioAccesosSQL
 from app.shared.auditoria_sql import RegistroAuditoriaSql
 from tests.base_datos import DSN, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.care_plan import test_abrir_relevo_api as abrir
 from tests.modules.care_plan.test_abrir_relevo_api import (
@@ -402,10 +403,10 @@ def test_retiro_primero_compartir_espera_y_ve_la_autorizacion_retirada(entorno: 
             SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
             entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
         )
+        pid = pid_de(sesion)
         hilo = threading.Thread(target=compartir)
         hilo.start()
-        hilo.join(timeout=0.5)
-        assert hilo.is_alive()  # compartir espera el bloqueo del retiro
+        esperar_bloqueada_por(pid, hilo)  # compartir espera el bloqueo del retiro
     hilo.join(timeout=10)
     assert visto == [None]  # sin autorización: la ruta responde 403
 
@@ -443,10 +444,10 @@ def test_compartir_primero_el_retiro_espera_y_corta_el_acceso_nuevo(entorno: Ent
             "INSERT INTO indice_token (token_hash, tipo, grupo_id, referencia_id, expira_en, creado_en)"
             " VALUES (:h, 'relevo', :g, :id, :expira, :ahora)"),
             {"h": huella, "g": grupo, "id": acceso_id, "expira": ahora + timedelta(hours=24), "ahora": ahora})
+        pid = pid_de(sesion)
         hilo = threading.Thread(target=retirar)
         hilo.start()
-        hilo.join(timeout=0.5)
-        assert hilo.is_alive()  # el retiro espera a que compartir confirme
+        esperar_bloqueada_por(pid, hilo)  # el retiro espera a que compartir confirme
     hilo.join(timeout=10)
     assert cortados == [1]
     revocado, indice, _ = _acceso(acceso_id)
@@ -484,10 +485,10 @@ def test_crear_un_acceso_simultaneo_a_un_retiro_espera_y_termina_en_403(entorno:
             SolicitudRetiro(usuario_id=familia.admin.id, rol="admin", persona_id=persona, finalidad="plan_cuidado"),
             entorno.reloj, RepositorioRetirosSQL(sesion, grupo, registro), efectos_de(sesion, grupo, registro),
         )
+        pid = pid_de(sesion)
         hilo = threading.Thread(target=crear)
         hilo.start()
-        hilo.join(timeout=1.0)
-        assert hilo.is_alive()  # crear el acceso espera el bloqueo del retiro (FOR SHARE contra FOR UPDATE)
+        esperar_bloqueada_por(pid, hilo)  # crear el acceso espera el bloqueo del retiro (FOR SHARE contra FOR UPDATE)
     hilo.join(timeout=15)
     [respuesta] = respuestas
     assert respuesta.status_code == 403, respuesta.text
@@ -506,10 +507,12 @@ def test_crear_un_acceso_primero_el_retiro_espera_y_lo_corta(
     grupo = familia.grupo.id
     insertado, soltar = threading.Event(), threading.Event()
     original = RepositorioAccesosSQL.crear
+    pids: list[int] = []
 
     def crear_y_esperar(self: RepositorioAccesosSQL, acceso: Any) -> None:
         # El acceso queda escrito en la transacción de la petición, que sigue abierta con el FOR SHARE tomado
         original(self, acceso)
+        pids.append(pid_de(self._sesion))
         insertado.set()
         assert soltar.wait(timeout=15)
 
@@ -522,8 +525,8 @@ def test_crear_un_acceso_primero_el_retiro_espera_y_lo_corta(
     crear.start()
     assert insertado.wait(timeout=15)
     retirar.start()
-    retirar.join(timeout=1.0)
-    assert retirar.is_alive()  # el retiro espera a que crear el acceso confirme (FOR UPDATE contra FOR SHARE)
+    # el retiro espera a que crear el acceso confirme (FOR UPDATE contra FOR SHARE)
+    esperar_bloqueada_por(pids[0], retirar)
     soltar.set()
     crear.join(timeout=15)
     retirar.join(timeout=15)
