@@ -182,3 +182,19 @@ def entorno_pedido(
         yield EntornoPedido(iam=entorno_iam, fabrica=fabrica, catalogo=catalogo_sintetico, existencias=existencias)
     finally:
         fabrica.limpiar()
+
+
+# MATU-113 (decisión 472): ningún monto llega al observador, a ninguna profundidad
+MONTOS_PARA_EL_OBSERVADOR = frozenset(
+    {"precio_unitario", "subtotal", "subtotal_productos", "costo_envio", "total", "precio_antes", "monto",
+     "devolucion", "devuelto", "precio_pagado", "oferta_id"}
+)
+
+
+def claves_a_cualquier_profundidad(valor: Any) -> set[str]:
+    """Todas las claves de los objetos del JSON, también de los anidados en listas."""
+    if isinstance(valor, dict):
+        return set(valor) | {c for v in valor.values() for c in claves_a_cualquier_profundidad(v)}
+    if isinstance(valor, list):
+        return {c for v in valor for c in claves_a_cualquier_profundidad(v)}
+    return set()

@@ -15,7 +15,7 @@ from tests.concurrencia import esperar_bloqueada_por
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.backoffice.conftest import Despacho
 from tests.modules.backoffice.test_despacho_api import PRECIO_PANAL, _codigo, _parte, _preparar_todo, _validar
-from tests.modules.ordering.conftest import COSTO_ENVIO
+from tests.modules.ordering.conftest import COSTO_ENVIO, MONTOS_PARA_EL_OBSERVADOR, claves_a_cualquier_profundidad
 from tests.modules.payments.conftest import pagar, pedido_confirmado, sin_sesion_volver
 
 pytestmark = [pytest.mark.rf("RF-20"), pytest.mark.rf("RF-25"), requiere_base]
@@ -400,3 +400,21 @@ def test_c8_dos_retractos_a_la_vez_no_piden_mas_de_lo_entregado(despacho: Despac
                        {"lineas": [{"linea_id": linea, "cantidad": 1}]})
     assert r.status_code == 201, r.text
     assert r.json()["es_tuyo"] is True
+
+
+def test_matu113_el_observador_ve_el_cancelado_con_devolucion_sin_lo_devuelto(despacho: Despacho) -> None:
+    """Decisión 472: el estado completo (cancelado con devolución), sin el monto devuelto ni ningún otro."""
+    d = despacho
+    familia, pedido = d.pagado()
+    cancelado = d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", familia.admin, familia)
+    assert cancelado.status_code == 200, cancelado.text
+    ruta = f"/v1/pedidos/{pedido['id']}"
+    assert d.e.pedir("GET", ruta, familia.admin, familia).json()["total"] == TOTAL
+
+    visto = d.e.pedir("GET", ruta, _rol(d, familia, "observador"), familia)
+    assert visto.status_code == 200, visto.text
+    assert visto.json()["estado"] == "cancelado_con_devolucion"
+    claves = claves_a_cualquier_profundidad(visto.json())
+    assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
+    for cifra in (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL):
+        assert str(cifra) not in visto.text, cifra
