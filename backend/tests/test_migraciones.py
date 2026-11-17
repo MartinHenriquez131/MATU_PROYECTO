@@ -1601,8 +1601,8 @@ def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
 
 # ---- 0030 (MATU-81): las incidencias, el segundo factor y la consola de operación
 
-FUNCIONES_0030 = {"iam_mfa_secreto": "matu_app", "operacion_buscar_cuenta": "matu_scheduler",
-                  "operacion_alta": "matu_scheduler"}
+FUNCIONES_0030 = {"iam_mfa_secreto": "matu_app",  # pragma: allowlist secret
+                  "operacion_buscar_cuenta": "matu_scheduler", "operacion_alta": "matu_scheduler"}
 INC30 = "00000000-0000-0000-0000-0000000030a1"
 
 
