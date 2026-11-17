@@ -644,7 +644,7 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
     publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
-    huella = "13a940a0c4db793d22d5f1f2b733230ecebf75a04e99355f438e1789474d1419"  # pragma: allowlist secret
+    huella = "99bf95a1e86084137285a7d917b4db45d1c50cb916ab5db9a0879c11ed15f5df"  # pragma: allowlist secret
     assert PUBLICADAS["0.21"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
@@ -653,6 +653,8 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     for parte in (
         # §6: la entrada en dos pasos del equipo
         "Entra con su contraseña y un código de su teléfono",
+        # O3 del analista: en su consola no ve la dirección ni el teléfono
+        "En su consola no ve la dirección de entrega ni el teléfono de contacto.",
         "No ve el nombre de la persona que cuidas, su ficha ni el consumo de insumos.",
         "MATU registra cuándo revisa tu pedido.",
         "lo anota con lo que pasó y cómo se resolvió, y lo ves en la copia de tus datos.",
