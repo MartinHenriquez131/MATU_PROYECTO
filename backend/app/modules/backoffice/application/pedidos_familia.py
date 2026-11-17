@@ -7,7 +7,11 @@ Vive en backoffice porque junta el pedido y sus partes (ordering, fulfillment) c
 - Roles (C3, C5): admin, cuidador y pagador ven el pedido con sus montos; el observador, solo la fecha, los productos y
   «Pagado» (D-92-1 a). Quien salió del grupo no llega aquí (sesion_de_grupo responde 404, C4).
 - Lo que el servidor decide (C7, C10): ``puede_cancelar`` y ``puede_arrepentirse``, con su motivo cuando no.
-- Conservación (C27): lo vencido no aparece ni se lee (regla de ``ordering/domain/seguimiento.py``).
+- Conservación (C27): un pedido que cumplió 2 años desde su cierre (regla de ``ordering/domain/seguimiento.py``) no
+  aparece en ``listar`` y responde 404 en ``seguimiento`` y en ``para_devolver`` (GET …/retractos), es decir, solo en
+  las rutas 1 a 3 de «Tus pedidos». Nada más lo filtra: GET …/pago, los POST de cancelar y arrepentirse y la copia de
+  «Tus datos» (MATU-54) siguen mostrando lo guardado, porque esconderlo sin borrarlo le negaría a la persona el acceso
+  a lo que MATU todavía tiene. Quitarlo de verdad es el borrado de MATU-89.
 """
 
 import uuid

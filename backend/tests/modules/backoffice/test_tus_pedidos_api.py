@@ -298,6 +298,63 @@ def test_lo_vencido_no_aparece(despacho: Despacho) -> None:
     assert d.e.pedir("GET", f"/v1/pedidos/{en_curso['id']}/seguimiento", familia.admin, familia).status_code == 200
 
 
+def test_c1_de_una_persona_eliminada_la_lista_y_el_seguimiento_responden_404(despacho: Despacho) -> None:
+    """C1: con la persona eliminada (eliminado_en), su lista, el seguimiento y lo que se puede devolver responden el
+    mismo 404 que otro grupo, para todos los roles. El pedido sigue guardado: solo no se muestra aquí."""
+    d = despacho
+    familia, pedido = d.pagado()
+    _entregar(d, pedido)
+    rutas = [
+        f"/v1/personas-cuidadas/{familia.persona.id}/pedidos",
+        f"/v1/pedidos/{pedido['id']}/seguimiento",
+        f"/v1/pedidos/{pedido['id']}/retractos",
+    ]
+    for ruta in rutas:
+        assert d.e.pedir("GET", ruta, familia.admin, familia).status_code == 200, ruta
+
+    d.sql("UPDATE persona_cuidada SET eliminado_en = now() WHERE id = %s", familia.persona.id)
+    for usuario in (familia.admin, _rol(d, familia, "cuidador"), _rol(d, familia, "pagador")):
+        for ruta in rutas:
+            r = d.e.pedir("GET", ruta, usuario, familia)
+            assert r.status_code == 404, (ruta, r.text)
+            assert pedido["id"] not in r.text
+    r = _lista(d, familia, _rol(d, familia, "observador"))
+    assert r.status_code == 404, r.text
+    assert d.sql("SELECT count(*) FROM pedido WHERE id = %s", uuid.UUID(pedido["id"])) == [(1,)]
+
+
+def test_c4_quien_salio_del_grupo_no_ve_sus_pedidos(despacho: Despacho) -> None:
+    """C4: quien sale del grupo deja de ver la lista, el seguimiento y lo que se puede devolver, aunque haya pagado.
+    Su token sigue siendo válido, así que sesion_de_grupo responde 404 (no es miembro activo), no 401. La membresía se
+    retira con SQL, como en test_grupos.py: POST …/salida (membresia_retirar) exige el instante actual, y el reloj de
+    este entorno es sintético. La salida por la API la prueba test_miembros_api.py."""
+    d = despacho
+    familia, pedido = _pagado_por_el_pagador(d)
+    _entregar(d, pedido)
+    pagador = _rol(d, familia, "pagador")
+    rutas = [
+        f"/v1/personas-cuidadas/{familia.persona.id}/pedidos",
+        f"/v1/pedidos/{pedido['id']}/seguimiento",
+        f"/v1/pedidos/{pedido['id']}/retractos",
+    ]
+    for ruta in rutas:
+        assert d.e.pedir("GET", ruta, pagador, familia).status_code == 200, ruta
+
+    d.sql("UPDATE membresia SET estado = 'retirada' WHERE usuario_id = %s AND grupo_id = %s", pagador.id,
+          familia.grupo.id)
+    for ruta in rutas:
+        r = d.e.pedir("GET", ruta, pagador, familia)
+        assert r.status_code == 404, (ruta, r.text)
+        assert pedido["id"] not in r.text
+    # Tampoco puede pedir un retracto, aunque haya pagado el pedido; nada queda escrito
+    cuerpo = {"lineas": [{"linea_id": _linea(d, pedido), "cantidad": 1}]}
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia, cuerpo)
+    assert r.status_code == 404, r.text
+    assert d.sql("SELECT count(*) FROM retracto WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(0,)]
+    # El resto del grupo lo sigue viendo
+    assert [x["pedido_id"] for x in _lista(d, familia, familia.admin).json()["items"]] == [pedido["id"]]
+
+
 @pytest.mark.rf("R3")
 def test_c8_dos_retractos_a_la_vez_no_piden_mas_de_lo_entregado(despacho: Despacho) -> None:
     """Quien pagó con el rol pagador (RLS no le deja FOR UPDATE sobre un pedido pagado): una transacción toma el

@@ -39,7 +39,7 @@ PUBLICADAS: dict[str, str] = {
     "0.19": "c5b79d87898f6624cb97996ded97df9d50334ba5b717b12901a9a5efd93a1ff9",  # pragma: allowlist secret
     # MATU-92: «Tus pedidos», los pedidos pagados de la persona según el rol, y arrepentirse o cancelar desde la
     # aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a aceptar; las anteriores siguen
-    "0.20": "dcf307205c46577e9de003536252cbf498f3871301b9bf51b86fee8bed22bb9f",  # pragma: allowlist secret
+    "0.20": "d4c73f40d140efa752c236066c88f8a77a25d15f29c7688ff2c3537c06bce815",  # pragma: allowlist secret
 }
 
 
