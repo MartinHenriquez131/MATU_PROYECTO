@@ -44,9 +44,11 @@ h) Opción B de Jorge (17-11, decisión 471): clave_notas, la clave propia de la
    operación (para cifrar y descifrar) y quien es miembro activo del grupo (la copia de sus datos es la única que la
    lee); el comercio, el repartidor y el relevo, nunca. Sin el marcador app.funcion: matu_app lo puede fijar, y una
    política que lo mira es solo TO matu_owner (O2). matu_app la crea y la lee, sin UPDATE ni DELETE. Nace vigente y
-   después solo se destruye (trigger clave_notas_solo_destruir). Cuando se destruye la clave de la ficha de la persona o
-   se borran sus datos, la función clave_notas_destruir (SECURITY DEFINER, matu_owner) destruye también su clave de
-   notas.
+   después solo se destruye (trigger clave_notas_solo_destruir). Decisión de Jorge del 17-11: solo cuando se borran
+   los datos de la persona (persona_cuidada.datos_borrados_en, MATU-72), la función clave_notas_destruir (SECURITY
+   DEFINER, matu_owner) destruye también su clave de notas. Destruir la clave de la ficha (plan_destruir_claves a los
+   90 días del retiro, o la familia al volver a autorizar) no la toca: la persona sigue en MATU y su pedido se guarda
+   2 años.
 
 downgrade() deja el esquema como en 0029 sin borrar nada. Falla si hay incidencias o claves de notas (lo cifrado no
 vuelve a texto sin la KEK), o retractos con motivo de rechazo. La auditoría con las acciones nuevas deja los CHECK
@@ -223,28 +225,20 @@ CREATE POLICY clave_notas_familia_leer ON clave_notas FOR SELECT USING (
 REVOKE ALL ON clave_notas FROM matu_app;
 GRANT SELECT, INSERT ON clave_notas TO matu_app;
 
--- El borrado criptográfico sigue a la persona: cuando se destruye la clave de su ficha (plan_destruir_claves a los 90
--- días del retiro, o el borrado de sus datos) o se borran sus datos (persona_cuidada.datos_borrados_en), se destruye
--- también su clave de notas, y sus notas quedan ilegibles. Corre como matu_owner, con su propia política, también
+-- El borrado criptográfico de las notas sigue al borrado de la persona: cuando se borran sus datos
+-- (persona_cuidada.datos_borrados_en, MATU-72), se destruye su clave de notas, y sus notas quedan ilegibles. Destruir
+-- la clave de su ficha (plan_destruir_claves a los 90 días del retiro) no la toca: la persona sigue en MATU y sus
+-- pedidos se guardan 2 años (decisión de Jorge del 17-11). Corre como matu_owner, con su propia política, también
 -- cuando la sesión no ve la clave
 CREATE FUNCTION clave_notas_destruir() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
 $$
 DECLARE
     v_antes text := current_setting('app.funcion', true);
-    v_persona uuid;
-    v_en timestamptz;
 BEGIN
-    IF TG_TABLE_NAME = 'clave_datos' THEN
-        v_persona := NEW.persona_cuidada_id;
-        v_en := NEW.destruida_en;
-    ELSE
-        v_persona := NEW.id;
-        v_en := NEW.datos_borrados_en;
-    END IF;
     PERFORM set_config('app.funcion', 'clave_notas_destruir', true);
-    UPDATE public.clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = v_en
-     WHERE persona_cuidada_id = v_persona AND destruida_en IS NULL;
+    UPDATE public.clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = NEW.datos_borrados_en
+     WHERE persona_cuidada_id = NEW.id AND destruida_en IS NULL;
     PERFORM set_config('app.funcion', COALESCE(v_antes, ''), true);
     RETURN NULL;
 END $$;
@@ -253,9 +247,6 @@ CREATE POLICY clave_notas_destruccion_leer ON clave_notas FOR SELECT TO matu_own
     USING ({FUNCION} = 'clave_notas_destruir');
 CREATE POLICY clave_notas_destruccion ON clave_notas FOR UPDATE TO matu_owner
     USING ({FUNCION} = 'clave_notas_destruir') WITH CHECK ({FUNCION} = 'clave_notas_destruir');
-CREATE TRIGGER clave_datos_destruye_notas AFTER UPDATE OF destruida_en ON clave_datos
-    FOR EACH ROW WHEN (OLD.destruida_en IS NULL AND NEW.destruida_en IS NOT NULL)
-    EXECUTE FUNCTION clave_notas_destruir();
 CREATE TRIGGER persona_borrada_destruye_notas AFTER UPDATE OF datos_borrados_en ON persona_cuidada
     FOR EACH ROW WHEN (OLD.datos_borrados_en IS NULL AND NEW.datos_borrados_en IS NOT NULL)
     EXECUTE FUNCTION clave_notas_destruir();
@@ -263,7 +254,6 @@ CREATE TRIGGER persona_borrada_destruye_notas AFTER UPDATE OF datos_borrados_en 
 
 CLAVE_NOTAS_BAJADA = """
 DROP TRIGGER persona_borrada_destruye_notas ON persona_cuidada;
-DROP TRIGGER clave_datos_destruye_notas ON clave_datos;
 DROP FUNCTION clave_notas_destruir();
 DROP TABLE clave_notas;
 DROP FUNCTION clave_notas_solo_destruir();

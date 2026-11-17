@@ -1659,10 +1659,12 @@ def test_0030_backoffice_de_operacion_y_baja_al_esquema_de_0029(base_desechable)
     assert _privilegios("clave_notas") == {"SELECT", "INSERT"}
     [(acl, definer)] = consultar("SELECT proacl::text, prosecdef FROM pg_proc WHERE proname = 'clave_notas_destruir'")
     assert definer and acl == "{matu_owner=X/matu_owner}"
+    # Decisión de Jorge del 17-11: la clave de las notas se destruye solo con el borrado de la persona, nunca con la de
+    # la ficha (clave_datos_destruye_notas ya no existe)
     disparadores = {n for (n,) in consultar("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname IN"
                                             " ('clave_datos_destruye_notas', 'persona_borrada_destruye_notas',"
                                             " 'clave_notas_solo_destruir')")}
-    assert disparadores == {"clave_datos_destruye_notas", "persona_borrada_destruye_notas", "clave_notas_solo_destruir"}
+    assert disparadores == {"persona_borrada_destruye_notas", "clave_notas_solo_destruir"}
     [(fk,)] = consultar("SELECT pg_get_constraintdef(oid) FROM pg_constraint"
                         " WHERE conname = 'incidencia_pedido_id_fkey'")
     assert "ON DELETE CASCADE" in fk

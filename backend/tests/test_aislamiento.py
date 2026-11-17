@@ -4619,28 +4619,18 @@ def test_471_la_clave_de_las_notas_la_leen_operacion_y_la_familia_del_grupo(cx, 
 
 @pytest.mark.rf("RF-40")
 @pytest.mark.rf("Ley-21.719")
-@pytest.mark.parametrize("como_se_borra", ["clave_de_la_ficha_familia", "clave_de_la_ficha_dueno", "persona_borrada"])
-def test_471_el_borrado_criptografico_destruye_la_clave_de_las_notas(cx, operador_81, como_se_borra):
-    """Cuando se destruye la clave de la ficha de la persona (la familia al volver a autorizar, o plan_destruir_claves,
-    que corre como matu_owner) o se borran sus datos, se destruye también su clave de notas: sus notas quedan
-    ilegibles. La de la otra persona no cambia. Después, una nota nueva va con una clave nueva."""
+def test_471_el_borrado_de_la_persona_destruye_la_clave_de_las_notas(cx, operador_81):
+    """Decisión de Jorge del 17-11: cuando se borran los datos de la persona (persona_cuidada.datos_borrados_en,
+    MATU-72), se destruye también su clave de notas: sus notas quedan ilegibles. La de la otra persona no cambia.
+    Después, una nota nueva va con una clave nueva."""
     _cuidador_retiro(cx)
     como(cx, usuario_id=operador_81, rol="operacion")
     clave_a = _clave_notas(cx)
     clave_b = _clave_notas(cx, P_B, G_B)
     _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_a)
     cx.execute("RESET ROLE")
-    if como_se_borra == "clave_de_la_ficha_familia":
-        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
-        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
-                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
-    elif como_se_borra == "clave_de_la_ficha_dueno":
-        como(cx, db_rol="matu_owner", rol="operacion")
-        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
-                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
-    else:
-        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
-        assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
     cx.execute("RESET ROLE")
     filas = dict(cx.execute("SELECT id, dek_cifrada_con_kek IS NULL AND destruida_en IS NOT NULL FROM clave_notas"
                             " WHERE id = ANY(%s)", ([clave_a, clave_b],)).fetchall())
@@ -4656,6 +4646,38 @@ def test_471_el_borrado_criptografico_destruye_la_clave_de_las_notas(cx, operado
     nueva = _clave_notas(cx)
     assert nueva != clave_a
     _incidencia(cx, PED_A_ENVIADO, operador_81, clave=nueva)
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("como_se_destruye", ["plan_destruir_claves", "familia", "dueno"])
+def test_471_destruir_la_clave_de_la_ficha_no_destruye_la_de_las_notas(cx, operador_81, como_se_destruye):
+    """Decisión de Jorge del 17-11: la clave de la ficha se destruye a los 90 días del retiro (plan_destruir_claves,
+    como matu_scheduler) o cuando la familia vuelve a autorizar, pero la persona sigue en MATU y su pedido se guarda 2
+    años: su clave de notas sigue vigente y la misma, y una nota nueva va con ella. Falla con el trigger
+    clave_datos_destruye_notas de antes."""
+    como(cx, usuario_id=operador_81, rol="operacion")
+    clave_a = _clave_notas(cx)
+    _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_a)
+    cx.execute("RESET ROLE")
+    if como_se_destruye == "plan_destruir_claves":
+        _retiro_de_plan(cx, "100 days")
+        como(cx, "matu_scheduler", rol="operacion")
+        assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (1,)
+    elif como_se_destruye == "familia":
+        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
+    else:
+        como(cx, db_rol="matu_owner", rol="operacion")
+        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
+    assert _clave_destruida(cx, P_A) == (True, True)
+    assert cx.execute("SELECT dek_cifrada_con_kek = %s, destruida_en IS NULL FROM clave_notas WHERE id = %s",
+                      (DEK_ENVUELTA, clave_a)).fetchone() == (True, True)
+    como(cx, usuario_id=operador_81, rol="operacion")
+    assert _clave_notas(cx) == clave_a
+    _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_a)
 
 
 @pytest.mark.rf("RF-40")

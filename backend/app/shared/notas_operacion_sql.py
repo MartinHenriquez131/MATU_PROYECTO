@@ -5,8 +5,9 @@ Trabaja con la sesión de quien llama, con su contexto ya fijado:
 - operación (``app.rol = 'operacion'``) crea y lee claves (clave_notas_operacion_crear y clave_notas_operacion_leer);
 - quien es miembro activo del grupo las lee (clave_notas_familia_leer); en la aplicación, solo la copia de sus
   datos (payments/infrastructure/copia_pagos.py).
-matu_app no cambia ni borra claves. La destrucción la hace la base (clave_notas_destruir), con la de la ficha o el
-borrado de la persona. Ninguna sentencia lleva el texto de una nota ni una DEK en claro.
+matu_app no cambia ni borra claves. La destrucción la hace la base (clave_notas_destruir), solo con el borrado de la
+persona (decisión de Jorge del 17-11): destruir la clave de la ficha no la toca. Ninguna sentencia lleva el texto de
+una nota ni una DEK en claro.
 """
 
 import uuid

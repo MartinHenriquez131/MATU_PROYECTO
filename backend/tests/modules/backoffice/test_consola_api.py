@@ -197,25 +197,37 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     assert revisiones and revisiones[0]["referencia"] == inc["referencia"] and revisiones[0]["quien"]["tipo"] == "matu"
 
 
-@pytest.mark.rf("Ley-21.719")
-def test_con_la_clave_destruida_la_nota_no_esta_disponible_en_la_consola_ni_en_la_copia(despacho: Despacho) -> None:
-    """Decisión 471: cuando se destruye la clave de la ficha de la persona (el borrado criptográfico), se destruye su
-    clave de notas, y lo anotado queda ilegible: la consola y la copia lo muestran como no disponible, sin error. Una
-    nota nueva va con una clave nueva y se lee."""
-    d = despacho
-    familia, pedido = d.pagado()
-    nota = f"Nota sintética {uuid.uuid4().hex}"
+def _incidencia_con_resolucion(d: Despacho, pedido: dict[str, Any], nota: str) -> dict[str, Any]:
     inc = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": nota}).json()
     r = d.operacion("PATCH", f"/incidencias/{inc['id']}", {"resolucion": "Resolución sintética"},
                     **{"If-Match": '"i1"'})
     assert r.status_code == 200 and r.json()["resolucion"] == "Resolución sintética"
-    # La clave de la ficha de la persona se destruye (como la destruye plan_destruir_claves, como matu_owner)
+    return inc
+
+
+def _destruir_clave_de_la_ficha(d: Despacho, familia: Any) -> None:
+    """La clave de la ficha de la persona se destruye como la destruye plan_destruir_claves a los 90 días del retiro
+    (superusuario: los disparadores corren igual)."""
     persona = familia.persona.id
     d.sql("INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
           " SELECT %s, %s, '\\x01', 1 WHERE NOT EXISTS (SELECT 1 FROM clave_datos WHERE persona_cuidada_id = %s"
           " AND destruida_en IS NULL)", familia.grupo.id, persona, persona)
     d.sql("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
           " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona)
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_con_la_persona_borrada_la_nota_no_esta_disponible_en_la_consola(despacho: Despacho) -> None:
+    """Decisión 471 y decisión de Jorge del 17-11: cuando se borran los datos de la persona (MATU-72), se destruye su
+    clave de notas, y lo anotado queda ilegible: la consola lo muestra como no disponible, sin error. La copia de sus
+    datos ya no existe (404). Una nota nueva va con una clave nueva y se lee."""
+    d = despacho
+    familia, pedido = d.pagado()
+    nota = f"Nota sintética {uuid.uuid4().hex}"
+    inc = _incidencia_con_resolucion(d, pedido, nota)
+    persona = familia.persona.id
+    borrado = d.e.pedir("POST", f"/v1/personas-cuidadas/{persona}/borrado", familia.admin, familia)
+    assert borrado.status_code == 200, borrado.text
     assert d.sql("SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
                  persona) == [(0,)]
 
@@ -225,10 +237,7 @@ def test_con_la_clave_destruida_la_nota_no_esta_disponible_en_la_consola_ni_en_l
     [en_lista] = [i for i in d.operacion("GET", "/incidencias").json()["incidencias"] if i["id"] == inc["id"]]
     assert en_lista["nota_disponible"] is False
     copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{persona}/datos", familia.admin, familia)
-    assert copia.status_code == 200, copia.text
-    [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
-    [paso] = p["lo_que_paso"]
-    assert (paso["nota"], paso["resolucion"], paso["nota_disponible"]) == (None, None, False)
+    assert copia.status_code == 404
     assert nota not in copia.text
 
     # Seguir trabajando la incidencia: resolverla con una resolución nueva, con la clave nueva
@@ -242,6 +251,38 @@ def test_con_la_clave_destruida_la_nota_no_esta_disponible_en_la_consola_ni_en_l
     otra = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "Nueva"})
     assert otra.status_code == 201 and otra.json()["descripcion"] == "Nueva"
     assert d.sql("SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s", persona) == [(2,)]
+    assert nota not in d.e.iam.texto_log()
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_destruir_la_clave_de_la_ficha_no_destruye_la_nota(despacho: Despacho) -> None:
+    """Decisión de Jorge del 17-11: a los 90 días del retiro se destruye la clave de la ficha, pero la persona sigue en
+    MATU y su pedido se guarda 2 años: la nota sigue legible en la consola y en la copia de sus datos. Falla con el
+    disparador clave_datos_destruye_notas de antes."""
+    d = despacho
+    familia, pedido = d.pagado()
+    nota = f"Nota sintética {uuid.uuid4().hex}"
+    inc = _incidencia_con_resolucion(d, pedido, nota)
+    persona = familia.persona.id
+    [(clave,)] = d.sql("SELECT id FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona)
+    _destruir_clave_de_la_ficha(d, familia)
+    assert d.sql("SELECT count(*) FROM clave_datos WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
+                 persona) == [(0,)]
+    assert d.sql("SELECT destruida_en IS NULL FROM clave_notas WHERE id = %s", clave) == [(True,)]
+
+    r = d.operacion("GET", f"/incidencias/{inc['id']}")
+    assert r.status_code == 200, r.text
+    assert (r.json()["descripcion"], r.json()["resolucion"], r.json()["nota_disponible"]) == (
+        nota, "Resolución sintética", True)
+    copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{persona}/datos", familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
+    [paso] = p["lo_que_paso"]
+    assert (paso["nota"], paso["resolucion"], paso["nota_disponible"]) == (nota, "Resolución sintética", True)
+    # Una nota nueva va con la misma clave
+    otra = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "Nueva"})
+    assert otra.status_code == 201
+    assert d.sql("SELECT clave_notas_id FROM incidencia WHERE id = %s", uuid.UUID(otra.json()["id"])) == [(clave,)]
     assert nota not in d.e.iam.texto_log()
 
 
