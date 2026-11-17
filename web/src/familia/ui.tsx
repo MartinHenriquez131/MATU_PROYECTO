@@ -453,8 +453,8 @@ export function HojaFicha({
             key={c.api}
             className={`mt-5 rounded-md border-s-4 bg-rocio px-4 py-3 angosto:px-2 ${escribiendo === c.api ? 'border-miel' : 'border-turquesa'}`}
           >
-            <h3 className="mb-1 flex items-center gap-2 text-xl font-bold text-tinta">
-              <Phone aria-hidden className="size-5 shrink-0 text-turquesa" />
+            <h3 className="mb-1 flex items-start gap-2 text-xl font-bold text-tinta">
+              <Phone aria-hidden className="mt-1 size-5 shrink-0 text-turquesa" />
               {c.titulo}
             </h3>
             <TextoCampo texto={textos[c.api]} />

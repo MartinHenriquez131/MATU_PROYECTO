@@ -92,8 +92,8 @@ function Hoja({ ficha }: { ficha: FichaRelevo }) {
               className={llamar ? 'mt-6 rounded-md border-s-4 border-turquesa bg-rocio px-4 py-4 angosto:px-2 angosto:py-3' : 'mt-6'}
             >
               {llamar ? (
-                <h2 id={`campo-${c}`} className="flex items-center gap-2 text-2xl font-bold text-tinta">
-                  <Phone aria-hidden className="size-6 shrink-0 text-turquesa" />
+                <h2 id={`campo-${c}`} className="flex items-start gap-2 text-2xl font-bold text-tinta">
+                  <Phone aria-hidden className="mt-1 size-6 shrink-0 text-turquesa" />
                   {def.etiqueta}
                 </h2>
               ) : (
