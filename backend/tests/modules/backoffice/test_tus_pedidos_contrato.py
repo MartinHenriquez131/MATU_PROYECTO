@@ -33,7 +33,8 @@ NUNCA_A_LA_FAMILIA = {
 }
 MONTOS = {"total", "devuelto", "devuelto_todo", "monto", "costo_envio", "precio_pagado", "precio_unitario", "subtotal"}
 NO_PARA_EL_OBSERVADOR = MONTOS | {
-    "referencia", "entregado_en", "cancelado_en", "partes", "puede_cancelar", "puede_arrepentirse", "cancelar_motivo",
+    # MATU-113 (decisión 472): entregado_en ya es del observador
+    "referencia", "cancelado_en", "partes", "puede_cancelar", "puede_arrepentirse", "cancelar_motivo",
     "arrepentirse_motivo", "plazo_hasta", "plazo_correo_hasta",
 }
 
@@ -94,8 +95,12 @@ def test_c3_c5_la_vista_del_observador_no_trae_montos_ni_acciones(esquema: dict[
     assert not propiedades & NO_PARA_EL_OBSERVADOR, propiedades & NO_PARA_EL_OBSERVADOR
     fila = esquema["components"]["schemas"]["PedidoPagadoFilaObservador"]
     assert set(fila["properties"]) == {
-        "pedido_id", "pagado_en", "estado", "productos", "resumen_productos", "productos_borrados"}
-    assert fila["properties"]["estado"]["const"] == "pagado"
+        "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados"}
+    # MATU-113 (decisión 472): el estado real de familia, con los mismos valores que la fila completa
+    completa = esquema["components"]["schemas"]["PedidoPagadoFila"]
+    assert "const" not in fila["properties"]["estado"]
+    assert fila["properties"]["estado"] == completa["properties"]["estado"]
+    assert fila["properties"]["entregado_en"] == completa["properties"]["entregado_en"]
 
 
 def test_las_vistas_son_estrictas_y_dicen_sus_codigos(esquema: dict[str, Any]) -> None:

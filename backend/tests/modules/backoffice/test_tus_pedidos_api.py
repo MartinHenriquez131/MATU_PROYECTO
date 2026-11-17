@@ -21,7 +21,10 @@ from tests.modules.payments.conftest import pagar, pedido_confirmado, sin_sesion
 pytestmark = [pytest.mark.rf("RF-20"), pytest.mark.rf("RF-25"), requiere_base]
 
 TOTAL = 2 * PRECIO_PANAL + COSTO_ENVIO
-CAMPOS_OBSERVADOR = {"pedido_id", "pagado_en", "estado", "productos", "resumen_productos", "productos_borrados"}
+# MATU-113 (decisión 472): suma entregado_en, y el estado es el real de familia
+CAMPOS_OBSERVADOR = {
+    "pedido_id", "pagado_en", "estado", "entregado_en", "productos", "resumen_productos", "productos_borrados",
+}
 
 
 def _lista(d: Despacho, familia: FamiliaCreada, usuario: UsuarioCreado, **consulta: Any) -> Any:
@@ -107,7 +110,7 @@ def test_la_lista_y_el_seguimiento_por_rol(despacho: Despacho) -> None:
     r = _lista(d, familia, _rol(d, familia, "observador"))
     assert r.status_code == 200, r.text
     [fila] = r.json()["items"]
-    assert set(fila) == CAMPOS_OBSERVADOR and fila["estado"] == "pagado"
+    assert set(fila) == CAMPOS_OBSERVADOR and fila["estado"] == "pagado" and fila["entregado_en"] is None
     for nunca in ("total", "devuelto", "monto", "referencia", "puede_", "plazo", str(TOTAL), referencia):
         assert nunca not in r.text, nunca
 
@@ -418,3 +421,38 @@ def test_matu113_el_observador_ve_el_cancelado_con_devolucion_sin_lo_devuelto(de
     assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
     for cifra in (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL):
         assert str(cifra) not in visto.text, cifra
+
+
+def test_matu113_el_observador_ve_en_su_fila_el_pedido_en_camino_y_entregado_sin_montos(despacho: Despacho) -> None:
+    """Decisión 472 (reemplaza D-92-1 en lo del estado): la fila del observador trae el estado real de familia y
+    entregado_en, y sigue sin ningún monto, referencia ni código."""
+    d = despacho
+    familia, pedido = d.pagado()
+    [(referencia,)] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))
+    observador = _rol(d, familia, "observador")
+
+    def fila_del_observador() -> dict[str, Any]:
+        r = _lista(d, familia, observador)
+        assert r.status_code == 200, r.text
+        claves = claves_a_cualquier_profundidad(r.json())
+        assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
+        for nunca in (str(TOTAL), str(PRECIO_PANAL), referencia, "codigo", "referencia", "puede_", "plazo"):
+            assert nunca not in r.text, nunca
+        [fila] = r.json()["items"]
+        assert set(fila) == CAMPOS_OBSERVADOR
+        return fila
+
+    parte, etag = _parte(d, pedido)
+    _preparar_todo(d, parte, etag)
+    assert _validar(d, parte, _codigo(d, parte)).json()["resultado"] == "correcto"
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino").status_code == 200
+    fila = fila_del_observador()
+    assert (fila["estado"], fila["entregado_en"]) == ("en_ruta", None)
+
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
+    fila = fila_del_observador()
+    assert fila["estado"] == "entregado" and fila["entregado_en"] is not None
+    # Quien ve el pago ve lo mismo, con sus montos
+    [completa] = _lista(d, familia, familia.admin).json()["items"]
+    assert (completa["estado"], completa["entregado_en"], completa["total"]) == (
+        "entregado", fila["entregado_en"], TOTAL)
