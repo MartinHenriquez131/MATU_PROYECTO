@@ -252,6 +252,13 @@ y su porqué están en `backend/README.md` (hallazgos H3 y H5):
 `SCHEDULER_DATABASE_URL` y `CODIGO_RETIRO_SECRETO` (el mismo valor que `matu-api`, como referencia
 `${{matu-api.CODIGO_RETIRO_SECRETO}}` en `matu-cron-despacho`). Escribe el código una sola vez en la consola, nunca en
 el log.
+Desde MATU-81 la consola de operación lo genera y este comando queda de respaldo.
+
+**La cuenta de operación de la demo (MATU-81, C28).** Primero se crea la cuenta en «Crear cuenta», con un correo de
+dominio reservado, y después, desde `backend/`: `railway run --service matu-cron-despacho python -m app.tareas
+operacion-alta`. Pide el correo, muestra una sola vez la URI `otpauth://` para la app de códigos del teléfono y pide el
+primer código. Necesita en `matu-cron-despacho` `SCHEDULER_DATABASE_URL`, `PEPPER_EMAIL`, `CUSTODIA_KEK` y
+`KEK_ENTORNO`, las tres últimas como referencia a `matu-api` (`${{matu-api.PEPPER_EMAIL}}`, …). Sin variables nuevas.
 
 Variables de cada cron. `DATABASE_URL`, `POLITICA_VERSION` y `ORIGEN_WEB` van como referencia a `matu-api`
 (`${{matu-api.DATABASE_URL}}`), sin copiar valores:
