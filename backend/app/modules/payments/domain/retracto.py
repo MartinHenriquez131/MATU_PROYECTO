@@ -15,6 +15,7 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from enum import StrEnum
 from zoneinfo import ZoneInfo
 
 ZONA_CHILE = ZoneInfo("America/Santiago")
@@ -99,3 +100,32 @@ def incluye_envio(
 
 def anulacion_a_tiempo(solicitado_en: datetime, ahora: datetime) -> bool:
     return ahora - solicitado_en <= PLAZO_ANULACION
+
+
+class MotivoNoArrepentirse(StrEnum):
+    """MATU-92 (C7, C22, O1 del diseño): por qué no se puede pedir el retracto desde la aplicación."""
+
+    SIN_ENTREGAR = "sin_entregar"
+    PLAZO_APP_VENCIDO = "plazo_app_vencido"
+    PLAZO_VENCIDO = "plazo_vencido"
+    ROL = "rol"
+    NADA_DISPONIBLE = "nada_disponible"
+
+
+def motivo_no_arrepentirse(
+    *, entregado_en: datetime | None, ahora: datetime, administra: bool, pago: bool, disponibles: int
+) -> MotivoNoArrepentirse | None:
+    """None si se puede: el admin, o quien pagó, dentro de los 10 días hábiles, con algo entregado sin pedir. Pasado
+    el plazo de la app y hasta los 90 días, ``plazo_app_vencido`` (queda el correo, C22); después, ``plazo_vencido``
+    (solo el reclamo). El rol va después de los plazos y antes de lo disponible."""
+    if entregado_en is None:
+        return MotivoNoArrepentirse.SIN_ENTREGAR
+    if ahora > plazo_por_correo(entregado_en):
+        return MotivoNoArrepentirse.PLAZO_VENCIDO
+    if ahora > plazo_retracto(entregado_en):
+        return MotivoNoArrepentirse.PLAZO_APP_VENCIDO
+    if not (administra or pago):
+        return MotivoNoArrepentirse.ROL
+    if disponibles <= 0:
+        return MotivoNoArrepentirse.NADA_DISPONIBLE
+    return None

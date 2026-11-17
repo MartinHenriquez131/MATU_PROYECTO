@@ -125,13 +125,16 @@ class IntentoPago(BaseModel):
 
 
 class Devolucion(BaseModel):
-    """Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado."""
+    """Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado. MATU-92 (C13): suma
+    ``retracto``, por producto o por el envío (``producto`` null)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    motivo: Literal["pago_tardio", "producto_no_entregado", "cancelacion"]
+    motivo: Literal["pago_tardio", "producto_no_entregado", "cancelacion", "retracto"]
     monto: int = Field(gt=0)
-    producto: ProductoPedido | None
+    producto: ProductoPedido | None = Field(
+        description="El producto devuelto, o null si es el envío o el pedido completo (cancelacion, pago_tardio)"
+    )
     estado: Literal["en_curso", "hecha"]
     solicitada_en: datetime
     hecha_en: datetime | None

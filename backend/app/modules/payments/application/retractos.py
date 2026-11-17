@@ -38,12 +38,23 @@ class Retracto:
     incluye_envio: bool
     estado: str
     origen: str = "app"
+    # MATU-92: quién lo pidió (solo para es_tuyo, C18) y cuándo se resolvió
+    solicitado_por: uuid.UUID | None = None
+    resuelto_en: datetime | None = None
 
 
 class RepositorioRetractos(Protocol):
     """Implementación: RepositorioRetractosSQL (infrastructure/repositorio_retractos.py)."""
 
     def pedido(self, pedido_id: uuid.UUID) -> PedidoEntregado | None: ...
+
+    def bloquear_pedido(self, pedido_id: uuid.UUID) -> None:
+        """MATU-92 (C8): serializa las solicitudes de retracto de un pedido hasta el fin de la transacción."""
+        ...
+
+    def de_pedido(self, pedido_id: uuid.UUID) -> list["Retracto"]:
+        """Los retractos del pedido, por solicitado_en."""
+        ...
 
     def lineas_pedidas(self, pedido_id: uuid.UUID) -> dict[uuid.UUID, tuple[int, int]]:
         """Por línea: lo pedido en todos los retractos y lo pedido en los no rechazados."""
@@ -87,9 +98,15 @@ def solicitar(
     origen: str = "app",
     actor: ActorTipo = ActorTipo.USUARIO,
     actor_ref: uuid.UUID | None = None,
+    retracto_id: uuid.UUID | None = None,
 ) -> Retracto:
     """``origen`` = ``correo`` (H2): operación lo registra a nombre de ``usuario_id`` (quien pagó o el admin), con el
-    plazo de 90 días; la auditoría lleva a operación como actor."""
+    plazo de 90 días; la auditoría lleva a operación como actor.
+
+    MATU-92 (C8): primero bloquea el pedido, y recién después lee lo ya pedido: dos solicitudes a la vez se ponen en
+    fila y la segunda ve lo que pidió la primera. ``retracto_id`` lo fija la Idempotency-Key (la repetición lo
+    vuelve a leer); sin él, uno nuevo."""
+    retractos.bloquear_pedido(pedido_id)
     pedido = retractos.pedido(pedido_id)
     if pedido is None or pedido.entregado_en is None:
         raise SinPedidoEntregado()
@@ -112,7 +129,7 @@ def solicitar(
     por_id = {str(k): v for k, v in pedidas.items()}
     reglas.validar(lineas, por_id)
     retracto = Retracto(
-        id=uuid.uuid4(),
+        id=retracto_id or uuid.uuid4(),
         grupo_id=grupo_id,
         pedido_id=pedido_id,
         solicitado_en=ahora,
@@ -122,6 +139,7 @@ def solicitar(
         ),
         estado="solicitado",
         origen=origen,
+        solicitado_por=usuario_id,
     )
     retractos.crear(retracto, usuario_id, pedidas)
     unidad.registro.registrar(

@@ -21,7 +21,7 @@ pedido ni la Idempotency-Key van a los logs: la línea de la petición lleva la 
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, Header, Path, Request, Response, status
@@ -414,6 +414,20 @@ def _reservar(
     llave: bytes,
 ) -> Repeticion | None:
     """None si la petición es nueva y quedó reservada; una Repeticion si ya terminó antes con la misma clave."""
+    return _reservar_con_vencimiento(repositorio, endpoint, clave, actor, cuerpo, reloj, llave)[0]
+
+
+def _reservar_con_vencimiento(
+    repositorio: RepositorioIdempotencia,
+    endpoint: str,
+    clave: str,
+    actor: Actor,
+    cuerpo: Any,
+    reloj: Reloj,
+    llave: bytes,
+) -> tuple[Repeticion | None, datetime]:
+    """Como _reservar, y además el vencimiento de la reserva: identifica esta reserva entre las de la misma clave
+    (MATU-92: el retracto de una clave se vuelve a encontrar en la repetición)."""
     ahora = reloj.ahora()
     huella = idempotencia.huella_peticion(endpoint, cuerpo, llave)
     vence = idempotencia.expira_en(ahora)
@@ -422,7 +436,7 @@ def _reservar(
     if decision is idempotencia.Decision.NUEVA:
         if existente is not None:
             repositorio.reemplazar(endpoint, clave, huella, vence)
-        return None
+        return None, vence
     if decision is idempotencia.Decision.REUTILIZADA:
         raise ErrorMATU(
             422,
@@ -435,7 +449,7 @@ def _reservar(
             409, tipo="idempotencia-en-curso", detalle="Una petición con esta clave todavía no termina: reintenta"
         )
     assert existente is not None and existente.estado_http is not None and existente.pedido_id is not None
-    return Repeticion(existente.estado_http, existente.pedido_id)
+    return Repeticion(existente.estado_http, existente.pedido_id), existente.expira_en
 
 
 def _repetir(response: Response, repeticion: Repeticion, actor: Actor, proyectar: Proyeccion) -> Vista:
@@ -450,6 +464,8 @@ def _repetir(response: Response, repeticion: Repeticion, actor: Actor, proyectar
 # MATU-62: payments reutiliza la reserva de la clave y la traducción de los errores del pedido (412 y 409 estado-pedido)
 reservar_clave = _reservar
 traducir_error = _traducir
+# MATU-92: el retracto y la cancelación con devolución usan la misma reserva (C8)
+reservar_clave_con_vencimiento = _reservar_con_vencimiento
 
 
 # --- Rutas ---------------------------------------------------------------------------------------------------------
