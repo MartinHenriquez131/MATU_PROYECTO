@@ -94,7 +94,7 @@ describe('Tu pedido: el carrito (7)', () => {
     expect(grupo).toHaveAccessibleDescription('Nunca lo cambiamos por otra marca ni por otro producto.')
     expect(within(grupo).getByRole('radio', { name: /Buscarlo en otro comercio/ })).toBeChecked()
     expect(within(grupo).getByRole('radio', { name: 'Sacarlo del pedido y devolverme su precio' })).not.toBeChecked()
-    expect(within(grupo).getByText('El mismo producto. Pagas lo mismo.').className).toMatch(/\btext-base\b/)
+    expect(within(grupo).getByText('El mismo producto. Si cambia el precio, lo ves antes de pagar.').className).toMatch(/\btext-base\b/)
     expect(screen.getAllByText('Nunca lo cambiamos por otra marca ni por otro producto.')).toHaveLength(1)
     // C2: el retracto en cada línea, con letra igual a la del precio.
     const retracto = panal.getByText('Derecho a retracto:').closest('p')!

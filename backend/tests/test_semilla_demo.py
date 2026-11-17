@@ -1093,11 +1093,74 @@ def test_la_conexion_de_la_api_entra_como_matu_app() -> None:
 
 
 def test_la_cuenta_del_comercio_es_de_un_dominio_reservado_y_no_repite_celular() -> None:
-    cuenta = demo.CUENTA_COMERCIO
-    assert cuenta.email.endswith("@example.com")
-    assert cuenta.email not in {c.email for c in _cuentas()}
-    assert cuenta.telefono not in {c.telefono for c in _cuentas()}
-    assert demo.COMERCIO_DE_LA_CUENTA in {c.clave for c in CATALOGO.comercios}
+    """MATU-63 y MATU-112 (H7): cada cuenta de comercio, también la de Bodega La Muestra, con correo reservado y un
+    celular que no repite el de otra cuenta, el de otra cuenta de comercio ni el del relevo de ejemplo."""
+    comercios = [cuenta for cuenta, _ in demo.CUENTAS_COMERCIO]
+    assert demo.CUENTA_COMERCIO in comercios
+    correos = [c.email.lower() for c in (*_cuentas(), *comercios)]
+    celulares = [c.telefono for c in (*_cuentas(), *comercios)]
+    relevos = {f.relevo.telefono for f in demo.FAMILIAS if f.relevo is not None}
+    assert all(c.email.endswith("@example.com") for c in comercios)
+    assert len(set(correos)) == len(correos)
+    assert len(set(celulares)) == len(celulares)
+    assert not relevos & set(celulares)
+    assert {clave for _, clave in demo.CUENTAS_COMERCIO} <= {c.clave for c in CATALOGO.comercios}
+
+
+def _comercios_con_stock() -> set[str]:
+    return {o.comercio for o in CATALOGO.ofertas if o.stock > 0}
+
+
+@pytest.mark.rf("MATU-112")
+def test_cada_comercio_con_stock_tiene_su_cuenta_en_la_semilla() -> None:
+    """H7: sin cuenta, nadie ve ni prepara las partes de ese comercio en la demo."""
+    assert _comercios_con_stock() == {"uno", "dos"}
+    assert _comercios_con_stock() <= {clave for _, clave in demo.CUENTAS_COMERCIO}
+    assert ("comercio2@example.com", "dos") in {(c.email, clave) for c, clave in demo.CUENTAS_COMERCIO}
+
+
+@requiere_base
+@pytest.mark.rf("MATU-112")
+def test_cada_comercio_con_stock_queda_con_una_cuenta_activa_y_sin_grupo(fabrica: Fabrica, sembradora: Any) -> None:
+    """H7: tras sembrar las cuentas de comercio, cada comercio con stock tiene al menos una cuenta activa en
+    usuario_comercio, y ninguna de esas cuentas es miembro de un grupo. Correos únicos, para no chocar con la demo."""
+    catalogo = demo.cargar_catalogo_demo().sembrar_catalogo(fabrica_sesiones(), _catalogo_unico())
+    sufijo = uuid.uuid4().hex[:8]
+    cuentas = tuple(
+        (replace(c, email=f"comercio.{clave}.{sufijo}@example.com"), clave) for c, clave in demo.CUENTAS_COMERCIO
+    )
+    try:
+        hechas = sembradora.cuentas_comercio(f"clave-{secrets.token_hex(8)}", catalogo.comercios, cuentas)
+        assert [creada for _, creada in hechas] == [True] * len(cuentas)
+        # El catálogo es una copia única: todo lo que tiene en usuario_comercio es de esta prueba
+        ids = [
+            fila[0]
+            for fila in _filas(
+                "SELECT DISTINCT usuario_id FROM usuario_comercio WHERE comercio_id = ANY(%s)",
+                list(catalogo.comercios.values()),
+            )
+        ]
+        for usuario_id in ids:
+            fabrica.anotar("usuario", usuario_id)
+        assert len(ids) == len(cuentas)
+        for clave in _comercios_con_stock():
+            activas = _filas(
+                "SELECT count(*) FROM usuario_comercio WHERE comercio_id = %s AND activo", catalogo.comercios[clave]
+            )
+            assert activas[0][0] >= 1, clave
+        assert _filas("SELECT count(*) FROM membresia WHERE usuario_id = ANY(%s)", ids) == [(0,)]
+        # Cada cuenta, solo en su comercio
+        assert _filas("SELECT count(*) FROM usuario_comercio WHERE usuario_id = ANY(%s)", ids) == [(len(cuentas),)]
+        # Idempotente: otra corrida no crea nada
+        otra = sembradora.cuentas_comercio("otra-clave-cualquiera", catalogo.comercios, cuentas)
+        assert [creada for _, creada in otra] == [False] * len(cuentas)
+    finally:
+        with psycopg.connect(DSN, autocommit=True) as cx:
+            cx.execute("DELETE FROM usuario_comercio WHERE comercio_id = ANY(%s)", (list(catalogo.comercios.values()),))
+            cx.execute("DELETE FROM oferta WHERE id = ANY(%s)", (list(catalogo.ofertas.values()),))
+            cx.execute("DELETE FROM producto WHERE id = ANY(%s)", (list(catalogo.productos.values()),))
+            cx.execute("DELETE FROM comercio WHERE id = ANY(%s)", (list(catalogo.comercios.values()),))
+            cx.execute("DELETE FROM categoria_cuidado WHERE id = ANY(%s)", (list(catalogo.categorias.values()),))
 
 
 @requiere_base

@@ -75,6 +75,8 @@ subido. Los valores secretos se generan solo para staging: **ninguno se copia de
 | `PUSH_CUENTAS_PERMITIDAS` | MATU-107 (C14 del piloto): los `usuario_id` de las cuentas del equipo que pueden activar los avisos push, UUID separados por coma. Vacía o ausente, nadie los activa (`PUT /v1/dispositivos/actual/push` responde 409 `push-no-permitido`); una entrada que no es UUID impide arrancar. El `usuario_id` sale de la base, no de un `.env`. No se escribe en el chat ni en un PR. Va también en `matu-cron-avisos` |
 | `VIDA_VENTA_WEBPAY_MINUTOS` | MATU-62: opcional, `8` por omisión (decisión 230; MATU-94: la venta de integración vence a los 7 minutos). Cuánto dura un pago en curso con la venta iniciada. Va en `matu-api` y en los cron |
 
+> **Nota sobre `PUSH_CUENTAS_PERMITIDAS` (MATU-112, H6).** La exigencia rige en todo ambiente fuera de local y pruebas: staging, la demostración **y también producción**. Fuera de esos dos, solo las cuentas de la lista activan y reciben los avisos push. Se quita antes de salir del piloto, y solo cuando se cumplan las tres condiciones: la CL-37 y la CL-69 tienen respuesta; el registro de tratamientos, entradas 5, 6 y 9, tiene anotados su encargado y su transferencia internacional; y, si el cambio agrega un destinatario de los datos, se publicó una política de privacidad nueva que lo informa.
+
 **No se cargan** en staging: `POSTGRES_PASSWORD`, `MATU_TEST_DSN` (son de las pruebas locales),
 `ADMIN_DATABASE_URL` (solo se usa en tu computador, en el paso 3), `WEB_DIST` y `PORT` (los fijan la
 imagen y Railway). La KEK por variable de entorno se admite en staging por la decisión 105, que amplía

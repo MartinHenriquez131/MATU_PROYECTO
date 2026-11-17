@@ -323,6 +323,14 @@ FICHA_HERNAN = FichaDemo(
 # las demás cuentas de la semilla (SEMILLA_CONTRASENA o la que se genera). El rol "encargado" es el de usuario_comercio
 CUENTA_COMERCIO = CuentaDemo("Encargada de Prueba", "comercio@example.com", "encargado", "+56900000009")
 COMERCIO_DE_LA_CUENTA = "uno"
+# MATU-112 (H7): la del segundo comercio ficticio (Bodega La Muestra), con el mismo formato, para que cada comercio con
+# stock tenga quien vea y prepare sus partes. Tampoco es miembro de ningún grupo
+CUENTA_COMERCIO_DOS = CuentaDemo("Encargado de Prueba Dos", "comercio2@example.com", "encargado", "+56900000007")
+# Cada cuenta de comercio con la clave de su comercio en catalogo_demo.py
+CUENTAS_COMERCIO: tuple[tuple[CuentaDemo, str], ...] = (
+    (CUENTA_COMERCIO, COMERCIO_DE_LA_CUENTA),
+    (CUENTA_COMERCIO_DOS, "dos"),
+)
 
 _USUARIO_COMERCIO = text(
     "INSERT INTO usuario_comercio (usuario_id, comercio_id, rol, activo)"
@@ -543,6 +551,21 @@ class Sembradora:
         with sesion_tenant(self.fabrica, rol="operacion") as sesion:
             sesion.execute(_USUARIO_COMERCIO, {"usuario": usuario_id, "comercio": comercio_id})
         return usuario_id, creada
+
+    def cuentas_comercio(
+        self,
+        contrasena: str,
+        comercios: Mapping[str, uuid.UUID],
+        cuentas: Sequence[tuple[CuentaDemo, str]] = CUENTAS_COMERCIO,
+    ) -> list[tuple[CuentaDemo, bool]]:
+        """MATU-112 (H7): cada cuenta de comercio cuyo comercio está en el catálogo sembrado, y si se creó ahora. Las
+        de un comercio que no está se saltan."""
+        hechas: list[tuple[CuentaDemo, bool]] = []
+        for cuenta, clave in cuentas:
+            comercio_id = comercios.get(clave)
+            if comercio_id is not None:
+                hechas.append((cuenta, self.cuenta_comercio(cuenta, contrasena, comercio_id)[1]))
+        return hechas
 
     def _celular(self, usuario_id: uuid.UUID, telefono: str) -> None:
         """MATU-64: una cuenta de una semilla anterior pasa a su propio celular, en su propio contexto."""
@@ -1213,12 +1236,7 @@ def main(argv: Sequence[str] = ()) -> int:
         catalogo = sembrar_catalogo_demo(fabrica)
         resultado = sembrar(sembradora, contrasena, catalogo.productos)
         # Sin el comercio en el catálogo sembrado, no hay cuenta de comercio que crear
-        comercio_id = catalogo.comercios.get(COMERCIO_DE_LA_CUENTA)
-        comercio_creada = (
-            None
-            if comercio_id is None
-            else sembradora.cuenta_comercio(CUENTA_COMERCIO, contrasena, comercio_id)[1]
-        )
+        cuentas_comercio = sembradora.cuentas_comercio(contrasena, catalogo.comercios)
     except SemillaInconsistente as error:
         print(f"No se pudo sembrar: {error}.", file=sys.stderr)
         return 1
@@ -1237,9 +1255,9 @@ def main(argv: Sequence[str] = ()) -> int:
         estado = "creada" if c.creada else "ya existía, conserva su contraseña"
         print(f"  {c.grupo:<18} {c.nombre:<18} {c.rol + permiso:<20} {c.email:<24} {estado}")
 
-    if comercio_creada is not None:
-        estado = "creada" if comercio_creada else "ya existía, conserva su contraseña"
-        print(f"  {'Comercio':<18} {CUENTA_COMERCIO.nombre:<18} {'encargado':<20} {CUENTA_COMERCIO.email:<24} {estado}")
+    for cuenta, creada in cuentas_comercio:
+        estado = "creada" if creada else "ya existía, conserva su contraseña"
+        print(f"  {'Comercio':<18} {cuenta.nombre:<18} {'encargado':<20} {cuenta.email:<24} {estado}")
 
     familias = resultado.familias
     print(

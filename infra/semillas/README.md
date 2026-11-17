@@ -12,6 +12,10 @@ Datos sintéticos para la base **local** o la de **demostración** (estrategia d
 | Familia Soto | Javiera Soto, `javiera@example.org` | observador | +56 9 0000 0004 |
 | Familia Riquelme | Patricia Riquelme, `patricia@example.com` | admin | +56 9 0000 0005 |
 | Familia Riquelme | Tomás Riquelme, `tomas@example.org` | observador | +56 9 0000 0006 |
+| Sin grupo · comercio «uno» (Almacén El Ejemplo) | Encargada de Prueba, `comercio@example.com` | encargado del comercio (MATU-63) | +56 9 0000 0009 |
+| Sin grupo · comercio «dos» (Bodega La Muestra) | Encargado de Prueba Dos, `comercio2@example.com` | encargado del comercio (MATU-112) | +56 9 0000 0007 |
+
+Las dos cuentas de comercio no son miembros de ningún grupo: quedan solo en `usuario_comercio` de su comercio, entran por `/v1/sesiones` y la app las lleva a `/comercio`. Cada comercio con stock en `catalogo_demo.py` tiene la suya (lo revisa `test_semilla_demo.py`). Su contraseña es la de las demás cuentas: `SEMILLA_CONTRASENA` o la aleatoria que queda en `infra/semillas/salida/contrasena-demo.txt`, nunca en la salida. Correr la semilla sin `--restablecer` crea solo lo que falta, así que una demo ya sembrada recibe la cuenta del comercio «dos» sin tocar las demás.
 
 La familia Soto tiene los cuatro roles. Usa los mismos nombres que la demo web de `Demo/` (Carmen cuida a María y Rodrigo es su hijo), pero no los mismos correos: la demo web sigue con `@correo.ejemplo` y no apunta a staging.
 

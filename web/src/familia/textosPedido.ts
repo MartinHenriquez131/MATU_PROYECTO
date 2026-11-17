@@ -65,7 +65,7 @@ export const PEDIDO = {
   subtotal: 'Subtotal:',
   siFalta: 'Si falta este producto',
   otroComercio: 'Buscarlo en otro comercio',
-  otroComercioDetalle: 'El mismo producto. Pagas lo mismo.',
+  otroComercioDetalle: 'El mismo producto. Si cambia el precio, lo ves antes de pagar.',
   quitar: 'Sacarlo del pedido y devolverme su precio',
   errRegla: 'No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo.',
   siFaltaOtro: 'Si falta: lo buscamos en otro comercio.',
@@ -193,7 +193,7 @@ export const PEDIDO = {
   telefonoDe: 'Teléfono de contacto:',
   siFaltaTitulo: 'Si falta un producto',
   siFaltaTexto:
-    'Si al retirar falta un producto, lo buscamos en otro comercio y pagas lo mismo. Si nadie lo tiene, o elegiste sacarlo, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
+    'Durante el piloto, si falta un producto después de pagar, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
   quienVende: 'Quién vende',
   vende: (vendedor: string, boleta: string) => `Vende: ${vendedor}. ${boleta}.`,
   reclamosAntes: 'Reclamos: escríbenos a ',
