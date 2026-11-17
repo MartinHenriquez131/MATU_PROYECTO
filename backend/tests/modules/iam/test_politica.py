@@ -647,7 +647,7 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
     publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
-    huella = "c5d7ffd37b366a31a47cd80a41cf41f97ca0007a30650b1c081a5f7c67fce87a"  # pragma: allowlist secret
+    huella = "253cf24cd256c16df993c6bac5fce87746a1349ced100bf171c351bad1fdcadb"  # pragma: allowlist secret
     assert PUBLICADAS["0.21"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
@@ -664,7 +664,15 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
         "lo anota con lo que pasó y cómo se resolvió. Esa nota se guarda cifrada, y la ves en la copia de tus datos.",
         # §8: los plazos de lo que anota el equipo y del registro de revisión
         "- **Lo que pasó con un pedido:** si hay un problema con un pedido, lo que anota el equipo de MATU sigue al"
-        " pedido: se guarda cifrado, 2 años desde que el pedido se cierra y se borra con él.",
+        " pedido: se guarda cifrado, 2 años desde que el pedido se cierra, y se borra con él.",
+        # Decisión de Jorge del 17-11: la nota queda ilegible solo al borrar los datos de la persona (§8, §9 y §10)
+        "Si pides borrar los datos de la persona, lo anotado hasta ese momento queda ilegible, porque destruimos la"
+        " clave con que se guardó. Lo que el equipo anote después, de un pedido que todavía se guarda, va con una clave"
+        " nueva y sigue el plazo del pedido.",
+        "- Lo que el equipo de MATU anota de un pedido se cifra con una clave propia de cada persona cuidada, distinta"
+        " de la de la ficha y protegida por la misma clave maestra.",
+        "- Lo que el equipo de MATU anotó de sus pedidos queda ilegible en ese momento. Si después hay que anotar algo"
+        " de un pedido pagado que todavía se guarda, se guarda con una clave nueva y se borra con el pedido.",
         "Que alguien de tu grupo mire un pedido o un pago no se registra.",
         "- La versión 0.21 agrega la consola del equipo de MATU",
         "Suma dos registros sobre tu pedido: la nota de lo que pasó, guardada cifrada, y el registro de cuándo el"

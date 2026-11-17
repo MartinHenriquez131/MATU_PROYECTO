@@ -42,7 +42,7 @@ PUBLICADAS: dict[str, str] = {
     "0.20": "5aab1f67299092cb6a47aa4c922f335b0ba0b42f1849b3ebc963ba385791c63d",  # pragma: allowlist secret
     # MATU-81: la consola del equipo de MATU, qué ve de cada pedido, la entrada en dos pasos, el registro de cuándo
     # revisa un pedido y lo que anota si hay un problema. El equipo ve menos que antes: nadie vuelve a aceptar
-    "0.21": "c5d7ffd37b366a31a47cd80a41cf41f97ca0007a30650b1c081a5f7c67fce87a",  # pragma: allowlist secret
+    "0.21": "253cf24cd256c16df993c6bac5fce87746a1349ced100bf171c351bad1fdcadb",  # pragma: allowlist secret
 }
 
 
