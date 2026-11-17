@@ -1980,7 +1980,7 @@ export interface paths {
         };
         /**
          * Listar Incidencias
-         * @description Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado.
+         * @description Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado. La nota y la resolución se descifran al leer; si la clave de las notas se destruyó, `nota_disponible` es false.
          */
         get: operations["listar_incidencias_v1_operacion_incidencias_get"];
         put?: never;
@@ -2010,7 +2010,7 @@ export interface paths {
         head?: never;
         /**
          * Editar Incidencia
-         * @description Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. Resolverla se audita incidencia.resolver, sin el texto.
+         * @description Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. La resolución se guarda cifrada, con la clave vigente de las notas de la persona (decisión 471). Resolverla se audita incidencia.resolver, sin el texto.
          */
         patch: operations["editar_incidencia_v1_operacion_incidencias__incidencia_id__patch"];
         trace?: never;
@@ -2026,7 +2026,7 @@ export interface paths {
         put?: never;
         /**
          * Crear Incidencia
-         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
+         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
          */
         post: operations["crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post"];
         delete?: never;
@@ -6265,10 +6265,18 @@ export interface components {
              * @enum {string}
              */
             estado: "abierta" | "en_gestion" | "resuelta";
-            /** Descripcion */
-            descripcion: string;
+            /**
+             * Descripcion
+             * @description La nota, descifrada; null si nota_disponible es false
+             */
+            descripcion: string | null;
             /** Resolucion */
             resolucion: string | null;
+            /**
+             * Nota Disponible
+             * @description false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer
+             */
+            nota_disponible: boolean;
             /**
              * Creada En
              * Format: date-time
@@ -6384,9 +6392,14 @@ export interface components {
             /** Resuelto En */
             resuelto_en: string | null;
             /** Nota */
-            nota: string;
+            nota: string | null;
             /** Resolucion */
             resolucion: string | null;
+            /**
+             * Nota Disponible
+             * @description false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer
+             */
+            nota_disponible: boolean;
         };
         /** OfertaConsola */
         OfertaConsola: {
@@ -14416,6 +14429,15 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
         };
     };
     ver_incidencia_v1_operacion_incidencias__incidencia_id__get: {
@@ -14463,6 +14485,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };
@@ -14547,6 +14578,15 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
         };
     };
     crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post: {
@@ -14593,6 +14633,15 @@ export interface operations {
             };
             /** @description Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
