@@ -75,7 +75,7 @@ El mismo bloque, en escala de la hoja de la familia: después de «Ficha de cuid
 |---|---|---|
 | Orden | `red_apoyo` primero, después `rutina` y `manejo_situaciones` (constante `ORDEN_CAMPOS` del relevo) | El mismo orden **solo en la hoja**. `CAMPOS` (lista, editor, alta) no cambia |
 | Contenedor | `section` `mt-6 rounded-md bg-rocio border-s-4 border-turquesa px-4 py-4 angosto:px-2 angosto:py-3` | `section` `mt-5 rounded-md bg-rocio border-s-4 border-turquesa px-4 py-3 angosto:px-2` |
-| Título | `h2` `flex items-center gap-2 text-2xl font-bold text-tinta`, con `Phone` de lucide `size-6 shrink-0 text-turquesa`, `aria-hidden` | `h3` `mb-1 flex items-center gap-2 text-xl font-bold text-tinta`, con `Phone` `size-5` |
+| Título | `h2` `flex items-start gap-2 text-2xl font-bold text-tinta`, con `Phone` de lucide `mt-1 size-6 shrink-0 text-turquesa`, `aria-hidden` | `h3` `mb-1 flex items-start gap-2 text-xl font-bold text-tinta`, con `Phone` `mt-1 size-5` (P3 de la revisión visual: el ícono va junto al primer renglón) |
 | Pregunta guía | `p` `mt-1 text-base text-tenue` (sin cambios) | No lleva (sin cambios) |
 | Contenido | `TextoCampo` sin cambios: `renglones text-lg leading-7`, teléfonos sin partir, sin `tel:` (3.11.2) | `TextoCampo` sin cambios |
 | Mientras se escribe ese campo | — | El borde del bloque pasa de `border-turquesa` a `border-miel`, sin el `-ml-3` de los otros campos |
