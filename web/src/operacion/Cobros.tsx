@@ -14,7 +14,10 @@ import { CUADRO_DETALLE, enChile, EtiquetaAnulacion, FilaCola, Monto, pesos, use
 import { useOperacion } from './estado'
 import { RotuloPiloto } from './Marco'
 import { DetallePedido } from './Pedido'
-import { COBROS as T, MARCO, MOTIVO_ANULACION } from './textos'
+import { COBROS as T, ESTADO_ANULACION, MARCO, MOTIVO_ANULACION } from './textos'
+
+/** Decisión 467: `en_curso` es la «En curso» de 7 y `sin_terminar`, la «Sin terminar» (la `rechazada` de 7). */
+const COMO_ANULACION = { en_curso: 'en_curso', sin_terminar: 'rechazada' } as const
 
 export function PantallaCobros({ ruta }: { ruta: '/operacion/cobros' | '/operacion/pedido' }) {
   const { pedidoId } = useOperacion()
@@ -154,7 +157,7 @@ function ListaCobros() {
                     <li key={`${a.pedido_id}-${i}`}>
                       <FilaCola
                         elegida={false}
-                        nombre={[T.pedido(ref), pesos(a.monto), MOTIVO_ANULACION[a.motivo], T.desde(hora)].join(', ')}
+                        nombre={[T.pedido(ref), pesos(a.monto), MOTIVO_ANULACION[a.motivo], T.desde(hora), ESTADO_ANULACION[COMO_ANULACION[a.estado]]].join(', ')}
                         onElegir={() => abrir(a.pedido_id)}
                         primera={
                           <>
@@ -168,7 +171,7 @@ function ListaCobros() {
                         <span>{MOTIVO_ANULACION[a.motivo]}</span>
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="cifras whitespace-normal text-tenue">{T.desde(hora)}</span>
-                          <EtiquetaAnulacion estado="rechazada" />
+                          <EtiquetaAnulacion estado={COMO_ANULACION[a.estado]} />
                         </span>
                       </FilaCola>
                     </li>

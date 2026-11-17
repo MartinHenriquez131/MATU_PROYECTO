@@ -1,6 +1,6 @@
-// Retractos (especificación MATU-81, sección 8): los que esperan respuesta, el plazo más cercano
-// primero, y el elegido con sus productos y el monto. «Devolver» y «No devolver» piden confirmar y
-// dicen el monto (C22 y C24); el monto es el de la API. El retracto elegido vive en memoria.
+// Retractos (especificación MATU-81, sección 8): los chips «Por resolver», «Devueltos» y «Sin devolución»
+// (decisión 466); los por resolver con el plazo más cercano primero, y el elegido con sus productos y el
+// monto. «Devolver» y «No devolver» piden confirmar y dicen el monto (C22 y C24); el monto es el de la API. El retracto elegido vive en memoria.
 // También el formulario del retracto que llegó por correo (8.5): el correo va solo en el cuerpo, se
 // borra de la memoria y del campo con cualquier respuesta del servidor, y nunca se lista a nadie (C25).
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
@@ -13,6 +13,7 @@ import {
   registrarRetractoPorCorreo,
   resolverRetracto,
   verRetracto,
+  type EstadoRetracto,
   type MotivoRechazo,
   type PedidoDetalle,
   type RetractoOperacion,
@@ -26,10 +27,16 @@ import { Acciones, CampoTexto, GrupoOpciones, MensajeError, Stepper, Titulo, Vol
 import { Atencion, CUADRO_DETALLE, CUADRO_VACIO, enChile, EtiquetaCon, FilaCola, GRILLA, Monto, pesos, useAhora, useAlDia, useFocoAlMontar } from './comun'
 import { useOperacion } from './estado'
 import { AvisoPrivacidad, RotuloPiloto } from './Marco'
-import { ESPACIO_DURO, MARCO, RETRACTOS as T } from './textos'
+import { ESPACIO_DURO, MARCO, PEDIDOS, RETRACTOS as T } from './textos'
 
 const DIA = 86_400_000
 const ID_NOTA = 'nota-del-retracto'
+/** 8.2: los chips, cada uno un `estado` de la consulta. */
+const CHIPS: { valor: EstadoRetracto; texto: string }[] = [
+  { valor: 'solicitado', texto: T.porResolver },
+  { valor: 'devuelto', texto: T.devueltos },
+  { valor: 'rechazado', texto: T.sinDevolucion },
+]
 
 /** 8.2: el plazo de la fila, en `atenta` con 2 días o menos, o vencido. */
 function plazoDe(r: RetractoOperacion, ahora: Date): { texto: string; atenta: boolean } | null {
@@ -48,7 +55,9 @@ function EtiquetaRetracto({ estado }: { estado: RetractoOperacion['estado'] }) {
 
 export function PantallaRetractos() {
   const { retractoId, fijar, fallo } = useOperacion()
+  const [estado, setEstado] = useState<EstadoRetracto>('solicitado')
   const [lista, setLista] = useState<RetractoOperacion[] | null>(null)
+  const [hayMas, setHayMas] = useState(false)
   const [error, setError] = useState(false)
   const { ahora, fijarFecha } = useAhora()
   const pedirFoco = useFocoAlMontar()
@@ -56,14 +65,15 @@ export function PantallaRetractos() {
 
   const traer = useCallback(async () => {
     try {
-      const r = await listarRetractos()
+      const r = await listarRetractos([estado])
       fijarFecha(r.fecha)
       setLista(r.retractos)
+      setHayMas(r.hayMas)
       setError(false)
     } catch (x) {
       if (!fallo(x, true)) setError(true)
     }
-  }, [fijarFecha, fallo])
+  }, [estado, fijarFecha, fallo])
 
   useEffect(() => {
     void traer()
@@ -72,7 +82,9 @@ export function PantallaRetractos() {
 
   // 2.1: elegir también es llegar; el detalle enfoca su `h1` cuando termina de cargar.
   const elegir = (id: string) => fijar({ retractoId: id })
-  const ordenados = [...(lista ?? [])].sort((a, b) => new Date(a.plazo_hasta).getTime() - new Date(b.plazo_hasta).getTime())
+  // 8.2: los por resolver, el plazo más cercano primero; los resueltos, en el orden del servidor (el más reciente).
+  const ordenados = estado === 'solicitado' ? [...(lista ?? [])].sort((a, b) => new Date(a.plazo_hasta).getTime() - new Date(b.plazo_hasta).getTime()) : (lista ?? [])
+  const chip = CHIPS.find((c) => c.valor === estado)!.texto
 
   return (
     <div className="flex flex-col gap-8">
@@ -82,6 +94,18 @@ export function PantallaRetractos() {
       </div>
       <div className={GRILLA}>
         <div className={`${retractoId ? 'hidden @3xl/main:flex' : 'flex'} min-w-0 flex-col gap-5`} aria-busy={lista === null || undefined}>
+          <GrupoOpciones
+            forma="chips"
+            leyenda={PEDIDOS.mostrar}
+            nombre="estado-retractos"
+            opciones={CHIPS}
+            valor={estado}
+            onCambio={(v) => {
+              setLista(null)
+              setHayMas(false)
+              setEstado(v)
+            }}
+          />
           {error && (
             <div className="flex flex-col items-start gap-3">
               <Nota tono="pronto" rol="alert">
@@ -93,7 +117,7 @@ export function PantallaRetractos() {
             </div>
           )}
           {lista === null && !error && <p className="text-tenue">{verCargando ? T.cargando : ''}</p>}
-          {lista && ordenados.length === 0 && <p className="text-xl font-bold">{T.vacio}</p>}
+          {lista && ordenados.length === 0 && <p className="text-xl font-bold">{estado === 'solicitado' ? T.vacio : T.vacioEn(chip)}</p>}
           {ordenados.length > 0 && (
             <ul className="flex flex-col gap-2">
               {ordenados.map((r) => {
@@ -126,6 +150,7 @@ export function PantallaRetractos() {
               })}
             </ul>
           )}
+          {lista && hayMas && <p className="max-w-prose text-base text-tenue">{T.hayMas}</p>}
           <RotuloPiloto />
         </div>
         {retractoId ? (
@@ -298,6 +323,7 @@ function DetalleRetracto({ id, onVolver, onCambio }: { id: string; onVolver: () 
           <Monto n={r.monto} />
         </p>
       </section>
+      {r.estado !== 'solicitado' && r.resuelto_en && <p className="cifras whitespace-normal">{T.resueltoEl(enChile(r.resuelto_en).fecha, enChile(r.resuelto_en).hora)}</p>}
       {r.estado === 'rechazado' && r.motivo_rechazo && <p className="max-w-prose">{T.motivo[r.motivo_rechazo]}</p>}
       {r.estado === 'solicitado' && (
         <div className="flex flex-col gap-4">
@@ -391,7 +417,7 @@ function DetalleRetracto({ id, onVolver, onCambio }: { id: string; onVolver: () 
 
 // ----------------------------------------------------------------- 8.5 el retracto por correo
 
-type FalloCorreo = { tipo: 'no-es-admin' | 'otro-en-curso' | 'no-retractable' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string }
+type FalloCorreo = { tipo: 'no-es-admin' | 'no-retractable' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string }
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: PedidoDetalle; onListo: (r: RetractoOperacion) => void; onCancelar: () => void }) {
@@ -441,11 +467,11 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
         setFalla({ tipo: 'no-es-admin' })
         pedirFoco('retracto-correo-campo', 'input')
       } else if (f.status === 422) setFalla({ tipo: 'no-retractable' })
-      else if (f.status === 409 && esProblema(f.tipo, 'fuera-de-plazo')) {
+      // Hueco 4 (decidido): no hay 409 `retracto-en-curso`; pedir unidades ya pedidas es el 422 de arriba.
+      else if (f.status === 409) {
         const hasta = extensionDe(x, 'plazo_hasta')
         setFalla({ tipo: 'fuera-de-plazo', fecha: enChile(typeof hasta === 'string' ? hasta : (pedido.retracto_plazo_hasta ?? new Date().toISOString())).fecha })
-      } else if (f.status === 409) setFalla({ tipo: 'otro-en-curso' })
-      else setFalla({ tipo: 'red' })
+      } else setFalla({ tipo: 'red' })
     } finally {
       setOcupado(false)
     }
@@ -469,7 +495,7 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
             </Nota>
           ) : (
             <Nota tono="atenta" rol="alert">
-              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : falla.tipo === 'otro-en-curso' ? T.otroEnCurso : T.noRetractable}
+              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : T.noRetractable}
             </Nota>
           )}
         </div>

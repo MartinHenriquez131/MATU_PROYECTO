@@ -86,6 +86,53 @@ describe('Retractos', () => {
     expect(p.cuerpo).toEqual({ decision: 'rechazar', motivo: 'sello_abierto' })
   })
 
+  it('los chips (decisión 466): «Por resolver» pide estado=solicitado; «Devueltos», estado=devuelto, con su vacío', async () => {
+    const { api, usuario } = await abrir('/operacion/retractos')
+    await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ }, { timeout: 5000 })
+    const grupo = screen.getByRole('group', { name: 'Mostrar' })
+    expect(within(grupo).getAllByRole('radio').map((r) => r.closest('label')?.textContent)).toEqual(['Por resolver', 'Devueltos', 'Sin devolución'])
+    expect(within(grupo).getByRole('radio', { name: 'Por resolver' })).toBeChecked()
+    const consultas = () => api.peticiones.filter((x) => x.linea === 'GET /v1/operacion/retractos').map((x) => x.query)
+    expect(consultas()).toEqual(['estado=solicitado'])
+    await usuario.click(within(grupo).getByRole('radio', { name: 'Devueltos' }))
+    expect(await screen.findByText('No hay retractos en «Devueltos».')).toBeVisible()
+    expect(consultas().at(-1)).toBe('estado=devuelto')
+    expect(screen.getByRole('radio', { name: 'Devueltos' })).toHaveFocus()
+    await usuario.click(within(grupo).getByRole('radio', { name: 'Sin devolución' }))
+    expect(await screen.findByText('No hay retractos en «Sin devolución».')).toBeVisible()
+    expect(consultas().at(-1)).toBe('estado=rechazado')
+  })
+
+  it('resuelto: sale de «Por resolver», aparece en «Sin devolución» y dice «Resuelto el … a las …» y el motivo, sin botones', async () => {
+    const { usuario } = await abrirRetracto()
+    await usuario.click(screen.getByRole('button', { name: 'No devolver' }))
+    await usuario.click(screen.getByRole('radio', { name: 'MATU no recibió el producto de vuelta.' }))
+    await usuario.click(screen.getByRole('button', { name: 'No devolver' }))
+    await usuario.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'No devolver' }))
+    expect(await screen.findByText('Resuelto el 17/11/2026 a las 14:20.')).toBeVisible()
+    expect(screen.getByText('MATU no recibió el producto de vuelta.')).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^Devolver/ })).toBeNull()
+    await waitFor(() => expect(screen.getByText('No hay retractos por resolver.')).toBeVisible())
+    await usuario.click(screen.getByRole('radio', { name: 'Sin devolución' }))
+    const fila = await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ })
+    // Ya no tiene plazo que responder.
+    expect(fila).toHaveAccessibleName(/\$26\.490, Por la app, Pedido el 16\/11$/)
+  })
+
+  it('hay_mas: «Mostramos los primeros 200.»; sin él, no aparece', async () => {
+    await abrir('/operacion/retractos', (l, _c, consola) =>
+      l === 'GET /v1/operacion/retractos' ? { status: 200, cuerpo: { retractos: (consola.atender({ metodo: 'GET', ruta: l.slice(4), query: new URLSearchParams(), cuerpo: null, ifMatch: null })!.cuerpo as { retractos: unknown[] }).retractos, hay_mas: true } } : undefined,
+    )
+    await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ }, { timeout: 5000 })
+    expect(screen.getByText('Mostramos los primeros 200.')).toHaveClass('text-tenue')
+  })
+
+  it('sin hay_mas no hay nota de los 200', async () => {
+    await abrir('/operacion/retractos')
+    await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ }, { timeout: 5000 })
+    expect(screen.queryByText('Mostramos los primeros 200.')).toBeNull()
+  })
+
   it('409 al resolver: «Este retracto cambió mientras lo veías.»', async () => {
     const { usuario, amable } = await abrirRetracto((l) => (l.endsWith('/resolver') ? { status: 409, cuerpo: { type: '/errores/retracto-no-resoluble', status: 409 } } : undefined))
     await usuario.click(screen.getByRole('button', { name: 'Devolver $26.490' }))
@@ -158,6 +205,31 @@ describe('El retracto que llegó por correo', () => {
     await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
     await waitFor(() => expect(urgente).toHaveTextContent(/^Este pedido ya no tiene plazo de retracto: venció el \d{2}\/\d{2}\/\d{4}\.$/))
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
+  })
+
+  it('hueco 4: un segundo retracto del mismo pedido se admite; pedir lo ya pedido es el 422 con su texto, sin 409', async () => {
+    const { api, usuario, amable, urgente } = await abrirFormulario()
+    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)
+    await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
+    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    await waitFor(() => expect(amable).toHaveTextContent('Registraste el retracto del pedido 4825.'))
+    // El segundo, con el primero todavía por resolver: las dos unidades del pañal, y una ya se pidió.
+    await usuario.click(screen.getByRole('button', { name: 'Registrar un retracto por correo' }))
+    await screen.findByRole('heading', { level: 3, name: 'Registrar un retracto por correo' })
+    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)
+    const mas = () => screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0]
+    await usuario.click(mas())
+    await usuario.click(mas())
+    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    await waitFor(() => expect(urgente).toHaveTextContent('Elige productos que se entregaron, hasta lo que queda por devolver.'))
+    expect(document.body.textContent).not.toContain('ya tiene un retracto por resolver')
+    // Con la unidad que queda, sí.
+    await usuario.click(screen.getAllByRole('button', { name: 'Menos: ¿Cuántos?' })[0])
+    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)
+    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    await waitFor(() => expect(api.peticiones.filter((x) => x.linea === `POST /v1/operacion/pedidos/${ID.entregado}/retractos`)).toHaveLength(3))
+    await waitFor(() => expect(screen.queryByRole('heading', { level: 3, name: 'Registrar un retracto por correo' })).toBeNull())
+    expect(api.consola.estado.retractos.filter((r) => r.pedido_id === ID.entregado)).toHaveLength(2)
   })
 
   it('sin respuesta: [L 8] completo y el correo se conserva', async () => {

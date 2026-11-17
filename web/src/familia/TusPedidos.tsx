@@ -970,6 +970,7 @@ function ParaDevolver({ retractos }: { retractos: RetractoFamilia[] }) {
                   {T.cuandoRecibamos}
                 </p>
               )}
+              {r.estado === 'rechazado' && r.motivo_rechazo && <p className="max-w-prose text-base">{T.motivoRechazo[r.motivo_rechazo]}</p>}
               {r.estado === 'rechazado' && (
                 <p className="max-w-prose text-base">
                   {T.siTienesDudas} <EnlaceEnFrase href={mailto} className="[overflow-wrap:anywhere]">

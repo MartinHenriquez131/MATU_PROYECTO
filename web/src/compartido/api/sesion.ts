@@ -174,6 +174,16 @@ export async function entrarConSegundoFactor(email: string, contrasena: string):
   }
 }
 
+/**
+ * MATU-81: el 401 `mfa-requerido` de `POST /v1/sesiones`, es decir, la contraseña es de una cuenta de
+ * operación que entró por la puerta de la familia o del comercio. La pantalla lleva a `/operacion/entrar`
+ * y la persona vuelve a escribir su contraseña allá: el desafío se descarta, nunca va a la URL.
+ */
+export function esCuentaDeOperacion(error: unknown): boolean {
+  const cuerpo = isAxiosError(error) && error.response?.status === 401 ? (error.response.data as { type?: unknown } | undefined) : undefined
+  return !!cuerpo && typeof cuerpo.type === 'string' && cuerpo.type.endsWith('/mfa-requerido')
+}
+
 /** MATU-81: `POST /v1/sesiones/mfa` con el desafío y las 6 cifras. Guarda la entrada como `/v1/sesiones`. */
 export async function entrarConCodigo(desafio: string, codigo: string): Promise<TipoCuenta> {
   const r = await apiFamilia.post<SesionRespuesta>('/v1/sesiones/mfa', { desafio, codigo }, { headers: { ...CLIENTE } })

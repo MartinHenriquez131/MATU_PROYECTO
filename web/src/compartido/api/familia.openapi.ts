@@ -1716,7 +1716,7 @@ export interface paths {
         };
         /**
          * Listar Retractos
-         * @description Los retractos por resolver, con lo que se devolvería, la referencia y los productos (P6).
+         * @description Los retractos con lo que se devuelve, la referencia, los productos y, si se rechazó, el motivo (P6). MATU-81: `estado` repetido (solicitado, devuelto o rechazado) se suma; sin él, solicitado (por resolver). Primero los por resolver, del más antiguo al más reciente, y después los resueltos, del resuelto más reciente al más antiguo, hasta 200 (`hay_mas`). No se audita.
          */
         get: operations["listar_retractos_v1_operacion_retractos_get"];
         put?: never;
@@ -1960,7 +1960,7 @@ export interface paths {
         };
         /**
          * Cobros Pendientes
-         * @description Ruta 4 (C17): las ventas sin respuesta por más de 15 minutos y las anulaciones sin terminar, hasta 200 de cada una, de la más antigua a la más reciente. La tarea conciliacion_pagos las cierra o las reintenta cada 5 minutos: esta lista es para revisarlas. No se audita.
+         * @description Ruta 4 (C17): las ventas sin respuesta por más de 15 minutos y las anulaciones sin terminar, hasta 200 de cada una, de la más antigua a la más reciente. La tarea conciliacion_pagos las cierra o las reintenta cada 5 minutos: esta lista es para revisarlas. MATU-81: cada anulación trae `estado`, en_curso (MATU la está pidiendo a Transbank) o sin_terminar (el último intento falló y se reintenta). No se audita.
          */
         get: operations["cobros_pendientes_v1_operacion_cobros_pendientes_get"];
         put?: never;
@@ -5941,6 +5941,7 @@ export interface components {
         /**
          * RetractoVistaFamilia
          * @description El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.
+         *     MATU-81 (C24): si no se aceptó, por qué, de la misma lista cerrada que elige operación al rechazar.
          */
         RetractoVistaFamilia: {
             /**
@@ -5990,6 +5991,11 @@ export interface components {
             resuelto_en: string | null;
             /** Es Tuyo */
             es_tuyo: boolean;
+            /**
+             * Motivo Rechazo
+             * @description Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el producto de vuelta); null en los demás
+             */
+            motivo_rechazo: ("sello_abierto" | "producto_no_recibido") | null;
         };
         /**
          * SeguimientoPedido
@@ -6064,13 +6070,22 @@ export interface components {
              */
             monto_a_devolver: number;
         };
-        /** AnulacionPendiente */
+        /**
+         * AnulacionPendiente
+         * @description MATU-81: ``estado`` en_curso (iniciada o autorizando: MATU la está pidiendo a Transbank) o sin_terminar (el
+         *     último intento falló, error: la conciliación la reintenta cada 5 minutos).
+         */
         AnulacionPendiente: {
             /**
              * Pedido Id
              * Format: uuid
              */
             pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "sin_terminar";
             /** Referencia */
             referencia: string | null;
             /**
@@ -6338,6 +6353,11 @@ export interface components {
         ListaRetractosOperacion: {
             /** Retractos */
             retractos: components["schemas"]["RetractoOperacion"][];
+            /**
+             * Hay Mas
+             * @default false
+             */
+            hay_mas: boolean;
         };
         /**
          * LoQuePasoCopia
@@ -13515,7 +13535,10 @@ export interface operations {
     };
     listar_retractos_v1_operacion_retractos_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description solicitado, devuelto o rechazado; repetible */
+                estado?: string[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13551,6 +13574,15 @@ export interface operations {
             };
             /** @description estado-pedido o estado-parte: el estado no permite la acción */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado no es solicitado, devuelto ni rechazado */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -147,6 +147,7 @@ export const retracto = (cambios: Partial<RetractoFamilia> = {}): RetractoFamili
   lineas: [{ linea_id: LINEA_SUPLEMENTO, producto: SUPLEMENTO_C, cantidad: 1, monto: 26490 }],
   resuelto_en: null,
   es_tuyo: true,
+  motivo_rechazo: null,
   ...cambios,
 })
 

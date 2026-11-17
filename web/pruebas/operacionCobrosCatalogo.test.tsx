@@ -39,6 +39,32 @@ describe('Cobros por revisar', () => {
     expect(api.lineas()).toContain('GET /v1/operacion/cobros/pendientes')
   })
 
+  it('decisión 467: cada devolución pendiente dice «En curso» o «Sin terminar» según su `estado`, también en su nombre', async () => {
+    const base = { motivo: 'producto_no_entregado', monto: 12990, creada_en: '2026-11-17T16:50:00Z', intentos: 1 }
+    await abrir('/operacion/cobros', (l) =>
+      l === 'GET /v1/operacion/cobros/pendientes'
+        ? {
+            status: 200,
+            cuerpo: {
+              ventas_sin_respuesta: [],
+              anulaciones_sin_terminar: [
+                { ...base, pedido_id: ID.entregado, referencia: '4825', estado: 'en_curso' },
+                { ...base, pedido_id: ID.cancelado, referencia: '4827', estado: 'sin_terminar', intentos: 3 },
+              ],
+            },
+          }
+        : undefined,
+    )
+    expect(await screen.findByRole('heading', { level: 2, name: 'Devoluciones sin terminar (2)' })).toBeVisible()
+    const enCurso = screen.getByRole('button', { name: /^Pedido 4825,/ })
+    expect(within(enCurso).getByText('En curso')).toBeVisible()
+    expect(within(enCurso).queryByText('Sin terminar')).toBeNull()
+    expect(enCurso).toHaveAccessibleName(/, En curso$/)
+    const sinTerminar = screen.getByRole('button', { name: /^Pedido 4827,/ })
+    expect(within(sinTerminar).getByText('Sin terminar')).toBeVisible()
+    expect(sinTerminar).toHaveAccessibleName(/, Sin terminar$/)
+  })
+
   it('una fila abre el pedido con la pestaña «Cobros» activa, «Volver a los cobros» y el pago que necesita revisión', async () => {
     const { usuario, api } = await abrir('/operacion/cobros')
     await usuario.click(await screen.findByRole('button', { name: /^Pedido 4827,/ }))

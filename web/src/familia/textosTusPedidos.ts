@@ -94,6 +94,11 @@ export const TUS_PEDIDOS = {
   devolucionPedida: 'Devolución pedida', // [L 38]
   devueltoEl: 'Devuelto el', // [L 38]
   noSeAcepto: 'No se aceptó la devolución', // [L 38]
+  /** MATU-81 (decisión 468): por qué no se aceptó, dicho sin culpar a la familia. */
+  motivoRechazo: {
+    sello_abierto: 'El producto llegó con el sello abierto.', // [NUEVO]
+    producto_no_recibido: 'No recibimos el producto de vuelta.', // [NUEVO]
+  },
   /** «Te devolvemos $26.490 cuando recibamos los productos con su sello cerrado.», partido para la cifra. */
   teDevolvemos: 'Te devolvemos', // [L 38]
   cuandoRecibamos: 'cuando recibamos los productos con su sello cerrado.', // [L 38]

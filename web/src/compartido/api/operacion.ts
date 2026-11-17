@@ -107,10 +107,16 @@ export async function cobrosPendientes(): Promise<{ cobros: CobrosPendientes; fe
   return { cobros: r.data, fecha: fechaDe(r) }
 }
 
-/** `GET /v1/operacion/retractos`: los que esperan respuesta. */
-export async function listarRetractos(): Promise<{ retractos: RetractoOperacion[]; fecha: Date | null }> {
-  const r = await apiFamilia.get<S['ListaRetractosOperacion']>('/v1/operacion/retractos')
-  return { retractos: r.data.retractos, fecha: fechaDe(r) }
+export type EstadoRetracto = RetractoOperacion['estado']
+
+/** `GET /v1/operacion/retractos?estado=` (decisión 466): `estado` se repite (`estado=a&estado=b`) y se suman.
+ * Sin él, el servidor trae los `solicitado`. Hasta 200: `hay_mas` dice si quedaron más. */
+export async function listarRetractos(estados: EstadoRetracto[] = []): Promise<{ retractos: RetractoOperacion[]; hayMas: boolean; fecha: Date | null }> {
+  const r = await apiFamilia.get<S['ListaRetractosOperacion']>('/v1/operacion/retractos', {
+    params: estados.length ? { estado: estados } : undefined,
+    paramsSerializer: { indexes: null },
+  })
+  return { retractos: r.data.retractos, hayMas: r.data.hay_mas ?? false, fecha: fechaDe(r) }
 }
 
 export async function verRetracto(id: string): Promise<RetractoOperacion> {

@@ -14,6 +14,9 @@ vi.mock('../src/compartido/irA', () => ({ irA: vi.fn() }))
 
 const u = () => userEvent.setup({ delay: null })
 const CLAVE = 'contrasena-ejemplo' // pragma: allowlist secret
+/** MATU-81: lo que responde `POST /v1/sesiones` con la contraseña de una cuenta de operación. Sintético. */
+const DESAFIO = 'desafio-sintetico-de-prueba'
+const MFA_REQUERIDO = { type: '/errores/mfa-requerido', status: 401, desafio: DESAFIO, desafio_expira_en: '2026-11-17T12:05:00Z' }
 
 function abrir(ruta: string) {
   window.history.replaceState(null, '', ruta)
@@ -121,6 +124,20 @@ describe('Entrar como comercio', () => {
     expect(api.lineas().filter((l) => l === 'POST /v1/sesiones')).toHaveLength(1)
   })
 
+  it('MATU-81: una cuenta de operación (401 mfa-requerido) va a /operacion/entrar, sin el desafío ni «no coinciden»', async () => {
+    const almacen = vigilarAlmacenamiento()
+    apiComercio({ tipo: null })
+    const { urgente } = abrir('/comercio/entrar')
+    await screen.findByRole('heading', { level: 1, name: 'Entrar como comercio' })
+    apiComercio({ tipo: null, sobre: (l) => (l === 'POST /v1/sesiones' ? { status: 401, cuerpo: MFA_REQUERIDO } : undefined) })
+    await entrarCon(u())
+    await waitFor(() => expect(irA).toHaveBeenCalledWith('/operacion/entrar'))
+    expect(urgente.textContent).not.toContain('no coinciden')
+    expect(screen.getByLabelText('Tu contraseña')).toHaveValue('')
+    expect(window.location.href).not.toContain(DESAFIO)
+    expect(almacen).toEqual([])
+  })
+
   it('sin datos no envía: «Escribe tu correo y tu contraseña.»', async () => {
     apiComercio({ tipo: null })
     abrir('/comercio/entrar')
@@ -143,6 +160,24 @@ describe('O1 en la app de la familia', () => {
     await entrarCon(u())
     await waitFor(() => expect(irA).toHaveBeenCalledWith('/comercio'))
     expect(api.lineas()).not.toContain('GET /v1/grupos')
+  })
+
+  it('MATU-81: una cuenta de operación que entra por /entrar va a /operacion/entrar, sin el desafío ni «no coinciden»', async () => {
+    const almacen = vigilarAlmacenamiento()
+    responderPolitica()
+    apiComercio({ tipo: null })
+    window.history.replaceState(null, '', '/entrar')
+    const { urgente } = conRegiones(<AppFamilia />)
+    await screen.findByRole('heading', { level: 1, name: 'Entrar' })
+    const api = apiComercio({ tipo: null, sobre: (l) => (l === 'POST /v1/sesiones' ? { status: 401, cuerpo: MFA_REQUERIDO } : undefined) })
+    await entrarCon(u())
+    await waitFor(() => expect(irA).toHaveBeenCalledWith('/operacion/entrar'))
+    expect(urgente.textContent).not.toContain('no coinciden')
+    expect(document.body.textContent).not.toContain('El correo o la contraseña no coinciden')
+    expect(screen.getByLabelText('Tu contraseña')).toHaveValue('')
+    expect(window.location.href).not.toContain(DESAFIO)
+    expect(api.lineas()).not.toContain('GET /v1/grupos')
+    expect(almacen).toEqual([])
   })
 
   it('al abrir la app de la familia con una entrada de comercio, va a /comercio', async () => {

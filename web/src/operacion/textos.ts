@@ -323,12 +323,15 @@ export const RETRACTOS = {
   responderAntes: (fecha: string) => `Responder antes del ${fecha}`,
   vencio: (fecha: string) => `El plazo venció el ${fecha}.`,
   vacio: 'No hay retractos por resolver.',
+  vacioEn: (chip: string) => `No hay retractos en «${chip}».`, // [NUEVO] 8.2
+  hayMas: 'Mostramos los primeros 200.', // [FRONTEND] del molde de MATU-55 2.5; hay_mas (decisión 466)
   cargando: 'Cargando los retractos…', // [FRONTEND] del molde de [C63]
   errorAlTraer: 'No pudimos traer los retractos. Revisa tu conexión y vuelve a intentarlo.', // [FRONTEND] del molde de [C63]
   elige: 'Elige un retracto de la lista para ver sus productos y resolverlo.', // [FRONTEND]
   volver: 'Volver a los retractos', // [FRONTEND]
   porResolver: 'Por resolver',
   devuelto: 'Devuelto',
+  devueltos: 'Devueltos', // [NUEVO] chip de 8.2
   sinDevolucion: 'Sin devolución',
   productos: 'Productos que devuelve',
   incluyeEnvio: (si: boolean) => `Incluye el envío: ${si ? 'sí' : 'no'}`,
@@ -336,6 +339,7 @@ export const RETRACTOS = {
   devolver: (monto: number) => `Devolver ${pesos(monto)}`,
   noDevolver: 'No devolver',
   verPedido: 'Ver el pedido',
+  resueltoEl: (fecha: string, hora: string) => `Resuelto el ${fecha} a las ${hora}.`, // [NUEVO] 8.3
   porQue: '¿Por qué no se devuelve?',
   motivo: { sello_abierto: 'El sello del producto se abrió.', producto_no_recibido: 'MATU no recibió el producto de vuelta.' } as Record<MotivoRechazo, string>,
   laFamiliaVe: 'La familia ve este motivo.',
@@ -372,8 +376,7 @@ export const RETRACTOS = {
   noEsAdminTitulo: 'Ese correo no es de quien administra el grupo de este pedido.',
   noEsAdminTexto: 'Revisa el correo. Si lo mandó otra persona, respóndele que lo pida quien administra.',
   fueraDePlazo: (fecha: string) => `Este pedido ya no tiene plazo de retracto: venció el ${fecha}.`,
-  otroEnCurso: 'Este pedido ya tiene un retracto por resolver. Resuélvelo antes de registrar otro.',
-  noRetractable: 'Elige productos que se entregaron, hasta lo que queda por devolver.', // [FRONTEND] 422 producto-no-retractable
+  noRetractable: 'Elige productos que se entregaron, hasta lo que queda por devolver.', // [FRONTEND] 422 producto-no-retractable, también con unidades ya pedidas (hueco 4)
 }
 
 /** 9: Incidencias. */

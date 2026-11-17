@@ -57,7 +57,9 @@ export function apiOperacion({ tipo = 'operacion', modo = 'operacion', sobre }: 
     const linea = `${(config.method ?? 'get').toUpperCase()} ${ruta}`
     const cuerpo = typeof config.data === 'string' && config.data ? (JSON.parse(config.data) as unknown) : null
     const ifMatch = config.headers?.get?.('If-Match')
-    const query = new URLSearchParams(Object.entries((config.params ?? {}) as Record<string, string>))
+    // Un parámetro repetido (`estado=a&estado=b`) llega como lista, igual que con `paramsSerializer: { indexes: null }`.
+    const query = new URLSearchParams()
+    for (const [k, v] of Object.entries((config.params ?? {}) as Record<string, unknown>)) for (const x of [v].flat()) if (x !== undefined && x !== null) query.append(k, String(x))
     peticiones.push({ linea, cuerpo, ifMatch: typeof ifMatch === 'string' ? ifMatch : null, query: query.toString() })
     const especial = sobre?.(linea, cuerpo, consola)
     if (especial) return responder(config, especial)

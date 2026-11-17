@@ -605,7 +605,10 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
             .map((v) => ({ pedido_id: p.id, referencia: p.referencia, buy_order: v.buy_order, monto: v.monto, creada_en: v.creada_en })),
         ),
         anulaciones_sin_terminar: pedidos.flatMap((p) =>
-          p.anulaciones.filter((a) => a.estado !== 'hecha').map((a) => ({ pedido_id: p.id, referencia: p.referencia, motivo: a.motivo, monto: a.monto, creada_en: a.en, intentos: a.intentos })),
+          // Decisión 467: `en_curso` mientras MATU la pide a Transbank; `sin_terminar` si el último intento falló.
+          p.anulaciones
+            .filter((a) => a.estado !== 'hecha')
+            .map((a) => ({ pedido_id: p.id, estado: a.estado === 'en_curso' ? 'en_curso' : 'sin_terminar', referencia: p.referencia, motivo: a.motivo, monto: a.monto, creada_en: a.en, intentos: a.intentos })),
         ),
       })
     }
@@ -689,7 +692,25 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
 
     if (metodo === 'GET' && ruta === '/v1/operacion/retractos') {
       if (falla) return problema(500, 'interno')
-      return ok({ retractos: retractos.filter((r) => r.estado === 'solicitado').map(vistaRetracto) })
+      // Decisión 466: `estado` repetido se suma; sin él, los por resolver. Primero los por resolver, del más
+      // antiguo, y después los resueltos, del resuelto más reciente; hasta 200, con `hay_mas`.
+      const enLaConsulta = q.query.getAll('estado')
+      const validos = ['solicitado', 'devuelto', 'rechazado']
+      if (enLaConsulta.some((e) => !validos.includes(e))) return problema(422, 'validacion', { errores: [{ campo: 'estado', mensaje: 'MENSAJE DEL DOBLE', tipo: 'enum' }] })
+      const estados = enLaConsulta.length ? enLaConsulta : ['solicitado']
+      const t = (iso: string | null) => (iso ? new Date(iso).getTime() : 0)
+      const elegidos = retractos
+        .filter((r) => estados.includes(r.estado))
+        .sort((a, b) =>
+          a.estado === 'solicitado' && b.estado === 'solicitado'
+            ? t(a.solicitado_en) - t(b.solicitado_en)
+            : a.estado === 'solicitado'
+              ? -1
+              : b.estado === 'solicitado'
+                ? 1
+                : t(b.resuelto_en) - t(a.resuelto_en),
+        )
+      return ok({ retractos: elegidos.slice(0, 200).map(vistaRetracto), hay_mas: elegidos.length > 200 })
     }
     m = /^\/v1\/operacion\/retractos\/([^/]+)(\/resolver)?$/.exec(ruta)
     if (m) {
@@ -782,11 +803,14 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
     if (typeof c.correo_solicitante !== 'string' || c.correo_solicitante.trim().toLowerCase() !== CORREO_ADMIN_DE_EJEMPLO) return problema(422, 'solicitante-invalido')
     const plazo = plazoRetracto(p)
     if (plazo && new Date(plazo).getTime() < ahora().getTime()) return problema(409, 'fuera-de-plazo', { plazo_hasta: plazo })
-    if (retractos.some((r) => r.pedido_id === p.id && r.estado === 'solicitado')) return problema(409, 'retracto-en-curso')
+    // Hueco 4 (decidido): no hay 409 `retracto-en-curso`. Se admiten varios retractos por pedido mientras queden
+    // unidades sin pedir; las ya pedidas (en cualquier retracto anterior, también los no aceptados) dan 422.
+    const yaPedidas = (lineaId: string) =>
+      retractos.filter((r) => r.pedido_id === p.id).reduce((t, r) => t + r.lineas.filter((x) => x.linea_id === lineaId).reduce((u, x) => u + x.cantidad, 0), 0)
     const lineas = Array.isArray(c.lineas) ? (c.lineas as { linea_id?: unknown; cantidad?: unknown }[]) : []
     const validas = lineas.every((x) => {
       const l = p.lineas.find((y) => y.id === x.linea_id)
-      return l && Number.isInteger(x.cantidad) && (x.cantidad as number) >= 1 && (x.cantidad as number) <= l.cantidad - l.unidades_faltantes
+      return l && Number.isInteger(x.cantidad) && (x.cantidad as number) >= 1 && (x.cantidad as number) <= l.cantidad - l.unidades_faltantes - yaPedidas(l.id)
     })
     if (!lineas.length || !validas) return problema(422, 'producto-no-retractable')
     const r: Retracto = {
