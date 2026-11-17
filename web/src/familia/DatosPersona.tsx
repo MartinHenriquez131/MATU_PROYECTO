@@ -4,7 +4,7 @@
 // página es pedir una copia (P1): un solo GET, y «Descargar» guarda esos mismos caracteres.
 import type { ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { Circle, FileText, Hourglass, Info, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion, Trash2, type LucideIcon } from 'lucide-react'
+import { Circle, CircleCheck, FileText, Hourglass, Info, RefreshCw, ShieldCheck, ShieldOff, ShieldQuestion, Trash2, type LucideIcon } from 'lucide-react'
 import { nombrePilaDe, type PersonaListada } from '../compartido/api/familia'
 import {
   pedirCopiaPersona,
@@ -707,7 +707,49 @@ function Pedido({ p, foco }: { p: PedidoCopia; foco?: React.Ref<HTMLLIElement> }
           {direccionEnLinea(p.entrega)}
         </p>
       )}
+      {p.lo_que_paso.length > 0 && <LoQuePaso items={p.lo_que_paso} />}
     </li>
+  )
+}
+
+/**
+ * MATU-81 (D-81-4, C15): lo que el equipo de MATU anotó de este pedido y cómo se resolvió, tal como lo
+ * guarda la API. Sin quién lo anotó. El estado lleva ícono y palabra.
+ */
+function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
+  const L = T.loQuePaso
+  return (
+    <section className="flex w-full max-w-prose flex-col gap-2 border-t border-linea pt-3">
+      <h4 className="font-bold">{L.titulo}</h4>
+      <ul className="flex flex-col gap-3">
+        {items.map((x, i) => {
+          const resuelto = x.estado === 'resuelta'
+          return (
+            <li key={`${x.anotado_en}-${i}`} className="flex flex-col items-start gap-1">
+              <span className="font-bold break-words">{L.tipo[x.tipo] ?? L.tipo.otro}</span>
+              <Etiqueta>
+                {resuelto ? <CircleCheck aria-hidden className="size-3.5 shrink-0" /> : <Hourglass aria-hidden className="size-3.5 shrink-0" />}
+                <span className="min-w-0">{resuelto ? L.resuelto : L.revisando}</span>
+              </Etiqueta>
+              <span className="text-base text-tenue">
+                <ConFechaHora partes={L.anotado} iso={x.anotado_en} />
+              </span>
+              <p className="text-base whitespace-pre-line break-words">{x.nota}</p>
+              {x.resolucion && (
+                <p className="text-base whitespace-pre-line break-words">
+                  <b>{L.comoSeResolvio}</b> {x.resolucion}
+                </p>
+              )}
+              {x.resuelto_en && (
+                <span className="text-base text-tenue">
+                  <ConFechaHora partes={L.resueltoEl} iso={x.resuelto_en} />
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

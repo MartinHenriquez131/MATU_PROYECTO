@@ -53,6 +53,19 @@ export type Ruta =
  */
 export type RutaComercio = '/comercio' | '/comercio/entrar' | '/comercio/pedido' | '/comercio/productos'
 
+/**
+ * MATU-81 (especificación 2.1): las rutas de la consola de operación, otra raíz de main.tsx. Tampoco
+ * llevan ids, referencias, órdenes de compra ni correos: lo elegido vive en memoria.
+ */
+export type RutaOperacion =
+  | '/operacion'
+  | '/operacion/entrar'
+  | '/operacion/pedido'
+  | '/operacion/retractos'
+  | '/operacion/incidencias'
+  | '/operacion/cobros'
+  | '/operacion/catalogo'
+
 export const RUTAS: readonly Ruta[] = [
   '/',
   '/crear-cuenta',
@@ -119,7 +132,7 @@ export function useRuta(): string {
 }
 
 /** Cambia de ruta. Con `reemplazar` no deja una entrada nueva en el historial (redirecciones). */
-export function navegar(ruta: Ruta | RutaComercio, { reemplazar = false }: { reemplazar?: boolean } = {}) {
+export function navegar(ruta: Ruta | RutaComercio | RutaOperacion, { reemplazar = false }: { reemplazar?: boolean } = {}) {
   if (leer() === ruta) {
     avisar()
     return

@@ -1612,7 +1612,7 @@ export interface paths {
         };
         /**
          * Listar Pedidos
-         * @description Los pedidos pagados en curso con sus partes y el estado del código de cada una.
+         * @description Los pedidos pagados con sus partes y el estado del código de cada una, del pago más reciente al más antiguo, hasta 200 (`hay_mas`). MATU-81 (P4, C8): `grupo` (por_atender, en_camino, con_problema, cerrados, cancelados o todos) y `estado` repetido se suman; con_problema suma los pedidos con una incidencia abierta o una devolución sin terminar. Sin ninguno, los que están en curso (todos menos cerrado y cancelados), como desde MATU-63. No se audita.
          */
         get: operations["listar_pedidos_v1_operacion_pedidos_get"];
         put?: never;
@@ -1712,7 +1712,7 @@ export interface paths {
         };
         /**
          * Listar Retractos
-         * @description Los retractos por resolver, con lo que se devolvería.
+         * @description Los retractos por resolver, con lo que se devolvería, la referencia y los productos (P6).
          */
         get: operations["listar_retractos_v1_operacion_retractos_get"];
         put?: never;
@@ -1825,6 +1825,230 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/sesiones/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verificar Mfa
+         * @description MATU-81 (C29): el segundo paso de la entrada de una cuenta de operación. Recibe el `desafio` del 401 mfa-requerido de POST /v1/sesiones y las 6 cifras de la app del teléfono (TOTP, RFC 6238, ventana de ±1 paso). Con el código correcto, la misma respuesta y la misma cookie que POST /v1/sesiones, con `tipo_cuenta: operacion` y `sesion_vence_en` (12 horas, sin ventana deslizante: C31). El desafío sirve una vez. Se audita `sesion.mfa_correcto` o `sesion.mfa_fallido`, sin grupo ni código. Orden: 422, 503, 401 desafio-vencido, 429 mfa-bloqueado, 401 codigo-mfa-incorrecto o codigo-mfa-usado, 200.
+         */
+        post: operations["verificar_mfa_v1_sesiones_mfa_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/retractos/{retracto_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Retracto
+         * @description MATU-81 (ruta 5): un retracto, resuelto o no, con sus productos, la referencia y el motivo.
+         */
+        get: operations["ver_retracto_v1_operacion_retractos__retracto_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/buscar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Buscar Pedido
+         * @description C7: busca un pedido pagado por su referencia o por la de una de sus partes, sin distinguir mayúsculas. La referencia va solo en el cuerpo: nunca en la URL, los logs, los errores ni la auditoría. Sin resultado, una lista vacía. No se audita (abrir el pedido sí).
+         */
+        post: operations["buscar_pedido_v1_operacion_pedidos_buscar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Pedido
+         * @description Ruta 1: el pedido pagado con sus partes, sus líneas (precio pagado, faltantes y devolución), la línea de tiempo (de pedido_transicion y los instantes de las partes, el cobro, las anulaciones, los retractos y las incidencias; nunca de la auditoría) y `acciones` con `monto_a_devolver` (P3). Sin datos de la persona, del grupo ni de la cuenta de la familia (C5). Se audita como operacion.pedido_ver (D-81-5).
+         */
+        get: operations["ver_pedido_v1_operacion_pedidos__pedido_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/cobro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Cobro
+         * @description Ruta 3 (C17, C18, D-81-8): el total confirmado, lo cobrado, lo devuelto, cada venta (con buy_order) y cada anulación (motivo, monto, estado e instante). Nunca el token, el session_id, la respuesta de Transbank, la tarjeta, las cuotas ni el código de autorización. Se audita como operacion.pedido_ver (D-81-5).
+         */
+        get: operations["ver_cobro_v1_operacion_pedidos__pedido_id__cobro_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/cobros/pendientes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cobros Pendientes
+         * @description Ruta 4 (C17): las ventas sin respuesta por más de 15 minutos y las anulaciones sin terminar, hasta 200 de cada una, de la más antigua a la más reciente. La tarea conciliacion_pagos las cierra o las reintenta cada 5 minutos: esta lista es para revisarlas. No se audita.
+         */
+        get: operations["cobros_pendientes_v1_operacion_cobros_pendientes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/incidencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Incidencias
+         * @description Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado.
+         */
+        get: operations["listar_incidencias_v1_operacion_incidencias_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/incidencias/{incidencia_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Incidencia
+         * @description Una incidencia, con su versión en el ETag (P7).
+         */
+        get: operations["ver_incidencia_v1_operacion_incidencias__incidencia_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Editar Incidencia
+         * @description Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. Resolverla se audita incidencia.resolver, sin el texto.
+         */
+        patch: operations["editar_incidencia_v1_operacion_incidencias__incidencia_id__patch"];
+        trace?: never;
+    };
+    "/v1/operacion/pedidos/{pedido_id}/incidencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Crear Incidencia
+         * @description Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.
+         */
+        post: operations["crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/catalogo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Catalogo
+         * @description Las ofertas de los comercios activos. `editable` solo en los comercios ficticios (D-81-7).
+         */
+        get: operations["ver_catalogo_v1_operacion_catalogo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operacion/ofertas/{oferta_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar Oferta
+         * @description Cambia el precio (pesos enteros con IVA incluido, mayor que 0), el stock o si se ofrece, solo en un comercio ficticio (C1, C2; la base lo exige con el trigger oferta_operacion_ficticia). Exige If-Match (C4). Un precio nuevo vale solo para las confirmaciones nuevas: no cambia los pedidos confirmados ni pagados (C3). Se audita catalogo.oferta_cambiar sin grupo y sin los valores.
+         */
+        patch: operations["cambiar_oferta_v1_operacion_ofertas__oferta_id__patch"];
         trace?: never;
     };
 }
@@ -2883,7 +3107,9 @@ export interface components {
              * @default familia
              * @enum {string}
              */
-            tipo_cuenta: "familia" | "comercio";
+            tipo_cuenta: "familia" | "comercio" | "operacion";
+            /** Sesion Vence En */
+            sesion_vence_en?: string | null;
         };
         /** SolicitudAccesoVista */
         SolicitudAccesoVista: {
@@ -4727,6 +4953,8 @@ export interface components {
             partes: components["schemas"]["ParteCopia"][];
             /** Retractos */
             retractos: components["schemas"]["RetractoCopia"][];
+            /** Lo Que Paso */
+            lo_que_paso: components["schemas"]["LoQuePasoCopia"][];
         };
         /** PoliticaCopia */
         PoliticaCopia: {
@@ -4910,7 +5138,7 @@ export interface components {
              * Tipo
              * @enum {string}
              */
-            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto";
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto" | "matu_reviso_el_pedido";
             /** Ocurrido En */
             ocurrido_en: string;
             quien: components["schemas"]["QuienCopia"];
@@ -5067,16 +5295,16 @@ export interface components {
         ListaPedidosOperacion: {
             /** Pedidos */
             pedidos: components["schemas"]["PedidoOperacion"][];
+            /**
+             * Hay Mas
+             * @default false
+             */
+            hay_mas: boolean;
         };
         /** ListaProductos */
         ListaProductos: {
             /** Productos */
             productos: components["schemas"]["ProductoDelComercio"][];
-        };
-        /** ListaRetractos */
-        ListaRetractos: {
-            /** Retractos */
-            retractos: components["schemas"]["RetractoVista"][];
         };
         /** ParteOperacion */
         ParteOperacion: {
@@ -5208,6 +5436,22 @@ export interface components {
             entregado_en: string | null;
             /** Partes */
             partes: components["schemas"]["ParteOperacion"][];
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Total Confirmado
+             * @description Pesos enteros, con IVA incluido
+             */
+            total_confirmado: number;
+            /** Numero Partes */
+            numero_partes: number;
+            /** Incidencia Abierta */
+            incidencia_abierta: boolean;
+            /** Devolucion Sin Terminar */
+            devolucion_sin_terminar: boolean;
         };
         /** ProductoDelComercio */
         ProductoDelComercio: {
@@ -5347,6 +5591,8 @@ export interface components {
              * @enum {string}
              */
             decision: "devolver" | "rechazar";
+            /** Motivo */
+            motivo?: ("sello_abierto" | "producto_no_recibido") | null;
         };
         /** SolicitudRetracto */
         SolicitudRetracto: {
@@ -5427,14 +5673,619 @@ export interface components {
         };
         /**
          * SolicitudRetractoPorCorreo
-         * @description H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
-         *     sin valor, quien pagó.
+         * @description H2: el retracto que la familia pidió por correo. Sin valor, va a nombre de quien pagó. MATU-81 (D-81-9, C25):
+         *     ``correo_solicitante`` es el correo de quien escribió; el servidor lo busca entre los admins activos del grupo y
+         *     responde 422 si no está. Nunca lista a nadie ni lo escribe en los logs. ``solicitado_por`` (el id) se mantiene
+         *     por compatibilidad; no se mandan los dos.
          */
         SolicitudRetractoPorCorreo: {
             /** Lineas */
             lineas: components["schemas"]["LineaRetracto"][];
             /** Solicitado Por */
             solicitado_por?: string | null;
+            /** Correo Solicitante */
+            correo_solicitante?: string | null;
+        };
+        /**
+         * AccionDisponible
+         * @description P3: lo que se puede hacer ahora, con lo que devolvería a la misma tarjeta. La pantalla nunca calcula montos.
+         */
+        AccionDisponible: {
+            /**
+             * Accion
+             * @enum {string}
+             */
+            accion: "en_camino" | "entregado" | "no_entregado" | "cancelar_con_devolucion";
+            /**
+             * Monto A Devolver
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto_a_devolver: number;
+        };
+        /** AnulacionPendiente */
+        AnulacionPendiente: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
+            /**
+             * Monto
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto: number;
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /** Intentos */
+            intentos: number;
+        };
+        /** AnulacionVista */
+        AnulacionVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Motivo
+             * @enum {string}
+             */
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
+            /**
+             * Monto
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_curso" | "hecha" | "rechazada";
+            /** Producto */
+            producto: string | null;
+            /**
+             * En
+             * Format: date-time
+             */
+            en: string;
+        };
+        /** CatalogoConsola */
+        CatalogoConsola: {
+            /** Ofertas */
+            ofertas: components["schemas"]["OfertaConsola"][];
+        };
+        /**
+         * CobroPedido
+         * @description GET /v1/operacion/pedidos/{id}/cobro. Se audita como operacion.pedido_ver (D-81-5).
+         */
+        CobroPedido: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Total Confirmado
+             * @description Pesos enteros, con IVA incluido
+             */
+            total_confirmado: number;
+            /**
+             * Cobrado
+             * @description Pesos enteros, con IVA incluido
+             */
+            cobrado: number;
+            /**
+             * Devuelto
+             * @description Pesos enteros, con IVA incluido
+             */
+            devuelto: number;
+            /**
+             * Queda Cobrado
+             * @description Pesos enteros, con IVA incluido
+             */
+            queda_cobrado: number;
+            /**
+             * Estado Cargo
+             * @enum {string}
+             */
+            estado_cargo: "sin_cargo" | "pendiente" | "pagado" | "rechazado" | "devuelto_parcial" | "anulado";
+            /** Ventas */
+            ventas: components["schemas"]["VentaVista"][];
+            /** Anulaciones */
+            anulaciones: components["schemas"]["AnulacionVista"][];
+            /**
+             * Calza
+             * @description Lo cobrado no supera el total y no hay devoluciones sin terminar
+             */
+            calza: boolean;
+        };
+        /**
+         * CobrosPendientes
+         * @description GET /v1/operacion/cobros/pendientes: ventas sin respuesta por más de 15 minutos y anulaciones sin terminar.
+         */
+        CobrosPendientes: {
+            /** Ventas Sin Respuesta */
+            ventas_sin_respuesta: components["schemas"]["VentaPendiente"][];
+            /** Anulaciones Sin Terminar */
+            anulaciones_sin_terminar: components["schemas"]["AnulacionPendiente"][];
+        };
+        /** ComercioOperacion */
+        ComercioOperacion: {
+            /** Nombre Fantasia */
+            nombre_fantasia: string;
+            /** Ficticio */
+            ficticio: boolean;
+        };
+        /**
+         * EventoLineaTiempo
+         * @description C6: el actor es familia, comercio (con su nombre de fantasía), operacion o sistema. Nunca la cuenta de la
+         *     familia. ``tipo``: estado (una transición del pedido), parte, cobro, anulacion, retracto o incidencia.
+         */
+        EventoLineaTiempo: {
+            /**
+             * En
+             * Format: date-time
+             */
+            en: string;
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "estado" | "parte" | "cobro" | "anulacion" | "retracto" | "incidencia";
+            /**
+             * Actor Tipo
+             * @enum {string}
+             */
+            actor_tipo: "familia" | "comercio" | "operacion" | "sistema";
+            /** Comercio */
+            comercio: string | null;
+            /** Desde */
+            desde: string | null;
+            /** Hacia */
+            hacia: string | null;
+            /** Motivo */
+            motivo: string | null;
+            /** Monto */
+            monto: number | null;
+        };
+        /** IncidenciaVista */
+        IncidenciaVista: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "abierta" | "en_gestion" | "resuelta";
+            /** Descripcion */
+            descripcion: string;
+            /** Resolucion */
+            resolucion: string | null;
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /** Resuelta En */
+            resuelta_en: string | null;
+            /** Asignada */
+            asignada: boolean;
+            /** Asignada A Mi */
+            asignada_a_mi: boolean;
+            /**
+             * Version
+             * @description El ETag de la fila, para el If-Match del PATCH sin otro GET
+             */
+            version: number;
+        };
+        /** LineaDetalle */
+        LineaDetalle: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parte Id */
+            parte_id: string | null;
+            /** Producto */
+            producto: string;
+            /** Presentacion */
+            presentacion: string;
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Precio Unitario
+             * @description El precio pagado, con IVA incluido
+             */
+            precio_unitario: number;
+            /**
+             * Subtotal
+             * @description Pesos enteros, con IVA incluido
+             */
+            subtotal: number;
+            /**
+             * Estado Linea
+             * @enum {string}
+             */
+            estado_linea: "pendiente" | "sin_stock" | "preparada" | "faltante" | "devuelta" | "eliminada";
+            /** Unidades Faltantes */
+            unidades_faltantes: number;
+            /**
+             * Monto Devuelto
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto_devuelto: number;
+            /**
+             * Devolucion
+             * @enum {string}
+             */
+            devolucion: "sin_devolucion" | "en_curso" | "hecha";
+        };
+        /** LineaRetractoOperacion */
+        LineaRetractoOperacion: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            /** Producto */
+            producto: string;
+            /** Presentacion */
+            presentacion: string;
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Monto
+             * @description cantidad × precio pagado, en pesos enteros con IVA
+             */
+            monto: number;
+        };
+        /** ListaIncidencias */
+        ListaIncidencias: {
+            /** Incidencias */
+            incidencias: components["schemas"]["IncidenciaVista"][];
+        };
+        /** ListaRetractosOperacion */
+        ListaRetractosOperacion: {
+            /** Retractos */
+            retractos: components["schemas"]["RetractoOperacion"][];
+        };
+        /**
+         * LoQuePasoCopia
+         * @description MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca
+         *     dice «incidente» ni «incidencia», ni quién del equipo lo anotó.
+         */
+        LoQuePasoCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "abierta" | "en_gestion" | "resuelta";
+            /** Anotado En */
+            anotado_en: string;
+            /** Resuelto En */
+            resuelto_en: string | null;
+            /** Nota */
+            nota: string;
+            /** Resolucion */
+            resolucion: string | null;
+        };
+        /** OfertaConsola */
+        OfertaConsola: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            comercio: components["schemas"]["ComercioOperacion"];
+            /** Producto */
+            producto: string;
+            /** Presentacion */
+            presentacion: string;
+            /**
+             * Precio
+             * @description Pesos enteros, con IVA incluido
+             */
+            precio: number;
+            /** Stock */
+            stock: number;
+            /** Disponible */
+            disponible: boolean;
+            /**
+             * Editable
+             * @description Solo las ofertas de los comercios ficticios (D-81-7)
+             */
+            editable: boolean;
+            /**
+             * Version
+             * @description El ETag de la oferta, para el If-Match del PATCH
+             */
+            version: string;
+        };
+        /** ParteDetalle */
+        ParteDetalle: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Referencia */
+            referencia: string;
+            comercio: components["schemas"]["ComercioOperacion"];
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Estado Codigo
+             * @enum {string}
+             */
+            estado_codigo: "sin_codigo" | "vigente" | "usado" | "bloqueado" | "vencido";
+            /** Codigo Expira En */
+            codigo_expira_en: string | null;
+            /** Enviado En */
+            enviado_en: string | null;
+            /** Preparando En */
+            preparando_en: string | null;
+            /** Lista En */
+            lista_en: string | null;
+            /** Retirada En */
+            retirada_en: string | null;
+            /** Cancelada En */
+            cancelada_en: string | null;
+            /** Motivo Cancelacion */
+            motivo_cancelacion: ("producto_faltante" | "familia_cancela") | null;
+        };
+        /**
+         * PedidoDetalle
+         * @description GET /v1/operacion/pedidos/{id}. Se audita como operacion.pedido_ver (D-81-5).
+         */
+        PedidoDetalle: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Referencia */
+            referencia: string | null;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "asignado" | "sin_repartidor" | "retirado" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cerrado" | "cancelado" | "cancelado_con_devolucion";
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /** Entregado En */
+            entregado_en: string | null;
+            /**
+             * Subtotal Productos
+             * @description Pesos enteros, con IVA incluido
+             */
+            subtotal_productos: number;
+            /**
+             * Costo Envio
+             * @description Pesos enteros, con IVA incluido
+             */
+            costo_envio: number;
+            /**
+             * Total Confirmado
+             * @description Pesos enteros, con IVA incluido
+             */
+            total_confirmado: number;
+            /** Partes */
+            partes: components["schemas"]["ParteDetalle"][];
+            /** Lineas */
+            lineas: components["schemas"]["LineaDetalle"][];
+            /** Linea De Tiempo */
+            linea_de_tiempo: components["schemas"]["EventoLineaTiempo"][];
+            /** Acciones */
+            acciones: components["schemas"]["AccionDisponible"][];
+            /**
+             * Retracto Plazo Hasta
+             * @description Hasta cuándo se registra un retracto por correo (90 días desde la entrega)
+             */
+            retracto_plazo_hasta: string | null;
+        };
+        /**
+         * RetractoOperacion
+         * @description MATU-81 (C23, P6): el retracto en la consola, con la referencia del pedido, sus productos y, si se rechazó, el
+         *     motivo.
+         */
+        RetractoOperacion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /**
+             * Solicitado En
+             * Format: date-time
+             */
+            solicitado_en: string;
+            /**
+             * Plazo Hasta
+             * Format: date-time
+             */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /** Monto */
+            monto: number;
+            /**
+             * Origen
+             * @default app
+             * @enum {string}
+             */
+            origen: "app" | "correo";
+            /** Referencia */
+            referencia: string | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaRetractoOperacion"][];
+            /** Motivo Rechazo */
+            motivo_rechazo: ("sello_abierto" | "producto_no_recibido") | null;
+        };
+        /**
+         * SolicitudBuscarPedido
+         * @description C7: la referencia va solo en el cuerpo, nunca en la URL, los logs, los errores ni la auditoría.
+         */
+        SolicitudBuscarPedido: {
+            /**
+             * Referencia
+             * @description La del pedido o la de una parte
+             */
+            referencia: string;
+        };
+        /**
+         * SolicitudEditarIncidencia
+         * @description Solo cambian el estado, a quién está asignada y la resolución (C13). «resuelta» exige ``resolucion``.
+         */
+        SolicitudEditarIncidencia: {
+            /** Estado */
+            estado?: ("abierta" | "en_gestion" | "resuelta") | null;
+            /**
+             * Resolucion
+             * @description Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota
+             */
+            resolucion?: string | null;
+            /** Asignacion */
+            asignacion?: ("a_mi" | "sin_asignar") | null;
+        };
+        /** SolicitudIncidencia */
+        SolicitudIncidencia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "faltante" | "entrega_fallida" | "reclamo_familia" | "cobro_sin_respuesta" | "devolucion_pendiente" | "otro";
+            /**
+             * Descripcion
+             * @description Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota
+             */
+            descripcion: string;
+            /**
+             * Asignarme
+             * @default false
+             */
+            asignarme: boolean;
+        };
+        /**
+         * SolicitudMfa
+         * @description Cuerpo de POST /v1/sesiones/mfa (MATU-81, C29): el desafío que entregó POST /v1/sesiones y las 6 cifras del
+         *     teléfono. Ninguno se registra.
+         */
+        SolicitudMfa: {
+            /** Desafio */
+            desafio: string;
+            /**
+             * Codigo
+             * @description Las 6 cifras de la app del teléfono
+             */
+            codigo: string;
+        };
+        /** SolicitudOferta */
+        SolicitudOferta: {
+            /**
+             * Precio
+             * @description Pesos enteros con IVA incluido
+             */
+            precio?: number | null;
+            /** Stock */
+            stock?: number | null;
+            /** Disponible */
+            disponible?: boolean | null;
+        };
+        /** VentaPendiente */
+        VentaPendiente: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string | null;
+            /** Buy Order */
+            buy_order: string;
+            /**
+             * Monto
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto: number;
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+        };
+        /**
+         * VentaVista
+         * @description D-81-8: buy_order sí (para buscar en el portal de Transbank); nunca va en la URL ni en los logs.
+         */
+        VentaVista: {
+            /** Buy Order */
+            buy_order: string;
+            /**
+             * Monto
+             * @description Pesos enteros, con IVA incluido
+             */
+            monto: number;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "iniciada" | "autorizando" | "aprobada" | "rechazada" | "error";
+            /**
+             * Creada En
+             * Format: date-time
+             */
+            creada_en: string;
+            /** Respondida En */
+            respondida_en: string | null;
         };
     };
     responses: never;
@@ -5595,13 +6446,41 @@ export interface operations {
                     "application/json": components["schemas"]["SesionRespuesta"];
                 };
             };
-            /** @description credenciales-invalidas, el mismo exista o no el email */
+            /** @description credenciales-invalidas, el mismo exista o no el email. Desde MATU-81, mfa-requerido: la contraseña es correcta y la cuenta es de operación. Trae `desafio` y `desafio_expira_en` (5 minutos), sin tokens ni cookie: se sigue en POST /v1/sesiones/mfa */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": unknown;
+                    "application/problem+json": {
+                        /**
+                         * Type
+                         * @constant
+                         */
+                        type: "/errores/mfa-requerido";
+                        /** Title */
+                        title: string;
+                        /**
+                         * Status
+                         * @constant
+                         */
+                        status: 401;
+                        /** Detail */
+                        detail: string;
+                        /** Errores */
+                        errores: {
+                            [key: string]: string;
+                        }[];
+                        /** Request Id */
+                        request_id: string | null;
+                        /** Desafio */
+                        desafio: string;
+                        /**
+                         * Desafio Expira En
+                         * Format: date-time
+                         */
+                        desafio_expira_en: string;
+                    };
                 };
             };
             /** @description Cuerpo inválido. No cuenta como intento */
@@ -11911,7 +12790,11 @@ export interface operations {
     };
     listar_pedidos_v1_operacion_pedidos_get: {
         parameters: {
-            query?: never;
+            query?: {
+                grupo?: string | null;
+                /** @description Uno o más estados del pedido */
+                estado?: string[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11947,6 +12830,15 @@ export interface operations {
             };
             /** @description estado-pedido o estado-parte: el estado no permite la acción */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description grupo o estado no son de la lista */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12212,7 +13104,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListaRetractos"];
+                    "application/json": components["schemas"]["ListaRetractosOperacion"];
                 };
             };
             /** @description no-autenticado o token-invalido */
@@ -12265,7 +13157,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetractoVista"];
+                    "application/json": components["schemas"]["RetractoOperacion"];
                 };
             };
             /** @description no-autenticado o token-invalido */
@@ -12295,13 +13187,13 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description motivo-rechazo: rechazar exige `motivo` (sello_abierto o producto_no_recibido), y devolver no lo lleva (C24) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
                 };
             };
             /** @description Sin PASARELA_PAGO no se puede devolver */
@@ -12587,7 +13479,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetractoVista"];
+                    "application/json": components["schemas"]["RetractoOperacion"];
                 };
             };
             /** @description no-autenticado o token-invalido */
@@ -12617,8 +13509,679 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description producto-no-retractable, o solicitado_por no es quien pagó ni un admin */
+            /** @description producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta PEPPER_EMAIL para buscar el correo del admin */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    verificar_mfa_v1_sesiones_mfa_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudMfa"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    /** @description Cookie del refresh */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SesionRespuesta"];
+                };
+            };
+            /** @description desafio-vencido: el desafío no existe, venció (5 minutos) o ya se usó; se vuelve a la contraseña. codigo-mfa-incorrecto: el código no coincide; trae `intentos_restantes` (de 5 por cuenta en 15 minutos). codigo-mfa-usado: ese código ya abrió una sesión; se espera el siguiente (30 segundos) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido: el desafío no tiene 43 caracteres o el código no son 6 cifras */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description mfa-bloqueado: 5 códigos fallidos de la cuenta. Trae `minutos_espera` y Retry-After */
+            429: {
+                headers: {
+                    /** @description Segundos */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Redis no responde, falta PEPPER_LIMITES o la KEK: falla cerrada */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_retracto_v1_operacion_retractos__retracto_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                retracto_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetractoOperacion"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o el pedido, la parte o el retracto no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado-pedido o estado-parte: el estado no permite la acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    buscar_pedido_v1_operacion_pedidos_buscar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudBuscarPedido"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPedidosOperacion"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_pedido_v1_operacion_pedidos__pedido_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PedidoDetalle"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_cobro_v1_operacion_pedidos__pedido_id__cobro_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CobroPedido"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cobros_pendientes_v1_operacion_cobros_pendientes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CobrosPendientes"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    listar_incidencias_v1_operacion_incidencias_get: {
+        parameters: {
+            query?: {
+                estado?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaIncidencias"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description estado no es abierta, en_gestion ni resuelta */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_incidencia_v1_operacion_incidencias__incidencia_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incidencia_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidenciaVista"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    editar_incidencia_v1_operacion_incidencias__incidencia_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                incidencia_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudEditarIncidencia"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidenciaVista"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description incidencia-resuelta: una incidencia resuelta ya no cambia */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description falta-version: el PATCH exige If-Match */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudIncidencia"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidenciaVista"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_catalogo_v1_operacion_catalogo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogoConsola"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    cambiar_oferta_v1_operacion_ofertas__oferta_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                oferta_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudOferta"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfertaConsola"];
+                };
+            };
+            /** @description no-autenticado, token-invalido o mfa-requerido (sin el segundo factor) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description No es una cuenta de operación, o lo pedido no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description comercio-real: solo se editan las ofertas de los comercios ficticios (C1) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description version-desactualizada: el If-Match no es la versión actual */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Cuerpo inválido: el precio es un entero en pesos mayor que 0, con IVA */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description falta-version: el PATCH exige If-Match */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

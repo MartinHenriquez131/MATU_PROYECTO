@@ -242,9 +242,20 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
       pago_de_prueba: true,
     },
     precios_de_ejemplo: true,
+    // MATU-81 (D-81-4, decisión 461): lo que el equipo de MATU anotó del pedido, sin quién lo anotó.
+    lo_que_paso: [
+      {
+        tipo: 'faltante',
+        estado: 'resuelta',
+        anotado_en: chile(hace(3 * DIA + 40)),
+        resuelto_en: chile(hace(3 * DIA - 60)),
+        nota: 'El comercio avisó que no tenía las toallitas húmedas.',
+        resolucion: 'Se devolvieron las toallitas a la misma tarjeta.',
+      },
+    ],
   }
   if (modo !== 'datos-pedidos') return [entregado]
-  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true }
+  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [] }
   return [
     { ...base, referencia: null, estado: 'borrador', creado_en: chile(hace(30)), total_confirmado_en: null, total: null, pago: null },
     { ...base, referencia: null, estado: 'total_confirmado', creado_en: chile(hace(DIA)), total_confirmado_en: chile(hace(DIA - 5)), total: 10_480, pago: { estado: 'pendiente', pagado_en: null, pagado_por: null, cobrado: 0, devuelto: 0, devoluciones: [], pago_de_prueba: true } },
@@ -345,13 +356,15 @@ function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo
       hechos.push({ tipo, ocurrido_en: hace(90 + n * (modo === 'datos-historial' ? 13 * 60 : 7 * 60)), quien: quien(q, i), campo, seccion })
     })
   if (modo === 'datos-historial') for (let i = 0; i < 12; i++) hechos.push({ tipo: i % 2 ? 'abrio_la_ficha' : 'edito_la_ficha', ocurrido_en: hace(95 * DIA + i * DIA), quien: quien('persona', 0), campo: i % 2 ? null : 'red_apoyo', seccion: null })
+  // MATU-81 (D-81-5): el equipo de MATU abrió el pedido 4821 en su consola.
+  hechos.push({ tipo: 'matu_reviso_el_pedido', ocurrido_en: hace(3 * DIA + 45), quien: quien('matu', 0), campo: null, seccion: null })
   for (const c of copiasDePersona.get(p.id) ?? []) hechos.push({ tipo: 'pidio_una_copia', ocurrido_en: c.en, quien: { tipo: 'persona', nombre: c.quien, activo: true }, campo: null, seccion: null })
   // El cuidador ve solo sus filas (D-54-6): ni las de otros ni las de MATU.
   const visibles = todo ? hechos : hechos.filter((h) => h.quien.tipo === 'persona' && h.quien.nombre === yo)
   visibles.sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
   // F1 (decisión 384): la finalidad en los hechos de autorizaciones y la referencia en los de pedidos y pagos.
   const AUTORIZACION = new Set(['dio_una_autorizacion', 'retiro_una_autorizacion'])
-  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto'])
+  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto', 'matu_reviso_el_pedido'])
   const conObjeto = (h: Hecho, i: number) => ({
     ...h,
     ocurrido_en: chile(h.ocurrido_en),

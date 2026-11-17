@@ -212,6 +212,7 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
         precios_de_ejemplo: true,
         partes: [],
         retractos: [],
+        lo_que_paso: [],
       },
       {
         referencia: null,
@@ -228,6 +229,7 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
         precios_de_ejemplo: true,
         partes: [],
         retractos: [],
+        lo_que_paso: [],
       },
     ],
     historial: {

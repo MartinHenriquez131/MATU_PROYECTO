@@ -7,7 +7,7 @@ import { fechaYHoraDeChile } from '../compartido/fechas'
 import { ConTelefonos } from '../compartido/ui/ConTelefonos'
 import { AVISO_CUIDADOR, CAMPOS } from './datos'
 import { AUTORIZACION, FICHA } from './textos'
-import { navegar, type Ruta, type RutaComercio } from './ruteo'
+import { navegar, type Ruta, type RutaComercio, type RutaOperacion } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 export { Nota } from '../compartido/ui/Nota'
@@ -530,7 +530,7 @@ export function Listo({ listo }: { listo: boolean }) {
  * Las vistas de una sección (de `Pestanas` de Demo/src/familia/Shell.tsx), como enlaces. La activa
  * lleva borde inferior de 3 px y negrita, no solo color, y `aria-current`.
  */
-export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta | RutaComercio; activa: boolean }[] }) {
+export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta | RutaComercio | RutaOperacion; activa: boolean }[] }) {
   return (
     <nav aria-label={etiqueta} className="border-b border-linea">
       <ul className="-mb-px flex flex-wrap gap-x-1">
