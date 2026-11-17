@@ -612,7 +612,7 @@ def test_la_0_20_esta_publicada_y_es_la_de_env_example() -> None:
     compra o cancelar un pedido pagado desde la aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a
     aceptar. De la 0.11 a la 0.19 siguen publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20"} <= set(PUBLICADAS)
-    huella = "d4c73f40d140efa752c236066c88f8a77a25d15f29c7688ff2c3537c06bce815"  # pragma: allowlist secret
+    huella = "5aab1f67299092cb6a47aa4c922f335b0ba0b42f1849b3ebc963ba385791c63d"  # pragma: allowlist secret
     assert PUBLICADAS["0.20"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.20", "2026-11-17")
@@ -630,6 +630,9 @@ def test_la_0_20_esta_publicada_y_es_la_de_env_example() -> None:
         "- **Pedidos pagados y comprobantes de entrega:** 2 años desde que el pedido se cierra, es decir, desde que se"
         " entrega o se cancela con devolución. Mientras un pedido sigue en curso, el plazo no empieza.",
         "lo que pediste se guarda con el pedido, 2 años desde su cierre,",
+        # §12, pedido de Martín antes de fusionar: el cambio de la 0.20 dice el plazo de los pedidos pagados
+        "Desde esta versión, los pedidos pagados se guardan 2 años desde que el pedido se cierra, es decir, desde que"
+        " se entrega o se cancela con devolución (sección 8).",
     ):
         assert parte in texto, parte
     # Arrepentirse y cancelar desde la aplicación ya no figuran como pendientes
