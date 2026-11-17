@@ -255,7 +255,7 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
     expect(enlace.className).toMatch(/\bmin-h-12\b/)
     const garantias = within(screen.getByRole('region', { name: 'Lo que te garantizamos' }))
     expect(garantias.getAllByRole('listitem').map((l) => l.textContent)).toEqual([
-      'Derecho a retracto: tienes 10 días desde que lo recibes.',
+      'Derecho a retracto: tienes 10 días hábiles desde que lo recibes.',
       'Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
       'Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar.',
       '¿Algo no está bien? Escríbenos a cuidaconmatu@gmail.com.',
@@ -339,7 +339,7 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
 
   it('7.7: para quien no pagó, «a la tarjeta con que se pagó» y «le escribimos a quien pagó»; el pedido completo', async () => {
     const c = comprobanteAjeno({
-      devoluciones: [devolucion({ ultimos4: null, producto: null, monto: 57460 }), devolucion({ ultimos4: null, estado: 'en_curso', hecha_en: null, solicitada_en: '2026-11-12T16:00:00Z' })],
+      devoluciones: [devolucion({ motivo: 'cancelacion', ultimos4: null, producto: null, monto: 57460 }), devolucion({ ultimos4: null, estado: 'en_curso', hecha_en: null, solicitada_en: '2026-11-12T16:00:00Z' })],
     })
     await comprobanteDe(c)
     expect(screen.getByText(/^Devolvimos/, { selector: 'p' })).toHaveTextContent('Devolvimos $57.460 a la tarjeta con que se pagó, por tu pedido completo. Cuándo se ve en la cuenta depende del banco.')
@@ -536,6 +536,46 @@ describe('Sin vuelta: «Ver el comprobante» y la recarga (2.1)', () => {
     abrir()
     expect(await h1('Pagaste tu pedido')).toBeVisible()
     expect(api.pedidas.map((p) => p.ruta)).toContain(`/v1/personas-cuidadas/${PERSONA_ID}/pedido-pagado`)
+  })
+
+  it('MATU-92 (2.4): «Ver cómo va tu pedido» abre el detalle con el pedido en memoria, sin macizo', async () => {
+    rutas({})
+    window.history.replaceState(null, '', '/insumos/pedido/pago')
+    fijarComprobante(PERSONA_ID, pago())
+    abrir()
+    await h1('Pagaste tu pedido')
+    const ver = screen.getByRole('button', { name: 'Ver cómo va tu pedido' })
+    expect(ver.className).not.toMatch(/\bbg-turquesa\b/)
+    await userEvent.click(ver)
+    expect(contexto.fijar).toHaveBeenCalledWith({ pedidoElegido: { personaId: PERSONA_ID, pedidoId: PEDIDO_ID, referencia: '4821' } })
+    expect(window.location.pathname).toBe('/insumos/tus-pedidos/pedido')
+    expect(window.location.search + window.location.hash).toBe('')
+  })
+
+  it('MATU-92 (P3-2): «Ver cómo va tu pedido» va en el mismo grupo que «Imprimir…» e «Ir a tu pedido»', async () => {
+    rutas({})
+    window.history.replaceState(null, '', '/insumos/pedido/pago')
+    fijarComprobante(PERSONA_ID, pago())
+    abrir()
+    await h1('Pagaste tu pedido')
+    const grupo = screen.getByRole('button', { name: 'Ver cómo va tu pedido' }).parentElement!
+    expect(within(grupo).getByRole('button', { name: 'Imprimir o guardar en PDF' })).toBeVisible()
+    expect(within(grupo).getByRole('button', { name: 'Ir a tu pedido' })).toBeVisible()
+  })
+
+  it('MATU-92 (P1-3): sin producto, «Devolvimos: el envío»; «tu pedido completo» solo con `cancelacion`', async () => {
+    rutas({})
+    window.history.replaceState(null, '', '/insumos/pedido/pago')
+    const envio = devolucion({ producto: null, monto: 3990, motivo: 'producto_no_entregado' })
+    const todo = devolucion({ producto: null, monto: 57460, motivo: 'cancelacion', solicitada_en: '2026-11-13T15:00:00Z' })
+    fijarComprobante(PERSONA_ID, pago({ comprobante: comprobante({ devoluciones: [envio, todo] }), devoluciones: [envio, todo] }))
+    abrir()
+    await h1('Pagaste tu pedido')
+    const boleta = within(screen.getByRole('heading', { level: 2, name: 'Comprobante' }).closest('section')!)
+    expect(boleta.getByText('Devolvimos: el envío')).toBeVisible()
+    expect(boleta.getAllByText('Devolvimos: tu pedido completo')).toHaveLength(1)
+    // Las notas de arriba dicen lo mismo.
+    expect(screen.getByText(/por el envío\./)).toBeVisible()
   })
 
   it('al recargar sin pedido pagado (404), va a «Tu pedido»', async () => {

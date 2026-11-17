@@ -44,6 +44,7 @@ import { envaseUtil, envaseValido, ENVASE_MAX, juntar, maxEnvases, repartir, seC
 import { cantidadEnTexto, miles, sufijoCantidad } from './textoLista'
 import { CATALOGO } from './textosCatalogo'
 import { DECLARACION_PEDIDOS, huellaDe, PEDIDO } from './textosPedido'
+import { TUS_PEDIDOS } from './textosTusPedidos'
 import { ALERTAS, cantidad, DECLARACION_CONSUMO, diasEnTexto, EN_ENVASES, enPantalla, INSUMOS, lineaDias, REGISTRO } from './textosInsumos'
 import { Acciones, AvisoCuidadorDeHecho, CampoTexto, GrupoOpciones, MensajeError, Nota, Pestanas, Titulo, Volver } from './ui'
 
@@ -59,14 +60,17 @@ const porFecha = (a: Perfil, b: Perfil) => a.fecha_quiebre_estimada.localeCompar
  * en el permiso, en «Falta el permiso» y en «Hay que renovar» van solo «Insumos» y «Catálogo»
  * (`sinLista`): «Lista de insumos» llevaría de vuelta a la misma pantalla.
  */
-export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumos' | '/insumos/lista' | '/insumos/catalogo' | '/insumos/pedido'; sinLista?: boolean }) {
+export function PestanasInsumos({ activa, sinLista = false }: { activa: '/insumos' | '/insumos/lista' | '/insumos/catalogo' | '/insumos/pedido' | '/insumos/tus-pedidos'; sinLista?: boolean }) {
   const { capa3 } = useFamilia()
   const items: { texto: string; ruta: Ruta; activa: boolean }[] = [{ texto: INSUMOS.titulo, ruta: '/insumos', activa: activa === '/insumos' }]
   if (!sinLista) items.push({ texto: LISTA.titulo, ruta: '/insumos/lista', activa: activa === '/insumos/lista' })
   items.push({ texto: CATALOGO.titulo, ruta: '/insumos/catalogo', activa: activa === '/insumos/catalogo' })
   // MATU-61 (2.2): «Pedido» al final, solo con la capa 3 encendida y para los cuatro roles. Sacar la
-  // capa 3 quita las dos últimas y deja las de antes como estaban.
+  // capa 3 quita las últimas («Pedido» y, desde MATU-92, «Tus pedidos») y deja las de antes como estaban.
   if (capa3 === true) items.push({ texto: PEDIDO.pestana, ruta: '/insumos/pedido', activa: activa === '/insumos/pedido' })
+  // MATU-92 (2.2): «Tus pedidos», la quinta, con la capa 3 y para los cuatro roles. Activa también en
+  // el detalle y en arrepentirse, que la pantalla marca con la misma ruta.
+  if (capa3 === true) items.push({ texto: TUS_PEDIDOS.titulo, ruta: '/insumos/tus-pedidos', activa: activa === '/insumos/tus-pedidos' })
   return <Pestanas etiqueta={LISTA.vistas} items={items} />
 }
 

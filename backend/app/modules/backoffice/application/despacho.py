@@ -40,7 +40,13 @@ class UnidadDespacho:
 
 
 class NoCancelable(Exception):
-    """R15: algún comercio ya empezó a preparar, o el pedido ya no está pagado y en curso."""
+    """R15: algún comercio ya empezó a preparar, o el pedido ya no está pagado y en curso. ``estado`` y ``pagado``
+    distinguen el 409 (MATU-92, C11): un pedido cancelado o sin pagar es estado-pedido, no ya-se-prepara."""
+
+    def __init__(self, estado: str | None = None, pagado: bool = True) -> None:
+        super().__init__("el pedido no se puede cancelar")
+        self.estado = estado
+        self.pagado = pagado
 
 
 def _auditar_devolucion(u: UnidadDespacho, grupo_id: uuid.UUID, persona_id: uuid.UUID, pedido_id: uuid.UUID) -> None:
@@ -134,10 +140,10 @@ def cancelar_pagado(
     d = u.despacho
     pedido = d.pedido(pedido_id, bloquear=True)
     if pedido is None or pedido.pagado_en is None:
-        raise NoCancelable()
+        raise NoCancelable(None if pedido is None else pedido.estado, pagado=False)
     partes = d.partes(pedido_id)
     if not cancelable_despues_de_pagar(pedido.estado, [p.estado for p in partes]):
-        raise NoCancelable()
+        raise NoCancelable(pedido.estado)
     d.cancelar_partes(pedido_id, "familia_cancela", ahora)
     d.cambiar_estado(
         pedido_id, pedido.estado, "cancelado_con_devolucion", "usuario", usuario_id, "familia_cancela", ahora

@@ -9,10 +9,11 @@
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { catalogoDoble } from './catalogo'
+import { atenderTusPedidos, listarPagados } from './tusPedidos'
 
-type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
+export type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
 type Regla = 'otro_comercio' | 'quitar'
-type Responder = {
+export type Responder = {
   json: (res: ServerResponse, status: number, cuerpo: unknown) => void
   problema: (res: ServerResponse, status: number, tipo: string, extra?: Record<string, unknown>) => void
 }
@@ -30,7 +31,7 @@ export interface UsuarioPedido {
   modo?: string
 }
 
-interface Linea {
+export interface Linea {
   id: string
   producto_id: string
   oferta_id: string
@@ -40,7 +41,7 @@ interface Linea {
   /** Al confirmar: el comercio y el precio confirmados. */
   confirmada?: { comercio_id: string; precio: number }
 }
-interface Pedido {
+export interface Pedido {
   id: string
   persona_id: string
   estado: 'borrador' | 'total_confirmado' | 'cancelado' | 'pagado'
@@ -57,6 +58,32 @@ interface Pedido {
   pagado?: Pagado
   /** MATU-62: las anulaciones de este pedido (también la de un pago tardío que no lo pagó). */
   devoluciones?: DevolucionDoble[]
+  /** MATU-92: cómo va después de pagar (tusPedidos.ts). Sin él, recién pagado. */
+  seguimiento?: SeguimientoDoble
+}
+/** MATU-92: el estado para la familia y las partes de un pedido pagado. Sin códigos de retiro (D-63-5). */
+export interface SeguimientoDoble {
+  estado: 'pagado' | 'enviado_a_comercio' | 'preparando' | 'listo_retiro' | 'en_ruta' | 'entregado' | 'no_entregado' | 'reprogramado' | 'cancelado_con_devolucion'
+  entregado_en: string | null
+  cancelado_en: string | null
+  /** El estado de la parte de cada comercio; por omisión, la que sigue al estado del pedido. */
+  partes: Record<string, 'enviada' | 'preparando' | 'lista' | 'retirada' | 'cancelada'>
+  /** Unidades que faltaron, por producto. */
+  faltantes: Record<string, number>
+  retractos: RetractoDoble[]
+  /** Quien pagó, para decidir quién puede arrepentirse. */
+  quien: string
+}
+export interface RetractoDoble {
+  id: string
+  estado: 'solicitado' | 'devuelto' | 'rechazado'
+  solicitado_en: string
+  resuelto_en: string | null
+  origen: 'app' | 'correo'
+  de: string
+  incluye_envio: boolean
+  lineas: { producto_id: string; cantidad: number }[]
+  clave: string | null
 }
 type EstadoDespacho = 'no' | 'vigente' | 'vencida' | 'retirada'
 interface Despacho {
@@ -65,7 +92,7 @@ interface Despacho {
   revocado_en: string | null
 }
 
-const COSTO_ENVIO = 3990
+export const COSTO_ENVIO = 3990
 const VIGENCIA_MS = 15 * 60_000
 const VENTANA = 'Entre 24 y 48 horas hábiles'
 const CANAL_RECLAMO = 'cuidaconmatu@gmail.com'
@@ -97,12 +124,12 @@ interface ProductoDoble {
   comercios: OfertaDoble[]
 }
 const productos = (): ProductoDoble[] => catalogoDoble().categorias.flatMap((c) => c.productos as ProductoDoble[])
-const productoDe = (id: string) => productos().find((p) => p.id === id)
+export const productoDe = (id: string) => productos().find((p) => p.id === id)
 const ofertaDe = (ofertaId: string) => {
   for (const p of productos()) for (const o of p.comercios) if (o.oferta_id === ofertaId) return { producto: p, oferta: o }
   return null
 }
-const comercioDe = (id: string) => {
+export const comercioDe = (id: string) => {
   for (const p of productos()) for (const o of p.comercios) if (o.comercio_id === id) return { id, nombre_fantasia: o.nombre_fantasia, ficticio: o.ficticio ?? true }
   return { id, nombre_fantasia: 'Comercio de ejemplo', ficticio: true }
 }
@@ -303,7 +330,7 @@ export function atenderPedido(
   const ruta = (req.url ?? '').split('?')[0]
   const mDir = /^\/v1\/personas-cuidadas\/([^/]+)\/direccion$/.exec(ruta)
   const mPersona = /^\/v1\/personas-cuidadas\/([^/]+)\/(pedidos|pedido-en-curso|pedido-pagado)$/.exec(ruta)
-  const mPedido = /^\/v1\/pedidos\/([^/]+)(?:\/(lineas|reglas-faltante|confirmar|contacto|cambiar|cancelar|pagar|pago))?$/.exec(ruta)
+  const mPedido = /^\/v1\/pedidos\/([^/]+)(?:\/(lineas|reglas-faltante|confirmar|contacto|cambiar|cancelar|pagar|pago|seguimiento|retractos|cancelar-con-devolucion))?$/.exec(ruta)
   if (!mDir && !mPersona && !mPedido) return false
   res.setHeader('Cache-Control', 'no-store')
   const no = () => (problema(res, 404, '/errores/no-encontrado'), true)
@@ -396,6 +423,8 @@ export function atenderPedido(
   if (mPersona) {
     const personaId = decodeURIComponent(mPersona[1])
     if (!personaDe(personaId)) return no()
+    // MATU-92 (decisión 436): «Tus pedidos», la lista de los pagados.
+    if (mPersona[2] === 'pedidos' && metodo === 'GET') return listarPagados(req, res, r, u, rol, [...pedidos.values()].filter((x) => x.persona_id === personaId)), true
     // MATU-62 (decisión 237): el último pedido pagado de la persona.
     if (mPersona[2] === 'pedido-pagado') {
       if (metodo !== 'GET') return no()
@@ -434,6 +463,8 @@ export function atenderPedido(
   // MATU-62 (decisión 236): el pago, con la vista de cada rol. No pide la autorización.
   if (accion === 'pago') return metodo === 'GET' ? (json(res, 200, vistaPago(p, rol, u)), true) : no()
   if (accion === 'pagar') return pagar(req, res, cuerpo, r, u, rol, p, sinPermiso), true
+  // MATU-92: el seguimiento, los retractos y cancelar con devolución (tusPedidos.ts).
+  if (accion === 'seguimiento' || accion === 'retractos' || accion === 'cancelar-con-devolucion') return atenderTusPedidos(req, res, cuerpo, r, u, rol, p, accion), true
   if (!editor(rol)) return no()
   const estado = estadoDe(p)
   const transicion = () => (problema(res, 409, '/errores/estado-pedido', { estado }), true)
@@ -657,12 +688,12 @@ interface Venta {
   primeraVuelta: number | null
   clave: string
 }
-interface Tarjeta {
+export interface Tarjeta {
   tipo: 'debito' | 'credito' | 'prepago'
   ultimos4: string
   cuotas: number
 }
-interface Pagado {
+export interface Pagado {
   referencia: string
   pagado_en: string
   quien: string
@@ -671,8 +702,8 @@ interface Pagado {
   aceptadas_en: string
   tardio: boolean
 }
-interface DevolucionDoble {
-  motivo: 'pago_tardio' | 'producto_no_entregado' | 'cancelacion'
+export interface DevolucionDoble {
+  motivo: 'pago_tardio' | 'producto_no_entregado' | 'cancelacion' | 'retracto'
   monto: number
   producto_id: string | null
   estado: 'en_curso' | 'hecha'
@@ -977,12 +1008,12 @@ ${botones}
 export function sembrarPagado(
   personaId: string,
   productosPorNombre: [string, number][],
-  { quien, tarjeta = 'debito', tardio = false, devoluciones = false }: { quien: string; tarjeta?: 'debito' | 'credito' | 'prepago'; tardio?: boolean; devoluciones?: boolean },
-) {
+  { quien, tarjeta = 'debito', tardio = false, devoluciones = false, haceHoras = 2 }: { quien: string; tarjeta?: 'debito' | 'credito' | 'prepago'; tardio?: boolean; devoluciones?: boolean; haceHoras?: number },
+): Pedido {
   const antes = enCurso.get(personaId)
   sembrarPedido(personaId, productosPorNombre, true)
   const p = pedidos.get(enCurso.get(personaId)!)!
-  aprobar(p, quien, tarjetaDe(tarjeta), tardio, new Date(Date.now() - 2 * 3_600_000))
+  aprobar(p, quien, tarjetaDe(tarjeta), tardio, new Date(Date.now() - haceHoras * 3_600_000))
   if (devoluciones && p.lineas.length >= 2) {
     const [a, b] = p.lineas
     const precio = (l: Linea) => (l.confirmada?.precio ?? l.precio_carrito) * l.cantidad
@@ -992,6 +1023,7 @@ export function sembrarPagado(
     ]
   }
   if (antes) enCurso.set(personaId, antes)
+  return p
 }
 
 /** Un total confirmado que otra persona del grupo está pagando (6.1 y 6.2): la venta espera el `commit`. */

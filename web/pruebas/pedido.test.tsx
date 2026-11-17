@@ -98,7 +98,7 @@ describe('Tu pedido: el carrito (7)', () => {
     expect(screen.getAllByText('Nunca lo cambiamos por otra marca ni por otro producto.')).toHaveLength(1)
     // C2: el retracto en cada línea, con letra igual a la del precio.
     const retracto = panal.getByText('Derecho a retracto:').closest('p')!
-    expect(retracto).toHaveTextContent('Derecho a retracto: tienes 10 días desde que lo recibes. No aplica si abres el sello del producto.')
+    expect(retracto).toHaveTextContent('Derecho a retracto: tienes 10 días hábiles desde que lo recibes. No aplica si abres el sello del producto.')
     expect(retracto.className).toMatch(/\btext-lg\b/)
     expect(panal.getByText('$12.990').className).toMatch(/\btext-lg\b/)
     expect(panal.getByRole('button', { name: 'Sacar del pedido: Pañal adulto M x30' })).toHaveTextContent('Sacar del pedido')

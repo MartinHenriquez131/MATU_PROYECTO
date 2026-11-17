@@ -66,6 +66,12 @@ class Despacho:
             metodo, ruta, json=json, headers={"Authorization": f"Bearer {self.e.token(usuario)}", **cabeceras}
         )
 
+    def post_familia(
+        self, ruta: str, usuario: UsuarioCreado, familia: FamiliaCreada, json: Any = None, **cabeceras: str
+    ) -> Any:
+        """Un POST de la familia después de pagar, con una Idempotency-Key nueva (MATU-92, C8)."""
+        return self.e.pedir("POST", ruta, usuario, familia, json, **{"Idempotency-Key": self.e.clave(), **cabeceras})
+
     def comercio(self, clave: str, metodo: str, ruta: str, json: Any = None, **cabeceras: str) -> Any:
         return self.como(self.encargados[clave], metodo, f"/v1/comercio{ruta}", json, **cabeceras)
 

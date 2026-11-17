@@ -115,7 +115,7 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
         cx.execute("UPDATE pedido SET condiciones_version = '0.2' WHERE id = %s", (uuid.UUID(pedido["id"]),))
     ver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia)
     assert ver.status_code == 200 and ver.json()["retractos"] == []
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                   {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
     assert r.status_code == 201, r.text
     # Las condiciones 0.2 devuelven también el envío (D-63-10, a)
@@ -131,7 +131,7 @@ def test_de_pagado_a_entregado_y_el_retracto(despacho: Despacho) -> None:
     # Resuelto, no se resuelve otra vez
     assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "devolver"}).status_code == 409
     # H3: la misma línea admite otro retracto, solo por lo que queda (1 de 2)
-    otra = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+    otra = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                      {"lineas": [{"linea_id": str(linea[0]), "cantidad": 2}]})
     assert otra.status_code == 422
 
@@ -261,9 +261,9 @@ def test_r15_cancela_con_devolucion_antes_de_que_preparen_y_no_despues(despacho:
     # Solo el admin
     cuidador = d.e.usuario(familia, "cuidador") if "cuidador" in familia.miembros else None
     if cuidador is not None:
-        assert d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", cuidador,
+        assert d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", cuidador,
                          familia).status_code == 404
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", familia.admin, familia)
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/cancelar-con-devolucion", familia.admin, familia)
     assert r.status_code == 200, r.text
     total = 2 * PRECIO_PANAL + COSTO_ENVIO
     assert d.estado_pedido(pedido["id"]) == "cancelado_con_devolucion"
@@ -279,7 +279,7 @@ def test_r15_cancela_con_devolucion_antes_de_que_preparen_y_no_despues(despacho:
     familia2, pedido2 = d.pagado()
     parte2, etag2 = _parte(d, pedido2)
     assert d.comercio("uno", "POST", f"/partes/{parte2}/preparar", **{"If-Match": etag2}).status_code == 200
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido2['id']}/cancelar-con-devolucion", familia2.admin, familia2)
+    r = d.post_familia(f"/v1/pedidos/{pedido2['id']}/cancelar-con-devolucion", familia2.admin, familia2)
     assert r.status_code == 409 and r.json()["type"] == "/errores/ya-se-prepara"
 
 
@@ -293,7 +293,7 @@ def test_el_retracto_fuera_de_plazo_es_409(despacho: Despacho) -> None:
     d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
     d.e.avanzar(timedelta(days=15))
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                   {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
     assert r.status_code == 409 and r.json()["type"] == "/errores/fuera-de-plazo"
     # Un pedido no entregado no tiene retracto
@@ -388,7 +388,7 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     d.operacion("POST", f"/pedidos/{pedido['id']}/en-camino")
     d.operacion("POST", f"/pedidos/{pedido['id']}/entregado")
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                   {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
     assert r.status_code == 201, r.text
     # Con la 0.3, el envío vuelve solo si vuelve todo lo entregado (D-63-10, b): faltó uno y se devuelve el otro
@@ -463,7 +463,7 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
 
     # Pasados los 10 días hábiles la familia ya no puede en la app, pero sí por correo hasta los 90 días
     d.e.avanzar(timedelta(days=30))
-    assert d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+    assert d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
                      cuerpo).status_code == 409
     r = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
     assert r.status_code == 201, r.text

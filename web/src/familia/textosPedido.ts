@@ -71,7 +71,7 @@ export const PEDIDO = {
   siFaltaOtro: 'Si falta: lo buscamos en otro comercio.',
   siFaltaQuitar: 'Si falta: lo sacamos y te devolvemos su precio.',
   retractoTitulo: 'Derecho a retracto:',
-  retracto: 'tienes 10 días desde que lo recibes.',
+  retracto: 'tienes 10 días hábiles desde que lo recibes.', // MATU-92 (C24, D1): «hábiles»
   retractoSello: 'No aplica si abres el sello del producto.',
   sacar: 'Sacar del pedido',
   sacarDe: (producto: string) => `Sacar del pedido: ${producto}`,

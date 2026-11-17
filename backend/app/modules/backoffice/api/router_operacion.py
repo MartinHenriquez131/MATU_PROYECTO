@@ -33,6 +33,7 @@ from app.modules.backoffice.api.esquemas import (
     SolicitudResolverRetracto,
     SolicitudRetractoPorCorreo,
 )
+from app.modules.backoffice.api.vistas_familia import retracto_vista
 from app.modules.backoffice.application.despacho import NoCancelable, UnidadDespacho, cancelar_por_operacion
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
 from app.modules.care_circle.api.router_autorizaciones import RelojDep
@@ -48,7 +49,7 @@ from app.modules.fulfillment.domain.despacho import (
     monto_consumo,
 )
 from app.modules.payments.application import retractos as casos_retracto
-from app.modules.payments.application.ports import PasarelaWebpay
+from app.modules.payments.application.ports import PasarelaWebpay, Unidad
 from app.modules.payments.application.retractos import Retracto
 from app.modules.payments.domain.cargo import DevolucionInvalida
 from app.modules.payments.domain.retracto import RetractoInvalido
@@ -246,12 +247,8 @@ def no_entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: 
     return _mover(fabrica, reloj, request, operador, pedido_id, pasos, AccionAuditoria.DESPACHO_NO_ENTREGADO)
 
 
-def _retracto_vista(r: Retracto, monto: int) -> RetractoVista:
-    return RetractoVista(
-        id=r.id, pedido_id=r.pedido_id, estado=r.estado,  # type: ignore[arg-type]
-        solicitado_en=r.solicitado_en, plazo_hasta=r.plazo_hasta, incluye_envio=r.incluye_envio, monto=monto,
-        origen=r.origen,  # type: ignore[arg-type]
-    )
+def _retracto_vista(unidad: Unidad, retractos: RepositorioRetractosSQL, r: Retracto) -> RetractoVista:
+    return retracto_vista(unidad, retractos, r)
 
 
 @router.post(
@@ -326,7 +323,7 @@ def registrar_retracto_por_correo(
         except RetractoInvalido:
             raise ErrorMATU(422, tipo="producto-no-retractable",
                             detalle="Elige productos entregados, hasta lo que queda por devolver") from None
-        return _retracto_vista(r, casos_retracto.monto_de(u.pagos, retractos, r))
+        return _retracto_vista(u.pagos, retractos, r)
 
 
 @router.get("/retractos", response_model=ListaRetractos, responses=_RESPUESTAS,
@@ -337,7 +334,7 @@ def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep) -> 
     vistas = []
     for r in pendientes:
         with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(r.grupo_id) as (u, retractos):
-            vistas.append(_retracto_vista(r, casos_retracto.monto_de(u.pagos, retractos, r)))
+            vistas.append(_retracto_vista(u.pagos, retractos, r))
     return ListaRetractos(retractos=vistas)
 
 
@@ -368,4 +365,4 @@ def resolver_retracto(
             raise ErrorMATU(404) from None
         except (casos_retracto.RetractoNoResoluble, DevolucionInvalida):
             raise ErrorMATU(409, tipo="retracto-no-resoluble", detalle="El retracto ya se resolvió o venció") from None
-        return _retracto_vista(resuelto, casos_retracto.monto_de(u.pagos, retractos, resuelto))
+        return _retracto_vista(u.pagos, retractos, resuelto)

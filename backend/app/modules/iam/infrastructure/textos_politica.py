@@ -37,6 +37,9 @@ PUBLICADAS: dict[str, str] = {
     # MATU-63: los comercios preparan los pedidos pagados, el código de retiro y «Arrepentirme de la compra». Nadie
     # vuelve a aceptar (D-63-16); las anteriores siguen
     "0.19": "c5b79d87898f6624cb97996ded97df9d50334ba5b717b12901a9a5efd93a1ff9",  # pragma: allowlist secret
+    # MATU-92: «Tus pedidos», los pedidos pagados de la persona según el rol, y arrepentirse o cancelar desde la
+    # aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a aceptar; las anteriores siguen
+    "0.20": "5aab1f67299092cb6a47aa4c922f335b0ba0b42f1849b3ebc963ba385791c63d",  # pragma: allowlist secret
 }
 
 

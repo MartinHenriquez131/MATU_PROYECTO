@@ -187,3 +187,26 @@ CANCELABLE_PAGADO = ("pagado", "enviado_a_comercio")
 
 def cancelable_despues_de_pagar(estado_pedido: str, partes: Sequence[EstadoParte]) -> bool:
     return estado_pedido in CANCELABLE_PAGADO and all(p is EstadoParte.ENVIADA for p in partes)
+
+
+# MATU-92 (C7, C10 y C11): por qué la familia no puede cancelar. La pantalla elige el texto con el motivo
+CANCELADOS = ("cancelado", "cancelado_con_devolucion")
+
+
+class MotivoNoCancelar(StrEnum):
+    ROL = "rol"
+    YA_SE_PREPARA = "ya_se_prepara"
+    CANCELADO = "cancelado"
+
+
+def motivo_no_cancelar(rol: str, estado_pedido: str, partes: Sequence[EstadoParte]) -> MotivoNoCancelar | None:
+    """None si se puede cancelar: solo el admin, mientras ningún comercio empezó a preparar (R15). Primero lo que
+    vale para todos (ya cancelado, ya se prepara) y después el rol, para que el «solo quien administra» salga solo
+    cuando todavía se puede."""
+    if estado_pedido in CANCELADOS:
+        return MotivoNoCancelar.CANCELADO
+    if not cancelable_despues_de_pagar(estado_pedido, partes):
+        return MotivoNoCancelar.YA_SE_PREPARA
+    if rol != "admin":
+        return MotivoNoCancelar.ROL
+    return None

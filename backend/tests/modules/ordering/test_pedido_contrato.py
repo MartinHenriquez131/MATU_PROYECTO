@@ -56,7 +56,12 @@ def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
 
 
 # MATU-62 (decisión 240): ?version= es un número de versión, no un dato de nadie
-CONSULTAS_PERMITIDAS = {("/v1/condiciones-pedido", "version")}
+CONSULTAS_PERMITIDAS = {
+    ("/v1/condiciones-pedido", "version"),
+    # MATU-92: el GET de la misma ruta es «Tus pedidos», paginada (cursor opaco, sin datos de nadie)
+    ("/v1/personas-cuidadas/{persona_id}/pedidos", "cursor"),
+    ("/v1/personas-cuidadas/{persona_id}/pedidos", "limite"),
+}
 
 
 def test_sin_parametros_de_consulta_ni_datos_de_mas(esquema: dict[str, Any]) -> None:

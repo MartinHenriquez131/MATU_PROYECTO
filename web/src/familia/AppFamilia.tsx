@@ -18,13 +18,14 @@ import { PaginaInvitacion } from './Invitacion'
 import { InvitacionLista, Invitar } from './Invitar'
 import { ListaDeInsumos } from './ListaInsumos'
 import { PantallaPedido } from './Pedido'
+import { PantallaTusPedidos } from './TusPedidos'
 import { PantallaPago, VueltaSinSesion } from './Pago'
 import { hayVuelta, RUTA_PAGO } from './vueltaPago'
 import { ProveedorFamilia, puedeCompartir, puedeEditar, puedeVerFicha, useFamilia } from './estado'
 import { AvisoDeLlegada, Editor, ID_AVISO_LLEGADA, SinAcceso, TuFicha } from './Ficha'
 import { QuienLaVio } from './QuienLaVio'
 import { CambiarConCodigo, PedirCodigo } from './Recuperar'
-import { esRuta, navegar, PUBLICAS, useRuta, type Ruta } from './ruteo'
+import { esRuta, navegar, PUBLICAS, RUTA_ARREPENTIRME, RUTA_DETALLE_PEDIDO, RUTA_TUS_PEDIDOS, useRuta, type Ruta } from './ruteo'
 import { MarcoSimple, ShellFamilia } from './Shell'
 import { FICHA, TITULOS } from './textos'
 
@@ -91,6 +92,12 @@ function redireccion(ruta: string, s: ReturnType<typeof useFamilia>): Ruta | nul
   // MATU-62 2.1: el observador llega a «Tu pedido». Con una vuelta de Webpay no: el grupo elegido al
   // abrir es el primero, y la vuelta fija después el del pedido.
   if (ruta === RUTA_PAGO && s.rol === 'observador' && !hayVuelta()) return '/insumos/pedido'
+  // MATU-92 (2.1): el detalle y arrepentirse, solo con el pedido elegido en memoria y de la persona
+  // elegida. Al recargar, o para el observador (que no tiene detalle), la lista, sin aviso.
+  if (ruta === RUTA_DETALLE_PEDIDO || ruta === RUTA_ARREPENTIRME) {
+    const e = s.pedidoElegido
+    if (s.rol === 'observador' || !e || e.personaId !== s.personaId) return RUTA_TUS_PEDIDOS
+  }
   return null
 }
 
@@ -213,6 +220,9 @@ function Rutas() {
   else if (ruta === '/compartir/listo') pantalla = <EnlaceListo />
   else if (ruta === '/compartir/enlaces') pantalla = <Enlaces />
   else if (ruta === '/insumos/lista') pantalla = <ListaDeInsumos />
+  // MATU-92: las tres rutas de «Tus pedidos» son una sola pantalla, que conserva en memoria la nota
+  // del detalle al volver de arrepentirse (la `key` de abajo no cambia entre ellas).
+  else if (ruta.startsWith(RUTA_TUS_PEDIDOS)) pantalla = <PantallaTusPedidos />
   // MATU-61: las tres rutas del pedido son una sola pantalla, que conserva el pedido en memoria al
   // pasar del carrito a la dirección y al resumen (la `key` de abajo no cambia entre ellas).
   else if (ruta.startsWith('/insumos/pedido')) pantalla = <PantallaPedido />

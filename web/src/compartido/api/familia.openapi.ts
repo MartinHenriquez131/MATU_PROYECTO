@@ -922,7 +922,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * «Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años
+         * @description MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3
+         */
+        get: operations["listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get"];
         put?: never;
         /**
          * Crear el carrito (borrador) con productos del catálogo
@@ -1754,7 +1758,7 @@ export interface paths {
         put?: never;
         /**
          * Cancelar Con Devolucion
-         * @description R15 (D-63-11): el admin cancela un pedido pagado mientras ningún comercio empezó a preparar. Se devuelve todo, envío incluido, a la misma tarjeta, y las partes quedan canceladas. Pantalla en MATU-92.
+         * @description R15 (D-63-11): el admin cancela un pedido pagado mientras ningún comercio empezó a preparar. Se devuelve todo, envío incluido, a la misma tarjeta, y las partes quedan canceladas. MATU-92: Idempotency-Key obligatoria (la repetición responde 200 con el estado actual, C8), y un pedido ya cancelado responde 409 estado-pedido (C11). Registra pedido.cancelar y pago.devolver. Capa 3
          */
         post: operations["cancelar_con_devolucion_v1_pedidos__pedido_id__cancelar_con_devolucion_post"];
         delete?: never;
@@ -1772,13 +1776,13 @@ export interface paths {
         };
         /**
          * Ver Retractos
-         * @description Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92.
+         * @description Hasta cuándo se puede pedir el retracto (fecha exacta, D-63-9) y los retractos pedidos. MATU-92 (rutas 3 y 4): por línea, lo entregado, lo ya pedido, lo disponible, el precio pagado y si se pierde al abrir; si devolver todo incluye el envío; plazo_correo_hasta (C22); puede_arrepentirse con su motivo (C7); y en cada retracto sus líneas, es_tuyo (C18), origen (C21) y resuelto_en. admin, cuidador y pagador, pedido entregado. No se audita. Capa 3
          */
         get: operations["ver_retractos_v1_pedidos__pedido_id__retractos_get"];
         put?: never;
         /**
          * Pedir Retracto
-         * @description R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. Pantalla en MATU-92.
+         * @description R3: «Arrepentirme de la compra». El admin, o quien pagó si sigue en el grupo, elige los productos y cuántos. Se devuelven a precio pagado, y el envío según las condiciones aceptadas (D-63-10), cuando MATU recibe el producto con el sello intacto. MATU-92: el observador recibe 404 (C6); Idempotency-Key obligatoria (la repetición responde 201 con el mismo retracto, C8); el pedido se bloquea antes de leer lo ya pedido, y dos solicitudes a la vez no piden más de lo entregado. Registra pedido.retracto_solicitar. Capa 3
          */
         post: operations["pedir_retracto_v1_pedidos__pedido_id__retractos_post"];
         delete?: never;
@@ -1821,6 +1825,26 @@ export interface paths {
          * @description H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.
          */
         post: operations["registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pedidos/{pedido_id}/seguimiento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cómo va un pedido pagado, por comercio
+         * @description MATU-92 (ruta 2). admin, cuidador y pagador; el observador no tiene detalle (404, D-92-1 a). Cada parte con el nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago (C14). No se audita. Capa 3
+         */
+        get: operations["ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3775,16 +3799,18 @@ export interface components {
         };
         /**
          * Devolucion
-         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado.
+         * @description Una anulación a la misma tarjeta (decisión 239). Las en_curso no restan del total pagado. MATU-92 (C13): suma
+         *     ``retracto``, por producto o por el envío (``producto`` null).
          */
         Devolucion: {
             /**
              * Motivo
              * @enum {string}
              */
-            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion";
+            motivo: "pago_tardio" | "producto_no_entregado" | "cancelacion" | "retracto";
             /** Monto */
             monto: number;
+            /** @description El producto devuelto, o null si es el envío o el pedido completo (cancelacion, pago_tardio) */
             producto: components["schemas"]["ProductoPedido"] | null;
             /**
              * Estado
@@ -5289,28 +5315,69 @@ export interface components {
             plazo_hasta: string;
             /** Incluye Envio */
             incluye_envio: boolean;
-            /** Monto */
+            /**
+             * Monto
+             * @description Los productos a precio pagado, más el envío si lo incluye
+             */
             monto: number;
             /**
              * Origen
-             * @default app
+             * @description correo: lo pidió la familia por correo y lo registró operación
              * @enum {string}
              */
             origen: "app" | "correo";
+            /** Lineas */
+            lineas: components["schemas"]["LineaDelRetracto"][];
+            /**
+             * Resuelto En
+             * @description Cuándo se devolvió o no se aceptó; null si sigue
+             */
+            resuelto_en: string | null;
         };
         /**
          * RetractosDelPedido
-         * @description GET /v1/pedidos/{id}/retractos: hasta cuándo se puede pedir (la fecha exacta que muestra la pantalla) y los
-         *     retractos pedidos.
+         * @description GET /v1/pedidos/{id}/retractos: hasta cuándo se puede pedir (la fecha exacta que muestra la pantalla), lo que
+         *     se puede devolver y los retractos pedidos (MATU-92).
          */
         RetractosDelPedido: {
             /**
              * Plazo Hasta
              * Format: date-time
+             * @description Fin del décimo día hábil desde la entrega, en hora de Chile
              */
             plazo_hasta: string;
+            /**
+             * Plazo Correo Hasta
+             * Format: date-time
+             * @description 90 días desde la entrega: hasta aquí, por correo (C22)
+             */
+            plazo_correo_hasta: string;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /**
+             * Condiciones Version
+             * @description La versión de las condiciones aceptada al pagar
+             */
+            condiciones_version: string | null;
+            /**
+             * Costo Envio
+             * @description El envío pagado, en pesos enteros
+             */
+            costo_envio: number;
+            /**
+             * Incluye Envio Si Todo
+             * @description Si devolver ahora todo lo disponible devuelve también el envío (D-63-10)
+             */
+            incluye_envio_si_todo: boolean;
+            /** Lineas */
+            lineas: components["schemas"]["LineaParaRetracto"][];
             /** Retractos */
-            retractos: components["schemas"]["RetractoVista"][];
+            retractos: components["schemas"]["RetractoVistaFamilia"][];
         };
         /** SolicitudCodigo */
         SolicitudCodigo: {
@@ -5435,6 +5502,349 @@ export interface components {
             lineas: components["schemas"]["LineaRetracto"][];
             /** Solicitado Por */
             solicitado_por?: string | null;
+        };
+        /** ComercioDeLaParte */
+        ComercioDeLaParte: {
+            /**
+             * Nombre Fantasia
+             * @description null si el comercio ya no está activo
+             */
+            nombre_fantasia: string | null;
+            /**
+             * Ficticio
+             * @description Con true, la pantalla agrega «(comercio ficticio)»
+             */
+            ficticio: boolean;
+        };
+        /** LineaDeLaParte */
+        LineaDeLaParte: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Unidades Faltantes
+             * @description Las que el comercio no tenía
+             */
+            unidades_faltantes: number;
+        };
+        /**
+         * LineaDelRetracto
+         * @description MATU-92 (ruta 4): un producto del retracto, con lo que se devuelve a precio pagado.
+         */
+        LineaDelRetracto: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+            /**
+             * Monto
+             * @description cantidad × precio pagado, en pesos enteros
+             */
+            monto: number;
+        };
+        /**
+         * LineaParaRetracto
+         * @description MATU-92 (ruta 3): lo que se puede devolver de una línea entregada.
+         */
+        LineaParaRetracto: {
+            /**
+             * Linea Id
+             * Format: uuid
+             */
+            linea_id: string;
+            producto: components["schemas"]["ProductoPedido"];
+            /**
+             * Entregadas
+             * @description cantidad − unidades_faltantes
+             */
+            entregadas: number;
+            /**
+             * Ya Pedidas
+             * @description En retractos anteriores, también los no aceptados (H3 y H8)
+             */
+            ya_pedidas: number;
+            /**
+             * Disponibles
+             * @description entregadas − ya_pedidas: el máximo de un retracto nuevo
+             */
+            disponibles: number;
+            /**
+             * Precio Pagado
+             * @description El precio unitario pagado, en pesos enteros (C9)
+             */
+            precio_pagado: number;
+            /** Retracto Pierde Al Abrir */
+            retracto_pierde_al_abrir: boolean;
+        };
+        /** ListaPedidosPagados */
+        ListaPedidosPagados: {
+            /** Items */
+            items: components["schemas"]["PedidoPagadoFila"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /** ListaPedidosPagadosObservador */
+        ListaPedidosPagadosObservador: {
+            /** Items */
+            items: components["schemas"]["PedidoPagadoFilaObservador"][];
+            /** Siguiente Cursor */
+            siguiente_cursor: string | null;
+        };
+        /**
+         * ParteDelPedido
+         * @description Una parte del pedido por comercio (C16): su estado, que la pantalla dice con los textos de la familia.
+         */
+        ParteDelPedido: {
+            comercio: components["schemas"]["ComercioDeLaParte"];
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "enviada" | "preparando" | "lista" | "retirada" | "cancelada";
+            /**
+             * Cancelada Por
+             * @description Solo con cancelada: el comercio no tenía nada (faltante) o se canceló el pedido
+             */
+            cancelada_por: ("faltante" | "pedido") | null;
+            /** Lineas */
+            lineas: components["schemas"]["LineaDeLaParte"][];
+        };
+        /**
+         * PedidoPagadoFila
+         * @description Una fila de «Tus pedidos» para admin, cuidador y pagador (C5).
+         */
+        PedidoPagadoFila: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Cancelado En */
+            cancelado_en: string | null;
+            /** Productos */
+            productos: components["schemas"]["ProductoDeLaFila"][];
+            resumen_productos: components["schemas"]["ResumenProductos"] | null;
+            /**
+             * Productos Borrados
+             * @description C28: ya no se guardan los productos del pedido
+             */
+            productos_borrados: boolean;
+            /**
+             * Total
+             * @description El total pagado, envío incluido, en pesos enteros
+             */
+            total: number;
+            /**
+             * Devuelto
+             * @description Lo devuelto a la tarjeta con anulaciones hechas
+             */
+            devuelto: number;
+            /**
+             * Devuelto Todo
+             * @description devuelto = total: «Devolvimos», y no «Estamos devolviendo»
+             */
+            devuelto_todo: boolean;
+            /** Puede Cancelar */
+            puede_cancelar: boolean;
+            /**
+             * Cancelar Motivo
+             * @description null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló
+             */
+            cancelar_motivo: ("rol" | "ya_se_prepara" | "cancelado") | null;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /**
+             * Plazo Hasta
+             * @description Fin del décimo día hábil desde la entrega, en hora de Chile. null sin entrega
+             */
+            plazo_hasta: string | null;
+            /**
+             * Plazo Correo Hasta
+             * @description 90 días desde la entrega. null sin entrega
+             */
+            plazo_correo_hasta: string | null;
+        };
+        /**
+         * PedidoPagadoFilaObservador
+         * @description Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de
+         *     la entrega ni acciones.
+         */
+        PedidoPagadoFilaObservador: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @constant
+             */
+            estado: "pagado";
+            /** Productos */
+            productos: components["schemas"]["ProductoDeLaFila"][];
+            resumen_productos: components["schemas"]["ResumenProductos"] | null;
+            /** Productos Borrados */
+            productos_borrados: boolean;
+        };
+        /** ProductoDeLaFila */
+        ProductoDeLaFila: {
+            producto: components["schemas"]["ProductoPedido"];
+            /** Cantidad */
+            cantidad: number;
+        };
+        /**
+         * ResumenProductos
+         * @description O5 del diseño: «{primero} y {otros} productos más».
+         */
+        ResumenProductos: {
+            /** Primero */
+            primero: string;
+            /** Otros */
+            otros: number;
+        };
+        /**
+         * RetractoVistaFamilia
+         * @description El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.
+         */
+        RetractoVistaFamilia: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "solicitado" | "devuelto" | "rechazado";
+            /**
+             * Solicitado En
+             * Format: date-time
+             */
+            solicitado_en: string;
+            /**
+             * Plazo Hasta
+             * Format: date-time
+             */
+            plazo_hasta: string;
+            /** Incluye Envio */
+            incluye_envio: boolean;
+            /**
+             * Monto
+             * @description Los productos a precio pagado, más el envío si lo incluye
+             */
+            monto: number;
+            /**
+             * Origen
+             * @description correo: lo pidió la familia por correo y lo registró operación
+             * @enum {string}
+             */
+            origen: "app" | "correo";
+            /** Lineas */
+            lineas: components["schemas"]["LineaDelRetracto"][];
+            /**
+             * Resuelto En
+             * @description Cuándo se devolvió o no se aceptó; null si sigue
+             */
+            resuelto_en: string | null;
+            /** Es Tuyo */
+            es_tuyo: boolean;
+        };
+        /**
+         * SeguimientoPedido
+         * @description GET /v1/pedidos/{id}/seguimiento (ruta 2): cómo va el pedido pagado, por comercio. Sin la referencia de la
+         *     parte, el código de retiro ni nada del encargado (C15). El comprobante es GET …/pago (C14).
+         */
+        SeguimientoPedido: {
+            /**
+             * Pedido Id
+             * Format: uuid
+             */
+            pedido_id: string;
+            /** Referencia */
+            referencia: string;
+            /**
+             * Pagado En
+             * Format: date-time
+             */
+            pagado_en: string;
+            /**
+             * Estado
+             * @description El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado
+             * @enum {string}
+             */
+            estado: "pagado" | "enviado_a_comercio" | "preparando" | "listo_retiro" | "en_ruta" | "entregado" | "no_entregado" | "reprogramado" | "cancelado_con_devolucion";
+            /** Entregado En */
+            entregado_en: string | null;
+            /** Cancelado En */
+            cancelado_en: string | null;
+            /** Partes */
+            partes: components["schemas"]["ParteDelPedido"][];
+            /** Productos Borrados */
+            productos_borrados: boolean;
+            /** Total */
+            total: number;
+            /** Devuelto */
+            devuelto: number;
+            /** Devuelto Todo */
+            devuelto_todo: boolean;
+            /** Puede Cancelar */
+            puede_cancelar: boolean;
+            /**
+             * Cancelar Motivo
+             * @description null si puede_cancelar. rol: solo el admin cancela; ya_se_prepara: un comercio ya empezó (o el pedido ya salió); cancelado: el pedido ya se canceló
+             */
+            cancelar_motivo: ("rol" | "ya_se_prepara" | "cancelado") | null;
+            /** Puede Arrepentirse */
+            puede_arrepentirse: boolean;
+            /**
+             * Arrepentirse Motivo
+             * @description null si puede_arrepentirse. sin_entregar; plazo_app_vencido: pasaron los 10 días hábiles y queda el correo hasta plazo_correo_hasta (C22); plazo_vencido: pasaron también los 90 días; rol: pueden el admin y quien pagó; nada_disponible: ya se pidió devolver todo lo entregado
+             */
+            arrepentirse_motivo: ("rol" | "sin_entregar" | "plazo_app_vencido" | "plazo_vencido" | "nada_disponible") | null;
+            /** Plazo Hasta */
+            plazo_hasta: string | null;
+            /** Plazo Correo Hasta */
+            plazo_correo_hasta: string | null;
         };
     };
     responses: never;
@@ -9481,6 +9891,60 @@ export interface operations {
             };
         };
     };
+    listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limite?: number;
+            };
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                persona_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListaPedidosPagados"] | components["schemas"]["ListaPedidosPagadosObservador"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description cursor inválido o limite fuera de 1 a 100 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
     crear_pedido_v1_personas_cuidadas__persona_id__pedidos_post: {
         parameters: {
             query?: never;
@@ -12320,6 +12784,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
             };
             path: {
                 pedido_id: string;
@@ -12346,7 +12811,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description El rol no alcanza, o el pedido no es del grupo o no se entregó */
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12355,7 +12820,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description ya-se-prepara: un comercio empezó a preparar, o el pedido no está pagado */
+            /** @description /errores/estado-pedido (con estado): el pedido ya se canceló o no está pagado (C11); /errores/ya-se-prepara: un comercio empezó a preparar; o /errores/idempotencia-en-curso: una petición con la misma clave todavía no termina */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12364,13 +12829,22 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Idempotency-Key o cuerpo inválidos, o /errores/idempotencia-reutilizada */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
             /** @description Sin PASARELA_PAGO no se puede devolver: no se cancela */
@@ -12415,7 +12889,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description El rol no alcanza, o el pedido no es del grupo o no se entregó */
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12440,6 +12914,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-Grupo-Id"?: string | null;
+                "Idempotency-Key"?: string | null;
             };
             path: {
                 pedido_id: string;
@@ -12458,7 +12933,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RetractoVista"];
+                    "application/json": components["schemas"]["RetractoVistaFamilia"];
                 };
             };
             /** @description no-autenticado o token-invalido */
@@ -12470,7 +12945,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description El rol no alcanza, o el pedido no es del grupo o no se entregó */
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12479,7 +12954,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description fuera-de-plazo: pasaron los 10 días hábiles (extensión plazo_hasta) */
+            /** @description /errores/fuera-de-plazo: pasaron los 10 días hábiles (extensión plazo_hasta); o /errores/idempotencia-en-curso: una petición con la misma clave todavía no termina */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -12488,8 +12963,17 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description producto-no-retractable: un producto no se entregó, ya se pidió o la cantidad no calza */
+            /** @description /errores/producto-no-retractable: un producto no se entregó, ya se pidió o la cantidad no calza; Idempotency-Key o cuerpo inválidos; o /errores/idempotencia-reutilizada */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description /errores/falta-idempotencia */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12624,6 +13108,57 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    ver_seguimiento_v1_pedidos__pedido_id__seguimiento_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Grupo-Id"?: string | null;
+            };
+            path: {
+                pedido_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeguimientoPedido"];
+                };
+            };
+            /** @description no-autenticado o token-invalido */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description El rol no alcanza, o el pedido no es del grupo, es de una persona eliminada, venció o no se entregó */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
