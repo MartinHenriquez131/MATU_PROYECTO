@@ -1641,8 +1641,9 @@ def test_0030_backoffice_de_operacion_y_baja_al_esquema_de_0029(base_desechable)
                          " 'persona_operacion', 'entrega_operacion')")
     assert quitadas == []
     assert consultar("SELECT cmd FROM pg_policies WHERE policyname = 'entrega_operacion_leer'") == [("SELECT",)]
-    assert consultar("SELECT count(*) FROM pg_policies WHERE policyname IN ('consentimiento_operacion',"
-                     " 'direccion_operacion_leer')") == [(2,)]
+    assert consultar("SELECT count(*) FROM pg_policies WHERE policyname = 'direccion_operacion_leer'") == [(1,)]
+    assert consultar("SELECT policyname, roles::text FROM pg_policies WHERE tablename = 'consentimiento'"
+                     " AND qual LIKE '%operacion%'") == [("consentimiento_conservacion", "{matu_owner}")]
     # Las funciones nuevas, solo para su rol, con dueño matu_owner
     filas = consultar("SELECT proname, proacl::text, prosecdef FROM pg_proc WHERE proname = ANY(ARRAY["
                       + ", ".join(f"'{x}'" for x in FUNCIONES_0030) + "])")

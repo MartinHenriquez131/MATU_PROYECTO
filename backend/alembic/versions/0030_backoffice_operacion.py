@@ -29,10 +29,9 @@ d) MFA (C26 a C33):
      del alta (python -m app.tareas operacion-alta). El alta marca es_operacion, guarda el secreto cifrado, revoca las
      sesiones abiertas de la cuenta (motivo operacion) y audita cuenta.mfa_alta, sin grupo y sin el secreto.
 e) D-81-6: sale persona_operacion (operación no lee la persona cuidada) y entrega_operacion queda solo de lectura
-   (entrega_operacion_leer). Se mantiene direccion_operacion_leer. consentimiento_operacion **se mantiene**: la usan
-   plan_destruir_claves (0016, 0028) y consumo_conservar (0009), que corren como matu_owner con app.rol = 'operacion'
-   y leen el consentimiento con esa política (FORCE ROW LEVEL SECURITY). Quitarla rompe la destrucción de las fichas y
-   la conservación del consumo. Ver la decisión 452.
+   (entrega_operacion_leer). Se mantiene direccion_operacion_leer. consentimiento_operacion pasa a
+   consentimiento_conservacion, TO matu_owner (decisión 452): plan_destruir_claves (0016, 0028) y consumo_conservar
+   (0009) corren como matu_owner con app.rol = 'operacion' y siguen leyéndolo; matu_app con operación, ya no.
 f) C24: retracto.motivo_rechazo (sello_abierto o producto_no_recibido), solo en un retracto rechazado. Las filas
    rechazadas anteriores quedan sin motivo (el CHECK lo admite).
 g) C1: operación cambia precio, stock y disponible solo en las ofertas de comercios ficticios (trigger
@@ -456,14 +455,19 @@ POLITICAS = """
 -- (b) D-81-2: operación no lee las aceptaciones de la política
 DROP POLICY aceptacion_operacion_leer ON aceptacion_politica;
 
--- (e) D-81-6: operación no lee la persona cuidada, y la entrega del pedido la lee sin escribirla.
--- consentimiento_operacion se mantiene: la usan plan_destruir_claves y consumo_conservar (decisión 452)
+-- (e) D-81-6: operación no lee la persona cuidada, y la entrega del pedido la lee sin escribirla
 DROP POLICY persona_operacion ON persona_cuidada;
 DROP POLICY entrega_operacion ON pedido_entrega;
 CREATE POLICY entrega_operacion_leer ON pedido_entrega FOR SELECT USING (app_rol() = 'operacion');
+-- Decisión 452: el consentimiento lo leen solo las funciones de conservación (plan_destruir_claves y
+-- consumo_conservar, SECURITY DEFINER como matu_owner), nunca matu_app con app.rol = 'operacion'
+DROP POLICY consentimiento_operacion ON consentimiento;
+CREATE POLICY consentimiento_conservacion ON consentimiento FOR SELECT TO matu_owner USING (app_rol() = 'operacion');
 """
 
 POLITICAS_BAJADA = """
+DROP POLICY consentimiento_conservacion ON consentimiento;
+CREATE POLICY consentimiento_operacion ON consentimiento FOR SELECT USING (app_rol() = 'operacion');
 DROP POLICY entrega_operacion_leer ON pedido_entrega;
 CREATE POLICY entrega_operacion ON pedido_entrega FOR ALL USING (app_rol() = 'operacion');
 CREATE POLICY persona_operacion ON persona_cuidada FOR SELECT USING (app_rol() = 'operacion');

@@ -4537,8 +4537,12 @@ def test_d_81_2_y_d_81_6_operacion_no_lee_la_persona_ni_las_aceptaciones_y_la_en
     assert contar(cx, "pedido_entrega") >= 1
     assert cx.execute("UPDATE pedido_entrega SET referencia = 'x' RETURNING pedido_id").fetchall() == []
     assert cx.execute("DELETE FROM pedido_entrega RETURNING pedido_id").fetchall() == []
-    # La dirección se sigue leyendo (D-81-6) y el consentimiento también, por plan_destruir_claves (decisión 452)
+    # La dirección se sigue leyendo (D-81-6); el consentimiento, no (decisión 452: solo las funciones de conservación)
     assert contar(cx, "direccion") >= 1
+    assert contar(cx, "consentimiento") == 0
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_A, rol="operacion")
+    assert contar(cx, "consentimiento") == 0
 
 
 @pytest.mark.rf("RF-40")
