@@ -20369,6 +20369,7 @@
             "default": false
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "pedidos"
@@ -20429,6 +20430,7 @@
             "title": "Estado Codigo"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
@@ -20721,6 +20723,7 @@
             "title": "Devolucion Sin Terminar"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
@@ -21208,6 +21211,21 @@
             ],
             "title": "Resuelto En"
           },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo"
+          },
           "lineas": {
             "items": {
               "$ref": "#/components/schemas/LineaRetractoCopia"
@@ -21224,6 +21242,7 @@
           "plazo_hasta",
           "incluye_envio",
           "resuelto_en",
+          "motivo_rechazo",
           "lineas"
         ],
         "title": "RetractoCopia",
@@ -21270,6 +21289,21 @@
             ],
             "title": "Resuelto En"
           },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo"
+          },
           "productos": {
             "items": {
               "type": "string"
@@ -21286,6 +21320,7 @@
           "estado",
           "solicitado_en",
           "resuelto_en",
+          "motivo_rechazo",
           "productos"
         ],
         "title": "RetractoCuentaCopia",
@@ -22839,6 +22874,7 @@
             "default": false
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "retractos"
