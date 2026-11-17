@@ -644,7 +644,7 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
     publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
-    huella = "99bf95a1e86084137285a7d917b4db45d1c50cb916ab5db9a0879c11ed15f5df"  # pragma: allowlist secret
+    huella = "f62b9d14535cc49889a5a8c1ce686a92e4de2071ce9050403422a58a6dc8c539"  # pragma: allowlist secret
     assert PUBLICADAS["0.21"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
@@ -663,11 +663,15 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
         " pedido: se guarda 2 años desde que el pedido se cierra y se borra con él.",
         "Que alguien de tu grupo mire un pedido o un pago no se registra.",
         "- La versión 0.21 agrega la consola del equipo de MATU",
+        # §13: con comercios ficticios, el retiro y la entrega se marcan sin un pedido real (decisión del 17-11)
+        "el retiro y la entrega se marcan en MATU sin llevar un pedido real",
         "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: el equipo ve menos que antes,"
         " y lo que anota es parte de responder por tu pedido.",
     ):
         assert parte in texto, parte
     # La frase anterior del equipo, que decía que veía «los pedidos y los pagos» para soporte, ya no está
     assert "**El equipo de MATU:** para dar soporte ve los pedidos y los pagos." not in texto
+    # La frase anterior de §13, que decía que el equipo de MATU hacía el retiro y la entrega, ya no está
+    assert "El retiro y la entrega los hace el equipo de MATU." not in texto
     # Lo de la 0.20 sigue en el texto vigente
     assert "- La versión 0.20 agrega «Tus pedidos»" in texto
