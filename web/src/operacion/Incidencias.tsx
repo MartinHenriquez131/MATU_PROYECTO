@@ -400,9 +400,9 @@ export function AnotarIncidencia({
   const contador = useRef(0)
   const pedirFoco = useFocoAlMontar()
 
+  // 9.3: al abrir, el foco va a la primera opción de «¿Qué pasó?», o a la ya elegida si viene del pago (7).
   useEffect(() => {
-    if (tipoInicial) pedirFoco('anotar-nota', 'textarea')
-    else pedirFoco('anotar-tipo', 'input[type="radio"]')
+    pedirFoco('anotar-tipo', tipoInicial ? 'input[type="radio"]:checked' : 'input[type="radio"]')
   }, [pedirFoco, tipoInicial])
 
   const enviar = async (e: FormEvent) => {

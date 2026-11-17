@@ -1,11 +1,12 @@
 // Textos de la consola de operación (MATU-81), tal cual los da la especificación del diseñador
-// (docs/diseno/matu-81-operacion.md v1.0). Marcas de origen: [A81] el analista, [L nn] lenguaje.md,
+// (docs/diseno/matu-81-operacion.md v1.1). Marcas de origen: [A81] el analista, [L nn] lenguaje.md,
 // [C63] la consola del comercio, [E39] Entrar de MATU-39, [NUEVO] del diseñador (Jorge aprueba) y
 // [FRONTEND] un texto que la especificación no trae y que este archivo propone (va en el informe).
 // Nunca nombres de personas, direcciones, grupos, correos, la tarjeta ni el código de retiro. Sin
 // «token», «sesión», «stock», «inválido», «rechazado» ni «fallido».
 import { ENTRAR as ENTRAR_FAMILIA, GENERAL } from '../familia/textos'
 import { pesos } from '../familia/textosCatalogo'
+import { MOTIVO_RECHAZO_FAMILIA } from '../familia/textosTusPedidos'
 import type {
   AccionPedido,
   AnulacionVista,
@@ -324,7 +325,7 @@ export const RETRACTOS = {
   vencio: (fecha: string) => `El plazo venció el ${fecha}.`,
   vacio: 'No hay retractos por resolver.',
   vacioEn: (chip: string) => `No hay retractos en «${chip}».`, // [NUEVO] 8.2
-  hayMas: 'Mostramos los primeros 200.', // [FRONTEND] del molde de MATU-55 2.5; hay_mas (decisión 466)
+  hayMas: 'Hay más de 200 retractos aquí. Mostramos los primeros 200.', // [NUEVO] 8.2 v1.1; hay_mas (decisión 466)
   cargando: 'Cargando los retractos…', // [FRONTEND] del molde de [C63]
   errorAlTraer: 'No pudimos traer los retractos. Revisa tu conexión y vuelve a intentarlo.', // [FRONTEND] del molde de [C63]
   elige: 'Elige un retracto de la lista para ver sus productos y resolverlo.', // [FRONTEND]
@@ -352,7 +353,8 @@ export const RETRACTOS = {
   volverAlRetracto: 'Volver al retracto',
   devolvisteHecho: (monto: number, ref: string) => `Devolviste ${pesos(monto)} por el retracto del pedido ${ref}. Cuándo se ve en la cuenta depende del banco.`,
   noDevolverTitulo: '¿No devolver el dinero de este retracto?',
-  noDevolverDestacado: (motivo: string) => `No se devuelve dinero. La familia ve el motivo: ${motivo}`,
+  /** O3 del analista: `{motivo}` es el texto exacto que lee la familia, no el de la consola. */
+  noDevolverDestacado: (motivo: MotivoRechazo) => `No se devuelve dinero. La familia ve el motivo: ${MOTIVO_RECHAZO_FAMILIA[motivo]}`,
   guardando: 'Guardando…',
   respondisteHecho: (ref: string) => `Respondiste el retracto del pedido ${ref} sin devolver dinero.`,
   cambio: 'Este retracto cambió mientras lo veías. Te mostramos cómo quedó.',
@@ -376,7 +378,7 @@ export const RETRACTOS = {
   noEsAdminTitulo: 'Ese correo no es de quien administra el grupo de este pedido.',
   noEsAdminTexto: 'Revisa el correo. Si lo mandó otra persona, respóndele que lo pida quien administra.',
   fueraDePlazo: (fecha: string) => `Este pedido ya no tiene plazo de retracto: venció el ${fecha}.`,
-  noRetractable: 'Elige productos que se entregaron, hasta lo que queda por devolver.', // [FRONTEND] 422 producto-no-retractable, también con unidades ya pedidas (hueco 4)
+  noRetractable: 'Elige productos que se entregaron, hasta lo que queda por devolver.', // [FRONTEND] 422 producto-no-retractable, también con unidades ya pedidas en otro retracto
 }
 
 /** 9: Incidencias. */

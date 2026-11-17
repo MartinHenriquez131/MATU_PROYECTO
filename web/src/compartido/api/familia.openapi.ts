@@ -5666,6 +5666,8 @@ export interface components {
             incluye_envio: boolean;
             /** Resuelto En */
             resuelto_en: string | null;
+            /** Motivo Rechazo */
+            motivo_rechazo: ("sello_abierto" | "producto_no_recibido") | null;
             /** Lineas */
             lineas: components["schemas"]["LineaRetractoCopia"][];
         };
@@ -5687,6 +5689,8 @@ export interface components {
             solicitado_en: string;
             /** Resuelto En */
             resuelto_en: string | null;
+            /** Motivo Rechazo */
+            motivo_rechazo: ("sello_abierto" | "producto_no_recibido") | null;
             /** Productos */
             productos: string[];
         };

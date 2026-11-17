@@ -211,7 +211,18 @@ export function copiaPersona(cambios: Partial<CopiaDatosPersona> = {}): CopiaDat
         },
         precios_de_ejemplo: true,
         partes: [],
-        retractos: [],
+        // MATU-81 (H2 del analista): el motivo de un retracto que no se aceptó.
+        retractos: [
+          {
+            estado: 'rechazado',
+            solicitado_en: '2026-11-09T09:00:00-03:00',
+            plazo_hasta: '2026-11-19T09:00:00-03:00',
+            incluye_envio: false,
+            resuelto_en: '2026-11-10T12:00:00-03:00',
+            motivo_rechazo: 'sello_abierto',
+            lineas: [{ producto: 'Pañal adulto M', cantidad: 1 }],
+          },
+        ],
         lo_que_paso: [],
       },
       {

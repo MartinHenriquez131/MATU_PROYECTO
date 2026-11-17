@@ -174,7 +174,10 @@ export function GrupoOpciones<T extends string>({
   claseGrupo?: string
   /** MATU-63 (6.4): mientras se guarda lo elegido, `aria-busy` en el grupo. */
   ocupado?: boolean
-  /** MATU-63 (6.4): el `id` del `fieldset`, para llevar el foco a su primera opción. */
+  /**
+   * MATU-63 (6.4): el `id` del `fieldset`, para llevar el foco a su primera opción. MATU-81 (8.4 y 9.3,
+   * revisión visual): también en la forma `lista`, que no lo ponía y dejaba el foco en `body`.
+   */
   id?: string
   /**
    * MATU-63 (revisión visual, P2-6 y P3-12): en `chips`, la leyenda flota dentro de la tarjeta (no
@@ -218,6 +221,7 @@ export function GrupoOpciones<T extends string>({
   const describeLista = [describe ?? '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   return (
     <fieldset
+      id={idGrupo}
       className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`}
       aria-labelledby={nombradoPor ? `${id}-l ${nombradoPor}` : undefined}
       aria-describedby={describeLista}

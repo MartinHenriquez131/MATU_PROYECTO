@@ -145,9 +145,10 @@ export function FilaCola({ elegida, nombre, onElegir, primera, children }: { ele
         elegida ? 'bg-rocio ring-2 ring-turquesa' : 'bg-hoja ring-1 ring-linea hover:ring-borde'
       }`}
     >
-      <span className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 font-bold">
-        {primera}
-        {elegida && <ChevronRight aria-hidden className="ms-auto size-5 shrink-0" />}
+      {/* Revisión visual (P3): el chevron va fuera del `flex-wrap`, para que nunca baje a una línea sola. */}
+      <span className="flex w-full items-start gap-x-3 font-bold">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1">{primera}</span>
+        {elegida && <ChevronRight aria-hidden className="mt-0.5 ml-auto size-5 shrink-0" />}
       </span>
       {children}
     </button>

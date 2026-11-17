@@ -39,7 +39,7 @@ const CHIPS: { valor: EstadoRetracto; texto: string }[] = [
 ]
 
 /** 8.2: el plazo de la fila, en `atenta` con 2 días o menos, o vencido. */
-function plazoDe(r: RetractoOperacion, ahora: Date): { texto: string; atenta: boolean } | null {
+export function plazoDe(r: RetractoOperacion, ahora: Date): { texto: string; atenta: boolean } | null {
   if (r.estado !== 'solicitado') return null
   const hasta = new Date(r.plazo_hasta)
   const { fecha } = enChile(r.plazo_hasta)
@@ -47,7 +47,7 @@ function plazoDe(r: RetractoOperacion, ahora: Date): { texto: string; atenta: bo
   return { texto: T.responderAntes(fecha), atenta: hasta.getTime() - ahora.getTime() <= 2 * DIA }
 }
 
-function EtiquetaRetracto({ estado }: { estado: RetractoOperacion['estado'] }) {
+export function EtiquetaRetracto({ estado }: { estado: RetractoOperacion['estado'] }) {
   if (estado === 'devuelto') return <EtiquetaCon Icono={Undo2} tono="ok" texto={T.devuelto} />
   if (estado === 'rechazado') return <EtiquetaCon Icono={Ban} tono="neutro" texto={T.sinDevolucion} />
   return <EtiquetaCon Icono={Circle} tono="atenta" texto={T.porResolver} />
@@ -396,7 +396,7 @@ function DetalleRetracto({ id, onVolver, onCambio }: { id: string; onVolver: () 
         <DialogoConfirmar
           titulo={paso.tipo === 'devolver' ? T.devolverTitulo(r.monto) : T.noDevolverTitulo}
           texto={T.esDelPedido(ref)}
-          destacado={paso.tipo === 'devolver' ? T.devolverDestacado(r.monto) : T.noDevolverDestacado(T.motivo[paso.motivo])}
+          destacado={paso.tipo === 'devolver' ? T.devolverDestacado(r.monto) : T.noDevolverDestacado(paso.motivo)}
           confirmar={paso.tipo === 'devolver' ? T.devolver(r.monto) : T.noDevolver}
           confirmando={paso.tipo === 'devolver' ? T.devolviendo : T.guardando}
           seguir={T.volverAlRetracto}
@@ -467,7 +467,7 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
         setFalla({ tipo: 'no-es-admin' })
         pedirFoco('retracto-correo-campo', 'input')
       } else if (f.status === 422) setFalla({ tipo: 'no-retractable' })
-      // Hueco 4 (decidido): no hay 409 `retracto-en-curso`; pedir unidades ya pedidas es el 422 de arriba.
+      // Se admiten varios retractos por pedido: pedir unidades ya pedidas en otro también es el 422 de arriba.
       else if (f.status === 409) {
         const hasta = extensionDe(x, 'plazo_hasta')
         setFalla({ tipo: 'fuera-de-plazo', fecha: enChile(typeof hasta === 'string' ? hasta : (pedido.retracto_plazo_hasta ?? new Date().toISOString())).fecha })

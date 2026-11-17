@@ -69,12 +69,14 @@ describe('La lista', () => {
     expect(screen.getByText('Cuando se pague uno, aparece aquí.')).toBeVisible()
   })
 
-  it('error al traer: la nota y «Volver a intentar»', async () => {
+  it('error al traer: la nota y «Volver a intentar», sin «Actualizar»', async () => {
     apiOperacion({ modo: 'operacion-falla' })
     window.history.replaceState(null, '', '/operacion')
     const { urgente } = conRegionesVivas(<AppOperacion />)
     await waitFor(() => expect(urgente).toHaveTextContent('No pudimos traer los pedidos. Revisa tu conexión y vuelve a intentarlo.'))
     expect(screen.getByRole('button', { name: 'Volver a intentar' })).toBeVisible()
+    // Revisión visual (P3): mientras se ve el error, «Volver a intentar» es la única forma de pedirla.
+    expect(screen.queryByRole('button', { name: 'Actualizar' })).toBeNull()
   })
 })
 

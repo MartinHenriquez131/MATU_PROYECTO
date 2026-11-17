@@ -156,7 +156,7 @@ describe('Entrar al equipo de MATU, paso 2', () => {
     expect(campo).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('cinco fallos: 429 con los minutos; se quitan el campo y «Entrar», y «Volver a la contraseña» espera', async () => {
+  it('cinco fallos: 429 con los minutos; se quitan el campo, «Entrar» y el plazo, y «Volver a la contraseña» espera', async () => {
     const { usuario, urgente } = await hastaElCodigo((l) =>
       l === 'POST /v1/sesiones/mfa' ? { status: 429, cuerpo: { type: '/errores/mfa-bloqueado', status: 429, minutos_espera: 15 }, cabeceras: { 'retry-after': '900' } } : undefined,
     )
@@ -165,8 +165,12 @@ describe('Entrar al equipo de MATU, paso 2', () => {
     await waitFor(() => expect(urgente.textContent?.replace(/ /g, ' ')).toContain('Hubo 5 códigos que no coinciden. Espera 15 minutos y vuelve a entrar con tu contraseña.'))
     expect(screen.queryByLabelText(CAMPO)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Entrar' })).toBeNull()
+    // 4.4 (v1.1): ya no hay nada que escribir, así que el plazo también se quita.
+    expect(screen.queryByText(/^Tienes hasta las/)).toBeNull()
     const volver = screen.getByRole('button', { name: 'Volver a la contraseña' })
     expect(volver).toHaveAttribute('aria-disabled', 'true')
+    // El estilo deshabilitado de `Boton`.
+    expect(volver).toHaveClass('aria-disabled:cursor-not-allowed', 'aria-disabled:opacity-60')
     await usuario.click(volver)
     expect(screen.getByRole('heading', { level: 1, name: 'Escribe el código de tu teléfono' })).toBeVisible()
   })

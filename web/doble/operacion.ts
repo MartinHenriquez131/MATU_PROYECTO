@@ -803,8 +803,8 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
     if (typeof c.correo_solicitante !== 'string' || c.correo_solicitante.trim().toLowerCase() !== CORREO_ADMIN_DE_EJEMPLO) return problema(422, 'solicitante-invalido')
     const plazo = plazoRetracto(p)
     if (plazo && new Date(plazo).getTime() < ahora().getTime()) return problema(409, 'fuera-de-plazo', { plazo_hasta: plazo })
-    // Hueco 4 (decidido): no hay 409 `retracto-en-curso`. Se admiten varios retractos por pedido mientras queden
-    // unidades sin pedir; las ya pedidas (en cualquier retracto anterior, también los no aceptados) dan 422.
+    // Se admiten varios retractos por pedido mientras queden unidades sin pedir; las ya pedidas (en cualquier
+    // retracto anterior, también los no aceptados) dan 422.
     const yaPedidas = (lineaId: string) =>
       retractos.filter((r) => r.pedido_id === p.id).reduce((t, r) => t + r.lineas.filter((x) => x.linea_id === lineaId).reduce((u, x) => u + x.cantidad, 0), 0)
     const lineas = Array.isArray(c.lineas) ? (c.lineas as { linea_id?: unknown; cantidad?: unknown }[]) : []

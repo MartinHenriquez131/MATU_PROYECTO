@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { esperaDe, leerFallo, minutosDeEspera } from '../compartido/api/cliente'
 import { esProblema, extensionDe } from '../compartido/api/operacion'
 import { cerrarSinAvisar, entrarConCodigo, entrarConSegundoFactor, type DesafioMfa } from '../compartido/api/sesion'
-import { Boton } from '../compartido/ui/Boton'
+import { Boton, DESHABILITADO_ARIA } from '../compartido/ui/Boton'
 import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
 import { BotonMostrar } from '../familia/Alta'
 import { navegar } from '../familia/ruteo'
@@ -153,7 +153,7 @@ export function EntrarOperacion() {
             ocupado={ocupado}
             textoOcupado={T.revisando}
             aria-disabled={esperando || undefined}
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:focus-visible:outline-tinta"
+            className={`${DESHABILITADO_ARIA} aria-disabled:focus-visible:outline-tinta`}
           >
             {T.seguir}
           </Boton>
@@ -285,9 +285,12 @@ function PasoCodigo({ desafio, onVolver, onListo }: { desafio: DesafioMfa; onVol
             {menos && <MensajeError id={`${uid}-e`}>{T.menosDeSeis}</MensajeError>}
           </>
         )}
-        <p id={`${uid}-p`} className="cifras text-base whitespace-normal text-tenue">
-          {T.plazo(hora)}
-        </p>
+        {/* 4.4 (v1.1): con el bloqueo ya no hay nada que escribir, así que el plazo también se quita. */}
+        {resultado?.tipo !== 'bloqueado' && (
+          <p id={`${uid}-p`} className="cifras text-base whitespace-normal text-tenue">
+            {T.plazo(hora)}
+          </p>
+        )}
         <Acciones className="mt-2">
           {resultado?.tipo !== 'bloqueado' && (
             <Boton type="submit" ocupado={ocupado} textoOcupado={T.entrando}>
@@ -297,7 +300,7 @@ function PasoCodigo({ desafio, onVolver, onListo }: { desafio: DesafioMfa; onVol
           <Boton
             variante="texto"
             aria-disabled={bloqueado || undefined}
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            className={DESHABILITADO_ARIA}
             onClick={() => {
               if (!bloqueado) onVolver('volver')
             }}

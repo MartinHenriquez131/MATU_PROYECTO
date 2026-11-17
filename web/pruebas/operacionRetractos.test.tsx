@@ -79,11 +79,21 @@ describe('Retractos', () => {
     await usuario.click(screen.getByRole('radio', { name: 'El sello del producto se abrió.' }))
     await usuario.click(screen.getByRole('button', { name: 'No devolver' }))
     const dialogo = await screen.findByRole('dialog', { name: '¿No devolver el dinero de este retracto?' })
-    expect(within(dialogo).getByText('No se devuelve dinero. La familia ve el motivo: El sello del producto se abrió.')).toBeVisible()
+    // O3 del analista: el motivo del diálogo es el texto exacto que lee la familia, no el de la consola.
+    expect(within(dialogo).getByText('No se devuelve dinero. La familia ve el motivo: El producto volvió con el sello abierto.')).toBeVisible()
     await usuario.click(within(dialogo).getByRole('button', { name: 'No devolver' }))
     await waitFor(() => expect(amable).toHaveTextContent('Respondiste el retracto del pedido 4826 sin devolver dinero.'))
     const p = api.peticiones.find((x) => x.linea.endsWith('/resolver'))!
     expect(p.cuerpo).toEqual({ decision: 'rechazar', motivo: 'sello_abierto' })
+  })
+
+  it('8.4 (v1.1): al abrir «No devolver» el foco va a la primera opción; con «Cancelar», vuelve a «No devolver»', async () => {
+    const { usuario } = await abrirRetracto()
+    await usuario.click(screen.getByRole('button', { name: 'No devolver' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'El sello del producto se abrió.' })).toHaveFocus())
+    await usuario.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'No devolver' })).toHaveFocus())
+    expect(screen.queryByText('¿Por qué no se devuelve?')).toBeNull()
   })
 
   it('los chips (decisión 466): «Por resolver» pide estado=solicitado; «Devueltos», estado=devuelto, con su vacío', async () => {
@@ -119,18 +129,37 @@ describe('Retractos', () => {
     expect(fila).toHaveAccessibleName(/\$26\.490, Por la app, Pedido el 16\/11$/)
   })
 
-  it('hay_mas: «Mostramos los primeros 200.»; sin él, no aparece', async () => {
+  it('hay_mas: «Hay más de 200 retractos aquí. Mostramos los primeros 200.»', async () => {
     await abrir('/operacion/retractos', (l, _c, consola) =>
       l === 'GET /v1/operacion/retractos' ? { status: 200, cuerpo: { retractos: (consola.atender({ metodo: 'GET', ruta: l.slice(4), query: new URLSearchParams(), cuerpo: null, ifMatch: null })!.cuerpo as { retractos: unknown[] }).retractos, hay_mas: true } } : undefined,
     )
     await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ }, { timeout: 5000 })
-    expect(screen.getByText('Mostramos los primeros 200.')).toHaveClass('text-tenue')
+    expect(screen.getByText('Hay más de 200 retractos aquí. Mostramos los primeros 200.')).toHaveClass('text-tenue')
   })
 
   it('sin hay_mas no hay nota de los 200', async () => {
     await abrir('/operacion/retractos')
     await screen.findByRole('button', { name: /^Retracto del pedido 4826,/ }, { timeout: 5000 })
-    expect(screen.queryByText('Mostramos los primeros 200.')).toBeNull()
+    expect(screen.queryByText(/Mostramos los primeros 200\./)).toBeNull()
+  })
+
+  it('8.5 (v1.1): en el pedido, cada retracto lleva la etiqueta de su estado y el plazo', async () => {
+    const { api } = await abrirEntregado('4826')
+    const fila = await within(await screen.findByRole('region', { name: 'Retractos' })).findByRole('button', { name: /^Retracto del pedido 4826/ })
+    expect(fila).toHaveTextContent('Por resolver')
+    expect(within(fila).getByText('Responder antes del 18/11/2026')).toBeVisible()
+    // Los tres estados, para que también se vean «Devuelto» y «Sin devolución».
+    expect(api.peticiones.filter((x) => x.linea === 'GET /v1/operacion/retractos').map((x) => x.query)).toContain('estado=solicitado&estado=devuelto&estado=rechazado')
+  })
+
+  it('8.5 (v1.1): un pedido sin retractos ni plazo para registrar uno no tiene sección «Retractos»', async () => {
+    const { api, usuario } = await abrir('/operacion')
+    await usuario.click(await screen.findByRole('button', { name: /^Pedido 4822,/ }, { timeout: 5000 }))
+    await screen.findByRole('heading', { level: 1, name: 'Pedido 4822' })
+    await waitFor(() => expect(api.lineas()).toContain('GET /v1/operacion/retractos'))
+    await screen.findByRole('heading', { level: 2, name: 'Incidencias' })
+    expect(screen.queryByRole('heading', { level: 2, name: 'Retractos' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Registrar un retracto por correo' })).toBeNull()
   })
 
   it('409 al resolver: «Este retracto cambió mientras lo veías.»', async () => {
@@ -207,7 +236,8 @@ describe('El retracto que llegó por correo', () => {
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
   })
 
-  it('hueco 4: un segundo retracto del mismo pedido se admite; pedir lo ya pedido es el 422 con su texto, sin 409', async () => {
+  // Con la máquina cargada pasó los 15 s: son tres envíos del formulario completo.
+  it('varios retractos por pedido: un segundo se admite; pedir lo ya pedido es el 422 con su texto', { timeout: 30_000 }, async () => {
     const { api, usuario, amable, urgente } = await abrirFormulario()
     await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)
     await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
@@ -269,6 +299,19 @@ describe('Incidencias', () => {
     expect(amable.textContent).not.toContain(NOTA)
     expect(almacen).toEqual([])
     expect(within(screen.getByRole('region', { name: 'Incidencias' })).getByText('Abierta')).toBeVisible()
+  })
+
+  it('9.3 (v1.1): al abrir, el foco va a la primera opción de «¿Qué pasó?»; sin tipo, el error y el foco vuelven ahí', async () => {
+    const { usuario } = await abrirEntregado('4825')
+    await usuario.click(screen.getByRole('button', { name: 'Anotar una incidencia' }))
+    const primera = await screen.findByRole('radio', { name: 'Falta un producto' })
+    await waitFor(() => expect(primera).toHaveFocus())
+    await usuario.click(screen.getByLabelText('Nota'))
+    await usuario.click(screen.getByRole('button', { name: 'Guardar la incidencia' }))
+    expect(screen.getByText('Elige qué pasó.')).toBeVisible()
+    await waitFor(() => expect(primera).toHaveFocus())
+    await usuario.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Anotar una incidencia' })).toHaveFocus())
   })
 
   it('más de 500 (422): «La nota admite hasta 500 caracteres…»', async () => {

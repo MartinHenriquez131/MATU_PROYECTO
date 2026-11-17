@@ -10,13 +10,14 @@ import { Nota } from '../compartido/ui/Nota'
 import { useDemora } from '../compartido/useDemora'
 import { navegar } from '../familia/ruteo'
 import { Titulo } from '../familia/ui'
-import { CUADRO_DETALLE, enChile, EtiquetaAnulacion, FilaCola, Monto, pesos, useAhora, useAlDia } from './comun'
+import { CUADRO_DETALLE, enChile, EtiquetaAnulacion, FilaCola, Monto, pesos, useAhora, useAlDia, useFocoAlMontar } from './comun'
 import { useOperacion } from './estado'
 import { RotuloPiloto } from './Marco'
 import { DetallePedido } from './Pedido'
 import { COBROS as T, ESTADO_ANULACION, MARCO, MOTIVO_ANULACION } from './textos'
 
 /** Decisión 467: `en_curso` es la «En curso» de 7 y `sin_terminar`, la «Sin terminar» (la `rechazada` de 7). */
+const ID_REINTENTAR = 'reintentar-cobros'
 const COMO_ANULACION = { en_curso: 'en_curso', sin_terminar: 'rechazada' } as const
 
 export function PantallaCobros({ ruta }: { ruta: '/operacion/cobros' | '/operacion/pedido' }) {
@@ -38,16 +39,21 @@ function ListaCobros() {
   const [actualizando, setActualizando] = useState(false)
   const { ahora, fijarFecha } = useAhora()
   const verCargando = useDemora(1000)
+  const pedirFoco = useFocoAlMontar()
 
-  const traer = useCallback(async () => {
+  /** `false` si quedó el error de la lista a la vista. */
+  const traer = useCallback(async (): Promise<boolean> => {
     try {
       const r = await cobrosPendientes()
       fijarFecha(r.fecha)
       setCobros(r.cobros)
       setActualizado(fechaYHoraDeChile(ahora()).hora)
       setError(false)
+      return true
     } catch (x) {
-      if (!fallo(x, true)) setError(true)
+      if (fallo(x, true)) return true
+      setError(true)
+      return false
     }
   }, [fijarFecha, ahora, fallo])
 
@@ -71,18 +77,23 @@ function ListaCobros() {
         <p className="max-w-prose text-base text-tenue">{T.bajada}</p>
         <p className="flex flex-wrap items-center gap-x-3 text-base text-tenue">
           {actualizado && <span className="cifras whitespace-normal">{MARCO.actualizado(actualizado)}</span>}
-          <Boton
-            variante="texto"
-            ocupado={actualizando}
-            textoOcupado={MARCO.actualizando}
-            onClick={async () => {
-              setActualizando(true)
-              await traer()
-              setActualizando(false)
-            }}
-          >
-            {MARCO.actualizar}
-          </Boton>
+          {/* Revisión visual (P3): con el error a la vista, «Volver a intentar» es la única forma de pedirla otra vez. */}
+          {!error && (
+            <Boton
+              variante="texto"
+              ocupado={actualizando}
+              textoOcupado={MARCO.actualizando}
+              onClick={async () => {
+                setActualizando(true)
+                const bien = await traer()
+                setActualizando(false)
+                // «Actualizar» se quita con el error: el foco pasa a «Volver a intentar».
+                if (!bien) pedirFoco(ID_REINTENTAR)
+              }}
+            >
+              {MARCO.actualizar}
+            </Boton>
+          )}
         </p>
       </div>
       {error && (
@@ -90,7 +101,7 @@ function ListaCobros() {
           <Nota tono="pronto" rol="alert">
             {T.errorAlTraer}
           </Nota>
-          <Boton variante="secundario" onClick={() => void traer()}>
+          <Boton id={ID_REINTENTAR} variante="secundario" onClick={() => void traer()}>
             {MARCO.volverAIntentar}
           </Boton>
         </div>

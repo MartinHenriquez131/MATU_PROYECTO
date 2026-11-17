@@ -319,12 +319,12 @@ describe('El detalle (4)', () => {
     abrir('admin', DETALLE, ELEGIDO_2)
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
     const [sello, noRecibido, sinMotivo] = s.getAllByRole('listitem').filter((li) => li.parentElement?.parentElement?.tagName === 'SECTION')
-    expect(within(sello).getByText('El producto llegó con el sello abierto.')).toBeVisible()
+    expect(within(sello).getByText('El producto volvió con el sello abierto.')).toBeVisible()
     expect(within(noRecibido).getByText('No recibimos el producto de vuelta.')).toBeVisible()
     expect(sinMotivo).toHaveTextContent('No se aceptó la devolución')
     expect(sinMotivo).not.toHaveTextContent(/sello abierto|No recibimos/)
     // El motivo va antes de «Si tienes dudas…».
-    const motivo = within(sello).getByText('El producto llegó con el sello abierto.')
+    const motivo = within(sello).getByText('El producto volvió con el sello abierto.')
     expect(motivo.compareDocumentPosition(within(sello).getByRole('link', { name: 'cuidaconmatu@gmail.com' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // Ni la palabra del contrato ni el texto de operación («El sello del producto se abrió.»).
     expect(document.body).not.toHaveTextContent(/rechaz|sello_abierto|producto_no_recibido|se abrió/i)

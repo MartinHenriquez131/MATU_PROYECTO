@@ -11,7 +11,7 @@ import { useDemora } from '../compartido/useDemora'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { navegar } from '../familia/ruteo'
 import { GrupoOpciones, MensajeError, Titulo } from '../familia/ui'
-import { Atencion, CUADRO_DETALLE, CUADRO_VACIO, enChile, EtiquetaPedido, FilaCola, GRILLA, Monto, palabraPedido, pesos, useAhora, useAlDia } from './comun'
+import { Atencion, CUADRO_DETALLE, CUADRO_VACIO, enChile, EtiquetaPedido, FilaCola, GRILLA, Monto, palabraPedido, pesos, useAhora, useAlDia, useFocoAlMontar } from './comun'
 import { useOperacion } from './estado'
 import { AvisoPrivacidad, RotuloPiloto } from './Marco'
 import { DetallePedido } from './Pedido'
@@ -26,6 +26,7 @@ const CHIPS: { valor: GrupoPedidos; texto: string }[] = [
   { valor: 'todos', texto: T.todos },
 ]
 const POR_PAGINA = 20
+const ID_REINTENTAR = 'reintentar-pedidos'
 
 const atencion = (p: PedidoOperacion) => p.incidencia_abierta || p.devolucion_sin_terminar
 const t = (iso: string) => new Date(iso).getTime()
@@ -53,18 +54,22 @@ export function PantallaPedidos({ ruta }: { ruta: '/operacion' | '/operacion/ped
   const [visibles, setVisibles] = useState(POR_PAGINA)
   const { ahora, fijarFecha } = useAhora()
   const verCargando = useDemora(1000)
+  const pedirFoco = useFocoAlMontar()
   const enPedido = ruta === '/operacion/pedido'
 
-  const traer = useCallback(async () => {
+  /** `false` si quedó el error de la lista a la vista. */
+  const traer = useCallback(async (): Promise<boolean> => {
     try {
       const r = await listarPedidos(grupo)
       fijarFecha(r.fecha)
       setLista(r.pedidos)
       setActualizado(fechaYHoraDeChile(ahora()).hora)
       setError(false)
+      return true
     } catch (x) {
-      if (fallo(x, true)) return
+      if (fallo(x, true)) return true
       setError(true)
+      return false
     }
   }, [grupo, fijarFecha, ahora, fallo])
 
@@ -76,8 +81,10 @@ export function PantallaPedidos({ ruta }: { ruta: '/operacion' | '/operacion/ped
 
   const actualizar = async () => {
     setActualizando(true)
-    await traer()
+    const bien = await traer()
     setActualizando(false)
+    // «Actualizar» se quita con el error: el foco pasa a «Volver a intentar» y nunca queda en `body`.
+    if (!bien) pedirFoco(ID_REINTENTAR)
   }
 
   const buscar = async (e: FormEvent) => {
@@ -118,9 +125,12 @@ export function PantallaPedidos({ ruta }: { ruta: '/operacion' | '/operacion/ped
   const alDia = (
     <p className="flex flex-wrap items-center gap-x-3 text-base text-tenue">
       {actualizado && <span className="cifras whitespace-normal">{MARCO.actualizado(actualizado)}</span>}
-      <Boton variante="texto" ocupado={actualizando} textoOcupado={MARCO.actualizando} onClick={() => void actualizar()}>
-        {MARCO.actualizar}
-      </Boton>
+      {/* Revisión visual (P3): con el error a la vista, «Volver a intentar» es la única forma de pedirla otra vez. */}
+      {!error && (
+        <Boton variante="texto" ocupado={actualizando} textoOcupado={MARCO.actualizando} onClick={() => void actualizar()}>
+          {MARCO.actualizar}
+        </Boton>
+      )}
     </p>
   )
 
@@ -185,7 +195,7 @@ export function PantallaPedidos({ ruta }: { ruta: '/operacion' | '/operacion/ped
           <Nota tono="pronto" rol="alert">
             {T.errorAlTraer}
           </Nota>
-          <Boton variante="secundario" onClick={() => void traer()}>
+          <Boton id={ID_REINTENTAR} variante="secundario" onClick={() => void traer()}>
             {MARCO.volverAIntentar}
           </Boton>
         </div>

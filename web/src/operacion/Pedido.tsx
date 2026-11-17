@@ -31,11 +31,11 @@ import { DialogoConfirmar } from '../familia/DialogoConfirmar'
 import { navegar } from '../familia/ruteo'
 import { Acciones, Titulo, Volver } from '../familia/ui'
 import { Pago } from './Cobro'
-import { enChile, EtiquetaCon, EtiquetaIncidencia, EtiquetaParte, EtiquetaPedido, Monto, palabraPedido, useAhora, useFocoAlMontar } from './comun'
+import { Atencion, enChile, EtiquetaCon, EtiquetaIncidencia, EtiquetaParte, EtiquetaPedido, Monto, palabraPedido, useAhora, useFocoAlMontar } from './comun'
 import { useOperacion, type OrigenPedido } from './estado'
 import { AnotarIncidencia } from './Incidencias'
 import { RotuloPiloto } from './Marco'
-import { RetractoPorCorreo } from './Retractos'
+import { EtiquetaRetracto, plazoDe, RetractoPorCorreo } from './Retractos'
 import { ACCIONES, CODIGO, ESPACIO_DURO, MARCO, ESTADO_ANULACION, ESTADO_LINEA, ESTADO_PARTE, INCIDENCIAS, LINEA_TIEMPO, MOTIVO_ANULACION, PEDIDO as T, RETRACTOS, TIPO_INCIDENCIA } from './textos'
 
 const ID_NOTA = 'nota-del-pedido'
@@ -101,7 +101,8 @@ export function DetallePedido({ pedidoId, origen, onCambio, conRotulo }: { pedid
     void listarIncidencias(null)
       .then((l) => setIncidencias(l.filter((i) => i.pedido_id === pedidoId)))
       .catch(() => undefined)
-    void listarRetractos()
+    // 8.5 (v1.1): los del pedido en sus tres estados, cada uno con su etiqueta.
+    void listarRetractos(['solicitado', 'devuelto', 'rechazado'])
       .then((r) => setRetractos(r.retractos.filter((x) => x.pedido_id === pedidoId)))
       .catch(() => undefined)
     try {
@@ -319,7 +320,7 @@ export function DetallePedido({ pedidoId, origen, onCambio, conRotulo }: { pedid
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-x-10 gap-y-8 @4xl/detalle:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-8 @3xl/detalle:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-w-0 flex-col gap-8">
           <section aria-labelledby="partes-titulo" className="flex flex-col gap-4">
             <h2 id="partes-titulo" className="text-xl font-bold">
@@ -385,55 +386,65 @@ export function DetallePedido({ pedidoId, origen, onCambio, conRotulo }: { pedid
             )}
           </section>
 
-          <section aria-labelledby="retractos-titulo" className="flex flex-col gap-3">
-            <h2 id="retractos-titulo" className="text-xl font-bold">
-              {RETRACTOS.seccion}
-            </h2>
-            {retractos.length > 0 && (
-              <ul className="flex flex-col gap-2">
-                {retractos.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        fijar({ retractoId: r.id })
-                        navegar('/operacion/retractos')
-                      }}
-                      className="flex min-h-12 w-full flex-col items-start gap-0.5 rounded-xl bg-hoja px-4 angosto:px-2 py-3 text-left ring-1 ring-linea hover:ring-borde"
-                    >
-                      <span className="font-bold">
-                        {RETRACTOS.fila('').trimEnd()} <span className="digitos">{r.referencia ?? ref}</span>
-                      </span>
-                      <span>
-                        <Monto n={r.monto} /> · {r.origen === 'correo' ? RETRACTOS.porCorreo : RETRACTOS.porLaApp}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {formulario?.tipo === 'retracto' ? (
-              <RetractoPorCorreo
-                pedido={pedido}
-                onCancelar={() => {
-                  setFormulario(null)
-                  pedirFoco('abrir-retracto')
-                }}
-                onListo={(r) => {
-                  setFormulario(null)
-                  setRetractos((l) => [...l, r])
-                  onCambio()
-                  avisar('ok', RETRACTOS.registrado(ref), { irARetractos: r.id })
-                }}
-              />
-            ) : (
-              pedido.retracto_plazo_hasta && (
-                <Boton id="abrir-retracto" variante="secundario" className="self-start" onClick={() => setFormulario({ tipo: 'retracto' })}>
-                  {RETRACTOS.registrar}
-                </Boton>
-              )
-            )}
-          </section>
+          {/* 8.5 (v1.1): la sección solo aparece si hay retractos o se puede registrar uno; nunca un `h2` vacío. */}
+          {(retractos.length > 0 || formulario?.tipo === 'retracto' || pedido.retracto_plazo_hasta) && (
+            <section aria-labelledby="retractos-titulo" className="flex flex-col gap-3">
+              <h2 id="retractos-titulo" className="text-xl font-bold">
+                {RETRACTOS.seccion}
+              </h2>
+              {retractos.length > 0 && (
+                <ul className="flex flex-col gap-2">
+                  {retractos.map((r) => {
+                    const plazo = plazoDe(r, ahora())
+                    return (
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fijar({ retractoId: r.id })
+                            navegar('/operacion/retractos')
+                          }}
+                          className="flex min-h-12 w-full flex-col items-start gap-1 rounded-xl bg-hoja px-4 angosto:px-2 py-3 text-left ring-1 ring-linea hover:ring-borde"
+                        >
+                          <span className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                            <span className="min-w-0 font-bold">
+                              {RETRACTOS.fila('').trimEnd()} <span className="digitos break-words">{r.referencia ?? ref}</span>
+                            </span>
+                            <EtiquetaRetracto estado={r.estado} />
+                          </span>
+                          <span>
+                            <Monto n={r.monto} /> · {r.origen === 'correo' ? RETRACTOS.porCorreo : RETRACTOS.porLaApp}
+                          </span>
+                          {plazo && (plazo.atenta ? <Atencion>{plazo.texto}</Atencion> : <span className="cifras whitespace-normal text-tenue">{plazo.texto}</span>)}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {formulario?.tipo === 'retracto' ? (
+                <RetractoPorCorreo
+                  pedido={pedido}
+                  onCancelar={() => {
+                    setFormulario(null)
+                    pedirFoco('abrir-retracto')
+                  }}
+                  onListo={(r) => {
+                    setFormulario(null)
+                    setRetractos((l) => [...l, r])
+                    onCambio()
+                    avisar('ok', RETRACTOS.registrado(ref), { irARetractos: r.id })
+                  }}
+                />
+              ) : (
+                pedido.retracto_plazo_hasta && (
+                  <Boton id="abrir-retracto" variante="secundario" className="self-start" onClick={() => setFormulario({ tipo: 'retracto' })}>
+                    {RETRACTOS.registrar}
+                  </Boton>
+                )
+              )}
+            </section>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-col gap-8">
@@ -604,7 +615,7 @@ function CodigoUnaVez({ c, onYaLoTengo }: { c: CodigoVisible; onYaLoTengo: () =>
         <KeyRound aria-hidden className="mt-0.5 size-5 shrink-0 text-turquesa" />
         <span className="min-w-0">{CODIGO.titulo(c.parte.referencia)}</span>
       </h3>
-      <p role="img" aria-label={CODIGO.paraLector(c.codigo)} className="flex flex-wrap gap-x-6 select-none">
+      <p role="img" aria-label={CODIGO.paraLector(c.codigo)} className="flex flex-wrap gap-x-10 select-none">
         <span aria-hidden className="digitos text-6xl angosto:text-3xl font-bold tracking-widest text-turquesa">
           {c.codigo.slice(0, 3)}
         </span>

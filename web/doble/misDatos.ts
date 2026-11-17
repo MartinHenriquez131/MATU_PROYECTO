@@ -253,6 +253,18 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         resolucion: 'Se devolvieron las toallitas a la misma tarjeta.',
       },
     ],
+    // MATU-81 (H2 del analista): un retracto que no se aceptó, con su motivo (`motivo_rechazo`).
+    retractos: [
+      {
+        estado: 'rechazado',
+        solicitado_en: chile(hace(2 * DIA)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA)),
+        motivo_rechazo: 'sello_abierto',
+        lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
+      },
+    ],
   }
   if (modo !== 'datos-pedidos') return [entregado]
   const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [] }
@@ -501,6 +513,8 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
     eventos: desde.eventos,
     avisos_enviados: modo === 'datos-vacio' ? [] : avisos,
     envio_simulado: true,
+    // MATU-81 (H2 del analista): el retracto que pidió esta cuenta, con su motivo si no se aceptó.
+    retractos: capa3 ? (paga ? [{ grupo: 'Familia Soto', referencia: '4821', estado: 'rechazado', solicitado_en: chile(hace(2 * DIA)), resuelto_en: chile(hace(DIA)), motivo_rechazo: 'sello_abierto', productos: ['Pañal adulto talla M'] }] : []) : null,
     pagos: capa3 ? (paga ? pagos : []) : null,
     condiciones_aceptadas: capa3 ? (paga ? condiciones : []) : null,
   }

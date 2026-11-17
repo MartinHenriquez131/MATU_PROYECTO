@@ -5,6 +5,16 @@
 // pone la pantalla en `cifras`; aquí van las frases que las rodean. Nunca se muestra `title`,
 // `detail` ni `mensaje` de la API.
 
+/**
+ * MATU-81 (decisión 468 y O3 del analista): por qué no se aceptó una devolución, dicho sin culpar a la
+ * familia. Es el texto que lee la familia en «Tus pedidos» y en la copia de sus datos, y el que la
+ * consola de operación le muestra a quien responde (`RETRACTOS.noDevolverDestacado`): un solo texto.
+ */
+export const MOTIVO_RECHAZO_FAMILIA = {
+  sello_abierto: 'El producto volvió con el sello abierto.', // [NUEVO]
+  producto_no_recibido: 'No recibimos el producto de vuelta.', // [NUEVO]
+} as const
+
 export const TUS_PEDIDOS = {
   // 2 y 3: la pestaña, la lista y su `<title>`
   titulo: 'Tus pedidos', // [L 38]
@@ -95,10 +105,7 @@ export const TUS_PEDIDOS = {
   devueltoEl: 'Devuelto el', // [L 38]
   noSeAcepto: 'No se aceptó la devolución', // [L 38]
   /** MATU-81 (decisión 468): por qué no se aceptó, dicho sin culpar a la familia. */
-  motivoRechazo: {
-    sello_abierto: 'El producto llegó con el sello abierto.', // [NUEVO]
-    producto_no_recibido: 'No recibimos el producto de vuelta.', // [NUEVO]
-  },
+  motivoRechazo: MOTIVO_RECHAZO_FAMILIA,
   /** «Te devolvemos $26.490 cuando recibamos los productos con su sello cerrado.», partido para la cifra. */
   teDevolvemos: 'Te devolvemos', // [L 38]
   cuandoRecibamos: 'cuando recibamos los productos con su sello cerrado.', // [L 38]
