@@ -1,6 +1,7 @@
 # MATU-61 · Pedido: carrito y qué hacer si falta un producto · Especificación de diseño
 
-**Versión 1.3 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.4 · 16/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.4:** MATU-112 (16-11): textos de "Si falta" según condiciones 0.3 y lenguaje.md 31. El detalle de «Buscarlo en otro comercio» pasa a «El mismo producto. Si cambia el precio, lo ves antes de pagar.» (6.4, 14 y la tabla de textos), y «Si falta un producto» del resumen antes de pagar pasa al texto de `lenguaje.md` 31 (9.7 y la tabla de textos): después de pagar, en el piloto, no se busca en otro comercio, se anula el cobro de lo que falta el mismo día. La búsqueda en otro comercio pasa solo al confirmar el total, antes de pagar (condiciones 0.3, §5), y así lo dicen 6.4 y su nota sobre «Sacar del pedido».
 **Cambios de la 1.3:** en pantalla ancha, los errores de «Número» y «Depto» van bajo la fila, a todo su ancho, y la columna de 10 rem no cambia (8.1 y criterio 13, decisión del orquestador del 11-11).
 **Cambios de la 1.2** (después de la revisión visual del 11-11, con las decisiones del orquestador): «No hay reserva ni cobros después.» queda como única excepción de «reserva» (secciones 1, 14 y criterio 19); el teléfono abierto tiene un solo rótulo, el `h3` (7.8.1, criterio 27); la nota «El envío y el total los ves al confirmar…» va solo en `borrador` (7.9, criterio 24).
 **Cambios de la 1.1:** las decisiones de Jorge del 11-11 sobre el contrato. Se citan **JC1** a **JC7** (en su mensaje, C1 a C7) para no confundirlas con las condiciones C1 a C25 del analista, y **JC-IVA** la del IVA: en Chile todos los precios llevan el IVA incluido, y nunca se presenta como algo que se suma. Cierra los puntos O1 a O11 (sección 0), agrega «Cambiar el pedido» (9.12) y «Vaciar la dirección» (8.7), y abre O12.
@@ -378,7 +379,8 @@ Lo agregado a mano en la lista se nombra igual que lo de MATU que no tiene produ
 │ │ │ (•) Buscarlo en otro       │ │ │
 │ │ │     comercio               │ │ │
 │ │ │     El mismo producto.     │ │ │  detalle text-base text-tenue
-│ │ │     Pagas lo mismo.        │ │ │
+│ │ │     Si cambia el precio,   │ │ │
+│ │ │     lo ves antes de pagar. │ │ │
 │ │ ├────────────────────────────┤ │ │
 │ │ │ ( ) Sacarlo del pedido y   │ │ │
 │ │ │     devolverme su precio   │ │ │
@@ -491,15 +493,15 @@ El hallazgo U4 de la ronda 1: ajustar la cantidad de las toallitas costó. El pr
 | Parte | Componente y tokens | Texto |
 |---|---|---|
 | Grupo | `GrupoOpciones forma="lista"`, sin `columnas`: un `fieldset` con `legend font-bold`, una opción por fila, `min-h-12`, indicador `size-6` (DISENO.md 6). `aria-describedby="nunca-otra-marca"` en el `fieldset` (O9) | Leyenda: «Si falta este producto» [A4] |
-| Opción 1, elegida por omisión | Con su detalle en `text-base text-tenue` | «Buscarlo en otro comercio» · detalle: «El mismo producto. Pagas lo mismo.» [A4] |
+| Opción 1, elegida por omisión | Con su detalle en `text-base text-tenue` | «Buscarlo en otro comercio» · detalle: «El mismo producto. Si cambia el precio, lo ves antes de pagar.» **[AJUSTE]** de [A4] (MATU-112): las condiciones 0.3, §5, ya no dicen «pagas lo mismo» |
 | Opción 2 | Sin detalle | «Sacarlo del pedido y devolverme su precio» [A4] |
 | Nota, una vez sobre las líneas | `p id="nunca-otra-marca" max-w-prose text-base font-bold` | «Nunca lo cambiamos por otra marca ni por otro producto.» [A4] |
 
 - **Cada grupo se nombra con el producto:** el `fieldset` lleva `aria-labelledby` con el id de la leyenda y el del `h2`, para que el lector diga «Si falta este producto, Pañal adulto M x30, grupo».
 - **El estado nunca solo por color:** la elegida lleva el punto dentro del círculo, el anillo `turquesa` y el fondo `rocio`. Ninguna va en `turquesa` macizo.
 - **Se guarda solo**, al cambiar la opción, igual que la cantidad. Si falla, vuelve la opción anterior y aparece bajo el grupo: «No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo.» **[NUEVO]**.
-- **Qué hace cada opción (JC5):** con «Buscarlo en otro comercio», si falta, MATU busca el mismo producto en otro comercio al mismo precio. Con «Sacarlo del pedido y devolverme su precio», si falta, **sale sin buscarlo en otro comercio**. Los textos de la opción, del pagador (más abajo) y del resumen (9.3 y 9.7) dicen eso y nada más.
-- **«Sacarlo del pedido y devolverme su precio» no es «Sacar del pedido».** La opción dice qué hacer si falta al preparar, el botón saca la línea ahora. Por eso la opción va dentro de su grupo, con la pregunta, y el botón va al final de la línea, separado por el retracto.
+- **Qué hace cada opción (JC5 y condiciones 0.3, §5):** la elección vale **al confirmar el total, antes de pagar**. Con «Buscarlo en otro comercio», si falta, MATU busca el mismo producto en otro comercio, y si el producto pasa a otro comercio o cambia de precio, la familia lo ve en el resumen antes de pagar (9.3). Con «Sacarlo del pedido y devolverme su precio», si falta, **sale sin buscarlo en otro comercio**. **Después de pagar, en el piloto, ninguna de las dos busca en otro comercio:** se anula el cobro de lo que falta el mismo día, a la misma tarjeta (9.7). Los textos de la opción, del pagador (más abajo) y del resumen (9.3 y 9.7) dicen eso y nada más.
+- **«Sacarlo del pedido y devolverme su precio» no es «Sacar del pedido».** La opción dice qué hacer si falta al confirmar el total, el botón saca la línea ahora. Por eso la opción va dentro de su grupo, con la pregunta, y el botón va al final de la línea, separado por el retracto.
 - **Con el modo `angosto`:** el indicador arriba y el texto debajo (DISENO.md 6, la regla de MATU-57).
 - **Pagador y observador:** en lugar del grupo, `p text-base`: «Si falta: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (las mismas frases del resumen, 9.3).
 
@@ -820,7 +822,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 │ Cambiar dirección                  │  texto
 │ Teléfono de contacto: +56 9 ••••…  │
 │ Si falta un producto               │  h2
-│ Si al retirar falta un producto, … │  text-base max-w-prose
+│ Durante el piloto, si falta un …   │  text-base max-w-prose
 │ Quién vende                        │  h2
 │ Vende: MATU, piloto académico, sin │  text-base
 │ persona jurídica. En este piloto no│
@@ -954,7 +956,7 @@ Tres `section` con su `h2 titular text-2xl` **[NUEVO]**: «Entrega», «Si falta
 | Cuándo llega | `p text-base` | «Entrega: `{ventana_entrega}`» → «Entrega: Entre 24 y 48 horas hábiles» | [A4], [D8] |
 | Dirección | `p text-base`, y la referencia en `text-tenue`. Debajo, para admin y cuidador, `Boton variante="texto"` «Cambiar dirección» (8.6) | La copia de la dirección en el pedido | [A4] |
 | Teléfono | `p text-base`, `entrega.telefono_contacto` con el formato «+56 9 5555 0177» y dos `cifras` (DISENO.md 2). Debajo, para admin y cuidador, `Boton variante="texto"` «Cambiar teléfono» (7.8.1, con `PUT …/contacto`) | «Teléfono de contacto: `{telefono}`» | [A4] y 7.8 |
-| Si falta | `p text-base max-w-prose` | «Si al retirar falta un producto, lo buscamos en otro comercio y pagas lo mismo. Si nadie lo tiene, o elegiste sacarlo, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.» | [A4] |
+| Si falta | `p text-base max-w-prose` | «Durante el piloto, si falta un producto después de pagar, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.» | [L 31] (MATU-112, condiciones 0.3, §5): sale la promesa de buscarlo en otro comercio después de pagar |
 | Vendedor | `p text-base max-w-prose` | «Vende: MATU, piloto académico, sin persona jurídica. En este piloto no se emite boleta.» | [A4], [D8] |
 | Reclamos | `p text-base`, el correo con `EnlaceEnFrase` `mailto:` | «Reclamos: escríbenos a `{correo}`.» con `resumen.canal_reclamo` (cuidaconmatu@gmail.com) | [A4], [D8] |
 
@@ -1295,7 +1297,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 | Cantidad fuera de rango | Escribe una cantidad de 1 a 99. | **[NUEVO]** |
 | Cantidad, error al guardar | No pudimos guardar la cantidad. Revisa tu conexión y vuelve a intentarlo. | **[NUEVO]** |
 | Subtotal | Subtotal: {precio} | **[NUEVO]** |
-| Si falta | Si falta este producto · Buscarlo en otro comercio · El mismo producto. Pagas lo mismo. · Sacarlo del pedido y devolverme su precio · Nunca lo cambiamos por otra marca ni por otro producto. (una vez sobre las líneas, O9) | [A4] |
+| Si falta | Si falta este producto · Buscarlo en otro comercio · El mismo producto. Si cambia el precio, lo ves antes de pagar. · Sacarlo del pedido y devolverme su precio · Nunca lo cambiamos por otra marca ni por otro producto. (una vez sobre las líneas, O9) | [A4] · **[AJUSTE]** el detalle de «Buscarlo en otro comercio» (MATU-112) |
 | Si falta, error | No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo. | **[NUEVO]** |
 | Si falta, pagador y resumen | Si falta: lo buscamos en otro comercio. · Si falta: lo sacamos y te devolvemos su precio. | **[NUEVO]** |
 | Sacar | Sacar del pedido · Para el lector: Sacar del pedido: {producto} · Sacamos «{producto}» del pedido. · No pudimos sacarlo. Revisa tu conexión y vuelve a intentarlo. | [A4] · **[NUEVO]** |
@@ -1324,7 +1326,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 | Plazo | Quedan 2 minutos para pagar este total. · Volver a confirmar · Confirmamos de nuevo. Este total vale hasta las {HH:MM}. · Revisa lo que cambió antes de pagar. | [A4] · **[NUEVO]** |
 | Vencido | Venció · Este total venció a las {HH:MM}. · Pasaron 15 minutos y el total venció. Vuelve a confirmar para ver lo que hay y su precio. · Volver a confirmar | **[NUEVO]** · [A4] |
 | Entrega | Entrega: {ventana} · Teléfono de contacto: {telefono} | [A4], [D8] |
-| Si falta | Si falta un producto · Si al retirar falta un producto, lo buscamos en otro comercio y pagas lo mismo. Si nadie lo tiene, o elegiste sacarlo, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. | **[NUEVO]** el título · [A4] |
+| Si falta | Si falta un producto · Durante el piloto, si falta un producto después de pagar, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. | **[NUEVO]** el título · [L 31] el texto (MATU-112) |
 | Vendedor y reclamos | Quién vende · Vende: MATU, piloto académico, sin persona jurídica. En este piloto no se emite boleta. · Reclamos: escríbenos a {correo}. | **[NUEVO]** el título · [A4], [D8] |
 | Condiciones | Condiciones del pedido (se abre en otra pestaña) · Leí y acepto las condiciones del pedido. · Marca que leíste y aceptas las condiciones para pagar. | [A4] · [D6] · **[NUEVO]** |
 | Pagar (MATU-62) | Pagar {total} · Pagando… | Demo · **[NUEVO]** |

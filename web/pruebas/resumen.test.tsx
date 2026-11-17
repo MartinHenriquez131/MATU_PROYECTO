@@ -108,7 +108,7 @@ describe('Antes de pagar, con el total vigente', () => {
     expect(within(entrega).getByText('Entrega: Entre 24 y 48 horas hábiles')).toBeVisible()
     expect(within(entrega).getByText('Los Aromos 123, depto 4, La Reina')).toBeVisible()
     expect(within(entrega).getByText('Teléfono de contacto:', { exact: false })).toHaveTextContent('Teléfono de contacto: +56 9 •••• ••37 (tu celular)')
-    expect(within(screen.getByRole('region', { name: 'Si falta un producto' })).getByText(/Si al retirar falta un producto, lo buscamos en otro comercio y pagas lo mismo./)).toBeVisible()
+    expect(within(screen.getByRole('region', { name: 'Si falta un producto' })).getByText('Durante el piloto, si falta un producto después de pagar, anulamos su cobro el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.')).toBeVisible()
     const vende = screen.getByRole('region', { name: 'Quién vende' })
     expect(within(vende).getByText('Vende: MATU, piloto académico, sin persona jurídica. En este piloto no se emite boleta.')).toBeVisible()
     expect(within(vende).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toHaveAttribute('href', 'mailto:cuidaconmatu@gmail.com')

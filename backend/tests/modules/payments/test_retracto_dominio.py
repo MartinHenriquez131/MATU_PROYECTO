@@ -88,13 +88,26 @@ def test_por_correo_el_plazo_es_de_90_dias_desde_la_entrega() -> None:
         ("0.2", {"a": 1}, True, False),  # una sola vez por pedido
         ("0.3", {"a": 1}, False, False),  # (b): solo si vuelve todo lo entregado
         ("0.3", {"a": 2, "b": 1}, False, True),
-        (None, {"a": 2}, False, False),
+        ("9.9", {"a": 2}, False, False),  # una versión que no se conoce sigue la regla de la 0.3 (H1)
+        ("9.9", {"a": 2, "b": 1}, False, True),
     ],
 )
 def test_el_envio_segun_las_condiciones_aceptadas(
     version: str | None, pedidas: dict[str, int], ya_devuelto: bool, esperado: bool
 ) -> None:
     assert incluye_envio(version, list(LINEAS.values()), pedidas, ya_devuelto) is esperado
+
+
+def test_sin_version_de_condiciones_el_envio_vuelve_en_un_retracto_parcial() -> None:
+    """MATU-112, H1: un pedido sin versión de condiciones se trata como la 0.2. Retracto parcial (1 de 2 de «a», nada
+    de «b»): con la 0.3 no volvería el envío; sin versión, sí."""
+    assert incluye_envio(None, list(LINEAS.values()), {"a": 1}, False) is True
+
+
+def test_sin_version_de_condiciones_el_envio_vuelve_una_sola_vez() -> None:
+    """MATU-112, H1: como con la 0.2, si el envío ya se devolvió en otro retracto del pedido, no vuelve de nuevo."""
+    assert incluye_envio(None, list(LINEAS.values()), {"a": 1}, True) is False
+    assert incluye_envio(None, list(LINEAS.values()), {"a": 2, "b": 1}, True) is False
 
 
 def test_la_devolucion_es_antes_de_45_dias() -> None:
