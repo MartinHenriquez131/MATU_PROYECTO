@@ -415,6 +415,10 @@ export const TITULOS: Record<string, string> = {
   '/insumos/pedido/resumen': 'Antes de pagar',
   // MATU-62 2.1: el `h1` de cada estado; la pantalla lo cambia. Al llegar desde Webpay, este.
   '/insumos/pedido/pago': 'Estamos confirmando tu pago',
+  '/insumos/tus-pedidos': 'Tus pedidos', // [L 38] MATU-92, 2.1
+  // El detalle cambia el `<title>` a «Pedido {referencia}» cuando lo pinta (MATU-92, 2.1).
+  '/insumos/tus-pedidos/pedido': 'Tus pedidos',
+  '/insumos/tus-pedidos/arrepentirme': 'Arrepentirme de la compra', // [NUEVO] MATU-92, 2.1
   '/compartir': ESTADOS.compartirTitulo,
   // MATU-48 2.1: nunca el nombre del relevo ni de la persona.
   '/compartir/listo': 'Enlace creado', // aprobado por Jorge el 04-11

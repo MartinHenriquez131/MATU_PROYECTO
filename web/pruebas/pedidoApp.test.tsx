@@ -71,7 +71,7 @@ describe('El pedido en la app de la familia', () => {
     await waitFor(() => expect(document.title).toBe('Tu pedido · MATU'))
     await waitFor(() => expect(h1).toHaveFocus())
     expect(within(screen.getByRole('navigation', { name: /secciones/i })).getByRole('link', { name: /Insumos/ })).toHaveAttribute('aria-current', 'page')
-    expect(pestanas().getAllByRole('link').map((a) => a.textContent)).toEqual(['Insumos', 'Lista de insumos', 'Catálogo', 'Pedido'])
+    expect(pestanas().getAllByRole('link').map((a) => a.textContent)).toEqual(['Insumos', 'Lista de insumos', 'Catálogo', 'Pedido', 'Tus pedidos'])
     expect(pestanas().getByRole('link', { name: 'Pedido' })).toHaveAttribute('aria-current', 'page')
     // El pedido pide el catálogo una vez y fija la capa 3: no hay una segunda pregunta.
     expect(pedidas.filter((p) => p === 'GET /v1/catalogo')).toHaveLength(1)
@@ -135,7 +135,7 @@ describe('Revisión visual de MATU-61', () => {
     const pedidas = apiApp('admin')
     abrirApp('/insumos/pedido/direccion')
     await screen.findByRole('navigation', { name: 'Vistas de Insumos' }, { timeout: 5000 })
-    await waitFor(() => expect(pestanas().getAllByRole('link').map((a) => a.textContent)).toEqual(['Insumos', 'Lista de insumos', 'Catálogo', 'Pedido']))
+    await waitFor(() => expect(pestanas().getAllByRole('link').map((a) => a.textContent)).toEqual(['Insumos', 'Lista de insumos', 'Catálogo', 'Pedido', 'Tus pedidos']))
     expect(pestanas().getByRole('link', { name: 'Pedido' })).toHaveAttribute('aria-current', 'page')
     expect(pedidas.filter((p) => p === 'GET /v1/catalogo')).toHaveLength(1)
   })

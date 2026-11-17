@@ -255,7 +255,7 @@ describe('Pagaste tu pedido: el comprobante (7.4 y 7.5)', () => {
     expect(enlace.className).toMatch(/\bmin-h-12\b/)
     const garantias = within(screen.getByRole('region', { name: 'Lo que te garantizamos' }))
     expect(garantias.getAllByRole('listitem').map((l) => l.textContent)).toEqual([
-      'Derecho a retracto: tienes 10 días desde que lo recibes.',
+      'Derecho a retracto: tienes 10 días hábiles desde que lo recibes.',
       'Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
       'Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar.',
       '¿Algo no está bien? Escríbenos a cuidaconmatu@gmail.com.',
@@ -536,6 +536,20 @@ describe('Sin vuelta: «Ver el comprobante» y la recarga (2.1)', () => {
     abrir()
     expect(await h1('Pagaste tu pedido')).toBeVisible()
     expect(api.pedidas.map((p) => p.ruta)).toContain(`/v1/personas-cuidadas/${PERSONA_ID}/pedido-pagado`)
+  })
+
+  it('MATU-92 (2.4): «Ver cómo va tu pedido» abre el detalle con el pedido en memoria, sin macizo', async () => {
+    rutas({})
+    window.history.replaceState(null, '', '/insumos/pedido/pago')
+    fijarComprobante(PERSONA_ID, pago())
+    abrir()
+    await h1('Pagaste tu pedido')
+    const ver = screen.getByRole('button', { name: 'Ver cómo va tu pedido' })
+    expect(ver.className).not.toMatch(/\bbg-turquesa\b/)
+    await userEvent.click(ver)
+    expect(contexto.fijar).toHaveBeenCalledWith({ pedidoElegido: { personaId: PERSONA_ID, pedidoId: PEDIDO_ID, referencia: '4821' } })
+    expect(window.location.pathname).toBe('/insumos/tus-pedidos/pedido')
+    expect(window.location.search + window.location.hash).toBe('')
   })
 
   it('al recargar sin pedido pagado (404), va a «Tu pedido»', async () => {

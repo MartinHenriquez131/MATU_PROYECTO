@@ -35,6 +35,9 @@ export type Ruta =
   | '/insumos/pedido/direccion'
   | '/insumos/pedido/resumen'
   | '/insumos/pedido/pago'
+  | '/insumos/tus-pedidos'
+  | '/insumos/tus-pedidos/pedido'
+  | '/insumos/tus-pedidos/arrepentirme'
   | '/compartir'
   | '/compartir/listo'
   | '/compartir/enlaces'
@@ -86,6 +89,9 @@ export const RUTAS: readonly Ruta[] = [
   '/insumos/pedido/direccion',
   '/insumos/pedido/resumen',
   '/insumos/pedido/pago',
+  '/insumos/tus-pedidos',
+  '/insumos/tus-pedidos/pedido',
+  '/insumos/tus-pedidos/arrepentirme',
   '/compartir',
   '/compartir/listo',
   '/compartir/enlaces',
@@ -98,6 +104,15 @@ export const RUTAS: readonly Ruta[] = [
   '/grupo/invitar/listo',
   '/invitacion',
 ]
+
+/**
+ * MATU-92 (2.1): «Tus pedidos», el detalle de un pedido y arrepentirse. `tus-pedidos` y no `pedidos`:
+ * `/insumos/pedidos` empezaría por `/insumos/pedido` y caería en el carrito. Las rutas no llevan ids:
+ * el pedido elegido vive en memoria (`pedidoElegido`).
+ */
+export const RUTA_TUS_PEDIDOS = '/insumos/tus-pedidos' satisfies Ruta
+export const RUTA_DETALLE_PEDIDO = '/insumos/tus-pedidos/pedido' satisfies Ruta
+export const RUTA_ARREPENTIRME = '/insumos/tus-pedidos/arrepentirme' satisfies Ruta
 
 /** Las que se ven sin haber entrado. */
 export const PUBLICAS: ReadonlySet<Ruta> = new Set(['/crear-cuenta', '/entrar', '/entrar/recuperar', '/entrar/recuperar/codigo'])

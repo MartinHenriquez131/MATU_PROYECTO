@@ -1,6 +1,6 @@
 // MATU-62: «Pagar {total}» en el resumen (especificación docs/diseno/matu-62-pago.md v1.0, secciones
 // 4 a 6 y 8), el pago en curso en el pedido y en el resumen, el diálogo de cancelar con un pago en
-// curso y el bloque «Pedido pagado». Sin interfaz optimista: cada estado es lo que respondió la API
+// curso y, desde MATU-92, el bloque «Tus pedidos». Sin interfaz optimista: cada estado es lo que respondió la API
 // falsa. Solo datos sintéticos.
 import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Rol } from '../src/compartido/api/familia'
 import { fijarGrupo } from '../src/compartido/api/sesion'
 import { PantallaPedido } from '../src/familia/Pedido'
-import { olvidarTodoElPago, tomarComprobante } from '../src/familia/vueltaPago'
+import { olvidarTodoElPago } from '../src/familia/vueltaPago'
 import { familiaFalsa } from './familiaFalsa'
-import { apiPedido, borrador, confirmado, conRegionesGlobales, enOrden, NO_ENCONTRADO, PEDIDO_ID, persona, PERSONA_ID, problema, type Pedida } from './pedidoFalso'
-import { comprobanteAjeno, GRUPO_ID, pago, TOKEN } from './pagoFalso'
+import { apiPedido, borrador, confirmado, conRegionesGlobales, enOrden, PEDIDO_ID, persona, PERSONA_ID, problema, type Pedida } from './pedidoFalso'
+import { GRUPO_ID, TOKEN } from './pagoFalso'
+import { entregado, fila, filaObservador, lista } from './tusPedidosFalso'
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -380,45 +381,54 @@ describe('Pago en curso (6)', () => {
   })
 })
 
-describe('El pedido pagado en «Pedido» (8)', () => {
-  it('admin: al final, «Pedido pagado», «Pagado», la referencia, la fecha y el total; «Ver el comprobante» lo lleva en memoria', async () => {
-    apiPedido({ 'GET /pedido-pagado$': { status: 200, cuerpo: pago() } }, { pedido: borrador() })
+describe('«Tus pedidos» al final de «Pedido» (MATU-92 2.3, reemplaza a MATU-62 8)', () => {
+  it('admin: al final, «Tus pedidos» con la fila del más reciente, que abre el detalle con el pedido en memoria', async () => {
+    const api = apiPedido({ 'GET /personas-cuidadas/[^/]+/pedidos$': { status: 200, cuerpo: lista([fila(), entregado()]) } }, { pedido: borrador() })
     abrir('admin', '/insumos/pedido')
-    const bloque = within((await screen.findByRole('heading', { level: 2, name: 'Pedido pagado' })).closest('section')!)
-    expect(bloque.getByText('Pagado').querySelector('svg')!.getAttribute('class')).toMatch(/lucide-check/)
-    expect(bloque.getByText(/Pedido 4821/)).toHaveTextContent('Pedido 4821 · 11/11/2026 a las 16:41')
-    expect(bloque.getByText('Total pagado:').closest('p')).toHaveTextContent('Total pagado: $57.460')
-    const ver = bloque.getByRole('button', { name: 'Ver el comprobante' })
-    expect(ver.className).not.toMatch(/\bbg-turquesa\b/)
+    const bloque = within((await screen.findByRole('heading', { level: 2, name: 'Tus pedidos' })).closest('section')!)
+    const filaPedido = bloque.getByRole('button', { name: /^Pedido 4821/ })
+    expect(filaPedido).toHaveTextContent('Total pagado: $57.460')
+    expect(within(filaPedido).getByText('Pagado').querySelector('svg')!.getAttribute('class')).toMatch(/lucide-check/)
+    // Una sola fila, y «Ver todos tus pedidos» porque hay más de uno. Sin macizo.
+    expect(bloque.queryByRole('button', { name: /^Pedido 4790/ })).toBeNull()
+    expect(bloque.getByRole('button', { name: 'Ver todos tus pedidos' }).className).not.toMatch(/\bbg-turquesa\b/)
+    expect(filaPedido.className).not.toMatch(/\bbg-turquesa\b/)
+    // Pide solo dos: la más reciente y si hay otra.
+    const g = api.pedidas.find((p) => p.ruta.endsWith('/pedidos'))!
+    expect(g.metodo).toBe('GET')
     // Va después del carrito.
     const carrito = screen.getByRole('heading', { level: 2, name: 'Pañal adulto M x30' })
-    expect(carrito.compareDocumentPosition(ver) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    await userEvent.click(ver)
-    expect(window.location.pathname).toBe('/insumos/pedido/pago')
+    expect(carrito.compareDocumentPosition(filaPedido) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await userEvent.click(filaPedido)
+    expect(contexto.fijar).toHaveBeenCalledWith({ pedidoElegido: { personaId: PERSONA_ID, pedidoId: PEDIDO_ID, referencia: '4821' } })
+    expect(window.location.pathname).toBe('/insumos/tus-pedidos/pedido')
     expect(window.location.search + window.location.hash).toBe('')
-    expect(tomarComprobante(PERSONA_ID)?.comprobante?.referencia).toBe('4821')
+    expect(escrituras).toEqual([])
   })
 
-  it('también con el pedido vacío, y quien no pagó lo ve igual (sin tarjeta)', async () => {
-    apiPedido({ 'GET /pedido-pagado$': { status: 200, cuerpo: pago({ comprobante: comprobanteAjeno() }) } }, { pedido: null })
+  it('con un solo pedido pagado, sin «Ver todos tus pedidos»', async () => {
+    apiPedido({ 'GET /pedidos$': { status: 200, cuerpo: lista([fila()]) } }, { pedido: null })
     abrir('cuidador', '/insumos/pedido')
-    expect(await screen.findByRole('heading', { level: 2, name: 'Pedido pagado' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Ver el comprobante' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Tus pedidos' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Ver todos tus pedidos' })).toBeNull()
   })
 
-  it('observador: solo «Pedido pagado» y «Pagado» (D-62-2)', async () => {
-    apiPedido({ 'GET /pedido-pagado$': { status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'pagado' } } }, { pedido: null })
+  it('observador: la fecha, «Pagado» y los productos, sin botón (D-92-1)', async () => {
+    apiPedido({ 'GET /pedidos$': { status: 200, cuerpo: lista([filaObservador()]) } }, { pedido: null })
     abrir('observador', '/insumos/pedido')
-    const bloque = within((await screen.findByRole('heading', { level: 2, name: 'Pedido pagado' })).closest('section')!)
+    const bloque = within((await screen.findByRole('heading', { level: 2, name: 'Tus pedidos' })).closest('section')!)
     expect(bloque.getByText('Pagado')).toBeVisible()
+    expect(bloque.getByText('11/11/2026')).toBeVisible()
     expect(bloque.queryByText(/Pedido 4821|Total pagado|\$/)).toBeNull()
     expect(bloque.queryByRole('button')).toBeNull()
   })
 
-  it('sin pedido pagado (404) no hay bloque', async () => {
-    apiPedido({ 'GET /pedido-pagado$': NO_ENCONTRADO }, { pedido: borrador() })
+  it('sin pedidos pagados no hay bloque, y «Pedido pagado» ya no existe', async () => {
+    apiPedido({ 'GET /pedidos$': { status: 200, cuerpo: lista([]) } }, { pedido: borrador() })
     abrir('admin', '/insumos/pedido')
     await screen.findByRole('heading', { level: 2, name: 'Pañal adulto M x30' })
+    expect(screen.queryByRole('heading', { name: 'Tus pedidos' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Pedido pagado' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ver el comprobante' })).toBeNull()
   })
 })

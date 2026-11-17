@@ -113,6 +113,8 @@ function Persona() {
     const seccion = seccionDe(ruta)
     // MATU-59 (2.2): el catálogo no cambia con la persona, así que la ruta se mantiene.
     if (ruta === '/insumos/catalogo') navegar('/insumos/catalogo', { reemplazar: true })
+    // MATU-92 (2.5): desde la lista, el detalle o arrepentirse, «Tus pedidos» de la otra persona.
+    else if (ruta.startsWith('/insumos/tus-pedidos')) navegar('/insumos/tus-pedidos', { reemplazar: true })
     // MATU-61 (2.3): el pedido es de la persona: se queda en «Tu pedido» y muestra el de la otra; desde
     // la dirección o el resumen, vuelve a «Tu pedido».
     else if (ruta.startsWith('/insumos/pedido')) navegar('/insumos/pedido', { reemplazar: true })

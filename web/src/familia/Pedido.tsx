@@ -27,7 +27,7 @@ import {
   type PedidoVista,
   type Regla,
 } from '../compartido/api/pedido'
-import { esPagoCompleto, leerPedidoPagado, type Pago, type PagoVista } from '../compartido/api/pago'
+import { listarPedidos, type ListaPedidos } from '../compartido/api/tusPedidos'
 import { esVencida } from '../compartido/api/sesion'
 import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
@@ -39,14 +39,14 @@ import { Permiso, PestanasInsumos } from './Insumos'
 import { agregarAlPedido, cambioAjeno, pagoEnCursoDe, parrafosDeLista, permisoPedidoDe } from './pedidoAcciones'
 import { direccionEnTexto, enRango, lineasParaGuardar, reglasConCambio, sufijoDelPedido } from './pedidoComun'
 import { AvisoPiloto, DialogoCancelar, horaDeVencimiento, Retracto, siFaltaTexto, TelefonoContacto, UnaColumna } from './PiezasPedido'
-import { BloquePedidoPagado, NotaPagoEnCurso } from './Pago'
+import { NotaPagoEnCurso } from './Pago'
+import { BloqueTusPedidos } from './TusPedidos'
 import { Resumen } from './Resumen'
 import { navegar, useRuta } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
 import { PAGO } from './textosPago'
 import { PEDIDO } from './textosPedido'
-import { fijarComprobante, RUTA_PAGO } from './vueltaPago'
 import { Acciones, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'red' | 'apagado' | 'no-encontrado'
@@ -97,8 +97,8 @@ export function PantallaPedido() {
   const [acepto, setAcepto] = useState(false)
   /** 8.6: el error de volver a confirmar después de cambiar la dirección, que se ve en el resumen. */
   const [errResumen, setErrResumen] = useState<'red' | 'nada' | null>(null)
-  /** MATU-62 (8): el último pedido pagado de la persona, para el bloque «Pedido pagado». */
-  const [pagado, setPagado] = useState<Pago | null>(null)
+  /** MATU-92 (2.3, reemplaza a MATU-62 8): los pedidos pagados más recientes, para el bloque «Tus pedidos». */
+  const [pagado, setPagado] = useState<ListaPedidos | null>(null)
   /** MATU-62 (6): un 409 `pago-en-curso` al intentar algo. La nota se anuncia y recibe el foco. */
   const [alertaPago, setAlertaPago] = useState(false)
   const [revisandoPago, setRevisandoPago] = useState(false)
@@ -125,7 +125,7 @@ export function PantallaPedido() {
         leerPedidoEnCurso(personaId),
         verCatalogo(),
         editor ? leerCuenta() : Promise.resolve(null),
-        leerPedidoPagado(personaId),
+        listarPedidos(personaId, null, 2),
       ])
       if (cat.status === 'rejected') {
         if (esVencida(cat.reason)) return
@@ -148,7 +148,7 @@ export function PantallaPedido() {
       setAut(despacho?.estado === 'vigente' ? 'vigente' : despacho?.estado === 'revision_vencida' ? 'revision-vencida' : 'sin-autorizacion')
       setPedido(enCurso.status === 'fulfilled' ? enCurso.value : null)
       if (cu.status === 'fulfilled') setCuenta(cu.value)
-      // El bloque «Pedido pagado» no es lo que se viene a hacer: si no llega, el carrito se ve igual.
+      // El bloque «Tus pedidos» no es lo que se viene a hacer: si no llega, el carrito se ve igual.
       setPagado(pagadoR.status === 'fulfilled' ? pagadoR.value : null)
       setCargado(true)
       setCarga('listo')
@@ -227,7 +227,7 @@ export function PantallaPedido() {
     if (!personaId || revisandoPago) return
     setRevisandoPago(true)
     try {
-      const [p, pg] = await Promise.all([leerPedidoEnCurso(personaId), leerPedidoPagado(personaId)])
+      const [p, pg] = await Promise.all([leerPedidoEnCurso(personaId), listarPedidos(personaId, null, 2).catch(() => null)])
       const sigue = !!p && esVistaCompleta(p) && p.pago_en_curso
       setPedido(p)
       setPagado(pg)
@@ -243,12 +243,8 @@ export function PantallaPedido() {
     }
   }, [personaId, revisandoPago, setPedido, manejar])
 
-  /** 8: «Ver el comprobante» lleva el pago en la memoria de la página. */
-  const verComprobante = (p: PagoVista) => {
-    if (personaId) fijarComprobante(personaId, p)
-    navegar(RUTA_PAGO)
-  }
-  const bloquePagado = pagado && (esPagoCompleto(pagado) ? pagado.comprobante !== null : pagado.estado === 'pagado') ? <BloquePedidoPagado pago={pagado} onVer={verComprobante} /> : null
+  /** MATU-92 (2.3): el pedido pagado más reciente abre el detalle; sin pedidos pagados, el bloque no va. */
+  const bloquePagado = pagado && pagado.items.length > 0 ? <BloqueTusPedidos lista={pagado} /> : null
 
   /** 4.3: con la autorización dada, se hace lo que se quería y se vuelve al carrito con su nota. */
   const alAutorizar = async () => {

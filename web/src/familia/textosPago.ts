@@ -73,7 +73,7 @@ export const PAGO = {
   condicionesVersion: (version: string) => `Condiciones del pedido, versión ${version} (se abre en otra pestaña)`,
   garantiasTitulo: 'Lo que te garantizamos',
   retractoTitulo: 'Derecho a retracto:',
-  retracto: 'tienes 10 días desde que lo recibes.',
+  retracto: 'tienes 10 días hábiles desde que lo recibes.', // MATU-92 (C24, D1): «hábiles»
   siNoLlega: 'Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
   puedeCancelar: 'Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar.',
   algoNoEsta: '¿Algo no está bien? Escríbenos a',
@@ -106,8 +106,5 @@ export const PAGO = {
   devolviendoTotal: 'Estamos devolviendo',
   selloSolo: 'Pago de prueba. No se cobró dinero real.',
 
-  // 8: el pedido pagado en la pestaña «Pedido»
-  pagadoTitulo: 'Pedido pagado',
-  totalPagadoDos: 'Total pagado:',
-  verComprobante: 'Ver el comprobante',
+  // 8: desde la v1.2 el bloque de la pestaña «Pedido» es «Tus pedidos» (MATU-92, textosTusPedidos.ts).
 }

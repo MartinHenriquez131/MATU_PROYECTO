@@ -20,7 +20,6 @@ import {
   leerPedidoPagado,
   type Comprobante,
   type Devolucion,
-  type Pago,
   type PagoVista,
   type ResultadoRetorno,
 } from '../compartido/api/pago'
@@ -34,10 +33,11 @@ import { useDemora } from './Estados'
 import { enfocar, esTipo } from './insumosComun'
 import { PestanasInsumos } from './Insumos'
 import { AvisoPiloto, Baldosa, horaDeVencimiento, type TonoBaldosa } from './PiezasPedido'
-import { navegar } from './ruteo'
+import { navegar, RUTA_DETALLE_PEDIDO } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
 import { PAGO } from './textosPago'
+import { TUS_PEDIDOS } from './textosTusPedidos'
 import { PEDIDO } from './textosPedido'
 import { Acciones, Etiqueta, Nota, Titulo } from './ui'
 import { guardarResultado, leerVuelta, marcarFijada, olvidarComprobante, olvidarVuelta, RUTA_PAGO, tomarComprobante } from './vueltaPago'
@@ -593,6 +593,11 @@ const restan = (c: Comprobante) => c.devoluciones.filter((d) => d.estado === 'he
 
 function PagasteTuPedido({ pago, yaRegistrado }: { pago: PagoVista & { comprobante: Comprobante }; yaRegistrado: boolean }) {
   const c = pago.comprobante
+  const { personaId, fijar } = useFamilia()
+  const verComoVa = () => {
+    if (personaId) fijar({ pedidoElegido: { personaId, pedidoId: pago.pedido_id, referencia: c.referencia } })
+    navegar(RUTA_DETALLE_PEDIDO)
+  }
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <Encabezado tono="ok" icono={<CircleCheck aria-hidden className="size-9" />} titulo={PAGO.pagasteTitulo} />
@@ -644,6 +649,10 @@ function PagasteTuPedido({ pago, yaRegistrado }: { pago: PagoVista & { comproban
             <Boton variante="texto" onClick={() => navegar(RUTA_PEDIDO)}>
               {PAGO.irATuPedido}
             </Boton>
+            {/* MATU-92 (2.4) y MATU-62 7.5.5 v1.2: el detalle de «Tus pedidos», con el pedido en memoria. */}
+            <Boton variante="texto" onClick={verComoVa}>
+              {TUS_PEDIDOS.verComoVa}
+            </Boton>
           </Acciones>
         </div>
       </div>
@@ -686,7 +695,7 @@ function NotaDevolucion({ devolucion: d, pagasteTu }: { devolucion: Devolucion; 
 const RENGLON = 'flex justify-between gap-4 angosto:flex-col angosto:items-start angosto:gap-0'
 
 /** 7.5.1: la boleta de MATU-61 como comprobante. Su título es «Comprobante», nunca «Boleta». */
-function ComprobanteBoleta({ c }: { c: Comprobante }) {
+export function ComprobanteBoleta({ c }: { c: Comprobante }) {
   const { fecha: dia, hora } = fecha(c.pagado_en)
   const devueltas = restan(c)
   const pagasteEnTotal = c.total - devueltas.reduce((t, d) => t + d.monto, 0)
@@ -791,7 +800,7 @@ function Sello() {
 }
 
 /** 7.5.3: datos del pedido. */
-function DatosDelPedido({ c, className = '' }: { c: Comprobante; className?: string }) {
+export function DatosDelPedido({ c, className = '' }: { c: Comprobante; className?: string }) {
   return (
     <section aria-labelledby="datos-t" className={`flex min-w-0 flex-col items-start gap-2 ${className}`}>
       <h2 id="datos-t" className="titular text-2xl">
@@ -816,7 +825,7 @@ function DatosDelPedido({ c, className = '' }: { c: Comprobante; className?: str
 }
 
 /** 7.5.3: lo que te garantizamos, todo a la vista. */
-function Garantias({ c, className = '' }: { c: Comprobante; className?: string }) {
+export function Garantias({ c, className = '' }: { c: Comprobante; className?: string }) {
   return (
     <section aria-labelledby="garantias-t" className={`flex min-w-0 flex-col gap-2 ${className}`}>
       <h2 id="garantias-t" className="titular text-2xl">
@@ -840,7 +849,7 @@ function Garantias({ c, className = '' }: { c: Comprobante; className?: string }
  * 7.5.5: la hoja impresa, fuera de `#raiz` (el patrón de MATU-60): solo el comprobante, con el sello
  * arriba y en negrita. En pantalla no existe (`hidden`).
  */
-function HojaComprobante({ c }: { c: Comprobante }) {
+export function HojaComprobante({ c }: { c: Comprobante }) {
   const { fecha: dia, hora } = fecha(c.pagado_en)
   const devueltas = restan(c)
   const fila = 'grid break-inside-avoid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-b border-borde py-2 text-lg'
@@ -920,42 +929,6 @@ function HojaComprobante({ c }: { c: Comprobante }) {
       </div>
     </div>,
     document.body,
-  )
-}
-
-// ---------------------------------------------------------------- 8 el pedido pagado en «Pedido»
-
-/**
- * 8: al final de «Tu pedido», el último pedido pagado. El observador ve solo «Pedido pagado» y
- * «Pagado» (D-62-2). Sin macizo: no compite con «Ver el total».
- */
-export function BloquePedidoPagado({ pago, onVer }: { pago: Pago; onVer: (p: PagoVista) => void }) {
-  const completo = esPagoCompleto(pago) && conComprobante(pago) ? pago : null
-  const c = completo?.comprobante
-  const cuando = c ? fecha(c.pagado_en) : null
-  return (
-    <section aria-labelledby="pedido-pagado-t" className="mt-10 flex flex-col items-start gap-3 border-t border-linea pt-6">
-      <h2 id="pedido-pagado-t" className="titular text-2xl">
-        {PAGO.pagadoTitulo}
-      </h2>
-      <Etiqueta tono="ok">
-        <Check aria-hidden className="size-4 shrink-0" />
-        {PAGO.pagado}
-      </Etiqueta>
-      {c && cuando && completo && (
-        <>
-          <p className="text-base">
-            {PAGO.pedidoRef(c.referencia)} · <span className="cifras">{cuando.fecha}</span> {PAGO.aLas} <span className="cifras">{cuando.hora}</span>
-          </p>
-          <p className="text-lg">
-            {PAGO.totalPagadoDos} <span className="cifras font-bold">{pesos(c.total)}</span>
-          </p>
-          <Boton variante="secundario" onClick={() => onVer(completo)}>
-            {PAGO.verComprobante}
-          </Boton>
-        </>
-      )}
-    </section>
   )
 }
 
