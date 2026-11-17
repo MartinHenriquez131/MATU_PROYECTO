@@ -19,6 +19,7 @@ from app.modules.care_circle.api.router_autorizaciones import finalidades_activa
 from app.modules.care_circle.domain.retiro import finalidades_retirables
 from app.modules.iam.api.dependencias import UsuarioActual, obtener_clave_jwt, obtener_reloj, usuario_actual
 from app.modules.iam.api.router import obtener_pepper_email
+from app.modules.iam.api.router_mfa import obtener_almacen_mfa, obtener_cifrador_mfa
 from app.modules.iam.api.router_politica import obtener_politica_vigente
 from app.modules.iam.api.router_recuperacion import (
     obtener_almacen_codigos,
@@ -27,10 +28,13 @@ from app.modules.iam.api.router_recuperacion import (
     obtener_pepper_recuperacion,
 )
 from app.modules.iam.api.sesion_web import obtener_contadores, obtener_pepper_limites
+from app.modules.iam.domain.mfa import hotp, paso_de
+from app.modules.iam.infrastructure.cifrador_mfa import CifradorMfaKek
 from app.modules.iam.infrastructure.enviador_simulado import EnviadorSimulado
 from tests.base_datos import DSN
 from tests.dobles.contador_ventana_en_memoria import ContadorVentanaEnMemoria, limite_ip_en_memoria
 from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
+from tests.dobles.mfa_en_memoria import AlmacenMfaEnMemoria
 from tests.dobles.recuperacion_en_memoria import AlmacenCodigosEnMemoria, ContadoresEnvioEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.politica import POLITICA_PRUEBAS
@@ -52,6 +56,37 @@ class EntornoIam:
     envios: ContadoresEnvioEnMemoria | None = None
     enviador: EnviadorSimulado = field(default_factory=EnviadorSimulado)
     pepper_recuperacion: bytes = b""
+    # MATU-81: el segundo factor, con una KEK sintética de la prueba y el almacén en memoria
+    almacen_mfa: AlmacenMfaEnMemoria | None = None
+    cifrador_mfa: CifradorMfaKek | None = None
+    pasos_usados: dict[uuid.UUID, int] = field(default_factory=dict)
+
+    def dar_alta_operacion(self, usuario_id: uuid.UUID) -> bytes:
+        """Marca la cuenta como de operación con un secreto TOTP sintético, como superusuario (lo que hace la tarea
+        operacion-alta con matu_scheduler). Devuelve el secreto, que solo conoce la prueba."""
+        assert self.cifrador_mfa is not None
+        secreto = secrets.token_bytes(20)
+        with psycopg.connect(DSN, autocommit=True) as cx:
+            cx.execute(
+                "UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = %s WHERE id = %s",
+                (self.cifrador_mfa.cifrar(secreto, usuario_id), usuario_id),
+            )
+        return secreto
+
+    def codigo_mfa(self, usuario_id: uuid.UUID, secreto: bytes) -> str:
+        """El código del paso actual o, si ya se usó, el del siguiente (la ventana admite ±1)."""
+        paso = max(paso_de(self.reloj.ahora()), self.pasos_usados.get(usuario_id, -1) + 1)
+        self.pasos_usados[usuario_id] = paso
+        return hotp(secreto, paso)
+
+    def entrar_operacion(self, email: str, contrasena: str, usuario_id: uuid.UUID, secreto: bytes) -> Any:
+        """Los dos pasos de la entrada de operación. Devuelve la respuesta del segundo."""
+        primero = self.iniciar_sesion(email=email, contrasena=contrasena)
+        assert primero.status_code == 401 and primero.json()["type"] == "/errores/mfa-requerido", primero.text
+        return self.cliente.post(
+            "/v1/sesiones/mfa",
+            json={"desafio": primero.json()["desafio"], "codigo": self.codigo_mfa(usuario_id, secreto)},
+        )
 
     def registrar(self, **cuerpo: Any) -> Any:
         # El celular es obligatorio desde MATU-39. Si la prueba no lo trae, va uno sintético;
@@ -143,6 +178,12 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     app.dependency_overrides[obtener_contadores_envio] = lambda: envios
     app.dependency_overrides[obtener_enviador] = lambda: enviador
 
+    # MATU-81: el segundo factor en memoria, con una KEK de la prueba
+    almacen_mfa = AlmacenMfaEnMemoria(reloj_fijo)
+    cifrador_mfa = CifradorMfaKek(secrets.token_bytes(32), 1)
+    app.dependency_overrides[obtener_almacen_mfa] = lambda: almacen_mfa
+    app.dependency_overrides[obtener_cifrador_mfa] = lambda: cifrador_mfa
+
     rutas_de_prueba(app)
 
     entorno = EntornoIam(
@@ -158,6 +199,8 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
         envios=envios,
         enviador=enviador,
         pepper_recuperacion=pepper_recuperacion,
+        almacen_mfa=almacen_mfa,
+        cifrador_mfa=cifrador_mfa,
     )
     with entorno.cliente:
         yield entorno

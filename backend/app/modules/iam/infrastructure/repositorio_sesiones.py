@@ -44,7 +44,7 @@ _RESOLVER = text(
 
 _SESION = text(
     "SELECT s.id, s.familia_id, s.dispositivo_id, s.expira_en, s.usado_en, s.revocado_en,"
-    " d.revocado_en AS dispositivo_revocado_en, u.estado"
+    " d.revocado_en AS dispositivo_revocado_en, u.estado, s.mfa_en, u.es_operacion"
     " FROM sesion_refresh s"
     " JOIN dispositivo d ON d.id = s.dispositivo_id"
     " JOIN usuario u ON u.id = s.usuario_id"
@@ -114,14 +114,16 @@ class RepositorioSesionesSql:
                 dispositivo_revocado=fila.dispositivo_revocado_en is not None,
                 cuenta_activa=puede_iniciar_sesion(fila.estado),
             ),
+            mfa_en=fila.mfa_en,
+            es_operacion=bool(fila.es_operacion),
         )
 
     def crear_refresh(self, nuevo: NuevoRefresh) -> None:
         self._sesion.execute(
             text(
                 "INSERT INTO sesion_refresh (id, usuario_id, dispositivo_id, familia_id, token_hash, emitido_en,"
-                " expira_en) VALUES (:id, :usuario_id, :dispositivo_id, :familia_id, :token_hash, :emitido_en,"
-                " :expira_en)"
+                " expira_en, mfa_en) VALUES (:id, :usuario_id, :dispositivo_id, :familia_id, :token_hash,"
+                " :emitido_en, :expira_en, :mfa_en)"
             ),
             {
                 "id": nuevo.id,
@@ -131,6 +133,7 @@ class RepositorioSesionesSql:
                 "token_hash": nuevo.token_hash,
                 "emitido_en": nuevo.emitido_en,
                 "expira_en": nuevo.expira_en,
+                "mfa_en": nuevo.mfa_en,
             },
         )
         self._sesion.execute(

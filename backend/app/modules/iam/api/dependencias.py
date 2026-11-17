@@ -11,6 +11,7 @@ sesion_de_grupo, de care_circle.
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -40,6 +41,8 @@ class UsuarioActual:
     id: uuid.UUID
     # Claim did del access token (MATU-38). None en un token anterior a MATU-38
     dispositivo_id: uuid.UUID | None = None
+    # Claim mfa (MATU-81): el instante del segundo factor. None si la sesión no lo pasó
+    mfa_en: datetime | None = None
 
 
 def obtener_clave_jwt() -> bytes:
@@ -67,7 +70,7 @@ def usuario_actual(
         raise ErrorMATU(401, detalle="Inicia sesión para continuar", headers=_CABECERA_BEARER)
     try:
         claims = leer_acceso(credenciales.credentials, emisor, reloj)
-        usuario = UsuarioActual(id=claims.sub, dispositivo_id=claims.did)
+        usuario = UsuarioActual(id=claims.sub, dispositivo_id=claims.did, mfa_en=claims.mfa)
     except TokenInvalido:
         raise ErrorMATU(
             401, tipo="token-invalido", detalle="Inicia sesión de nuevo", headers=_CABECERA_BEARER
@@ -97,6 +100,8 @@ SesionDeUsuario = Annotated[Session, Depends(sesion_de_usuario, scope="function"
 # --- MATU-63 (O1): el tipo de cuenta en la respuesta de la sesión ---------------------------------------------------
 
 _ES_COMERCIO = text("SELECT EXISTS (SELECT 1 FROM usuario_comercio WHERE usuario_id = app_usuario() AND activo)")
+# MATU-81: usuario_propio_leer deja leer la propia fila
+_ES_OPERACION = text("SELECT es_operacion FROM usuario WHERE id = app_usuario()")
 
 TipoCuenta = Callable[[uuid.UUID], str]
 
@@ -104,11 +109,14 @@ TipoCuenta = Callable[[uuid.UUID], str]
 def obtener_tipo_cuenta(
     fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)],
 ) -> TipoCuenta:
-    """``comercio`` si la cuenta tiene una cuenta activa de comercio (usuario_comercio_propio la deja leer), si no
-    ``familia``. Sin otro dato: ni el comercio ni si existe un correo. Las pruebas lo sobreescriben."""
+    """``operacion`` si la cuenta es de operación (MATU-81), ``comercio`` si tiene una cuenta activa de comercio
+    (usuario_comercio_propio la deja leer), si no ``familia``. Sin otro dato: ni el comercio ni si existe un correo.
+    Las pruebas lo sobreescriben."""
 
     def tipo(usuario_id: uuid.UUID) -> str:
         with sesion_tenant(fabrica, usuario_id=usuario_id) as sesion:
+            if sesion.execute(_ES_OPERACION).scalar():
+                return "operacion"
             return "comercio" if sesion.execute(_ES_COMERCIO).scalar() else "familia"
 
     return tipo

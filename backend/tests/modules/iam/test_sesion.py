@@ -74,7 +74,7 @@ def test_login_correcto_entrega_jwt(entorno_iam: EntornoIam, email_sintetico: st
     assert respuesta.status_code == 200
     assert respuesta.headers["cache-control"] == "no-store"
     cuerpo = respuesta.json()
-    assert set(cuerpo) == {"access_token", "token_type", "expira_en", "tipo_cuenta"}
+    assert set(cuerpo) == {"access_token", "token_type", "expira_en", "tipo_cuenta", "sesion_vence_en"}
     assert cuerpo["token_type"] == "bearer"
     assert cuerpo["expira_en"] == 900
 
