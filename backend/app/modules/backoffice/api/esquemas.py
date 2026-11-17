@@ -302,12 +302,13 @@ class PedidoPagadoFila(_Estricto):
 
 
 class PedidoPagadoFilaObservador(_Estricto):
-    """Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de
-    la entrega ni acciones."""
+    """Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la
+    fecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."""
 
     pedido_id: uuid.UUID
     pagado_en: datetime
-    estado: Literal["pagado"]
+    estado: Annotated[EstadoFamiliaApi, Field(description=_DESCRIPCION_ESTADO)]
+    entregado_en: datetime | None
     productos: list[ProductoDeLaFila]
     resumen_productos: ResumenProductos | None
     productos_borrados: bool
