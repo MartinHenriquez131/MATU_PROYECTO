@@ -10,6 +10,7 @@ export function DialogoConfirmar({
   titulo,
   texto,
   destacado,
+  nota,
   confirmar,
   confirmando,
   seguir,
@@ -20,9 +21,12 @@ export function DialogoConfirmar({
   icono,
 }: {
   titulo: string
-  texto: string
+  /** MATU-92 (6.1): puede llevar la cifra del monto en `cifras`. */
+  texto: ReactNode
   /** MATU-62 (6.3): un párrafo en negrita, lo único del diálogo que dice que puede moverse dinero. */
   destacado?: string
+  /** MATU-92 (6.1): un párrafo en `text-tenue` después del texto, como el sello del piloto. */
+  nota?: string
   /** El botón macizo `pronto`: lo que no se deshace, con el mismo verbo del título. */
   confirmar: string
   confirmando: string
@@ -87,7 +91,7 @@ export function DialogoConfirmar({
     <dialog
       ref={ref}
       aria-labelledby={`${uid}-t`}
-      aria-describedby={destacado ? `${uid}-d ${uid}-x` : `${uid}-d`}
+      aria-describedby={[`${uid}-d`, destacado ? `${uid}-x` : '', nota ? `${uid}-n` : ''].filter(Boolean).join(' ')}
       onCancel={(e) => {
         e.preventDefault()
         cancelar()
@@ -111,6 +115,11 @@ export function DialogoConfirmar({
         {destacado && (
           <p id={`${uid}-x`} className="max-w-prose text-base font-bold">
             {destacado}
+          </p>
+        )}
+        {nota && (
+          <p id={`${uid}-n`} className="max-w-prose text-base text-tenue">
+            {nota}
           </p>
         )}
         {/* Con `showModal` lo de fuera queda inerte, también las regiones vivas: el error usa su propia región. */}

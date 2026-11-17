@@ -238,8 +238,8 @@ def test_el_retracto_trae_sus_productos_y_el_rechazo_exige_motivo(despacho: Desp
     familia, pedido, _ = _entregado(d)
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
     [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
-    r = d.e.pedir("POST", f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
-                  {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
     assert r.status_code == 201, r.text
     retracto = r.json()["id"]
     vista = d.operacion("GET", f"/retractos/{retracto}").json()

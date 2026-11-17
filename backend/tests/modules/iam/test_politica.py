@@ -586,12 +586,11 @@ def test_la_0_18_sigue_publicada_para_quien_la_acepto() -> None:
 
 @pytest.mark.rf("Ley-21.719")
 @pytest.mark.rf("RF-26")
-def test_la_0_19_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_19_sigue_publicada_para_quien_la_acepto() -> None:
     """MATU-63 (D-63-16): la 0.19 agrega cómo los comercios preparan el pedido, el código de retiro y arrepentirse de
-    la compra. Nadie vuelve a aceptar; de la 0.11 a la 0.18 siguen publicadas."""
-    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19"} <= set(PUBLICADAS)
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.19", "2026-11-13")
+    la compra. Nadie vuelve a aceptar; sigue publicada para quien la aceptó."""
+    huella = "c5b79d87898f6624cb97996ded97df9d50334ba5b717b12901a9a5efd93a1ff9"  # pragma: allowlist secret
+    assert PUBLICADAS["0.19"] == huella
     texto = texto_publicado("0.19")
     assert texto != texto_publicado("0.18")
     for parte in (
@@ -604,3 +603,36 @@ def test_la_0_19_esta_publicada_y_es_la_de_env_example() -> None:
         assert parte in texto, parte
     # Lo de la 0.18 sigue en el texto vigente
     assert "- La versión 0.18 aclara en la sección 6" in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.rf("RF-26")
+def test_la_0_20_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-92: la 0.20 agrega «Tus pedidos», con los pedidos pagados de la persona según el rol, y arrepentirse de la
+    compra o cancelar un pedido pagado desde la aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a
+    aceptar. De la 0.11 a la 0.19 siguen publicadas."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20"} <= set(PUBLICADAS)
+    huella = "d4c73f40d140efa752c236066c88f8a77a25d15f29c7688ff2c3537c06bce815"  # pragma: allowlist secret
+    assert PUBLICADAS["0.20"] == huella
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.20", "2026-11-17")
+    texto = texto_publicado("0.20")
+    assert texto != texto_publicado("0.19")
+    for parte in (
+        "**Tus pedidos.** En «Tus pedidos» ves los pedidos pagados de la persona, con su estado, el comprobante y lo"
+        " devuelto, según tu rol (sección 6).",
+        "por correo se aceptan retractos hasta 90 días desde la entrega, y el equipo de MATU lo registra a tu nombre.",
+        "- La versión 0.20 agrega «Tus pedidos»",
+        "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: cada persona del grupo ve lo"
+        " mismo que antes, según su rol.",
+        "Decreto 52 de 2022 del Ministerio de Economía (exclusión del derecho a retracto)",
+        # §8, cierre del analista: el plazo se cuenta desde el cierre del pedido
+        "- **Pedidos pagados y comprobantes de entrega:** 2 años desde que el pedido se cierra, es decir, desde que se"
+        " entrega o se cancela con devolución. Mientras un pedido sigue en curso, el plazo no empieza.",
+        "lo que pediste se guarda con el pedido, 2 años desde su cierre,",
+    ):
+        assert parte in texto, parte
+    # Arrepentirse y cancelar desde la aplicación ya no figuran como pendientes
+    assert "- «Arrepentirme de la compra» y cancelar un pedido pagado desde la aplicación. Mientras tanto" not in texto
+    # Lo de la 0.19 sigue en el texto vigente
+    assert "- La versión 0.19 agrega cómo los comercios preparan tu pedido" in texto

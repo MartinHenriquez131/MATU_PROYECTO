@@ -73,7 +73,7 @@ export const PAGO = {
   condicionesVersion: (version: string) => `Condiciones del pedido, versión ${version} (se abre en otra pestaña)`,
   garantiasTitulo: 'Lo que te garantizamos',
   retractoTitulo: 'Derecho a retracto:',
-  retracto: 'tienes 10 días desde que lo recibes.',
+  retracto: 'tienes 10 días hábiles desde que lo recibes.', // MATU-92 (C24, D1): «hábiles»
   siNoLlega: 'Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco.',
   puedeCancelar: 'Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar.',
   algoNoEsta: '¿Algo no está bien? Escríbenos a',
@@ -84,7 +84,8 @@ export const PAGO = {
   tardioCierre: ', el precio que aceptaste.',
 
   // 7.7: devoluciones
-  devolvimosTuya: (producto: string | null) => (producto ? `por ${producto}` : 'por tu pedido completo'),
+  /** MATU-92 (P1-3): sin producto, «tu pedido completo» solo con `cancelacion`; si no, es el envío. */
+  devolvimosTuya: (producto: string | null, motivo: string) => (producto ? `por ${producto}` : motivo === 'cancelacion' ? 'por tu pedido completo' : 'por el envío'),
   devolvimosAntes: 'Devolvimos',
   aTuTarjeta: 'a tu tarjeta terminada en',
   aLaTarjeta: 'a la tarjeta con que se pagó',
@@ -94,7 +95,7 @@ export const PAGO = {
   aTuTarjetaSola: 'a tu tarjeta.',
   devolviendoTuya: 'Si no se completa hoy, te escribimos. MATU nunca te pide los datos de tu banco por mensaje.',
   devolviendoAjena: 'Si no se completa hoy, le escribimos a quien pagó. MATU nunca pide los datos de un banco por mensaje.',
-  renglonDevolvimos: (producto: string | null) => `Devolvimos: ${producto ?? 'tu pedido completo'}`,
+  renglonDevolvimos: (producto: string | null, motivo: string) => `Devolvimos: ${producto ?? (motivo === 'cancelacion' ? 'tu pedido completo' : 'el envío')}`,
   pagasteEnTotal: 'Pagaste en total',
 
   // 7.9: pago tardío anulado
@@ -106,8 +107,5 @@ export const PAGO = {
   devolviendoTotal: 'Estamos devolviendo',
   selloSolo: 'Pago de prueba. No se cobró dinero real.',
 
-  // 8: el pedido pagado en la pestaña «Pedido»
-  pagadoTitulo: 'Pedido pagado',
-  totalPagadoDos: 'Total pagado:',
-  verComprobante: 'Ver el comprobante',
+  // 8: desde la v1.2 el bloque de la pestaña «Pedido» es «Tus pedidos» (MATU-92, textosTusPedidos.ts).
 }

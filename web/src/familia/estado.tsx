@@ -135,6 +135,17 @@ interface Estado {
    * lleva el foco al `h1`.
    */
   focoAlVolver: string | null
+  /**
+   * MATU-92 (2.1): el pedido pagado que se abrió desde «Tus pedidos», el bloque de «Pedido» o el
+   * comprobante. La ruta no lleva el id. Al recargar no existe y el detalle vuelve a la lista.
+   */
+  pedidoElegido: PedidoElegido | null
+}
+/** MATU-92: lo que el detalle necesita antes de leer el pedido: de quién es, su id y su número corto. */
+export interface PedidoElegido {
+  personaId: string
+  pedidoId: string
+  referencia: string
 }
 export type Autorizacion = 'sin-consentimiento' | 'revision-vencida' | null
 
@@ -189,6 +200,7 @@ const INICIAL: Estado = {
   invitacion: null,
   datosDe: null,
   focoAlVolver: null,
+  pedidoElegido: null,
 }
 
 export function ProveedorFamilia({ children }: { children: ReactNode }) {

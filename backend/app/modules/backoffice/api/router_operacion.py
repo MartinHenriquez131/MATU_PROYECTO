@@ -299,6 +299,7 @@ def _retracto_vista(sesion: Session, r: Retracto, monto: int) -> RetractoOperaci
         id=r.id, pedido_id=r.pedido_id, estado=r.estado,  # type: ignore[arg-type]
         solicitado_en=r.solicitado_en, plazo_hasta=r.plazo_hasta, incluye_envio=r.incluye_envio, monto=monto,
         origen=r.origen,  # type: ignore[arg-type]
+        resuelto_en=r.resuelto_en,
         referencia=None if detalle is None else detalle.referencia,
         motivo_rechazo=None if detalle is None else detalle.motivo_rechazo,
         lineas=[

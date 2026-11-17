@@ -190,6 +190,7 @@ interface Retracto {
   origen: 'app' | 'correo'
   lineas: { linea_id: string; cantidad: number }[]
   motivo_rechazo: 'sello_abierto' | 'producto_no_recibido' | null
+  resuelto_en: string | null
 }
 interface Incidencia {
   id: string
@@ -413,6 +414,7 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
       origen: 'app',
       lineas: [{ linea_id: F.lineas[0].id, cantidad: 3 }],
       motivo_rechazo: null,
+      resuelto_en: null,
     })
     F.eventos.push(ev(-24 * 60, 'retracto', 'familia', 'solicitado'))
 
@@ -543,6 +545,7 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
       incluye_envio: r.incluye_envio,
       monto: r.monto,
       origen: r.origen,
+      resuelto_en: r.resuelto_en,
       referencia: p.referencia,
       lineas: r.lineas.map((x) => {
         const l = p.lineas.find((y) => y.id === x.linea_id)!
@@ -702,6 +705,7 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
         const p = pedidos.find((x) => x.id === r.pedido_id)!
         r.estado = decision === 'devolver' ? 'devuelto' : 'rechazado'
         r.motivo_rechazo = decision === 'rechazar' ? (motivo as Retracto['motivo_rechazo']) : null
+        r.resuelto_en = ahora().toISOString()
         if (decision === 'devolver') p.anulaciones.push({ id: nuevoId(), motivo: 'retracto', monto: r.monto, estado: 'hecha', producto: null, en: ahora().toISOString(), intentos: 1 })
         p.eventos.push({ ...ev(0, 'retracto', 'operacion', r.estado, { desde: 'solicitado', motivo: r.motivo_rechazo }), en: ahora().toISOString() })
         return ok(vistaRetracto(r))
@@ -796,6 +800,7 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
       origen: 'correo',
       lineas: lineas.map((x) => ({ linea_id: String(x.linea_id), cantidad: x.cantidad as number })),
       motivo_rechazo: null,
+      resuelto_en: null,
     }
     retractos.push(r)
     p.eventos.push({ ...ev(0, 'retracto', 'familia', 'solicitado'), en: r.solicitado_en })

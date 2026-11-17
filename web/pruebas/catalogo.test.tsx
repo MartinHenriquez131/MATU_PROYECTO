@@ -217,8 +217,8 @@ describe('El catálogo', () => {
     const { pantalla } = abrir('cuidador')
     await pantalla.findByRole('heading', { level: 3, name: 'Pañal adulto M x30' })
     const retracto = (nombre: string) => within(tarjeta(nombre)).getByText('Derecho a retracto:').closest('p')!
-    const conSello = 'Derecho a retracto: tienes 10 días desde que lo recibes. No aplica si abres el sello del producto.'
-    const sinSello = 'Derecho a retracto: tienes 10 días desde que lo recibes.'
+    const conSello = 'Derecho a retracto: tienes 10 días hábiles desde que lo recibes. No aplica si abres el sello del producto.'
+    const sinSello = 'Derecho a retracto: tienes 10 días hábiles desde que lo recibes.'
     expect(retracto('Pañal adulto M x30')).toHaveTextContent(conSello)
     expect(retracto('Crema protectora de la piel 100 g')).toHaveTextContent(conSello)
     // La bolsa está en higiene y no lleva la frase del sello: manda el campo.

@@ -148,7 +148,17 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'pago-devoluciones-otro@example.com', que: 'Pago: las mismas devoluciones vistas por una cuidadora que no pagó («a la tarjeta con que se pagó»)' },
   { email: 'pago-prepago@example.com', que: 'Pago: pagador que pagó con prepago («Tarjeta de prepago terminada en 7720»)' },
   { email: 'pago-tardio@example.com', que: 'Pago: pago tardío respetado (7.6)' },
-  { email: 'pago-observador@example.com', que: 'Pago: observador con un pedido pagado: solo «Pedido pagado» y «Pagado»' },
+  { email: 'pago-observador@example.com', que: 'Pago: observador con un pedido pagado: la fecha, «Pagado» y los productos en «Tus pedidos» (MATU-92)' },
+  // MATU-92: «Tus pedidos» (/insumos/tus-pedidos). Cuatro pedidos pagados: recién pagado, en preparación, entregado con un faltante, el envío devuelto y una devolución por correo, y cancelado.
+  { email: 'tus-pedidos@example.com', que: 'Tus pedidos: admin que pagó; cancelar el recién pagado y arrepentirse del entregado' },
+  { email: 'tus-pedidos-pagador@example.com', que: 'Tus pedidos: pagador que pagó; se arrepiente, no cancela («Solo quien administra…»)' },
+  { email: 'tus-pedidos-cuidador@example.com', que: 'Tus pedidos: cuidadora que no pagó («a la tarjeta con que se pagó», «Pueden arrepentirse…»)' },
+  { email: 'tus-pedidos-observador@example.com', que: 'Tus pedidos: observador: la fecha, «Pagado» y los productos, sin detalle' },
+  { email: 'tus-pedidos-carrera@example.com', que: 'Tus pedidos: el primer «Devolver estos productos» responde 422 (otra persona pidió un pañal antes)' },
+  { email: 'tus-pedidos-red@example.com', que: 'Tus pedidos: cancelar y arrepentirse responden 503 la primera vez («Todo sigue como estaba»)' },
+  { email: 'tus-pedidos-plazo@example.com', que: 'Tus pedidos: el entregado pasó el plazo de la app («escríbenos a…»)' },
+  { email: 'tus-pedidos-vacio@example.com', que: 'Tus pedidos: sin pedidos pagados («Todavía no hay pedidos pagados para María.»)' },
+  { email: 'tus-pedidos-falla@example.com', que: 'Tus pedidos: la lista responde 500 («No pudimos traer tus pedidos…»)' },
   { email: 'pedido-retirada@example.com', que: 'Pedido: la autorización de pedidos retirada; Grupo familiar con «Ver la dirección de entrega» y «Volver a autorizar»' },
   // MATU-42 y MATU-53: invitar y quiénes forman el grupo (/grupo, /grupo/invitar). Familia Soto: Carmen y
   // Tomás administran, Rodrigo paga, Rosa cuida y Pedro se informa (según la cuenta).
