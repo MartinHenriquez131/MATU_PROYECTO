@@ -1,6 +1,12 @@
 # MATU-62 · Pago con Webpay Plus del total exacto confirmado · Especificación de diseño
 
-**Versión 1.1 · 11/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.2 · 16/11/2026** · agente 6 (UI/UX) · para el frontend
+
+**Cambios de la v1.2** (MATU-92, decisiones del orquestador del 16-11, D1 y D8):
+- §8: el bloque «Pedido pagado» al final de «Pedido» pasa a ser «Tus pedidos». Muestra la fila del pedido pagado más reciente, que abre su detalle, y lleva a la lista nueva (`docs/diseno/matu-92-tus-pedidos.md`, 2.3).
+- 7.4.1, 7.5.3 y 12: la garantía del retracto dice «10 días hábiles» (C24 de MATU-92).
+- 7.5.5: en el comprobante de la vuelta, «Ver cómo va tu pedido» va junto a «Ir a tu pedido».
+
 
 **Cambios de la v1.1** (decisiones del orquestador después de construir, incluida la decisión 248):
 - La tarjeta de prepago se llama «Tarjeta de prepago terminada en `{ultimos4}`» (7.5.1).
@@ -38,7 +44,7 @@ Lo que la pantalla necesita y que no decido yo. El orquestador lo lleva al backe
 | # | Qué | Para quién | Propuesta |
 |---|---|---|---|
 | P1 | **Cómo llega la vuelta de Webpay a la app.** Transbank vuelve a la `return_url` con `token_ws`, o con `TBK_TOKEN`, `TBK_ORDEN_COMPRA` y `TBK_ID_SESION` si la persona anuló o se le acabó el tiempo. El analista anota que `token_ws` llega por GET (punto 11) | Backend | La `return_url` es la ruta de la app `/insumos/pedido/pago` (2.1). La pantalla lee lo que trajo la dirección, **lo borra de inmediato con `history.replaceState`** (como el `#token` del relevo) y lo envía en el cuerpo de `POST /v1/pagos/retorno` (arquitectura 8.4). Si Transbank vuelve por POST en algún caso, el backend lo recibe y responde con un 303 a la misma ruta. La pantalla no cambia con una u otra forma, siempre que nada quede en la dirección ni en el historial |
-| P2 | **Volver a ver el comprobante después de recargar.** Las rutas no llevan ids (MATU-61, C18), y `pedido-en-curso` devuelve solo pedidos sin pagar | Backend | Una lectura del último pedido pagado de la persona, por ejemplo `GET …/personas-cuidadas/{persona_id}/pedido-pagado`, con la vista de cada rol (D-62-2). La usa el bloque «Pedido pagado» de la pestaña «Pedido» (8) y la ruta del comprobante al recargar. MATU-63 la reemplaza por el seguimiento |
+| P2 | **Volver a ver el comprobante después de recargar.** Las rutas no llevan ids (MATU-61, C18), y `pedido-en-curso` devuelve solo pedidos sin pagar | Backend | Una lectura del último pedido pagado de la persona, por ejemplo `GET …/personas-cuidadas/{persona_id}/pedido-pagado`, con la vista de cada rol (D-62-2). La usa la ruta del comprobante al recargar. Desde la v1.2, el bloque de la pestaña «Pedido» (8) usa la lista de MATU-92 |
 | P3 | **La vuelta sin la sesión de la app.** El retorno es público y se valida por el token (punto 16). Si la app no logra recuperar la sesión al volver, no hay rol ni se sabe quién pagó | Backend | El retorno responde siempre el `resultado` (3.3), sin montos ni tarjeta. La pantalla muestra el resultado y «Entrar» para ver el comprobante (7.10) |
 | P4 | **Las condiciones de la versión aceptada.** El comprobante dice «Condiciones aceptadas: versión `{v}`». Si después se publica la 0.3, `/condiciones-pedido` muestra la nueva | Backend | Que `GET /v1/condiciones-pedido` acepte la versión (`?version=0.2`) y el comprobante enlace a esa. Sin eso, el enlace del comprobante no va |
 | P5 | **Cuotas.** Con crédito, Webpay puede ofrecer cuotas. El cobro de MATU es uno solo, pero la persona puede haber elegido 3 cuotas con su banco | Analista y backend | Si el `commit` trae cuotas mayores que 1, el comprobante lo dice junto a la tarjeta («en 3 cuotas», 7.5). Que el analista confirme que el texto «Se cobra una sola vez este total» de la boleta sigue siendo cierto con cuotas (MATU cobra una vez; el banco reparte) |
@@ -79,7 +85,7 @@ Lo que la pantalla necesita y que no decido yo. El orquestador lo lleva al backe
 - Se agrega a `Ruta` y `RUTAS` de `ruteo.ts`. `seccionDe` ya la reconoce por el prefijo `/insumos`, y muestra las pestañas con «Pedido» activa, como el resumen.
 - **Es también la `return_url`** que el backend le da a Transbank (P1). Se llega a ella de tres maneras:
   1. **desde Webpay**, con los parámetros de Transbank en la dirección: es la vuelta (7.1 a 7.10);
-  2. **desde la app**, con el pedido pagado en la memoria de la página («Ver el comprobante», 8): es el comprobante (7.4);
+  2. **desde la app**, con el pedido pagado en la memoria de la página (desde la v1.2, desde el detalle de MATU-92): es el comprobante (7.4);
   3. **al recargar**, sin parámetros y sin nada en memoria: pide el pedido pagado (P2) y muestra el comprobante. Si no hay, lleva a `/insumos/pedido`.
 - **`<title>`**: el `h1` de cada estado más « · MATU». Por ejemplo, «Estamos confirmando tu pago · MATU» y «Pagaste tu pedido · MATU» **[NUEVO]**.
 - **Foco:** al llegar, al `h1`. Cuando el estado cambia en la misma ruta (de «Estamos confirmando tu pago» a «Pagaste tu pedido»), el `h1` cambia, el `<title>` también y el foco va al `h1` nuevo, que se lee. No hace falta otra región viva para el resultado.
@@ -101,7 +107,7 @@ Desde `/insumos/pedido/pago`, cambiar de persona en el encabezado lleva a `/insu
 | El correo del comprobante | solo quien pagó | no | solo quien pagó | no |
 | Las devoluciones: estado y monto | sí | sí | sí | no |
 | Las devoluciones: «a tu tarjeta terminada en `{ultimos4}`» | solo quien pagó. El resto lee «a la tarjeta con que se pagó» | | | no |
-| El bloque «Pedido pagado» de la pestaña «Pedido» | con monto y «Ver el comprobante» | igual | igual | **solo «Pagado»** |
+| El bloque «Tus pedidos» de la pestaña «Pedido» (v1.2) | la fila con el estado y el total, que abre el detalle | igual | igual | **la fecha, «Pagado» y los productos, sin detalle** (D-92-1) |
 
 La pantalla decide con lo que trae la vista de cada rol. **Nunca oculta en la pantalla un dato que llegó**: si la vista de un rol trae la tarjeta, es un defecto del contrato, y lo reviso así (criterio 9).
 
@@ -510,7 +516,8 @@ llega a /insumos/pedido/pago con parámetros de Transbank
 │ (se abre en otra pestaña)          │
 │ Lo que te garantizamos             │  h2 titular text-2xl
 │ · Derecho a retracto: tienes 10    │  ul text-base max-w-prose
-│   días desde que lo recibes.       │
+│   días hábiles desde que lo        │
+│   recibes.                         │
 │ · Si un producto no llega, te      │
 │   devolvemos su precio el mismo    │
 │   día, a la misma tarjeta. Cuándo  │
@@ -607,7 +614,7 @@ llega a /insumos/pedido/pago con parámetros de Transbank
 | Condiciones | `p text-base`, la fecha en `cifras` | Condiciones aceptadas: versión `{v}`, el `{DD/MM/AAAA}` | [A5.4] |
 | Enlace | Enlace solo, `inline-flex min-h-12`, `target="_blank" rel="noopener"`, a la versión aceptada (P4). Sin P4, no va | Condiciones del pedido, versión `{v}` (se abre en otra pestaña) | **[NUEVO]**, con la forma de [L 31] |
 | Título | `h2 titular text-2xl` | Lo que te garantizamos | **[NUEVO]** |
-| Garantías | `ul max-w-prose text-base` con `list-disc ps-5`, un `li` por frase. «Derecho a retracto:» en `font-bold` | Derecho a retracto: tienes 10 días desde que lo recibes. · Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. · Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar. · ¿Algo no está bien? Escríbenos a `{correo}`. | [A5.4] |
+| Garantías | `ul max-w-prose text-base` con `list-disc ps-5`, un `li` por frase. «Derecho a retracto:» en `font-bold` | Derecho a retracto: tienes 10 días hábiles desde que lo recibes. (v1.2, C24 de MATU-92) · Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. · Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar. · ¿Algo no está bien? Escríbenos a `{correo}`. | [A5.4] |
 | Correo de reclamos | `EnlaceEnFrase` `mailto:` con `canal_reclamo` | — | — |
 
 - **El retracto en el comprobante va una vez**, en la forma general de [A5.4]. El de cada producto (con «No aplica si abres el sello del producto», [L 27]) está en el resumen, que es donde se decide. Si el analista pide la regla del sello por producto también aquí, va como una frase bajo el nombre del producto, en `text-base`.
@@ -628,6 +635,7 @@ Quien no pagó no ve ninguna de las dos: el correo es de otra persona.
 |---|---|---|---|
 | Imprimir | `Boton variante="secundario"` con `Printer` `size-5` `aria-hidden`. Llama a `window.print()` | Imprimir o guardar en PDF | [L 21] (el de la lista) |
 | Salida | `Boton variante="texto"`, lleva a `/insumos/pedido` | Ir a tu pedido | [L 31] |
+| Seguimiento (v1.2) | `Boton variante="texto"`, junto a «Ir a tu pedido». Abre el detalle de MATU-92 (`/insumos/tus-pedidos/pedido`) con el pedido en memoria | Ver cómo va tu pedido | **[NUEVO]** de MATU-92, 2.4 |
 
 - **Sin elemento en `turquesa` macizo.** El pago terminó: no hay una acción que Carmen tenga que hacer. Imprimir es útil pero no obligatorio.
 - **La hoja impresa** usa el patrón de MATU-60 (`HojaImpresa`, `data-impresion`, `hidden print:block`, en un portal): solo el comprobante, en una columna, `bg-hoja text-tinta`, con el título «Comprobante · Pedido `{referencia}`», la fecha, **el sello del piloto en negrita**, los renglones, el total pagado, la tarjeta (si la ve quien imprime), los datos del pedido y las garantías. Sin las pestañas, sin el aviso de arriba y sin botones. El sello va arriba de la hoja, antes de los productos.
@@ -799,32 +807,34 @@ No se escriben textos nuevos para estos casos: se reutilizan los que ya existen.
 
 ---
 
-## 8. El pedido pagado en la pestaña «Pedido»
+## 8. «Tus pedidos» en la pestaña «Pedido» (v1.2, MATU-92)
 
-**Objetivo:** después de pagar, cualquiera del grupo encuentra el comprobante sin buscarlo, y el observador sabe que está pagado.
+**Objetivo:** después de pagar, cualquiera del grupo encuentra su pedido sin buscarlo y ve cómo va. El observador sabe que está pagado.
 
-Hasta que MATU-63 traiga el seguimiento, `/insumos/pedido` muestra **al final** (después del carrito o del vacío de MATU-61, 7.10), si hay un pedido pagado de la persona (P2):
+**Desde la v1.2**, el bloque «Pedido pagado» queda **reemplazado** por el bloque «Tus pedidos» de MATU-92 (`docs/diseno/matu-92-tus-pedidos.md`, 2.3), como lo anticipaba esta sección. Va en el mismo lugar: **al final** de `/insumos/pedido`, después del carrito o del vacío de MATU-61 (7.10), y solo si la persona tiene al menos un pedido pagado.
 
 ```
 │ ────────────────────────────────── │  mt-10 border-t border-linea pt-6
-│ Pedido pagado                      │  h2 titular text-2xl
-│ [✓ Pagado]                         │  Etiqueta ok, Check
-│ Pedido 4821 · 11/11/2026 a las     │  text-base, cifras
-│ 16:41                              │
-│ Total pagado: $57.460              │  text-lg, la cifra font-bold
-│ [ Ver el comprobante ]             │  Boton secundario
+│ Tus pedidos                        │  h2 titular text-2xl
+│ ┌────────────────────────────────┐ │  la fila de MATU-92 3.3, la más reciente
+│ │ Pedido 4821 · 11/11/2026       │ │  un button: abre el detalle
+│ │ [▣ En preparación]             │ │  Etiqueta con ícono y palabra
+│ │ Total pagado: $57.460          │ │
+│ └────────────────────────────────┘ │
+│ Ver todos tus pedidos              │  Boton texto, solo si hay más de uno
 ```
 
 | Parte | admin, cuidador y pagador | observador | Origen |
 |---|---|---|---|
-| Título | Pedido pagado | Pedido pagado | **[NUEVO]** |
-| Marca | `Etiqueta tono="ok"` «Pagado» con `Check` | Igual | **[NUEVO]** |
-| Datos | Pedido `{referencia}` · `{DD/MM/AAAA}` a las `{HH:MM}` · Total pagado: `{total}` | Ninguno (D-62-2) | [A5.4] |
-| Acción | `secundario` «Ver el comprobante», que lleva a `/insumos/pedido/pago` con el pedido en memoria | Ninguna | **[NUEVO]** |
+| Título | Tus pedidos | Tus pedidos | MATU-92 [L 38] |
+| Fila | La de MATU-92 3.3, la del pedido pagado más reciente, con su estado. Se toca para abrir el detalle (`/insumos/tus-pedidos/pedido`), donde está el comprobante | La de MATU-92 3.4: la fecha, «Pagado» y los productos, sin botón | MATU-92 |
+| Enlace | `Boton variante="texto"` «Ver todos tus pedidos», a `/insumos/tus-pedidos`, solo si hay más de uno | Igual | **[NUEVO]** de MATU-92 |
+
+**Lo que sale:** el título «Pedido pagado», la `Etiqueta` suelta y «Ver el comprobante». El comprobante ahora se abre desde el detalle. `/insumos/pedido/pago` sigue siendo la vuelta de Webpay (7), y al recargarla sin vuelta sigue mostrando el último pago (P2).
 
 - **Por qué al final y no arriba:** el pedido nuevo (el carrito) es lo que Carmen viene a hacer. El pagado ya terminó.
 - **Sin `turquesa` macizo** en el bloque: no compite con «Ver el total» del carrito.
-- Para el observador, el bloque es su única noticia del pago: «Pedido pagado» y «Pagado», nada más.
+- Para el observador, el bloque sigue siendo su única noticia del pago: la fecha, «Pagado» y los productos (D-92-1), sin la referencia ni el total.
 
 ---
 
@@ -857,12 +867,12 @@ Al fusionar, la especificación de MATU-61 se actualiza así (lo hago yo en `doc
 | Sin sesión (7.10) | «Entrar» |
 | El pago no se hizo y salió sin pagar (7.11 y 7.12), vigente | «Intentar de nuevo» |
 | Lo mismo con el total vencido | admin: «Volver a confirmar» · pagador: ninguno |
-| Bloque «Pedido pagado» (8) | Ninguno |
+| Bloque «Tus pedidos» (8, v1.2) | Ninguno |
 | No pudimos traer tu pedido (7.13, v1.1) | «Volver a intentar» |
 
 ### 10.2 Áreas táctiles de 48 × 48 px
 
-Todo lo que se toca mide `min-h-12` (51 px): «Pagar», la casilla con su etiqueta, el enlace de las condiciones (enlace solo, `inline-flex min-h-12`), «Revisar de nuevo», «Revisar ahora», «Intentar de nuevo», «Ir a tu pedido», «Imprimir o guardar en PDF», «Ver el comprobante», «Entrar» y el `mailto` de reclamos (enlace en frase con el `::after`, DISENO.md 6). Entre la casilla y «Pagar» está la frase de Webpay: el pulgar no toca uno por el otro.
+Todo lo que se toca mide `min-h-12` (51 px): «Pagar», la casilla con su etiqueta, el enlace de las condiciones (enlace solo, `inline-flex min-h-12`), «Revisar de nuevo», «Revisar ahora», «Intentar de nuevo», «Ir a tu pedido», «Imprimir o guardar en PDF», «Ver cómo va tu pedido», la fila y «Ver todos tus pedidos» del bloque de 8, «Entrar» y el `mailto` de reclamos (enlace en frase con el `::after`, DISENO.md 6). Entre la casilla y «Pagar» está la frase de Webpay: el pulgar no toca uno por el otro.
 
 ### 10.3 Contraste (valores de DISENO.md, sin colores nuevos)
 
@@ -979,7 +989,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 | Comprobante | Comprobante · Pedido {referencia} · {DD/MM/AAAA} a las {HH:MM} · {cantidad} × {precio} · Envío (uno por pedido) · Total pagado · Pagado · Tarjeta de débito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4} · Tarjeta de crédito terminada en {ultimos4}, en {n} cuotas · Tarjeta de prepago terminada en {ultimos4} · Código de autorización {codigo} · Lo pagó otra persona de tu grupo. | **[NUEVO]** · [A5.4] · **[AJUSTE]** la tarjeta |
 | Sello del piloto | Pago de prueba. No se cobró dinero real. Este comprobante no es una boleta. | [D-62-7] |
 | Datos del pedido | Datos del pedido · Vende: MATU, piloto académico, sin persona jurídica. · Entrega: {ventana} · Condiciones aceptadas: versión {v}, el {DD/MM/AAAA} · Condiciones del pedido, versión {v} (se abre en otra pestaña) | **[NUEVO]** · [A5.4] |
-| Garantías | Lo que te garantizamos · Derecho a retracto: tienes 10 días desde que lo recibes. · Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. · Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar. · ¿Algo no está bien? Escríbenos a {correo}. | **[NUEVO]** el título · [A5.4] |
+| Garantías | Lo que te garantizamos · Derecho a retracto: tienes 10 días hábiles desde que lo recibes. · Si un producto no llega, te devolvemos su precio el mismo día, a la misma tarjeta. Cuándo lo ves en tu cuenta depende de tu banco. · Quien administra el grupo puede cancelar sin costo mientras el comercio no empiece a preparar. · ¿Algo no está bien? Escríbenos a {correo}. | **[NUEVO]** el título · [A5.4] |
 | Correo | Te enviamos este comprobante a {correo}. · En el piloto, el comprobante no se envía por correo. Imprímelo o guárdalo en PDF si lo necesitas. | [A5.4] · **[AJUSTE]** |
 | Acciones | Imprimir o guardar en PDF · Ir a tu pedido | [L 21] · [L 31] |
 | Pago tardío respetado | Tu pago llegó después de que venció el total, y lo respetamos: pagaste {total}, el precio que aceptaste. | [A5.4] |
@@ -989,7 +999,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 | Devolución hecha | Devolvimos {monto} a tu tarjeta terminada en {ultimos4}, por {producto}. Cuándo lo ves en tu cuenta depende de tu banco. · Quien no pagó: Devolvimos {monto} a la tarjeta con que se pagó, por {producto}. Cuándo se ve en la cuenta depende del banco. | [A5.4] · **[AJUSTE]** |
 | Devolución en curso | Estamos devolviendo {monto} a tu tarjeta. Si no se completa hoy, te escribimos. MATU nunca te pide los datos de tu banco por mensaje. · Quien no pagó: Estamos devolviendo {monto} a la tarjeta con que se pagó. Si no se completa hoy, le escribimos a quien pagó. MATU nunca pide los datos de un banco por mensaje. | [A5.4] · **[AJUSTE]** |
 | Renglones | Devolvimos: {producto} · Pagaste en total · por tu pedido completo | **[NUEVO]** |
-| **Pedido pagado** | Pedido pagado · Pagado · Pedido {referencia} · {DD/MM/AAAA} a las {HH:MM} · Total pagado: {total} · Ver el comprobante | **[NUEVO]** · [A5.4] |
+| **Pedido pagado** | Pedido pagado · Pagado · Pedido {referencia} · {DD/MM/AAAA} a las {HH:MM} · Total pagado: {total} · Ver el comprobante. **Desde la v1.2 salen** «Pedido pagado» como título y «Ver el comprobante»: el bloque usa los textos de «Tus pedidos» (`lenguaje.md` 38) | **[NUEVO]** · [A5.4] |
 
 **Ninguno usa** los términos de la sección 3, «rechazado», «fallido», «inválido», «token», «stock», «reserva», «monto real», «estimado» ni «con IVA». «Boleta» aparece solo en «Este comprobante no es una boleta.», que la niega.
 
@@ -1005,7 +1015,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 6. Al volver de Webpay, **la dirección es `/insumos/pedido/pago` sin parámetros** antes de que se vea el resultado, y el historial no tiene una entrada con `token_ws` ni `TBK_` (Atrás no lleva a una dirección con el token de MATU).
 7. Nada del pago en `localStorage`, `sessionStorage` ni la URL.
 8. El cuidador ve «Pagan quien administra el grupo y quien paga.» **en lugar de** la casilla y «Pagar». El pagador ve la casilla, «Pagar» y el aviso de los 2 minutos sin «Volver a confirmar».
-9. **La tarjeta y el código de autorización aparecen solo para quien pagó.** Como Carmen, después de que pagó Rodrigo, el comprobante dice «Lo pagó otra persona de tu grupo.» y la respuesta de la API no trae `tarjeta` ni `codigo_autorizacion`. El observador ve solo «Pedido pagado» y «Pagado».
+9. **La tarjeta y el código de autorización aparecen solo para quien pagó.** Como Carmen, después de que pagó Rodrigo, el comprobante dice «Lo pagó otra persona de tu grupo.» y la respuesta de la API no trae `tarjeta` ni `codigo_autorizacion`. El observador ve solo la fecha, «Pagado» y los productos en «Tus pedidos» (v1.2).
 10. **El sello «Pago de prueba. No se cobró dinero real. Este comprobante no es una boleta.» está dentro del comprobante, antes de los productos**, y aparece también en la hoja impresa, arriba.
 11. El comprobante se titula «Comprobante», nunca «Boleta». Ningún texto dice «Total con IVA», «rechazado», «fallido» ni «token» (un `grep` sobre los textos de la pantalla).
 12. Con un pago en curso, el carrito no tiene controles ni «Ver el total», el resumen no tiene la casilla, «Pagar», el aviso de los 2 minutos, «Volver a confirmar», «Cambiar el pedido», «Cambiar dirección» ni «Cambiar teléfono», **y «Cancelar pedido» sigue** para admin y cuidador. El diálogo de cancelar suma el párrafo de 6.3 en negrita.
@@ -1017,7 +1027,7 @@ Solo tokens. En la revisión miro la `Etiqueta ok` y la baldosa `ok` en oscuro, 
 18. Una devolución hecha resta en el comprobante («Devolvimos: …» con «−» y «Pagaste en total»), y una en curso **no resta**: solo su nota. La resta es exacta en pesos (57.460 − 26.490 = 30.970).
 19. Cada estado se entiende **en escala de grises**: cada uno tiene palabra e ícono (10.6).
 20. Todo lo que se toca mide 48 × 48 px o más.
-21. A 320 px, a 360 px y con el texto al 200 % a 320 px, `document.documentElement.scrollWidth` es igual a `clientWidth` en el resumen (los tres roles), el pago en curso, los siete estados de la vuelta, el comprobante con devoluciones y el bloque «Pedido pagado». Ninguna cifra se parte.
+21. A 320 px, a 360 px y con el texto al 200 % a 320 px, `document.documentElement.scrollWidth` es igual a `clientWidth` en el resumen (los tres roles), el pago en curso, los siete estados de la vuelta, el comprobante con devoluciones y el bloque «Tus pedidos». Ninguna cifra se parte.
 22. Ningún texto de estas pantallas mide menos de 17 px de `font-size` calculado.
 23. El aviso «Precios de ejemplo.» aparece **una vez** en el comprobante, arriba, y no aparece en 7.2, 7.3, 7.9, 7.11 ni 7.12 (no hay precios que rotular).
 24. En pantalla ancha, el comprobante va a la derecha y es `sticky`, y **el orden de Tab y del lector es el mismo que a 360 px** (el comprobante antes que los datos del pedido).
@@ -1035,7 +1045,7 @@ Capturas a 320 px con el texto al 200 %, 360 px, 1280 px y 1920 px, en tema clar
 
 - El resumen como Carmen, como Rodrigo y como el cuidador, vigente, con el aviso de los 2 minutos y vencido.
 - «Pagar» sin la casilla, «Pagando…» con «Abriendo Webpay…», y los errores de 4.6 (Webpay detenido, backend detenido, 409 vencido, condiciones cambiadas).
-- Un pago con débito y uno con crédito, la vuelta, «Estamos confirmando tu pago» y el comprobante como quien pagó y como Carmen después de que pagó Rodrigo. El bloque «Pedido pagado» como los cuatro roles.
+- Un pago con débito y uno con crédito, la vuelta, «Estamos confirmando tu pago» y el comprobante como quien pagó y como Carmen después de que pagó Rodrigo. El bloque «Tus pedidos» como los cuatro roles.
 - «Anular compra» en Webpay, el tiempo agotado y una tarjeta de prueba que Transbank no aprueba.
 - El retorno repetido (Atrás desde el comprobante hasta Webpay y vuelta).
 - La respuesta que tarda (la `PasarelaFalsa` sin responder el `commit`) y «Revisar ahora».
