@@ -385,7 +385,9 @@ describe('Arrepentirse en el detalle: lo dice el servidor (4.6.1, O1, C22)', () 
     api(rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: seguimientoEntregado({ puede_arrepentirse: false, arrepentirse_motivo: 'plazo_vencido' }) } }))
     abrir('admin', DETALLE, ELEGIDO_2)
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Arrepentirme de la compra' })).closest('section')!)
-    expect(s.getByText(/^El plazo para arrepentirte terminó/)).toHaveTextContent('El plazo para arrepentirte terminó el 18/11/2026. Si tienes un problema con el pedido, escríbenos a cuidaconmatu@gmail.com.')
+    // C22 (H1 del cierre): después de los 90 días, la fecha es la de `plazo_correo_hasta`, no la de la app.
+    expect(s.getByText(/^El plazo para arrepentirte terminó/)).toHaveTextContent('El plazo para arrepentirte terminó el 02/02/2027 a las 15:00. Si tienes un problema con el pedido, escríbenos a cuidaconmatu@gmail.com.')
+    expect(s.getByText(/^El plazo para arrepentirte terminó/)).not.toHaveTextContent('18/11/2026')
     expect(s.queryByRole('button')).toBeNull()
   })
 
@@ -438,6 +440,14 @@ describe('Arrepentirme de la compra (5)', () => {
     // El único macizo es «Devolver estos productos».
     expect(macizos()).toHaveLength(1)
     expect(macizos()[0]).toHaveAccessibleName('Devolver estos productos')
+  })
+
+  it('C9: con las condiciones 0.2, un retracto parcial ya dice «, envío incluido,» con el envío sumado', async () => {
+    api({ 'GET /retractos$': { status: 200, cuerpo: retractos({ condiciones_version: '0.2' }) } })
+    abrir('pagador', ARREPENTIRME, ELEGIDO_2)
+    await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Pañal adulto M x30' }))
+    const resumen = within(screen.getByRole('heading', { level: 2, name: 'Lo que vas a devolver' }).closest('section')!)
+    expect(resumen.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $16.980, envío incluido, cuando recibamos los productos con su sello cerrado.')
   })
 
   it('nada elegido: el error sobre el botón, anunciado, y el foco al primer campo', async () => {
@@ -732,6 +742,26 @@ describe('Reglas puras (O2, O6, 5.7)', () => {
     expect(vistaPrevia({ ...datos, incluye_envio_si_todo: false }, { [LINEA_PANAL]: '2', [LINEA_SUPLEMENTO]: '2' }).conEnvio).toBe(false)
     // Fuera de rango no cuenta.
     expect(vistaPrevia(datos, { [LINEA_PANAL]: '9' }).total).toBe(0)
+  })
+  it('C9: con la 0.1, la 0.2 o sin versión, el envío vuelve en un retracto parcial, una sola vez; con la 0.3, solo con todo', () => {
+    const v02 = retractos({ condiciones_version: '0.2' })
+    expect(vistaPrevia(v02, { [LINEA_PANAL]: '1', [LINEA_SUPLEMENTO]: '0' })).toEqual({ productos: 12990, conEnvio: true, total: 16980 })
+    expect(vistaPrevia(retractos({ condiciones_version: '0.1' }), { [LINEA_PANAL]: '1' }).conEnvio).toBe(true)
+    // Nada elegido: no hay envío que devolver.
+    expect(vistaPrevia(v02, {}).conEnvio).toBe(false)
+    // Ya se devolvió en un retracto anterior (pedido o devuelto); el no aceptado no cuenta.
+    expect(vistaPrevia({ ...v02, retractos: [retracto({ incluye_envio: true })] }, { [LINEA_PANAL]: '1' }).conEnvio).toBe(false)
+    expect(vistaPrevia({ ...v02, retractos: [retracto({ incluye_envio: true, estado: 'devuelto' })] }, { [LINEA_PANAL]: '1' }).conEnvio).toBe(false)
+    expect(vistaPrevia({ ...v02, retractos: [retracto({ incluye_envio: true, estado: 'rechazado' })] }, { [LINEA_PANAL]: '1' }).conEnvio).toBe(true)
+    // El servidor dice que ya no lo devolvería.
+    expect(vistaPrevia({ ...v02, incluye_envio_si_todo: false }, { [LINEA_PANAL]: '1' }).conEnvio).toBe(false)
+    // La 0.3: solo con todo.
+    expect(vistaPrevia(retractos({ condiciones_version: '0.3' }), { [LINEA_PANAL]: '1' }).conEnvio).toBe(false)
+    expect(vistaPrevia(retractos({ condiciones_version: '0.3' }), { [LINEA_PANAL]: '2', [LINEA_SUPLEMENTO]: '2' }).conEnvio).toBe(true)
+    // MATU-112 H1: sin versión, como la 0.1 y la 0.2 (siempre, una sola vez).
+    const sinVersion = retractos({ condiciones_version: null })
+    expect(vistaPrevia(sinVersion, { [LINEA_PANAL]: '1' })).toEqual({ productos: 12990, conEnvio: true, total: 16980 })
+    expect(vistaPrevia({ ...sinVersion, retractos: [retracto({ incluye_envio: true })] }, { [LINEA_PANAL]: '1' }).conEnvio).toBe(false)
   })
   it('bajar al disponible nunca sube una cantidad', () => {
     const lineas = [lineaParaRetracto({ disponibles: 1 }), lineaParaRetracto({ linea_id: LINEA_SUPLEMENTO, disponibles: 2 })]

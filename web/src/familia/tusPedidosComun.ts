@@ -41,17 +41,36 @@ export function elegidas(lineas: LineaParaRetracto[], cant: Elegidas): { linea: 
 }
 
 /**
- * O2 y D7: la vista previa de lo que se devuelve, en pesos enteros: `cantidad × precio_pagado` de lo
- * elegido, y el envío si lo elegido completa todo lo que todavía se puede devolver y las condiciones
- * lo incluyen (`incluye_envio_si_todo`). Solo para mostrar antes de enviar: el monto que manda es el
- * que devuelve el `POST`.
+ * C9 (cierre del analista): las versiones de las condiciones en que el envío se devuelve en cualquier
+ * retracto, una sola vez. Es la misma lista del backend (`CONDICIONES_ENVIO_SIEMPRE`,
+ * payments/domain/retracto.py). Desde la 0.3, solo si se devuelve todo lo entregado.
  */
-export function vistaPrevia(datos: Pick<Retractos, 'lineas' | 'costo_envio' | 'incluye_envio_si_todo'>, cant: Elegidas): { productos: number; conEnvio: boolean; total: number } {
+export const CONDICIONES_ENVIO_SIEMPRE: ReadonlySet<string> = new Set(['0.1', '0.2'])
+
+/** Si un retracto anterior (pedido o devuelto, nunca el no aceptado) ya incluyó el envío. */
+export const envioYaDevuelto = (datos: Pick<Retractos, 'retractos'>) => datos.retractos.some((r) => r.incluye_envio && r.estado !== 'rechazado')
+
+/**
+ * O2 y D7: la vista previa de lo que se devuelve, en pesos enteros: `cantidad × precio_pagado` de lo
+ * elegido, y el envío con la regla del backend (`incluye_envio`, D-63-10):
+ * - nunca si ya se devolvió;
+ * - con las condiciones 0.1 o 0.2, en cualquier retracto con algo elegido;
+ * - sin versión (`null`), igual que la 0.1 y la 0.2 (MATU-112 H1);
+ * - desde la 0.3, solo si lo elegido completa todo lo disponible.
+ * `incluye_envio_si_todo` es falso cuando el servidor ya no devolvería el envío: también manda.
+ * Solo para mostrar antes de enviar: el monto que manda es el que devuelve el `POST`.
+ */
+export function vistaPrevia(
+  datos: Pick<Retractos, 'lineas' | 'costo_envio' | 'incluye_envio_si_todo' | 'condiciones_version' | 'retractos'>,
+  cant: Elegidas,
+): { productos: number; conEnvio: boolean; total: number } {
   const lista = elegidas(datos.lineas, cant)
   const productos = lista.reduce((t, e) => t + e.cantidad * e.linea.precio_pagado, 0)
   const conDisponible = datos.lineas.filter((l) => l.disponibles > 0)
   const todo = conDisponible.length > 0 && conDisponible.every((l) => numeroDe(cant[l.linea_id]) === l.disponibles)
-  const conEnvio = todo && datos.incluye_envio_si_todo
+  // MATU-112 H1: un pedido sin versión de condiciones también devuelve el envío siempre, como la 0.1 y la 0.2.
+  const siempre = datos.condiciones_version === null || CONDICIONES_ENVIO_SIEMPRE.has(datos.condiciones_version)
+  const conEnvio = datos.incluye_envio_si_todo && !envioYaDevuelto(datos) && (siempre ? lista.length > 0 : todo)
   return { productos, conEnvio, total: productos + (conEnvio ? datos.costo_envio : 0) }
 }
 

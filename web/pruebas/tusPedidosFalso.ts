@@ -122,7 +122,8 @@ export function retractos(cambios: Partial<Retractos> = {}): Retractos {
     plazo_correo_hasta: '2027-02-02T18:00:00Z',
     puede_arrepentirse: true,
     arrepentirse_motivo: null,
-    condiciones_version: '0.2',
+    // La 0.3: el envío solo si se devuelve todo. La 0.2 (siempre) va en su prueba.
+    condiciones_version: '0.3',
     costo_envio: 3990,
     incluye_envio_si_todo: true,
     lineas: [

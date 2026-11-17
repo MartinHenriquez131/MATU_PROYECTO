@@ -14,6 +14,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { comercioDe, COSTO_ENVIO, productoDe, type Pedido, type Responder, type RetractoDoble, type Rol, type SeguimientoDoble, type UsuarioPedido } from './pedido'
 
 const DIA = 86_400_000
+/** La versión de las condiciones de los pedidos del doble (pedido.ts publica la 0.2). */
+const CONDICIONES = '0.2'
 const enChile = (ms: number) => new Date(ms)
 
 /** El fin del décimo día hábil de Chile desde la entrega, sin feriados (basta para el doble). */
@@ -212,7 +214,7 @@ export function atenderTusPedidos(
       plazo_correo_hasta: plazoCorreo(s.entregado_en),
       puede_arrepentirse: ma === null,
       arrepentirse_motivo: ma,
-      condiciones_version: '0.2',
+      condiciones_version: CONDICIONES,
       costo_envio: COSTO_ENVIO,
       incluye_envio_si_todo: todoDisponible,
       lineas,
@@ -247,7 +249,10 @@ export function atenderTusPedidos(
   }
   if (!lineas.length) return problema(res, 422, '/errores/producto-no-retractable')
   const todo = disponibles.filter((d) => d.disponibles > 0).every((d) => lineas.find((x) => x.producto_id === d.producto.id)?.cantidad === d.disponibles)
-  const r: RetractoDoble = { id: randomUUID(), estado: 'solicitado', solicitado_en: new Date().toISOString(), resuelto_en: null, origen: 'app', de: u.id, incluye_envio: todo, lineas, clave: String(clave) }
+  // C9: con las condiciones 0.1 y 0.2 (las del doble), el envío vuelve en cualquier retracto, una sola vez.
+  const envioYa = s.retractos.some((x) => x.estado !== 'rechazado' && x.incluye_envio)
+  const conEnvio = !envioYa && (CONDICIONES === '0.2' || todo)
+  const r: RetractoDoble = { id: randomUUID(), estado: 'solicitado', solicitado_en: new Date().toISOString(), resuelto_en: null, origen: 'app', de: u.id, incluye_envio: conEnvio, lineas, clave: String(clave) }
   s.retractos.push(r)
   p.seguimiento = s
   const vista = vistaRetracto(p, r, u)
