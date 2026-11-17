@@ -164,7 +164,12 @@ def test_main_lleva_operacion_alta_a_su_tarea_y_sin_scheduler_falla_nombrando_la
     monkeypatch: pytest.MonkeyPatch, config: Any
 ) -> None:
     llamadas: list[object] = []
-    monkeypatch.setattr(tareas, "operacion_alta", lambda **kw: llamadas.append(kw) or 0)
+
+    def doble(**argumentos: object) -> int:
+        llamadas.append(argumentos)
+        return 0
+
+    monkeypatch.setattr(tareas, "operacion_alta", doble)
     assert tareas.main(["operacion-alta"]) == 0 and len(llamadas) == 1
     monkeypatch.undo()
     monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: None)
