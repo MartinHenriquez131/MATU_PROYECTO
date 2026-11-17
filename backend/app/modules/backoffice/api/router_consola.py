@@ -319,7 +319,8 @@ def ver_cobro(pedido_id: _ID, request: Request, operador: Operador, fabrica: Fab
     description=(
         "Ruta 4 (C17): las ventas sin respuesta por más de 15 minutos y las anulaciones sin terminar, hasta 200 de"
         " cada una, de la más antigua a la más reciente. La tarea conciliacion_pagos las cierra o las reintenta cada"
-        " 5 minutos: esta lista es para revisarlas. No se audita."
+        " 5 minutos: esta lista es para revisarlas. MATU-81: cada anulación trae `estado`, en_curso (MATU la está"
+        " pidiendo a Transbank) o sin_terminar (el último intento falló y se reintenta). No se audita."
     ),
 )
 def cobros_pendientes(_operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response) -> CobrosPendientes:
@@ -334,8 +335,9 @@ def cobros_pendientes(_operador: Operador, fabrica: Fabrica, reloj: RelojDep, re
             for f in ventas
         ],
         anulaciones_sin_terminar=[
-            AnulacionPendiente(pedido_id=f.pedido_id, referencia=f.referencia, motivo=f.motivo_anulacion,
-                               monto=int(f.monto), creada_en=f.creado_en, intentos=int(f.intentos or 0))
+            AnulacionPendiente(pedido_id=f.pedido_id, estado="sin_terminar" if f.estado == "error" else "en_curso",
+                               referencia=f.referencia, motivo=f.motivo_anulacion, monto=int(f.monto),
+                               creada_en=f.creado_en, intentos=int(f.intentos or 0))
             for f in anulaciones
         ],
     )

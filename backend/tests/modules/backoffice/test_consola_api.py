@@ -250,7 +250,94 @@ def test_el_retracto_trae_sus_productos_y_el_rechazo_exige_motivo(despacho: Desp
     assert d.operacion("POST", ruta, {"decision": "devolver", "motivo": "sello_abierto"}).status_code == 422
     r = d.operacion("POST", ruta, {"decision": "rechazar", "motivo": "producto_no_recibido"})
     assert r.status_code == 200 and r.json()["motivo_rechazo"] == "producto_no_recibido"
+    assert r.json()["resuelto_en"] is not None
     assert d.operacion("GET", f"/retractos/{uuid.uuid4()}").status_code == 404
+
+
+@pytest.mark.rf("R3")
+def test_la_lista_de_retractos_filtra_por_estado_y_por_omision_trae_los_por_resolver(despacho: Despacho) -> None:
+    """MATU-81: los chips «Por resolver» (solicitado), «Devueltos» y «Sin devolución» (rechazado)."""
+    d = despacho
+    familia, pedido, _ = _entregado(d)
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
+    [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    assert r.status_code == 201, r.text
+    retracto = r.json()["id"]
+
+    def ids(consulta: str) -> list[str]:
+        respuesta = d.operacion("GET", f"/retractos{consulta}")
+        assert respuesta.status_code == 200, respuesta.text
+        assert respuesta.headers["cache-control"] == "no-store" and respuesta.json()["hay_mas"] is False
+        return [x["id"] for x in respuesta.json()["retractos"]]
+
+    assert retracto in ids("") and retracto in ids("?estado=solicitado")
+    assert retracto not in ids("?estado=rechazado") and retracto not in ids("?estado=devuelto")
+    r = d.operacion("POST", f"/retractos/{retracto}/resolver", {"decision": "rechazar", "motivo": "sello_abierto"})
+    assert r.status_code == 200, r.text
+    assert retracto not in ids("") and retracto not in ids("?estado=devuelto")
+    assert retracto in ids("?estado=rechazado") and retracto in ids("?estado=solicitado&estado=rechazado")
+    [vista] = [x for x in d.operacion("GET", "/retractos?estado=rechazado").json()["retractos"] if x["id"] == retracto]
+    assert vista["estado"] == "rechazado" and vista["motivo_rechazo"] == "sello_abierto" and vista["resuelto_en"]
+    # Un estado que no es del retracto: 422, con el campo
+    r = d.operacion("GET", "/retractos?estado=vencido")
+    assert r.status_code == 422 and r.json()["errores"][0]["campo"] == "estado"
+
+
+@pytest.mark.rf("R3")
+@pytest.mark.rf("Ley-21.719")
+def test_c24_la_familia_ve_el_motivo_del_rechazo(despacho: Despacho) -> None:
+    """MATU-81 (C24): RetractoVistaFamilia trae motivo_rechazo, null hasta que se rechaza."""
+    d = despacho
+    familia, pedido, _ = _entregado(d)
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
+    [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    assert r.status_code == 201 and r.json()["motivo_rechazo"] is None
+    retracto = r.json()["id"]
+    ruta_familia = f"/v1/pedidos/{pedido['id']}/retractos"
+    [antes] = d.e.pedir("GET", ruta_familia, familia.admin, familia).json()["retractos"]
+    assert antes["estado"] == "solicitado" and antes["motivo_rechazo"] is None
+    d.operacion("POST", f"/retractos/{retracto}/resolver", {"decision": "rechazar", "motivo": "producto_no_recibido"})
+    [despues] = d.e.pedir("GET", ruta_familia, familia.admin, familia).json()["retractos"]
+    assert despues["estado"] == "rechazado" and despues["motivo_rechazo"] == "producto_no_recibido"
+    assert despues["resuelto_en"] is not None
+
+
+@pytest.mark.rf("R3")
+def test_las_anulaciones_pendientes_dicen_si_estan_en_curso_o_sin_terminar(despacho: Despacho) -> None:
+    """MATU-81: AnulacionPendiente.estado distingue «En curso» (iniciada o autorizando) de «Sin terminar» (error)."""
+    d = despacho
+    familia, pedido, _ = _entregado(d)
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
+    [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    assert r.status_code == 201, r.text
+    d.pasarela.caida = True
+    try:
+        r = d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "devolver"})
+        assert r.status_code == 200, r.text
+    finally:
+        d.pasarela.caida = False
+    [(anulacion,)] = d.sql("SELECT t.id FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id"
+                           " WHERE c.pedido_id = %s AND t.tipo = 'anulacion'", uuid.UUID(pedido["id"]))
+
+    def del_pedido() -> list[dict[str, Any]]:
+        respuesta = d.operacion("GET", "/cobros/pendientes")
+        assert respuesta.status_code == 200, respuesta.text
+        return [a for a in respuesta.json()["anulaciones_sin_terminar"] if a["pedido_id"] == pedido["id"]]
+
+    [sin_terminar] = del_pedido()
+    assert sin_terminar["estado"] == "sin_terminar" and sin_terminar["intentos"] == 1
+    d.sql("UPDATE transaccion_pasarela SET estado = 'iniciada' WHERE id = %s", anulacion)
+    [en_curso] = del_pedido()
+    assert en_curso["estado"] == "en_curso"
+    # Que no quede pendiente para otras pruebas
+    d.sql("UPDATE transaccion_pasarela SET estado = 'rechazada' WHERE id = %s", anulacion)
+    assert del_pedido() == []
 
 
 @pytest.mark.rf("R3")

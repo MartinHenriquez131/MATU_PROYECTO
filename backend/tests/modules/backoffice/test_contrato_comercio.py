@@ -31,6 +31,7 @@ NUNCA_AL_COMERCIO = {
 FILTROS_PERMITIDOS = {
     ("/v1/operacion/pedidos", "get"): {"grupo", "estado"},
     ("/v1/operacion/incidencias", "get"): {"estado"},
+    ("/v1/operacion/retractos", "get"): {"estado"},
 }
 
 

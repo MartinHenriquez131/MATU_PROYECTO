@@ -183,7 +183,11 @@ class VentaPendiente(_Vista):
 
 
 class AnulacionPendiente(_Vista):
+    """MATU-81: ``estado`` en_curso (iniciada o autorizando: MATU la está pidiendo a Transbank) o sin_terminar (el
+    último intento falló, error: la conciliación la reintenta cada 5 minutos)."""
+
     pedido_id: uuid.UUID
+    estado: Literal["en_curso", "sin_terminar"]
     referencia: str | None
     motivo: MotivoAnulacionApi
     monto: Pesos

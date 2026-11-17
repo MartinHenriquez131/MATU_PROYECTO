@@ -155,7 +155,8 @@ def retracto_familia(
     unidad: Unidad, retractos: RepositorioRetractos, r: Retracto, usuario_id: uuid.UUID
 ) -> RetractoVistaFamilia:
     return RetractoVistaFamilia.model_validate(
-        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id}
+        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id,
+         "motivo_rechazo": r.motivo_rechazo}
     )
 
 

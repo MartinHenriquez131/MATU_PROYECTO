@@ -41,6 +41,8 @@ class Retracto:
     # MATU-92: quién lo pidió (solo para es_tuyo, C18) y cuándo se resolvió
     solicitado_por: uuid.UUID | None = None
     resuelto_en: datetime | None = None
+    # MATU-81 (C24): si se rechazó, por qué (sello_abierto o producto_no_recibido). La familia lo ve
+    motivo_rechazo: str | None = None
 
 
 class RepositorioRetractos(Protocol):

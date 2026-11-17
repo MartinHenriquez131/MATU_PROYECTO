@@ -106,6 +106,8 @@ _ES_ADMIN = text(
     " AND estado = 'activa')"
 )
 _GRUPO_DE_RETRACTO = text("SELECT grupo_id FROM retracto WHERE id = :id")
+# MATU-81: los chips de la consola, «Por resolver» (solicitado), «Devueltos» y «Sin devolución» (rechazado)
+ESTADOS_RETRACTO = ("solicitado", "devuelto", "rechazado")
 
 
 def _uuid(valor: str) -> uuid.UUID:
@@ -402,18 +404,33 @@ def registrar_retracto_por_correo(
         return _retracto_vista(sesion, r, casos_retracto.monto_de(u.pagos, retractos, r))
 
 
-@router.get("/retractos", response_model=ListaRetractosOperacion, responses=_RESPUESTAS,
-            description="Los retractos por resolver, con lo que se devolvería, la referencia y los productos (P6).")
-def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep,
-                     respuesta: Response) -> ListaRetractosOperacion:
+@router.get(
+    "/retractos",
+    response_model=ListaRetractosOperacion,
+    responses={**_RESPUESTAS, 422: {"description": "estado no es solicitado, devuelto ni rechazado", **_PROBLEMA}},
+    description=(
+        "Los retractos con lo que se devuelve, la referencia, los productos y, si se rechazó, el motivo (P6). MATU-81:"
+        " `estado` repetido (solicitado, devuelto o rechazado) se suma; sin él, solicitado (por resolver). Primero los"
+        " por resolver, del más antiguo al más reciente, y después los resueltos, del resuelto más reciente al más"
+        " antiguo, hasta 200 (`hay_mas`). No se audita."
+    ),
+)
+def listar_retractos(
+    _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
+    estado: Annotated[list[str] | None, Query(description="solicitado, devuelto o rechazado; repetible")] = None,
+) -> ListaRetractosOperacion:
+    estados = list(dict.fromkeys(estado or ["solicitado"]))
+    if any(e not in ESTADOS_RETRACTO for e in estados):
+        raise ErrorMATU(422, detalle="Revisa los campos indicados",
+                        errores=[{"campo": "estado", "mensaje": "no es un estado del retracto", "tipo": "estado"}])
     with sesion_tenant(fabrica, rol="operacion") as sesion:
-        pendientes = RepositorioRetractosSQL(sesion).pendientes()
+        encontrados = RepositorioRetractosSQL(sesion).por_estado(estados, consola_sql.LIMITE_LISTA + 1)
     vistas = []
-    for r in pendientes:
+    for r in encontrados[: consola_sql.LIMITE_LISTA]:
         with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(r.grupo_id) as (u, retractos):
             vistas.append(_retracto_vista(_sesion_de(u), r, casos_retracto.monto_de(u.pagos, retractos, r)))
     respuesta.headers["Cache-Control"] = "no-store"
-    return ListaRetractosOperacion(retractos=vistas)
+    return ListaRetractosOperacion(retractos=vistas, hay_mas=len(encontrados) > consola_sql.LIMITE_LISTA)
 
 
 @router.get("/retractos/{retracto_id}", response_model=RetractoOperacion, responses=_RESPUESTAS,

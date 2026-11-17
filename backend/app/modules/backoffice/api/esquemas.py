@@ -205,6 +205,8 @@ class RetractoOperacion(_RetractoComun):
 
 class ListaRetractosOperacion(BaseModel):
     retractos: list[RetractoOperacion]
+    # MATU-81: la lista trae hasta 200 retractos
+    hay_mas: bool = False
 
 
 class SolicitudResolverRetracto(_Estricto):
@@ -242,9 +244,15 @@ class SolicitudRetractoPorCorreo(SolicitudRetracto):
 
 
 class RetractoVistaFamilia(RetractoVista):
-    """El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id."""
+    """El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.
+    MATU-81 (C24): si no se aceptó, por qué, de la misma lista cerrada que elige operación al rechazar."""
 
     es_tuyo: bool
+    motivo_rechazo: Annotated[
+        Literal["sello_abierto", "producto_no_recibido"] | None,
+        Field(description="Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el"
+              " producto de vuelta); null en los demás"),
+    ]
 
 
 MotivoNoCancelarApi = Literal["rol", "ya_se_prepara", "cancelado"]

@@ -83,7 +83,7 @@ _VENTAS_PENDIENTES = text(
     " ORDER BY t.creado_en LIMIT 200"
 )
 _ANULACIONES_PENDIENTES = text(
-    "SELECT p.id AS pedido_id, p.referencia, t.motivo_anulacion, t.monto, t.creado_en, t.intentos"
+    "SELECT p.id AS pedido_id, p.referencia, t.motivo_anulacion, t.monto, t.creado_en, t.intentos, t.estado"
     " FROM transaccion_pasarela t JOIN cargo c ON c.id = t.cargo_id JOIN pedido p ON p.id = c.pedido_id"
     " WHERE t.tipo = 'anulacion' AND t.estado IN ('iniciada', 'autorizando', 'error') ORDER BY t.creado_en LIMIT 200"
 )

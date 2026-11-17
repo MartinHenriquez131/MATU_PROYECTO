@@ -5,6 +5,7 @@ La familia (sesion_de_grupo) lo pide: crean el admin o quien pagó (retracto_fam
 """
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -35,7 +36,7 @@ _CREAR_LINEA = text(
 )
 _COLUMNAS = (
     "SELECT id, grupo_id, pedido_id, solicitado_en, plazo_hasta, incluye_envio, estado, origen, solicitado_por,"
-    " resuelto_en FROM retracto"
+    " resuelto_en, motivo_rechazo FROM retracto"
 )
 _RETRACTO = _COLUMNAS + " WHERE id = :id"
 _RETRACTO_LEER = text(_RETRACTO)
@@ -45,7 +46,12 @@ _RESOLVER = text(
     "UPDATE retracto SET estado = :estado, resuelto_en = :en, resuelto_por = :por WHERE id = :id"
     " AND estado = 'solicitado'"
 )
-_PENDIENTES = text(_COLUMNAS + " WHERE estado = 'solicitado' ORDER BY solicitado_en, id")
+# MATU-81: la lista de operación por estado. Primero los por resolver, del más antiguo al más reciente; después los
+# resueltos, del resuelto más reciente al más antiguo. Uno más que el límite, para saber si hay más
+_POR_ESTADO = text(
+    _COLUMNAS + " WHERE estado = ANY(CAST(:estados AS text[])) ORDER BY (estado <> 'solicitado'),"
+    " CASE WHEN estado = 'solicitado' THEN solicitado_en END, resuelto_en DESC, id LIMIT :limite"
+)
 _DE_PEDIDO = text(_COLUMNAS + " WHERE pedido_id = :pedido_id ORDER BY solicitado_en, id")
 # MATU-92 (C8): un bloqueo de la transacción por pedido. No FOR UPDATE sobre pedido: con un pedido pagado, RLS no deja
 # bloquear su fila a quien pagó con el rol pagador (pedido_pagador_condiciones exige pagado_en IS NULL), y el bloqueo
@@ -56,7 +62,7 @@ _BLOQUEAR = text("SELECT pg_advisory_xact_lock(hashtextextended('retracto:' || C
 def _retracto(f: Any) -> Retracto:
     return Retracto(
         f.id, f.grupo_id, f.pedido_id, f.solicitado_en, f.plazo_hasta, f.incluye_envio, f.estado, f.origen,
-        f.solicitado_por, f.resuelto_en,
+        f.solicitado_por, f.resuelto_en, f.motivo_rechazo,
     )
 
 
@@ -105,8 +111,10 @@ class RepositorioRetractosSQL:
         f = self._sesion.execute(_RETRACTO_BLOQUEAR if bloquear else _RETRACTO_LEER, {"id": retracto_id}).first()
         return None if f is None else _retracto(f)
 
-    def pendientes(self) -> list[Retracto]:
-        return [_retracto(f) for f in self._sesion.execute(_PENDIENTES)]
+    def por_estado(self, estados: Sequence[str], limite: int) -> list[Retracto]:
+        """MATU-81: los retractos de esos estados, hasta ``limite`` (el orden está en _POR_ESTADO)."""
+        filas = self._sesion.execute(_POR_ESTADO, {"estados": list(estados), "limite": limite})
+        return [_retracto(f) for f in filas]
 
     def de_pedido(self, pedido_id: uuid.UUID) -> list[Retracto]:
         return [_retracto(f) for f in self._sesion.execute(_DE_PEDIDO, {"pedido_id": pedido_id})]
