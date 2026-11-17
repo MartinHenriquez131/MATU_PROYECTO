@@ -158,3 +158,16 @@ def test_matu_app_no_da_de_alta_ni_lee_el_secreto_de_otra_cuenta() -> None:
         cx.execute("SELECT set_config('app.usuario_id', %s, false)", (str(uuid.uuid4()),))
         assert cx.execute("SELECT iam_mfa_secreto(gen_random_uuid())").fetchone() == (None,)
         cx.rollback()
+
+
+def test_main_lleva_operacion_alta_a_su_tarea_y_sin_scheduler_falla_nombrando_la_variable(
+    monkeypatch: pytest.MonkeyPatch, config: Any
+) -> None:
+    llamadas: list[object] = []
+    monkeypatch.setattr(tareas, "operacion_alta", lambda **kw: llamadas.append(kw) or 0)
+    assert tareas.main(["operacion-alta"]) == 0 and len(llamadas) == 1
+    monkeypatch.undo()
+    monkeypatch.setattr(tareas, "fabrica_de_rol", lambda url, rol: None)
+    logs = io.StringIO()
+    assert tareas.operacion_alta(stream=logs, consola=io.StringIO(), preguntar=_respuestas(), config=config) == 1
+    assert '"falta": "SCHEDULER_DATABASE_URL"' in logs.getvalue()
