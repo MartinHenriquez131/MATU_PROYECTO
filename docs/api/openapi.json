@@ -7011,7 +7011,7 @@
           "pedidos"
         ],
         "summary": "«Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años",
-        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
+        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
         "operationId": "listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get",
         "security": [
           {
@@ -20935,8 +20935,31 @@
           },
           "estado": {
             "type": "string",
-            "const": "pagado",
-            "title": "Estado"
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado",
+            "description": "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
           },
           "productos": {
             "items": {
@@ -20966,12 +20989,13 @@
           "pedido_id",
           "pagado_en",
           "estado",
+          "entregado_en",
           "productos",
           "resumen_productos",
           "productos_borrados"
         ],
         "title": "PedidoPagadoFilaObservador",
-        "description": "Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de\nla entrega ni acciones."
+        "description": "Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la\nfecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."
       },
       "ProductoDeLaFila": {
         "properties": {
