@@ -1,7 +1,7 @@
 // La ficha abierta (3.11): la hoja y, al lado o arriba, hasta cuándo se puede ver y «Actualizar».
 // Ningún elemento en turquesa macizo: la hoja es lo principal y «Actualizar» es secundario.
 import { useState } from 'react'
-import { Clock3, RefreshCw } from 'lucide-react'
+import { Clock3, Phone, RefreshCw } from 'lucide-react'
 import type { FichaRelevo } from '../compartido/api/relevo'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { Anunciado } from '../compartido/ui/Anuncios'
@@ -81,11 +81,26 @@ function Hoja({ ficha }: { ficha: FichaRelevo }) {
         {/* Solo los campos que vienen en `campos`. Uno que no viene no deja rastro. */}
         {ORDEN_CAMPOS.filter((c) => ficha.campos[c] !== undefined).map((c) => {
           const def = CAMPOS[c]
+          // MATU-95, 4: «A quién llamar» en un bloque con fondo e ícono; la fuerza sale del tamaño,
+          // del fondo y del ícono, nunca de un color de estado.
+          const llamar = c === 'red_apoyo'
           return (
-            <section key={c} aria-labelledby={`campo-${c}`} aria-describedby={MOSTRAR_EJEMPLO ? `ejemplo-${c}` : undefined} className="mt-6">
-              <h2 id={`campo-${c}`} className="text-xl font-bold text-turquesa">
-                {def.etiqueta}
-              </h2>
+            <section
+              key={c}
+              aria-labelledby={`campo-${c}`}
+              aria-describedby={MOSTRAR_EJEMPLO ? `ejemplo-${c}` : undefined}
+              className={llamar ? 'mt-6 rounded-md border-s-4 border-turquesa bg-rocio px-4 py-4 angosto:px-2 angosto:py-3' : 'mt-6'}
+            >
+              {llamar ? (
+                <h2 id={`campo-${c}`} className="flex items-center gap-2 text-2xl font-bold text-tinta">
+                  <Phone aria-hidden className="size-6 shrink-0 text-turquesa" />
+                  {def.etiqueta}
+                </h2>
+              ) : (
+                <h2 id={`campo-${c}`} className="text-xl font-bold text-turquesa">
+                  {def.etiqueta}
+                </h2>
+              )}
               <p className="mt-1 text-base text-tenue">{def.pregunta(pila)}</p>
               <div className="mt-3">
                 <TextoCampo texto={ficha.campos[c]?.texto ?? null} />

@@ -2,7 +2,7 @@
 // Ui.tsx, HojaFicha.tsx y TextoFicha.tsx; Demo/src/familia/Shell.tsx). Cambios: `pino` es
 // `turquesa`, el borde de los controles es `borde`, el error lleva ícono y `Volver` mide 48 px.
 import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
-import { Check, ChevronLeft, Circle, CircleAlert, Minus, Plus, TriangleAlert } from 'lucide-react'
+import { Check, ChevronLeft, Circle, CircleAlert, Minus, Phone, Plus, TriangleAlert } from 'lucide-react'
 import { fechaYHoraDeChile } from '../compartido/fechas'
 import { ConTelefonos } from '../compartido/ui/ConTelefonos'
 import { AVISO_CUIDADOR, CAMPOS } from './datos'
@@ -420,6 +420,12 @@ export function TextoCampo({ texto }: { texto: string | null }) {
   )
 }
 
+/**
+ * MATU-95: la hoja («Así la ve quien te reemplaza») muestra «A quién llamar» primero, igual que el
+ * relevo. `CAMPOS` (lista para escribir, editor, alta) no cambia de orden.
+ */
+const ORDEN_HOJA = [...CAMPOS.filter((c) => c.api === 'red_apoyo'), ...CAMPOS.filter((c) => c.api !== 'red_apoyo')]
+
 export interface SeccionEnHoja {
   api: SeccionApi
   texto: string
@@ -440,12 +446,26 @@ export function HojaFicha({
   return (
     <Hoja etiqueta={`Hoja de la ficha de ${pila}`}>
       <p className="titular text-2xl @2xl/main:text-4xl angosto:text-xl">{FICHA.hojaDe(pila)}</p>
-      {CAMPOS.map((c) => (
-        <section key={c.api} className={`mt-5 ${escribiendo === c.api ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
-          <h3 className="mb-1 text-lg font-bold text-turquesa">{c.titulo}</h3>
-          <TextoCampo texto={textos[c.api]} />
-        </section>
-      ))}
+      {ORDEN_HOJA.map((c) =>
+        c.api === 'red_apoyo' ? (
+          // MATU-95, 3.4 y 4: el mismo bloque del relevo, en la escala de la hoja de la familia.
+          <section
+            key={c.api}
+            className={`mt-5 rounded-md border-s-4 bg-rocio px-4 py-3 angosto:px-2 ${escribiendo === c.api ? 'border-miel' : 'border-turquesa'}`}
+          >
+            <h3 className="mb-1 flex items-center gap-2 text-xl font-bold text-tinta">
+              <Phone aria-hidden className="size-5 shrink-0 text-turquesa" />
+              {c.titulo}
+            </h3>
+            <TextoCampo texto={textos[c.api]} />
+          </section>
+        ) : (
+          <section key={c.api} className={`mt-5 ${escribiendo === c.api ? '-ml-3 border-l-4 border-miel pl-2' : ''}`}>
+            <h3 className="mb-1 text-lg font-bold text-turquesa">{c.titulo}</h3>
+            <TextoCampo texto={textos[c.api]} />
+          </section>
+        ),
+      )}
       <SeccionesEnHoja secciones={secciones} />
     </Hoja>
   )

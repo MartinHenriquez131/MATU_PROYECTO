@@ -210,7 +210,11 @@ export const MAS = {
   vistaPrevia: 'Cada relevo ve solo las secciones que eliges al compartir.',
   // Editor
   ayuda: 'No hace falta escribir diagnósticos ni enfermedades. Escribe lo que ayuda a cuidar.',
-  alergias: 'Si tiene alergia a algún remedio o alimento, anótalo aquí.',
+  // MATU-95, lenguaje 14.2: una pregunta cotidiana distinta en cada sección (Jorge, 17-11).
+  alergias: {
+    alimentacion: '¿Hay algo que no puede comer o tomar? Anótalo aquí.',
+    remedios: '¿Hay algún remedio que no le pueden dar? Anótalo aquí.',
+  },
   ejemplo: (e: string) => `Por ejemplo: «${e}»`,
   contador: (n: number, tope: number) => `${n} de ${tope} caracteres`,
   // Guardado (4.4)
