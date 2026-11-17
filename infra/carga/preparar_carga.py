@@ -17,7 +17,9 @@ nunca como dueño ni superusuario.
 
 Solo corre con ENTORNO=local o pruebas y PASARELA_PAGO=falsa, los únicos donde la API admite la pasarela falsa
 (ENTORNOS_PASARELA_FALSA): así nunca prepara una base de Railway (staging o matu-demo, que tienen ENTORNO=staging y
-Webpay de integración). La contraseña de las cuentas sale de SEMILLA_CONTRASENA, del lado de quien la corre; nunca
+Webpay de integración). Además, DATABASE_URL (la única conexión que usa) tiene que apuntar a una base local:
+localhost, 127.0.0.1, ::1 o un socket local. Un .env con ENTORNO=local que apunte a Railway se detiene antes de
+conectar, sin mostrar la URL. La contraseña de las cuentas sale de SEMILLA_CONTRASENA, del lado de quien la corre; nunca
 se imprime ni se escribe en un archivo. Desde la raíz del repositorio, con el entorno virtual de backend/ activo:
 
     python infra/carga/preparar_carga.py --cuentas 50
@@ -27,7 +29,7 @@ import argparse
 import importlib.util
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -37,7 +39,8 @@ RAIZ_INFRA = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ_INFRA.parent / "backend"))
 
 from pydantic import ValidationError  # noqa: E402
-from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+from sqlalchemy.engine import make_url  # noqa: E402
+from sqlalchemy.exc import ArgumentError, SQLAlchemyError  # noqa: E402
 
 from app.core.config import ENTORNOS_PASARELA_FALSA, obtener_configuracion  # noqa: E402
 from app.core.db import fabrica_sesiones  # noqa: E402
@@ -148,6 +151,50 @@ def motivo_para_no_correr(entorno: str, pasarela_pago: str | None) -> str | None
     return None
 
 
+BASE_NO_LOCAL = "La carga solo se prepara contra una base local."
+HOSTS_LOCALES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _es_local(host: str) -> bool:
+    """localhost, 127.0.0.1, ::1 o un socket local (un directorio, como /var/run/postgresql)."""
+    host = host.strip().lower().removeprefix("[").removesuffix("]")
+    return host in HOSTS_LOCALES or host.startswith("/")
+
+
+def _valores(valor: str | tuple[str, ...] | None) -> list[str]:
+    """Un parámetro de la URL o del entorno, que puede venir repetido o separado por comas (varios hosts)."""
+    if valor is None:
+        return []
+    valores = (valor,) if isinstance(valor, str) else valor
+    return [h for v in valores for h in v.split(",") if h.strip()]
+
+
+def motivo_por_la_base(url: str, entorno_os: Mapping[str, str] | None = None) -> str | None:
+    """None si la URL de conexión apunta a una base local. Si no, el motivo: un texto fijo, sin la URL, el host ni
+    credenciales.
+
+    Revisa lo que libpq usaría para conectar: el host de la URL, los parámetros host y hostaddr (que mandan sobre el
+    host de la URL) y, si la URL no los trae, PGHOST y PGHOSTADDR. Un servicio (service o PGSERVICE) se rechaza: su
+    host está en un archivo que el script no lee.
+    """
+    entorno_os = os.environ if entorno_os is None else entorno_os
+    if not url:
+        return "Falta DATABASE_URL en el .env. " + BASE_NO_LOCAL
+    try:
+        partes = make_url(url)
+    except (ArgumentError, ValueError):
+        return BASE_NO_LOCAL
+    consulta = partes.query
+    if "service" in consulta or entorno_os.get("PGSERVICE"):
+        return BASE_NO_LOCAL
+    hosts = _valores(consulta.get("host")) or _valores(partes.host) or _valores(entorno_os.get("PGHOST"))
+    direcciones = _valores(consulta.get("hostaddr")) or _valores(entorno_os.get("PGHOSTADDR"))
+    # Sin host en ninguna parte, libpq usa el socket local (o localhost en Windows)
+    if not all(_es_local(h) for h in [*hosts, *direcciones]):
+        return BASE_NO_LOCAL
+    return None
+
+
 def _argumentos(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepara la base local para la carga de k6 (datos sintéticos).")
     parser.add_argument("--cuentas", type=int, default=CUENTAS_POR_OMISION, help="cuántas familias, de 1 a 99")
@@ -174,6 +221,11 @@ def main(argv: Sequence[str] = ()) -> int:
         print("La configuración del .env no es válida: este mensaje no muestra sus valores.", file=sys.stderr)
         return 2
     motivo = motivo_para_no_correr(configuracion.entorno, configuracion.pasarela_pago)
+    if motivo is not None:
+        print(motivo, file=sys.stderr)
+        return 2
+    # Antes de conectar, y sin mostrar la URL: un .env con ENTORNO=local que apunte a Railway se detiene aquí
+    motivo = motivo_por_la_base(configuracion.database_url)
     if motivo is not None:
         print(motivo, file=sys.stderr)
         return 2

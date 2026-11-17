@@ -13,7 +13,11 @@ La prueba de carga de la estrategia de pruebas, sección 2: **50 usuarios concur
 - **Nunca contra Railway**, ni staging ni `matu-demo`: los dos tienen `ENTORNO=staging` y `PASARELA_PAGO=integracion`, así que cada pago abriría una venta en el ambiente de integración de Transbank, y la base es compartida.
 - **Nunca contra Transbank.** La pasarela falsa aprueba la venta sola al volver, sin red.
 
-Las dos guardas lo impiden: `preparar_carga.py` se niega a correr fuera de `ENTORNO=local` o `pruebas` y sin `PASARELA_PAGO=falsa` (la API tampoco admite la falsa en otro entorno), y `pedido.js` se niega a partir si `BASE_URL` no es `localhost` o `127.0.0.1`.
+Las guardas lo impiden:
+
+- `preparar_carga.py` se niega a correr fuera de `ENTORNO=local` o `pruebas` y sin `PASARELA_PAGO=falsa` (la API tampoco admite la falsa en otro entorno).
+- `preparar_carga.py` se detiene antes de conectar si `DATABASE_URL` no apunta a una **base local**: `localhost`, `127.0.0.1`, `::1` o un socket local. También revisa los parámetros `host` y `hostaddr` de la URL y, si la URL no trae host, `PGHOST` y `PGHOSTADDR`, y rechaza un servicio (`service` o `PGSERVICE`). Así, un `.env` con `ENTORNO=local` que apunte a Railway no siembra nada. El mensaje es fijo («La carga solo se prepara contra una base local.») y no muestra la URL, el host ni credenciales.
+- `pedido.js` se niega a partir si `BASE_URL` no es `localhost` o `127.0.0.1`.
 
 ## Variables
 
@@ -28,7 +32,7 @@ Se definen en la terminal de quien corre la carga. **Nunca se escriben en el rep
 | `CARGA_DURACION` | `pedido.js` | Por omisión `3m`. La estrategia da 15 minutos para toda la prueba |
 | `CARGA_COMERCIO` | `pedido.js` | Por omisión `Comercio de Carga` |
 
-El `.env` local de la API necesita, además de lo de siempre: `ENTORNO=local`, `PASARELA_PAGO=falsa` y `CAPA3_HABILITADA=true`.
+El `.env` local de la API necesita, además de lo de siempre: `ENTORNO=local`, `PASARELA_PAGO=falsa`, `CAPA3_HABILITADA=true` y un `DATABASE_URL` que apunte a la base de tu equipo (`localhost` o `127.0.0.1`), como `matu_app`.
 
 ## Cómo correrla
 

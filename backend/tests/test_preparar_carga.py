@@ -13,7 +13,7 @@ import uuid
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import psycopg
@@ -108,6 +108,95 @@ def test_sin_contrasena_no_corre(monkeypatch: pytest.MonkeyPatch, capsys: pytest
 
     assert carga.main(["--cuentas", "2"]) == 2
     assert carga.demo.VARIABLE_CONTRASENA in capsys.readouterr().err
+
+
+# --- La guarda de la base local (hallazgo P2 de la revisión del 17-11) ------------------------------------------
+# URLs sintéticas: hosts inventados y la contraseña «secreta-sintetica». Nunca la URL de un .env.
+
+CLAVE = "secreta-sintetica"
+REMOTAS = [
+    f"postgresql+psycopg://matu_app:{CLAVE}@monorail.proxy.rlwy.net:41234/railway",
+    f"postgresql+psycopg://matu_app:{CLAVE}@postgres.railway.internal:5432/matu",
+    f"postgresql+psycopg://matu_app:{CLAVE}@db.example.com/matu",
+    f"postgresql+psycopg://matu_app:{CLAVE}@10.0.0.5/matu",
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost.example.com/matu",
+    # El parámetro host manda sobre el de la URL en libpq: localhost por fuera y Railway por dentro
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost/matu?host=monorail.proxy.rlwy.net",
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost/matu?hostaddr=203.0.113.7",
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost,db.example.com/matu",
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost/matu?service=railway",
+    "esto no es una url",
+]
+LOCALES = [
+    f"postgresql+psycopg://matu_app:{CLAVE}@localhost:5432/matu_wt61",
+    f"postgresql+psycopg://matu_app:{CLAVE}@127.0.0.1:5432/matu_wt61",
+    f"postgresql+psycopg://matu_app:{CLAVE}@LOCALHOST/matu_wt61",
+    f"postgresql+psycopg://matu_app:{CLAVE}@[::1]:5432/matu_wt61",
+    f"postgresql+psycopg://matu_app:{CLAVE}@/matu_wt61?host=/var/run/postgresql",
+    f"postgresql+psycopg://matu_app:{CLAVE}@/matu_wt61",
+]
+
+
+@pytest.mark.parametrize("url", REMOTAS)
+def test_una_base_remota_se_rechaza(url: str) -> None:
+    assert carga.motivo_por_la_base(url, {}) == carga.BASE_NO_LOCAL
+
+
+@pytest.mark.parametrize("url", LOCALES)
+def test_una_base_local_se_acepta(url: str) -> None:
+    assert carga.motivo_por_la_base(url, {}) is None
+
+
+@pytest.mark.parametrize(
+    "entorno_os",
+    [{"PGHOST": "monorail.proxy.rlwy.net"}, {"PGHOSTADDR": "203.0.113.7"}, {"PGSERVICE": "railway"}],
+)
+def test_sin_host_en_la_url_manda_el_entorno_de_libpq(entorno_os: dict[str, str]) -> None:
+    assert carga.motivo_por_la_base(f"postgresql+psycopg://matu_app:{CLAVE}@/matu", entorno_os) is not None
+
+
+def test_sin_database_url_no_corre() -> None:
+    assert carga.motivo_por_la_base("", {}) is not None
+
+
+@pytest.mark.parametrize("url", REMOTAS)
+def test_el_motivo_no_muestra_la_url(url: str) -> None:
+    motivo = carga.motivo_por_la_base(url, {})
+
+    assert motivo is not None
+    for pedazo in (url, CLAVE, "matu_app", "rlwy", "railway", "example.com", "203.0.113", "10.0.0.5"):
+        assert pedazo not in motivo
+
+
+def test_con_entorno_local_y_base_de_railway_se_detiene_antes_de_conectar(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """El caso del hallazgo: ENTORNO=local y PASARELA_PAGO=falsa, pero DATABASE_URL de Railway."""
+    url = REMOTAS[0]
+    configuracion = SimpleNamespace(
+        entorno="local",
+        pasarela_pago="falsa",
+        database_url=url,
+        pepper_email=SecretStr("p" * 32),
+        pepper_pin=SecretStr("q" * 32),
+        capa3_habilitada=True,
+    )
+    monkeypatch.setenv(carga.demo.VARIABLE_CONTRASENA, "clave-sintetica-de-carga")
+    for variable in ("PGHOST", "PGHOSTADDR", "PGSERVICE"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(carga, "obtener_configuracion", lambda: configuracion)
+
+    def _no_conecta() -> Any:
+        raise AssertionError("la preparación intentó conectar a una base remota")
+
+    monkeypatch.setattr(carga, "fabrica_sesiones", _no_conecta)
+    monkeypatch.setattr(carga.demo, "_custodia", _no_conecta)
+
+    assert carga.main(["--cuentas", "2"]) == 2
+    salida = capsys.readouterr()
+    assert salida.err.strip() == carga.BASE_NO_LOCAL
+    for pedazo in (url, CLAVE, "rlwy", "41234"):
+        assert pedazo not in salida.err and pedazo not in salida.out
 
 
 # --- La siembra, contra la base ---------------------------------------------------------------------------------
