@@ -79,7 +79,10 @@ def test_recorrido_insumos_y_aviso(recorrido: Recorrido) -> None:
     # Entonces a la cuidadora le llega el aviso por correo, sin el nombre del insumo ni de la persona
     [enviado] = correo.enviados
     assert enviado.destino == f.cuenta.email
-    assert NOMBRE not in str(enviado) and "Elena" not in str(enviado)
+    # (el repr del envío oculta el mensaje, así que se revisa lo que de verdad se manda: asunto, texto y HTML)
+    textos = [enviado.mensaje.asunto, enviado.mensaje.texto_plano(), enviado.mensaje.html()]
+    assert all(texto.strip() for texto in textos)
+    assert all(NOMBRE not in texto and "Elena" not in texto for texto in textos)
 
     # Y la API muestra la alerta: en «Se acaban pronto» con su id, y notificada en las alertas
     [item] = r.de_la_persona(f, "GET", "/consumo/por-acabarse").json()["items"]
@@ -90,4 +93,6 @@ def test_recorrido_insumos_y_aviso(recorrido: Recorrido) -> None:
     assert (alerta["id"], alerta["perfil_id"], alerta["estado"]) == (item["alerta_id"], perfil["id"], "notificada")
 
     # Y el nombre del insumo no llega a los logs de la API
-    assert NOMBRE not in r.logs()
+    logs = r.logs()
+    assert logs.strip()
+    assert NOMBRE not in logs

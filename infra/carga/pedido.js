@@ -40,7 +40,8 @@ export const options = {
     checks: ['rate>0.99'],
     http_req_failed: ['rate<0.01'],
   },
-  // Los cuerpos de las respuestas traen tokens: k6 no los guarda ni los muestra
+  // Se guardan los cuerpos porque el flujo los lee con .json() (ids, etag y token de la venta). k6 no los muestra
+  // en el resumen, y el script nunca los imprime
   discardResponseBodies: false,
   summaryTrendStats: ['avg', 'med', 'p(90)', 'p(95)', 'max'],
 }

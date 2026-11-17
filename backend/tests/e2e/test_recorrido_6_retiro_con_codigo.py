@@ -111,4 +111,5 @@ def test_recorrido_retiro_con_codigo(recorrido: Recorrido) -> None:
         == "usado"
     )
     logs = r.logs()
+    assert logs.strip()
     assert codigo not in logs and errado not in logs

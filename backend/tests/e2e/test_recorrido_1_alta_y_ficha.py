@@ -72,5 +72,6 @@ def test_recorrido_alta_y_ficha(recorrido: Recorrido) -> None:
 
     # Y ni la contraseña ni el texto de la ficha llegan a los logs
     logs = r.logs()
+    assert logs.strip()
     assert cuenta.contrasena is not None and cuenta.contrasena not in logs
     assert all(texto not in logs for texto in TEXTOS.values())
