@@ -12647,7 +12647,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir */
+            /** @description Sin Redis o PEPPER_LIMITES, la ficha vigente no se puede abrir, o hay notas de operación con su clave vigente y falta la KEK de las notas */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14429,7 +14429,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14487,7 +14487,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14578,7 +14578,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14640,7 +14640,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK */
+            /** @description Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre */
             503: {
                 headers: {
                     [name: string]: unknown;
