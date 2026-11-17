@@ -306,6 +306,35 @@ def test_c24_la_familia_ve_el_motivo_del_rechazo(despacho: Despacho) -> None:
     assert despues["resuelto_en"] is not None
 
 
+@pytest.mark.rf("RF-37")
+@pytest.mark.rf("Ley-21.719")
+def test_h2_la_copia_de_los_datos_trae_el_motivo_del_rechazo_en_las_dos_copias(despacho: Despacho) -> None:
+    """MATU-81 (H2 del analista): «Datos de» y «Tus datos» traen por qué no se aceptó el retracto; null mientras
+    está por resolver."""
+    d = despacho
+    familia, pedido, _ = _entregado(d)
+    assert d.operacion("POST", f"/pedidos/{pedido['id']}/entregado").status_code == 200
+    [linea] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
+    r = d.post_familia(f"/v1/pedidos/{pedido['id']}/retractos", familia.admin, familia,
+                       {"lineas": [{"linea_id": str(linea[0]), "cantidad": 1}]})
+    assert r.status_code == 201, r.text
+    retracto = r.json()["id"]
+
+    def copias() -> tuple[list[Any], list[Any]]:
+        persona = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
+        assert persona.status_code == 200, persona.text
+        [p] = persona.json()["pedidos"]
+        cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
+        assert cuenta.status_code == 200, cuenta.text
+        return ([(x["estado"], x["motivo_rechazo"]) for x in p["retractos"]],
+                [(x["estado"], x["motivo_rechazo"]) for x in cuenta.json()["retractos"]])
+
+    assert copias() == ([("solicitado", None)], [("solicitado", None)])
+    r = d.operacion("POST", f"/retractos/{retracto}/resolver", {"decision": "rechazar", "motivo": "sello_abierto"})
+    assert r.status_code == 200, r.text
+    assert copias() == ([("rechazado", "sello_abierto")], [("rechazado", "sello_abierto")])
+
+
 @pytest.mark.rf("R3")
 def test_las_anulaciones_pendientes_dicen_si_estan_en_curso_o_sin_terminar(despacho: Despacho) -> None:
     """MATU-81: AnulacionPendiente.estado distingue «En curso» (iniciada o autorizando) de «Sin terminar» (error)."""

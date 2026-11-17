@@ -50,7 +50,8 @@ _PARTES = text(
     " WHERE pc.pedido_id = :pedido_id ORDER BY pc.creado_en, pc.id"
 )
 _RETRACTOS = text(
-    "SELECT r.id, r.estado, r.solicitado_en, r.plazo_hasta, r.incluye_envio, r.resuelto_en FROM retracto r"
+    "SELECT r.id, r.estado, r.solicitado_en, r.plazo_hasta, r.incluye_envio, r.resuelto_en,"
+    " r.motivo_rechazo FROM retracto r"
     " WHERE r.pedido_id = :pedido_id ORDER BY r.solicitado_en, r.id"
 )
 _LINEAS_RETRACTO = text(
@@ -130,6 +131,8 @@ def _retractos(ctx: ContextoCopia, pedido_id: uuid.UUID) -> list[dict[str, Any]]
             "plazo_hasta": en_chile(r.plazo_hasta),
             "incluye_envio": bool(r.incluye_envio),
             "resuelto_en": en_chile_o_nada(r.resuelto_en),
+            # H2 del analista (MATU-81): por qué no se aceptó, si se rechazó
+            "motivo_rechazo": r.motivo_rechazo,
             "lineas": [
                 {"producto": f.nombre, "cantidad": int(f.cantidad)}
                 for f in ctx.sesion.execute(_LINEAS_RETRACTO, {"retracto_id": r.id})
@@ -225,7 +228,7 @@ _MIS_PAGOS = text(
 )
 # MATU-63 (R3): los retractos que pidió esta cuenta, con los productos
 _MIS_RETRACTOS = text(
-    "SELECT r.id, pe.referencia, r.estado, r.solicitado_en, r.resuelto_en FROM retracto r"
+    "SELECT r.id, pe.referencia, r.estado, r.solicitado_en, r.resuelto_en, r.motivo_rechazo FROM retracto r"
     " JOIN pedido pe ON pe.id = r.pedido_id WHERE r.grupo_id = :grupo_id AND r.solicitado_por = app_usuario()"
     " ORDER BY r.solicitado_en DESC, r.id DESC"
 )
@@ -273,6 +276,7 @@ def pagos_de_la_cuenta(ctx: ContextoCopiaCuenta) -> dict[str, Any]:
                         "estado": r.estado,
                         "solicitado_en": en_chile(r.solicitado_en),
                         "resuelto_en": en_chile_o_nada(r.resuelto_en),
+                        "motivo_rechazo": r.motivo_rechazo,
                         "productos": [f.nombre for f in ctx.sesion.execute(_LINEAS_RETRACTO, {"retracto_id": r.id})],
                     }
                 )

@@ -127,6 +127,8 @@ class CodigoGenerado(BaseModel):
 
 
 class ParteOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     id: uuid.UUID
     comercio: str
     referencia: str
@@ -135,6 +137,8 @@ class ParteOperacion(BaseModel):
 
 
 class PedidoOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     id: uuid.UUID
     estado: str
     referencia: str | None
@@ -149,6 +153,8 @@ class PedidoOperacion(BaseModel):
 
 
 class ListaPedidosOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     pedidos: list[PedidoOperacion]
     # MATU-81: la lista trae hasta 200 pedidos, del pago más reciente al más antiguo
     hay_mas: bool = False
@@ -204,6 +210,8 @@ class RetractoOperacion(_RetractoComun):
 
 
 class ListaRetractosOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     retractos: list[RetractoOperacion]
     # MATU-81: la lista trae hasta 200 retractos
     hay_mas: bool = False

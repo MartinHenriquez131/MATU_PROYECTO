@@ -230,6 +230,8 @@ class RetractoCopia(_Cerrado):
     plazo_hasta: Instante
     incluye_envio: bool
     resuelto_en: Instante | None
+    # H2 del analista (MATU-81): por qué no se aceptó; null si no se rechazó o si se rechazó antes de anotarlo
+    motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
     lineas: list[LineaRetractoCopia]
 
 

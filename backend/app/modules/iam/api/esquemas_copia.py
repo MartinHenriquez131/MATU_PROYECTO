@@ -113,6 +113,8 @@ class RetractoCuentaCopia(_Cerrado):
     estado: Literal["solicitado", "devuelto", "rechazado"]
     solicitado_en: Instante
     resuelto_en: Instante | None
+    # H2 del analista (MATU-81): por qué no se aceptó; null si no se rechazó
+    motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
     productos: list[str]
 
 
