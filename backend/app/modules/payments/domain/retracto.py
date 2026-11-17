@@ -3,8 +3,9 @@
 - Plazo (D-63-9 c): 10 días hábiles desde la entrega, contados en la fecha de Chile, de lunes a viernes, hasta el fin
   del décimo. Es lo más protector mientras la CL-71 siga abierta. [PENDIENTE: los feriados, CL-71]
 - Monto: cantidad × precio pagado de cada producto devuelto.
-- Envío (D-63-10): con las condiciones 0.1 y 0.2 se devuelve siempre (a), una sola vez por pedido; desde la 0.3, solo
-  si con este retracto vuelve todo lo entregado (b).
+- Envío (D-63-10): con la 0.1, la 0.2 o sin versión, siempre (a), una sola vez por pedido. Desde la 0.3, y con una
+  versión que no se conoce, solo si con este retracto vuelve todo lo entregado (b). Un pedido sin versión de
+  condiciones se trata como la 0.2, lo más protector para la familia (MATU-112, H1).
 - H3 y H8 (cierre del analista): una línea admite varios retractos mientras queden unidades entregadas sin pedir. Lo
   pedido en un retracto rechazado no se vuelve a pedir (el sello ya se abrió) y no cuenta como devuelto.
 - H2: el retracto pedido por correo vale 90 días desde la entrega (CL-54, mientras tanto).
@@ -85,10 +86,14 @@ def incluye_envio(
     pedidas: Mapping[str, int],
     envio_ya_devuelto: bool,
 ) -> bool:
-    """Si este retracto devuelve también el envío (D-63-10). Desde la 0.3, solo si después de este retracto queda
-    devuelto (devuelto o por resolver, nunca lo rechazado) todo lo entregado (H8)."""
+    """Si este retracto devuelve también el envío (D-63-10): con la 0.1, la 0.2 o sin versión, siempre, una sola vez
+    por pedido. Desde la 0.3 (y con una versión que no se conoce), solo si después de este retracto queda devuelto
+    (devuelto o por resolver, nunca lo rechazado) todo lo entregado (H8)."""
     if envio_ya_devuelto:
         return False
+    if condiciones_version is None:
+        # H1 (MATU-112): sin versión de condiciones, como la 0.2. None no entra en CONDICIONES_ENVIO_SIEMPRE
+        return True
     if condiciones_version in CONDICIONES_ENVIO_SIEMPRE:
         return True
     entregadas = [linea for linea in lineas if linea.entregadas > 0]
