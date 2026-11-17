@@ -5,7 +5,8 @@
 - 5.5, 5.7 y 5.8: «ya se pidió» llega como **422 `producto-no-retractable`** (decisión 445 del contrato), no como 409. El plazo vencido llega como 409 `fuera-de-plazo`;
 - 4.3: «De un comercio» cuando la parte no trae el nombre del comercio;
 - 6.3: «No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo.», sin «Todo sigue como estaba.», cuando tampoco se pudo volver a leer el pedido;
-- 4.9 y 9: la falla del comprobante lleva «Volver a intentar».
+- 4.9 y 9: la falla del comprobante lleva «Volver a intentar» y suma «Tampoco pudimos mostrar lo que se devolvió.»;
+- decisiones del orquestador sobre la revisión visual: «Ya se pidió devolver…» impersonal (5.3 y 4.6.1), «, envío incluido,» en el monto (4.5 y 5.4), las líneas sin nada recibido no van (5.3) y «Devolvimos: el envío» en el comprobante (4.4).
 
 **Cambios de la 1.1:** se aplican las decisiones del orquestador sobre las contradicciones de la 1.0 (16-11, 00:30), D1 a D8:
 - O1, O2 y O4 pasan a resueltos (sección 0);
@@ -437,6 +438,7 @@ Una lista, no una `Nota` por devolución: en el detalle puede haber tres o cuatr
 
 - **«a tu tarjeta terminada en `{ultimos4}`» solo si `ultimos4` llega**, o sea, solo para quien pagó (C17). Si no llega, la pantalla usa la columna de quien no pagó. No hay otra regla.
 - **El pago tardío anulado no va aquí** (`pago_tardio`): no es un pedido pagado (MATU-62, 7.9).
+- **En el comprobante, sin producto** (v1.2): «Devolvimos: tu pedido completo» solo con `cancelacion`. Con otro motivo es el envío: «Devolvimos: el envío». Lo mismo en la frase de [L 32]: «por el envío».
 - **El comprobante** de abajo muestra los renglones «Devolvimos: `{producto}`» y «Pagaste en total» de MATU-62 7.7, sin cambios. Esta lista explica, y el comprobante suma.
 
 ### 4.5 Productos para devolver (los arrepentimientos pedidos)
@@ -449,7 +451,7 @@ Solo si hay al menos uno (`GET …/retractos`).
 | Cada pedido de devolución | `li` con `rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea flex flex-col gap-2` | — | — |
 | Estado | `Etiqueta`. `solicitado`: `neutro` con `Clock`, «Devolución pedida». `devuelto`: `ok` con `CircleCheck`, «Devuelto el `{DD/MM/AAAA}`». El tercer estado: `neutro` con `CircleX`, «No se aceptó la devolución» | [L 38]. La palabra del contrato para el tercer estado nunca se muestra (C26) |
 | Productos | `ul text-base`, `{cantidad}` × `{producto}` | [L 31] |
-| Monto | `p text-base`, la cifra en `cifras font-bold`. Si el retracto incluye el envío, la segunda frase | Te devolvemos `{monto}` cuando recibamos los productos con su sello cerrado. · También te devolvemos el envío. | [L 38]. Solo con `solicitado`. Con `devuelto`, lo dice «Dinero devuelto» |
+| Monto | `p text-base`, la cifra en `cifras font-bold`. Si el retracto incluye el envío, la segunda forma | Te devolvemos `{monto}` cuando recibamos los productos con su sello cerrado. · Si incluye el envío: Te devolvemos `{monto}`, envío incluido, cuando recibamos los productos con su sello cerrado. | [L 38] **[AJUSTE]** v1.2: «, envío incluido,» en vez de una segunda frase, porque el monto ya lo suma. Solo con `solicitado`. Con `devuelto`, lo dice «Dinero devuelto» |
 | No se aceptó | `p text-base` con `EnlaceEnFrase mailto:` | Si tienes dudas, escríbenos a `{correo}`. | [L 38], la segunda frase |
 | Quién la pidió (C18) | `p text-base text-tenue`, solo si `es_tuyo` es falso | La pidió otra persona de tu grupo. | **[NUEVO]**, con la forma de «Lo pagó otra persona de tu grupo.» [L 32] |
 | Por correo (C21) | `p text-base text-tenue`, si `origen` es `correo` | Tuya: «Esta devolución la pediste por correo. La registró el equipo de MATU.» · De otra persona: «Esta devolución se pidió por correo. La registró el equipo de MATU.» | [L 38] · **[AJUSTE]**: «la pediste» es falso cuando no la pidió quien mira |
@@ -467,7 +469,7 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 | Sí | `h2` «Arrepentirme de la compra», la ayuda en `p text-base max-w-prose` y `Boton variante="secundario"` con el mismo texto, que lleva a 5 | Arrepentirme de la compra · Puedes hacerlo hasta el `{DD/MM/AAAA}`. Pasamos a buscar los productos sin costo y te devolvemos su precio a la misma tarjeta cuando los recibimos con su sello cerrado. Si devuelves todo, también el envío. | [L 36]. **La última frase va solo si las condiciones de la versión aceptada incluyen el envío** (C9) |
 | No, `rol`, con el plazo abierto | El `h2` y la frase, sin botón | Pueden arrepentirse de la compra quien administra el grupo y quien la pagó. | [L 38] |
 | No, `sin_entregar` | Nada: el derecho corre desde la entrega, y el comprobante ya lo dice en sus garantías | — | — |
-| No, `nada_disponible` | El `h2` y la frase | Ya pediste devolver todos los productos de este pedido. | **[NUEVO]** |
+| No, `nada_disponible` | El `h2` y la frase | Ya se pidió devolver todos los productos de este pedido. | **[NUEVO]** |
 | No, `plazo_app_vencido` (hasta 90 días) | El `h2` y la frase con `EnlaceEnFrase mailto:` | El plazo para arrepentirte desde la aplicación terminó el `{DD/MM/AAAA}`. Si todavía quieres devolver productos, o tienes un problema con el pedido, escríbenos a `{correo}`. | [L 38] (C22) |
 | No, `plazo_vencido` (después de 90 días) | Igual | El plazo para arrepentirte terminó el `{DD/MM/AAAA}`. Si tienes un problema con el pedido, escríbenos a `{correo}`. | [L 38], [L 36] (C22) |
 
@@ -523,7 +525,7 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 |---|---|---|---|
 | **Cargando** | El `Volver`, el `h1` con la referencia (viene de la fila) y, pasados 400 ms, «Cargando…» con `aria-busy` en el contenido | Cargando… | [L 26] |
 | **Error al traer** | El patrón de una columna de 3.5, con el `h1` «Pedido `{referencia}`» | No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · Volver a intentar | [L 31] · [L 26] |
-| **Falla solo el comprobante** (`GET …/pago`) | El detalle se ve, y en el lugar del comprobante va `Nota tono="atenta"` con `CloudOff` y `Boton variante="secundario"` «Volver a intentar» | No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar | **[NUEVO]** · [L 26] |
+| **Falla solo el comprobante** (`GET …/pago`) | El detalle se ve, y en el lugar del comprobante va `Nota tono="atenta"` con `CloudOff` y `Boton variante="secundario"` «Volver a intentar» | No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. Tampoco pudimos mostrar lo que se devolvió. · Volver a intentar | **[NUEVO]** · [L 26]. La segunda frase (v1.2) porque sin el pago tampoco llega «Dinero devuelto» |
 | **404** (el pedido ya no es del grupo, la persona se eliminó o quien mira salió del grupo, C1 y C4) | Patrón de una columna, baldosa `bg-tinta/7` con `SearchX`, y `Boton variante="secundario"` «Volver a tus pedidos» | No encontramos este pedido. · Volver a tus pedidos | [L 31] · **[NUEVO]** |
 | **Sin permiso** | No existe: el observador no llega al detalle (2.1), y quien no puede cancelar o arrepentirse ve la frase de 4.6 | — | — |
 | **Al día** | Se vuelve a pedir al volver a la pestaña (`visibilitychange`), sin anunciar y sin mover el foco | — | — |
@@ -613,12 +615,13 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 | Producto | `h3 text-xl font-bold break-words`, con `id` | `{producto}` | — |
 | Lo recibido | `p text-base tabular-nums`, sin `cifras` para que refluya | Recibiste `{entregado}`. Pagaste `{precio}` cada uno. | **[NUEVO]**. El precio es el pagado, nunca el del catálogo (C9) |
 | El sello | `p text-lg font-bold max-w-prose`, solo si `retracto_pierde_al_abrir`. En `tinta`, sin color: se lee por la letra y la posición | Si abres el sello, ya no se puede devolver. | [L 38] |
-| Ya pedido | `p text-base text-tenue`, solo si ya se pidió devolver alguno | Ya pediste devolver `{n}`. | **[NUEVO]** |
+| Ya pedido | `p text-base text-tenue`, solo si ya se pidió devolver alguno | Ya se pidió devolver `{n}`. | **[NUEVO]** |
 | Cuántos | `Stepper` de `insumosComun.tsx`, con `seleccionarAlEnfocar` (MATU-61 7.5): `min` 0, `max` lo disponible y valor inicial 0. Los botones con `textoMenos` «Uno menos: `{producto}`» y `textoMas` «Uno más: `{producto}`». El campo se nombra con `aria-labelledby` (la etiqueta y el `h3`) | ¿Cuántos devuelves? · Para el lector: Uno menos: `{producto}` · Uno más: `{producto}` | **[NUEVO]**, con la forma de [L 37] |
 | Ayuda | `p text-base text-tenue`, en el `aria-describedby` del campo | Puedes devolver hasta `{disponible}`. | **[NUEVO]** |
-| Nada disponible | En lugar del `Stepper` y la ayuda, `p text-base` | Ya pediste devolver todos. | **[NUEVO]** |
+| Nada disponible | En lugar del `Stepper` y la ayuda, `p text-base` | Ya se pidió devolver todos. | **[NUEVO]** |
 | Fuera de rango | `MensajeError` bajo el campo, `aria-invalid`, al salir del campo o al tocar «Devolver estos productos» | Escribe un número de 0 a `{disponible}`. | **[NUEVO]**, con la forma de [L 31] |
 
+- **Una línea sin nada recibido no va** (v1.2): si `entregadas` es 0 (el producto faltó entero), su precio ya está en «Dinero devuelto» y la línea no se muestra.
 - **Se cuenta en envases del pedido**, los mismos de la línea (MATU-61 7.5). El valor inicial es 0: Rodrigo dice qué devuelve, y nada se marca por él.
 - **Sin interfaz optimista y sin guardar al cambiar:** la cantidad vive en la memoria de la página hasta que se envía.
 
@@ -631,7 +634,7 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 | Sin nada elegido | `p text-lg text-tenue` | Todavía no eliges ningún producto. | **[NUEVO]** |
 | Lo elegido | `p text-lg font-bold` y un `ul text-lg`, un `li` por línea con cantidad mayor que 0 | Vas a devolver: · `{cantidad}` × `{producto}` | [L 38] **[AJUSTE]**: en lista y no en una frase, porque pueden ser varios productos |
 | Monto | `p text-lg max-w-prose`, la cifra en `cifras font-bold` | Te devolvemos `{monto}` cuando recibamos los productos con su sello cerrado. | [L 38]. El monto es el de O2 |
-| Envío | `p text-lg`, solo si lo elegido completa todo lo recibido y las condiciones lo incluyen (O2) | También te devolvemos el envío. | [L 38] |
+| Envío | Dentro de la frase del monto, solo si lo elegido completa todo lo recibido y las condiciones lo incluyen (O2) | Te devolvemos `{monto}`, envío incluido, cuando recibamos los productos con su sello cerrado. | [L 38] **[AJUSTE]** v1.2: el monto ya suma el envío, y «También te devolvemos el envío.» se leía como un monto aparte |
 | Sello | `p text-lg font-bold`, solo si alguna línea elegida pierde el derecho al abrir | Si abres el sello, ya no se puede devolver. | [L 38] |
 | Botón | `Boton` principal, al ancho de su texto. Mientras envía, `textoOcupado` y `aria-busy`. Nunca deshabilitado: la validación ocurre al tocarlo | Devolver estos productos · Enviando… | [L 38], [L 36] |
 | Salida | `Boton variante="texto"`, que vuelve al detalle sin enviar nada | No, volver | [L 38], [L 36] |
@@ -671,7 +674,7 @@ Otra persona del grupo pidió devolver algunos de los mismos productos mientras 
 
 > **Otra persona de tu grupo ya pidió devolver algunos de estos productos.** Te mostramos lo que todavía puedes devolver. Revisa lo que elegiste antes de enviarlo. **[NUEVO]**, con el patrón de [L 31] («Este pedido cambió mientras lo revisabas.»)
 
-Si ya no queda nada disponible, la pantalla va al detalle, que muestra «Ya pediste devolver todos los productos de este pedido.» (4.6.1).
+Si ya no queda nada disponible, la pantalla va al detalle, que muestra «Ya se pidió devolver todos los productos de este pedido.» (4.6.1).
 
 ### 5.8 Estados de la pantalla
 
@@ -887,16 +890,16 @@ La tabla de la revisión previa, con lo que suma o cambia esta especificación. 
 | Dinero devuelto | Dinero devuelto · El `{DD/MM/AAAA}` · Faltaron `{n}` de `{producto}`. Devolvimos `{monto}` a la tarjeta con que se pagó. Cuándo se ve en la cuenta depende del banco. · Devolvimos el envío: `{monto}`. · las de [L 32] y [L 36] | **[NUEVO]** el título y la fecha · [L 38] |
 | Productos para devolver | Productos para devolver · Devolución pedida · Devuelto el `{DD/MM/AAAA}` · No se aceptó la devolución. Si tienes dudas, escríbenos a `{correo}`. · La pidió otra persona de tu grupo. | **[NUEVO]** · [L 38] · **[NUEVO]** |
 | Por correo | Esta devolución la pediste por correo. La registró el equipo de MATU. · Esta devolución se pidió por correo. La registró el equipo de MATU. | [L 38] · **[AJUSTE]** |
-| Arrepentirse, bloque | Arrepentirme de la compra · la ayuda de [L 36] · Pueden arrepentirse de la compra quien administra el grupo y quien la pagó. · Ya pediste devolver todos los productos de este pedido. | [L 36] · [L 38] · **[NUEVO]** |
+| Arrepentirse, bloque | Arrepentirme de la compra · la ayuda de [L 36] · Pueden arrepentirse de la compra quien administra el grupo y quien la pagó. · Ya se pidió devolver todos los productos de este pedido. | [L 36] · [L 38] · **[NUEVO]** |
 | Plazo vencido | Los dos de [L 38] | [L 38] |
-| Arrepentirse, pantalla | Volver al pedido `{referencia}` · Elige qué productos devuelves · Recibiste `{n}`. Pagaste `{precio}` cada uno. · Ya pediste devolver `{n}`. · ¿Cuántos devuelves? · Para el lector: Uno menos: `{producto}` · Uno más: `{producto}` · Puedes devolver hasta `{n}`. · Ya pediste devolver todos. · Escribe un número de 0 a `{n}`. | **[NUEVO]** · [L 36] el segundo |
-| Resumen | Lo que vas a devolver · Todavía no eliges ningún producto. · Vas a devolver: (en lista) · Te devolvemos `{monto}` cuando recibamos los productos con su sello cerrado. · También te devolvemos el envío. · Si abres el sello, ya no se puede devolver. · Devolver estos productos · No, volver · Enviando… | **[NUEVO]** · [L 38] **[AJUSTE]** «Vas a devolver:» en lista |
+| Arrepentirse, pantalla | Volver al pedido `{referencia}` · Elige qué productos devuelves · Recibiste `{n}`. Pagaste `{precio}` cada uno. · Ya se pidió devolver `{n}`. · ¿Cuántos devuelves? · Para el lector: Uno menos: `{producto}` · Uno más: `{producto}` · Puedes devolver hasta `{n}`. · Ya se pidió devolver todos. · Escribe un número de 0 a `{n}`. | **[NUEVO]** · [L 36] el segundo |
+| Resumen | Lo que vas a devolver · Todavía no eliges ningún producto. · Vas a devolver: (en lista) · Te devolvemos `{monto}` cuando recibamos los productos con su sello cerrado. · , envío incluido, (dentro de la frase anterior) · Si abres el sello, ya no se puede devolver. · Devolver estos productos · No, volver · Enviando… | **[NUEVO]** · [L 38] **[AJUSTE]** «Vas a devolver:» en lista |
 | Resultado y errores | Elige al menos un producto y cuántos devuelves. · Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro. · No pudimos enviar tu pedido de devolución. Revisa tu conexión y vuelve a intentarlo. Lo que elegiste sigue aquí. · Otra persona de tu grupo ya pidió devolver algunos de estos productos. Te mostramos lo que todavía puedes devolver. Revisa lo que elegiste antes de enviarlo. | [L 38] · [L 36] · **[NUEVO]** · **[NUEVO]** |
 | Cancelar, bloque | Cancelar el pedido · Puedes cancelarlo sin costo mientras el comercio no empiece a prepararlo. · Solo quien administra el grupo puede cancelar un pedido pagado, mientras el comercio no empiece a prepararlo. | [L 36] · **[NUEVO]** · [L 38] |
 | Cancelar, diálogo | Los de [L 38] · Pago de prueba. No se cobró dinero real. | [L 38] · [L 32] |
 | Cancelar, resultado | Cancelamos el pedido. Estamos devolviendo `{total}` a la tarjeta con que se pagó. · Este pedido ya se canceló. Te mostramos cómo quedó. · Ya están preparando tu pedido, así que no se puede cancelar. Cuando llegue, puedes arrepentirte de la compra. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. | [L 38] · [L 38] · [L 36] · [L 31] · **[NUEVO]** (v1.2, cuando no se pudo volver a leer el pedido) |
 | Productos borrados | De este pedido guardamos solo lo que se pagó y lo que se devolvió. | [L 38] |
-| Errores | No pudimos traer tus pedidos. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar · No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar (en la misma Nota) · No encontramos este pedido. · Volver a tus pedidos | [L 38] · [L 31] · **[NUEVO]** · [L 26] · [L 31] · **[NUEVO]** |
+| Errores | No pudimos traer tus pedidos. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar · No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. Tampoco pudimos mostrar lo que se devolvió. · Volver a intentar (en la misma Nota) · No encontramos este pedido. · Volver a tus pedidos | [L 38] · [L 31] · **[NUEVO]** · [L 26] · [L 31] · **[NUEVO]** |
 
 **Ninguno usa** los términos de `lenguaje.md` 3, «código de retiro», «rechazado», «fallido», «stock», «reserva», «con IVA» ni «10 días» sin «hábiles».
 
