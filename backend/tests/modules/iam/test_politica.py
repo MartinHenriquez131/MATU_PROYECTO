@@ -647,7 +647,7 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
     publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
-    huella = "518f37de5991a05f616fadfd58c4c2ef10913a7780f1e3209cd342e234adf92e"  # pragma: allowlist secret
+    huella = "c5d7ffd37b366a31a47cd80a41cf41f97ca0007a30650b1c081a5f7c67fce87a"  # pragma: allowlist secret
     assert PUBLICADAS["0.21"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
@@ -660,18 +660,23 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
         "En su consola no ve la dirección de entrega ni el teléfono de contacto.",
         "No ve el nombre de la persona que cuidas, su ficha ni el consumo de insumos.",
         "MATU registra cuándo revisa tu pedido.",
-        "lo anota con lo que pasó y cómo se resolvió, y lo ves en la copia de tus datos.",
+        # Opción B de Jorge (17-11): la nota se guarda cifrada con una clave propia
+        "lo anota con lo que pasó y cómo se resolvió. Esa nota se guarda cifrada, y la ves en la copia de tus datos.",
         # §8: los plazos de lo que anota el equipo y del registro de revisión
         "- **Lo que pasó con un pedido:** si hay un problema con un pedido, lo que anota el equipo de MATU sigue al"
-        " pedido: se guarda 2 años desde que el pedido se cierra y se borra con él.",
+        " pedido: se guarda cifrado, 2 años desde que el pedido se cierra y se borra con él.",
         "Que alguien de tu grupo mire un pedido o un pago no se registra.",
         "- La versión 0.21 agrega la consola del equipo de MATU",
+        "Suma dos registros sobre tu pedido: la nota de lo que pasó, guardada cifrada, y el registro de cuándo el"
+        " equipo revisa tu pedido, que ves en la copia de tus datos.",
         # §13: con comercios ficticios, el retiro y la entrega se marcan sin un pedido real (decisión del 17-11)
         "el retiro y la entrega se marcan en MATU sin llevar un pedido real",
         "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: el equipo ve menos que antes,"
         " y lo que anota es parte de responder por tu pedido.",
     ):
         assert parte in texto, parte
+    # La frase de la 0.21 sin el cifrado de la nota ya no está
+    assert "lo anota con lo que pasó y cómo se resolvió, y lo ves en la copia de tus datos." not in texto
     # La frase anterior del equipo, que decía que veía «los pedidos y los pagos» para soporte, ya no está
     assert "**El equipo de MATU:** para dar soporte ve los pedidos y los pagos." not in texto
     # La frase anterior de §13, que decía que el equipo de MATU hacía el retiro y la entrega, ya no está
