@@ -256,6 +256,8 @@ export const MIS_DATOS = {
     anotado: ['Lo anotamos el ', '.'] as Partes,
     resueltoEl: ['Se resolvió el ', '.'] as Partes,
     comoSeResolvio: 'Cómo se resolvió:',
+    /** Decisión 471: la clave de las notas se destruyó con los datos de la persona. Texto aprobado por Jorge el 17-11. */
+    notaNoDisponible: 'La nota ya no está disponible: se borró con los datos de la persona.',
   },
   /** «Se devolvieron {monto} porque…» o, en curso, «Se están devolviendo…» [NUEVO] */
   devolucion: (d: DevolucionCopia) => {

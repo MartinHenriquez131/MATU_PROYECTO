@@ -199,6 +199,8 @@ interface Incidencia {
   estado: 'abierta' | 'en_gestion' | 'resuelta'
   descripcion: string
   resolucion: string | null
+  /** Decisión 471: `false` si la clave de las notas se destruyó; la vista entrega entonces la nota y la resolución en `null`. */
+  nota_disponible?: boolean
   creada_en: string
   resuelta_en: string | null
   asignada: boolean
@@ -555,7 +557,16 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
     }
   }
 
-  const vistaIncidencia = (i: Incidencia) => ({ ...i, referencia: pedidos.find((p) => p.id === i.pedido_id)?.referencia ?? null })
+  const vistaIncidencia = (i: Incidencia) => {
+    const disponible = i.nota_disponible !== false
+    return {
+      ...i,
+      descripcion: disponible ? i.descripcion : null,
+      resolucion: disponible ? i.resolucion : null,
+      nota_disponible: disponible,
+      referencia: pedidos.find((p) => p.id === i.pedido_id)?.referencia ?? null,
+    }
+  }
   const conEtag = (i: Incidencia, status = 200) => ok(vistaIncidencia(i), status, { etag: `"i${i.version}"` })
   const vistaOferta = (o: Oferta) => ({ id: o.id, comercio: { ...o.comercio }, producto: o.producto, presentacion: o.presentacion, precio: o.precio, stock: o.stock, disponible: o.disponible, editable: o.comercio.ficticio, version: `"o${o.version}"` })
 

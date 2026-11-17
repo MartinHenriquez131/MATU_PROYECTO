@@ -397,6 +397,8 @@ export const INCIDENCIAS = {
   volver: 'Volver a las incidencias', // [FRONTEND]
   verPedido: 'Ver el pedido',
   nota: 'Nota',
+  /** Decisión 471: la clave de las notas se destruyó con los datos de la persona. Texto aprobado por Jorge el 17-11. */
+  notaNoDisponible: 'La nota ya no está disponible: se borró con los datos de la persona.',
   laTienesTu: 'La tienes tú.',
   comoSeResolvio: 'Cómo se resolvió',
   resueltaEl: (fecha: string, hora: string) => `Resuelta el ${fecha} a las ${hora}.`,

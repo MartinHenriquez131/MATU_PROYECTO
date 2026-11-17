@@ -273,6 +273,8 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
   const anotada = enChile(i.creada_en)
   const resuelta = i.resuelta_en ? enChile(i.resuelta_en) : null
   const ref = i.referencia ?? ''
+  // Decisión 471: sin la clave de las notas, la nota y la resolución llegan `null` y se dice por qué.
+  const notaDisponible = i.nota_disponible !== false
 
   return (
     <div className="flex flex-col gap-6">
@@ -309,14 +311,18 @@ function DetalleIncidencia({ id, onVolver, onCambio }: { id: string; onVolver: (
         <h2 id="incidencia-nota" className="text-lg font-bold">
           {T.nota}
         </h2>
-        <p className="max-w-prose whitespace-pre-line break-words">{i.descripcion}</p>
+        {notaDisponible ? (
+          i.descripcion && <p className="max-w-prose whitespace-pre-line break-words">{i.descripcion}</p>
+        ) : (
+          <p className="max-w-prose text-tenue">{T.notaNoDisponible}</p>
+        )}
       </section>
       {i.estado === 'resuelta' ? (
         <section aria-labelledby="incidencia-resuelta" className="flex flex-col gap-1">
           <h2 id="incidencia-resuelta" className="text-lg font-bold">
             {T.comoSeResolvio}
           </h2>
-          {i.resolucion && <p className="max-w-prose whitespace-pre-line break-words">{i.resolucion}</p>}
+          {notaDisponible && i.resolucion && <p className="max-w-prose whitespace-pre-line break-words">{i.resolucion}</p>}
           {resuelta && <p className="cifras text-base whitespace-normal text-tenue">{T.resueltaEl(resuelta.fecha, resuelta.hora)}</p>}
         </section>
       ) : resolviendo ? (

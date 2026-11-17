@@ -734,11 +734,17 @@ function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
               <span className="text-base text-tenue">
                 <ConFechaHora partes={L.anotado} iso={x.anotado_en} />
               </span>
-              <p className="text-base whitespace-pre-line break-words">{x.nota}</p>
-              {x.resolucion && (
-                <p className="text-base whitespace-pre-line break-words">
-                  <b>{L.comoSeResolvio}</b> {x.resolucion}
-                </p>
+              {x.nota_disponible === false ? (
+                <p className="text-base text-tenue">{L.notaNoDisponible}</p>
+              ) : (
+                <>
+                  {x.nota && <p className="text-base whitespace-pre-line break-words">{x.nota}</p>}
+                  {x.resolucion && (
+                    <p className="text-base whitespace-pre-line break-words">
+                      <b>{L.comoSeResolvio}</b> {x.resolucion}
+                    </p>
+                  )}
+                </>
               )}
               {x.resuelto_en && (
                 <span className="text-base text-tenue">
