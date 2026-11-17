@@ -5,7 +5,7 @@ ids, sin teléfonos, sin correos, sin referencia_documento, sin evidencia en bru
 Chile (decisión 349), como texto ya formateado por app/shared/copia_datos.py.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -244,8 +244,13 @@ class LoQuePasoCopia(_Cerrado):
     estado: Literal["abierta", "en_gestion", "resuelta"]
     anotado_en: Instante
     resuelto_en: Instante | None
-    nota: str
+    # Decisión 471: null si la clave de las notas se destruyó con los datos de la persona
+    nota: str | None
     resolucion: str | None
+    nota_disponible: Annotated[bool, Field(description=(
+        "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
+    " resolución vienen null y ya no se pueden leer"
+    ))]
 
 
 class PedidoCopia(_Cerrado):

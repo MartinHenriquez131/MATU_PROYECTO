@@ -4,6 +4,9 @@ C34: ninguna consulta de este archivo lee persona_cuidada, direccion, pedido_ent
 perfil_consumo, y la columna persona_cuidada_id del pedido solo se lee para la auditoría (nunca sale en una vista).
 tests/modules/backoffice/test_consola_api.py captura las sentencias de cada ruta y lo verifica.
 
+La nota y la resolución de una incidencia se leen y se escriben cifradas (decisión 471): este archivo nunca ve el
+texto.
+
 La línea de tiempo sale de pedido_transicion y de los instantes de las partes, el cobro, las anulaciones, los
 retractos y las incidencias. Nunca de auditoria (C6).
 """
@@ -98,22 +101,29 @@ _RETRACTO_LINEAS = text(
 _MOTIVO_RECHAZO = text(
     "UPDATE retracto SET motivo_rechazo = :motivo WHERE id = :id AND estado = 'rechazado' AND motivo_rechazo IS NULL"
 )
+# La nota y la resolución salen cifradas, con la clave de cada una (decisión 471): las descifra router_consola
+_COLUMNAS_INCIDENCIA = (
+    "i.id, i.pedido_id, p.referencia, i.tipo, i.estado, i.descripcion, i.clave_notas_id, i.resolucion,"
+    " i.resolucion_clave_id, i.creada_en, i.resuelta_en, i.asignada_a, i.version"
+)
 _INCIDENCIAS = text(
-    "SELECT i.id, i.pedido_id, p.referencia, i.tipo, i.estado, i.descripcion, i.resolucion, i.creada_en,"
-    " i.resuelta_en, i.asignada_a, i.version FROM incidencia i JOIN pedido p ON p.id = i.pedido_id"
+    "SELECT " + _COLUMNAS_INCIDENCIA + " FROM incidencia i JOIN pedido p ON p.id = i.pedido_id"
     " WHERE (CAST(:estado AS text) IS NULL OR i.estado = :estado) ORDER BY i.creada_en DESC, i.id DESC LIMIT 200"
 )
 _INCIDENCIA = text(
-    "SELECT i.id, i.pedido_id, p.referencia, i.tipo, i.estado, i.descripcion, i.resolucion, i.creada_en,"
-    " i.resuelta_en, i.asignada_a, i.version, p.grupo_id, p.persona_cuidada_id FROM incidencia i"
+    "SELECT " + _COLUMNAS_INCIDENCIA + ", p.grupo_id, p.persona_cuidada_id FROM incidencia i"
     " JOIN pedido p ON p.id = i.pedido_id WHERE i.id = :id"
 )
+# El id lo pone la aplicación: va en el AAD de la nota cifrada
 _CREAR_INCIDENCIA = text(
-    "INSERT INTO incidencia (pedido_id, tipo, descripcion, creada_por, asignada_a, creada_en)"
-    " VALUES (:pedido, :tipo, :descripcion, app_usuario(), :asignada, :ahora) RETURNING id"
+    "INSERT INTO incidencia (id, pedido_id, tipo, descripcion, clave_notas_id, creada_por, asignada_a, creada_en)"
+    " VALUES (:id, :pedido, :tipo, :descripcion, :clave, app_usuario(), :asignada, :ahora) RETURNING id"
 )
+# Sin resolución nueva, la guardada (cifrada) no cambia
 _EDITAR_INCIDENCIA = text(
-    "UPDATE incidencia SET estado = :estado, asignada_a = :asignada, resolucion = :resolucion,"
+    "UPDATE incidencia SET estado = :estado, asignada_a = :asignada,"
+    " resolucion = COALESCE(CAST(:resolucion AS bytea), resolucion),"
+    " resolucion_clave_id = COALESCE(CAST(:clave AS uuid), resolucion_clave_id),"
     " resuelta_en = :resuelta_en WHERE id = :id AND version = :version RETURNING id"
 )
 _CATALOGO = text(
@@ -199,18 +209,22 @@ def incidencia(sesion: Session, incidencia_id: uuid.UUID) -> Any:
     return sesion.execute(_INCIDENCIA, {"id": incidencia_id}).first()
 
 
-def crear_incidencia(sesion: Session, pedido_id: uuid.UUID, tipo: str, descripcion: str,
-                     asignada: uuid.UUID | None, ahora: datetime) -> uuid.UUID:
+def crear_incidencia(sesion: Session, incidencia_id: uuid.UUID, pedido_id: uuid.UUID, tipo: str, descripcion: bytes,
+                     clave_id: uuid.UUID, asignada: uuid.UUID | None, ahora: datetime) -> uuid.UUID:
+    """``descripcion`` ya cifrada con la clave ``clave_id`` (app/shared/notas_operacion.py)."""
     return uuid.UUID(str(sesion.execute(_CREAR_INCIDENCIA, {
-        "pedido": pedido_id, "tipo": tipo, "descripcion": descripcion, "asignada": asignada, "ahora": ahora,
+        "id": incidencia_id, "pedido": pedido_id, "tipo": tipo, "descripcion": descripcion, "clave": clave_id,
+        "asignada": asignada, "ahora": ahora,
     }).scalar_one()))
 
 
 def editar_incidencia(sesion: Session, incidencia_id: uuid.UUID, version: int, estado: str,
-                      asignada: uuid.UUID | None, resolucion: str | None, resuelta_en: datetime | None) -> bool:
+                      asignada: uuid.UUID | None, resolucion: bytes | None, clave_id: uuid.UUID | None,
+                      resuelta_en: datetime | None) -> bool:
+    """``resolucion`` ya cifrada con ``clave_id``, o None para dejar la guardada."""
     return sesion.execute(_EDITAR_INCIDENCIA, {
         "id": incidencia_id, "version": version, "estado": estado, "asignada": asignada, "resolucion": resolucion,
-        "resuelta_en": resuelta_en,
+        "clave": clave_id, "resuelta_en": resuelta_en,
     }).first() is not None
 
 

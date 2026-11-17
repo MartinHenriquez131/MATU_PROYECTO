@@ -7,11 +7,14 @@ Revisión previa del analista normativo del 17-11 (docs/legal/revision-previa-ma
 y condiciones C1 a C34. Decisiones 449 en adelante de docs/api/README.md. backend/db/*.sql no se tocan.
 
 a) incidencia (C10 a C14, D-81-3): los tipos faltante, entrega_fallida, reclamo_familia, cobro_sin_respuesta,
-   devolucion_pendiente y otro (las filas con desviacion_monto o captura_rechazada pasan a otro); descripcion y
-   resolucion de hasta 500 caracteres; una resuelta lleva su resolución; pedido_id ON DELETE CASCADE; version (el ETag
-   del PATCH), que sube en cada cambio; el trigger incidencia_reglas (solo sobre pedidos pagados, y creada_por y
-   asignada_a son cuentas de operación activas); las políticas leer, crear (creada_por = la cuenta del contexto) y
-   editar, sin DELETE, y matu_app edita solo estado, asignada_a, resolucion y resuelta_en.
+   devolucion_pendiente y otro. descripcion y resolucion pasan a bytea, cifradas (h), cada una con su clave
+   (clave_notas_id y resolucion_clave_id): la subida se detiene si ya hay incidencias, porque la nota en claro no se
+   puede cifrar desde la base. El largo de 1 a 500 caracteres lo valida la aplicación sobre el texto; la base, el del
+   cifrado. Una resuelta lleva su resolución; pedido_id ON DELETE CASCADE; version (el ETag del PATCH), que sube en
+   cada cambio; el trigger incidencia_reglas (solo sobre pedidos pagados, creada_por y asignada_a son cuentas de
+   operación activas, y lo que se cifra va con la clave vigente de la persona del pedido); las políticas leer, crear
+   (creada_por = la cuenta del contexto) y editar, sin DELETE, y matu_app edita solo estado, asignada_a, resolucion,
+   resolucion_clave_id y resuelta_en.
 b) D-81-2: sale aceptacion_operacion_leer (operación no lee las aceptaciones de la política).
 c) Las acciones nuevas en los CHECK de la auditoría: sin grupo, cuenta.mfa_alta, sesion.mfa_correcto,
    sesion.mfa_fallido y catalogo.oferta_cambiar (C4, C32); con persona, operacion.pedido_ver (D-81-5),
@@ -36,9 +39,17 @@ f) C24: retracto.motivo_rechazo (sello_abierto o producto_no_recibido), solo en 
    rechazadas anteriores quedan sin motivo (el CHECK lo admite).
 g) C1: operación cambia precio, stock y disponible solo en las ofertas de comercios ficticios (trigger
    oferta_operacion_ficticia).
+h) Opción B de Jorge (17-11, decisión 471): clave_notas, la clave propia de las notas de operación, una vigente por
+   persona cuidada, envuelta con la misma KEK y nunca clave_datos (§11.2 y §12.8). FORCE ROW LEVEL SECURITY; la leen
+   operación (para cifrar y descifrar) y quien es miembro activo del grupo (la copia de sus datos es la única que la
+   lee); el comercio, el repartidor y el relevo, nunca. Sin el marcador app.funcion: matu_app lo puede fijar, y una
+   política que lo mira es solo TO matu_owner (O2). matu_app la crea y la lee, sin UPDATE ni DELETE. Nace vigente y
+   después solo se destruye (trigger clave_notas_solo_destruir). Cuando se destruye la clave de la ficha de la persona o
+   se borran sus datos, la función clave_notas_destruir (SECURITY DEFINER, matu_owner) destruye también su clave de
+   notas.
 
-downgrade() deja el esquema como en 0029 sin borrar nada. Falla si hay incidencias con los tipos nuevos o con una
-descripción o resolución vacía, o retractos con motivo de rechazo. La auditoría con las acciones nuevas deja los CHECK
+downgrade() deja el esquema como en 0029 sin borrar nada. Falla si hay incidencias o claves de notas (lo cifrado no
+vuelve a texto sin la KEK), o retractos con motivo de rechazo. La auditoría con las acciones nuevas deja los CHECK
 de la 0029 NOT VALID, como las bajadas anteriores.
 
 Revision ID: 0030
@@ -148,15 +159,138 @@ TIPOS_0030 = (
 )
 FUNCION = "current_setting('app.funcion', true)"
 
+# Opción B de Jorge (17-11, decisión 471): la nota y la resolución van cifradas con AES-256-GCM y una clave propia de
+# las notas de operación por persona cuidada (clave_notas), envuelta con la misma KEK. Nunca con clave_datos: operación
+# no la alcanza (§11.2 y defecto 2 de la §12.8). Lo cifrado es nonce (12) || texto cifrado con su etiqueta (16): de 1 a
+# 500 caracteres en UTF-8 son de 1 a 2000 bytes, y el largo del texto lo valida la aplicación
+# (app/shared/notas_operacion.py)
+CIFRADO_MIN = 12 + 16 + 1
+CIFRADO_MAX = 12 + 16 + 4 * 500
+# La DEK de 32 bytes envuelta con AES Key Wrap ocupa 40 bytes (como clave_datos)
+LARGO_DEK_ENVUELTA = 40
+
+CLAVE_NOTAS = f"""
+-- (h) La clave de las notas de operación, una vigente por persona. Lleva grupo_id y nace con FORCE ROW LEVEL SECURITY
+CREATE TABLE clave_notas (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    grupo_id            uuid NOT NULL,
+    persona_cuidada_id  uuid NOT NULL,
+    dek_cifrada_con_kek bytea,
+    kek_version         integer NOT NULL CHECK (kek_version > 0),
+    creada_en           timestamptz NOT NULL DEFAULT now(),
+    destruida_en        timestamptz,
+    -- La persona es del grupo de la fila (persona_cuidada_id_grupo_uq, 0028), sin pasar por RLS
+    CONSTRAINT clave_notas_persona_fk FOREIGN KEY (persona_cuidada_id, grupo_id)
+        REFERENCES persona_cuidada (id, grupo_id),
+    -- Borrado criptográfico: sin DEK, la fecha; con la fecha, sin DEK
+    CONSTRAINT clave_notas_destruccion CHECK ((dek_cifrada_con_kek IS NULL) = (destruida_en IS NOT NULL)),
+    CONSTRAINT clave_notas_dek_largo
+        CHECK (dek_cifrada_con_kek IS NULL OR octet_length(dek_cifrada_con_kek) = {LARGO_DEK_ENVUELTA})
+);
+CREATE UNIQUE INDEX clave_notas_vigente_uq ON clave_notas (persona_cuidada_id) WHERE destruida_en IS NULL;
+ALTER TABLE clave_notas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clave_notas FORCE ROW LEVEL SECURITY;
+
+-- Nace vigente, y después solo se destruye: una clave destruida no vuelve a tener DEK ni cambia
+CREATE FUNCTION clave_notas_solo_destruir() RETURNS trigger LANGUAGE plpgsql AS
+$$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.destruida_en IS NOT NULL THEN
+            RAISE EXCEPTION 'una clave de notas nace vigente' USING ERRCODE = 'check_violation';
+        END IF;
+    ELSIF OLD.destruida_en IS NOT NULL
+          OR NEW.dek_cifrada_con_kek IS NOT NULL OR NEW.destruida_en IS NULL
+          OR (NEW.id, NEW.grupo_id, NEW.persona_cuidada_id, NEW.kek_version, NEW.creada_en)
+             IS DISTINCT FROM (OLD.id, OLD.grupo_id, OLD.persona_cuidada_id, OLD.kek_version, OLD.creada_en) THEN
+        RAISE EXCEPTION 'una clave de notas solo se destruye' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER clave_notas_solo_destruir BEFORE INSERT OR UPDATE ON clave_notas
+    FOR EACH ROW EXECUTE FUNCTION clave_notas_solo_destruir();
+
+-- Quién la lee: operación, para cifrar y descifrar las notas de la consola; quien es miembro activo del grupo, que ya
+-- lee sus incidencias (incidencia_familia): en la aplicación, solo la copia de sus datos la pide. Sin el marcador
+-- app.funcion, que matu_app puede fijar (O2: una política que lo mira es solo TO matu_owner). El comercio, el
+-- repartidor y el relevo, nunca. matu_app no la cambia ni la borra
+CREATE POLICY clave_notas_operacion_leer ON clave_notas FOR SELECT USING (app_rol() = 'operacion');
+CREATE POLICY clave_notas_operacion_crear ON clave_notas FOR INSERT WITH CHECK (app_rol() = 'operacion');
+CREATE POLICY clave_notas_familia_leer ON clave_notas FOR SELECT USING (
+    grupo_id = app_grupo()
+    AND EXISTS (SELECT 1 FROM membresia m WHERE m.grupo_id = clave_notas.grupo_id AND m.usuario_id = app_usuario()
+                   AND m.estado = 'activa'));
+REVOKE ALL ON clave_notas FROM matu_app;
+GRANT SELECT, INSERT ON clave_notas TO matu_app;
+
+-- El borrado criptográfico sigue a la persona: cuando se destruye la clave de su ficha (plan_destruir_claves a los 90
+-- días del retiro, o el borrado de sus datos) o se borran sus datos (persona_cuidada.datos_borrados_en), se destruye
+-- también su clave de notas, y sus notas quedan ilegibles. Corre como matu_owner, con su propia política, también
+-- cuando la sesión no ve la clave
+CREATE FUNCTION clave_notas_destruir() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS
+$$
+DECLARE
+    v_antes text := current_setting('app.funcion', true);
+    v_persona uuid;
+    v_en timestamptz;
+BEGIN
+    IF TG_TABLE_NAME = 'clave_datos' THEN
+        v_persona := NEW.persona_cuidada_id;
+        v_en := NEW.destruida_en;
+    ELSE
+        v_persona := NEW.id;
+        v_en := NEW.datos_borrados_en;
+    END IF;
+    PERFORM set_config('app.funcion', 'clave_notas_destruir', true);
+    UPDATE public.clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = v_en
+     WHERE persona_cuidada_id = v_persona AND destruida_en IS NULL;
+    PERFORM set_config('app.funcion', COALESCE(v_antes, ''), true);
+    RETURN NULL;
+END $$;
+REVOKE ALL ON FUNCTION clave_notas_destruir() FROM PUBLIC;
+CREATE POLICY clave_notas_destruccion_leer ON clave_notas FOR SELECT TO matu_owner
+    USING ({FUNCION} = 'clave_notas_destruir');
+CREATE POLICY clave_notas_destruccion ON clave_notas FOR UPDATE TO matu_owner
+    USING ({FUNCION} = 'clave_notas_destruir') WITH CHECK ({FUNCION} = 'clave_notas_destruir');
+CREATE TRIGGER clave_datos_destruye_notas AFTER UPDATE OF destruida_en ON clave_datos
+    FOR EACH ROW WHEN (OLD.destruida_en IS NULL AND NEW.destruida_en IS NOT NULL)
+    EXECUTE FUNCTION clave_notas_destruir();
+CREATE TRIGGER persona_borrada_destruye_notas AFTER UPDATE OF datos_borrados_en ON persona_cuidada
+    FOR EACH ROW WHEN (OLD.datos_borrados_en IS NULL AND NEW.datos_borrados_en IS NOT NULL)
+    EXECUTE FUNCTION clave_notas_destruir();
+"""
+
+CLAVE_NOTAS_BAJADA = """
+DROP TRIGGER persona_borrada_destruye_notas ON persona_cuidada;
+DROP TRIGGER clave_datos_destruye_notas ON clave_datos;
+DROP FUNCTION clave_notas_destruir();
+DROP TABLE clave_notas;
+DROP FUNCTION clave_notas_solo_destruir();
+"""
+
 INCIDENCIA = f"""
--- (a) incidencia. Los tipos de D-81-3: lo que queda de los de antes pasa a otro
-UPDATE incidencia SET tipo = 'otro' WHERE tipo IN ('desviacion_monto', 'captura_rechazada');
+-- (a) incidencia. La nota en claro no se puede cifrar desde la base (la KEK no está en ella): con incidencias, la
+-- subida se detiene. Ninguna versión anterior las crea (la tabla viene de 01_esquema.sql y no tenía rutas)
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM incidencia) THEN
+        RAISE EXCEPTION 'MATU-81: hay incidencias con la nota en claro; la 0030 no las cifra ni las borra';
+    END IF;
+END $$;
 ALTER TABLE incidencia DROP CONSTRAINT incidencia_tipo_check;
 ALTER TABLE incidencia ADD CONSTRAINT incidencia_tipo_check CHECK (tipo IN ({TIPOS_0030}));
--- C11: la nota y la resolución, de 1 a 500 caracteres. Una resuelta lleva su resolución
-ALTER TABLE incidencia ADD CONSTRAINT incidencia_descripcion_largo CHECK (char_length(descripcion) BETWEEN 1 AND 500);
-ALTER TABLE incidencia ADD CONSTRAINT incidencia_resolucion_largo
-    CHECK (resolucion IS NULL OR char_length(resolucion) BETWEEN 1 AND 500);
+-- La nota y la resolución, cifradas, con la clave de notas con que se cifró cada una (decisión 471). Una resuelta lleva
+-- su resolución
+ALTER TABLE incidencia ALTER COLUMN descripcion TYPE bytea USING convert_to(descripcion, 'UTF8');
+ALTER TABLE incidencia ALTER COLUMN resolucion TYPE bytea USING convert_to(resolucion, 'UTF8');
+ALTER TABLE incidencia ADD COLUMN clave_notas_id uuid NOT NULL REFERENCES clave_notas(id);
+ALTER TABLE incidencia ADD COLUMN resolucion_clave_id uuid REFERENCES clave_notas(id);
+ALTER TABLE incidencia ADD CONSTRAINT incidencia_descripcion_cifrada
+    CHECK (octet_length(descripcion) BETWEEN {CIFRADO_MIN} AND {CIFRADO_MAX});
+ALTER TABLE incidencia ADD CONSTRAINT incidencia_resolucion_cifrada
+    CHECK (resolucion IS NULL OR octet_length(resolucion) BETWEEN {CIFRADO_MIN} AND {CIFRADO_MAX});
+ALTER TABLE incidencia ADD CONSTRAINT incidencia_resolucion_con_clave
+    CHECK ((resolucion IS NULL) = (resolucion_clave_id IS NULL));
 ALTER TABLE incidencia ADD CONSTRAINT incidencia_resuelta_con_resolucion
     CHECK (estado <> 'resuelta' OR resolucion IS NOT NULL);
 -- C12: la incidencia sigue a su pedido
@@ -167,7 +301,8 @@ ALTER TABLE incidencia ADD CONSTRAINT incidencia_pedido_id_fkey FOREIGN KEY (ped
 ALTER TABLE incidencia ADD COLUMN version integer NOT NULL DEFAULT 1;
 CREATE INDEX incidencia_pedido_ix ON incidencia (pedido_id, creada_en);
 
--- C12 y C13: solo sobre pedidos pagados, y quien la crea o la tiene asignada es una cuenta de operación activa
+-- C12 y C13: solo sobre pedidos pagados, y quien la crea o la tiene asignada es una cuenta de operación activa. Lo que
+-- se cifra va con la clave vigente de la persona del pedido
 CREATE FUNCTION incidencia_reglas() RETURNS trigger LANGUAGE plpgsql AS
 $$
 BEGIN
@@ -183,6 +318,20 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM usuario u WHERE u.id = NEW.asignada_a AND u.es_operacion AND u.estado = 'activo')
        THEN
         RAISE EXCEPTION 'la incidencia se asigna a una cuenta de operación' USING ERRCODE = 'check_violation';
+    END IF;
+    IF TG_OP = 'INSERT' AND NOT EXISTS (
+        SELECT 1 FROM clave_notas k JOIN pedido p ON p.persona_cuidada_id = k.persona_cuidada_id
+         WHERE k.id = NEW.clave_notas_id AND p.id = NEW.pedido_id AND k.destruida_en IS NULL) THEN
+        RAISE EXCEPTION 'la nota va con la clave vigente de la persona del pedido' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.resolucion_clave_id IS NOT NULL
+       AND (TG_OP = 'INSERT' OR NEW.resolucion_clave_id IS DISTINCT FROM OLD.resolucion_clave_id
+            OR NEW.resolucion IS DISTINCT FROM OLD.resolucion)
+       AND NOT EXISTS (
+        SELECT 1 FROM clave_notas k JOIN pedido p ON p.persona_cuidada_id = k.persona_cuidada_id
+         WHERE k.id = NEW.resolucion_clave_id AND p.id = NEW.pedido_id AND k.destruida_en IS NULL) THEN
+        RAISE EXCEPTION 'la resolución va con la clave vigente de la persona del pedido'
+            USING ERRCODE = 'check_violation';
     END IF;
     IF TG_OP = 'UPDATE' THEN
         NEW.version := OLD.version + 1;
@@ -202,11 +351,18 @@ CREATE POLICY incidencia_operacion_crear ON incidencia FOR INSERT
 CREATE POLICY incidencia_operacion_editar ON incidencia FOR UPDATE
     USING (app_rol() = 'operacion') WITH CHECK (app_rol() = 'operacion');
 REVOKE UPDATE, DELETE ON incidencia FROM matu_app;
-GRANT UPDATE (estado, asignada_a, resolucion, resuelta_en) ON incidencia TO matu_app;
+GRANT UPDATE (estado, asignada_a, resolucion, resolucion_clave_id, resuelta_en) ON incidencia TO matu_app;
 """
 
 INCIDENCIA_BAJADA = f"""
-REVOKE UPDATE (estado, asignada_a, resolucion, resuelta_en) ON incidencia FROM matu_app;
+-- Lo cifrado no vuelve a texto sin la KEK, y nunca se borra una incidencia ni una clave: con filas, la bajada se
+-- detiene
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM incidencia) OR EXISTS (SELECT 1 FROM clave_notas) THEN
+        RAISE EXCEPTION 'MATU-81: hay incidencias o claves de notas; la bajada de la 0030 no las descifra ni las borra';
+    END IF;
+END $$;
+REVOKE UPDATE (estado, asignada_a, resolucion, resolucion_clave_id, resuelta_en) ON incidencia FROM matu_app;
 GRANT UPDATE, DELETE ON incidencia TO matu_app;
 DROP POLICY incidencia_operacion_editar ON incidencia;
 DROP POLICY incidencia_operacion_crear ON incidencia;
@@ -219,17 +375,15 @@ ALTER TABLE incidencia DROP COLUMN version;
 ALTER TABLE incidencia DROP CONSTRAINT incidencia_pedido_id_fkey;
 ALTER TABLE incidencia ADD CONSTRAINT incidencia_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES pedido(id);
 ALTER TABLE incidencia DROP CONSTRAINT incidencia_resuelta_con_resolucion;
-ALTER TABLE incidencia DROP CONSTRAINT incidencia_resolucion_largo;
-ALTER TABLE incidencia DROP CONSTRAINT incidencia_descripcion_largo;
--- Nunca se borra ni se cambia una incidencia: con los tipos nuevos, la bajada se detiene
+ALTER TABLE incidencia DROP CONSTRAINT incidencia_resolucion_con_clave;
+ALTER TABLE incidencia DROP CONSTRAINT incidencia_resolucion_cifrada;
+ALTER TABLE incidencia DROP CONSTRAINT incidencia_descripcion_cifrada;
+ALTER TABLE incidencia DROP COLUMN resolucion_clave_id;
+ALTER TABLE incidencia DROP COLUMN clave_notas_id;
+ALTER TABLE incidencia ALTER COLUMN resolucion TYPE text USING convert_from(resolucion, 'UTF8');
+ALTER TABLE incidencia ALTER COLUMN descripcion TYPE text USING convert_from(descripcion, 'UTF8');
 ALTER TABLE incidencia DROP CONSTRAINT incidencia_tipo_check;
-DO $$ BEGIN
-    BEGIN
-        ALTER TABLE incidencia ADD CONSTRAINT incidencia_tipo_check CHECK (tipo IN ({TIPOS_0001}));
-    EXCEPTION WHEN check_violation THEN
-        RAISE EXCEPTION 'MATU-81: hay incidencias con los tipos nuevos; la bajada de la 0030 no las cambia';
-    END;
-END $$;
+ALTER TABLE incidencia ADD CONSTRAINT incidencia_tipo_check CHECK (tipo IN ({TIPOS_0001}));
 """
 
 AUDITORIA = f"""
@@ -474,16 +628,18 @@ CREATE POLICY persona_operacion ON persona_cuidada FOR SELECT USING (app_rol() =
 CREATE POLICY aceptacion_operacion_leer ON aceptacion_politica FOR SELECT USING (app_rol() = 'operacion');
 """
 
-# La migración corre como matu_owner, con FORCE ROW LEVEL SECURITY: app.rol = 'operacion' le deja actualizar las
-# incidencias de los tipos anteriores (incidencia_operacion) y leer los retractos (retracto_operacion_leer)
+# La migración corre como matu_owner, con FORCE ROW LEVEL SECURITY: app.rol = 'operacion' le deja ver si hay
+# incidencias (incidencia_operacion), claves de notas (clave_notas_operacion_leer) y retractos
+# (retracto_operacion_leer)
 UPGRADE = (
     "SELECT set_config('app.rol', 'operacion', true);\n"
-    + INCIDENCIA + POLITICAS + AUDITORIA + MFA + RETRACTO_Y_OFERTA
+    + CLAVE_NOTAS + INCIDENCIA + POLITICAS + AUDITORIA + MFA + RETRACTO_Y_OFERTA
     + "SELECT set_config('app.rol', '', true);\n"
 )
 DOWNGRADE = (
     "SELECT set_config('app.rol', 'operacion', true);\n"
     + RETRACTO_Y_OFERTA_BAJADA + MFA_BAJADA + AUDITORIA_BAJADA + POLITICAS_BAJADA + INCIDENCIA_BAJADA
+    + CLAVE_NOTAS_BAJADA
     + "SELECT set_config('app.rol', '', true);\n"
 )
 

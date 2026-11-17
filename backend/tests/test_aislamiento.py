@@ -4455,9 +4455,28 @@ def operador_81():
     yield U_OPERACION_81
 
 
-def _incidencia(cx, pedido, creada_por, tipo="faltante"):
-    return cx.execute("INSERT INTO incidencia (pedido_id, tipo, descripcion, creada_por) VALUES (%s, %s, 'Nota', %s)"
-                      " RETURNING id", (pedido, tipo, creada_por)).fetchone()[0]
+# Decisión 471: la nota va cifrada con la clave de las notas de la persona. Para la base basta un bytea del largo de un
+# cifrado (nonce, etiqueta y al menos un byte); el cifrado real lo prueban tests/shared/test_notas_operacion.py y la API
+NOTA_CIFRADA = b"\x07" * (12 + 16 + 4)
+DEK_ENVUELTA = b"\x05" * 40
+
+
+def _clave_notas(cx, persona=P_A, grupo=G_A):
+    """La clave vigente de las notas de la persona, o una nueva. Con la sesión de operación en contexto."""
+    fila = cx.execute("SELECT id FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
+                      (persona,)).fetchone()
+    if fila is not None:
+        return fila[0]
+    return cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                      " VALUES (%s, %s, %s, 1) RETURNING id", (grupo, persona, DEK_ENVUELTA)).fetchone()[0]
+
+
+def _incidencia(cx, pedido, creada_por, tipo="faltante", clave=None):
+    if clave is None:
+        clave = _clave_notas(cx)
+    return cx.execute("INSERT INTO incidencia (pedido_id, tipo, descripcion, clave_notas_id, creada_por)"
+                      " VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                      (pedido, tipo, NOTA_CIFRADA, clave, creada_por)).fetchone()[0]
 
 
 @pytest.mark.rf("RF-40")
@@ -4489,10 +4508,15 @@ def test_c12_c13_la_incidencia_solo_sobre_un_pagado_por_operacion_sin_borrar_y_s
     # D-81-3: los tipos de antes ya no entran
     with pytest.raises(errors.CheckViolation), cx.transaction():
         _incidencia(cx, PED_A_ENVIADO, operador_81, tipo="desviacion_monto")
-    # C11: hasta 500 caracteres
+    # C11: el largo cifrado de hasta 500 caracteres (el del texto lo valida la aplicación), y nunca vacía
+    for largo in (12 + 16, 12 + 16 + 2001):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute("INSERT INTO incidencia (pedido_id, tipo, descripcion, clave_notas_id, creada_por)"
+                       " VALUES (%s, 'otro', %s, %s, %s)", (PED_A_ENVIADO, b"x" * largo, _clave_notas(cx), operador_81))
+    # Decisión 471: la nota va con la clave vigente de la persona del pedido, nunca con la de otra
+    clave_b = _clave_notas(cx, P_B, G_B)
     with pytest.raises(errors.CheckViolation), cx.transaction():
-        cx.execute("INSERT INTO incidencia (pedido_id, tipo, descripcion, creada_por) VALUES (%s, 'otro', %s, %s)",
-                   (PED_A_ENVIADO, "x" * 501, operador_81))
+        _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_b)
     # creada_por es una cuenta de operación (trigger) y la del contexto (política)
     with pytest.raises(errors.CheckViolation), cx.transaction():
         _incidencia(cx, PED_A_ENVIADO, U_ADMIN_A)
@@ -4503,18 +4527,26 @@ def test_c12_c13_la_incidencia_solo_sobre_un_pagado_por_operacion_sin_borrar_y_s
     cx.execute("RESET ROLE")
     como(cx, usuario_id=operador_81, rol="operacion")
     incidencia = _incidencia(cx, PED_A_ENVIADO, operador_81)
-    # Solo cambian estado, asignada_a, resolucion y resuelta_en; la versión sube sola
+    # Solo cambian estado, asignada_a, resolucion, resolucion_clave_id y resuelta_en; la versión sube sola
     cx.execute("UPDATE incidencia SET estado = 'en_gestion' WHERE id = %s", (incidencia,))
     assert cx.execute("SELECT version FROM incidencia WHERE id = %s", (incidencia,)).fetchone() == (2,)
-    for cambio in ("descripcion = 'otra'", "tipo = 'otro'", "creada_por = creada_por", "pedido_id = pedido_id"):
+    for cambio in ("descripcion = '\\x00'", "clave_notas_id = clave_notas_id", "tipo = 'otro'",
+                   "creada_por = creada_por", "pedido_id = pedido_id"):
         with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
             cx.execute(f"UPDATE incidencia SET {cambio} WHERE id = %s", (incidencia,))
     # asignada_a es una cuenta de operación
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("UPDATE incidencia SET asignada_a = %s WHERE id = %s", (U_ADMIN_A, incidencia))
-    # Resuelta exige la resolución
+    # Resuelta exige la resolución, y la resolución va con su clave
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute("UPDATE incidencia SET estado = 'resuelta', resuelta_en = now() WHERE id = %s", (incidencia,))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE incidencia SET resolucion = %s WHERE id = %s", (NOTA_CIFRADA, incidencia))
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE incidencia SET resolucion = %s, resolucion_clave_id = %s WHERE id = %s",
+                   (NOTA_CIFRADA, clave_b, incidencia))
+    cx.execute("UPDATE incidencia SET resolucion = %s, resolucion_clave_id = %s WHERE id = %s",
+               (NOTA_CIFRADA, _clave_notas(cx), incidencia))
     # Sin DELETE
     with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
         cx.execute("DELETE FROM incidencia WHERE id = %s", (incidencia,))
@@ -4526,6 +4558,104 @@ def test_c12_c13_la_incidencia_solo_sobre_un_pagado_por_operacion_sin_borrar_y_s
         _incidencia(cx, PED_A_ENVIADO, operador_81)
     assert cx.execute("UPDATE incidencia SET estado = 'abierta' WHERE id = %s RETURNING id",
                       (incidencia,)).fetchall() == []
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+def test_471_la_clave_de_las_notas_la_leen_operacion_y_la_familia_del_grupo(cx, operador_81):
+    """Decisión 471: operación crea y lee la clave de las notas; quien es miembro activo del grupo la lee (para la copia
+    de sus datos), sin crearla; otro grupo, el comercio, el repartidor y el relevo, nunca, ni con un marcador
+    app.funcion. matu_app no la cambia ni la borra."""
+    como(cx, usuario_id=operador_81, rol="operacion")
+    clave = _clave_notas(cx)
+    assert contar(cx, "clave_notas", f"id = '{clave}'") == 1
+    # Una sola vigente por persona
+    with pytest.raises(errors.UniqueViolation), cx.transaction():
+        cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                   " VALUES (%s, %s, %s, 1)", (G_A, P_A, DEK_ENVUELTA))
+    # La persona es del grupo de la fila
+    with pytest.raises(errors.ForeignKeyViolation), cx.transaction():
+        cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                   " VALUES (%s, %s, %s, 1)", (G_A, P_B, DEK_ENVUELTA))
+    # Nace vigente
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version,"
+                   " destruida_en) VALUES (%s, %s, NULL, 1, now())", (G_B, P_B))
+    for sentencia in ("UPDATE clave_notas SET dek_cifrada_con_kek = NULL, destruida_en = now()",
+                      "DELETE FROM clave_notas"):
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(sentencia)
+    cx.execute("RESET ROLE")
+    # La familia del grupo la lee y no la crea
+    como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+    assert contar(cx, "clave_notas") == 1
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                   " VALUES (%s, %s, %s, 1)", (G_A, P_A, DEK_ENVUELTA))
+    cx.execute("RESET ROLE")
+    # Otro grupo, aunque fije un marcador, o con el grupo ajeno sin membresía: nada
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_B)
+    cx.execute("SELECT set_config('app.funcion', 'cuentas', true)")
+    assert contar(cx, "clave_notas") == 0
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_ADMIN_B, grupo_id=G_A)
+    cx.execute("SELECT set_config('app.funcion', 'cuentas', true)")
+    assert contar(cx, "clave_notas") == 0
+    cx.execute("RESET ROLE")
+    # El comercio, el repartidor y el relevo, nunca
+    for ctx in ({"usuario_id": U_ENC, "comercio_id": COMERCIO}, {"usuario_id": U_REP, "repartidor_id": REPARTIDOR},
+                {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}):
+        como(cx, **ctx)
+        cx.execute("SELECT set_config('app.funcion', 'cuentas', true)")
+        assert contar(cx, "clave_notas") == 0, ctx
+        cx.execute("RESET ROLE")
+    # Los roles de las tareas no tienen permiso sobre la tabla
+    for rol in ("matu_scheduler", "matu_publisher"):
+        como(cx, db_rol=rol, rol="operacion")
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute("SELECT 1 FROM clave_notas")
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("como_se_borra", ["clave_de_la_ficha_familia", "clave_de_la_ficha_dueno", "persona_borrada"])
+def test_471_el_borrado_criptografico_destruye_la_clave_de_las_notas(cx, operador_81, como_se_borra):
+    """Cuando se destruye la clave de la ficha de la persona (la familia al volver a autorizar, o plan_destruir_claves,
+    que corre como matu_owner) o se borran sus datos, se destruye también su clave de notas: sus notas quedan
+    ilegibles. La de la otra persona no cambia. Después, una nota nueva va con una clave nueva."""
+    _cuidador_retiro(cx)
+    como(cx, usuario_id=operador_81, rol="operacion")
+    clave_a = _clave_notas(cx)
+    clave_b = _clave_notas(cx, P_B, G_B)
+    _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_a)
+    cx.execute("RESET ROLE")
+    if como_se_borra == "clave_de_la_ficha_familia":
+        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
+    elif como_se_borra == "clave_de_la_ficha_dueno":
+        como(cx, db_rol="matu_owner", rol="operacion")
+        assert cx.execute("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+                          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", (P_A,)).rowcount == 1
+    else:
+        como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
+        assert cx.execute(_BORRAR_PERSONA_SQL, (P_A,)).rowcount == 1
+    cx.execute("RESET ROLE")
+    filas = dict(cx.execute("SELECT id, dek_cifrada_con_kek IS NULL AND destruida_en IS NOT NULL FROM clave_notas"
+                            " WHERE id = ANY(%s)", ([clave_a, clave_b],)).fetchall())
+    assert filas == {clave_a: True, clave_b: False}
+    # Una clave destruida no vuelve, ni como dueño
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute("UPDATE clave_notas SET dek_cifrada_con_kek = %s, destruida_en = NULL WHERE id = %s",
+                   (DEK_ENVUELTA, clave_a))
+    # Una nota nueva no va con la destruida; va con una clave nueva
+    como(cx, usuario_id=operador_81, rol="operacion")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        _incidencia(cx, PED_A_ENVIADO, operador_81, clave=clave_a)
+    nueva = _clave_notas(cx)
+    assert nueva != clave_a
+    _incidencia(cx, PED_A_ENVIADO, operador_81, clave=nueva)
 
 
 @pytest.mark.rf("RF-40")

@@ -24,6 +24,8 @@ from app.modules.payments.domain.venta import EstadoVenta
 from app.modules.payments.infrastructure.pasarela import pasarela_desde
 from app.modules.payments.infrastructure.repositorio_pagos import RepositorioPagosSQL
 from app.shared.copia_datos import en_chile, en_chile_o_nada
+from app.shared.notas_operacion import descifrar_nota
+from app.shared.notas_operacion_sql import deks
 
 _PEDIDOS = text(
     "SELECT p.id, p.referencia, p.estado, p.creado_en, p.total_confirmado_en, p.total_vence_en, p.subtotal_productos,"
@@ -59,10 +61,11 @@ _LINEAS_RETRACTO = text(
     " JOIN producto pr ON pr.id = l.producto_id WHERE rl.retracto_id = :retracto_id ORDER BY pr.nombre, l.id"
 )
 _NOMBRE = text("SELECT nombre FROM usuario WHERE id = :id AND eliminado_en IS NULL")
-# MATU-81 (D-81-4): lo que el equipo anotó del pedido (RLS incidencia_familia), sin quién lo anotó ni a quién se asignó
+# MATU-81 (D-81-4): lo que el equipo anotó del pedido (RLS incidencia_familia), sin quién lo anotó ni a quién se asignó.
+# La nota y la resolución salen cifradas con la clave de cada una (decisión 471) y se descifran aquí
 _LO_QUE_PASO = text(
-    "SELECT tipo, estado, creada_en, resuelta_en, descripcion, resolucion FROM incidencia"
-    " WHERE pedido_id = :pedido_id ORDER BY creada_en, id"
+    "SELECT id, tipo, estado, creada_en, resuelta_en, descripcion, clave_notas_id, resolucion, resolucion_clave_id"
+    " FROM incidencia WHERE pedido_id = :pedido_id ORDER BY creada_en, id"
 )
 
 
@@ -142,6 +145,32 @@ def _retractos(ctx: ContextoCopia, pedido_id: uuid.UUID) -> list[dict[str, Any]]
     ]
 
 
+def _lo_que_paso(ctx: ContextoCopia, pedido_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Lo que el equipo anotó, descifrado con la clave de las notas de la persona, que la familia del grupo lee
+    (clave_notas_familia_leer). Con la clave destruida, la nota sale como no disponible, sin error."""
+    filas = ctx.sesion.execute(_LO_QUE_PASO, {"pedido_id": pedido_id}).all()
+    claves = deks(ctx.sesion, ctx.custodia_notas, [x for f in filas for x in (f.clave_notas_id, f.resolucion_clave_id)])
+    pasos = []
+    for i in filas:
+        nota = descifrar_nota(claves.get(i.clave_notas_id), i.id, "descripcion", bytes(i.descripcion))
+        resolucion = None
+        if i.resolucion is not None:
+            resolucion = descifrar_nota(claves.get(i.resolucion_clave_id), i.id, "resolucion", bytes(i.resolucion))
+        disponible = nota is not None and (i.resolucion is None or resolucion is not None)
+        pasos.append(
+            {
+                "tipo": i.tipo,
+                "estado": i.estado,
+                "anotado_en": en_chile(i.creada_en),
+                "resuelto_en": en_chile_o_nada(i.resuelta_en),
+                "nota": nota if disponible else None,
+                "resolucion": resolucion if disponible else None,
+                "nota_disponible": disponible,
+            }
+        )
+    return pasos
+
+
 def pedidos(ctx: ContextoCopia) -> list[dict[str, Any]]:
     """El bloque ``pedidos``. Va también con la autorización de pedidos retirada o la capa 3 apagada (D-54-15 a)."""
     pagos = RepositorioPagosSQL(ctx.sesion, ctx.grupo_id)
@@ -191,17 +220,7 @@ def pedidos(ctx: ContextoCopia) -> list[dict[str, Any]]:
                 "entregado_en": en_chile_o_nada(p.entregado_en),
                 "partes": _partes(ctx, p.id),
                 "retractos": _retractos(ctx, p.id),
-                "lo_que_paso": [
-                    {
-                        "tipo": i.tipo,
-                        "estado": i.estado,
-                        "anotado_en": en_chile(i.creada_en),
-                        "resuelto_en": en_chile_o_nada(i.resuelta_en),
-                        "nota": i.descripcion,
-                        "resolucion": i.resolucion,
-                    }
-                    for i in ctx.sesion.execute(_LO_QUE_PASO, {"pedido_id": p.id})
-                ],
+                "lo_que_paso": _lo_que_paso(ctx, p.id),
             }
         )
     return resultado

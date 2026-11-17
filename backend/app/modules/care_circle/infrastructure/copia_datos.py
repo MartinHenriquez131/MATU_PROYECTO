@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.modules.care_circle.domain.retiro import EstadoDeAutorizacion, EstadoVista
 from app.shared.auditoria import AccionAuditoria
 from app.shared.copia_datos import dia_en_chile, en_chile, en_chile_o_nada
+from app.shared.notas_operacion import CustodiaNotas
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,9 @@ class ContextoCopia:
     ahora: datetime
     estado_ficha: EstadoDeAutorizacion
     estado_insumos: EstadoDeAutorizacion
+    # MATU-81 (decisión 471): la custodia de las notas de operación, para descifrar «Lo que pasó con tu pedido». Sin
+    # ella, las notas salen como no disponibles
+    custodia_notas: CustodiaNotas | None = None
 
     def __repr__(self) -> str:
         return f"ContextoCopia(rol={self.rol!r})"

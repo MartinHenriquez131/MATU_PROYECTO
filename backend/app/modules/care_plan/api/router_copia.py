@@ -46,6 +46,7 @@ from app.shared.copia_datos import (
     content_disposition,
     en_chile,
 )
+from app.shared.notas_operacion import CustodiaNotas, obtener_custodia_notas
 from app.shared.puertos import Reloj
 
 log = logging.getLogger("matu.care_plan.copia")
@@ -98,6 +99,7 @@ def ver_datos_persona(
     custodia: Annotated[CustodiaClaves | None, Depends(obtener_custodia)],
     pepper: Annotated[bytes | None, Depends(obtener_pepper_limites)],
     contador: Annotated[ContadorVentana, Depends(obtener_contador_ventana)],
+    custodia_notas: Annotated[CustodiaNotas | None, Depends(obtener_custodia_notas)],
 ) -> Any:
     respuesta.headers["Cache-Control"] = "no-store"
     if contexto.rol not in ROLES_QUE_PIDEN:
@@ -123,7 +125,7 @@ def ver_datos_persona(
             persona_cuidada_id=persona_uuid,
         )
     )
-    cuerpo = _armar(contexto, persona_uuid, persona, reloj, custodia, ahora, registro)
+    cuerpo = _armar(contexto, persona_uuid, persona, reloj, custodia, ahora, registro, custodia_notas)
     respuesta.headers["Content-Disposition"] = content_disposition(ARCHIVO_PERSONA, ahora)
     return cuerpo
 
@@ -136,6 +138,7 @@ def _armar(
     custodia: CustodiaClaves | None,
     ahora: Any,
     registro: RegistroAuditoriaSql,
+    custodia_notas: CustodiaNotas | None = None,
 ) -> CopiaDatosPersona:
     retiros = RepositorioRetirosSQL(contexto.sesion, contexto.grupo_id, registro)
     estados = {
@@ -151,6 +154,7 @@ def _armar(
         ahora=ahora,
         estado_ficha=estados[FINALIDAD_PLAN_CUIDADO],
         estado_insumos=estados[FINALIDAD_CONSUMO],
+        custodia_notas=custodia_notas,
     )
     cifrador = None if custodia is None else CifradorAesGcm(custodia, RepositorioClavesSQL(contexto.sesion))
     try:

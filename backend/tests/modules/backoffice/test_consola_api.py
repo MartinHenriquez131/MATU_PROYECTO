@@ -143,6 +143,14 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     assert (inc["estado"], inc["asignada_a_mi"], inc["version"]) == ("abierta", True, 1)
     assert r.headers["etag"] == '"i1"'
     assert _auditadas(d, "incidencia.crear", inc["id"]) == [("operacion", d.operador.id, True, True)]  # type: ignore[union-attr]
+    # Decisión 471: la respuesta trae el texto, y la columna guarda solo lo cifrado con la clave de las notas
+    assert (inc["descripcion"], inc["resolucion"], inc["nota_disponible"]) == (nota, None, True)
+    [(cifrada, clave, persona)] = d.sql(
+        "SELECT i.descripcion, i.clave_notas_id, k.persona_cuidada_id FROM incidencia i"
+        " JOIN clave_notas k ON k.id = i.clave_notas_id WHERE i.id = %s", uuid.UUID(inc["id"]))
+    assert nota.encode() not in bytes(cifrada) and persona == familia.persona.id
+    assert d.sql("SELECT count(*) FROM clave_datos WHERE dek_cifrada_con_kek = (SELECT dek_cifrada_con_kek"
+                 " FROM clave_notas WHERE id = %s)", clave) == [(0,)]
     # Tipos de D-81-3 y el largo de C11
     assert d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias",
                        {"tipo": "desviacion_monto", "descripcion": "x"}).status_code == 422
@@ -164,6 +172,10 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     r = d.operacion("PATCH", ruta, {"estado": "resuelta", "resolucion": "Se devolvió lo que faltó"},
                     **{"If-Match": '"i2"'})
     assert r.status_code == 200 and r.json()["resuelta_en"] is not None
+    assert (r.json()["descripcion"], r.json()["resolucion"]) == (nota, "Se devolvió lo que faltó")
+    [(resolucion,)] = d.sql("SELECT resolucion FROM incidencia WHERE id = %s", uuid.UUID(inc["id"]))
+    assert "Se devolvió".encode() not in bytes(resolucion)
+    assert d.operacion("GET", ruta).json()["resolucion"] == "Se devolvió lo que faltó"
     assert len(_auditadas(d, "incidencia.resolver", inc["id"])) == 1
     assert d.operacion("PATCH", ruta, {"estado": "abierta"}, **{"If-Match": '"i3"'}).status_code == 409
     assert d.operacion("GET", ruta).headers["etag"] == '"i3"'
@@ -177,11 +189,60 @@ def test_incidencias_crear_editar_con_if_match_y_resolver(despacho: Despacho) ->
     [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
     [paso] = p["lo_que_paso"]
     assert (paso["tipo"], paso["estado"], paso["nota"]) == ("faltante", "resuelta", nota)
+    assert (paso["resolucion"], paso["nota_disponible"]) == ("Se devolvió lo que faltó", True)
     assert "incidencia" not in copia.text and "incidente" not in copia.text
     d.operacion("GET", f"/pedidos/{pedido['id']}")
     copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
     revisiones = [h for h in copia.json()["historial"]["hechos"] if h["tipo"] == "matu_reviso_el_pedido"]
     assert revisiones and revisiones[0]["referencia"] == inc["referencia"] and revisiones[0]["quien"]["tipo"] == "matu"
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_con_la_clave_destruida_la_nota_no_esta_disponible_en_la_consola_ni_en_la_copia(despacho: Despacho) -> None:
+    """Decisión 471: cuando se destruye la clave de la ficha de la persona (el borrado criptográfico), se destruye su
+    clave de notas, y lo anotado queda ilegible: la consola y la copia lo muestran como no disponible, sin error. Una
+    nota nueva va con una clave nueva y se lee."""
+    d = despacho
+    familia, pedido = d.pagado()
+    nota = f"Nota sintética {uuid.uuid4().hex}"
+    inc = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": nota}).json()
+    r = d.operacion("PATCH", f"/incidencias/{inc['id']}", {"resolucion": "Resolución sintética"},
+                    **{"If-Match": '"i1"'})
+    assert r.status_code == 200 and r.json()["resolucion"] == "Resolución sintética"
+    # La clave de la ficha de la persona se destruye (como la destruye plan_destruir_claves, como matu_owner)
+    persona = familia.persona.id
+    d.sql("INSERT INTO clave_datos (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+          " SELECT %s, %s, '\\x01', 1 WHERE NOT EXISTS (SELECT 1 FROM clave_datos WHERE persona_cuidada_id = %s"
+          " AND destruida_en IS NULL)", familia.grupo.id, persona, persona)
+    d.sql("UPDATE clave_datos SET dek_cifrada_con_kek = NULL, destruida_en = now()"
+          " WHERE persona_cuidada_id = %s AND destruida_en IS NULL", persona)
+    assert d.sql("SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s AND destruida_en IS NULL",
+                 persona) == [(0,)]
+
+    r = d.operacion("GET", f"/incidencias/{inc['id']}")
+    assert r.status_code == 200, r.text
+    assert (r.json()["descripcion"], r.json()["resolucion"], r.json()["nota_disponible"]) == (None, None, False)
+    [en_lista] = [i for i in d.operacion("GET", "/incidencias").json()["incidencias"] if i["id"] == inc["id"]]
+    assert en_lista["nota_disponible"] is False
+    copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{persona}/datos", familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [p] = [x for x in copia.json()["pedidos"] if x["referencia"] == inc["referencia"]]
+    [paso] = p["lo_que_paso"]
+    assert (paso["nota"], paso["resolucion"], paso["nota_disponible"]) == (None, None, False)
+    assert nota not in copia.text
+
+    # Seguir trabajando la incidencia: resolverla con una resolución nueva, con la clave nueva
+    version = r.headers["etag"]
+    r = d.operacion("PATCH", f"/incidencias/{inc['id']}", {"estado": "resuelta", "resolucion": "Cerrada"},
+                    **{"If-Match": version})
+    assert r.status_code == 200 and r.json()["estado"] == "resuelta"
+    # La nota de antes sigue ilegible, así que la incidencia sigue como no disponible
+    assert r.json()["nota_disponible"] is False
+    # Una nota nueva va con una clave nueva y se lee
+    otra = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "Nueva"})
+    assert otra.status_code == 201 and otra.json()["descripcion"] == "Nueva"
+    assert d.sql("SELECT count(*) FROM clave_notas WHERE persona_cuidada_id = %s", persona) == [(2,)]
+    assert nota not in d.e.iam.texto_log()
 
 
 def test_una_incidencia_solo_va_sobre_un_pedido_pagado(despacho: Despacho) -> None:

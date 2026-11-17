@@ -29,6 +29,11 @@ Pesos = Annotated[int, Field(ge=0, description="Pesos enteros, con IVA incluido"
 _TEXTO_NOTA = (
     "Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota"
 )
+# Decisión 471: la nota se guarda cifrada con la clave de las notas de la persona
+_NOTA_DISPONIBLE = (
+    "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
+    " resolución vienen null y ya no se pueden leer"
+)
 
 
 class _Vista(BaseModel):
@@ -222,8 +227,9 @@ class IncidenciaVista(_Vista):
     referencia: str | None
     tipo: TipoIncidencia
     estado: EstadoIncidencia
-    descripcion: str
+    descripcion: Annotated[str | None, Field(description="La nota, descifrada; null si nota_disponible es false")]
     resolucion: str | None
+    nota_disponible: Annotated[bool, Field(description=_NOTA_DISPONIBLE)]
     creada_en: datetime
     resuelta_en: datetime | None
     asignada: bool

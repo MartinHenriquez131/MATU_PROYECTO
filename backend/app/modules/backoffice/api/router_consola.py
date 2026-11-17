@@ -8,7 +8,9 @@ marca). Toda transacción corre con app.rol = 'operacion'. Lo ajeno o lo que no 
   contenido (D-81-5, C9). Las listas no se auditan.
 - La búsqueda lleva la referencia en el cuerpo (C7). Ninguna ruta lleva una referencia ni un buy_order en la URL.
 - Las incidencias: crear (incidencia.crear) y resolver (incidencia.resolver) se auditan sin el texto (C14). El PATCH
-  exige If-Match con la versión (428 sin él, 412 si cambió).
+  exige If-Match con la versión (428 sin él, 412 si cambió). La nota y la resolución se guardan cifradas con la clave
+  de las notas de la persona del pedido (decisión 471, app/shared/notas_operacion.py) y se descifran al leer; si esa
+  clave se destruyó, la incidencia sale con ``nota_disponible: false``, sin error. Sin la KEK, 503 (falla cerrada).
 - El catálogo: solo las ofertas de los comercios ficticios (D-81-7; trigger oferta_operacion_ficticia, C1). El PATCH
   exige If-Match (C4) y se audita como catalogo.oferta_cambiar, sin grupo y sin los valores. Un precio nuevo vale solo
   para las confirmaciones nuevas: pedido_linea guarda el precio confirmado (C3).
@@ -57,6 +59,14 @@ from app.modules.fulfillment.domain.despacho import EstadoParte, LineaDespacho, 
 from app.modules.payments.domain.retracto import plazo_por_correo
 from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, EntradaAuditoria
 from app.shared.auditoria_sql import RegistroAuditoriaSql
+from app.shared.notas_operacion import (
+    CustodiaNotas,
+    NotasNoDisponibles,
+    cifrar_nota,
+    descifrar_nota,
+    obtener_custodia_notas,
+)
+from app.shared.notas_operacion_sql import clave_para_cifrar, deks
 
 router = APIRouter(prefix="/operacion", tags=["operacion"])
 
@@ -64,6 +74,7 @@ _PROBLEMA: dict[str, Any] = {"content": {"application/problem+json": {}}}
 _ID = Annotated[str, Path(json_schema_extra={"format": "uuid"})]
 Fabrica = Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)]
 IfMatch = Annotated[str | None, Header(alias="If-Match")]
+CustodiaNotasDep = Annotated[CustodiaNotas | None, Depends(obtener_custodia_notas)]
 _BASE: dict[int | str, dict[str, Any]] = {
     401: {"description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)", **_PROBLEMA},
     404: {"description": "No es una cuenta de operación, o lo pedido no existe", **_PROBLEMA},
@@ -350,66 +361,110 @@ def _etag(version: int) -> str:
     return f'"i{version}"'
 
 
-def _incidencia(f: Any, operador: uuid.UUID) -> IncidenciaVista:
-    return IncidenciaVista(
-        id=f.id, pedido_id=f.pedido_id, referencia=f.referencia, tipo=f.tipo, estado=f.estado,
-        descripcion=f.descripcion, resolucion=f.resolucion, creada_en=f.creada_en, resuelta_en=f.resuelta_en,
-        asignada=f.asignada_a is not None, asignada_a_mi=f.asignada_a == operador, version=int(f.version),
-    )
+_SIN_NOTAS: dict[int | str, dict[str, Any]] = {
+    503: {"description": "Las notas no se pueden cifrar ni descifrar: falta la KEK", **_PROBLEMA},
+}
+
+
+def _custodia(custodia: CustodiaNotas | None) -> CustodiaNotas:
+    """Sin la KEK, las rutas de las incidencias fallan cerradas: nunca guardan ni muestran una nota en claro."""
+    if custodia is None:
+        raise ErrorMATU(503, detalle="Las notas no están disponibles en este momento")
+    return custodia
+
+
+def _vistas(sesion: Session, custodia: CustodiaNotas, filas: list[Any], operador: uuid.UUID) -> list[IncidenciaVista]:
+    """Las incidencias con la nota y la resolución descifradas. Con la clave destruida, nota_disponible es false."""
+    claves = deks(sesion, custodia, [x for f in filas for x in (f.clave_notas_id, f.resolucion_clave_id)])
+    vistas = []
+    for f in filas:
+        descripcion = descifrar_nota(claves.get(f.clave_notas_id), f.id, "descripcion",
+                                     None if f.descripcion is None else bytes(f.descripcion))
+        resolucion = None
+        if f.resolucion is not None:
+            resolucion = descifrar_nota(claves.get(f.resolucion_clave_id), f.id, "resolucion", bytes(f.resolucion))
+        disponible = descripcion is not None and (f.resolucion is None or resolucion is not None)
+        vistas.append(IncidenciaVista(
+            id=f.id, pedido_id=f.pedido_id, referencia=f.referencia, tipo=f.tipo, estado=f.estado,
+            descripcion=descripcion if disponible else None, resolucion=resolucion if disponible else None,
+            nota_disponible=disponible, creada_en=f.creada_en, resuelta_en=f.resuelta_en,
+            asignada=f.asignada_a is not None, asignada_a_mi=f.asignada_a == operador, version=int(f.version),
+        ))
+    return vistas
 
 
 @router.get(
     "/incidencias",
     response_model=ListaIncidencias,
-    responses={**_BASE, 422: {"description": "estado no es abierta, en_gestion ni resuelta", **_PROBLEMA}},
-    description="Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado.",
+    responses={**_BASE, **_SIN_NOTAS,
+               422: {"description": "estado no es abierta, en_gestion ni resuelta", **_PROBLEMA}},
+    description=(
+        "Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado. La nota y"
+        " la resolución se descifran al leer; si la clave de las notas se destruyó, `nota_disponible` es false."
+    ),
 )
 def listar_incidencias(
-    operador: Operador, fabrica: Fabrica, respuesta: Response,
+    operador: Operador, fabrica: Fabrica, respuesta: Response, custodia: CustodiaNotasDep,
     estado: Annotated[str | None, Query(pattern="^(abierta|en_gestion|resuelta)$")] = None,
 ) -> ListaIncidencias:
+    con_kek = _custodia(custodia)
     with sesion_tenant(fabrica, rol="operacion") as sesion:
-        filas = sql.incidencias(sesion, estado)
+        vistas = _vistas(sesion, con_kek, sql.incidencias(sesion, estado), operador)
     _no_store(respuesta)
-    return ListaIncidencias(incidencias=[_incidencia(f, operador) for f in filas])
+    return ListaIncidencias(incidencias=vistas)
 
 
-@router.get("/incidencias/{incidencia_id}", response_model=IncidenciaVista, responses=_BASE,
+@router.get("/incidencias/{incidencia_id}", response_model=IncidenciaVista, responses={**_BASE, **_SIN_NOTAS},
             description="Una incidencia, con su versión en el ETag (P7).")
-def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, respuesta: Response) -> IncidenciaVista:
+def ver_incidencia(incidencia_id: _ID, operador: Operador, fabrica: Fabrica, respuesta: Response,
+                   custodia: CustodiaNotasDep) -> IncidenciaVista:
+    con_kek = _custodia(custodia)
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         fila = sql.incidencia(sesion, _uuid(incidencia_id))
-    if fila is None:
-        raise ErrorMATU(404)
+        if fila is None:
+            raise ErrorMATU(404)
+        [vista] = _vistas(sesion, con_kek, [fila], operador)
     _no_store(respuesta)
     respuesta.headers["ETag"] = _etag(int(fila.version))
-    return _incidencia(fila, operador)
+    return vista
 
 
 @router.post(
     "/pedidos/{pedido_id}/incidencias",
     response_model=IncidenciaVista,
     status_code=status.HTTP_201_CREATED,
-    responses={**_BASE, 422: {"description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres", **_PROBLEMA}},
+    responses={**_BASE, **_SIN_NOTAS,
+               422: {"description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres", **_PROBLEMA}},
     description=(
         "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la"
-        " copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se audita incidencia.crear sin el"
-        " texto. El texto nunca va a logs, errores, eventos ni auditoría."
+        " copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las"
+        " notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a"
+        " logs, errores, eventos ni auditoría."
     ),
 )
 def crear_incidencia(pedido_id: _ID, solicitud: SolicitudIncidencia, request: Request, operador: Operador,
-                     fabrica: Fabrica, reloj: RelojDep, respuesta: Response) -> IncidenciaVista:
+                     fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
+                     custodia: CustodiaNotasDep) -> IncidenciaVista:
+    con_kek = _custodia(custodia)
     identificador = _uuid(pedido_id)
     base = _grupo_del_pedido(fabrica, identificador)
-    with sesion_tenant(fabrica, usuario_id=operador, grupo_id=base.grupo_id, rol="operacion") as sesion:
-        nueva = sql.crear_incidencia(sesion, identificador, solicitud.tipo, solicitud.descripcion,
-                                     operador if solicitud.asignarme else None, reloj.ahora())
-        _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_CREAR, EntidadAuditoria.INCIDENCIA,
-                 nueva, base.grupo_id, base.persona_cuidada_id)
-        fila = sql.incidencia(sesion, nueva)
+    # El id va en el AAD de la nota: se fija antes de cifrar
+    nueva_id = uuid.uuid4()
+    try:
+        with sesion_tenant(fabrica, usuario_id=operador, grupo_id=base.grupo_id, rol="operacion") as sesion:
+            clave = clave_para_cifrar(sesion, con_kek, base.grupo_id, base.persona_cuidada_id)
+            nueva = sql.crear_incidencia(sesion, nueva_id, identificador, solicitud.tipo,
+                                         cifrar_nota(clave.dek, nueva_id, "descripcion", solicitud.descripcion),
+                                         clave.id, operador if solicitud.asignarme else None, reloj.ahora())
+            _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_CREAR, EntidadAuditoria.INCIDENCIA,
+                     nueva, base.grupo_id, base.persona_cuidada_id)
+            fila = sql.incidencia(sesion, nueva)
+            [vista] = _vistas(sesion, con_kek, [fila], operador)
+    except NotasNoDisponibles:
+        raise ErrorMATU(503, detalle="Las notas no están disponibles en este momento") from None
     _no_store(respuesta)
     respuesta.headers["ETag"] = _etag(int(fila.version))
-    return _incidencia(fila, operador)
+    return vista
 
 
 def _version_de(if_match: str | None, prefijo: str) -> str:
@@ -425,19 +480,21 @@ def _version_de(if_match: str | None, prefijo: str) -> str:
     "/incidencias/{incidencia_id}",
     response_model=IncidenciaVista,
     responses={
-        **_BASE, **_CON_VERSION,
+        **_BASE, **_CON_VERSION, **_SIN_NOTAS,
         409: {"description": "incidencia-resuelta: una incidencia resuelta ya no cambia", **_PROBLEMA},
         422: {"description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido",
               **_PROBLEMA},
     },
     description=(
         "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag"
-        " (P7): 428 sin él, 412 si otra persona la cambió. Resolverla se audita incidencia.resolver, sin el texto."
+        " (P7): 428 sin él, 412 si otra persona la cambió. La resolución se guarda cifrada, con la clave vigente de"
+        " las notas de la persona (decisión 471). Resolverla se audita incidencia.resolver, sin el texto."
     ),
 )
 def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, request: Request,
                       operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
-                      if_match: IfMatch = None) -> IncidenciaVista:
+                      custodia: CustodiaNotasDep, if_match: IfMatch = None) -> IncidenciaVista:
+    con_kek = _custodia(custodia)
     identificador = _uuid(incidencia_id)
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         actual = sql.incidencia(sesion, identificador)
@@ -447,7 +504,7 @@ def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, 
     if version != int(actual.version):
         raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
     try:
-        cambio = consola.nuevo_estado_incidencia(actual.estado, actual.resolucion, solicitud.estado,
+        cambio = consola.nuevo_estado_incidencia(actual.estado, actual.resolucion is not None, solicitud.estado,
                                                  solicitud.resolucion, reloj.ahora())
     except consola.IncidenciaResuelta:
         raise ErrorMATU(409, tipo="incidencia-resuelta", detalle="Esta incidencia ya se resolvió") from None
@@ -460,17 +517,27 @@ def editar_incidencia(incidencia_id: _ID, solicitud: SolicitudEditarIncidencia, 
         asignada = operador
     elif solicitud.asignacion == "sin_asignar":
         asignada = None
-    with sesion_tenant(fabrica, grupo_id=actual.grupo_id, rol="operacion") as sesion:
-        if not sql.editar_incidencia(sesion, identificador, version, cambio.estado, asignada, cambio.resolucion,
-                                     cambio.resuelta_en):
-            raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
-        if cambio.resuelve:
-            _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_RESOLVER,
-                     EntidadAuditoria.INCIDENCIA, identificador, actual.grupo_id, actual.persona_cuidada_id)
-        fila = sql.incidencia(sesion, identificador)
+    try:
+        with sesion_tenant(fabrica, grupo_id=actual.grupo_id, rol="operacion") as sesion:
+            cifrada: bytes | None = None
+            clave_id: uuid.UUID | None = None
+            if cambio.resolucion is not None:
+                clave = clave_para_cifrar(sesion, con_kek, actual.grupo_id, actual.persona_cuidada_id)
+                cifrada = cifrar_nota(clave.dek, identificador, "resolucion", cambio.resolucion)
+                clave_id = clave.id
+            if not sql.editar_incidencia(sesion, identificador, version, cambio.estado, asignada, cifrada, clave_id,
+                                         cambio.resuelta_en):
+                raise ErrorMATU(412, tipo="version-desactualizada", detalle="Otra persona del equipo cambió esto")
+            if cambio.resuelve:
+                _auditar(sesion, reloj, request, operador, AccionAuditoria.INCIDENCIA_RESOLVER,
+                         EntidadAuditoria.INCIDENCIA, identificador, actual.grupo_id, actual.persona_cuidada_id)
+            fila = sql.incidencia(sesion, identificador)
+            [vista] = _vistas(sesion, con_kek, [fila], operador)
+    except NotasNoDisponibles:
+        raise ErrorMATU(503, detalle="Las notas no están disponibles en este momento") from None
     _no_store(respuesta)
     respuesta.headers["ETag"] = _etag(int(fila.version))
-    return _incidencia(fila, operador)
+    return vista
 
 
 # --- Ruta 7: el catálogo de los comercios ficticios ---------------------------------------------------------------

@@ -31,6 +31,7 @@ from app.modules.iam.api.sesion_web import obtener_contadores, obtener_pepper_li
 from app.modules.iam.domain.mfa import hotp, paso_de
 from app.modules.iam.infrastructure.cifrador_mfa import CifradorMfaKek
 from app.modules.iam.infrastructure.enviador_simulado import EnviadorSimulado
+from app.shared.notas_operacion import CustodiaNotas, obtener_custodia_notas
 from tests.base_datos import DSN
 from tests.dobles.contador_ventana_en_memoria import ContadorVentanaEnMemoria, limite_ip_en_memoria
 from tests.dobles.contadores_en_memoria import ContadoresEnMemoria
@@ -59,6 +60,8 @@ class EntornoIam:
     # MATU-81: el segundo factor, con una KEK sintética de la prueba y el almacén en memoria
     almacen_mfa: AlmacenMfaEnMemoria | None = None
     cifrador_mfa: CifradorMfaKek | None = None
+    # MATU-81 (decisión 471): la clave de las notas de operación, envuelta con una KEK de la prueba
+    custodia_notas: CustodiaNotas | None = None
     pasos_usados: dict[uuid.UUID, int] = field(default_factory=dict)
 
     def dar_alta_operacion(self, usuario_id: uuid.UUID) -> bytes:
@@ -183,6 +186,8 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
     cifrador_mfa = CifradorMfaKek(secrets.token_bytes(32), 1)
     app.dependency_overrides[obtener_almacen_mfa] = lambda: almacen_mfa
     app.dependency_overrides[obtener_cifrador_mfa] = lambda: cifrador_mfa
+    custodia_notas = CustodiaNotas(secrets.token_bytes(32), 1)
+    app.dependency_overrides[obtener_custodia_notas] = lambda: custodia_notas
 
     rutas_de_prueba(app)
 
@@ -201,6 +206,7 @@ def entorno_iam(reloj_fijo: RelojFijo, rutas_de_prueba: Callable[[FastAPI], None
         pepper_recuperacion=pepper_recuperacion,
         almacen_mfa=almacen_mfa,
         cifrador_mfa=cifrador_mfa,
+        custodia_notas=custodia_notas,
     )
     with entorno.cliente:
         yield entorno

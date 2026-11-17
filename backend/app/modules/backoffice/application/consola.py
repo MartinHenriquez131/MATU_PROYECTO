@@ -4,11 +4,11 @@
   del diseñador, C22). La pantalla no copia la máquina de estados ni calcula montos.
 - ``estados_del_filtro``: los grupos de estados de la lista (P4).
 - ``nuevo_estado_incidencia``: las reglas del PATCH de una incidencia (C13): una resuelta no cambia, y resolver exige
-  la resolución.
+  la resolución. Como la resolución guardada va cifrada (decisión 471), la regla solo necesita saber si existe.
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.modules.fulfillment.domain.despacho import (
@@ -86,24 +86,26 @@ class FaltaResolucion(Exception):
 
 @dataclass(frozen=True)
 class CambioIncidencia:
+    """``resolucion`` es el texto nuevo que hay que cifrar y guardar, o None si la resolución guardada no cambia."""
+
     estado: str
-    resolucion: str | None
+    resolucion: str | None = field(repr=False)
     resuelta_en: datetime | None
     resuelve: bool
 
 
 def nuevo_estado_incidencia(
-    actual: str, resolucion_actual: str | None, estado: str | None, resolucion: str | None, ahora: datetime
+    actual: str, tiene_resolucion: bool, estado: str | None, resolucion: str | None, ahora: datetime
 ) -> CambioIncidencia:
+    """``tiene_resolucion``: si ya hay una resolución guardada (va cifrada: la regla no necesita leerla)."""
     if actual == "resuelta":
         raise IncidenciaResuelta()
     destino = estado or actual
-    texto = resolucion if resolucion is not None else resolucion_actual
-    if destino == "resuelta" and texto is None:
+    if destino == "resuelta" and resolucion is None and not tiene_resolucion:
         raise FaltaResolucion()
     return CambioIncidencia(
         estado=destino,
-        resolucion=texto,
+        resolucion=resolucion,
         resuelta_en=ahora if destino == "resuelta" else None,
         resuelve=destino == "resuelta",
     )

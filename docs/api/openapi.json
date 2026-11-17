@@ -11700,7 +11700,7 @@
           "operacion"
         ],
         "summary": "Listar Incidencias",
-        "description": "Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado.",
+        "description": "Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado. La nota y la resolución se descifran al leer; si la clave de las notas se destruyó, `nota_disponible` es false.",
         "operationId": "listar_incidencias_v1_operacion_incidencias_get",
         "security": [
           {
@@ -11745,6 +11745,12 @@
           },
           "404": {
             "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
             "content": {
               "application/problem+json": {}
             }
@@ -11806,6 +11812,12 @@
               "application/problem+json": {}
             }
           },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -11823,7 +11835,7 @@
           "operacion"
         ],
         "summary": "Editar Incidencia",
-        "description": "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. Resolverla se audita incidencia.resolver, sin el texto.",
+        "description": "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. La resolución se guarda cifrada, con la clave vigente de las notas de la persona (decisión 471). Resolverla se audita incidencia.resolver, sin el texto.",
         "operationId": "editar_incidencia_v1_operacion_incidencias__incidencia_id__patch",
         "security": [
           {
@@ -11903,6 +11915,12 @@
               "application/problem+json": {}
             }
           },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
           "409": {
             "description": "incidencia-resuelta: una incidencia resuelta ya no cambia",
             "content": {
@@ -11924,7 +11942,7 @@
           "operacion"
         ],
         "summary": "Crear Incidencia",
-        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
+        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
         "operationId": "crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post",
         "security": [
           {
@@ -11972,6 +11990,12 @@
           },
           "404": {
             "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK",
             "content": {
               "application/problem+json": {}
             }
@@ -22650,8 +22674,16 @@
             "title": "Estado"
           },
           "descripcion": {
-            "type": "string",
-            "title": "Descripcion"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion",
+            "description": "La nota, descifrada; null si nota_disponible es false"
           },
           "resolucion": {
             "anyOf": [
@@ -22663,6 +22695,11 @@
               }
             ],
             "title": "Resolucion"
+          },
+          "nota_disponible": {
+            "type": "boolean",
+            "title": "Nota Disponible",
+            "description": "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer"
           },
           "creada_en": {
             "type": "string",
@@ -22705,6 +22742,7 @@
           "estado",
           "descripcion",
           "resolucion",
+          "nota_disponible",
           "creada_en",
           "resuelta_en",
           "asignada",
@@ -22920,7 +22958,14 @@
             "title": "Resuelto En"
           },
           "nota": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Nota"
           },
           "resolucion": {
@@ -22933,6 +22978,11 @@
               }
             ],
             "title": "Resolucion"
+          },
+          "nota_disponible": {
+            "type": "boolean",
+            "title": "Nota Disponible",
+            "description": "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer"
           }
         },
         "additionalProperties": false,
@@ -22943,7 +22993,8 @@
           "anotado_en",
           "resuelto_en",
           "nota",
-          "resolucion"
+          "resolucion",
+          "nota_disponible"
         ],
         "title": "LoQuePasoCopia",
         "description": "MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca\ndice «incidente» ni «incidencia», ni quién del equipo lo anotó."
