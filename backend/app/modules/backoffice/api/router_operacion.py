@@ -11,11 +11,12 @@ sin cuenta (trigger pedido_escritura_del_pago), y se audita con la cuenta de qui
 - Resolver un retracto: devolver a la misma tarjeta o rechazar (D-63-10).
 """
 
+import re
 import secrets
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Path, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -25,15 +26,18 @@ from app.modules.backoffice.api.dependencias import Operador, SecretoCodigo
 from app.modules.backoffice.api.esquemas import (
     CodigoGenerado,
     EstadoPedidoVista,
+    LineaRetractoOperacion,
     ListaPedidosOperacion,
-    ListaRetractos,
+    ListaRetractosOperacion,
     ParteOperacion,
     PedidoOperacion,
-    RetractoVista,
+    RetractoOperacion,
     SolicitudResolverRetracto,
     SolicitudRetractoPorCorreo,
 )
+from app.modules.backoffice.application import consola
 from app.modules.backoffice.application.despacho import NoCancelable, UnidadDespacho, cancelar_por_operacion
+from app.modules.backoffice.infrastructure import consola_sql
 from app.modules.backoffice.infrastructure.sistema import AbrirDespachoSQL
 from app.modules.care_circle.api.router_autorizaciones import RelojDep
 from app.modules.fulfillment.domain.despacho import (
@@ -47,6 +51,8 @@ from app.modules.fulfillment.domain.despacho import (
     huella_codigo,
     monto_consumo,
 )
+from app.modules.iam.api.router import obtener_pepper_email
+from app.modules.iam.domain.credenciales import indice_email, normalizar_email
 from app.modules.payments.application import retractos as casos_retracto
 from app.modules.payments.application.ports import PasarelaWebpay
 from app.modules.payments.application.retractos import Retracto
@@ -68,13 +74,25 @@ _RESPUESTAS: dict[int | str, dict[str, Any]] = {
     409: {"description": "estado-pedido o estado-parte: el estado no permite la acción", **_PROBLEMA},
 }
 
-_PEDIDOS = text(
-    "SELECT p.id, p.estado, p.referencia, p.entregado_en, pc.id AS parte_id, co.nombre_fantasia, pc.referencia AS"
-    " referencia_parte, pc.estado AS estado_parte, pc.codigo_generado_en, pc.codigo_hash IS NOT NULL AS con_hash,"
-    " pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en"
+_PARTES_DEL_PEDIDO = text(
+    "SELECT pc.id AS parte_id, co.nombre_fantasia, pc.referencia AS referencia_parte,"
+    " pc.estado AS estado_parte, pc.codigo_generado_en, pc.codigo_hash IS NOT NULL AS con_hash, pc.codigo_expira_en,"
+    " pc.codigo_usado_en, pc.codigo_bloqueado_en"
     " FROM pedido p JOIN pedido_comercio pc ON pc.pedido_id = p.id JOIN comercio co ON co.id = pc.comercio_id"
-    " WHERE p.pagado_en IS NOT NULL AND p.estado NOT IN ('cancelado', 'cancelado_con_devolucion', 'cerrado')"
-    " ORDER BY p.pagado_en, p.id, pc.creado_en, pc.id"
+    " WHERE p.id = :id ORDER BY pc.creado_en, pc.id"
+)
+# MATU-81 (D-81-9): el correo del admin que pidió el retracto, por la huella del correo (indice_credencial)
+_ADMIN_POR_CORREO = text(
+    "SELECT m.usuario_id FROM indice_credencial i JOIN membresia m ON m.usuario_id = i.usuario_id"
+    " WHERE i.email_hash = :hash AND m.grupo_id = :grupo AND m.rol = 'admin' AND m.estado = 'activa'"
+)
+# Los estados en curso: la lista sin filtro, como desde MATU-63
+EN_CURSO = ("pagado", "enviado_a_comercio", "preparando", "listo_retiro", "asignado", "sin_repartidor", "retirado",
+            "en_ruta", "entregado", "no_entregado", "reprogramado")
+GRUPOS_LISTA = "^(por_atender|en_camino|con_problema|cerrados|cancelados|todos)$"
+ESTADOS_LISTA = (
+    "^(pagado|enviado_a_comercio|preparando|listo_retiro|asignado|sin_repartidor|retirado|en_ruta|entregado|"
+    "no_entregado|reprogramado|cerrado|cancelado|cancelado_con_devolucion)$"
 )
 _GRUPO_DE_PEDIDO = text("SELECT grupo_id FROM pedido WHERE id = :id")
 _GRUPO_DE_PARTE = text("SELECT pedido_id, grupo_id FROM pedido_comercio WHERE id = :id")
@@ -121,31 +139,60 @@ def _auditar(u: UnidadDespacho, operador: uuid.UUID, accion: AccionAuditoria, en
     )
 
 
-@router.get("/pedidos", response_model=ListaPedidosOperacion, responses=_RESPUESTAS,
-            description="Los pedidos pagados en curso con sus partes y el estado del código de cada una.")
-def listar_pedidos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep) -> ListaPedidosOperacion:
-    ahora = reloj.ahora()
-    pedidos: dict[uuid.UUID, PedidoOperacion] = {}
+def pedidos_de_filas(sesion: Session, filas: list[Any], ahora: Any, hay_mas: bool) -> ListaPedidosOperacion:
+    """Las filas de la lista o de la búsqueda (consola_sql), cada una con sus partes y el estado de su código."""
+    pedidos = []
+    for f in filas[: consola_sql.LIMITE_LISTA]:
+        partes = [
+            ParteOperacion(
+                id=x.parte_id,
+                comercio=x.nombre_fantasia,
+                referencia=x.referencia_parte,
+                estado=x.estado_parte,
+                estado_codigo=estado_codigo(
+                    generado_en=x.codigo_generado_en, con_hash=x.con_hash, expira_en=x.codigo_expira_en,
+                    usado_en=x.codigo_usado_en, bloqueado_en=x.codigo_bloqueado_en, ahora=ahora,
+                ).value,  # type: ignore[arg-type]
+            )
+            for x in sesion.execute(_PARTES_DEL_PEDIDO, {"id": f.id})
+        ]
+        pedidos.append(
+            PedidoOperacion(
+                id=f.id, estado=f.estado, referencia=f.referencia, entregado_en=f.entregado_en, partes=partes,
+                pagado_en=f.pagado_en, total_confirmado=int(f.total), numero_partes=int(f.numero_partes),
+                incidencia_abierta=bool(f.incidencia_abierta), devolucion_sin_terminar=bool(f.devolucion_sin_terminar),
+            )
+        )
+    return ListaPedidosOperacion(pedidos=pedidos, hay_mas=hay_mas)
+
+
+@router.get(
+    "/pedidos",
+    response_model=ListaPedidosOperacion,
+    responses={**_RESPUESTAS, 422: {"description": "grupo o estado no son de la lista", **_PROBLEMA}},
+    description=(
+        "Los pedidos pagados con sus partes y el estado del código de cada una, del pago más reciente al más antiguo,"
+        " hasta 200 (`hay_mas`). MATU-81 (P4, C8): `grupo` (por_atender, en_camino, con_problema, cerrados, cancelados"
+        " o todos) y `estado` repetido se suman; con_problema suma los pedidos con una incidencia abierta o una"
+        " devolución sin terminar. Sin ninguno, los que están en curso (todos menos cerrado y cancelados), como desde"
+        " MATU-63. No se audita."
+    ),
+)
+def listar_pedidos(
+    _operador: Operador, fabrica: Fabrica, reloj: RelojDep, respuesta: Response,
+    grupo: Annotated[str | None, Query(pattern=GRUPOS_LISTA)] = None,
+    estado: Annotated[list[str] | None, Query(description="Uno o más estados del pedido")] = None,
+) -> ListaPedidosOperacion:
+    if estado and any(re.fullmatch(ESTADOS_LISTA, e) is None for e in estado):
+        raise ErrorMATU(422, detalle="Revisa los campos indicados",
+                        errores=[{"campo": "estado", "mensaje": "no es un estado del pedido", "tipo": "estado"}])
+    filtro = (consola.Filtro(EN_CURSO, False, False) if grupo is None and not estado
+              else consola.estados_del_filtro(grupo, estado or ()))
     with sesion_tenant(fabrica, rol="operacion") as sesion:
-        for f in sesion.execute(_PEDIDOS):
-            pedido = pedidos.setdefault(
-                f.id,
-                PedidoOperacion(id=f.id, estado=f.estado, referencia=f.referencia, entregado_en=f.entregado_en,
-                                partes=[]),
-            )
-            pedido.partes.append(
-                ParteOperacion(
-                    id=f.parte_id,
-                    comercio=f.nombre_fantasia,
-                    referencia=f.referencia_parte,
-                    estado=f.estado_parte,
-                    estado_codigo=estado_codigo(
-                        generado_en=f.codigo_generado_en, con_hash=f.con_hash, expira_en=f.codigo_expira_en,
-                        usado_en=f.codigo_usado_en, bloqueado_en=f.codigo_bloqueado_en, ahora=ahora,
-                    ).value,
-                )
-            )
-    return ListaPedidosOperacion(pedidos=list(pedidos.values()))
+        filas = consola_sql.lista(sesion, filtro.estados, filtro.todos, filtro.con_problema)
+        vista = pedidos_de_filas(sesion, filas, reloj.ahora(), hay_mas=len(filas) > consola_sql.LIMITE_LISTA)
+    respuesta.headers["Cache-Control"] = "no-store"
+    return vista
 
 
 @router.post(
@@ -246,12 +293,24 @@ def no_entregado(pedido_id: _ID, request: Request, operador: Operador, fabrica: 
     return _mover(fabrica, reloj, request, operador, pedido_id, pasos, AccionAuditoria.DESPACHO_NO_ENTREGADO)
 
 
-def _retracto_vista(r: Retracto, monto: int) -> RetractoVista:
-    return RetractoVista(
+def _retracto_vista(sesion: Session, r: Retracto, monto: int) -> RetractoOperacion:
+    detalle, lineas = consola_sql.retracto_detalle(sesion, r.id)
+    return RetractoOperacion(
         id=r.id, pedido_id=r.pedido_id, estado=r.estado,  # type: ignore[arg-type]
         solicitado_en=r.solicitado_en, plazo_hasta=r.plazo_hasta, incluye_envio=r.incluye_envio, monto=monto,
         origen=r.origen,  # type: ignore[arg-type]
+        referencia=None if detalle is None else detalle.referencia,
+        motivo_rechazo=None if detalle is None else detalle.motivo_rechazo,
+        lineas=[
+            LineaRetractoOperacion(linea_id=x.pedido_linea_id, producto=x.nombre, presentacion=x.presentacion,
+                                   cantidad=int(x.cantidad), monto=int(x.cantidad) * int(x.precio_unitario))
+            for x in lineas
+        ],
     )
+
+
+def _sesion_de(u: UnidadDespacho) -> Session:
+    return u.pagos.repositorio._sesion  # type: ignore[attr-defined,no-any-return]
 
 
 @router.post(
@@ -284,12 +343,15 @@ def cancelar_con_devolucion(
 
 @router.post(
     "/pedidos/{pedido_id}/retractos",
-    response_model=RetractoVista,
+    response_model=RetractoOperacion,
     status_code=status.HTTP_201_CREATED,
     responses={
         **_RESPUESTAS,
         409: {"description": "fuera-de-plazo: pasaron los 90 días desde la entrega (CL-54)", **_PROBLEMA},
-        422: {"description": "producto-no-retractable, o solicitado_por no es quien pagó ni un admin", **_PROBLEMA},
+        422: {"description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un"
+              " admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son",
+              **_PROBLEMA},
+        503: {"description": "Falta PEPPER_EMAIL para buscar el correo del admin", **_PROBLEMA},
     },
     description=(
         "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la"
@@ -297,17 +359,27 @@ def cancelar_con_devolucion(
     ),
 )
 def registrar_retracto_por_correo(
-    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, operador: Operador, fabrica: Fabrica, reloj: RelojDep
-) -> RetractoVista:
+    pedido_id: _ID, solicitud: SolicitudRetractoPorCorreo, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
+    pepper_email: Annotated[bytes, Depends(obtener_pepper_email)],
+) -> RetractoOperacion:
     identificador = _uuid(pedido_id)
+    if solicitud.correo_solicitante is not None and solicitud.solicitado_por is not None:
+        raise ErrorMATU(422, tipo="solicitante-invalido", detalle="Indica el correo de quien lo pidió, o nada")
     grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_PEDIDO, identificador).grupo_id
     pedidas: dict[uuid.UUID, int] = {}
     for linea in solicitud.lineas:
         pedidas[linea.linea_id] = pedidas.get(linea.linea_id, 0) + linea.cantidad
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
-        sesion = u.pagos.repositorio._sesion  # type: ignore[attr-defined]
+        sesion = _sesion_de(u)
         pagador = sesion.execute(_QUIEN_PAGO, {"pedido": identificador}).scalar_one_or_none()
         solicitado_por = solicitud.solicitado_por or pagador
+        if solicitud.correo_solicitante is not None:
+            # D-81-9: el correo nunca va al log ni a un error. Solo su huella llega a la base
+            huella = indice_email(pepper_email, normalizar_email(solicitud.correo_solicitante))
+            solicitado_por = sesion.execute(_ADMIN_POR_CORREO, {"hash": huella, "grupo": grupo_id}).scalar()
+            if solicitado_por is None:
+                raise ErrorMATU(422, tipo="solicitante-invalido",
+                                detalle="Ese correo no es de un administrador de la familia de este pedido")
         if solicitado_por is None or (
             solicitado_por != pagador
             and not sesion.execute(_ES_ADMIN, {"grupo": grupo_id, "usuario": solicitado_por}).scalar()
@@ -326,25 +398,47 @@ def registrar_retracto_por_correo(
         except RetractoInvalido:
             raise ErrorMATU(422, tipo="producto-no-retractable",
                             detalle="Elige productos entregados, hasta lo que queda por devolver") from None
-        return _retracto_vista(r, casos_retracto.monto_de(u.pagos, retractos, r))
+        return _retracto_vista(sesion, r, casos_retracto.monto_de(u.pagos, retractos, r))
 
 
-@router.get("/retractos", response_model=ListaRetractos, responses=_RESPUESTAS,
-            description="Los retractos por resolver, con lo que se devolvería.")
-def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep) -> ListaRetractos:
+@router.get("/retractos", response_model=ListaRetractosOperacion, responses=_RESPUESTAS,
+            description="Los retractos por resolver, con lo que se devolvería, la referencia y los productos (P6).")
+def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep,
+                     respuesta: Response) -> ListaRetractosOperacion:
     with sesion_tenant(fabrica, rol="operacion") as sesion:
         pendientes = RepositorioRetractosSQL(sesion).pendientes()
     vistas = []
     for r in pendientes:
         with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(r.grupo_id) as (u, retractos):
-            vistas.append(_retracto_vista(r, casos_retracto.monto_de(u.pagos, retractos, r)))
-    return ListaRetractos(retractos=vistas)
+            vistas.append(_retracto_vista(_sesion_de(u), r, casos_retracto.monto_de(u.pagos, retractos, r)))
+    respuesta.headers["Cache-Control"] = "no-store"
+    return ListaRetractosOperacion(retractos=vistas)
+
+
+@router.get("/retractos/{retracto_id}", response_model=RetractoOperacion, responses=_RESPUESTAS,
+            description="MATU-81 (ruta 5): un retracto, resuelto o no, con sus productos, la referencia y el motivo.")
+def ver_retracto(retracto_id: _ID, _operador: Operador, fabrica: Fabrica, reloj: RelojDep,
+                 respuesta: Response) -> RetractoOperacion:
+    identificador = _uuid(retracto_id)
+    grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_RETRACTO, identificador).grupo_id
+    with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
+        r = retractos.retracto(identificador)
+        if r is None:
+            raise ErrorMATU(404)
+        vista = _retracto_vista(_sesion_de(u), r, casos_retracto.monto_de(u.pagos, retractos, r))
+    respuesta.headers["Cache-Control"] = "no-store"
+    return vista
 
 
 @router.post(
     "/retractos/{retracto_id}/resolver",
-    response_model=RetractoVista,
-    responses={**_RESPUESTAS, 503: {"description": "Sin PASARELA_PAGO no se puede devolver", **_PROBLEMA}},
+    response_model=RetractoOperacion,
+    responses={
+        **_RESPUESTAS,
+        422: {"description": "motivo-rechazo: rechazar exige `motivo` (sello_abierto o producto_no_recibido), y"
+              " devolver no lo lleva (C24)", **_PROBLEMA},
+        503: {"description": "Sin PASARELA_PAGO no se puede devolver", **_PROBLEMA},
+    },
     description=(
         "Operación recibió el producto. «devolver»: anula a la misma tarjeta los productos y, si corresponde, el envío"
         " (motivo retracto). «rechazar»: el sello no venía intacto. Antes de 45 días desde la solicitud (D-63-10)."
@@ -353,10 +447,13 @@ def listar_retractos(_operador: Operador, fabrica: Fabrica, reloj: RelojDep) -> 
 def resolver_retracto(
     retracto_id: _ID, solicitud: SolicitudResolverRetracto, operador: Operador, fabrica: Fabrica, reloj: RelojDep,
     pasarela: PasarelaDep,
-) -> RetractoVista:
+) -> RetractoOperacion:
     identificador = _uuid(retracto_id)
-    grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_RETRACTO, identificador).grupo_id
     devolver = solicitud.decision == "devolver"
+    if devolver == (solicitud.motivo is not None):
+        raise ErrorMATU(422, tipo="motivo-rechazo", detalle="Rechazar pide el motivo; devolver no lo lleva",
+                        errores=[{"campo": "motivo", "mensaje": "solo y siempre al rechazar", "tipo": "motivo"}])
+    grupo_id = _consultar_grupo(fabrica, _GRUPO_DE_RETRACTO, identificador).grupo_id
     if devolver and pasarela is None:
         raise ErrorMATU(503, tipo="pasarela-no-disponible", detalle="No se puede devolver en este momento")
     with AbrirDespachoSQL(fabrica, reloj, rol="operacion")(grupo_id) as (u, retractos):
@@ -368,4 +465,6 @@ def resolver_retracto(
             raise ErrorMATU(404) from None
         except (casos_retracto.RetractoNoResoluble, DevolucionInvalida):
             raise ErrorMATU(409, tipo="retracto-no-resoluble", detalle="El retracto ya se resolvió o venció") from None
-        return _retracto_vista(resuelto, casos_retracto.monto_de(u.pagos, retractos, resuelto))
+        if solicitud.motivo is not None:
+            consola_sql.fijar_motivo_rechazo(_sesion_de(u), identificador, solicitud.motivo)
+        return _retracto_vista(_sesion_de(u), resuelto, casos_retracto.monto_de(u.pagos, retractos, resuelto))

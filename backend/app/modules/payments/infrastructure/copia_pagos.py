@@ -58,6 +58,11 @@ _LINEAS_RETRACTO = text(
     " JOIN producto pr ON pr.id = l.producto_id WHERE rl.retracto_id = :retracto_id ORDER BY pr.nombre, l.id"
 )
 _NOMBRE = text("SELECT nombre FROM usuario WHERE id = :id AND eliminado_en IS NULL")
+# MATU-81 (D-81-4): lo que el equipo anotó del pedido (RLS incidencia_familia), sin quién lo anotó ni a quién se asignó
+_LO_QUE_PASO = text(
+    "SELECT tipo, estado, creada_en, resuelta_en, descripcion, resolucion FROM incidencia"
+    " WHERE pedido_id = :pedido_id ORDER BY creada_en, id"
+)
 
 
 def _pago_de_prueba() -> bool:
@@ -183,6 +188,17 @@ def pedidos(ctx: ContextoCopia) -> list[dict[str, Any]]:
                 "entregado_en": en_chile_o_nada(p.entregado_en),
                 "partes": _partes(ctx, p.id),
                 "retractos": _retractos(ctx, p.id),
+                "lo_que_paso": [
+                    {
+                        "tipo": i.tipo,
+                        "estado": i.estado,
+                        "anotado_en": en_chile(i.creada_en),
+                        "resuelto_en": en_chile_o_nada(i.resuelta_en),
+                        "nota": i.descripcion,
+                        "resolucion": i.resolucion,
+                    }
+                    for i in ctx.sesion.execute(_LO_QUE_PASO, {"pedido_id": p.id})
+                ],
             }
         )
     return resultado

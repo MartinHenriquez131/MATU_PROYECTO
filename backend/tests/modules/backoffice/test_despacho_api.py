@@ -471,7 +471,8 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
         (familia.admin.id,)]
     # Se rechaza (el sello venía abierto): esa unidad no se vuelve a pedir, y queda una
-    assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "rechazar"}).status_code == 200
+    rechazo = {"decision": "rechazar", "motivo": "sello_abierto"}
+    assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", rechazo).status_code == 200
     segundo = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
     assert segundo.status_code == 201, segundo.text
     # 0.3: lo rechazado no cuenta como devuelto, así que el envío no vuelve

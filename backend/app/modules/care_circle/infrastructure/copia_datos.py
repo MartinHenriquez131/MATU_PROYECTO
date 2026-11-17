@@ -253,6 +253,8 @@ TIPO_HECHO: dict[AccionAuditoria, str] = {
     AccionAuditoria.DESPACHO_ENTREGAR: "pedido_entregado",
     AccionAuditoria.DESPACHO_NO_ENTREGADO: "pedido_no_entregado",
     AccionAuditoria.RETRACTO_RESOLVER: "retracto_resuelto",
+    # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}», sin quién ni qué vio
+    AccionAuditoria.OPERACION_PEDIDO_VER: "matu_reviso_el_pedido",
 }
 
 CAMPOS_BASE = frozenset({"rutina", "manejo_situaciones", "red_apoyo"})
@@ -358,7 +360,7 @@ def hecho(
         # F1 (decisión 384): a qué autorización o a qué pedido se refiere, nada que identifique a una persona
         "finalidad": finalidad if tipo in ("dio_una_autorizacion", "retiro_una_autorizacion") else None,
         "referencia": referencia
-        if accion.startswith(("pedido.", "pago.", "despacho.", "codigo_retiro.", "retracto."))
+        if accion.startswith(("pedido.", "pago.", "despacho.", "codigo_retiro.", "retracto.", "operacion."))
         else None,
     }
 

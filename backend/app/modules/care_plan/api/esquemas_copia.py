@@ -233,6 +233,19 @@ class RetractoCopia(_Cerrado):
     lineas: list[LineaRetractoCopia]
 
 
+class LoQuePasoCopia(_Cerrado):
+    """MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca
+    dice «incidente» ni «incidencia», ni quién del equipo lo anotó."""
+
+    tipo: Literal["faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente",
+                  "otro"]
+    estado: Literal["abierta", "en_gestion", "resuelta"]
+    anotado_en: Instante
+    resuelto_en: Instante | None
+    nota: str
+    resolucion: str | None
+
+
 class PedidoCopia(_Cerrado):
     referencia: str | None
     estado: EstadoPedido
@@ -249,6 +262,8 @@ class PedidoCopia(_Cerrado):
     entregado_en: Instante | None
     partes: list[ParteCopia]
     retractos: list[RetractoCopia]
+    # MATU-81 (D-81-4)
+    lo_que_paso: list[LoQuePasoCopia]
 
 
 TipoHecho = Literal[
@@ -261,6 +276,8 @@ TipoHecho = Literal[
     # MATU-63
     "devolucion_a_la_tarjeta", "pidio_un_retracto", "codigo_de_retiro_generado", "pedido_en_camino", "pedido_entregado",
     "pedido_no_entregado", "retracto_resuelto",
+    # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}»
+    "matu_reviso_el_pedido",
 ]
 
 

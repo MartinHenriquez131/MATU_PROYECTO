@@ -1,8 +1,9 @@
 """Fixtures del despacho con base (MATU-63): las del pago (MATU-62) más los routers de backoffice, una cuenta de
 comercio para cada comercio del catálogo sintético y una cuenta de operación.
 
-Las cuentas se crean como superusuario con la fábrica (la de operación con un secreto de MFA sintético: el CHECK
-usuario_operacion_mfa lo exige). El enlace usuario_comercio se borra al final, antes que las cuentas y el catálogo.
+Las cuentas se crean como superusuario con la fábrica. La de operación recibe un secreto TOTP sintético cifrado con la
+KEK de la prueba (MATU-81) y entra en dos pasos: contraseña y código. El enlace usuario_comercio se borra al final,
+antes que las cuentas y el catálogo.
 """
 
 import secrets
@@ -55,6 +56,18 @@ class Despacho:
     pasarela: PasarelaFalsa
     encargados: dict[str, UsuarioCreado] = field(default_factory=dict)
     operador: UsuarioCreado | None = None
+    secreto_operador: bytes = b""
+
+    def token_operador(self) -> str:
+        """MATU-81: la entrada de operación en dos pasos, una vez por reloj (avanzar borra los tokens)."""
+        assert self.operador is not None and self.operador.contrasena is not None
+        if self.operador.id not in self.e.tokens:
+            respuesta = self.e.iam.entrar_operacion(
+                self.operador.email, self.operador.contrasena, self.operador.id, self.secreto_operador
+            )
+            assert respuesta.status_code == 200, respuesta.text
+            self.e.tokens[self.operador.id] = respuesta.json()["access_token"]
+        return self.e.tokens[self.operador.id]
 
     def sql(self, sentencia: str, *parametros: Any) -> list[tuple[Any, ...]]:
         with psycopg.connect(DSN) as cx:
@@ -69,9 +82,10 @@ class Despacho:
     def comercio(self, clave: str, metodo: str, ruta: str, json: Any = None, **cabeceras: str) -> Any:
         return self.como(self.encargados[clave], metodo, f"/v1/comercio{ruta}", json, **cabeceras)
 
-    def operacion(self, metodo: str, ruta: str, json: Any = None) -> Any:
+    def operacion(self, metodo: str, ruta: str, json: Any = None, **cabeceras: str) -> Any:
         assert self.operador is not None
-        return self.como(self.operador, metodo, f"/v1/operacion{ruta}", json)
+        self.token_operador()
+        return self.como(self.operador, metodo, f"/v1/operacion{ruta}", json, **cabeceras)
 
     def pagado(self, familia: FamiliaCreada | None = None) -> tuple[FamiliaCreada, dict[str, Any]]:
         """Una familia con un pedido de 2 pañales del comercio «uno», pagado."""
@@ -106,10 +120,7 @@ def despacho(entorno_pedido: EntornoPedido, pasarela_falsa: PasarelaFalsa) -> It
         d.sql("INSERT INTO usuario_comercio (usuario_id, comercio_id) VALUES (%s, %s)", encargado.id, comercio_id)
         d.encargados[clave] = encargado
     d.operador = fabrica.usuario()
-    d.sql(
-        "UPDATE usuario SET es_operacion = true, mfa_secreto_cifrado = %s WHERE id = %s",
-        secrets.token_bytes(16), d.operador.id,
-    )
+    d.secreto_operador = entorno_pedido.iam.dar_alta_operacion(d.operador.id)
     try:
         yield d
     finally:

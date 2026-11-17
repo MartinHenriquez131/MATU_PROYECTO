@@ -138,10 +138,18 @@ class PedidoOperacion(BaseModel):
     referencia: str | None
     entregado_en: datetime | None
     partes: list[ParteOperacion]
+    # MATU-81 (P4 del diseñador): lo que muestra la fila de la lista
+    pagado_en: datetime
+    total_confirmado: Annotated[int, Field(ge=0, description="Pesos enteros, con IVA incluido")]
+    numero_partes: int
+    incidencia_abierta: bool
+    devolucion_sin_terminar: bool
 
 
 class ListaPedidosOperacion(BaseModel):
     pedidos: list[PedidoOperacion]
+    # MATU-81: la lista trae hasta 200 pedidos, del pago más reciente al más antiguo
+    hay_mas: bool = False
 
 
 class RetractoVista(BaseModel):
@@ -159,8 +167,34 @@ class ListaRetractos(BaseModel):
     retractos: list[RetractoVista]
 
 
+class LineaRetractoOperacion(_Estricto):
+    linea_id: uuid.UUID
+    producto: str
+    presentacion: str
+    cantidad: int
+    monto: Annotated[int, Field(ge=0, description="cantidad × precio pagado, en pesos enteros con IVA")]
+
+
+class RetractoOperacion(RetractoVista):
+    """MATU-81 (C23, P6): el retracto en la consola, con la referencia del pedido, sus productos y, si se rechazó, el
+    motivo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    referencia: str | None
+    lineas: list[LineaRetractoOperacion]
+    motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
+
+
+class ListaRetractosOperacion(BaseModel):
+    retractos: list[RetractoOperacion]
+
+
 class SolicitudResolverRetracto(_Estricto):
     decision: Literal["devolver", "rechazar"]
+    # MATU-81 (C24, P5): rechazar exige el motivo, de una lista cerrada que la familia ve. producto_no_recibido: MATU
+    # no recibió el producto de vuelta
+    motivo: Literal["sello_abierto", "producto_no_recibido"] | None = None
 
 
 class EstadoPedidoVista(BaseModel):
@@ -181,10 +215,13 @@ class SolicitudRetracto(_Estricto):
 
 
 class SolicitudRetractoPorCorreo(SolicitudRetracto):
-    """H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
-    sin valor, quien pagó."""
+    """H2: el retracto que la familia pidió por correo. Sin valor, va a nombre de quien pagó. MATU-81 (D-81-9, C25):
+    ``correo_solicitante`` es el correo de quien escribió; el servidor lo busca entre los admins activos del grupo y
+    responde 422 si no está. Nunca lista a nadie ni lo escribe en los logs. ``solicitado_por`` (el id) se mantiene
+    por compatibilidad; no se mandan los dos."""
 
     solicitado_por: uuid.UUID | None = None
+    correo_solicitante: Annotated[str | None, Field(min_length=3, max_length=254)] = None
 
 
 class RetractosDelPedido(BaseModel):
