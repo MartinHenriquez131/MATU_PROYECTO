@@ -1,6 +1,7 @@
 # MATU-81 · La consola de operación · Especificación de diseño
 
-**Versión 1.0 · 17/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.1 · 17/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.1** (después de la revisión visual de 5a92dc6): el detalle ancho pasa a dos columnas desde `@3xl/detalle` (6.2); los dígitos del código van con `gap-x-10` (6.4); la sección «Retractos» del pedido solo aparece si hay algo que mostrar o hacer, y sus filas llevan la etiqueta del estado (8.5); el foco al abrir «No devolver» y «Anotar una incidencia» (8.4 y 9.3); el plazo se quita con el bloqueo (4.4); el texto de `hay_mas` (8.2); el criterio 14.2 deja de chocar con la ayuda de C11; el criterio 18 dice la medida.
 **Historia:** MATU-81, el backoffice mínimo de operación (capa 3, ADR-027). El equipo de MATU entra con su contraseña y un código de su teléfono, sigue cada pedido pagado hasta que se entrega, genera el código de retiro, resuelve los retractos, anota lo que pasó con un pedido, revisa que los cobros y las devoluciones calcen, y cambia el precio y la cantidad de los comercios de prueba.
 **Dónde se construye:** `web/`, una app aparte bajo `/operacion`, con React 19, TypeScript y Tailwind CSS v4, mobile first. Sigue el mismo camino que la consola del comercio (`web/src/comercio/`): su propia rama en `main.tsx`, su proveedor de estado en memoria y su marco.
 
@@ -203,7 +204,7 @@ Cada resultado del paso 2 es una `Nota` con `titulo`, `enfocable` y `rol`, que s
 | 429 (paso 1) | `Nota tono="atenta" rol="status"`; botón con `aria-disabled` | Hubo varios intentos de entrar. Espera `{minutos}` minutos. | — | [C63] 4.3 |
 | La contraseña es de una cuenta de familia o de comercio | `Nota tono="atenta" rol="status"`, arriba | **Esta cuenta no es del equipo de MATU.** Si atiendes un comercio, entra en la entrada del comercio. Si cuidas a alguien, entra en la app para familias. | Se borra la contraseña. La pantalla no sabe ni dice si el correo existe | [NUEVO] |
 | El código no es (`codigo-mfa-incorrecto`) | `Nota tono="pronto" rol="alert"` | **Ese código no coincide.** Revisa que sea el de MATU en tu aplicación y escribe el que se ve ahora. | El campo queda con lo escrito seleccionado | [NUEVO] |
-| Cinco códigos que no coinciden (429) | `Nota tono="atenta" rol="alert"` | **Hubo 5 códigos que no coinciden.** Espera `{minutos}` minutos y vuelve a entrar con tu contraseña. Si perdiste tu teléfono, pide que te den de alta de nuevo. | Se quitan el campo y «Entrar»; queda «Volver a la contraseña», con `aria-disabled` hasta que pase el tiempo | [NUEVO], C28 y C32 |
+| Cinco códigos que no coinciden (429) | `Nota tono="atenta" rol="alert"` | **Hubo 5 códigos que no coinciden.** Espera `{minutos}` minutos y vuelve a entrar con tu contraseña. Si perdiste tu teléfono, pide que te den de alta de nuevo. | Se quitan el campo, «Entrar» y la línea «Tienes hasta las…» (ya no hay nada que escribir); queda «Volver a la contraseña», con `aria-disabled` hasta que pase el tiempo | [NUEVO], C28 y C32 |
 | El desafío venció | `Nota tono="atenta" rol="status"`, en el paso 1 | **Pasaron más de 5 minutos.** Vuelve a escribir tu contraseña para pedir otro código. | Vuelve al paso 1 con el correo escrito; la nota recibe el foco | [NUEVO], C29 |
 | Un código ya usado | Igual que «no coincide» | (mismo texto) | — | C32: no se dice que ya se usó |
 | 503 (sin Redis) | `Nota tono="pronto" rol="alert"` | **No podemos revisar el código ahora.** Vuelve a intentarlo en unos minutos. | El campo sigue con lo escrito | [NUEVO] |
@@ -403,7 +404,7 @@ Abrir esta pantalla hace `GET /v1/operacion/pedidos/{id}` y `GET …/cobro`, que
 
 La cola de 5 a la izquierda (19 rem, con la fila elegida marcada) y el detalle a la derecha, en `bg-hoja ring-1 ring-linea rounded-xl px-4 @3xl:px-8 py-5` con `@container/detalle`. Sin `Volver`. El único `h1` es «Pedido `{ref}`» ([C63] 6.2).
 
-Dentro del detalle, desde `@4xl/detalle` (unos 900 px, o sea a 1920 px; a 1280 px el detalle mide unos 780 px y queda en una columna):
+Dentro del detalle, desde `@3xl/detalle` (48 rem, 816 px de contenido). Medido en 5a92dc6: a 1920 px el contenido del detalle mide 935 px y queda en dos columnas; a 1280 px mide 770 px y queda en una. La 1.0 decía `@4xl/detalle` (952 px), que nunca se alcanza porque `main` llega a `max-w-7xl`:
 
 ```
 ┌ Pedido 4821  [⛟ En camino]                      [ Marcar entregado ] [ Marcar no entregado ] ┐
@@ -417,7 +418,7 @@ Dentro del detalle, desde `@4xl/detalle` (unos 900 px, o sea a 1920 px; a 1280 p
 └──────────────────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
-- `grid grid-cols-1 gap-x-10 gap-y-8 @4xl/detalle:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]`. Siempre `grid-cols-1` en lo chico.
+- `grid grid-cols-1 gap-x-10 gap-y-8 @3xl/detalle:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]`. Siempre `grid-cols-1` en lo chico.
 - La cabecera: `flex flex-wrap items-start justify-between gap-x-6 gap-y-3`, el `h1` y la etiqueta a la izquierda y las acciones (`Acciones`) a la derecha. Los botones nunca son de ancho completo en escritorio.
 
 ### 6.3 Las partes
@@ -477,7 +478,7 @@ Todos [NUEVO]. El destacado va en negrita porque es lo único que tiene consecue
 └────────────────────────────────────┘
 ```
 
-- **Los dígitos:** dos grupos de tres en `flex flex-wrap gap-x-6`, cada grupo en `digitos text-6xl angosto:text-3xl font-bold text-turquesa tracking-widest`. Se agrupan como un teléfono para dictarlos sin perderse. A 320 px con el texto al 200 % los dos grupos bajan uno bajo otro si no caben, y nunca hay desplazamiento horizontal. `text-turquesa` sobre `rocio`: 5,6:1 en claro y 6,7:1 en oscuro (`DISENO.md` 1), como el PIN de MATU-48.
+- **Los dígitos:** dos grupos de tres en `flex flex-wrap gap-x-10` (con `gap-x-6` el hueco entre grupos se parecía al `tracking-widest` entre dígitos y los grupos no se distinguían), cada grupo en `digitos text-6xl angosto:text-3xl font-bold text-turquesa tracking-widest`. Se agrupan como un teléfono para dictarlos sin perderse. A 320 px con el texto al 200 % los dos grupos bajan uno bajo otro si no caben, y nunca hay desplazamiento horizontal. `text-turquesa` sobre `rocio`: 5,6:1 en claro y 6,7:1 en oscuro (`DISENO.md` 1), como el PIN de MATU-48.
 - **Para el lector:** el párrafo de los dígitos lleva `aria-label="Código: 4 8 2 1 7 3"` y los grupos son `aria-hidden`, como el PIN.
 - **No se copia:** ningún botón «Copiar», `select-none` en los dígitos, y el código no va en ningún `title`, `aria-live`, aviso ni anuncio. No se intercepta el teclado ni el menú del navegador: se quita la invitación a copiar, no la capacidad de usar el computador.
 - **Al mostrarlo,** el foco va al `h3` de la sección (`tabIndex={-1}`), que se lee «Código de retiro · Parte K4M7XP»; los dígitos se leen al avanzar.
@@ -599,6 +600,7 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 - Filtro [NUEVO]: «Por resolver» (`solicitado`, inicial) · «Devueltos» (`devuelto`) · «Sin devolución» (`rechazado`).
 - Fila [NUEVO]: «Retracto del pedido `{ref}`» · `{monto}` · «Por la app» o «Por correo» (con `Mail`) · tercera línea: «Pedido el `{DD/MM}`» y, si está por resolver, «Responder antes del `{DD/MM/AAAA}`» (de `plazo_hasta`). Con 2 días o menos, esa línea va en `font-bold text-atenta` con `TriangleAlert`; vencido: «El plazo venció el `{DD/MM/AAAA}`.» en `font-bold text-atenta`.
 - Orden: por `plazo_hasta`, el más cercano primero.
+- **Más de 200** (`hay_mas`): al pie de la lista, antes del rótulo del piloto, en `text-base text-tenue`: «Hay más de 200 retractos aquí. Mostramos los primeros 200.» [NUEVO]. Reemplaza a «Mostramos los primeros 200.», que no decía que faltaban otros. «Los primeros» se entiende en el orden de la lista, que es el plazo más cercano en «Por resolver».
 - Vacío: «No hay retractos por resolver.» [NUEVO] (y «No hay retractos en «`{chip}`».» en los otros).
 
 ### 8.3 El retracto elegido
@@ -638,7 +640,7 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 1. Al tocarlo, bajo los botones aparece un `GrupoOpciones` de lista, sin opción elegida, con la leyenda «¿Por qué no se devuelve?» [NUEVO] y las dos opciones de la lista cerrada (C24):
    - `sello_abierto`: «El sello del producto se abrió.» [NUEVO];
    - `producto_no_recibido`: «MATU no recibió el producto de vuelta.» [NUEVO] (P5).
-   Debajo, en `text-tenue`: «La familia ve este motivo.» [NUEVO]. Mientras está abierto, «Devolver» se oculta: hay un solo macizo, el de este paso.
+   Debajo, en `text-tenue`: «La familia ve este motivo.» [NUEVO]. Mientras está abierto, «Devolver» se oculta: hay un solo macizo, el de este paso. **Al abrirse, el foco va a la primera opción** (el botón que se tocó desaparece; el foco nunca queda en `body`). Con «Cancelar», el grupo se cierra y el foco vuelve a «No devolver».
 2. `Boton variante="peligroPrincipal"` «No devolver» y `Boton variante="texto"` «Cancelar» [NUEVO]. Sin motivo elegido: `MensajeError` «Elige por qué no se devuelve.» [NUEVO] y el foco a la primera opción.
 3. Con el motivo, `DialogoConfirmar` (`peligroPrincipal`, `Ban`) [NUEVO]: título «¿No devolver el dinero de este retracto?» · texto «Es el retracto del pedido `{ref}`. Esto no se deshace.» · destacado «No se devuelve dinero. La familia ve el motivo: `{motivo}`» · confirmar «No devolver» · «Guardando…» · seguir «Volver al retracto».
 4. Hecho: `Nota tono="ok" rol="status"`: «Respondiste el retracto del pedido `{ref}` sin devolver dinero.» [NUEVO].
@@ -647,7 +649,7 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 
 ### 8.5 Registrar un retracto que llegó por correo
 
-**Dónde:** en el detalle del pedido, sección «Retractos» (`h2` [NUEVO]), con la lista de los retractos del pedido (fila como 8.2) y `Boton variante="secundario"` «Registrar un retracto por correo» [NUEVO]. Abre el formulario en la misma sección; el foco va a su primer campo. Mientras está abierto, la acción principal del pedido se oculta (un solo macizo, como el editor de [C63] 8.3).
+**Dónde:** en el detalle del pedido, sección «Retractos» (`h2` [NUEVO]). **La sección solo aparece** si el pedido tiene retractos o se puede registrar uno (entregado y dentro del plazo); si no, no hay `h2` vacío. Lleva la lista de los retractos del pedido, cada fila como 8.2 **con la `Etiqueta` de su estado** («Por resolver», «Devuelto», «Sin devolución») y la línea del plazo si está por resolver, y `Boton variante="secundario"` «Registrar un retracto por correo» [NUEVO]. Abre el formulario en la misma sección; el foco va a su primer campo. Mientras está abierto, la acción principal del pedido se oculta (un solo macizo, como el editor de [C63] 8.3).
 
 ```
 │ Registrar un retracto por correo   │  h3 font-bold
@@ -735,7 +737,7 @@ Una sola acción principal por estado (la tabla sale de `acciones`, P3). Cada un
 
 ### 9.3 Anotar y resolver
 
-**Anotar** (en el detalle del pedido, sección «Incidencias», `h2` [NUEVO], con la lista de las del pedido y `Boton variante="secundario"` «Anotar una incidencia» [NUEVO]; solo en pedidos pagados, C12). Abre el formulario en la sección; mientras está abierto, la acción principal del pedido se oculta.
+**Anotar** (en el detalle del pedido, sección «Incidencias», `h2` [NUEVO], con la lista de las del pedido y `Boton variante="secundario"` «Anotar una incidencia» [NUEVO]; solo en pedidos pagados, C12). Abre el formulario en la sección; **el foco va a la primera opción de «¿Qué pasó?»** (o a la ya elegida si viene de «Anotar una incidencia» del pago, 7); mientras está abierto, la acción principal del pedido se oculta. Con «Cancelar», el foco vuelve a «Anotar una incidencia».
 
 ```
 │ Anotar una incidencia              │  h3 font-bold
@@ -937,7 +939,7 @@ Como «Tus productos» del comercio ([C63] 8.2): una columna de `max-w-3xl`, cad
 ## 14. Criterios visuales verificables
 
 1. **Un solo macizo.** En cada pantalla y estado hay a lo sumo **un** elemento con `bg-turquesa` o `bg-pronto` fuera de un diálogo abierto. En Pedidos, Cobros, Retractos sin elegir, Incidencias sin elegir y Catálogo sin editor, ninguno.
-2. **Sin datos de la familia.** Ninguna pantalla de `/operacion` muestra un nombre de persona, una dirección, un teléfono, un grupo ni un correo, salvo el que se escribe en 8.5 mientras se escribe. Un `grep` de `web/src/operacion/` no encuentra «María», «Carmen», «Rosa», «Rodrigo», «dirección» ni «grupo_id».
+2. **Sin datos de la familia.** Ninguna pantalla de `/operacion` muestra un nombre de persona, una dirección, un teléfono, un grupo ni un correo, salvo el que se escribe en 8.5 mientras se escribe. Un `grep` de `web/src/operacion/` no encuentra «María», «Carmen», «Rosa», «Rodrigo» ni «grupo_id», ni un campo de dirección (`direccion`, `comuna`, `region` como propiedad de un dato). La palabra «dirección» aparece **una sola vez**, en la ayuda obligatoria de C11 («No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota.», `INCIDENCIAS.ayuda` de `textos.ts`), que es una advertencia y no un dato: el criterio se cumple si esa es la única coincidencia. Lo que se verifica en pantalla es que ningún texto visible de `/operacion` traiga una dirección, un nombre o un teléfono de la familia.
 3. **Sin tarjeta.** Ninguna pantalla muestra «terminada en», últimos 4, tipo de tarjeta, cuotas ni código de autorización. «Orden de compra» sí aparece en el pago y en Cobros.
 4. **Nada en la URL.** Ninguna ruta de `/operacion` lleva un id, una referencia, un `buy_order`, un correo ni un código. La búsqueda es un `POST` con la referencia en el cuerpo. Recargar `/operacion/pedido` lleva a `/operacion`. El `<title>` del pedido no lleva la referencia.
 5. **El código del teléfono:** el campo tiene `autocomplete="one-time-code"`, `inputmode="numeric"` y `type="text"`; pegar «482 173» deja «482173»; con 6 números no envía solo.
@@ -953,7 +955,7 @@ Como «Tus productos» del comercio ([C63] 8.2): una columna de `max-w-3xl`, cad
 15. **Catálogo:** todo precio se ve como `$12.990 · IVA incluido`; el aviso «El precio nuevo vale solo para los pedidos que se confirmen desde ahora…» está a la vista; un comercio real no tiene «Cambiar».
 16. **Estado nunca solo por color:** toda `Etiqueta` tiene ícono y palabra (la palabra queda en `angosto`).
 17. **Reflujo:** a 320 px con el texto al 200 %, ninguna de las siete rutas tiene desplazamiento horizontal (`scrollWidth` igual a `clientWidth` en `html`), con el código de retiro a la vista, con un diálogo abierto, con el formulario del retracto por correo y con el editor del catálogo.
-18. **Ancho:** a 1280 px, Pedidos, Retractos e Incidencias muestran la cola de 19 rem y el detalle; a 1920 px, el detalle del pedido tiene dos columnas (partes a la izquierda; pago y lo que pasó a la derecha).
+18. **Ancho:** a 1280 px, Pedidos, Retractos e Incidencias muestran la cola de 19 rem y el detalle; a 1920 px, el detalle del pedido tiene dos columnas (partes a la izquierda; pago y lo que pasó a la derecha), desde `@3xl/detalle` (6.2); a 1280 px, una sola.
 19. **La barra** es `bg-tinta text-papel`, su foco es `papel`, «Salir» no usa `turquesa`, y `DistintivoPiloto` está fuera de ella, a la vista en las siete rutas y con el texto al 200 %.
 20. **Foco:** después de cada acción de 13, `document.activeElement` no es `body`.
 21. **Lenguaje:** ninguna pantalla dice «token», «sesión», «stock», «inválido», «rechazado», «rechazada», «fallido» ni un código de error, ni ninguno de los términos de `lenguaje.md` 3.1.
