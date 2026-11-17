@@ -518,7 +518,8 @@ def crear_pedido(
     responses=_LECTURA,
     summary="El pedido sin pagar de la persona, para volver al carrito",
     description=(
-        "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un"
+        "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3; el observador, sin montos,"
+        " decisión 472). 404 si la persona no tiene un"
         " pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3"
     ),
 )
@@ -543,7 +544,8 @@ def ver_en_curso(
     summary="Leer el pedido, con el resumen antes de pagar si el total está confirmado",
     description=(
         "MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y"
-        " PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj."
+        " PedidoVistaObservador para el observador (C3), sin entrega, resumen ni ningún monto en ningún estado"
+        " (MATU-113, decisión 472). El vencimiento lo dice el Reloj."
         " No se audita. Capa 3"
     ),
 )
