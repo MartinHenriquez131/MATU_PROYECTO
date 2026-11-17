@@ -1,6 +1,12 @@
 # MATU-92 · Tus pedidos: la lista, el detalle, arrepentirse y cancelar después de pagar · Especificación de diseño
 
-**Versión 1.1 · 16/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.2 · 17/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.2** (después de la revisión visual del 17-11):
+- 5.5, 5.7 y 5.8: «ya se pidió» llega como **422 `producto-no-retractable`** (decisión 445 del contrato), no como 409. El plazo vencido llega como 409 `fuera-de-plazo`;
+- 4.3: «De un comercio» cuando la parte no trae el nombre del comercio;
+- 6.3: «No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo.», sin «Todo sigue como estaba.», cuando tampoco se pudo volver a leer el pedido;
+- 4.9 y 9: la falla del comprobante lleva «Volver a intentar».
+
 **Cambios de la 1.1:** se aplican las decisiones del orquestador sobre las contradicciones de la 1.0 (16-11, 00:30), D1 a D8:
 - O1, O2 y O4 pasan a resueltos (sección 0);
 - «10 días hábiles» también en el carrito y en el resumen (4.7, 9 y 10);
@@ -387,7 +393,7 @@ La primera parte va en la `Etiqueta`. La segunda, si la hay, en un `p text-lg ma
 |---|---|---|---|
 | Título | `h2 titular text-2xl` | Cómo va | **[NUEVO]** |
 | Contenedor | `ul flex flex-col gap-3`. Cada parte, un `li` con `rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea flex flex-col gap-2` | — | — |
-| Comercio | `h3 text-lg font-bold break-words`. «(comercio ficticio)» en su propio `inline-block`, solo si `ficticio` es verdadero | De `{comercio}` (comercio ficticio) | [L 38] la forma de «Parte», [L 31] |
+| Comercio | `h3 text-lg font-bold break-words`. «(comercio ficticio)» en su propio `inline-block`, solo si `ficticio` es verdadero | De `{comercio}` (comercio ficticio) · sin `nombre_fantasia`: «De un comercio» | [L 38] la forma de «Parte», [L 31] · **[NUEVO]** «De un comercio» |
 | Estado de la parte | `Etiqueta` con ícono y palabra. Para el lector, el `h3` y la etiqueta se leen juntos: «De Almacén El Ejemplo (comercio ficticio): En preparación» (un `span sr-only` con «:» entre los dos) | Ver la tabla de abajo | [L 38] la forma «De `{comercio}`: `{estado}`» |
 | Productos | `ul divide-y divide-linea`, cada `li` `py-2 text-base`, la cantidad en `cifras` | `{cantidad}` × `{producto}` | [L 31] |
 | Faltaron | Al lado del producto, `Etiqueta tono="neutro"` con `PackageX`, solo si `unidades_faltantes` es mayor que 0 | Faltaron `{n}` | **[NUEVO]**. La frase completa con el monto va en «Dinero devuelto» |
@@ -517,7 +523,7 @@ Va después de lo que se pidió devolver y antes del comprobante. Cada bloque ll
 |---|---|---|---|
 | **Cargando** | El `Volver`, el `h1` con la referencia (viene de la fila) y, pasados 400 ms, «Cargando…» con `aria-busy` en el contenido | Cargando… | [L 26] |
 | **Error al traer** | El patrón de una columna de 3.5, con el `h1` «Pedido `{referencia}`» | No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · Volver a intentar | [L 31] · [L 26] |
-| **Falla solo el comprobante** (`GET …/pago`) | El detalle se ve, y en el lugar del comprobante va `Nota tono="atenta"` con `CloudOff` y `Boton variante="secundario"` «Volver a intentar» | No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. | **[NUEVO]** |
+| **Falla solo el comprobante** (`GET …/pago`) | El detalle se ve, y en el lugar del comprobante va `Nota tono="atenta"` con `CloudOff` y `Boton variante="secundario"` «Volver a intentar» | No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar | **[NUEVO]** · [L 26] |
 | **404** (el pedido ya no es del grupo, la persona se eliminó o quien mira salió del grupo, C1 y C4) | Patrón de una columna, baldosa `bg-tinta/7` con `SearchX`, y `Boton variante="secundario"` «Volver a tus pedidos» | No encontramos este pedido. · Volver a tus pedidos | [L 31] · **[NUEVO]** |
 | **Sin permiso** | No existe: el observador no llega al detalle (2.1), y quien no puede cancelar o arrepentirse ve la frase de 4.6 | — | — |
 | **Al día** | Se vuelve a pedir al volver a la pestaña (`visibilitychange`), sin anunciar y sin mover el foco | — | — |
@@ -641,12 +647,13 @@ toca ─► ¿hay al menos una cantidad > 0 y todas en rango?
           ├─ no ─► MensajeError sobre el botón, el foco al primer campo con error o al primero
           └─ sí ─► POST …/retractos con Idempotency-Key (C8), el botón en «Enviando…»
                      ├─ 201 ─► al detalle (4), con la Nota de 5.6 y el foco en el h1
-                     ├─ 409, ya se pidió (otra persona, al mismo tiempo) ─► 5.7
-                     ├─ 409 o 422, el plazo venció ─► al detalle, que muestra 4.6.1
+                     ├─ 422 producto-no-retractable, ya se pidió (otra persona, al mismo tiempo) ─► 5.7
+                     ├─ 409 fuera-de-plazo, el plazo venció ─► al detalle, que muestra 4.6.1
                      ├─ 404 ─► 4.9, 404
                      └─ red o 5xx ─► MensajeError, lo elegido sigue en pantalla
 ```
 
+- **Por qué 422 y no 409** (v1.2): la decisión 445 del contrato responde 422 `producto-no-retractable` cuando lo pedido ya no está disponible, también si otra persona ganó la carrera. Para la pantalla es el mismo caso de 5.7. Un 409 que no sea `fuera-de-plazo` ni el de la clave en curso se trata igual que el 422.
 - **La `Idempotency-Key` se crea al tocar el botón** y se reutiliza si se vuelve a tocar después de un error de red, para no pedir dos veces lo mismo. Vive en la memoria de la página, nunca en el almacenamiento del navegador.
 - Mientras envía, los `Stepper` son de solo lectura.
 
@@ -658,7 +665,7 @@ toca ─► ¿hay al menos una cantidad > 0 y todas en rango?
 | Hecho | En el detalle, bajo el estado, `Nota tono="ok"` con `rol="status"`, hasta salir de la pantalla. El foco va al `h1` | Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro. | [L 36] |
 | Red o 5xx | `MensajeError` sobre el botón, anunciado por `alert`. El foco se queda en el botón | No pudimos enviar tu pedido de devolución. Revisa tu conexión y vuelve a intentarlo. Lo que elegiste sigue aquí. | **[NUEVO]**, con la forma de [L 8] |
 
-### 5.7 Ya se pidió (409, carrera entre dos personas, C8)
+### 5.7 Ya se pidió (422 `producto-no-retractable`, carrera entre dos personas, C8)
 
 Otra persona del grupo pidió devolver algunos de los mismos productos mientras Rodrigo elegía. La pantalla vuelve a pedir `GET …/retractos`, baja cada cantidad elegida al nuevo disponible (nunca la sube) y muestra, sobre «Elige qué productos devuelves», `Nota tono="atenta"` con `rol="alert"`, que recibe el foco (`enfocable`):
 
@@ -674,7 +681,7 @@ Si ya no queda nada disponible, la pantalla va al detalle, que muestra «Ya pedi
 | **Error al traer** | El patrón de una columna de 3.5: «No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo.» [L 31] y «Volver a intentar» |
 | **Sin permiso** | No llega: sin `puede_arrepentirse`, la ruta va a la lista (2.1). Si el servidor responde 404 (el observador, C6), es el 404 de 4.9 |
 | **Plazo vencido al abrir** | Va al detalle, que muestra 4.6.1 |
-| **409** | 5.7 |
+| **422 `producto-no-retractable`** | 5.7 |
 
 | Parte | Texto | Origen |
 |---|---|---|
@@ -743,6 +750,7 @@ toca «Cancelar el pedido» ─► el botón en «Cancelando…» (aria-busy), e
 | Ya cancelado (409 `estado-pedido`) | `Nota tono="rocio"` con `rol="status"` y `enfocable` | Este pedido ya se canceló. Te mostramos cómo quedó. | [L 38] |
 | Ya se prepara (409) | `Nota tono="atenta"` con `rol="alert"` y `enfocable` | Ya están preparando tu pedido, así que no se puede cancelar. Cuando llegue, puedes arrepentirte de la compra. | [L 36] |
 | Red o 5xx, sin cambio | En la región de error del diálogo, `rol="alert"` | No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. | [L 31]. Es cierto, porque la pantalla volvió a leer el pedido antes de decirlo |
+| Red o 5xx, y tampoco se pudo volver a leer el pedido | En la región de error del diálogo, `rol="alert"` | No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. | **[NUEVO]**: sin «Todo sigue como estaba.», porque la pantalla no pudo comprobarlo |
 
 ---
 
@@ -874,7 +882,7 @@ La tabla de la revisión previa, con lo que suma o cambia esta especificación. 
 | Desde el comprobante | Ver cómo va tu pedido | **[NUEVO]** |
 | Estados | Los de [L 38] (4.2) · Cancelado · Estamos devolviendo `{total}`, envío incluido, a la tarjeta con que se pagó. | [L 38] · **[AJUSTE]** la devolución en curso |
 | Detalle | Volver a tus pedidos · Pagado el `{DD/MM/AAAA}` a las `{HH:MM}` | **[NUEVO]** |
-| Cómo va | Cómo va · De `{comercio}` (comercio ficticio) · Faltaron `{n}` | **[NUEVO]** · [L 38] · **[NUEVO]** |
+| Cómo va | Cómo va · De `{comercio}` (comercio ficticio) · De un comercio · Faltaron `{n}` | **[NUEVO]** · [L 38] · **[NUEVO]** (v1.2, sin el nombre del comercio) · **[NUEVO]** |
 | Partes | Enviado al comercio · En preparación · Listo para salir · Salió del comercio · No tenía estos productos · Cancelado | [L 38] · **[NUEVO]** las dos del medio |
 | Dinero devuelto | Dinero devuelto · El `{DD/MM/AAAA}` · Faltaron `{n}` de `{producto}`. Devolvimos `{monto}` a la tarjeta con que se pagó. Cuándo se ve en la cuenta depende del banco. · Devolvimos el envío: `{monto}`. · las de [L 32] y [L 36] | **[NUEVO]** el título y la fecha · [L 38] |
 | Productos para devolver | Productos para devolver · Devolución pedida · Devuelto el `{DD/MM/AAAA}` · No se aceptó la devolución. Si tienes dudas, escríbenos a `{correo}`. · La pidió otra persona de tu grupo. | **[NUEVO]** · [L 38] · **[NUEVO]** |
@@ -886,9 +894,9 @@ La tabla de la revisión previa, con lo que suma o cambia esta especificación. 
 | Resultado y errores | Elige al menos un producto y cuántos devuelves. · Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro. · No pudimos enviar tu pedido de devolución. Revisa tu conexión y vuelve a intentarlo. Lo que elegiste sigue aquí. · Otra persona de tu grupo ya pidió devolver algunos de estos productos. Te mostramos lo que todavía puedes devolver. Revisa lo que elegiste antes de enviarlo. | [L 38] · [L 36] · **[NUEVO]** · **[NUEVO]** |
 | Cancelar, bloque | Cancelar el pedido · Puedes cancelarlo sin costo mientras el comercio no empiece a prepararlo. · Solo quien administra el grupo puede cancelar un pedido pagado, mientras el comercio no empiece a prepararlo. | [L 36] · **[NUEVO]** · [L 38] |
 | Cancelar, diálogo | Los de [L 38] · Pago de prueba. No se cobró dinero real. | [L 38] · [L 32] |
-| Cancelar, resultado | Cancelamos el pedido. Estamos devolviendo `{total}` a la tarjeta con que se pagó. · Este pedido ya se canceló. Te mostramos cómo quedó. · Ya están preparando tu pedido, así que no se puede cancelar. Cuando llegue, puedes arrepentirte de la compra. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. | [L 38] · [L 38] · [L 36] · [L 31] |
+| Cancelar, resultado | Cancelamos el pedido. Estamos devolviendo `{total}` a la tarjeta con que se pagó. · Este pedido ya se canceló. Te mostramos cómo quedó. · Ya están preparando tu pedido, así que no se puede cancelar. Cuando llegue, puedes arrepentirte de la compra. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. Todo sigue como estaba. · No pudimos cancelar el pedido. Revisa tu conexión y vuelve a intentarlo. | [L 38] · [L 38] · [L 36] · [L 31] · **[NUEVO]** (v1.2, cuando no se pudo volver a leer el pedido) |
 | Productos borrados | De este pedido guardamos solo lo que se pagó y lo que se devolvió. | [L 38] |
-| Errores | No pudimos traer tus pedidos. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar · No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. · No encontramos este pedido. · Volver a tus pedidos | [L 38] · [L 31] · **[NUEVO]** · [L 31] · **[NUEVO]** |
+| Errores | No pudimos traer tus pedidos. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar · No pudimos traer tu pedido. Revisa tu conexión e inténtalo de nuevo. · No pudimos traer el comprobante. Revisa tu conexión y vuelve a intentarlo. · Volver a intentar (en la misma Nota) · No encontramos este pedido. · Volver a tus pedidos | [L 38] · [L 31] · **[NUEVO]** · [L 26] · [L 31] · **[NUEVO]** |
 
 **Ninguno usa** los términos de `lenguaje.md` 3, «código de retiro», «rechazado», «fallido», «stock», «reserva», «con IVA» ni «10 días» sin «hábiles».
 
@@ -942,6 +950,6 @@ Las resolvió el orquestador el 16-11 a las 00:30, en la sección «Decisiones d
   - el detalle, como pagador que pagó y como cuidador;
   - arrepentirse, con un producto elegido y con todos;
   - el diálogo de cancelar;
-  - el 409 de 5.7.
+  - el 422 de 5.7.
 - Con el teclado solo: el orden de Tab, el foco después de cada acción y `Esc` en el diálogo.
 - Mido el contraste de las `Etiqueta` `neutro` y `atenta` y de `Undo2` en los dos temas.
