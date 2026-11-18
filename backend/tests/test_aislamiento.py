@@ -2771,9 +2771,10 @@ def _notificacion(cx, usuario, grupo, evento, dias):
 @pytest.mark.rf("RF-39")
 def test_operacion_no_lee_los_avisos_de_ningun_grupo(cx):
     """C4: sin notificacion_operacion, matu_app con app.rol = 'operacion' no ve ninguna notificación."""
-    cx.execute("DELETE FROM notificacion")
-    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
-    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    # MATU-79: sin vaciar notificacion. Los avisos propios existen (por id, como superusuario) y operación no ve
+    # ninguno de la tabla entera: ni los propios ni los que haya dejado otra prueba
+    propios = [_notificacion(cx, U_ADMIN_A, G_A, 1, 1), _notificacion(cx, U_ADMIN_B, G_B, 2, 1)]
+    assert _quedan(cx, "notificacion", propios) == set(propios)
     # Con una cuenta sin avisos propios y un grupo en el contexto, tampoco (la propia sigue viendo los suyos)
     for contexto in ({"rol": "operacion"}, {"rol": "operacion", "usuario_id": U_ENC, "grupo_id": G_A}):
         como(cx, **contexto)
@@ -2783,12 +2784,14 @@ def test_operacion_no_lee_los_avisos_de_ningun_grupo(cx):
 
 @pytest.mark.rf("RF-39")
 def test_cada_usuario_ve_solo_sus_avisos(cx):
-    cx.execute("DELETE FROM notificacion")
-    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
-    _notificacion(cx, U_OBS_A, G_A, 1, 1)
-    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    # MATU-79: sin vaciar notificacion. De los tres avisos propios ve solo el suyo, por id, y todo lo que ve en la
+    # tabla entera es suyo
+    mio = _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
+    del_grupo = _notificacion(cx, U_OBS_A, G_A, 1, 1)
+    de_b = _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
-    assert [r[0] for r in cx.execute("SELECT usuario_id FROM notificacion").fetchall()] == [U_ADMIN_A]
+    assert _quedan(cx, "notificacion", [mio, del_grupo, de_b]) == {mio}
+    assert {r[0] for r in cx.execute("SELECT usuario_id FROM notificacion").fetchall()} == {U_ADMIN_A}
 
 
 @pytest.mark.rf("RF-39")
