@@ -621,7 +621,7 @@ function DialogoRetirar({
       className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       <div className="flex flex-col gap-4">
-        <h2 ref={titulo} id={`${uid}-t`} tabIndex={-1} className="text-xl font-bold break-words outline-none">
+        <h2 ref={titulo} id={`${uid}-t`} tabIndex={-1} className="text-xl font-bold break-words">
           {ficha ? T.preguntaFicha(pila) : pedidos ? P.pregunta(pila) : T.preguntaInsumos(pila)}
         </h2>
         <ul id={`${uid}-d`} className="flex max-w-prose list-disc flex-col gap-2 ps-5 text-base leading-relaxed marker:text-tenue">
