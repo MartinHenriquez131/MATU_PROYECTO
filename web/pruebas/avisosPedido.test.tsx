@@ -163,6 +163,16 @@ describe('MATU-76: las dos preferencias se guardan por separado (2.6, decisión 
     expect(screen.queryByText(DINERO)).toBeNull()
     expect(screen.queryByRole('heading', { name: /^Este / })).toBeNull()
   })
+
+  it('P3 de la revisión: mientras carga, «Cargando…» se ve en A y en B, pero hay un solo role="status", el de la A', async () => {
+    apiCuenta({ 'GET ^/v1/yo/avisos$': () => new Promise<Respuesta>(() => {}) })
+    render(<AvisosCuenta />)
+    await vi.waitFor(() => expect(screen.getAllByText('Cargando…')).toHaveLength(2))
+    const estados = screen.getAllByRole('status')
+    expect(estados).toHaveLength(1)
+    expect(grupo(INSUMO)).toContainElement(estados[0])
+    expect(within(grupo(PEDIDO)).getByText('Cargando…')).not.toHaveAttribute('role')
+  })
 })
 
 describe('MATU-76: la tarjeta C, «Este teléfono» (2.1 y 2.7)', () => {

@@ -33,10 +33,11 @@ const conValor = (p: PreferenciaAvisos, t: Tarjeta, c: Canal, v: boolean): Prefe
   t === 'insumo' ? { ...p, [c]: v } : { ...p, pedido: { ...p.pedido, [c]: v } }
 const esPush = (p: unknown): p is PushActual => !!p && typeof p === 'object' && typeof (p as PushActual).registrado === 'boolean'
 
-function Cargando() {
+/** `anunciar` en `false` cuando otra tarjeta ya anuncia la misma espera (MATU-76, P3 de la revisión: un solo anuncio). */
+function Cargando({ anunciar = true }: { anunciar?: boolean }) {
   const ver = useDemora()
   return (
-    <p role="status" className="text-tenue">
+    <p role={anunciar ? 'status' : undefined} className="text-tenue">
       {ver ? GENERAL.cargando : ''}
     </p>
   )
@@ -193,7 +194,8 @@ export function AvisosCuenta() {
             {AVISOS.alcance}
           </p>
 
-          {preferencia.carga.estado === 'cargando' && <Cargando />}
+          {/* La espera también se anuncia una sola vez, desde la A; en la B se ve el mismo texto, sin rol. */}
+          {preferencia.carga.estado === 'cargando' && <Cargando anunciar={t === 'insumo'} />}
           {/* 2.6: el error de carga se anuncia una sola vez, desde la A. Cualquiera de los dos botones vuelve a leer las dos. */}
           {preferencia.carga.estado === 'error' && <ErrorLectura texto={AVISOS.errCargar} anunciar={t === 'insumo'} reintentar={() => void preferencia.cargar()} />}
           {ver && (
