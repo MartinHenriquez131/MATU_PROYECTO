@@ -1,6 +1,12 @@
 # MATU-116 · Quien pagó sigue viendo sus pagos · Especificación de diseño
 
-**Versión 1.0 · 18/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+**Versión 1.1 · 18/11/2026** · Agente 6, UI/UX. Especifica y no construye.
+
+**Cambios de la v1.1** (después de la revisión visual con la pantalla funcionando, HEAD cde2f1e):
+- **D-116-1, decidida por Jorge:** «Entrega: {ventana}» se queda en el detalle de quien «Se informa» y pagó (H3 y 1.9).
+- **D-116-2 y 1.4:** la fila y T1 se deciden con `vista` («pagaste» o «se_informa»), que trae el servidor, y nunca con el rol. Se quita el «hasta que haya un campo del backend» y la excepción de MATU-113 2.7 para T1.
+- **2.2 y 2.3:** la línea del grupo, en «Tus pagos» y en «Lo que pediste devolver», y T4 se deciden con `sigue_en_el_grupo`, una sola señal del servidor (P3 de la revisión, ya construido). H6 queda resuelto.
+- **2.4, nueva:** las condiciones de un grupo del que salió dicen «En un grupo del que saliste, para el pedido {referencia}.» (N7).
 
 **Viene de:** las decisiones de Jorge del 18-11 (J1 a J7), las condiciones del analista para el frontend (C5, C10 y C11) y los textos T1 a T6, aprobados con J1 a J7.
 
@@ -26,11 +32,11 @@ No levanté la pantalla para esta especificación: depende del contrato que el b
 | # | Dónde | Qué pasa hoy | Qué implica |
 |---|---|---|---|
 | **H1** | `AppFamilia.tsx`, ~97 a 99 | Si `s.rol === 'observador'`, las rutas `/insumos/tus-pedidos/pedido` y `…/arrepentirme` llevan a la lista. **La pantalla decide por el rol** | Bloquea J1: aunque la fila se abra, el detalle no se ve. La guarda pasa a mirar solo que haya un `pedidoElegido` de la persona que se está viendo. Lo demás lo decide el servidor: si no pagó ese pedido, el seguimiento responde 404 y se ve «No encontramos este pedido.» (C5, C10). **P1 para el frontend** |
-| H2 | Lista, filas | La lista ya pinta cada fila por su forma (`esFilaCompleta`): `FilaDelPedido` (un `button` que abre el detalle) o `FilaDelObservador` (un `li` que no se abre). La mezcla funciona sin cambios | Las filas no cambian (1.3) |
-| **H3** | Detalle de «Paga» | **No tiene un bloque de entrega.** La dirección y el teléfono de entrega no se muestran en el detalle ni en el comprobante desde MATU-92 (4.7) y MATU-62 (7.5.1). Las notas del equipo tampoco llegan a la familia. Lo único de la entrega es «Entrega: {ventana}», en «Datos del pedido», que sale del comprobante y es la franja horaria, no la dirección | «Sin el bloque de entrega» no quita nada que se vea hoy: el detalle de quien pagó y está en «Se informa» es **el mismo** de «Paga». Lo informo al orquestador por si la intención de J1 era quitar también «Entrega: {ventana}». Mi propuesta es dejarla: no es un dato de `pedido_entrega` ni identifica a nadie, y es parte del comprobante que la persona ya recibió (D-116-1) |
+| H2 | Lista, filas | La lista ya pinta cada fila por su forma (`esFilaCompleta`): `FilaDelPedido` (un `button` que abre el detalle) o `FilaDelObservador` (un `li` que no se abre). La mezcla funciona sin cambios | Las filas no cambian (1.3). **(1.1)** La API marca cada fila con `vista` («pagaste» o «se_informa»), y la pantalla elige la fila y T1 con ese campo |
+| **H3** | Detalle de «Paga» | **No tiene un bloque de entrega.** La dirección y el teléfono de entrega no se muestran en el detalle ni en el comprobante desde MATU-92 (4.7) y MATU-62 (7.5.1). Las notas del equipo tampoco llegan a la familia. Lo único de la entrega es «Entrega: {ventana}», en «Datos del pedido», que sale del comprobante y es la franja horaria, no la dirección | «Sin el bloque de entrega» no quita nada que se vea hoy: el detalle de quien pagó y está en «Se informa» es **el mismo** de «Paga». **D-116-1 (1.1, decidida por Jorge):** «Entrega: {ventana}» se queda. No es un dato de `pedido_entrega` ni identifica a nadie, y es parte del comprobante que la persona ya recibió |
 | H4 | «Tus datos», `Pago`, ~433 | «{monto} en {grupo}». Si la API deja el grupo en blanco (C4), se lee «$37.260 en » | Hace falta T3 (2.2) |
 | **H5** | «Tus datos» | **El contrato trae `retractos` (`RetractoCuentaCopia`, desde MATU-63) y ninguna pantalla los muestra.** La cuenta tiene derecho a ver lo que pidió devolver, y hoy solo lo ve en el archivo | Faltante. Esta especificación agrega el bloque (2.3). Lo informo al orquestador porque es anterior a esta tarjeta |
-| H6 | Contrato, `PagoCuentaCopia.grupo` y `RetractoCuentaCopia.grupo` | Son `str`, no aceptan `null` | Para C4 pido `grupo: str \| None`, con `null` cuando ya no está en el grupo. La pantalla también trata `""` como `null`, por defensa. **No elijo yo:** lo informo al orquestador y al backend |
+| H6 | Contrato, `PagoCuentaCopia.grupo` y `RetractoCuentaCopia.grupo` | Eran `str`, no aceptaban `null` | **Resuelto en la 1.1:** el contrato trae `grupo: str \| None` y `sigue_en_el_grupo: bool` en los pagos, los retractos y las condiciones. La pantalla decide con `sigue_en_el_grupo` (2.2 a 2.4) |
 
 ---
 
@@ -64,7 +70,7 @@ Las dos filas usan la misma superficie (`rounded-xl bg-hoja ring-1 ring-linea`) 
 
 T1 dice con palabras que de los que pagó «ves el detalle». La palabra «Pedido» con su número y el «Total pagado» son lo que solo tienen esas filas.
 
-**D-116-2 · Sin una marca «Lo pagaste» en la fila.** La pensé y la descarto: la pantalla tendría que deducir del rol en memoria que la fila es suya, y si el rol cambió mientras miraba (por ejemplo, volvió a «Paga»), diría que pagó un pedido que pagó otra persona. Una frase sobre dinero sale de un dato del servidor o no va (C10). Si Jorge la quiere, se pide al backend un campo en la fila y se agrega en una tarjeta propia.
+**D-116-2 (1.1) · La fila y T1 se deciden con `vista`, nunca con el rol.** Cada fila llega del servidor con `vista: 'pagaste'` (la de «Paga», que se abre) o `vista: 'se_informa'` (la de MATU-113, que no se abre). La pantalla pinta una u otra según ese campo, y muestra T1 si al menos una fila cargada trae `'pagaste'`. No mira el rol en memoria en ningún caso: si el rol cambió mientras miraba, la próxima lectura trae la `vista` nueva (C10). **Sin una marca «Lo pagaste» en la fila:** T1 ya dice que los que se abren son los que pagó, y la fila no suma texto.
 
 ### 1.4 Dónde va T1
 
@@ -74,10 +80,10 @@ Debajo de la bajada, en el mismo `div max-w-3xl` del encabezado, como la frase d
 |---|---|---|
 | Bajada | Siempre | `p mt-1.5 max-w-prose text-base text-tenue`, sin cambios |
 | «Quien administra el grupo, quien cuida a {pila} y quien paga ven el detalle.» | Con `carga === 'listo'` y al menos una fila que no pagó (`!esFilaCompleta`). Sin cambios | `p mt-1.5 max-w-prose text-base text-tenue` |
-| **T1** «De los pedidos que pagaste, ves el detalle y puedes arrepentirte de la compra.» | Con `carga === 'listo'`, `rol === 'observador'` y **al menos una fila que pagó** (`esFilaCompleta`) entre las cargadas | El mismo `p mt-1.5 max-w-prose text-base text-tenue`, **después** de la frase de «Se informa» |
+| **T1** «De los pedidos que pagaste, ves el detalle y puedes arrepentirte de la compra.» | Con `carga === 'listo'` y **al menos una fila con `vista: 'pagaste'`** entre las cargadas (1.1) | El mismo `p mt-1.5 max-w-prose text-base text-tenue`, **después** de la frase de «Se informa» |
 
 - **El orden se lee de corrido:** «… y quien paga ven el detalle. De los pedidos que pagaste, ves el detalle y puedes arrepentirte de la compra.»
-- **Por qué aquí sí se mira el rol:** T1 es solo un texto y no muestra ningún dato. La forma de la fila no distingue a quien «Se informa» y pagó de quien «Paga», y T1 no debe salirle a «Paga». Es el mismo criterio de MATU-113 2.7: la regla de no decidir por el rol protege la lectura de dinero, y aquí no se lee dinero. Si el backend agrega a la lista un dato que lo diga, se usa ese dato y no el rol.
+- **Por qué con `vista` (1.1):** la forma de la fila no distingue a quien «Se informa» y pagó de quien «Paga», y T1 no debe salirle a «Paga». El servidor solo manda `'pagaste'` a quien «Se informa» y pagó ese pedido, así que con ese campo basta y el rol no se mira.
 - **Si la fila que pagó llega con «Ver más pedidos»,** T1 aparece en ese momento, sin anuncio y sin mover el foco.
 - **Solo filas que pagó** (todas `FilaDelPedido`): no se ve la frase de «Se informa», solo T1.
 
@@ -173,6 +179,8 @@ Jerarquía:
 
 **No aparece:** la dirección de entrega, el teléfono de contacto, las notas del equipo (ninguno se muestra hoy, H3), ni el `Boton variante="peligro"` «Cancelar el pedido».
 
+**Sí aparece «Entrega: {ventana}»** en «Datos del pedido», por ejemplo «Entrega: Entre 24 y 48 horas hábiles» (D-116-1, decidida por Jorge). Es la franja del comprobante, no la dirección.
+
 **La tarjeta:** como pagó, el comprobante muestra «Tarjeta de crédito terminada en {últimos 4}». Nunca «Lo pagó otra persona de tu grupo.» en un pedido que pagó, porque lo dice el comprobante que trae la API.
 
 **«Cancelar el pedido» sin botón.** Con `puede_cancelar: false` y `cancelar_motivo: 'rol'`, se ve el `h2` y la frase «Solo quien administra el grupo puede cancelar un pedido pagado, mientras el comercio no empiece a prepararlo.» [L 38], como le pasa a «Paga». Es la misma frase de «Lo que te garantizamos» y explica por qué no puede. Con `ya_se_prepara` o `cancelado`, nada, como hoy.
@@ -251,10 +259,12 @@ Rodrigo salió del grupo de María. En «Tus datos» ve todo lo que pagó y lo q
 
 Solo cambia la línea del monto. El resto es MATU-54 5.4, sin cambios.
 
-| `grupo` | Línea del monto | Texto | Origen |
+| `sigue_en_el_grupo` (1.1) | Línea del monto | Texto | Origen |
 |---|---|---|---|
-| Con nombre | Sin cambios | {monto} en {grupo} | [L 35] |
-| `null` o `""` | La misma `p text-base break-words` | {monto} en un grupo del que saliste | **[AJUSTE]** de T3 |
+| `true` | Sin cambios | {monto} en {grupo} | [L 35] |
+| `false` | La misma `p text-base break-words` | {monto} en un grupo del que saliste | **[AJUSTE]** de T3 |
+
+- **Una sola señal (1.1):** la línea se decide con `sigue_en_el_grupo`, no con que `grupo` venga vacío. Con `false`, la pantalla nunca muestra `grupo`, aunque llegara con texto.
 
 - **Por qué [AJUSTE]:** T3 es «Un grupo del que saliste», con mayúscula, porque en «Tus grupos» va solo, en el lugar del título. Aquí va después de «en», así que empieza en minúscula. Son las mismas palabras. En el código va como una pieza propia (`enGrupoQueDejaste: ' en un grupo del que saliste'`), no como `toLowerCase()` del texto de «Tus grupos».
 - **Sin pedido** (el pago se guarda 6 años y el pedido 2, C2): `referencia: null` y el título dice «Pago del {fecha}» [L 35], que ya está construido. Un pago sin pedido y de un grupo del que salió dice las dos cosas: «Pago del 08/11/2024» y «$37.260 en un grupo del que saliste».
@@ -293,7 +303,7 @@ Es un `Bloque id="lo-que-pediste-devolver"` con una `ul SUPERFICIE` y una `li fl
 | **Productos, si salió del grupo** (T4) | `p max-w-prose text-base`, en lugar de la lista, con el correo en `EnlaceEnFrase` (`mailto:`, `[overflow-wrap:anywhere]`) | Los productos los puedes pedir a {correo}. | [T4] |
 | Por qué no se aceptó, solo `rechazado` con `motivo_rechazo` | `p max-w-prose text-base` | El producto volvió con el sello abierto. · No recibimos el producto de vuelta. | [L 38] (`MOTIVO_RECHAZO_FAMILIA`) |
 
-- **Cuándo va T4:** cuando `grupo` es `null` o `""`. No se deduce de una lista de productos vacía: el contrato dice si sigue en el grupo por el nombre (C4), y con eso basta. Si sigue en el grupo y la lista llegara vacía, no se muestra nada en su lugar.
+- **Cuándo va T4 y la línea «En un grupo del que saliste.» (1.1):** las dos con `sigue_en_el_grupo: false`, la misma señal del servidor, para que nunca se desalineen. Con `false`, la pantalla no muestra `grupo` ni `productos`, aunque llegaran. Con `true`, «En {grupo}.» y la lista. Si sigue en el grupo y la lista llegara vacía o en `null`, no se muestra nada en su lugar.
 - **«{correo}»** es `CORREO_CONTACTO`, el mismo de T5 y de la política.
 - **Sin montos.** `RetractoCuentaCopia` no trae lo que se devolvió: eso está en «Tus pagos», en «Devuelto: {monto}».
 - **Nunca** el nombre de la persona cuidada (P5 de MATU-54), «retracto» ni «rechazado».
@@ -323,7 +333,18 @@ Esquema a 360 px, uno de cada:
 
 **Pantalla ancha:** la grilla del índice de MATU-54 3.3, sin cambios: el índice a la izquierda (`--container-xs`) y los bloques a la derecha. La `li` es una sola columna; la etiqueta y las frases no se estiran (`max-w-prose`).
 
-### 2.4 Estados de «Tus datos»
+### 2.4 (1.1) Las condiciones de compra de un grupo del que salió
+
+En «Condiciones de compra que aceptaste» solo cambia la frase del grupo. La versión, la fecha y la huella siguen como en MATU-54 5.4.
+
+| `sigue_en_el_grupo` | Con `referencia` | Sin `referencia` | Origen |
+|---|---|---|---|
+| `true` | Sin cambios: En {grupo}, para el pedido {referencia}. | Sin cambios: En {grupo}, para un pedido que no se pagó. | [L 35] |
+| `false` | En un grupo del que saliste, para el pedido {referencia}. | En un grupo del que saliste, para un pedido que no se pagó. | **[AJUSTE]** de T3 (N7) |
+
+- La referencia va en `cifras`, como hoy. «Un grupo» empieza en minúscula después de «En», como en N1 y N6.
+
+### 2.5 Estados de «Tus datos»
 
 | Estado | Qué ve | Origen |
 |---|---|---|
@@ -333,7 +354,7 @@ Esquema a 360 px, uno de cada:
 | Capa 3 quitada (`pagos`, `condiciones_aceptadas` y `retractos` en `null`) | Ninguno de los tres bloques | [L 35] |
 | Todo de grupos de los que salió | «Tus grupos» con «No estás en ningún grupo.» arriba, y los pagos y lo que pidió devolver con T3 y T4 | [L 35] · [T3] · [T4] |
 
-### 2.5 Foco y anuncio
+### 2.6 Foco y anuncio
 
 - El índice suma «Lo que pediste devolver» y, al elegirlo, el foco va a su `h2` (`tabIndex={-1}`), como los demás bloques.
 - El enlace del correo de T4 tiene el anillo de foco de `EnlaceEnFrase`. Va dentro de una frase, así que no necesita 48 px de alto (WCAG 2.5.8, excepción de los enlaces en línea), igual que el correo de «Productos para devolver».
@@ -367,6 +388,7 @@ No cambian la composición. Van donde ya están sus vecinos en `lenguaje.md` 34:
 | N4 | Cuándo lo pidió | Lo pediste el {fecha}. | L 35 |
 | N5 | Cuándo se respondió, sin aceptar | Respondimos el {fecha}. | L 35 |
 | N6 | El grupo | En {grupo}. · En un grupo del que saliste. | L 35 (**[AJUSTE]** de T3 en la segunda) |
+| N7 (1.1) | Condiciones de un grupo del que salió | En un grupo del que saliste, para el pedido {referencia}. · En un grupo del que saliste, para un pedido que no se pagó. | L 35, «Condiciones de compra que aceptaste» (**[AJUSTE]** de T3) |
 
 ### 4.2 Los aprobados que se usan
 
@@ -383,6 +405,7 @@ No cambian la composición. Van donde ya están sus vecinos en `lenguaje.md` 34:
 - **35, «Los bloques» de «Tus datos»** (L 1581): suma «Lo que pediste devolver», después de «Tus pagos».
 - **35, una fila nueva «Lo que pediste devolver»** con N2 a N6, T4 y las etiquetas de L 38.
 - **35, «Tus pagos»:** suma N1.
+- **35, «Condiciones de compra que aceptaste»:** suma N7 (1.1).
 - **35, la nota de L 1625:** la de 2.2.
 - **38, la regla de la sección:** «Quien «Se informa» ve por pedido la fecha del pago…» suma «salvo en los pedidos que pagó, que ve como quien paga, sin la entrega (MATU-116)». Y la fila de T1.
 - **34:** T5 en lugar de L 1409, y T6 después de L 1379.
@@ -421,7 +444,7 @@ Con una cuenta sintética en «Se informa» que pagó algunos pedidos (Rodrigo),
 12. Un pago sin pedido dice «Pago del {fecha}» en el título.
 13. «Lo que pediste devolver» está después de «Tus pagos», y su entrada está en el índice en el mismo orden. Sin datos, no aparece ni en el índice.
 14. Un retracto de un grupo del que salió no tiene productos y dice «Los productos los puedes pedir a {correo}.», con el correo como enlace. Uno de un grupo activo lista sus productos y no dice T4.
-15. Ninguna línea dice «retracto», «rechazado», el nombre de María ni el de otro grupo del que salió.
+15. Ninguna línea dice «retracto», «rechazado», el nombre de María ni el de otro grupo del que salió. **(1.1)** Una condición de un grupo del que salió dice «En un grupo del que saliste, para el pedido {referencia}.», en minúscula después de «En».
 
 **Siempre**
 16. Sin desplazamiento horizontal a 320 px con el texto al 200 %: `scrollWidth` igual al ancho en «Tus pedidos», en el detalle y en «Tus datos». T1, T4 y «No se aceptó la devolución» bajan de renglón sin cortarse, y el correo de T4 se parte si hace falta.
