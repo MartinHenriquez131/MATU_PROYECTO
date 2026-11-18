@@ -616,8 +616,11 @@ function Detalle({ elegido, recien }: { elegido: PedidoElegido; recien: Retracto
     cargaAntes.current = carga
     if (venia !== 'cargando' || carga === 'cargando') return
     const activo = document.activeElement
-    if (activo === null || activo === document.body || activo.id === 'titulo-pagina' || !activo.isConnected) enfocar('titulo-pagina', 0)
-  }, [carga])
+    if (activo === null || activo === document.body || activo.id === 'titulo-pagina' || !activo.isConnected)
+      // MATU-116 (P2 de la revisión, 5.6 de MATU-92): con un retracto recién pedido, el foco va a la nota
+      // «Recibimos tu pedido de devolución…», para que el lector la lea; si no, al `h1`.
+      enfocar(recien ? ID_NOTA_DETALLE : 'titulo-pagina', 0)
+  }, [carga, recien])
 
   const reintentarPago = async () => {
     if (reintentandoPago) return

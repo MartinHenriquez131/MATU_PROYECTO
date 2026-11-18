@@ -678,24 +678,40 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(escrituras).toEqual([])
   })
 
-  it('P1-4: después del 201, el foco queda en el h1 del detalle cuando termina de recargar, y no cae al body', async () => {
-    const lento = (r: Respuesta) => () => new Promise<Respuesta>((ok) => window.setTimeout(() => ok(r), 80))
-    api({
-      ...rutasDelEntregado(),
-      'GET /seguimiento$': lento({ status: 200, cuerpo: seguimientoEntregado() }),
-      'POST /retractos$': { status: 201, cuerpo: retracto() },
+  // MATU-116 (P2 de la revisión): después del 201, cuando termina de recargar, el foco va a la nota
+  // «Recibimos…» (5.6), no al h1, para «Paga» y para quien «Se informa» y pagó; nunca cae al body.
+  for (const [rol, seg] of [
+    ['pagador', () => seguimientoEntregado()],
+    ['observador', () => seguimientoEntregado({ puede_cancelar: false, cancelar_motivo: 'rol' })],
+  ] as const)
+    it(`P1-4 y P2 (${rol}): después del 201, el foco queda en la nota «Recibimos…» cuando termina de recargar`, async () => {
+      const lento = (r: Respuesta) => () => new Promise<Respuesta>((ok) => window.setTimeout(() => ok(r), 80))
+      api({
+        ...rutasDelEntregado(),
+        'GET /seguimiento$': lento({ status: 200, cuerpo: seg() }),
+        'POST /retractos$': { status: 201, cuerpo: retracto() },
+      })
+      abrir(rol, ARREPENTIRME, ELEGIDO_2)
+      await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Devolver estos productos' }))
+      await waitFor(() => expect(window.location.pathname).toBe(DETALLE))
+      // Lo que hace AppFamilia al cambiar de ruta: el foco al h1 de «Cargando».
+      screen.getByRole('heading', { level: 1, name: 'Pedido 4790' }).focus()
+      await screen.findByRole('heading', { level: 2, name: 'Cómo va' })
+      const nota = await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.', fueraDeRegiones)
+      const caja = nota.closest('[id="nota-tus-pedidos"]') as HTMLElement
+      await waitFor(() => expect(caja).toHaveFocus())
+      await act(() => new Promise((ok) => window.setTimeout(ok, 900)))
+      expect(document.activeElement).toBe(caja)
     })
-    abrir('pagador', ARREPENTIRME, ELEGIDO_2)
-    await userEvent.click(await screen.findByRole('button', { name: 'Uno más: Suplemento vainilla x12' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Devolver estos productos' }))
-    await waitFor(() => expect(window.location.pathname).toBe(DETALLE))
-    // Lo que hace AppFamilia al cambiar de ruta: el foco al h1 de «Cargando».
+
+  it('P1-4: sin un retracto recién pedido, al terminar de cargar el foco va al h1 y no cae al body', async () => {
+    api({ ...rutasDelEntregado(), 'GET /seguimiento$': (() => new Promise<Respuesta>((ok) => window.setTimeout(() => ok({ status: 200, cuerpo: seguimientoEntregado() }), 80))) })
+    abrir('pagador', DETALLE, ELEGIDO_2)
     screen.getByRole('heading', { level: 1, name: 'Pedido 4790' }).focus()
     await screen.findByRole('heading', { level: 2, name: 'Cómo va' })
     const titulo = screen.getByRole('heading', { level: 1, name: 'Pedido 4790' })
     await waitFor(() => expect(titulo).toHaveFocus())
-    await act(() => new Promise((ok) => window.setTimeout(ok, 900)))
-    expect(document.activeElement).toBe(titulo)
   })
 
   it('P2-1: una línea que no se recibió (entregadas 0) no se muestra', async () => {
