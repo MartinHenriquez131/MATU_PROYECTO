@@ -41,6 +41,9 @@ const PANAL = {
 
 type Respuesta = { status: number; cuerpo?: unknown }
 
+/** El perfil que trae el GET; MATU-110 lo cambia de unidad. */
+let perfilGet: Record<string, unknown> = PANAL
+
 /** Responde según el método y la ruta, y guarda los cuerpos de lo que se envía. */
 function api(escritura: (metodo: string) => Respuesta) {
   const enviados: { metodo: string; cuerpo: unknown }[] = []
@@ -48,7 +51,7 @@ function api(escritura: (metodo: string) => Respuesta) {
     const metodo = (config.method ?? 'get').toUpperCase()
     let r: Respuesta
     if (metodo === 'GET' && /\/consumo\/por-acabarse$/.test(config.url ?? '')) r = { status: 200, cuerpo: { items: [] } }
-    else if (metodo === 'GET') r = { status: 200, cuerpo: { items: [PANAL], siguiente_cursor: null } }
+    else if (metodo === 'GET') r = { status: 200, cuerpo: { items: [perfilGet], siguiente_cursor: null } }
     else {
       enviados.push({ metodo, cuerpo: typeof config.data === 'string' ? JSON.parse(config.data) : config.data })
       r = escritura(metodo)
@@ -77,6 +80,7 @@ async function abrirCambiar(escritura: (metodo: string) => Respuesta) {
 }
 
 beforeEach(() => {
+  perfilGet = PANAL
   contexto = familiaFalsa({ persona: PERSONA, personaId: PERSONA.id, rol: 'cuidador' } as never)
   window.history.replaceState(null, '', '/insumos')
 })
@@ -155,6 +159,46 @@ describe('El campo del envase', () => {
 
     expect(await screen.findByText('Rodrigo cambió «Pañal adulto talla M» mientras lo cambiabas')).toBeVisible()
     expect(screen.getByText(texto, { exact: false }).closest('li')).toHaveTextContent(`${texto} (cambió)`)
+  })
+})
+
+// MATU-110 (especificación matu-110-envase-ml-g.md, 2 y 5): la etiqueta y el 412 sin envase hablan en
+// la unidad del insumo. Con los textos de antes, ml y g decían «unidades» y sobres decía
+// «Sin unidades por envase.»; estas pruebas fallan sin el cambio.
+describe('MATU-110: el envase en la unidad del insumo', () => {
+  it.each([
+    ['unidad', '¿Cuántas unidades trae cada envase?', 'unidades', 'Sin unidades por envase.', 'Cada envase trae 30 unidades.'],
+    ['sobre', '¿Cuántos sobres trae cada envase?', 'sobres', 'Sin sobres por envase.', 'Cada envase trae 30 sobres.'],
+    ['ml', '¿Cuántos ml trae cada envase?', 'ml', 'Sin ml por envase.', 'Cada envase trae 30 ml.'],
+    ['g', '¿Cuántos gramos trae cada envase?', 'g', 'Sin gramos por envase.', 'Cada envase trae 30 g.'],
+  ])('%s: la etiqueta, el sufijo y el 412 sin envase', async (unidad, etiqueta, sufijo, sinEnvase, conEnvase) => {
+    perfilGet = { ...PANAL, unidad }
+    const actual = { ...PANAL, unidad, unidades_por_envase: 30, actualizado_por: { id: 'u2', nombre: 'Rodrigo' }, etag: '"v2"' }
+    api(() => ({ status: 412, cuerpo: { type: '/errores/version-desactualizada', status: 412, actual } }))
+    render(
+      <>
+        <RegionesVivas />
+        <Insumos />
+      </>,
+    )
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cambiar Pañal adulto talla M' }))
+    await screen.findByRole('button', { name: 'Guardar' })
+    // En unidades y sobres, con envase guardado, abre en envases (MATU-84); en ml y g no existe (D2).
+    const sueltos = screen.queryByRole('button', { name: 'Contar sueltos' })
+    if (sueltos) await u.click(sueltos)
+    expect(screen.queryByRole('button', { name: 'Contar en envases' }) === null).toBe(unidad === 'ml' || unidad === 'g')
+
+    const campo = screen.getByRole('textbox', { name: etiqueta })
+    expect(campo.closest('div')!.parentElement).toHaveTextContent(`${etiqueta}`)
+    expect(campo.parentElement).toHaveTextContent(sufijo)
+    if (unidad === 'ml' || unidad === 'g') expect(campo.closest('div')!.parentElement).not.toHaveTextContent('unidades')
+
+    await u.clear(campo)
+    await u.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(await screen.findByText('Rodrigo cambió «Pañal adulto talla M» mientras lo cambiabas')).toBeVisible()
+    expect(screen.getByText(sinEnvase)).toBeVisible()
+    expect(screen.getByText(conEnvase, { exact: false }).closest('li')).toHaveTextContent(`${conEnvase} (cambió)`)
   })
 })
 

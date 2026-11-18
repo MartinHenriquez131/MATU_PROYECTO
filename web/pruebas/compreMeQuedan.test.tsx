@@ -3,10 +3,10 @@
 // Los cuerpos y el If-Match, sin interfaz optimista, cada error de la tabla de 5.4 y 5.5, el foco,
 // los roles y «Sin seguir» sin botones, «Ya lo resolví» con envases y con 0 (sin cuerpo), un solo
 // panel abierto a la vez y A5. Textos de la especificación, secciones 8 y 11, tal cual. Datos sintéticos.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { fechaCorta } from '../src/compartido/fechas'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
@@ -28,6 +28,27 @@ const sumar = (iso: string, n: number) => {
 }
 
 const BASE = `/v1/personas-cuidadas/${PERSONA.id}/consumo`
+
+// MATU-108 (H5 de Martín, 15-11): bajo carga, con todos los archivos en paralelo, este archivo fallaba a
+// veces. Dos causas: `findBy` y `waitFor` se rendían al segundo (el valor por omisión), y
+// `waitFor(() => getElementById(id)!)` no esperaba nada, porque el `!` no lanza y volvía al tiro con
+// null si la respuesta todavía no se pintaba. Aquí las esperas llegan a 5 s y cada prueba a 30 s.
+const ESPERA_MS = 5_000
+vi.setConfig({ testTimeout: 30_000 })
+const esperaAnterior = getConfig().asyncUtilTimeout
+beforeAll(() => configure({ asyncUtilTimeout: ESPERA_MS }))
+afterAll(() => {
+  configure({ asyncUtilTimeout: esperaAnterior })
+  vi.resetConfig()
+})
+
+/** Como un `findBy`, pero por id: espera a que el elemento exista y lo devuelve. */
+const porId = (id: string) =>
+  waitFor(() => {
+    const el = document.getElementById(id)
+    if (!el) throw new Error(`todavía no aparece #${id}`)
+    return el
+  })
 
 type Perfil = Record<string, unknown> & { id: string; etag: string; activo: boolean; dias_restantes: number }
 
@@ -117,7 +138,7 @@ async function abrir(escribir: (p: Pedida) => RespuestaFalsa | Promise<Respuesta
     </>,
   )
   const u = userEvent.setup()
-  await screen.findByRole('button', { name: 'Compré: Pañal adulto talla M' })
+  await screen.findByRole('button', { name: 'Compré: Pañal adulto talla M' }, { timeout: ESPERA_MS })
   return { pedidas, u }
 }
 
@@ -213,7 +234,7 @@ describe('«Compré»', () => {
     await u.keyboard('{Enter}')
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${CHAMPU.id}/reponer`, cuerpo: { cantidad: 3 }, ifMatch: '"v1"' })
-    const hecho = await waitFor(() => document.getElementById(`hecho-${CHAMPU.id}`)!)
+    const hecho = await porId(`hecho-${CHAMPU.id}`)
     expect(hecho).toHaveTextContent(`Compra anotada para «Champú en sobre»: 3 sobres. Ahora alcanza para 33 días, hasta el ${fechaCorta(fecha)}.`)
     await waitFor(() => expect(hecho).toHaveFocus())
   })
@@ -278,7 +299,7 @@ describe('«Me quedan»', () => {
 
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${TOALLITAS.id}/recontar`, cuerpo: { stock_unidades: 0 }, ifMatch: '"v1"' })
-    const hecho = await waitFor(() => document.getElementById(`hecho-${TOALLITAS.id}`)!)
+    const hecho = await porId(`hecho-${TOALLITAS.id}`)
     expect(hecho).toHaveTextContent('Anotamos que no queda «Toallitas húmedas». Cuando compres, anótalo con «Compré».')
     await waitFor(() => expect(hecho).toHaveFocus())
     expect(fila('Toallitas húmedas')).toHaveTextContent('Se acaba hoy')
@@ -290,7 +311,7 @@ describe('«Me quedan»', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
     await u.type(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' }), '1')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    const hecho = await waitFor(() => document.getElementById(`hecho-${CHAMPU.id}`)!)
+    const hecho = await porId(`hecho-${CHAMPU.id}`)
     expect(hecho).toHaveTextContent(`Anotamos lo que queda de «Champú en sobre»: 1 sobre. Alcanza para 1 día, hasta el ${fechaCorta(fecha)}.`)
   })
 
@@ -352,7 +373,7 @@ describe('Errores de «Compré» y «Me quedan»', () => {
     await u.click(screen.getByRole('button', { name: 'Compré: Pañal adulto talla M' }))
     await u.click(screen.getByRole('button', { name: 'Uno más: ¿Cuántos envases compraste?' }))
     await u.click(screen.getByRole('button', { name: 'Anotar la compra' }))
-    const falla = await waitFor(() => document.getElementById(`falla-compre-${PANAL.id}`)!)
+    const falla = await porId(`falla-compre-${PANAL.id}`)
     expect(falla).toHaveAttribute('role', 'alert')
     expect(falla).toHaveTextContent(texto)
     await waitFor(() => expect(falla).toHaveFocus())
@@ -392,7 +413,7 @@ describe('Errores de «Compré» y «Me quedan»', () => {
     })
     await u.click(screen.getByRole('button', { name: 'Compré: Pañal adulto talla M' }))
     await u.click(screen.getByRole('button', { name: 'Anotar la compra' }))
-    const falla = await waitFor(() => document.getElementById(`falla-compre-${PANAL.id}`)!)
+    const falla = await porId(`falla-compre-${PANAL.id}`)
     expect(falla).toHaveTextContent('Alguien de tu familia dejó de seguir «Pañal adulto talla M» mientras lo anotabas. No anotamos nada. Si quieres anotarlo, vuelve a marcar «Seguir».')
     await waitFor(() => expect(falla).toHaveFocus())
 
@@ -411,7 +432,7 @@ describe('Errores de «Compré» y «Me quedan»', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
     await u.type(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' }), '20')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    const falla = await waitFor(() => document.getElementById(`falla-quedan-${CHAMPU.id}`)!)
+    const falla = await porId(`falla-quedan-${CHAMPU.id}`)
     expect(falla).toHaveTextContent('Rodrigo cambió «Champú en sobre» mientras lo anotabas. Revisa cómo quedó y vuelve a intentarlo.')
     await waitFor(() => expect(falla).toHaveFocus())
     // No se suma ni se reemplaza nada: la fila sigue como estaba.
@@ -528,7 +549,7 @@ describe('«Ya lo resolví» en envases', () => {
     await u.click(within(panel).getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/resolver`, cuerpo: { envases: 2 }, ifMatch: '"v1"' })
-    const ok = await waitFor(() => document.getElementById('aviso-alertas')!)
+    const ok = await porId('aviso-alertas')
     expect(ok).toHaveTextContent('Anotamos tu compra de Pañal adulto talla M: 2 envases de 20 unidades. Ahora alcanza para 16 días.')
     expect(ok.textContent).toContain('2 envases de 20 unidades')
   })
@@ -546,7 +567,7 @@ describe('«Ya lo resolví» en envases', () => {
     await u.click(within(panel).getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/resolver`, cuerpo: undefined, ifMatch: '"v1"' })
-    expect(await waitFor(() => document.getElementById('aviso-alertas')!)).toHaveTextContent(
+    expect(await porId('aviso-alertas')).toHaveTextContent(
       'Listo. No te avisaremos de nuevo por Pañal adulto talla M hasta que cambie la fecha estimada.',
     )
   })
@@ -579,7 +600,7 @@ describe('«Ya lo resolví» en envases', () => {
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Toallitas húmedas' }))
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0].cuerpo).toEqual({ cantidad: 24 })
-    expect(await waitFor(() => document.getElementById('aviso-alertas')!)).toHaveTextContent('Anotamos tu compra de Toallitas húmedas: 24 unidades. Ahora alcanza para 10 días.')
+    expect(await porId('aviso-alertas')).toHaveTextContent('Anotamos tu compra de Toallitas húmedas: 24 unidades. Ahora alcanza para 10 días.')
   })
 
   it('sin envase y en blanco: va sin cuerpo', async () => {
@@ -657,7 +678,7 @@ describe('La confirmación en angosto', () => {
     await u.click(screen.getByRole('button', { name: 'Me quedan: Champú en sobre' }))
     await u.type(screen.getByRole('textbox', { name: '¿Cuántos quedan hoy, más o menos?' }), '1')
     await u.click(screen.getByRole('button', { name: 'Anotar lo que queda' }))
-    const hecho = await waitFor(() => document.getElementById(`hecho-${CHAMPU.id}`)!)
+    const hecho = await porId(`hecho-${CHAMPU.id}`)
 
     const icono = hecho.querySelector('svg')!
     expect(icono).toHaveAttribute('aria-hidden')
