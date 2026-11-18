@@ -1634,8 +1634,13 @@ function Formulario({
   const titulo = nuevo ? INSUMOS.anotar : nombreDe(perfil!)
 
   // En ancho, el título del formulario es un h2 que recibe el foco (2.2).
+  // MATU-118: el mismo resguardo que los paneles (PR #83). Si en esos 60 ms la persona ya tocó un campo
+  // del formulario, el foco se queda donde lo puso: quitárselo hacía perder lo que escribía.
   useEffect(() => {
-    if (ancho) enfocar(`${uid}-titulo`, 60)
+    if (!ancho) return
+    window.setTimeout(() => {
+      if (!document.getElementById(`${uid}-form`)?.contains(document.activeElement)) document.getElementById(`${uid}-titulo`)?.focus()
+    }, 60)
   }, [ancho, uid, modo, perfil?.id])
 
   const validar = (): Partial<Record<CampoForm, string>> => {
@@ -1907,6 +1912,7 @@ function Formulario({
     <>
       {encabezado}
       <form
+        id={`${uid}-form`}
         noValidate
         className="flex flex-col gap-6"
         onSubmit={(e) => {

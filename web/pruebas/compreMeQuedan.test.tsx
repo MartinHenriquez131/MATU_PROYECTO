@@ -723,3 +723,44 @@ describe('La confirmación en angosto', () => {
     expect(hecho).toHaveTextContent(/^Anotamos lo que queda de/)
   })
 })
+
+// ---------------------------------------------------------------- el formulario en ancho (MATU-118)
+
+// En ancho, el título del formulario toma el foco a los 60 ms (2.2). Si la persona ya empezó a escribir
+// en un campo, en un teléfono lento o una tableta, el foco no se le quita: antes se perdía lo escrito.
+describe('El formulario de un insumo en ancho', () => {
+  /** `useAncho` mide el contenedor; jsdom no tiene diseño, así que se simula (como en listaInsumos). */
+  const enAncho = () => vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+
+  it('si la persona ya escribe antes de los 60 ms, el foco se queda en el campo y no se pierde nada', async () => {
+    enAncho()
+    const { pedidas, u } = await abrir()
+    // Sin depender de la velocidad de la máquina: los temporizadores de 60 ms se retienen y corren
+    // entre el «Gu» y el «antes».
+    const original = window.setTimeout
+    const retenidos: (() => void)[] = []
+    const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
+      ms === 60 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    try {
+      await u.click(anotarInsumo())
+      await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
+      await u.click(screen.getByRole('textbox', { name: '¿Qué insumo es?' }))
+      await u.keyboard('Gu')
+      act(() => retenidos.splice(0).forEach((fn) => fn()))
+      await u.keyboard('antes')
+    } finally {
+      espia.mockRestore()
+    }
+    const campo = screen.getByRole('textbox', { name: '¿Qué insumo es?' })
+    expect(campo).toHaveValue('Guantes')
+    expect(campo).toHaveFocus()
+    expect(escritas(pedidas)).toEqual([])
+  })
+
+  it('sin tocar nada, el foco sigue llegando al título', async () => {
+    enAncho()
+    const { u } = await abrir()
+    await u.click(anotarInsumo())
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Anotar un insumo' })).toHaveFocus())
+  })
+})
