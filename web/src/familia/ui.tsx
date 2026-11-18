@@ -330,7 +330,7 @@ const TONO_ETIQUETA = { neutro: 'bg-tinta/7 text-tenue', ok: 'bg-ok-fondo text-o
 export function Etiqueta({ children, tono = 'neutro', className = '' }: { children: ReactNode; tono?: keyof typeof TONO_ETIQUETA; className?: string }) {
   const t = TONO_ETIQUETA[tono]
   // MATU-107 (6): en `angosto` la figura (svg hijo directo) se oculta y queda la palabra; la palabra nunca se corta.
-  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-base font-bold angosto:[&>svg]:hidden ${t} ${className}`}>{children}</span>
+  return <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-2xl px-2.5 py-0.5 text-base font-bold angosto:[&>svg]:hidden ${t} ${className}`}>{children}</span>
 }
 
 /** Avance de la ficha, por campos: tres tramos, siempre con el texto al lado. */
