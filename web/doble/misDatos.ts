@@ -252,6 +252,17 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         nota: 'El comercio avisó que no tenía las toallitas húmedas.',
         resolucion: 'Se devolvieron las toallitas a la misma tarjeta.',
       },
+      // MATU-115 (P3 de Martín): la clave de las notas se destruyó (decisión 471): sin nota ni resolución,
+      // y la pantalla dice «La nota ya no está disponible: se borró con los datos de la persona.».
+      {
+        tipo: 'otro',
+        estado: 'resuelta',
+        anotado_en: chile(hace(3 * DIA)),
+        resuelto_en: chile(hace(3 * DIA - 90)),
+        nota: null,
+        resolucion: null,
+        nota_disponible: false,
+      },
     ],
     // MATU-81 (H2 del analista): un retracto que no se aceptó, con su motivo (`motivo_rechazo`).
     retractos: [
