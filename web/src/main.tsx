@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { AppFamilia } from './familia/AppFamilia'
 import { AppComercio } from './comercio/AppComercio'
+import { AppOperacion } from './operacion/AppOperacion'
 import { PaginaRelevo } from './relevo/PaginaRelevo'
 import { PaginaPrivacidad } from './privacidad/PaginaPrivacidad'
 import { PaginaCondiciones } from './privacidad/PaginaCondiciones'
@@ -47,6 +48,15 @@ if (/^\/r\/?$/.test(ruta)) {
     <StrictMode>
       <RegionesVivas />
       <AppComercio />
+    </StrictMode>,
+  )
+} else if (/^\/operacion(\/|$)/.test(ruta)) {
+  // MATU-81 (2.1): la consola de operación, su propia rama, sin `ProveedorFamilia` ni `ProveedorComercio`.
+  // Lo elegido vive en memoria: ninguna ruta de /operacion lleva ids, referencias, órdenes de compra ni correos.
+  raiz.render(
+    <StrictMode>
+      <RegionesVivas />
+      <AppOperacion />
     </StrictMode>,
   )
 } else if (import.meta.env.DEV && import.meta.env.MODE !== 'api' && /^\/ejemplos\/?$/.test(ruta)) {

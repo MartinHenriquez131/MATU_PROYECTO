@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 
 import { catalogoDoble } from './catalogo'
 import { atenderConsumo, crearAlertas, listaCompleta, listaParaCompre, listaParaEnvases, listaParaLista, perfil, type ConsumoDoble } from './consumo'
-import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, DOMINIO_NO_PERMITIDO } from './cuentas'
+import { CONTRASENA_DE_EJEMPLO, CORREO_POLITICA_CAMBIO, CUENTAS_OPERACION, DOMINIO_NO_PERMITIDO } from './cuentas'
 import {
   atenderPedido,
   atenderRetorno,
@@ -26,6 +26,7 @@ import { atenderGrupo, atenderInvitacionPublica, invitacionPendiente, miembro, t
 import { alEntrar, alSalir, anotarCuenta, atenderDispositivos, dispositivoVivo, usoDe } from './dispositivos'
 import { atenderMisDatos } from './misDatos'
 import { atenderComercio, CUENTAS_COMERCIO, esCuentaDeComercio } from './comercio'
+import { crearConsola, crearMfa, type ModoOperacion, type RespuestaDoble } from './operacion'
 import { fijarSeguimiento } from './tusPedidos'
 
 type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
@@ -613,6 +614,24 @@ function sembrar() {
 sembrar()
 // MATU-63: las cuentas de comercio de doble/comercio.ts, sin grupos.
 for (const c of CUENTAS_COMERCIO) cuenta(c.email, 'Encargado', [], c.modo)
+// MATU-81: las cuentas de operación de doble/operacion.ts, sin grupos, con el segundo factor.
+for (const c of CUENTAS_OPERACION) cuenta(c.email, 'Equipo', [], c.modo)
+const esCuentaDeOperacion = (modo: string | undefined) => !!modo && modo.startsWith('operacion')
+const mfa = crearMfa()
+/** Una consola por cuenta, con su estado en memoria (se vuelve a cero al reiniciar `npm run dev`). */
+const consolas = new Map<string, ReturnType<typeof crearConsola>>()
+const consolaDe = (email: string, modo: string) => {
+  let c = consolas.get(email)
+  if (!c) consolas.set(email, (c = crearConsola({ modo: modo as ModoOperacion, trampas: true })))
+  return c
+}
+/** MATU-81: escribe una respuesta del doble de operación tal cual. */
+function enviarDoble(res: ServerResponse, r: RespuestaDoble) {
+  res.statusCode = r.status
+  res.setHeader('Content-Type', 'application/json')
+  for (const [k, v] of Object.entries(r.cabeceras ?? {})) res.setHeader(k, v)
+  res.end(r.cuerpo === undefined ? '' : JSON.stringify(r.cuerpo))
+}
 
 // ---------------------------------------------------------------- MATU-42: las cuentas del grupo
 
@@ -772,14 +791,24 @@ interface Refresh {
   did: string
 }
 const refrescos = new Map<string, Refresh>()
+/** MATU-81: el vencimiento de 12 horas de la entrada de operación, fijo desde el segundo factor. */
+const venceOperacion = new Map<string, string>()
 const tokens = new Map<string, { email: string; vence: number; did: string }>()
 
 function emitirToken(u: Usuario, did: string) {
   const t = randomUUID()
   usoDe(did)
   tokens.set(t, { email: u.email, vence: Date.now() + (u.modo === 'vence' ? 20_000 : 15 * 60_000), did })
-  // MATU-63 (decisión 408): la sesión dice si la cuenta es de un comercio.
-  return { access_token: t, token_type: 'bearer', expira_en: u.modo === 'vence' ? 20 : 900, tipo_cuenta: esCuentaDeComercio(u.modo) ? 'comercio' : 'familia' }
+  // MATU-63 (decisión 408): la sesión dice si la cuenta es de un comercio. MATU-81 (decisión 451): o de
+  // operación, con hasta cuándo vale la entrada (12 horas desde el segundo factor).
+  const operacion = esCuentaDeOperacion(u.modo)
+  return {
+    access_token: t,
+    token_type: 'bearer',
+    expira_en: u.modo === 'vence' ? 20 : 900,
+    tipo_cuenta: esCuentaDeComercio(u.modo) ? 'comercio' : operacion ? 'operacion' : 'familia',
+    sesion_vence_en: operacion ? (venceOperacion.get(u.email) ?? new Date(Date.now() + 12 * 3_600_000).toISOString()) : null,
+  }
 }
 function emitirRefresh(res: ServerResponse, u: Usuario, did: string, vence?: number) {
   const id = randomUUID()
@@ -900,8 +929,21 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (email === 'caido@example.com') return problema(res, 503, '/errores/servicio-no-disponible'), true
     const u = usuarios.get(email)
     if (!u || u.contrasena !== cuerpo?.contrasena) return problema(res, 401, '/errores/credenciales-invalidas'), true
+    // MATU-81 (decisión 450): con la contraseña de una cuenta de operación, el desafío y sin tokens.
+    if (esCuentaDeOperacion(u.modo)) return enviarDoble(res, mfa.desafiar(u.email)), true
     const did = alEntrar(u.email, String(req.headers['user-agent'] ?? ''), u.modo)
     emitirRefresh(res, u, did)
+    return json(res, 200, emitirToken(u, did)), true
+  }
+
+  // MATU-81 (decisión 450): el segundo paso, con el código fijo del doble.
+  if (metodo === 'POST' && ruta === '/v1/sesiones/mfa') {
+    const r = mfa.verificar(cuerpo)
+    if (!('email' in r)) return enviarDoble(res, r), true
+    const u = usuarios.get(r.email)!
+    venceOperacion.set(u.email, new Date(Date.now() + 12 * 3_600_000).toISOString())
+    const did = alEntrar(u.email, String(req.headers['user-agent'] ?? ''), u.modo)
+    emitirRefresh(res, u, did, Date.now() + 12 * 3_600_000)
     return json(res, 200, emitirToken(u, did)), true
   }
 
@@ -999,6 +1041,22 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
       })
       return true
     }
+  }
+
+  // MATU-81: la consola de operación (doble/operacion.ts). Sin la cuenta de operación, 404 (C30).
+  if (ruta.startsWith('/v1/operacion/')) {
+    const yo = usuarioDe(req)
+    if (!yo) return problema(res, 401, req.headers.authorization ? '/errores/token-invalido' : '/errores/no-autenticado'), true
+    if (!esCuentaDeOperacion(yo.modo)) return problema(res, 404, '/errores/no-encontrado'), true
+    const ifMatch = req.headers['if-match']
+    const r = consolaDe(yo.email, yo.modo!).atender({
+      metodo,
+      ruta,
+      query: new URLSearchParams((req.url ?? '').split('?')[1] ?? ''),
+      cuerpo,
+      ifMatch: typeof ifMatch === 'string' ? ifMatch : null,
+    })
+    return enviarDoble(res, r ?? { status: 404, cuerpo: { type: '/errores/no-encontrado', status: 404 } }), true
   }
 
   // MATU-63: la consola del comercio (doble/comercio.ts), sin grupo.

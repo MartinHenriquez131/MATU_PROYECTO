@@ -37,7 +37,20 @@ Genera o regenera el código de una parte `lista` (la ve operación en `GET /v1/
 sola vez** en la salida estándar, nunca en el log. Usa `SCHEDULER_DATABASE_URL` (`matu_scheduler`, con
 `app.rol = 'operacion'`), nunca la conexión de la API, y `CODIGO_RETIRO_SECRETO`. La base guarda solo la huella y la
 auditoría registra `codigo_retiro.generar` sin el código. Vale 90 minutos y sirve una vez. Sale con 2 si el id no es
-válido y con 1 si falta una variable o la parte no está lista.
+válido y con 1 si falta una variable o la parte no está lista. Desde MATU-81 la consola de operación genera el código
+(`POST /v1/operacion/partes/{parte_id}/codigo`) y este comando queda como respaldo (D-81-10).
+
+**El alta de una cuenta de operación (MATU-81, C28).** Interactiva, no es una tarea programada:
+
+```
+python -m app.tareas operacion-alta
+```
+
+Pide el correo de una cuenta que ya existe (creada en «Crear cuenta», que no sea de una familia ni de un comercio),
+muestra **una sola vez** la URI `otpauth://` para la app de códigos del teléfono y pide el primer código antes de
+guardar. Usa `SCHEDULER_DATABASE_URL`, `PEPPER_EMAIL` y la KEK (`CUSTODIA_KEK=entorno_sintetico` y `KEK_ENTORNO`, las
+mismas de la API). El correo, el secreto y la URI nunca van al log. Si se pierde el teléfono, se repite el alta: cambia
+el secreto y cierra las sesiones abiertas de la cuenta.
 | `todas_diarias` | `borrados` y después `quiebres`, en ese orden | a mano | — |
 
 Los horarios viven en `HORARIOS` de `app/tareas.py`, y `tests/test_tareas.py` verifica cada día de un año que

@@ -305,6 +305,35 @@ describe('El detalle (4)', () => {
     expect(document.body).not.toHaveTextContent(/rechaz/i)
   })
 
+  it('MATU-81 (C24): la devolución no aceptada dice por qué, sin culpar a la familia; sin motivo, no inventa uno', async () => {
+    api(
+      rutasDelEntregado({
+        'GET /retractos$': {
+          status: 200,
+          cuerpo: retractos({
+            retractos: [
+              retracto({ id: 'r1', estado: 'rechazado', resuelto_en: '2026-11-08T15:00:00Z', motivo_rechazo: 'sello_abierto' }),
+              retracto({ id: 'r2', estado: 'rechazado', resuelto_en: '2026-11-09T15:00:00Z', motivo_rechazo: 'producto_no_recibido' }),
+              retracto({ id: 'r3', estado: 'rechazado', resuelto_en: '2026-11-10T15:00:00Z', motivo_rechazo: null }),
+            ],
+          }),
+        },
+      }),
+    )
+    abrir('admin', DETALLE, ELEGIDO_2)
+    const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
+    const [sello, noRecibido, sinMotivo] = s.getAllByRole('listitem').filter((li) => li.parentElement?.parentElement?.tagName === 'SECTION')
+    expect(within(sello).getByText('El producto volvió con el sello abierto.')).toBeVisible()
+    expect(within(noRecibido).getByText('No recibimos el producto de vuelta.')).toBeVisible()
+    expect(sinMotivo).toHaveTextContent('No se aceptó la devolución')
+    expect(sinMotivo).not.toHaveTextContent(/sello abierto|No recibimos/)
+    // El motivo va antes de «Si tienes dudas…».
+    const motivo = within(sello).getByText('El producto volvió con el sello abierto.')
+    expect(motivo.compareDocumentPosition(within(sello).getByRole('link', { name: 'cuidaconmatu@gmail.com' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Ni la palabra del contrato ni el texto de operación («El sello del producto se abrió.»).
+    expect(document.body).not.toHaveTextContent(/rechaz|sello_abierto|producto_no_recibido|se abrió/i)
+  })
+
   it('D-63-5 y C15: nunca aparece un código, aunque llegue por un defecto del contrato', async () => {
     const conCodigo = { ...seguimientoEntregado(), codigo_retiro: '482173', partes: seguimientoEntregado().partes.map((p) => ({ ...p, codigo: '482173', referencia: 'PARTE-REF-9' })) }
     api(rutasDelEntregado({ 'GET /seguimiento$': { status: 200, cuerpo: conCodigo } }, { tuyo: false }))

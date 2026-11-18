@@ -7,7 +7,7 @@ import { fechaYHoraDeChile } from '../compartido/fechas'
 import { ConTelefonos } from '../compartido/ui/ConTelefonos'
 import { AVISO_CUIDADOR, CAMPOS } from './datos'
 import { AUTORIZACION, FICHA } from './textos'
-import { navegar, type Ruta, type RutaComercio } from './ruteo'
+import { navegar, type Ruta, type RutaComercio, type RutaOperacion } from './ruteo'
 import type { CampoApi } from '../compartido/api/familia'
 import { AVISO_REMEDIOS, TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 export { Nota } from '../compartido/ui/Nota'
@@ -174,7 +174,10 @@ export function GrupoOpciones<T extends string>({
   claseGrupo?: string
   /** MATU-63 (6.4): mientras se guarda lo elegido, `aria-busy` en el grupo. */
   ocupado?: boolean
-  /** MATU-63 (6.4): el `id` del `fieldset`, para llevar el foco a su primera opción. */
+  /**
+   * MATU-63 (6.4): el `id` del `fieldset`, para llevar el foco a su primera opción. MATU-81 (8.4 y 9.3,
+   * revisión visual): también en la forma `lista`, que no lo ponía y dejaba el foco en `body`.
+   */
   id?: string
   /**
    * MATU-63 (revisión visual, P2-6 y P3-12): en `chips`, la leyenda flota dentro de la tarjeta (no
@@ -218,6 +221,7 @@ export function GrupoOpciones<T extends string>({
   const describeLista = [describe ?? '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined
   return (
     <fieldset
+      id={idGrupo}
       className={`flex flex-col gap-2 ${columnas ? '' : 'max-w-xl'}`}
       aria-labelledby={nombradoPor ? `${id}-l ${nombradoPor}` : undefined}
       aria-describedby={describeLista}
@@ -550,7 +554,7 @@ export function Listo({ listo }: { listo: boolean }) {
  * Las vistas de una sección (de `Pestanas` de Demo/src/familia/Shell.tsx), como enlaces. La activa
  * lleva borde inferior de 3 px y negrita, no solo color, y `aria-current`.
  */
-export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta | RutaComercio; activa: boolean }[] }) {
+export function Pestanas({ etiqueta, items }: { etiqueta: string; items: { texto: string; ruta: Ruta | RutaComercio | RutaOperacion; activa: boolean }[] }) {
   return (
     <nav aria-label={etiqueta} className="border-b border-linea">
       <ul className="-mb-px flex flex-wrap gap-x-1">

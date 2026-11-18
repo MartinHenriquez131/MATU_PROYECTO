@@ -84,6 +84,8 @@ export interface RetractoDoble {
   incluye_envio: boolean
   lineas: { producto_id: string; cantidad: number }[]
   clave: string | null
+  /** MATU-81 (decisión 468): solo en un rechazado. */
+  motivo_rechazo?: 'sello_abierto' | 'producto_no_recibido' | null
 }
 type EstadoDespacho = 'no' | 'vigente' | 'vencida' | 'retirada'
 interface Despacho {

@@ -122,6 +122,7 @@ function vistaRetracto(p: Pedido, r: RetractoDoble, u: UsuarioPedido) {
     lineas,
     resuelto_en: r.resuelto_en,
     es_tuyo: r.de === u.id,
+    motivo_rechazo: r.estado === 'rechazado' ? (r.motivo_rechazo ?? null) : null,
   }
 }
 

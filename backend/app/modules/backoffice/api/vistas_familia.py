@@ -20,7 +20,6 @@ from app.modules.backoffice.api.esquemas import (
     PedidoPagadoFilaObservador,
     ProductoDeLaFila,
     ResumenProductos,
-    RetractoVista,
     RetractoVistaFamilia,
     SeguimientoPedido,
 )
@@ -152,15 +151,12 @@ def _datos_retracto(unidad: Unidad, retractos: RepositorioRetractos, r: Retracto
     }
 
 
-def retracto_vista(unidad: Unidad, retractos: RepositorioRetractos, r: Retracto) -> RetractoVista:
-    return RetractoVista.model_validate(_datos_retracto(unidad, retractos, r))
-
-
 def retracto_familia(
     unidad: Unidad, retractos: RepositorioRetractos, r: Retracto, usuario_id: uuid.UUID
 ) -> RetractoVistaFamilia:
     return RetractoVistaFamilia.model_validate(
-        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id}
+        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id,
+         "motivo_rechazo": r.motivo_rechazo}
     )
 
 
