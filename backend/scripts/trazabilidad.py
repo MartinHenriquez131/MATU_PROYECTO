@@ -3,13 +3,18 @@
 Lista los requisitos comprometidos como *Debe* que no tienen ninguna prueba marcada con @pytest.mark.rf("RF-NN"), y
 sale con 1 si hay alguno: «un requisito comprometido sin prueba no está terminado».
 
-    python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md
+    python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md --pendientes RF-32,RF-40
+
+--pendientes es la lista explícita de los Debe que todavía no tienen prueba y se aceptan por ahora (la fija el workflow,
+con el motivo). La puerta falla también si un pendiente ya tiene prueba, para que nadie se olvide de sacarlo de la
+lista, y si un pendiente no es un requisito Debe, para que un error de tipeo no tape nada.
 
 De dónde salen los requisitos: las tablas de la sección 3 de docs/arquitectura.md del repositorio de documentos (MATU),
-una fila por requisito con la forma «| RF-NN | texto | `módulo` | Debe |». La arquitectura dice que son los 26
-comprometidos; el script lo verifica y falla si encuentra otra cantidad sin --esperados, para que una tabla mal leída no
-pase en silencio. La ruta se da con --arquitectura o con la variable MATU_ARQUITECTURA. En el CI el repositorio de
-documentos se descarga junto al de código (.github/workflows/ci.yml, paso «Documentos de MATU»).
+una fila por requisito con la forma «| RF-NN | texto | `módulo` | Debe |». La arquitectura dice que son 26
+comprometidos: el script exige al menos --minimo (26 por omisión) y dice cuántos encontró. Si la arquitectura agrega
+requisitos, la puerta los revisa sin cambiar nada; si una tabla se lee mal y salen menos, sale con 2 y no pasa.
+La ruta se da con --arquitectura o con la variable MATU_ARQUITECTURA. En el CI el repositorio de documentos se descarga
+junto al de código (.github/workflows/ci.yml, paso «Documentos de MATU»).
 
 De dónde salen las pruebas: pytest recoge la carpeta tests/ sin correr nada (--collect-only) y se leen las marcas rf de
 cada prueba, también las de pytestmark del módulo o de la clase. Se corre desde backend/.
@@ -29,7 +34,7 @@ import pytest
 
 RAIZ_BACKEND = Path(__file__).resolve().parents[1]
 FILA_RF = re.compile(r"^\|\s*(RF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\s*\|\s*$")
-ESPERADOS = 26
+MINIMO = 26
 
 
 def requisitos_debe(arquitectura: Path) -> list[str]:
@@ -76,10 +81,15 @@ def main(argv: list[str] | None = None) -> int:
         help="docs/arquitectura.md del repositorio de documentos (o MATU_ARQUITECTURA)",
     )
     parser.add_argument(
-        "--esperados",
+        "--minimo",
         type=int,
-        default=ESPERADOS,
-        help=f"cuántos requisitos Debe se esperan (por omisión {ESPERADOS}, arquitectura 3.5)",
+        default=MINIMO,
+        help=f"cuántos requisitos Debe se esperan como mínimo (por omisión {MINIMO}, arquitectura 3.5)",
+    )
+    parser.add_argument(
+        "--pendientes",
+        default="",
+        help="RF Debe sin prueba que se aceptan por ahora, separados por coma (por ejemplo RF-32,RF-40)",
     )
     parser.add_argument("--pruebas", type=Path, default=RAIZ_BACKEND / "tests")
     args = parser.parse_args(argv)
@@ -88,23 +98,42 @@ def main(argv: list[str] | None = None) -> int:
         print("Falta docs/arquitectura.md: usa --arquitectura <ruta> o MATU_ARQUITECTURA", file=sys.stderr)
         return 2
     debe = requisitos_debe(Path(args.arquitectura))
-    if len(debe) != args.esperados:
+    if args.minimo < 1:
+        print("--minimo debe ser al menos 1: con 0 la puerta pasaría sin revisar nada", file=sys.stderr)
+        return 2
+    print(f"Se leyeron {len(debe)} requisitos Debe de {Path(args.arquitectura).name} (mínimo {args.minimo})")
+    if len(debe) < args.minimo:
         print(
-            f"Se leyeron {len(debe)} requisitos Debe y se esperaban {args.esperados}: {', '.join(debe)}",
+            f"Se leyeron {len(debe)} requisitos Debe y se esperaban al menos {args.minimo}: {', '.join(debe)}",
             file=sys.stderr,
         )
+        return 2
+    pendientes = sorted({rf.strip() for rf in args.pendientes.split(",") if rf.strip()})
+    desconocidos = [rf for rf in pendientes if rf not in debe]
+    if desconocidos:
+        print(f"Pendientes que no son requisitos Debe: {', '.join(desconocidos)}", file=sys.stderr)
         return 2
 
     por_rf = pruebas_por_requisito(args.pruebas)
     sin_prueba = [rf for rf in debe if not por_rf.get(rf)]
+    sin_prueba_no_aceptados = [rf for rf in sin_prueba if rf not in pendientes]
+    pendientes_con_prueba = [rf for rf in pendientes if por_rf.get(rf)]
 
     print(f"\nTrazabilidad: {len(debe)} requisitos Debe, {len(debe) - len(sin_prueba)} con al menos una prueba")
     for rf in debe:
-        print(f"  {rf}: {len(por_rf.get(rf, []))} pruebas")
-    if sin_prueba:
-        print(f"Requisitos Debe sin ninguna prueba marcada: {', '.join(sin_prueba)}", file=sys.stderr)
-        return 1
-    return 0
+        marca = " (pendiente)" if rf in pendientes else ""
+        print(f"  {rf}: {len(por_rf.get(rf, []))} pruebas{marca}")
+    codigo = 0
+    if sin_prueba_no_aceptados:
+        print(f"Requisitos Debe sin ninguna prueba marcada: {', '.join(sin_prueba_no_aceptados)}", file=sys.stderr)
+        codigo = 1
+    if pendientes_con_prueba:
+        print(
+            f"Ya tienen prueba y siguen en --pendientes: {', '.join(pendientes_con_prueba)}. Sácalos de la lista",
+            file=sys.stderr,
+        )
+        codigo = 1
+    return codigo
 
 
 if __name__ == "__main__":

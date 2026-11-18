@@ -58,11 +58,19 @@ def test_un_requisito_con_dos_prioridades_detiene_la_puerta(tmp_path: Path) -> N
         trazabilidad.requisitos_debe(archivo)
 
 
-def test_otra_cantidad_de_requisitos_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_menos_requisitos_que_el_minimo_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     archivo = tmp_path / "arquitectura.md"
     archivo.write_text(TABLA, encoding="utf-8")
     assert trazabilidad.main(["--arquitectura", str(archivo)]) == 2
-    assert "Se leyeron 2 requisitos Debe y se esperaban 26" in capsys.readouterr().err
+    salida = capsys.readouterr()
+    assert "Se leyeron 2 requisitos Debe de arquitectura.md (mínimo 26)" in salida.out
+    assert "Se leyeron 2 requisitos Debe y se esperaban al menos 26" in salida.err
+
+
+def test_un_minimo_de_cero_no_se_acepta(tmp_path: Path) -> None:
+    archivo = tmp_path / "arquitectura.md"
+    archivo.write_text("sin tablas\n", encoding="utf-8")
+    assert trazabilidad.main(["--arquitectura", str(archivo), "--minimo", "0"]) == 2
 
 
 def test_sin_arquitectura_la_puerta_no_pasa(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -70,19 +78,43 @@ def test_sin_arquitectura_la_puerta_no_pasa(monkeypatch: pytest.MonkeyPatch, tmp
     assert trazabilidad.main(["--arquitectura", str(tmp_path / "no-existe.md")]) == 2
 
 
-def test_un_requisito_sin_prueba_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def _correr(tmp_path: Path, nombre: str, marcas: list[str], *extra: str) -> int:
+    """La puerta sobre la TABLA, con una carpeta de pruebas sintética que marca los RF dados (uno por prueba)."""
     archivo = tmp_path / "arquitectura.md"
     archivo.write_text(TABLA, encoding="utf-8")
     pruebas = tmp_path / "pruebas"
     pruebas.mkdir()
-    (pruebas / "test_sintetico.py").write_text(
-        'import pytest\n\n\n@pytest.mark.rf("RF-01")\ndef test_uno() -> None:\n    pass\n', encoding="utf-8"
-    )
-    codigo = trazabilidad.main(["--arquitectura", str(archivo), "--esperados", "2", "--pruebas", str(pruebas)])
+    cuerpo = "import pytest\n"
+    for i, rf in enumerate(marcas):
+        cuerpo += f'\n\n@pytest.mark.rf("{rf}")\ndef test_{i}() -> None:\n    pass\n'
+    # Un nombre de módulo distinto en cada prueba: pytest.main corre varias veces en el mismo proceso
+    (pruebas / f"test_{nombre}.py").write_text(cuerpo, encoding="utf-8")
+    args = ["--arquitectura", str(archivo), "--minimo", "2", "--pruebas", str(pruebas), *extra]
+    resultado: int = trazabilidad.main(args)
+    return resultado
+
+
+def test_un_requisito_sin_prueba_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _correr(tmp_path, "sin_prueba", ["RF-01"]) == 1
     salida = capsys.readouterr()
-    assert codigo == 1
     assert "RF-01: 1 pruebas" in salida.out
     assert "sin ninguna prueba marcada: RF-02" in salida.err
+
+
+def test_un_pendiente_sin_prueba_se_acepta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _correr(tmp_path, "pendiente", ["RF-01"], "--pendientes", "RF-02") == 0
+    assert "RF-02: 0 pruebas (pendiente)" in capsys.readouterr().out
+
+
+def test_un_pendiente_que_ya_tiene_prueba_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _correr(tmp_path, "pendiente_con_prueba", ["RF-01", "RF-02"], "--pendientes", "RF-02") == 1
+    assert "Ya tienen prueba y siguen en --pendientes: RF-02" in capsys.readouterr().err
+
+
+def test_un_pendiente_que_no_es_debe_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # RF-16 es Debería en la TABLA y RF-99 no existe
+    assert _correr(tmp_path, "pendiente_desconocido", ["RF-01", "RF-02"], "--pendientes", "RF-16,RF-99") == 2
+    assert "Pendientes que no son requisitos Debe: RF-16, RF-99" in capsys.readouterr().err
 
 
 def test_contratos_iguales_no_tienen_diferencias() -> None:
