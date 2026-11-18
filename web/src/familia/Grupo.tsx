@@ -618,7 +618,7 @@ function DialogoRetirar({
         ref.current.showModal()
         confirmar.current?.focus()
       }}
-      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       <div className="flex flex-col gap-4">
         <h2 ref={titulo} id={`${uid}-t`} tabIndex={-1} className="text-xl font-bold break-words outline-none">
@@ -830,7 +830,7 @@ function DialogoBorrar({
         ref.current.showModal()
         confirmar.current?.focus()
       }}
-      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl bg-hoja text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       {/* 3.1: el cuerpo se desplaza y el pie queda fijo. El `flex` va en este envoltorio y no en el
           `<dialog>`: en el diálogo pisaría el `display: none` de cerrado. En modo angosto el pie deja

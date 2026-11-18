@@ -4,6 +4,7 @@
 import type { Calidad, CampoApi } from '../compartido/api/familia'
 import { TITULO_SECCION, type SeccionApi } from '../compartido/secciones'
 import type { Ruta } from './ruteo'
+import { MAS } from './textos'
 
 export const MAX_CARACTERES = 500
 export const AVISO_CONTADOR = 450
@@ -52,8 +53,11 @@ export interface Seccion {
   pregunta: string
   /** El texto entre «», sin «Por ejemplo: ». Nunca se muestra al relevo (D5). */
   ejemplo: string
-  /** Lleva la ayuda de alergias (Comer y beber, Sus remedios). */
-  alergias: boolean
+  /**
+   * MATU-95: la ayuda cotidiana de lo que no puede comer, tomar o recibir, distinta en cada sección
+   * (lenguaje 14.2). `null` en las demás. Solo en el editor; nunca se muestra al relevo (D5).
+   */
+  alergias: string | null
 }
 
 /** Lenguaje 14.1, en el orden fijo de ADR-028. Rutas: especificación 2. */
@@ -64,7 +68,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.quien_es,
     pregunta: '¿Qué le gustaría que supiera de esta persona alguien que recién la conoce?',
     ejemplo: 'Le dicen Tito. Fue profesor de música en Talca. Su nieta Sofía le visita los domingos y tiene un gato, el Pelusa.',
-    alergias: false,
+    alergias: null,
   },
   {
     api: 'preferencias',
@@ -72,7 +76,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.preferencias,
     pregunta: '¿Qué le alegra, le entretiene o le calma?',
     ejemplo: 'Le gustan los boleros y conversar de fútbol. Ve las noticias a las 9 de la noche.',
-    alergias: false,
+    alergias: null,
   },
   {
     api: 'alimentacion',
@@ -80,7 +84,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.alimentacion,
     pregunta: '¿Qué le gusta comer y cómo se le sirve?',
     ejemplo: 'Toma té con poca azúcar. Prefiere la comida picada en trozos chicos y el pan blando.',
-    alergias: true,
+    alergias: MAS.alergias.alimentacion,
   },
   {
     api: 'movilidad',
@@ -88,7 +92,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.movilidad,
     pregunta: '¿Cómo se le ayuda a moverse, levantarse y descansar?',
     ejemplo: 'Camina con bastón dentro de la casa. Para levantarse, ofrécele el brazo derecho. Duerme siesta después de almuerzo.',
-    alergias: false,
+    alergias: null,
   },
   {
     api: 'comunicacion',
@@ -96,7 +100,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.comunicacion,
     pregunta: '¿Qué ayuda a que se entiendan?',
     ejemplo: 'Usa audífono en el oído izquierdo. Háblale de frente y despacio. Si algo le molesta, se toca la frente.',
-    alergias: false,
+    alergias: null,
   },
   {
     api: 'remedios',
@@ -104,7 +108,7 @@ export const SECCIONES: readonly Seccion[] = [
     titulo: TITULO_SECCION.remedios,
     pregunta: '¿Qué remedios toma y a qué hora, tal como se los da la familia?',
     ejemplo: '8:00 con el desayuno: 1 pastilla blanca de la caja azul. 20:00: 1 pastilla de la caja verde.',
-    alergias: true,
+    alergias: MAS.alergias.remedios,
   },
 ]
 

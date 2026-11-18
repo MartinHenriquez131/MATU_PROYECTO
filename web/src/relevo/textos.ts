@@ -80,8 +80,12 @@ export const FICHA = {
   columna: 'Sobre esta ficha', // [lenguaje 7.4] aria-label
 }
 
-/** Orden fijo de los campos en la hoja (lenguaje 5). */
-export const ORDEN_CAMPOS: CampoFicha[] = ['rutina', 'manejo_situaciones', 'red_apoyo']
+/**
+ * Orden fijo de los campos en la hoja. MATU-95 (especificación 2 y 4): «A quién llamar» va primero,
+ * justo después del nombre, para que en un apuro se vea sin bajar. Lenguaje 5 solo enumera los
+ * campos y no fija el orden de la hoja.
+ */
+export const ORDEN_CAMPOS: CampoFicha[] = ['red_apoyo', 'rutina', 'manejo_situaciones']
 
 /**
  * D2 · Lo que acompaña a cada campo en la hoja del relevo. Decisión de Martín del 28/10: pregunta
