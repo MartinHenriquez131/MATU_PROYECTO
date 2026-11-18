@@ -8,7 +8,7 @@ import { Check, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { esperaDe, leerFallo } from '../compartido/api/cliente'
 import { crearCuenta, crearGrupo, nombrePilaDe, registrarPersona, type Calidad, type SolicitudPersona } from '../compartido/api/familia'
 import { leerPolitica } from '../compartido/api/politica'
-import { entrar, esVencida, fijarGrupo } from '../compartido/api/sesion'
+import { entrar, esCuentaDeOperacion, esVencida, fijarGrupo } from '../compartido/api/sesion'
 import { irA } from '../compartido/irA'
 import { POLITICA } from '../compartido/textosPolitica'
 import { Boton } from '../compartido/ui/Boton'
@@ -397,6 +397,11 @@ export function Entrar() {
       fijar({ correo: '', destino: null, avisoEntrar: null })
       navegar(destino ?? '/', { reemplazar: true })
     } catch (x) {
+      // MATU-81: una cuenta de operación va a su entrada, sin el desafío; ahí vuelve a escribir la contraseña.
+      if (esCuentaDeOperacion(x)) {
+        setClave('')
+        return irA('/operacion/entrar')
+      }
       const f = leerFallo(x)
       const espera = esperaDe(f)
       if (f.status === 401) setFalla({ tipo: 'credenciales' })

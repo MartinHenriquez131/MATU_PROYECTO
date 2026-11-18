@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from tests.modules.ordering.conftest import MONTOS_PARA_EL_OBSERVADOR
+
 pytestmark = pytest.mark.rf("RF-21")
 
 DOCS = Path(__file__).resolve().parents[4] / "docs" / "api"
@@ -29,7 +31,10 @@ RUTAS = (
     "/v1/pedidos/{pedido_id}/cancelar",
     "/v1/condiciones-pedido",
 )
-VISTAS = ("PedidoVista", "PedidoVistaObservador", "LineaPedido", "EntregaVista", "ComercioVista", "DireccionVista")
+VISTAS = (
+    "PedidoVista", "PedidoVistaObservador", "LineaPedido", "LineaPedidoObservador", "CambioDeLineaObservador",
+    "EntregaVista", "ComercioVista", "DireccionVista",
+)
 NUNCA = {"grupo_id", "creado_por", "nombre_pila", "lat", "lng", "referencia_comercio", "destinatario_nombre_pila"}
 
 
@@ -85,3 +90,44 @@ def test_la_linea_trae_su_oferta_y_los_post_no_declaran_412(esquema: dict[str, A
         "/v1/pedidos/{pedido_id}/cancelar",
     ):
         assert "412" not in esquema["paths"][ruta]["post"]["responses"], ruta
+
+
+# --- MATU-113 (decisión 472): el observador no ve montos ---------------------------------------------------------
+
+CAMPOS_OBSERVADOR = {
+    "id", "persona_cuidada_id", "estado", "precios_de_ejemplo", "lineas", "salieron", "total_confirmado_en",
+    "vence_en", "pagado_en", "ventana_entrega", "creado_en", "actualizado_en",
+}
+CAMPOS_LINEA_OBSERVADOR = {"id", "producto", "cantidad", "comercio", "regla_faltante", "cambio"}
+
+
+def _propiedades(esquema: dict[str, Any], nombre: str, vistos: set[str] | None = None) -> set[str]:
+    """Las propiedades del componente y de todos los que referencia, a cualquier profundidad."""
+    vistos = set() if vistos is None else vistos
+    if nombre in vistos:
+        return set()
+    vistos.add(nombre)
+    componente = esquema["components"]["schemas"][nombre]
+    propias = set(componente.get("properties", {}))
+    for referido in {p.split('"')[0] for p in json.dumps(componente).split("#/components/schemas/")[1:]}:
+        propias |= _propiedades(esquema, referido, vistos)
+    return propias
+
+
+@pytest.mark.rf("RF-25")
+def test_matu113_la_vista_del_observador_tiene_sus_claves_exactas_y_ningun_monto(esquema: dict[str, Any]) -> None:
+    componentes = esquema["components"]["schemas"]
+    vista = componentes["PedidoVistaObservador"]
+    assert set(vista["properties"]) == CAMPOS_OBSERVADOR
+    assert vista["additionalProperties"] is False
+    assert vista["properties"]["lineas"]["items"]["$ref"].endswith("/LineaPedidoObservador")
+    linea = componentes["LineaPedidoObservador"]
+    assert set(linea["properties"]) == CAMPOS_LINEA_OBSERVADOR and linea["additionalProperties"] is False
+    # Jorge, 17-11: sin «Derecho a retracto», no puede arrepentirse de una compra que no hizo
+    assert "retracto_pierde_al_abrir" not in linea["properties"]
+    assert set(componentes["CambioDeLineaObservador"]["properties"]) == {"comercio_antes"}
+    profundas = _propiedades(esquema, "PedidoVistaObservador")
+    assert not profundas & MONTOS_PARA_EL_OBSERVADOR, profundas & MONTOS_PARA_EL_OBSERVADOR
+    # La vista completa sigue con sus montos
+    assert {"subtotal_productos", "costo_envio", "total"} <= set(componentes["PedidoVista"]["properties"])
+    assert {"precio_unitario", "subtotal"} <= set(componentes["LineaPedido"]["properties"])

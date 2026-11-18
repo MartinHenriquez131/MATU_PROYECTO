@@ -170,8 +170,33 @@ class PedidoVista(BaseModel):
     actualizado_en: datetime
 
 
+class CambioDeLineaObservador(BaseModel):
+    """MATU-113 (decisión 472): el cambio de la línea sin el precio de antes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    comercio_antes: ComercioVista = Field(description="El comercio del carrito; el producto pasó a otro")
+
+
+class LineaPedidoObservador(BaseModel):
+    """MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,
+    devolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con
+    claves borradas."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
+    producto: ProductoPedido
+    cantidad: Cantidad
+    comercio: ComercioVista
+    regla_faltante: Regla
+    cambio: CambioDeLineaObservador | None = Field(description="null si el producto sigue en el mismo comercio")
+
+
 class PedidoVistaObservador(BaseModel):
-    """Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag."""
+    """Lo que ve el observador (C3; MATU-113, decisión 472): los productos, cuántos, de qué comercio y el estado
+    completo del pedido. Sin montos en ningún estado (ni precios, ni subtotales, ni envío, ni total, ni devolución),
+    sin entrega, sin resumen y sin etag."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -179,14 +204,11 @@ class PedidoVistaObservador(BaseModel):
     persona_cuidada_id: uuid.UUID
     estado: Estado
     precios_de_ejemplo: bool
-    lineas: list[LineaPedido]
+    lineas: list[LineaPedidoObservador] = Field(max_length=LINEAS_MAXIMAS)
     salieron: list[LineaSalida]
-    comercios: list[ParteComercio]
-    subtotal_productos: int = Field(ge=0)
-    costo_envio: int = Field(ge=0)
-    total: int | None
     total_confirmado_en: datetime | None
     vence_en: datetime | None
+    pagado_en: datetime | None = Field(description="Cuándo se pagó, para «Pagado el {fecha}». Sin el monto")
     ventana_entrega: str
     creado_en: datetime
     actualizado_en: datetime

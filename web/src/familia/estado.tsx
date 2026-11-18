@@ -245,6 +245,8 @@ export function ProveedorFamilia({ children }: { children: ReactNode }) {
       if (!ok) return setS((x) => ({ ...x, fase: 'fuera' }))
       // MATU-63 (O1): la entrada es de una cuenta de comercio: su consola, sin pedir los grupos.
       if (tipoDeCuenta() === 'comercio') return irA('/comercio', { reemplazar: true })
+      // MATU-81: la entrada es de una cuenta de operación: su consola, sin pedir los grupos.
+      if (tipoDeCuenta() === 'operacion') return irA('/operacion', { reemplazar: true })
       await alEntrar()
     } catch {
       setS((x) => ({ ...x, fase: 'error' }))

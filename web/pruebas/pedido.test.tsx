@@ -27,6 +27,7 @@ import {
   problema,
   TOALLITAS,
   type Respuesta,
+  vistaObservador,
   conRegionesGlobales as conRegiones,
 } from './pedidoFalso'
 
@@ -486,7 +487,7 @@ describe('Vacío, errores y roles (7.2, 7.10 y 11)', () => {
   })
 
   it('el observador no ve la entrega', async () => {
-    apiPedido({})
+    apiPedido({}, { pedido: vistaObservador(borrador()) })
     abrir('observador')
     await cargado()
     expect(screen.queryByRole('region', { name: 'Entrega' })).toBeNull()

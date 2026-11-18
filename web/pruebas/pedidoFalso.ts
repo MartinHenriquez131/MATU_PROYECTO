@@ -7,7 +7,7 @@ import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 
 import { createElement, Fragment } from 'react'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { apiFamilia } from '../src/compartido/api/sesion'
-import type { PedidoVista } from '../src/compartido/api/pedido'
+import type { Pedido, PedidoObservador, PedidoVista } from '../src/compartido/api/pedido'
 
 export const PERSONA_ID = '3c9d4e20-0000-4000-8000-0000000000aa'
 export const PEDIDO_ID = '3c9d4e20-0000-4000-8000-0000000000p1'
@@ -126,6 +126,27 @@ export function confirmado(cambios: Partial<PedidoVista> = {}): PedidoVista {
   }
 }
 
+/**
+ * MATU-113 (decisión 472): la vista de quien «Se informa» del mismo pedido, como la arma el backend:
+ * sin etag, entrega, resumen ni ningún monto.
+ */
+export function vistaObservador(p: PedidoVista): PedidoObservador {
+  return {
+    id: p.id,
+    persona_cuidada_id: p.persona_cuidada_id,
+    estado: p.estado,
+    precios_de_ejemplo: p.precios_de_ejemplo,
+    lineas: p.lineas.map((l) => ({ id: l.id, producto: l.producto, cantidad: l.cantidad, comercio: l.comercio, regla_faltante: l.regla_faltante, cambio: l.cambio?.comercio_antes ? { comercio_antes: l.cambio.comercio_antes } : null })),
+    salieron: p.salieron,
+    total_confirmado_en: p.total_confirmado_en,
+    vence_en: p.vence_en,
+    pagado_en: p.pagado_en,
+    ventana_entrega: p.ventana_entrega,
+    creado_en: p.creado_en,
+    actualizado_en: p.actualizado_en,
+  }
+}
+
 /** Con `capa3: false`, `despacho` viene con `se_puede_otorgar: false` (decisión 251). */
 export const autorizaciones = (despacho: 'vigente' | 'revision_vencida' | 'sin_autorizar' | 'retirada' = 'vigente', capa3 = true) => ({
   autorizaciones: (['plan_cuidado', 'consumo', 'despacho'] as const).map((finalidad) => ({
@@ -164,7 +185,7 @@ export const NO_ENCONTRADO = problema(404, 'no-encontrado')
  * La API por ruta: `rutas` son pares «MÉTODO expresión» → respuesta (o función). Lo que no calza,
  * 404. Las lecturas comunes del pedido vienen por omisión y se pisan con `rutas`.
  */
-export function apiPedido(rutas: Record<string, Manejador>, { pedido = borrador() as PedidoVista | null, despacho = 'vigente' as Parameters<typeof autorizaciones>[0] } = {}) {
+export function apiPedido(rutas: Record<string, Manejador>, { pedido = borrador() as Pedido | null, despacho = 'vigente' as Parameters<typeof autorizaciones>[0] } = {}) {
   const pedidas: Pedida[] = []
   const base: Record<string, Manejador> = {
     'GET /consentimientos$': { status: 200, cuerpo: autorizaciones(despacho) },

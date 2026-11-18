@@ -91,6 +91,14 @@ export const AVISOS = {
   errCargar: 'No pudimos traer tus avisos. Revisa tu conexión e inténtalo de nuevo.', // [nuevo]
 }
 
+/** MATU-76 (especificación 2.5): la tarjeta B, «Avisos de tus pedidos». Las casillas y los estados son los de `AVISOS`. */
+export const AVISOS_PEDIDO = {
+  leyenda: 'Avisos de tus pedidos', // [NUEVO]
+  ayuda: 'Te avisamos cuando hay una novedad en un pedido que pagaste. El aviso no dice qué pedido ni qué productos.', // [NUEVO]
+  /** Siempre visible bajo «Por correo», en su `aria-describedby` (D-76-3). Nunca «te devolvimos» (H3). */
+  dinero: 'Si es sobre tu dinero, como una devolución, un producto que faltó o una cancelación, el correo te llega igual.', // [NUEVO]
+}
+
 /** 3.4: «Este teléfono», recibir avisos aquí (D6). `s` es el sustantivo de E1. */
 export const PUSH = {
   errCargar: (s: string) => `No pudimos ver los avisos de este ${s}. Revisa tu conexión e inténtalo de nuevo.`, // [nuevo]
@@ -119,4 +127,6 @@ export const PUSH = {
   errDesactivar: 'No pudimos desactivar los avisos. Revisa tu conexión y vuelve a intentarlo.', // [nuevo]
   /** [lenguaje 33, G; analista, C14] MATU-107: la cuenta no está en el equipo del piloto (`permitido: false`). Igual en un computador. */
   noPermitido: 'En el piloto, los avisos en el teléfono solo se prueban en los teléfonos del equipo de MATU.',
+  /** MATU-76 (2.7): la ayuda de la tarjeta C, en todos los estados salvo G. Sin sustantivo: vale para los tres. */
+  ayudaTarjeta: 'Aquí te llegan los avisos que marcaste «En tus teléfonos», si los activas.', // [NUEVO]
 }

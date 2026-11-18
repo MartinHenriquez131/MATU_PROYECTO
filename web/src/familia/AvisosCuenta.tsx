@@ -1,11 +1,14 @@
-// «Avisos cuando un insumo se está acabando» en «Tu cuenta» (MATU-55, especificación 3.3 y 3.4): las
-// dos casillas de `PUT /v1/yo/avisos`, que valen para todos los grupos, y debajo de «En tus
-// teléfonos», este teléfono (`GET /v1/dispositivos/actual/push` y la suscripción del navegador).
-// Cada casilla se guarda al marcarla y queda en «Guardando…» hasta el 200 (E3). El permiso de avisos
-// del navegador se pide solo al tocar «Activar en este…» (D6-a). Nada se guarda en el navegador.
+// Los avisos en «Tu cuenta» (MATU-55, especificación 3.3 y 3.4, y MATU-76, especificación 2), en tres
+// tarjetas: A, «Avisos cuando un insumo se está acabando»; B, «Avisos de tus pedidos», con la nota fija
+// del dinero (D-76-3), y C, «Este teléfono» (`GET /v1/dispositivos/actual/push` y la suscripción del
+// navegador), que sirve para los dos tipos. Las dos preferencias llegan en el mismo `GET /v1/yo/avisos`
+// y valen para todos los grupos. Cada casilla se guarda al marcarla con el `PUT` y queda en
+// «Guardando…» hasta el 200 (E3). El aviso del teléfono es siempre el mismo texto genérico, que pone
+// `web/public/sw.js` (D-76-1 a). El permiso de avisos del navegador se pide solo al tocar «Activar en
+// este…» (D6-a). Nada se guarda en el navegador.
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Check, Circle, Info, Share } from 'lucide-react'
-import { guardarAvisos, leerAvisos, leerPushActual, listarDispositivos, type ClaseDispositivo, type PreferenciaAvisos, type PushActual } from '../compartido/api/familia'
+import { guardarAvisos, leerAvisos, leerPushActual, listarDispositivos, type ClaseDispositivo, type PreferenciaAvisos, type PushActual, type SolicitudAvisos } from '../compartido/api/familia'
 import { leerFallo } from '../compartido/api/cliente'
 import { esVencida } from '../compartido/api/sesion'
 import { Anunciado } from '../compartido/ui/Anuncios'
@@ -14,28 +17,37 @@ import { useDemora } from './Estados'
 import { activarPush, desactivarPush, estadoPush, type EstadoPush } from './push'
 import { Etiqueta, MensajeError, Nota } from './ui'
 import { GENERAL } from './textos'
-import { AVISOS, DONDE, PUSH, sustantivo } from './textosDondeEntraste'
+import { AVISOS, AVISOS_PEDIDO, DONDE, PUSH, sustantivo } from './textosDondeEntraste'
 
-type Canal = keyof PreferenciaAvisos
+/** La tarjeta A (insumo) o la B (pedido). */
+type Tarjeta = 'insumo' | 'pedido'
+type Canal = 'correo' | 'push'
+type Casilla = `${Tarjeta}.${Canal}`
 type Carga<T> = { estado: 'cargando' } | { estado: 'error' } | { estado: 'lista'; datos: T }
 
-const esPreferencia = (p: unknown): p is PreferenciaAvisos =>
+const esCanales = (p: unknown): p is { correo: boolean; push: boolean } =>
   !!p && typeof p === 'object' && typeof (p as PreferenciaAvisos).correo === 'boolean' && typeof (p as PreferenciaAvisos).push === 'boolean'
+const esPreferencia = (p: unknown): p is PreferenciaAvisos => esCanales(p) && esCanales((p as PreferenciaAvisos).pedido)
+const valorDe = (p: PreferenciaAvisos, t: Tarjeta, c: Canal) => (t === 'insumo' ? p[c] : p.pedido[c])
+const conValor = (p: PreferenciaAvisos, t: Tarjeta, c: Canal, v: boolean): PreferenciaAvisos =>
+  t === 'insumo' ? { ...p, [c]: v } : { ...p, pedido: { ...p.pedido, [c]: v } }
 const esPush = (p: unknown): p is PushActual => !!p && typeof p === 'object' && typeof (p as PushActual).registrado === 'boolean'
 
-function Cargando() {
+/** `anunciar` en `false` cuando otra tarjeta ya anuncia la misma espera (MATU-76, P3 de la revisión: un solo anuncio). */
+function Cargando({ anunciar = true }: { anunciar?: boolean }) {
   const ver = useDemora()
   return (
-    <p role="status" className="text-tenue">
+    <p role={anunciar ? 'status' : undefined} className="text-tenue">
       {ver ? GENERAL.cargando : ''}
     </p>
   )
 }
 
-function ErrorLectura({ texto, reintentar }: { texto: string; reintentar: () => void }) {
+/** `anunciar` en `false` cuando otra tarjeta ya anuncia el mismo error (MATU-76, 2.6: un solo anuncio). */
+function ErrorLectura({ texto, reintentar, anunciar = true }: { texto: string; reintentar: () => void; anunciar?: boolean }) {
   return (
     <div className="flex max-w-prose flex-col items-start gap-4">
-      <Nota tono="pronto" rol="alert">
+      <Nota tono="pronto" rol={anunciar ? 'alert' : undefined}>
         {texto}
       </Nota>
       <Boton variante="secundario" onClick={reintentar}>
@@ -87,7 +99,9 @@ function useClaseActual() {
   return clase
 }
 
-// ---------------------------------------------------------------- 3.3 las preferencias
+// ---------------------------------------------------------------- 3.3 y MATU-76 (2.5): las preferencias
+
+const TARJETA = 'max-w-xl rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea'
 
 export function AvisosCuenta() {
   const uid = useId()
@@ -95,111 +109,147 @@ export function AvisosCuenta() {
   const push = useLectura<PushActual>(leerPushActual, esPush)
   const clase = useClaseActual()
   const [guardada, setGuardada] = useState<PreferenciaAvisos | null>(null)
-  const [pendiente, setPendiente] = useState<{ canal: Canal; valor: boolean } | null>(null)
-  const [aviso, setAviso] = useState<'guardando' | 'guardado' | 'error' | null>(null)
-  const casillas = useRef<Partial<Record<Canal, HTMLInputElement | null>>>({})
+  const [pendiente, setPendiente] = useState<{ tarjeta: Tarjeta; canal: Canal; valor: boolean } | null>(null)
+  // MATU-76 (2.6): los estados de guardar van solo en la tarjeta de la casilla que se tocó.
+  const [aviso, setAviso] = useState<{ tarjeta: Tarjeta; estado: 'guardando' | 'guardado' | 'error' } | null>(null)
+  const casillas = useRef<Partial<Record<Casilla, HTMLInputElement | null>>>({})
   // 1.2 (criterio 16): el foco vuelve a la casilla después del render que termina de guardar.
-  const [focoCasilla, setFocoCasilla] = useState<{ canal: Canal } | null>(null)
+  const [focoCasilla, setFocoCasilla] = useState<{ casilla: Casilla } | null>(null)
   // P3: cada bloque borra el mensaje del otro. Sube cuando se toca una casilla.
   const [casillaTocada, setCasillaTocada] = useState(0)
 
   useEffect(() => {
-    if (focoCasilla) casillas.current[focoCasilla.canal]?.focus()
+    if (focoCasilla) casillas.current[focoCasilla.casilla]?.focus()
   }, [focoCasilla])
 
   const base = guardada ?? (preferencia.carga.estado === 'lista' ? preferencia.carga.datos : null)
-  const ver = base && pendiente ? { ...base, [pendiente.canal]: pendiente.valor } : base
+  const ver = base && pendiente ? conValor(base, pendiente.tarjeta, pendiente.canal, pendiente.valor) : base
 
-  const cambiar = async (canal: Canal, valor: boolean) => {
+  const cambiar = async (tarjeta: Tarjeta, canal: Canal, valor: boolean) => {
     if (!base || pendiente) return
-    setPendiente({ canal, valor })
-    setAviso('guardando')
+    setPendiente({ tarjeta, canal, valor })
+    setAviso({ tarjeta, estado: 'guardando' })
     setCasillaTocada((n) => n + 1)
+    const nueva = conValor(base, tarjeta, canal, valor)
+    // Las dos preferencias se guardan por separado: al tocar la A, el `PUT` va sin `pedido` y la del
+    // pedido no cambia (decisión 473). `correo` y `push` del insumo van siempre, porque son obligatorios.
+    const solicitud: SolicitudAvisos = tarjeta === 'insumo' ? { correo: nueva.correo, push: nueva.push } : { correo: nueva.correo, push: nueva.push, pedido: nueva.pedido }
     try {
-      const r = await guardarAvisos({ ...base, [canal]: valor })
-      setGuardada(esPreferencia(r) ? r : { ...base, [canal]: valor })
-      setAviso('guardado')
+      const r = await guardarAvisos(solicitud)
+      setGuardada(esPreferencia(r) ? r : nueva)
+      setAviso({ tarjeta, estado: 'guardado' })
     } catch (e) {
       if (esVencida(e)) return setAviso(null)
       // 422 solo puede pasar por un defecto: se trata como el error. La casilla vuelve a lo de antes.
-      setAviso('error')
+      setAviso({ tarjeta, estado: 'error' })
     } finally {
       setPendiente(null)
-      setFocoCasilla({ canal })
+      setFocoCasilla({ casilla: `${tarjeta}.${canal}` })
     }
   }
 
   // 8 de la sección 6: la nota del piloto se ve mientras `envio_simulado` sea `true`, y también si la lectura falla.
   const piloto = push.carga.estado !== 'lista' || push.carga.datos.envio_simulado
 
-  const casilla = (canal: Canal, texto: string) => (
-    <label className="flex min-h-12 cursor-pointer items-center gap-3 angosto:items-start font-bold has-aria-disabled:cursor-not-allowed">
-      <input
-        ref={(n) => {
-          casillas.current[canal] = n
-        }}
-        type="checkbox"
-        checked={ver?.[canal] ?? false}
-        // 1.2: `aria-disabled` y no `disabled`, que saca el foco de la casilla y lo deja en el body.
-        aria-disabled={pendiente !== null || undefined}
-        aria-busy={pendiente?.canal === canal || undefined}
-        onChange={(e) => {
-          if (pendiente === null) void cambiar(canal, e.target.checked)
-        }}
-        className="size-6 shrink-0 accent-turquesa aria-disabled:not-focus-visible:opacity-60 angosto:mt-0.5"
-      />
-      {texto}
-    </label>
-  )
+  const casilla = (tarjeta: Tarjeta, canal: Canal, texto: string, describe?: string) => {
+    const clave: Casilla = `${tarjeta}.${canal}`
+    return (
+      <label className="flex min-h-12 cursor-pointer items-center gap-3 angosto:items-start font-bold has-aria-disabled:cursor-not-allowed">
+        <input
+          ref={(n) => {
+            casillas.current[clave] = n
+          }}
+          type="checkbox"
+          checked={ver ? valorDe(ver, tarjeta, canal) : false}
+          aria-describedby={describe}
+          // 1.2: `aria-disabled` y no `disabled`, que saca el foco de la casilla y lo deja en el body.
+          // MATU-76 (2.6): las cuatro a la vez, porque el `PUT` lleva las dos preferencias juntas.
+          aria-disabled={pendiente !== null || undefined}
+          aria-busy={(pendiente?.tarjeta === tarjeta && pendiente.canal === canal) || undefined}
+          onChange={(e) => {
+            if (pendiente === null) void cambiar(tarjeta, canal, e.target.checked)
+          }}
+          className="size-6 shrink-0 accent-turquesa aria-disabled:not-focus-visible:opacity-60 angosto:mt-0.5"
+        />
+        {texto}
+      </label>
+    )
+  }
+
+  const tarjeta = (t: Tarjeta) => {
+    const id = `${uid}-${t}`
+    const titulo = t === 'insumo' ? AVISOS.leyenda : AVISOS_PEDIDO.leyenda
+    const ayuda = t === 'insumo' ? AVISOS.ayuda : AVISOS_PEDIDO.ayuda
+    const estado = aviso?.tarjeta === t ? aviso.estado : null
+    return (
+      <div className={`${t === 'pedido' ? 'mt-6 ' : ''}${TARJETA}`}>
+        <fieldset aria-describedby={`${id}-a ${id}-g`} className="flex min-w-0 flex-col gap-3">
+          <legend className="pb-3">
+            <h2 className="text-xl font-bold leading-snug">{titulo}</h2>
+          </legend>
+          <p id={`${id}-a`} className="max-w-prose text-base text-tenue">
+            {ayuda}
+          </p>
+          <p id={`${id}-g`} className="text-base font-bold">
+            {AVISOS.alcance}
+          </p>
+
+          {/* La espera también se anuncia una sola vez, desde la A; en la B se ve el mismo texto, sin rol. */}
+          {preferencia.carga.estado === 'cargando' && <Cargando anunciar={t === 'insumo'} />}
+          {/* 2.6: el error de carga se anuncia una sola vez, desde la A. Cualquiera de los dos botones vuelve a leer las dos. */}
+          {preferencia.carga.estado === 'error' && <ErrorLectura texto={AVISOS.errCargar} anunciar={t === 'insumo'} reintentar={() => void preferencia.cargar()} />}
+          {ver && (
+            <div className="flex flex-col gap-1">
+              {casilla(t, 'correo', AVISOS.correo, t === 'pedido' ? `${id}-dinero` : undefined)}
+              {/* 2.5: la nota del dinero, siempre visible, alineada con el texto de la etiqueta (24 px de la casilla y 12 del gap). */}
+              {t === 'pedido' && (
+                <p id={`${id}-dinero`} className="max-w-prose ps-9 text-base text-tenue">
+                  {AVISOS_PEDIDO.dinero}
+                </p>
+              )}
+              {casilla(t, 'push', AVISOS.push)}
+              {estado === 'guardando' && (
+                <Anunciado urgencia="status" como="p" className="mt-2 text-base text-tenue">
+                  {AVISOS.guardando}
+                </Anunciado>
+              )}
+              {estado === 'guardado' && (
+                <Anunciado urgencia="status" como="p" className="mt-2 text-base">
+                  {AVISOS.guardado}
+                </Anunciado>
+              )}
+              {estado === 'error' && (
+                <Anunciado urgencia="alert" className="mt-2">
+                  <MensajeError>{AVISOS.errGuardar}</MensajeError>
+                </Anunciado>
+              )}
+            </div>
+          )}
+        </fieldset>
+      </div>
+    )
+  }
 
   return (
-    <div className="max-w-xl rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
-    <fieldset aria-describedby={`${uid}-a ${uid}-g`} className="flex min-w-0 flex-col gap-3">
-      <legend className="pb-3">
-        <h2 className="text-xl font-bold leading-snug">{AVISOS.leyenda}</h2>
-      </legend>
-      <p id={`${uid}-a`} className="max-w-prose text-base text-tenue">
-        {AVISOS.ayuda}
-      </p>
-      <p id={`${uid}-g`} className="text-base font-bold">
-        {AVISOS.alcance}
-      </p>
-
-      {preferencia.carga.estado === 'cargando' && <Cargando />}
-      {preferencia.carga.estado === 'error' && <ErrorLectura texto={AVISOS.errCargar} reintentar={() => void preferencia.cargar()} />}
+    <>
+      {tarjeta('insumo')}
+      {tarjeta('pedido')}
+      {/* E4, ampliada en MATU-76 (2.1): la tarjeta C se ve si al menos una «En tus teléfonos» está marcada.
+          Con las dos desmarcadas se oculta y la inscripción no se borra. Mientras la preferencia carga o falla, no se ve. */}
       {ver && (
-        <div className="flex flex-col gap-1">
-          {casilla('correo', AVISOS.correo)}
-          {casilla('push', AVISOS.push)}
-          {/* E4: al desmarcar «En tus teléfonos», el bloque se oculta y la inscripción no se borra. */}
-          <div hidden={!ver.push}>
-            <EsteTelefono push={push.carga} clase={clase} reintentar={() => void push.cargar()} casillaTocada={casillaTocada} onAccion={() => setAviso(null)} />
-          </div>
-          {aviso === 'guardando' && (
-            <Anunciado urgencia="status" como="p" className="mt-2 text-base text-tenue">
-              {AVISOS.guardando}
-            </Anunciado>
-          )}
-          {aviso === 'guardado' && (
-            <Anunciado urgencia="status" como="p" className="mt-2 text-base">
-              {AVISOS.guardado}
-            </Anunciado>
-          )}
-          {aviso === 'error' && (
-            <Anunciado urgencia="alert" className="mt-2">
-              <MensajeError>{AVISOS.errGuardar}</MensajeError>
-            </Anunciado>
-          )}
+        <div hidden={!(ver.push || ver.pedido.push)} className="mt-6">
+          <EsteTelefono push={push.carga} clase={clase} reintentar={() => void push.cargar()} casillaTocada={casillaTocada} onAccion={() => setAviso(null)} />
         </div>
       )}
-
+      {/* Una sola vez, después de la última tarjeta de avisos. */}
       {piloto && (
-        <Nota tono="atenta" icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />} className="mt-2">
-          {AVISOS.piloto}
-        </Nota>
+        <div className="mt-6 max-w-xl">
+          <Nota tono="atenta" icono={<Info aria-hidden className="mt-0.5 size-5 shrink-0 text-atenta" />}>
+            {AVISOS.piloto}
+          </Nota>
+        </div>
       )}
-    </fieldset>
-    </div>
+    </>
   )
 }
 
@@ -248,6 +298,7 @@ export function EsteTelefono({
     setError(null)
   }, [casillaTocada])
   const s = sustantivo(clase)
+  const tituloId = useId()
 
   const datos = push.estado === 'lista' ? push.datos : null
   useEffect(() => {
@@ -394,11 +445,18 @@ export function EsteTelefono({
       </>
     )
 
+  // MATU-76 (2.7): una tarjeta propia, con su h2 y su ayuda, salvo en G, donde la nota ya lo dice todo.
+  const enG = estado === 'no-permitido' || estado === 'no-permitido-inscrito'
   return (
-    <div className="mt-1 flex flex-col items-start gap-3 border-l-4 border-linea ps-4 angosto:ps-2">
+    <section aria-labelledby={clase !== undefined ? tituloId : undefined} className={`flex flex-col items-start gap-3 ${TARJETA}`}>
       {/* Mientras no se sabe la clase (E1), sin título: no se dice «navegador» para corregirlo después. */}
-      {clase !== undefined && <h3 className="text-lg font-bold">{DONDE.este(clase)}</h3>}
+      {clase !== undefined && (
+        <h2 id={tituloId} className="text-xl font-bold leading-snug">
+          {DONDE.este(clase)}
+        </h2>
+      )}
+      {!enG && <p className="max-w-prose text-base text-tenue">{PUSH.ayudaTarjeta}</p>}
       {cuerpo}
-    </div>
+    </section>
   )
 }

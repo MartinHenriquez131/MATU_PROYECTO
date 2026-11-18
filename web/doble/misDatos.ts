@@ -242,9 +242,32 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
       pago_de_prueba: true,
     },
     precios_de_ejemplo: true,
+    // MATU-81 (D-81-4, decisión 461): lo que el equipo de MATU anotó del pedido, sin quién lo anotó.
+    lo_que_paso: [
+      {
+        tipo: 'faltante',
+        estado: 'resuelta',
+        anotado_en: chile(hace(3 * DIA + 40)),
+        resuelto_en: chile(hace(3 * DIA - 60)),
+        nota: 'El comercio avisó que no tenía las toallitas húmedas.',
+        resolucion: 'Se devolvieron las toallitas a la misma tarjeta.',
+      },
+    ],
+    // MATU-81 (H2 del analista): un retracto que no se aceptó, con su motivo (`motivo_rechazo`).
+    retractos: [
+      {
+        estado: 'rechazado',
+        solicitado_en: chile(hace(2 * DIA)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA)),
+        motivo_rechazo: 'sello_abierto',
+        lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
+      },
+    ],
   }
   if (modo !== 'datos-pedidos') return [entregado]
-  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true }
+  const base = { lineas: [linea('Guantes desechables', 'caja de 100', 'Farmacia Los Aromos (comercio ficticio)', 1, 6_490, 'otro_comercio')], subtotal_productos: 6_490, costo_envio: 3_990, entrega, precios_de_ejemplo: true, lo_que_paso: [] }
   return [
     { ...base, referencia: null, estado: 'borrador', creado_en: chile(hace(30)), total_confirmado_en: null, total: null, pago: null },
     { ...base, referencia: null, estado: 'total_confirmado', creado_en: chile(hace(DIA)), total_confirmado_en: chile(hace(DIA - 5)), total: 10_480, pago: { estado: 'pendiente', pagado_en: null, pagado_por: null, cobrado: 0, devuelto: 0, devoluciones: [], pago_de_prueba: true } },
@@ -345,13 +368,17 @@ function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo
       hechos.push({ tipo, ocurrido_en: hace(90 + n * (modo === 'datos-historial' ? 13 * 60 : 7 * 60)), quien: quien(q, i), campo, seccion })
     })
   if (modo === 'datos-historial') for (let i = 0; i < 12; i++) hechos.push({ tipo: i % 2 ? 'abrio_la_ficha' : 'edito_la_ficha', ocurrido_en: hace(95 * DIA + i * DIA), quien: quien('persona', 0), campo: i % 2 ? null : 'red_apoyo', seccion: null })
+  // MATU-81 (D-81-5): el equipo de MATU abrió el pedido 4821 en su consola.
+  hechos.push({ tipo: 'matu_reviso_el_pedido', ocurrido_en: hace(3 * DIA + 45), quien: quien('matu', 0), campo: null, seccion: null })
+  // MATU-114: el equipo intentó registrar un retracto del pedido 4821 con un correo que no es de quien administra (sin el correo).
+  hechos.push({ tipo: 'matu_intento_un_retracto_por_correo', ocurrido_en: hace(3 * DIA + 40), quien: quien('matu', 0), campo: null, seccion: null })
   for (const c of copiasDePersona.get(p.id) ?? []) hechos.push({ tipo: 'pidio_una_copia', ocurrido_en: c.en, quien: { tipo: 'persona', nombre: c.quien, activo: true }, campo: null, seccion: null })
   // El cuidador ve solo sus filas (D-54-6): ni las de otros ni las de MATU.
   const visibles = todo ? hechos : hechos.filter((h) => h.quien.tipo === 'persona' && h.quien.nombre === yo)
   visibles.sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
   // F1 (decisión 384): la finalidad en los hechos de autorizaciones y la referencia en los de pedidos y pagos.
   const AUTORIZACION = new Set(['dio_una_autorizacion', 'retiro_una_autorizacion'])
-  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto'])
+  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto', 'matu_reviso_el_pedido', 'matu_intento_un_retracto_por_correo'])
   const conObjeto = (h: Hecho, i: number) => ({
     ...h,
     ocurrido_en: chile(h.ocurrido_en),
@@ -452,12 +479,13 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
   const capa3 = modo !== 'datos-sin-capa3'
   const paga = modo === 'datos-pagador' || modo === 'datos-pedidos' || modo === 'datos-admin'
   const avisos = [
-    { creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' },
-    { creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'push', resultado: 'en_el_piloto_no_salio' },
-    { creado_en: chile(hace(5 * DIA)), enviado_en: null, canal: 'push', resultado: 'no_salio' },
-    { creado_en: chile(hace(20)), enviado_en: null, canal: 'correo', resultado: 'pendiente' },
+    // MATU-76 (D-76-6): el tipo de cada aviso, «insumo» o «pedido».
+    { tipo: 'insumo', creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' },
+    { tipo: 'insumo', creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'push', resultado: 'en_el_piloto_no_salio' },
+    { tipo: 'pedido', creado_en: chile(hace(5 * DIA)), enviado_en: null, canal: 'push', resultado: 'no_salio' },
+    { tipo: 'pedido', creado_en: chile(hace(20)), enviado_en: null, canal: 'correo', resultado: 'pendiente' },
   ]
-  if (modo === 'datos-historial') for (let i = 0; i < 30; i++) avisos.push({ creado_en: chile(hace(6 * DIA + i * 3 * DIA)), enviado_en: chile(hace(6 * DIA + i * 3 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' })
+  if (modo === 'datos-historial') for (let i = 0; i < 30; i++) avisos.push({ tipo: i % 2 ? 'pedido' : 'insumo', creado_en: chile(hace(6 * DIA + i * 3 * DIA)), enviado_en: chile(hace(6 * DIA + i * 3 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' })
   // Del más reciente al más antiguo, como el servidor (revisión del 12-11, P3).
   avisos.sort((a, b) => new Date(b.enviado_en ?? b.creado_en).getTime() - new Date(a.enviado_en ?? a.creado_en).getTime())
   const pagos = [
@@ -488,6 +516,8 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
     eventos: desde.eventos,
     avisos_enviados: modo === 'datos-vacio' ? [] : avisos,
     envio_simulado: true,
+    // MATU-81 (H2 del analista): el retracto que pidió esta cuenta, con su motivo si no se aceptó.
+    retractos: capa3 ? (paga ? [{ grupo: 'Familia Soto', referencia: '4821', estado: 'rechazado', solicitado_en: chile(hace(2 * DIA)), resuelto_en: chile(hace(DIA)), motivo_rechazo: 'sello_abierto', productos: ['Pañal adulto talla M'] }] : []) : null,
     pagos: capa3 ? (paga ? pagos : []) : null,
     condiciones_aceptadas: capa3 ? (paga ? condiciones : []) : null,
   }

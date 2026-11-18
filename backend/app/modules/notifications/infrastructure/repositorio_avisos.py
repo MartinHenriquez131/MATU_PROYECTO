@@ -10,6 +10,8 @@ diario: nunca un rol que se salte RLS.
 - dispositivo: dispositivo_sistema_leer y dispositivo_sistema_expirar (0014), solo de miembros activos del
   grupo, y el sistema solo puede borrar el push_token.
 - evento_consumido: tabla de infraestructura sin RLS; matu_app lee e inserta.
+- MATU-76: quien pagó sale de transaccion_pasarela, participacion y cargo, con transaccion_sistema_leer,
+  participacion_sistema_leer y cargo_sistema_leer (0024), acotadas al grupo del contexto. Sin migración (C10).
 
 Nada de lo que se lee aquí (email, push_token) sale en un log, una excepción o un ``repr``.
 """
@@ -47,6 +49,13 @@ _MIEMBROS = (
 _TODOS = text(_MIEMBROS + " ORDER BY m.usuario_id")
 _UNO = text(_MIEMBROS + " AND m.usuario_id = :usuario")
 
+# MATU-76 (C1): quien pagó. La venta aprobada queda aprobada también cuando se anula entera por un pago tardío, así que
+# PagoAnulado tiene destinatario aunque el cargo se cierre sin cobro
+_QUIENES_PAGARON = text(
+    "SELECT DISTINCT pa.usuario_id FROM transaccion_pasarela t"
+    " JOIN participacion pa ON pa.id = t.participacion_id JOIN cargo c ON c.id = t.cargo_id"
+    " WHERE c.pedido_id = :pedido AND t.tipo = 'venta' AND t.estado = 'aprobada' ORDER BY pa.usuario_id"
+)
 _YA_CONSUMIDO = text("SELECT 1 FROM evento_consumido WHERE evento_id = :evento AND consumidor = :consumidor")
 _CONSUMIDO = text(
     "INSERT INTO evento_consumido (evento_id, consumidor, consumido_en) VALUES (:evento, :consumidor, :ahora)"
@@ -126,11 +135,12 @@ class RepositorioAvisosSQL:
         filas = self._sesion.execute(_TODOS, {"grupo": self._grupo_id, "tipo": TIPO_EVENTO_QUIEBRE}).all()
         return [_miembro(f) for f in filas]
 
-    def miembro(self, usuario_id: uuid.UUID) -> MiembroAviso | None:
-        fila = self._sesion.execute(
-            _UNO, {"grupo": self._grupo_id, "tipo": TIPO_EVENTO_QUIEBRE, "usuario": usuario_id}
-        ).first()
+    def miembro(self, usuario_id: uuid.UUID, tipo_evento: str = TIPO_EVENTO_QUIEBRE) -> MiembroAviso | None:
+        fila = self._sesion.execute(_UNO, {"grupo": self._grupo_id, "tipo": tipo_evento, "usuario": usuario_id}).first()
         return None if fila is None else _miembro(fila)
+
+    def quienes_pagaron(self, pedido_id: uuid.UUID) -> list[uuid.UUID]:
+        return [f.usuario_id for f in self._sesion.execute(_QUIENES_PAGARON, {"pedido": pedido_id}).all()]
 
     def crear(self, evento_id: int, filas: Sequence[tuple[uuid.UUID, Canal]], plantilla: str, ahora: datetime) -> None:
         if not filas:

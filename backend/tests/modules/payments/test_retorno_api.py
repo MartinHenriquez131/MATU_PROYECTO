@@ -22,6 +22,7 @@ from app.modules.iam.api.dependencias import obtener_clave_jwt, obtener_reloj
 from app.modules.payments.api.router_retorno import obtener_abrir_grupo, obtener_resolver
 from app.modules.payments.infrastructure.pasarela import obtener_pasarela
 from tests.modules.payments.test_casos_pago import TOTAL, Escena
+from tests.textos import aparece_como_dato
 
 pytestmark = pytest.mark.rf("RF-25")
 
@@ -87,7 +88,8 @@ def test_aprobado_sin_sesion_sin_montos_ni_tarjeta_y_el_log_solo_con_el_caso(
         "pedido_id": None,
         "pago_de_prueba": True,
     }
-    assert str(TOTAL) not in respuesta.text and "2032" not in respuesta.text
+    # Como dato, no como subcadena: un número corto puede aparecer por azar dentro de un UUID o un hex
+    assert not aparece_como_dato(str(TOTAL), respuesta.text) and not aparece_como_dato("2032", respuesta.text)
     assert escena.p.estado == "pagado"
     # Decisión 235: ni el token, ni el buy_order, ni el session_id, ni la respuesta de Transbank en los logs
     texto = salida.getvalue()

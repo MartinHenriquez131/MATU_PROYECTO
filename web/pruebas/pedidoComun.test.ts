@@ -2,7 +2,7 @@
 // declaraciones de la autorización de pedidos (decisión 221). Solo datos sintéticos.
 import { describe, expect, it } from 'vitest'
 import type { ProductoCatalogo } from '../src/compartido/api/catalogo'
-import type { LineaPedido, Pedido } from '../src/compartido/api/pedido'
+import type { LineaPedido, PedidoVista } from '../src/compartido/api/pedido'
 import {
   cantidadDesdeLista,
   direccionEnTexto,
@@ -127,7 +127,7 @@ describe('Textos que arma la pantalla', () => {
     expect([0, 1, 99, 100, null].map(enRango)).toEqual([false, true, true, false, false])
   })
   it('9.2: hay cambios con un producto que salió o una línea con `cambio`', () => {
-    const base = { lineas: [linea(PANAL, 'c-b', 1)], salieron: [] } as unknown as Pedido
+    const base = { lineas: [linea(PANAL, 'c-b', 1)], salieron: [] } as unknown as PedidoVista
     expect(hayCambios(base)).toBe(false)
     expect(hayCambios({ ...base, lineas: [{ ...linea(PANAL, 'c-b', 1), cambio: { precio_antes: 900, comercio_antes: null } }] })).toBe(true)
   })

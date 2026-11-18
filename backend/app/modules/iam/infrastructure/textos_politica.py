@@ -40,6 +40,19 @@ PUBLICADAS: dict[str, str] = {
     # MATU-92: «Tus pedidos», los pedidos pagados de la persona según el rol, y arrepentirse o cancelar desde la
     # aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a aceptar; las anteriores siguen
     "0.20": "5aab1f67299092cb6a47aa4c922f335b0ba0b42f1849b3ebc963ba385791c63d",  # pragma: allowlist secret
+    # MATU-81: la consola del equipo de MATU, qué ve de cada pedido, la entrada en dos pasos, el registro de cuándo
+    # revisa un pedido y lo que anota si hay un problema. El equipo ve menos que antes: nadie vuelve a aceptar
+    "0.21": "15f6be576879d2a1dbf3a58df28a4394cb690d5f42c1aaff1899ef9fc3bf1ba7",  # pragma: allowlist secret
+    # MATU-113: quien «Se informa» ve el pedido sin precios, envío ni total, con su estado y las fechas del pago y de
+    # la entrega. Ve menos que antes: nadie vuelve a aceptar; las anteriores siguen
+    "0.22": "c1313a5e812a04c50bd539d0e27403a2152011887d2b6c1b9593cffb28293d3e",  # pragma: allowlist secret
+    # MATU-76: los avisos de un pedido le llegan solo a quien lo pagó, y la notificación en el teléfono tiene un solo
+    # texto para todo («Tienes una novedad»). Avisar del pedido es parte de responder por él: nadie vuelve a aceptar;
+    # las anteriores siguen
+    "0.23": "d3a606c71399a0bccf90c274bab44cb228c7689893fe0270caeca8aef519247f",  # pragma: allowlist secret
+    # MATU-114: el equipo que opera MATU ya no ve el email ni el celular de las cuentas, y MATU registra sin el
+    # correo el intento de un retracto con un correo que no es del admin. Nadie vuelve a aceptar; las anteriores siguen
+    "0.24": "7d7af6d9ae62a7e3811db09feaff6a4acddedc45658f3a58c12dc34e18a7d219",  # pragma: allowlist secret
 }
 
 

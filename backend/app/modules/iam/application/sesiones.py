@@ -10,6 +10,7 @@ import logging
 import secrets
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from app.modules.iam.application.ports import (
     ContadoresEntrada,
@@ -20,7 +21,7 @@ from app.modules.iam.application.ports import (
     RepositorioUsuarios,
     UnidadIam,
 )
-from app.modules.iam.application.sesion import emitir_acceso, verificar_credenciales
+from app.modules.iam.application.sesion import emitir_acceso, verificar_cuenta
 from app.modules.iam.domain.credenciales import normalizar_email
 from app.modules.iam.domain.demora import PREFIJO_EMAIL, PREFIJO_IP, huella, retry_after
 from app.modules.iam.domain.dispositivo import limites_conservacion, nombre_dispositivo
@@ -31,6 +32,7 @@ from app.modules.iam.domain.ingresos import (
     armar_ingresos,
     inicio_ventana,
 )
+from app.modules.iam.domain.mfa import vence_la_sesion
 from app.modules.iam.domain.refresh import (
     BYTES_REFRESH,
     MOTIVO_DISPOSITIVO,
@@ -58,6 +60,15 @@ class DemoraActiva(Exception):
         self.segundos = segundos
 
 
+class MfaRequerido(Exception):
+    """MATU-81 (C29): la contraseña de una cuenta de operación es correcta y falta el segundo factor. No se creó
+    nada."""
+
+    def __init__(self, usuario_id: uuid.UUID) -> None:
+        super().__init__("mfa requerido")
+        self.usuario_id = usuario_id
+
+
 class SesionRechazada(Exception):
     """El refresh no sirve: falta, es desconocido, venció, fue revocado o se reutilizó. Un solo caso."""
 
@@ -74,9 +85,22 @@ class SesionAbierta:
     duracion_segundos: int
     # Solo para la cookie. Nunca en un log, un error ni la auditoría
     refresh: str
+    # MATU-81: el instante del segundo factor de una cuenta de operación
+    mfa_en: datetime | None = None
+
+    @property
+    def vence_en(self) -> datetime | None:
+        """C31: hasta cuándo vale la entrada de operación. None en las demás cuentas."""
+        return None if self.mfa_en is None else vence_la_sesion(self.mfa_en)
 
     def __repr__(self) -> str:
         return f"SesionAbierta(usuario_id={self.usuario_id}, dispositivo_id={self.dispositivo_id})"
+
+
+def _vence(ahora: datetime, mfa_en: datetime | None) -> datetime:
+    """30 días, o con el segundo factor, a más tardar 12 horas después de él y sin ventana deslizante (C31)."""
+    vence = vencimiento_refresh(ahora)
+    return vence if mfa_en is None else min(vence, vence_la_sesion(mfa_en))
 
 
 def _nuevo_refresh() -> str:
@@ -127,7 +151,7 @@ def entrar(
         raise DemoraActiva(espera)
 
     try:
-        usuario_id = verificar_credenciales(
+        cuenta = verificar_cuenta(
             email=email, contrasena=contrasena, pepper=pepper, hasher=hasher, repositorio=repositorio
         )
     except CredencialesInvalidas:
@@ -149,7 +173,34 @@ def entrar(
 
     # Un 200 borra el contador del email, nunca el de la IP. Antes de crear nada: si Redis falla, 503
     contadores.borrar(huella_email)
+    if cuenta.es_operacion:
+        # MATU-81 (C29): la contraseña es correcta, pero la cuenta de operación entra con su segundo factor
+        raise MfaRequerido(cuenta.usuario_id)
+    return abrir_sesion(
+        usuario_id=cuenta.usuario_id,
+        agente_usuario=agente_usuario,
+        refresh_presentado=refresh_presentado,
+        unidad=unidad,
+        emisor=emisor,
+        reloj=reloj,
+        request_id=request_id,
+    )
 
+
+def abrir_sesion(
+    *,
+    usuario_id: uuid.UUID,
+    agente_usuario: str | None,
+    refresh_presentado: str | None,
+    unidad: UnidadIam,
+    emisor: EmisorTokens,
+    reloj: Reloj,
+    request_id: str | None,
+    mfa_en: datetime | None = None,
+) -> SesionAbierta:
+    """Reutiliza el dispositivo de la cookie si es del mismo usuario y sigue vigente (revocando la familia anterior) o
+    crea uno, crea la familia y audita sesion.iniciar. Con ``mfa_en`` (MATU-81), la familia lleva la marca del segundo
+    factor y vence a más tardar 12 horas después de él (C31)."""
     anterior = _resolver(refresh_presentado, unidad)
     ahora = reloj.ahora()
     refresh = _nuevo_refresh()
@@ -172,7 +223,8 @@ def entrar(
                 familia_id=uuid.uuid4(),
                 token_hash=huella_refresh(refresh),
                 emitido_en=ahora,
-                expira_en=vencimiento_refresh(ahora),
+                expira_en=_vence(ahora, mfa_en),
+                mfa_en=mfa_en,
             )
         )
         tx.auditoria.registrar(
@@ -186,13 +238,14 @@ def entrar(
                 request_id=request_id,
             )
         )
-    acceso = emitir_acceso(usuario_id, emisor, reloj, dispositivo_id)
+    acceso = emitir_acceso(usuario_id, emisor, reloj, dispositivo_id, mfa_en)
     return SesionAbierta(
         usuario_id=usuario_id,
         dispositivo_id=dispositivo_id,
         access_token=acceso.access_token,
         duracion_segundos=acceso.duracion_segundos,
         refresh=refresh,
+        mfa_en=mfa_en,
     )
 
 
@@ -217,6 +270,9 @@ def renovar(
         guardada = tx.sesiones.sesion_para_actualizar(sesion_id)
         if guardada is not None:
             veredicto = evaluar_renovacion(guardada.estado, ahora)
+            # MATU-81 (C30): una cuenta de operación no renueva una sesión sin el segundo factor
+            if veredicto is Veredicto.VIGENTE and guardada.es_operacion and guardada.mfa_en is None:
+                veredicto = Veredicto.RECHAZADO
         if guardada is not None and veredicto is Veredicto.REUTILIZACION:
             tx.sesiones.revocar_familia(guardada.familia_id, MOTIVO_REUTILIZACION, ahora)
             tx.auditoria.registrar(
@@ -245,20 +301,22 @@ def renovar(
                     familia_id=guardada.familia_id,
                     token_hash=huella_refresh(refresh),
                     emitido_en=ahora,
-                    expira_en=vencimiento_refresh(ahora),
+                    expira_en=_vence(ahora, guardada.mfa_en),
+                    mfa_en=guardada.mfa_en,
                 )
             )
             tx.sesiones.tocar_dispositivo(guardada.dispositivo_id, ahora)
     if guardada is None or veredicto is not Veredicto.VIGENTE:
         raise SesionRechazada()
 
-    acceso = emitir_acceso(usuario_id, emisor, reloj, guardada.dispositivo_id)
+    acceso = emitir_acceso(usuario_id, emisor, reloj, guardada.dispositivo_id, guardada.mfa_en)
     return SesionAbierta(
         usuario_id=usuario_id,
         dispositivo_id=guardada.dispositivo_id,
         access_token=acceso.access_token,
         duracion_segundos=acceso.duracion_segundos,
         refresh=refresh,
+        mfa_en=guardada.mfa_en,
     )
 
 

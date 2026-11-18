@@ -32,6 +32,32 @@ CANALES: tuple[Canal, ...] = (Canal.CORREO, Canal.PUSH)
 TIPO_EVENTO_QUIEBRE = "quiebre_proximo"
 PLANTILLA_QUIEBRE = "quiebre_proximo"
 
+# MATU-76: los avisos del pedido. Una preferencia propia, separada de la del insumo (C3), y una sola plantilla para
+# todos los eventos del pedido (C6)
+TIPO_EVENTO_PEDIDO = "pedido"
+PLANTILLA_PEDIDO = "pedido_novedad"
+
+# Los tipos del outbox que avisan a quien pagó (C1, D-76-5). Son el texto del contrato del outbox: notifications no
+# importa payments ni backoffice (regla 4 y capa 3 desacoplable), y una prueba verifica que coinciden con los de
+# quien los emite. PedidoPagado no avisa.
+PAGO_ANULADO = "PagoAnulado"
+PRODUCTO_FALTANTE = "ProductoFaltante"
+PEDIDO_CANCELADO_CON_DEVOLUCION = "PedidoCanceladoConDevolucion"
+PEDIDO_ENTREGADO = "PedidoEntregado"
+PEDIDO_NO_ENTREGADO = "PedidoNoEntregado"
+# D-76-3: el correo de estos tres es sobre el dinero de quien pagó y no se apaga. El push sí sigue la preferencia
+EVENTOS_DE_DINERO: frozenset[str] = frozenset({PAGO_ANULADO, PRODUCTO_FALTANTE, PEDIDO_CANCELADO_CON_DEVOLUCION})
+EVENTOS_DEL_PEDIDO: tuple[str, ...] = (
+    PAGO_ANULADO,
+    PRODUCTO_FALTANTE,
+    PEDIDO_CANCELADO_CON_DEVOLUCION,
+    PEDIDO_ENTREGADO,
+    PEDIDO_NO_ENTREGADO,
+)
+
+# «Tus datos» (C11, D-76-6): el tipo cerrado de cada aviso, nunca la plantilla
+TIPO_AVISO_POR_PLANTILLA: dict[str, str] = {PLANTILLA_QUIEBRE: "insumo", PLANTILLA_PEDIDO: "pedido"}
+
 
 class EstadoNotificacion(StrEnum):
     PENDIENTE = "pendiente"
@@ -90,6 +116,32 @@ class Revision:
     miembro_activo: bool  # membresía activa y usuario activo
     canal_activo: bool  # la persona no apagó este canal
     con_destino: bool  # hay correo, o al menos un dispositivo con push_token
+
+
+def canales_del_pedido(*, dinero: bool, preferencias: Mapping[Canal, bool | None]) -> tuple[Canal, ...]:
+    """Los canales del aviso del pedido para quien pagó (C3, D-76-3). Sin fila, activo, sea cual sea su rol: no usa
+    ``avisa_por_defecto``. El correo de dinero va aunque la persona lo haya apagado."""
+    return tuple(c for c in CANALES if canal_del_pedido_activo(c, dinero=dinero, preferencia=preferencias.get(c)))
+
+
+def canal_del_pedido_activo(canal: Canal, *, dinero: bool, preferencia: bool | None) -> bool:
+    if dinero and canal is Canal.CORREO:
+        return True
+    return canal_activo(por_defecto=True, preferencia=preferencia)
+
+
+def motivo_omision_pedido(*, miembro_activo: bool, canal_activo: bool, con_destino: bool) -> CodigoAviso | None:
+    """Lo que se revisa antes de cada envío del aviso del pedido (C2). No hay autorización ni alerta: un aviso del
+    pedido nunca queda sin_autorizacion ni alerta_cerrada. Quien salió del grupo queda miembro_inactivo (D-76-4)."""
+    return motivo_omision(
+        Revision(
+            autorizado=True,
+            alerta_abierta=True,
+            miembro_activo=miembro_activo,
+            canal_activo=canal_activo,
+            con_destino=con_destino,
+        )
+    )
 
 
 def motivo_omision(revision: Revision) -> CodigoAviso | None:

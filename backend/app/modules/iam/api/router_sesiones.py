@@ -142,6 +142,7 @@ def renovar_sesion(
         access_token=sesion.access_token,
         expira_en=sesion.duracion_segundos,
         tipo_cuenta=tipo_cuenta(sesion.usuario_id),  # type: ignore[arg-type]
+        sesion_vence_en=sesion.vence_en,
     )
 
 

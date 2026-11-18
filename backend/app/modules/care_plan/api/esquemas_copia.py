@@ -5,7 +5,7 @@ ids, sin teléfonos, sin correos, sin referencia_documento, sin evidencia en bru
 Chile (decisión 349), como texto ya formateado por app/shared/copia_datos.py.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -230,7 +230,27 @@ class RetractoCopia(_Cerrado):
     plazo_hasta: Instante
     incluye_envio: bool
     resuelto_en: Instante | None
+    # H2 del analista (MATU-81): por qué no se aceptó; null si no se rechazó o si se rechazó antes de anotarlo
+    motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
     lineas: list[LineaRetractoCopia]
+
+
+class LoQuePasoCopia(_Cerrado):
+    """MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca
+    dice «incidente» ni «incidencia», ni quién del equipo lo anotó."""
+
+    tipo: Literal["faltante", "entrega_fallida", "reclamo_familia", "cobro_sin_respuesta", "devolucion_pendiente",
+                  "otro"]
+    estado: Literal["abierta", "en_gestion", "resuelta"]
+    anotado_en: Instante
+    resuelto_en: Instante | None
+    # Decisión 471: null si la clave de las notas se destruyó con los datos de la persona
+    nota: str | None
+    resolucion: str | None
+    nota_disponible: Annotated[bool, Field(description=(
+        "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la"
+    " resolución vienen null y ya no se pueden leer"
+    ))]
 
 
 class PedidoCopia(_Cerrado):
@@ -249,6 +269,8 @@ class PedidoCopia(_Cerrado):
     entregado_en: Instante | None
     partes: list[ParteCopia]
     retractos: list[RetractoCopia]
+    # MATU-81 (D-81-4)
+    lo_que_paso: list[LoQuePasoCopia]
 
 
 TipoHecho = Literal[
@@ -261,6 +283,10 @@ TipoHecho = Literal[
     # MATU-63
     "devolucion_a_la_tarjeta", "pidio_un_retracto", "codigo_de_retiro_generado", "pedido_en_camino", "pedido_entregado",
     "pedido_no_entregado", "retracto_resuelto",
+    # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}»
+    "matu_reviso_el_pedido",
+    # MATU-114 (J2): un retracto que el equipo intentó registrar con un correo que no es de quien administra el grupo
+    "matu_intento_un_retracto_por_correo",
 ]
 
 

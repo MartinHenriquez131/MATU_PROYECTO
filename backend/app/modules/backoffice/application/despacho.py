@@ -30,6 +30,9 @@ from app.shared.auditoria import AccionAuditoria, ActorTipo, EntidadAuditoria, E
 
 PRODUCTO_FALTANTE = "ProductoFaltante"
 PEDIDO_CANCELADO = "PedidoCanceladoConDevolucion"
+PEDIDO_ENTREGADO = "PedidoEntregado"
+# MATU-76 (D-76-5): el pedido pasó a no_entregado (nadie lo recibió). Lo consume el aviso a quien pagó
+PEDIDO_NO_ENTREGADO = "PedidoNoEntregado"
 DEVUELTAS_PARA_CERRAR = frozenset({EstadoParte.LISTA, EstadoParte.RETIRADA, EstadoParte.CANCELADA})
 
 

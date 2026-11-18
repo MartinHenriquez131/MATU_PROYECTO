@@ -118,7 +118,8 @@ def _actor(request: Request, contexto: SesionDeGrupo) -> Actor:
         "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2)."
         " admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo"
         " que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador:"
-        " ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo;"
+        " ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos,"
+        " sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo;"
         " sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita."
         " Capa 3"
     ),
