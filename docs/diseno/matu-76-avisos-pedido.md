@@ -1,6 +1,6 @@
 # MATU-76 · Avisos de tus pedidos · Especificación de diseño
 
-**Versión 1.0 · 18-11-2026 · agente 6 UI/UX.** Se escribió antes de construir.
+**Versión 1.1 · 18-11-2026 · agente 6 UI/UX.** Se escribió antes de construir. La v1.1 corrige el estado «Cargando» de 2.6 después de la revisión visual: se anuncia una sola vez, desde la A.
 
 **Las bases son estas:**
 - las decisiones de Jorge D-76-1 a D-76-6 y las condiciones C14 a C16 de la revisión previa de MATU-76 (18-11);
@@ -159,7 +159,7 @@ Las dos preferencias llegan en el mismo `GET /v1/yo/avisos` y se guardan con el 
 
 | Estado | Qué se ve |
 |---|---|
-| Cargando | A y B con su `legend`, su ayuda y su alcance, y en lugar de las casillas «Cargando…» **[L 26]** con `role="status"` (la misma espera de `useDemora`). La nota del dinero no se ve: va pegada a su casilla. La tarjeta C no se ve |
+| Cargando | A y B con su `legend`, su ayuda y su alcance, y en lugar de las casillas «Cargando…» **[L 26]** (la misma espera de `useDemora`). Solo la de la A lleva `role="status"`; la de la B es el mismo texto sin rol, para un solo anuncio, como el error de carga (v1.1, revisión visual). La nota del dinero no se ve: va pegada a su casilla. La tarjeta C no se ve |
 | Error al cargar o sin red | En A y en B, `Nota tono="pronto" rol="alert"` con «No pudimos traer tus avisos. Revisa tu conexión e inténtalo de nuevo.» **[L 33]** y «Volver a intentar» **[L 26]**, sin casillas. Cualquiera de los dos botones vuelve a pedir la lectura de las dos. Un solo anuncio para el lector de pantalla: la `Nota` de la A lleva `rol="alert"` y la de la B va sin `rol`, para que no se lea dos veces la misma frase. La tarjeta C no se ve |
 | Listo | Las cuatro casillas con lo que dice el `GET`. Por omisión, la B viene marcada para quien pagó (C3). La pantalla no lo explica |
 | Guardando | **Mientras se guarda una casilla, las cuatro quedan con `aria-disabled`**, no `disabled`, porque el `PUT` lleva las dos preferencias juntas. La que se tocó lleva `aria-busy`. «Guardando…» aparece solo en la tarjeta de la casilla que se tocó. Opacidad: `aria-disabled:not-focus-visible:opacity-60` (MATU-55 v1.3) |
@@ -278,7 +278,7 @@ Cada línea suma el tipo, **antes** del canal:
 | Foco visible | El anillo del tema en las casillas y en los botones. Mientras espera, la casilla con foco no pierde opacidad (`not-focus-visible`) |
 | Estado nunca solo por color | La casilla marcada lleva su tilde. «Activados» y «Sin activar» van con palabra e ícono. En «Tus datos», «Sí» y «No». La nota del dinero es texto |
 | Nombres accesibles | Cada `fieldset` tiene su `legend`. Las dos casillas «Por correo» se distinguen por su grupo. La de pedidos tiene la nota del dinero en su `aria-describedby` |
-| Un solo anuncio | Guardar, guardado y error se anuncian una vez, en la tarjeta tocada. El error de carga se anuncia una vez (2.6) |
+| Un solo anuncio | Guardar, guardado y error se anuncian una vez, en la tarjeta tocada. «Cargando…» y el error de carga se anuncian una vez, desde la A (2.6) |
 | Sin desplazamiento horizontal | A 320 px con el texto al 200 % (`angosto`), las tarjetas pasan a `px-2`, las etiquetas se parten y la nota del dinero mantiene `ps-9` |
 | 17 px | Todos los textos en `text-base` o más. Los `h3` de «Tus datos» en `text-lg` |
 | Movimiento | Mostrar y ocultar la tarjeta C es inmediato, sin transición |
