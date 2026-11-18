@@ -58,7 +58,7 @@ import { DialogoConfirmar } from './DialogoConfirmar'
 import { useDemora } from './Estados'
 import { useFamilia } from './estado'
 import { GENERAL, QUIEN } from './textos'
-import { FRASE_CON_REFERENCIA, FRASE_HECHO, MIS_DATOS as T } from './textosMisDatos'
+import { FRASE_CON_REFERENCIA, FRASE_HECHO, FRASE_TRAS_REFERENCIA, MIS_DATOS as T } from './textosMisDatos'
 import { Cola, Nota } from './ui'
 
 // ---------------------------------------------------------------- pedir la copia
@@ -390,6 +390,7 @@ const ICONO_HECHO: Record<TipoHecho, LucideIcon> = {
   pedido_no_entregado: PackageX,
   retracto_resuelto: MessageSquareReply,
   matu_reviso_el_pedido: Headset,
+  matu_intento_un_retracto_por_correo: Headset,
 }
 
 /** Un `tipo` que el cliente no conoce no se muestra, y la pantalla no se rompe. */
@@ -413,6 +414,7 @@ function FraseHecho({ h }: { h: HechoCopia & { tipo: TipoHecho } }) {
       <>
         {conReferencia}
         <span className="cifras">{h.referencia}</span>
+        {FRASE_TRAS_REFERENCIA[h.tipo]}
       </>
     )
   return <>{FRASE_HECHO[h.tipo]({ nombre: objetoDe(h), finalidad: h.finalidad ?? null })}</>

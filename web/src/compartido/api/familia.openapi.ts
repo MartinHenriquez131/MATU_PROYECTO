@@ -1822,7 +1822,7 @@ export interface paths {
         put?: never;
         /**
          * Registrar Retracto Por Correo
-         * @description H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.
+         * @description H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto. MATU-114: con correo_solicitante, hasta 5 correos que no calzan por hora y por cuenta de operación (429); cada uno se registra en la auditoría del pedido, sin el correo.
          */
         post: operations["registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post"];
         delete?: never;
@@ -5251,7 +5251,7 @@ export interface components {
              * Tipo
              * @enum {string}
              */
-            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto" | "matu_reviso_el_pedido";
+            tipo: "abrio_la_ficha" | "edito_la_ficha" | "quito_una_seccion" | "ficha_borrada" | "dio_una_autorizacion" | "retiro_una_autorizacion" | "compartio_la_ficha" | "corto_un_enlace" | "agrego_un_insumo" | "edito_un_insumo" | "dejo_de_seguir_un_insumo" | "volvio_a_seguir_un_insumo" | "quito_un_insumo" | "anoto_una_compra" | "aviso_de_insumo" | "descarto_un_aviso" | "resolvio_un_aviso" | "cambio_la_direccion" | "creo_un_pedido" | "confirmo_un_pedido" | "cancelo_un_pedido" | "cambio_que_hacer_si_falta" | "inicio_un_pago" | "pago_aprobado" | "pago_anulado" | "pidio_una_copia" | "devolucion_a_la_tarjeta" | "pidio_un_retracto" | "codigo_de_retiro_generado" | "pedido_en_camino" | "pedido_entregado" | "pedido_no_entregado" | "retracto_resuelto" | "matu_reviso_el_pedido" | "matu_intento_un_retracto_por_correo";
             /** Ocurrido En */
             ocurrido_en: string;
             quien: components["schemas"]["QuienCopia"];
@@ -14092,7 +14092,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son */
+            /** @description producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin activo, correo_solicitante no es de un admin activo del grupo (D-81-9), o vienen los dos. El mismo cuerpo en todos los casos: nunca dice cuál ni quiénes son (MATU-114, C9) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14101,7 +14101,16 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description Falta PEPPER_EMAIL para buscar el correo del admin */
+            /** @description demasiados-intentos: 5 correos que no calzan en una hora para la cuenta de operación (MATU-114, C11), con Retry-After. No dice si el último correo era válido */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Falta PEPPER_EMAIL o PEPPER_LIMITES, o Redis no responde, con correo_solicitante: no se busca el correo */
             503: {
                 headers: {
                     [name: string]: unknown;
