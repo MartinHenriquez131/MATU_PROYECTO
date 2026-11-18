@@ -60,6 +60,20 @@ async function abrir(c: CopiaDatosPersona) {
 }
 
 describe('MATU-81 en la copia de los datos de la familia', () => {
+  it('MATU-115 (P3 de Martín): sin resolución (vacía), «Cómo se resolvió:» no aparece; con resolución, sí', async () => {
+    await abrir(
+      conLoQuePaso([
+        { tipo: 'faltante', estado: 'resuelta', anotado_en: antes(1, 30), resuelto_en: antes(0, 30), nota: 'El comercio avisó que faltó la crema.', resolucion: 'Se devolvió la crema a la misma tarjeta.', nota_disponible: true },
+        { tipo: 'otro', estado: 'resuelta', anotado_en: antes(1, 20), resuelto_en: antes(0, 20), nota: 'Una nota sintética.', resolucion: '  ', nota_disponible: true },
+      ]),
+    )
+    const seccion = screen.getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' }).closest('section')!
+    const [con, sin] = within(seccion).getAllByRole('listitem')
+    expect(within(con).getByText('Cómo se resolvió:')).toBeVisible()
+    expect(within(sin).queryByText('Cómo se resolvió:')).toBeNull()
+    expect(within(sin).getByText(/^Se resolvió el/)).toBeVisible()
+  })
+
   it('«Lo que pasó con tu pedido»: el tipo, el estado con ícono y palabra, cuándo, la nota y cómo se resolvió', async () => {
     await abrir(conLoQuePaso())
     const titulo = screen.getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' })

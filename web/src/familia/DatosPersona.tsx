@@ -815,7 +815,7 @@ function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
               ) : (
                 <>
                   {x.nota && <p className="text-base whitespace-pre-line break-words">{x.nota}</p>}
-                  {x.resolucion && (
+                  {x.resolucion?.trim() && (
                     <p className="text-base whitespace-pre-line break-words">
                       <b>{L.comoSeResolvio}</b> {x.resolucion}
                     </p>
