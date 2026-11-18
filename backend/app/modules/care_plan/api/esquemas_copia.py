@@ -285,6 +285,8 @@ TipoHecho = Literal[
     "pedido_no_entregado", "retracto_resuelto",
     # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}»
     "matu_reviso_el_pedido",
+    # MATU-114 (J2): un retracto que el equipo intentó registrar con un correo que no es de quien administra el grupo
+    "matu_intento_un_retracto_por_correo",
 ]
 
 

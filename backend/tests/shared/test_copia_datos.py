@@ -108,8 +108,8 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
         # MATU-81 (D-81-4): lo que el equipo anotó va en «Lo que pasó con tu pedido» (lo_que_paso), no en el historial
         AccionAuditoria.INCIDENCIA_CREAR, AccionAuditoria.INCIDENCIA_RESOLVER,
     }
-    # MATU-81 (D-81-5) suma matu_reviso_el_pedido
-    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 34
+    # MATU-81 (D-81-5) suma matu_reviso_el_pedido, y MATU-114 (J2) matu_intento_un_retracto_por_correo
+    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 35
     assert alcance_del_historial("admin") == "todo" and alcance_del_historial("cuidador") == "lo_tuyo"
 
 

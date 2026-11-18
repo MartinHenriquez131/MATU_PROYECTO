@@ -2462,8 +2462,9 @@ def test_el_admin_da_la_autorizacion_y_todo_el_grupo_la_lee(cx):
 
 
 @pytest.mark.rf("RF-37")
-def test_operacion_lee_email_y_celular_pero_no_cambia_ni_crea_cuentas(sesiones_app):
-    """Condición 5: soporte lee el email y el celular. No inserta, no edita ni borra una cuenta."""
+def test_operacion_no_lee_ni_cambia_ni_crea_cuentas(sesiones_app):
+    """Condición 5 de MATU-66: no inserta, no edita ni borra una cuenta. Desde MATU-114 (C1, 0031) tampoco lee el email
+    ni el celular: usuario_operacion_leer ya no existe."""
     from sqlalchemy import text
     from sqlalchemy.exc import DBAPIError
 
@@ -2471,7 +2472,7 @@ def test_operacion_lee_email_y_celular_pero_no_cambia_ni_crea_cuentas(sesiones_a
 
     with pytest.raises(_Deshacer), sesion_tenant(sesiones_app, rol="operacion") as s:
         filas = s.execute(text("SELECT email, telefono FROM usuario WHERE id = :id"), {"id": U_OBS_A}).all()
-        assert [f[0] for f in filas] == ["obs.a@x.cl"]
+        assert filas == []
         # Ni siquiera una columna que la app sí cambia: operación no alcanza la fila ajena
         editadas = s.execute(text("UPDATE usuario SET telefono = '+56900000066' WHERE id = :id"), {"id": U_OBS_A})
         assert editadas.rowcount == 0  # type: ignore[attr-defined]
@@ -3965,7 +3966,10 @@ def test_las_politicas_del_marcador_son_solo_de_matu_owner_y_las_definer_de_matu
                        "comercio_listo", "comercio_validar_codigo", "comercio_existencias", "oferta_disponible",
                        "despacho_resolver_parte",
                        # MATU-81 (0030): filtra además por app_usuario(), con o sin el marcador
-                       "iam_mfa_secreto"}
+                       "iam_mfa_secreto",
+                       # MATU-114 (0031): fijan 'cuentas', devuelven el marcador anterior y responden solo un booleano
+                       # o un id
+                       "operacion_cuenta_activa", "cuenta_es_operacion", "operacion_solicitante_retracto"}
 
 
 # ------------------------------------------------------------------ MATU-46 (migración 0027): el teléfono del relevo
@@ -4769,3 +4773,235 @@ def test_la_conservacion_de_alertas_borra_tambien_los_avisos_del_pedido(cx):
     cx.execute("RESET ROLE")
     assert fila == (1,)
     assert cx.execute("SELECT evento_id FROM notificacion WHERE plantilla = 'pedido_novedad'").fetchall() == [(2,)]
+
+
+# ---- MATU-114 (migración 0031): operación deja de leer cuentas, membresías e invitaciones (minimización)
+
+U_OPERACION_114 = uuid.UUID("00000000-0000-0000-0000-0000000114a1")
+U_OPERACION_114_INACTIVA = uuid.UUID("00000000-0000-0000-0000-0000000114a2")
+HUELLA_ADMIN_A = b"\x11" * 32
+HUELLA_OBS_A = b"\x12" * 32
+HUELLA_ADMIN_B = b"\x13" * 32
+HUELLA_RETIRADO = b"\x14" * 32
+
+
+def _cuentas_de_operacion_114(cx):
+    """Dos cuentas de operación más, una activa y una bloqueada, en la transacción de la prueba."""
+    cx.execute("INSERT INTO usuario (id, email, nombre, password_hash, es_operacion, mfa_secreto_cifrado, estado)"
+               " VALUES (%s, 'operacion.114@x.cl', 'Operación 2', 'h', true, '\\x01', 'activo'),"
+               " (%s, 'operacion.114b@x.cl', 'Operación 3', 'h', true, '\\x01', 'bloqueado')",
+               (U_OPERACION_114, U_OPERACION_114_INACTIVA))
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("tabla", ["usuario", "membresia", "invitacion"])
+def test_c4_c7_operacion_no_lee_cuentas_membresias_ni_invitaciones(cx, operador_81, tabla):
+    """C1, C4, C7 y O1: matu_app con app.rol = 'operacion' no lee ninguna cuenta ajena, membresía ni invitación, con o
+    sin grupo en el contexto. Con su cuenta en el contexto, solo su propia fila de usuario. matu_scheduler no tiene
+    permiso sobre esas tablas."""
+    _invitacion(cx)
+    assert contar(cx, tabla) > 0
+    propias = 1 if tabla == "usuario" else 0
+    for ctx in ({"rol": "operacion"}, {"usuario_id": operador_81, "rol": "operacion"},
+                {"usuario_id": operador_81, "grupo_id": G_A, "rol": "operacion"}):
+        como(cx, **ctx)
+        assert contar(cx, tabla) == (propias if "usuario_id" in ctx else 0), ctx
+        if tabla == "usuario":
+            assert contar(cx, tabla, f"id <> '{operador_81}'") == 0, ctx
+        cx.execute("RESET ROLE")
+    como(cx, db_rol="matu_scheduler", rol="operacion")
+    with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+        cx.execute(f"SELECT 1 FROM {tabla}")
+
+
+@pytest.mark.rf("RF-40")
+def test_c3_la_incidencia_se_asigna_a_una_cuenta_de_operacion_activa_sin_leer_cuentas(cx, operador_81):
+    """C3: incidencia_reglas pregunta a operacion_cuenta_activa(), porque operación ya no lee usuario. Asignar a otra
+    cuenta de operación activa pasa; a una bloqueada o que no es de operación, check_violation."""
+    _cuentas_de_operacion_114(cx)
+    como(cx, usuario_id=operador_81, rol="operacion")
+    incidencia = _incidencia(cx, PED_A_ENVIADO, operador_81)
+    cx.execute("UPDATE incidencia SET asignada_a = %s WHERE id = %s", (U_OPERACION_114, incidencia))
+    assert cx.execute("SELECT asignada_a FROM incidencia WHERE id = %s", (incidencia,)).fetchone() == (
+        U_OPERACION_114,)
+    for cuenta in (U_OPERACION_114_INACTIVA, U_ADMIN_A, uuid.uuid4()):
+        with pytest.raises(errors.CheckViolation), cx.transaction():
+            cx.execute("UPDATE incidencia SET asignada_a = %s WHERE id = %s", (cuenta, incidencia))
+    cx.execute("RESET ROLE")
+    # Crearla con una cuenta bloqueada en el contexto, tampoco
+    como(cx, usuario_id=U_OPERACION_114_INACTIVA, rol="operacion")
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        _incidencia(cx, PED_A_ENVIADO, U_OPERACION_114_INACTIVA)
+
+
+@pytest.mark.rf("RF-40")
+def test_c2_operacion_cuenta_activa_solo_responde_si_y_no(cx, operador_81):
+    """C2 y O6: un booleano; false con NULL, una cuenta bloqueada (operacion_cuenta_activa) o una que no es de
+    operación. EXECUTE solo matu_app; la función devuelve el marcador app.funcion que tenía quien la llamó."""
+    _cuentas_de_operacion_114(cx)
+    como(cx, rol="operacion")
+    cx.execute("SELECT set_config('app.funcion', 'otro', true)")
+    respuestas = [cx.execute("SELECT operacion_cuenta_activa(%s), cuenta_es_operacion(%s)", (u, u)).fetchone()
+                  for u in (operador_81, U_OPERACION_114_INACTIVA, U_ADMIN_A, None)]
+    assert respuestas == [(True, True), (False, True), (False, False), (False, False)]
+    assert cx.execute("SELECT current_setting('app.funcion', true)").fetchone() == ("otro",)
+    cx.execute("RESET ROLE")
+    for rol in ("matu_scheduler", "matu_publisher"):
+        como(cx, db_rol=rol, rol="operacion")
+        for funcion in ("operacion_cuenta_activa", "cuenta_es_operacion"):
+            with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+                cx.execute(f"SELECT {funcion}(%s)", (operador_81,))
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-37")
+def test_o6_la_sesion_de_operacion_exige_el_segundo_factor_aunque_la_sesion_no_vea_la_cuenta(cx, operador_81):
+    """O6: sesion_refresh_mfa preguntaba con los permisos de quien inserta y fallaba abierta. Con una política que le
+    esconde usuario a matu_app (solo en esta transacción), un refresh sin la marca de una cuenta de operación se
+    rechaza igual; el de una cuenta de la familia sigue entrando."""
+    dispositivos = {}
+    for usuario in (operador_81, U_OBS_A):
+        dispositivos[usuario] = cx.execute("INSERT INTO dispositivo (usuario_id, plataforma) VALUES (%s, 'web')"
+                                           " RETURNING id", (usuario,)).fetchone()[0]
+    cx.execute("CREATE POLICY prueba_114_sin_cuentas ON usuario AS RESTRICTIVE FOR SELECT TO matu_app USING (false)")
+    insertar = ("INSERT INTO sesion_refresh (usuario_id, dispositivo_id, familia_id, token_hash, expira_en)"
+                " VALUES (%s, %s, gen_random_uuid(), sha256(gen_random_uuid()::text::bytea), now() + interval '1 h')")
+    como(cx, usuario_id=operador_81)
+    assert contar(cx, "usuario") == 0
+    with pytest.raises(errors.CheckViolation), cx.transaction():
+        cx.execute(insertar, (operador_81, dispositivos[operador_81]))
+    cx.execute("RESET ROLE")
+    como(cx, usuario_id=U_OBS_A)
+    cx.execute(insertar, (U_OBS_A, dispositivos[U_OBS_A]))
+
+
+def _credenciales_114(cx):
+    cx.execute("INSERT INTO indice_credencial (email_hash, usuario_id) VALUES (%s, %s), (%s, %s), (%s, %s)",
+               (HUELLA_ADMIN_A, U_ADMIN_A, HUELLA_OBS_A, U_OBS_A, HUELLA_ADMIN_B, U_ADMIN_B))
+
+
+@pytest.mark.rf("R3")
+@pytest.mark.rf("Ley-21.719")
+def test_c8_el_solicitante_del_retracto_por_correo_solo_es_un_id_o_nada(cx, operador_81):
+    """C8: la regla de hoy en la base. Quien pagó el pedido de A es U_ADMIN_A (participacion de la semilla)."""
+    _credenciales_114(cx)
+    _cuentas_de_operacion_114(cx)
+
+    def solicitante(huella, solicitado_por):
+        return cx.execute("SELECT operacion_solicitante_retracto(%s, %s, %s)",
+                          (PED_A_ENVIADO, huella, solicitado_por)).fetchone()[0]
+
+    como(cx, usuario_id=operador_81, rol="operacion")
+    assert solicitante(None, None) == U_ADMIN_A                     # sin nada: quien pagó
+    assert solicitante(None, U_ADMIN_A) == U_ADMIN_A                # quien pagó, o un admin activo
+    assert solicitante(None, U_OBS_A) is None                       # ni pagó ni administra
+    assert solicitante(None, U_ADMIN_B) is None                     # admin de otro grupo
+    assert solicitante(HUELLA_ADMIN_A, None) == U_ADMIN_A           # la huella del admin activo del grupo
+    assert solicitante(HUELLA_OBS_A, None) is None                  # no administra
+    assert solicitante(HUELLA_ADMIN_B, None) is None                # de otro grupo
+    assert solicitante(b"\x99" * 32, None) is None                  # sin cuenta
+    assert solicitante(HUELLA_ADMIN_A, U_ADMIN_A) is None           # los dos
+    assert cx.execute("SELECT operacion_solicitante_retracto(gen_random_uuid(), NULL, NULL)").fetchone() == (None,)
+    cx.execute("RESET ROLE")
+    # Un admin retirado, ya no
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
+    cx.execute("INSERT INTO indice_credencial (email_hash, usuario_id) VALUES (%s, %s)", (HUELLA_RETIRADO, U_NUEVO))
+    cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s", (U_NUEVO,))
+    como(cx, usuario_id=operador_81, rol="operacion")
+    assert solicitante(HUELLA_RETIRADO, None) is None
+    assert solicitante(None, U_NUEVO) is None
+    cx.execute("RESET ROLE")
+    # Exige operación con una cuenta de operación activa en el contexto; si no, insufficient_privilege
+    for ctx in ({"rol": "operacion"}, {"usuario_id": U_ADMIN_A, "rol": "operacion"},
+                {"usuario_id": U_OPERACION_114_INACTIVA, "rol": "operacion"},
+                {"usuario_id": operador_81}, {"usuario_id": U_ADMIN_A, "grupo_id": G_A}):
+        como(cx, **ctx)
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            solicitante(None, None)
+        cx.execute("RESET ROLE")
+    for rol in ("matu_scheduler", "matu_publisher"):
+        como(cx, db_rol=rol, usuario_id=operador_81, rol="operacion")
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            solicitante(None, None)
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("RF-26")
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.parametrize("contexto", [
+    {"rol": "operacion"},
+    {"grupo_id": G_A, "rol": "operacion"},
+    {"grupo_id": G_A, "rol": "sistema"},
+    {"usuario_id": U_ADMIN_A, "grupo_id": G_A},
+    {"usuario_id": U_ENC, "comercio_id": COMERCIO},
+], ids=["operacion", "operacion-con-grupo", "sistema", "familia", "comercio"])
+def test_c15_nadie_de_la_aplicacion_lee_la_huella_del_codigo_de_retiro(cx, contexto):
+    """C12 a C15: matu_app no tiene SELECT de pedido_comercio.codigo_hash, ni en el SELECT, el WHERE ni el RETURNING.
+    codigo_vigente dice si hay un código, y lo demás de la parte se sigue leyendo."""
+    como(cx, **contexto)
+    for sentencia in ("SELECT codigo_hash FROM pedido_comercio",
+                      "SELECT id FROM pedido_comercio WHERE codigo_hash IS NOT NULL",
+                      "SELECT * FROM pedido_comercio",
+                      "UPDATE pedido_comercio SET version = version WHERE false RETURNING codigo_hash"):
+        with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
+            cx.execute(sentencia)
+    cx.execute("SELECT id, estado, codigo_vigente, codigo_expira_en FROM pedido_comercio").fetchall()
+
+
+@pytest.mark.rf("Ley-21.719")
+def test_c13_codigo_vigente_sigue_a_la_huella(cx):
+    parte = "00000000-0000-0000-0000-0000000009a1"
+    cx.execute("UPDATE pedido_comercio SET estado = 'lista', preparando_en = now(), lista_en = now(),"
+               " codigo_hash = repeat('a', 64), codigo_generado_en = now(),"
+               f" codigo_expira_en = now() + interval '90 minutes' WHERE id = '{parte}'")
+    como(cx, rol="operacion")
+    assert cx.execute(f"SELECT codigo_vigente FROM pedido_comercio WHERE id = '{parte}'").fetchone() == (True,)
+    cx.execute("RESET ROLE")
+    cx.execute(f"UPDATE pedido_comercio SET codigo_hash = NULL WHERE id = '{parte}'")
+    como(cx, rol="operacion")
+    assert cx.execute(f"SELECT codigo_vigente FROM pedido_comercio WHERE id = '{parte}'").fetchone() == (False,)
+    # La columna es generada: nadie la escribe
+    with pytest.raises(errors.GeneratedAlways), cx.transaction():
+        cx.execute(f"UPDATE pedido_comercio SET codigo_vigente = true WHERE id = '{parte}'")
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+def test_c17_la_clave_de_las_notas_la_leen_solo_admin_y_cuidador_activos(cx, operador_81):
+    """C16 y C17: los mismos que piden «Datos de» (app_escribe_plan). Pagador (también con permiso de ver la ficha),
+    observador, retirado, otro grupo, comercio y relevo: 0."""
+    como(cx, usuario_id=operador_81, rol="operacion")
+    _clave_notas(cx)
+    cx.execute("RESET ROLE")
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'cuidador')", (G_A, U_NUEVO))
+    lectores = {U_ADMIN_A: 1, U_NUEVO: 1, U_PAG_A: 0, U_PAG2_A: 0, U_OBS_A: 0}
+    for usuario, esperadas in lectores.items():
+        como(cx, usuario_id=usuario, grupo_id=G_A)
+        assert contar(cx, "clave_notas") == esperadas, usuario
+        cx.execute("RESET ROLE")
+    cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s", (U_NUEVO,))
+    for ctx in ({"usuario_id": U_NUEVO, "grupo_id": G_A}, {"usuario_id": U_ADMIN_B, "grupo_id": G_B},
+                {"usuario_id": U_ADMIN_B, "grupo_id": G_A}, {"usuario_id": U_ENC, "comercio_id": COMERCIO},
+                {"rol": "relevo", "acceso_relevo_id": ACC_VIGENTE}):
+        como(cx, **ctx)
+        assert contar(cx, "clave_notas") == 0, ctx
+        cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("R3")
+@pytest.mark.rf("Ley-21.719")
+def test_c10_quien_pago_y_salio_del_grupo_sigue_siendo_el_titular(cx, operador_81):
+    """C10 (decisión de Jorge del 18-11): el retracto por correo sin indicar a nombre de quién va se registra a nombre
+    de quien pagó aunque haya salido del grupo, porque el derecho a arrepentirse es de quien compró y la devolución va
+    a su tarjeta (D-76-4). Un admin, en cambio, tiene que estar activo. Si esta prueba falla, se cambió la regla."""
+    # Quien pagó el pedido de A (participacion de la semilla) es U_ADMIN_A: sale del grupo, con otro admin que queda
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
+    cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE grupo_id = %s AND usuario_id = %s",
+               (G_A, U_ADMIN_A))
+    como(cx, usuario_id=operador_81, rol="operacion")
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, NULL)", (PED_A_ENVIADO,)).fetchone() == (
+        U_ADMIN_A,)
+    # A su nombre explícito también: es quien pagó
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, %s)", (PED_A_ENVIADO, U_ADMIN_A)).fetchone() == (
+        U_ADMIN_A,)
+

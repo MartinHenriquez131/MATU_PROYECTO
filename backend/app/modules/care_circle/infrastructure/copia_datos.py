@@ -259,6 +259,9 @@ TIPO_HECHO: dict[AccionAuditoria, str] = {
     AccionAuditoria.RETRACTO_RESOLVER: "retracto_resuelto",
     # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}», sin quién ni qué vio
     AccionAuditoria.OPERACION_PEDIDO_VER: "matu_reviso_el_pedido",
+    # MATU-114 (J2, lenguaje.md §39): «El equipo de MATU intentó registrar que alguien quiere arrepentirse de la compra
+    # del pedido {referencia}, con un correo que no es de quien administra el grupo». Sin el correo ni quién del equipo
+    AccionAuditoria.OPERACION_RETRACTO_CORREO_FALLIDO: "matu_intento_un_retracto_por_correo",
 }
 
 CAMPOS_BASE = frozenset({"rutina", "manejo_situaciones", "red_apoyo"})

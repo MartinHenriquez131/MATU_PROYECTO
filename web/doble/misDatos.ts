@@ -370,13 +370,15 @@ function historialDe(p: PersonaParaCopia, rol: Rol, modo: string | undefined, yo
   if (modo === 'datos-historial') for (let i = 0; i < 12; i++) hechos.push({ tipo: i % 2 ? 'abrio_la_ficha' : 'edito_la_ficha', ocurrido_en: hace(95 * DIA + i * DIA), quien: quien('persona', 0), campo: i % 2 ? null : 'red_apoyo', seccion: null })
   // MATU-81 (D-81-5): el equipo de MATU abrió el pedido 4821 en su consola.
   hechos.push({ tipo: 'matu_reviso_el_pedido', ocurrido_en: hace(3 * DIA + 45), quien: quien('matu', 0), campo: null, seccion: null })
+  // MATU-114: el equipo intentó registrar un retracto del pedido 4821 con un correo que no es de quien administra (sin el correo).
+  hechos.push({ tipo: 'matu_intento_un_retracto_por_correo', ocurrido_en: hace(3 * DIA + 40), quien: quien('matu', 0), campo: null, seccion: null })
   for (const c of copiasDePersona.get(p.id) ?? []) hechos.push({ tipo: 'pidio_una_copia', ocurrido_en: c.en, quien: { tipo: 'persona', nombre: c.quien, activo: true }, campo: null, seccion: null })
   // El cuidador ve solo sus filas (D-54-6): ni las de otros ni las de MATU.
   const visibles = todo ? hechos : hechos.filter((h) => h.quien.tipo === 'persona' && h.quien.nombre === yo)
   visibles.sort((a, b) => new Date(b.ocurrido_en).getTime() - new Date(a.ocurrido_en).getTime())
   // F1 (decisión 384): la finalidad en los hechos de autorizaciones y la referencia en los de pedidos y pagos.
   const AUTORIZACION = new Set(['dio_una_autorizacion', 'retiro_una_autorizacion'])
-  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto', 'matu_reviso_el_pedido'])
+  const PEDIDO = new Set(['creo_un_pedido', 'confirmo_un_pedido', 'cancelo_un_pedido', 'cambio_que_hacer_si_falta', 'inicio_un_pago', 'pago_aprobado', 'pago_anulado', 'devolucion_a_la_tarjeta', 'pidio_un_retracto', 'codigo_de_retiro_generado', 'pedido_en_camino', 'pedido_entregado', 'pedido_no_entregado', 'retracto_resuelto', 'matu_reviso_el_pedido', 'matu_intento_un_retracto_por_correo'])
   const conObjeto = (h: Hecho, i: number) => ({
     ...h,
     ocurrido_en: chile(h.ocurrido_en),

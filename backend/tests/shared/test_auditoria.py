@@ -128,6 +128,8 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "operacion.pedido_ver",
         "incidencia.crear",
         "incidencia.resolver",
+        # MATU-114 (J2): el correo que no calzó en un retracto por correo, con el grupo y la persona del pedido
+        "operacion.retracto_correo_fallido",
     }
 
 

@@ -414,6 +414,9 @@ export const FRASE_HECHO: Record<TipoHecho, (o: ObjetoHecho) => string> = {
   retracto_resuelto: () => 'MATU respondió un retracto',
   // MATU-81 (D-81-5, decisión 461): abrir el pedido en la consola de operación. [A81] con referencia; sin ella, [FRONTEND].
   matu_reviso_el_pedido: () => 'El equipo de MATU revisó un pedido',
+  // MATU-114 (lenguaje.md §39): un retracto por correo con un correo que no es de quien administra. Sin el correo ni quién del equipo. [NUEVO]
+  matu_intento_un_retracto_por_correo: () =>
+    'El equipo de MATU intentó registrar que alguien quiere arrepentirse de una compra, con un correo que no es de quien administra el grupo',
 }
 
 /** (1.2, F1) Con `referencia`: la frase sin el número, que la pantalla agrega en `cifras`. [NUEVO] */
@@ -435,4 +438,11 @@ export const FRASE_CON_REFERENCIA: Partial<Record<TipoHecho, string>> = {
   retracto_resuelto: 'MATU respondió el retracto del pedido ',
   // MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}». [A81]
   matu_reviso_el_pedido: 'El equipo de MATU revisó el pedido ',
+  // MATU-114 (lenguaje.md §39). [NUEVO]
+  matu_intento_un_retracto_por_correo: 'El equipo de MATU intentó registrar que alguien quiere arrepentirse de la compra del pedido ',
+}
+
+/** (MATU-114) Lo que sigue al número del pedido, en las frases que no terminan en él. [NUEVO] */
+export const FRASE_TRAS_REFERENCIA: Partial<Record<TipoHecho, string>> = {
+  matu_intento_un_retracto_por_correo: ', con un correo que no es de quien administra el grupo',
 }

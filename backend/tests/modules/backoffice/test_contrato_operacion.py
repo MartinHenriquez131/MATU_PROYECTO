@@ -107,3 +107,13 @@ def test_la_entrada_en_dos_pasos_esta_en_el_contrato(esquema: dict[str, Any]) ->
     cuerpo = mfa["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
     assert set(esquema["components"]["schemas"][cuerpo]["properties"]) == {"desafio", "codigo"}
     assert not mfa.get("parameters")
+
+
+def test_c5_el_retracto_de_operacion_no_dice_a_nombre_de_quien_va(esquema: dict[str, Any]) -> None:
+    """C5 de MATU-81, revisado en MATU-114: RetractoOperacion no expone solicitado_por, y el retracto por correo
+    documenta el 429 del límite de correos y un solo 422 solicitante-invalido."""
+    campos = _propiedades(esquema, esquema["components"]["schemas"]["RetractoOperacion"], set())
+    assert "solicitado_por" not in campos and "correo_solicitante" not in campos
+    respuestas = esquema["paths"]["/v1/operacion/pedidos/{pedido_id}/retractos"]["post"]["responses"]
+    assert {"201", "422", "429", "503"} <= set(respuestas)
+    assert "demasiados-intentos" in respuestas["429"]["description"]
