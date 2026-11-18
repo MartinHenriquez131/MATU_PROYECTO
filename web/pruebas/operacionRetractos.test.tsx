@@ -174,6 +174,16 @@ describe('El retracto que llegó por correo', () => {
   const CORREO_OTRO = 'otra-persona@example.com'
   /** La nota de 409, 422 no retractable y 429 (P2 de MATU-114). */
   const notaDelCorreo = () => document.getElementById('nota-del-retracto-por-correo')
+  /**
+   * MATU-114 (revisión visual, P2 y P3): la nota con `iconoEnLinea`, como MATU-44 y MATU-54, para que a 320 px
+   * y 200 % no parta palabras, y con aire arriba al recibir el foco. jsdom no mide: se afirma la estructura.
+   */
+  const conIconoEnLinea = () => {
+    const nota = notaDelCorreo()!
+    expect(nota.querySelector(':scope > span.contents')).toHaveClass('angosto:hidden')
+    expect(nota.querySelector('span[class*="angosto:inline-flex"] svg')).not.toBeNull()
+    expect(nota).toHaveClass('scroll-mt-4')
+  }
 
   async function abrirFormulario(ref = '4825', sobre?: Sobre) {
     const r = await abrirEntregado(ref, sobre)
@@ -238,6 +248,7 @@ describe('El retracto que llegó por correo', () => {
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
     // P2 de MATU-114: el foco va a la nota, que queda a la vista; no se queda en el botón.
     await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
+    conIconoEnLinea()
   })
 
   // Con la máquina cargada pasó los 15 s: son tres envíos del formulario completo.
@@ -257,6 +268,7 @@ describe('El retracto que llegó por correo', () => {
     await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
     await waitFor(() => expect(urgente).toHaveTextContent('Elige productos que se entregaron, hasta lo que queda por devolver.'))
     await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
+    conIconoEnLinea()
     expect(document.body.textContent).not.toContain('ya tiene un retracto por resolver')
     // Con la unidad que queda, sí.
     await usuario.click(screen.getAllByRole('button', { name: 'Menos: ¿Cuántos?' })[0])
@@ -289,6 +301,7 @@ describe('El retracto que llegó por correo', () => {
     await waitFor(() => expect(urgente.textContent!.replace(/\s+/g, ' ').trim()).toBe(`${PRIMERA} ${espera}`))
     expect(notaDelCorreo()).toHaveTextContent(`${PRIMERA} ${espera}`)
     expect(notaDelCorreo()).toHaveAttribute('data-aviso', 'alert')
+    conIconoEnLinea()
     await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
     expect(document.body.textContent).not.toContain('Revisa tu conexión')
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')

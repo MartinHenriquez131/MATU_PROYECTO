@@ -508,7 +508,7 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
               {T.noEsAdminTexto}
             </Nota>
           ) : (
-            <Nota id={ID_NOTA_CORREO} enfocable tono="atenta" rol="alert">
+            <Nota id={ID_NOTA_CORREO} enfocable iconoEnLinea tono="atenta" rol="alert" className="scroll-mt-4">
               {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : falla.tipo === 'muchos-intentos' ? T.muchosIntentos(falla.minutos) : T.noRetractable}
             </Nota>
           )}
