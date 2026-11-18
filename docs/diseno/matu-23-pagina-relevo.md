@@ -521,6 +521,8 @@ Mismo patrón 3.4, sin la nota. Sin botones: después del canje el token ya no e
 
 #### 3.11.1 Cada campo de la hoja
 
+**Desde el 17/11/2026 (MATU-95):** «A quién llamar» va **primero**, justo después del nombre, en un bloque con fondo `rocio`, borde `border-s-4 border-turquesa`, título `text-2xl` en `tinta` y el ícono `Phone`. Después siguen «Su día» y «Si se altera». Ver `matu-95-ficha-a-quien-llamar.md`, secciones 2 a 4, que mandan sobre esta sección en el orden y en ese bloque.
+
 Construcción de un campo, de arriba abajo (`section aria-labelledby`, `mt-6` entre campos):
 
 | Pieza | Texto | Construcción |

@@ -2211,7 +2211,7 @@ function DialogoEliminar({
         e.preventDefault()
         onCancelar()
       }}
-      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       <div className="flex flex-col gap-4">
         <h2 id={`${uid}-t`} className="text-xl font-bold break-words [overflow-wrap:anywhere]">
