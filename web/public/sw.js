@@ -1,17 +1,18 @@
-// Service worker de MATU (MATU-55, especificación 3.4, decisión de Jorge D6 = a). Solo existe para
-// recibir los avisos de un insumo que se está acabando. No intercepta peticiones, no guarda nada en
-// caché y nunca lee el contenido del aviso: el texto es siempre el mismo y no dice qué insumo ni de
-// quién (lenguaje.md, sección 20). En el piloto el envío es simulado, así que no llega nada.
+// Service worker de MATU (MATU-55, especificación 3.4, decisión de Jorge D6 = a; MATU-76, D-76-1 a).
+// Solo existe para recibir los avisos en el teléfono: el de un insumo que se está acabando y los de
+// un pedido. No intercepta peticiones, no guarda nada en caché y nunca lee el contenido del aviso,
+// que llega vacío: el texto es siempre el mismo, «MATU · Tienes una novedad. Abre la app para verla.»,
+// y no dice qué insumo, qué pedido ni de quién. En el piloto el envío es simulado: no llega nada.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
 self.addEventListener('push', (e) => {
   e.waitUntil(
     self.registration.showNotification('MATU', {
-      body: 'Un insumo se está acabando. Abre la app para ver cuál.',
+      body: 'Tienes una novedad. Abre la app para verla.',
       lang: 'es-CL',
       icon: '/icono-192.png',
-      tag: 'matu-insumo',
+      tag: 'matu-novedad',
     }),
   )
 })
