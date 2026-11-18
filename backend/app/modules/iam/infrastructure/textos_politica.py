@@ -46,6 +46,10 @@ PUBLICADAS: dict[str, str] = {
     # MATU-113: quien «Se informa» ve el pedido sin precios, envío ni total, con su estado y las fechas del pago y de
     # la entrega. Ve menos que antes: nadie vuelve a aceptar; las anteriores siguen
     "0.22": "c1313a5e812a04c50bd539d0e27403a2152011887d2b6c1b9593cffb28293d3e",  # pragma: allowlist secret
+    # MATU-76: los avisos de un pedido le llegan solo a quien lo pagó, y la notificación en el teléfono tiene un solo
+    # texto para todo («Tienes una novedad»). Avisar del pedido es parte de responder por él: nadie vuelve a aceptar;
+    # las anteriores siguen
+    "0.23": "17dbcdae8f40bfe629991648d5235ff44e733ec87df4fb3d4aadc46ea6f9299c",  # pragma: allowlist secret
 }
 
 

@@ -698,16 +698,14 @@ def test_la_0_21_sigue_publicada() -> None:
 @pytest.mark.rf("Ley-21.719")
 @pytest.mark.rf("RF-21")
 @pytest.mark.rf("RF-26")
-def test_la_0_22_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_22_sigue_publicada() -> None:
     """MATU-113: la 0.22 dice en §6 que quien «Se informa» ve los productos del pedido, su estado y las fechas del pago
     y de la entrega, sin precios, envío, total ni lo devuelto. Ve menos que antes: nadie vuelve a aceptar. De la 0.11
-    a la 0.21 siguen publicadas."""
+    a la 0.21 siguen publicadas. Desde MATU-76 la vigente es la 0.23."""
     anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"}
     assert anteriores | {"0.22"} <= set(PUBLICADAS)
     huella = "c1313a5e812a04c50bd539d0e27403a2152011887d2b6c1b9593cffb28293d3e"  # pragma: allowlist secret
     assert PUBLICADAS["0.22"] == huella
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.22", "2026-11-17")
     texto = texto_publicado("0.22")
     assert texto != texto_publicado("0.21")
     for parte in (
@@ -730,3 +728,39 @@ def test_la_0_22_esta_publicada_y_es_la_de_env_example() -> None:
     )
     # Lo de la 0.21 sigue en el texto vigente
     assert "- La versión 0.21 agrega la consola del equipo de MATU" in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.rf("RF-39")
+@pytest.mark.rf("RF-26")
+def test_la_0_23_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-76: la 0.23 agrega en §6 los avisos de un pedido, que le llegan solo a quien lo pagó, y deja un solo texto
+    para la notificación en el teléfono («Tienes una novedad»). Avisar del pedido es parte de responder por él: nadie
+    vuelve a aceptar. De la 0.11 a la 0.22 siguen publicadas."""
+    anteriores = {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21", "0.22"}
+    assert anteriores | {"0.23"} <= set(PUBLICADAS)
+    huella = "17dbcdae8f40bfe629991648d5235ff44e733ec87df4fb3d4aadc46ea6f9299c"  # pragma: allowlist secret
+    assert PUBLICADAS["0.23"] == huella
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.23", "2026-11-18")
+    texto = texto_publicado("0.23")
+    assert texto != texto_publicado("0.22")
+    for parte in (
+        # §6: el push genérico, el mismo para todo lo que MATU avisa
+        "y la notificación en el teléfono, «MATU · Tienes una novedad. Abre la app para verla.», que es el mismo texto"
+        " para todo lo que MATU avisa.",
+        # §6: los avisos del pedido, solo a quien pagó y sin datos del pedido
+        "Le avisamos solo a quien pagó, sea cual sea su rol en el grupo, y no al resto del grupo.",
+        "el correo dice «Hay una novedad en un pedido. Abre la app para verla.»",
+        "**El correo que es sobre tu dinero te llega igual**: el de una devolución, un producto que faltó o una"
+        " cancelación.",
+        # §12: el cambio de la 0.23 y por qué nadie vuelve a aceptar
+        "- La versión 0.23 agrega los avisos de tus pedidos, que le llegan solo a quien pagó,",
+        "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: avisarte de tu pedido es"
+        " parte de responder por él, y eso ya lo autorizaste.",
+    ):
+        assert parte in texto, parte
+    # El texto anterior de la notificación, que nombraba el insumo, ya no está
+    assert "El aviso dice solo «MATU: un insumo se está acabando." not in texto
+    # Lo de la 0.22 sigue en el texto vigente
+    assert "- La versión 0.22 aclara que quien «Se informa» ve los productos del pedido" in texto
