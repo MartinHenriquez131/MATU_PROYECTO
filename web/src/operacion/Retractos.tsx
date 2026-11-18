@@ -417,7 +417,7 @@ function DetalleRetracto({ id, onVolver, onCambio }: { id: string; onVolver: () 
 
 // ----------------------------------------------------------------- 8.5 el retracto por correo
 
-type FalloCorreo = { tipo: 'no-es-admin' | 'no-retractable' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string }
+type FalloCorreo = { tipo: 'no-es-admin' | 'no-retractable' | 'muchos-intentos' | 'no-disponible' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string }
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: PedidoDetalle; onListo: (r: RetractoOperacion) => void; onCancelar: () => void }) {
@@ -471,7 +471,12 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
       else if (f.status === 409) {
         const hasta = extensionDe(x, 'plazo_hasta')
         setFalla({ tipo: 'fuera-de-plazo', fecha: enChile(typeof hasta === 'string' ? hasta : (pedido.retracto_plazo_hasta ?? new Date().toISOString())).fecha })
-      } else setFalla({ tipo: 'red' })
+      }
+      // MATU-114 (C11): 5 correos que no corresponden en una hora. No dice si el último era válido.
+      else if (f.status === 429 && esProblema(f.tipo, 'demasiados-intentos')) setFalla({ tipo: 'muchos-intentos' })
+      // MATU-114: sin el servicio que busca el correo, el 503 no es de la red.
+      else if (f.status === 503) setFalla({ tipo: 'no-disponible' })
+      else setFalla({ tipo: 'red' })
     } finally {
       setOcupado(false)
     }
@@ -487,7 +492,7 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
         </h3>
         {plazo && <p className="cifras text-base whitespace-normal text-tenue">{T.plazoVence(plazo)}</p>}
       </div>
-      {falla && falla.tipo !== 'red' && (
+      {falla && falla.tipo !== 'red' && falla.tipo !== 'no-disponible' && (
         <div key={n}>
           {falla.tipo === 'no-es-admin' ? (
             <Nota tono="atenta" rol="alert" titulo={T.noEsAdminTitulo}>
@@ -495,7 +500,7 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
             </Nota>
           ) : (
             <Nota tono="atenta" rol="alert">
-              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : T.noRetractable}
+              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : falla.tipo === 'muchos-intentos' ? T.muchosIntentos : T.noRetractable}
             </Nota>
           )}
         </div>
@@ -528,10 +533,10 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
         ))}
       </fieldset>
       {ninguno && <MensajeError>{T.ningunProducto}</MensajeError>}
-      {falla?.tipo === 'red' && (
+      {(falla?.tipo === 'red' || falla?.tipo === 'no-disponible') && (
         <div key={n}>
           <Nota tono="pronto" rol="alert">
-            {MARCO.error}
+            {falla.tipo === 'no-disponible' ? T.noDisponible : MARCO.error}
           </Nota>
         </div>
       )}

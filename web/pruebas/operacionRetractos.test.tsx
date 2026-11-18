@@ -262,6 +262,47 @@ describe('El retracto que llegó por correo', () => {
     expect(api.consola.estado.retractos.filter((r) => r.pedido_id === ID.entregado)).toHaveLength(2)
   })
 
+  it('MATU-114, 429 demasiados-intentos: el texto de la fila 8.5, en la región urgente y no el de la red', async () => {
+    const almacen = vigilarAlmacenamiento()
+    const { usuario, urgente } = await abrirFormulario('4825', (l) =>
+      l.endsWith('/retractos') && l.startsWith('POST') ? { status: 429, cuerpo: { type: '/errores/demasiados-intentos', status: 429 }, cabeceras: { 'content-type': 'application/problem+json', 'retry-after': '3600' } } : undefined,
+    )
+    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_OTRO)
+    await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
+    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    await waitFor(() => expect(urgente).toHaveTextContent(/^Hiciste muchos intentos con correos que no corresponden\. Espera una hora antes de volver a intentar\.$/))
+    expect(screen.getByRole('alert')).toHaveTextContent('Hiciste muchos intentos con correos que no corresponden. Espera una hora antes de volver a intentar.')
+    expect(document.body.textContent).not.toContain('Revisa tu conexión')
+    expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
+    expect(document.body.textContent).not.toContain(CORREO_OTRO)
+    expect(almacen).toEqual([])
+  })
+
+  it('MATU-114, el doble: después de 5 correos que no calzan, el sexto intento es el 429, aunque el correo sea válido', { timeout: 60_000 }, async () => {
+    const { usuario, urgente } = await abrirFormulario()
+    const enviar = async (correo: string) => {
+      await usuario.clear(screen.getByLabelText('Correo de quien lo pidió'))
+      await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), correo)
+      await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    }
+    await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
+    for (let i = 0; i < 5; i++) {
+      await enviar(CORREO_OTRO)
+      await waitFor(() => expect(urgente).toHaveTextContent('Ese correo no es de quien administra el grupo de este pedido.'))
+    }
+    await enviar(CORREO_ADMIN_DE_EJEMPLO)
+    await waitFor(() => expect(urgente).toHaveTextContent('Hiciste muchos intentos con correos que no corresponden. Espera una hora antes de volver a intentar.'))
+  })
+
+  it('MATU-114, 503: el texto de L 9.1, no el de la red', async () => {
+    const { usuario, urgente } = await abrirFormulario('4825', (l) => (l.endsWith('/retractos') && l.startsWith('POST') ? { status: 503, cuerpo: { type: '/errores/no-disponible', status: 503 } } : undefined))
+    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)
+    await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
+    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    await waitFor(() => expect(urgente).toHaveTextContent('MATU no está disponible en este momento. Vuelve a intentarlo en unos minutos.'))
+    expect(document.body.textContent).not.toContain('Revisa tu conexión')
+  })
+
   it('sin respuesta: [L 8] completo y el correo se conserva', async () => {
     const { usuario, urgente } = await abrirFormulario('4825', (l) => (l.endsWith('/retractos') && l.startsWith('POST') ? { status: 500, cuerpo: { type: '/errores/interno', status: 500 } } : undefined))
     await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_ADMIN_DE_EJEMPLO)

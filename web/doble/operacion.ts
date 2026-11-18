@@ -321,6 +321,8 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
   const I = ID_OPERACION
   const pedidos: Pedido[] = []
   const retractos: Retracto[] = []
+  /** MATU-114 (C11): correos que no calzaron en el retracto por correo, para el 429 después de 5 en una hora. */
+  const correosQueNoCalzan: number[] = []
   const incidencias: Incidencia[] = []
 
   if (modo !== 'operacion-vacia') {
@@ -811,7 +813,13 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
   function retractoPorCorreo(p: Pedido, c: Record<string, unknown>): RespuestaDoble {
     if (p.estado !== 'entregado' && p.estado !== 'cerrado') return problema(404, 'no-encontrado')
     // D-81-9: el correo solo se compara; nunca se guarda, se devuelve ni se escribe en la consola.
-    if (typeof c.correo_solicitante !== 'string' || c.correo_solicitante.trim().toLowerCase() !== CORREO_ADMIN_DE_EJEMPLO) return problema(422, 'solicitante-invalido')
+    // MATU-114 (C11): con 5 correos que no calzan en la última hora, 429 aunque el correo sea válido.
+    const haceUnaHora = ahora().getTime() - 3_600_000
+    if (correosQueNoCalzan.filter((t) => t > haceUnaHora).length >= 5) return problema(429, 'demasiados-intentos', {}, { 'retry-after': '3600' })
+    if (typeof c.correo_solicitante !== 'string' || c.correo_solicitante.trim().toLowerCase() !== CORREO_ADMIN_DE_EJEMPLO) {
+      correosQueNoCalzan.push(ahora().getTime())
+      return problema(422, 'solicitante-invalido')
+    }
     const plazo = plazoRetracto(p)
     if (plazo && new Date(plazo).getTime() < ahora().getTime()) return problema(409, 'fuera-de-plazo', { plazo_hasta: plazo })
     // Se admiten varios retractos por pedido mientras queden unidades sin pedir; las ya pedidas (en cualquier

@@ -379,6 +379,8 @@ export const RETRACTOS = {
   noEsAdminTexto: 'Revisa el correo. Si lo mandó otra persona, respóndele que lo pida quien administra.',
   fueraDePlazo: (fecha: string) => `Este pedido ya no tiene plazo de retracto: venció el ${fecha}.`,
   noRetractable: 'Elige productos que se entregaron, hasta lo que queda por devolver.', // [FRONTEND] 422 producto-no-retractable, también con unidades ya pedidas en otro retracto
+  muchosIntentos: 'Hiciste muchos intentos con correos que no corresponden. Espera una hora antes de volver a intentar.', // [NUEVO] MATU-114, 429 demasiados-intentos (§40, 8.5)
+  noDisponible: ENTRAR_FAMILIA.noDisponible, // [L 9.1] MATU-114, 503: sin el servicio no se busca el correo
 }
 
 /** 9: Incidencias. */
