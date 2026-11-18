@@ -85,6 +85,18 @@ def test_c9_el_mismo_422_en_los_cuatro_casos_y_cada_uno_se_audita_sin_el_correo(
                     {"lineas": lineas, "solicitado_por": str(no_admin.id)})
     assert r.status_code == 422 and _sin_request_id(r.json()) == cuerpos[0]
     assert len(_fallidos(d, pedido["id"])) == 5
+    # J2: la familia lo ve en el historial de «Datos de» la persona, con la referencia del pedido y sin el correo ni
+    # quién del equipo
+    copia = d.e.pedir("GET", f"/v1/personas-cuidadas/{familia.persona.id}/datos", familia.admin, familia)
+    assert copia.status_code == 200, copia.text
+    [referencia] = d.sql("SELECT referencia FROM pedido WHERE id = %s", uuid.UUID(pedido["id"]))[0]
+    hechos = [h for h in copia.json()["historial"]["hechos"] if h["tipo"] == "matu_intento_un_retracto_por_correo"]
+    assert len(hechos) == 5
+    assert all(h["referencia"] == referencia and h["quien"] == {"tipo": "matu", "nombre": None, "activo": None}
+               for h in hechos)
+    for correo in correos:
+        assert correo not in copia.text and correo.lower() not in copia.text.lower()
+    assert str(d.operador.id) not in copia.text  # type: ignore[union-attr]
 
 
 def test_c8_sin_correo_va_a_nombre_de_quien_pago(despacho: Despacho) -> None:

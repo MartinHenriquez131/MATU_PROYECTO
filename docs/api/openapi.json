@@ -20093,7 +20093,8 @@
               "pedido_entregado",
               "pedido_no_entregado",
               "retracto_resuelto",
-              "matu_reviso_el_pedido"
+              "matu_reviso_el_pedido",
+              "matu_intento_un_retracto_por_correo"
             ],
             "title": "Tipo"
           },
