@@ -51,6 +51,19 @@ def test_lee_solo_las_filas_debe_en_orden(tmp_path: Path) -> None:
     assert trazabilidad.requisitos_debe(archivo) == ["RF-01", "RF-02"]
 
 
+def test_una_prioridad_con_nota_se_lee(tmp_path: Path) -> None:
+    # Como quedó RF-32 en el recorte de MATU-123
+    archivo = tmp_path / "arquitectura.md"
+    archivo.write_text(
+        TABLA
+        + "| RF-32 | Treinta y dos | `backoffice` | Debería (recorte de MATU-123: solo las incidencias, RF-40) |\n"
+        + "| RF-05 | Cinco | `care_plan` | Debe (nota) |\n",
+        encoding="utf-8",
+    )
+    assert trazabilidad.requisitos_debe(archivo) == ["RF-01", "RF-02", "RF-05"]
+    assert {"RF-32", "RF-16"} <= trazabilidad.identificadores(archivo)
+
+
 def test_un_requisito_con_dos_prioridades_detiene_la_puerta(tmp_path: Path) -> None:
     archivo = tmp_path / "arquitectura.md"
     archivo.write_text(TABLA + "| RF-02 | Dos | `care_plan` | Podría |\n", encoding="utf-8")
@@ -63,8 +76,8 @@ def test_menos_requisitos_que_el_minimo_detiene_la_puerta(tmp_path: Path, capsys
     archivo.write_text(TABLA, encoding="utf-8")
     assert trazabilidad.main(["--arquitectura", str(archivo)]) == 2
     salida = capsys.readouterr()
-    assert "Se leyeron 2 requisitos Debe de arquitectura.md (mínimo 26)" in salida.out
-    assert "Se leyeron 2 requisitos Debe y se esperaban al menos 26" in salida.err
+    assert "Se leyeron 2 requisitos Debe de arquitectura.md (mínimo 25)" in salida.out
+    assert "Se leyeron 2 requisitos Debe y se esperaban al menos 25" in salida.err
 
 
 def test_un_minimo_de_cero_no_se_acepta(tmp_path: Path) -> None:
@@ -117,10 +130,25 @@ def test_un_pendiente_que_ya_tiene_prueba_falla(tmp_path: Path, capsys: pytest.C
     assert "Ya tienen prueba y siguen en --pendientes: RF-02" in capsys.readouterr().err
 
 
-def test_un_pendiente_que_no_es_debe_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    # RF-16 es Debería en la TABLA y RF-99 no existe
+def test_un_pendiente_que_no_existe_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # RF-16 es Debería en la TABLA y RF-99 no existe: solo RF-99 detiene la puerta
     assert _correr(tmp_path, "pendiente_desconocido", ["RF-01", "RF-02"], "--pendientes", "RF-16,RF-99") == 2
-    assert "Pendientes que no son requisitos que la puerta exige: RF-16, RF-99" in capsys.readouterr().err
+    assert "Pendientes que no existen en arquitectura.md: RF-99" in capsys.readouterr().err
+
+
+def test_un_rf_deberia_en_pendientes_avisa_y_no_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # MATU-123: RF-32 baja a Debería con el recorte y sigue en --pendientes hasta que se saque del workflow
+    assert _correr(tmp_path, "pendiente_deberia", ["RF-01", "RF-02"], "--pendientes", "RF-16") == 0
+    salida = capsys.readouterr().out
+    assert "Aviso: RF-16 ya no se exige" in salida
+    assert "sácalo de --pendientes" in salida
+    assert "RF-16:" not in salida
+
+
+def test_un_rf_deberia_con_prueba_en_pendientes_solo_avisa(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Ya no se exige: que tenga prueba no lo vuelve un «pendiente con prueba»
+    assert _correr(tmp_path, "deberia_con_prueba", ["RF-01", "RF-02", "RF-16"], "--pendientes", "RF-16") == 0
+    assert "Aviso: RF-16 ya no se exige" in capsys.readouterr().out
 
 
 def test_contratos_iguales_no_tienen_diferencias() -> None:
@@ -271,12 +299,19 @@ def test_un_rnf_pendiente_se_acepta_y_falla_si_ya_tiene_prueba(tmp_path: Path) -
     assert _correr(tmp_path / "b", "rnf_pend_con", con_prueba, *args, tabla=tabla) == 1
 
 
-def test_un_rnf_manual_no_puede_ser_pendiente(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_un_rnf_manual_en_pendientes_avisa_y_no_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     marcas = ["RF-01", "RF-02", "RNF-01", "RNF-02"]
     args = ("--minimo-rnf", "2", "--pendientes", "RNF-03")
     codigo = _correr(tmp_path, "rnf_manual", marcas, *args, tabla=TABLA + TABLA_RNF)
-    assert codigo == 2
-    assert "Pendientes que no son requisitos que la puerta exige: RNF-03" in capsys.readouterr().err
+    assert codigo == 0
+    assert "Aviso: RNF-03 ya no se exige" in capsys.readouterr().out
+
+
+def test_un_rnf_inexistente_en_pendientes_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    marcas = ["RF-01", "RF-02", "RNF-01", "RNF-02"]
+    args = ("--minimo-rnf", "2", "--pendientes", "RNF-99")
+    assert _correr(tmp_path, "rnf_inexistente", marcas, *args, tabla=TABLA + TABLA_RNF) == 2
+    assert "Pendientes que no existen en arquitectura.md: RNF-99" in capsys.readouterr().err
 
 
 def test_sin_tabla_rnf_y_sin_rnf_opcional_no_pasa(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

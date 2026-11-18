@@ -6,8 +6,8 @@ Lista los requisitos comprometidos como *Debe* que no tienen ninguna prueba marc
     python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md --pendientes RF-32,RF-40
 
 Funcionales (RF): las tablas de la sección 3 de docs/arquitectura.md del repositorio de documentos (MATU), una fila por
-requisito con la forma «| RF-NN | texto | `módulo` | Debe |». La arquitectura dice que son 26 comprometidos: el script
-exige al menos --minimo (26 por omisión) y dice cuántos encontró.
+requisito con la forma «| RF-NN | texto | `módulo` | Debe |», con o sin una nota después de la prioridad. Desde el
+recorte de MATU-123 son 25 comprometidos: el script exige al menos --minimo (25 por omisión) y dice cuántos encontró.
 
 No funcionales (RNF): la tabla 2.2, con la forma «| RNF-NN | prioridad | atributo | escenario | cómo se verifica |
 Debe | automática |».
@@ -23,7 +23,9 @@ repositorio de documentos se descarga junto al de código (.github/workflows/ci.
 
 --pendientes es la lista explícita de los RF o RNF que todavía no tienen prueba y se aceptan por ahora (la fija el
 workflow, con el motivo). La puerta falla también si un pendiente ya tiene prueba, para que nadie se olvide de sacarlo
-de la lista, y si un pendiente no es un requisito que la puerta exige, para que un error de tipeo no tape nada.
+de la lista, y sale con 2 si un pendiente no existe en ninguna tabla, para que un error de tipeo no tape nada. Un
+pendiente que existe pero ya no se exige (un RF Debería o Podría, o un RNF manual, por ejemplo tras un recorte) solo
+se avisa en el log: hay que sacarlo de la lista, pero la puerta no depende del orden en que se fusionen los PR.
 
 De dónde salen las pruebas: pytest recoge la carpeta tests/ sin correr nada (--collect-only) y se leen las marcas rf de
 cada prueba, también las de pytestmark del módulo o de la clase. Se corre desde backend/.
@@ -42,10 +44,13 @@ from typing import Any
 import pytest
 
 RAIZ_BACKEND = Path(__file__).resolve().parents[1]
-FILA_RF = re.compile(r"^\|\s*(RF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\s*\|\s*$")
+# La celda de la prioridad puede traer una nota después de la palabra, como «Debería (recorte de MATU-123: …)»
+FILA_RF = re.compile(r"^\|\s*(RF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\b[^|]*\|\s*$")
 INICIO_RNF = re.compile(r"^\|\s*(RNF-\d{2})\s*\|")
-FILA_RNF = re.compile(r"^\|\s*(RNF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\s*\|\s*(automática|manual)\s*\|\s*$")
-MINIMO = 26
+FILA_RNF = re.compile(r"^\|\s*(RNF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\b[^|]*\|\s*(automática|manual)\b[^|]*\|\s*$")
+# 25 desde el recorte de MATU-123 (RF-32 a Debería, MATU#116). La arquitectura de main todavía tiene 26, y 26 >= 25:
+# la puerta pasa con las dos, en cualquier orden de fusión
+MINIMO = 25
 MINIMO_RNF = 6
 
 
@@ -60,6 +65,18 @@ def requisitos_debe(arquitectura: Path) -> list[str]:
             if anterior != prioridad:
                 raise SystemExit(f"{rf} aparece como {anterior} y como {prioridad} en {arquitectura.name}")
     return sorted(rf for rf, prioridad in vistos.items() if prioridad == "Debe")
+
+
+def identificadores(arquitectura: Path) -> set[str]:
+    """Todos los RF y RNF de las tablas, con cualquier prioridad, obligación o verificación."""
+    ids: set[str] = set()
+    for linea in arquitectura.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        for patron in (FILA_RF, INICIO_RNF):
+            coincidencia = patron.match(linea)
+            if coincidencia:
+                ids.add(coincidencia.group(1))
+    return ids
 
 
 def rnf_de_la_tabla(arquitectura: Path) -> tuple[int, list[str]]:
@@ -169,10 +186,19 @@ def main(argv: list[str] | None = None) -> int:
     exigidos = debe + rnf
 
     pendientes = sorted({r.strip() for r in args.pendientes.split(",") if r.strip()})
-    desconocidos = [r for r in pendientes if r not in exigidos]
+    existentes = identificadores(arquitectura)
+    desconocidos = [r for r in pendientes if r not in existentes]
     if desconocidos:
-        print(f"Pendientes que no son requisitos que la puerta exige: {', '.join(desconocidos)}", file=sys.stderr)
+        print(f"Pendientes que no existen en {arquitectura.name}: {', '.join(desconocidos)}", file=sys.stderr)
         return 2
+    no_exigidos = [r for r in pendientes if r not in exigidos]
+    if no_exigidos:
+        # MATU-123: un recorte (RF-32 a Debería) deja el pendiente sin objeto. Se avisa y no se falla, para que no
+        # importe en qué orden se fusionan el PR de documentos y el que saca el pendiente del workflow
+        print(
+            f"Aviso: {', '.join(no_exigidos)} ya no se exige (no es Debe, o es un RNF manual): sácalo de --pendientes"
+        )
+        pendientes = [r for r in pendientes if r in exigidos]
 
     por_rf = pruebas_por_requisito(args.pruebas)
     sin_prueba = [r for r in exigidos if not por_rf.get(r)]

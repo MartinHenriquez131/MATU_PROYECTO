@@ -131,8 +131,9 @@ jobs:
 
       # MATU-79: estrategia de pruebas, sección 14. Falla si un RF Debe no tiene ninguna prueba con @pytest.mark.rf y
       # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Pendientes
-      # al 18-11: RF-32 y RF-40 (backoffice). Las de RF-40 llegan con MATU-81 (PR #101), todavía fuera de main: al
-      # fusionarlo, RF-40 sale de la lista. RF-32 (la operación gestiona catálogo, convenios, incidencias e indicadores)
+      # al 18-11: RF-32 y RF-40 (backoffice). RF-40 sale de la lista cuando se fusione MATU-81 (PR #101), que trae sus
+      # pruebas, y RF-32 cuando se fusione MATU#116 (MATU-123), que lo baja a Debería: desde ese momento la puerta solo
+      # avisa que hay que sacarlo, sin fallar. RF-32 (la operación gestiona catálogo, convenios, incidencias e indicadores)
       # sigue pendiente porque no está construido, ni en main ni en MATU-81: la operación no administra el catálogo (se
       # carga con infra/semillas/catalogo_demo.py) ni los convenios, y no existe ninguno de los cuatro indicadores de la
       # arquitectura (GET /v1/backoffice/indicadores). Las rutas de /v1/operacion de MATU-63 operan pedidos, y sus pruebas
