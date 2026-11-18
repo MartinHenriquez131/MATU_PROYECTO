@@ -44,6 +44,7 @@ import {
   leerSeguimiento,
   listarPedidos,
   pedirRetracto,
+  type EstadoFamilia,
   type FilaObservador,
   type FilaPedido,
   type ListaPedidos,
@@ -103,22 +104,25 @@ interface EstadoVisible {
   explicacion: ReactNode | null
 }
 
-/** La palabra, el ícono y la explicación del estado para la familia (C16). El turquesa no marca ningún estado. */
-function estadoVisible(f: Pick<FilaPedido, 'estado' | 'entregado_en' | 'devuelto_todo' | 'total'>): EstadoVisible {
+/**
+ * La palabra y el ícono del estado para la familia (C16), sin la explicación. El turquesa no marca
+ * ningún estado. MATU-113 (3.3): es lo único que ve quien «Se informa», que nunca recibe montos.
+ */
+function estadoSinExplicacion(estado: EstadoFamilia, entregadoEn: string | null): Omit<EstadoVisible, 'explicacion'> {
   const e = T.estado
-  switch (f.estado) {
+  switch (estado) {
     case 'pagado':
-      return { tono: 'ok', Icono: Check, texto: e.pagado, explicacion: e.pagadoExplicacion }
+      return { tono: 'ok', Icono: Check, texto: e.pagado }
     case 'enviado_a_comercio':
-      return { tono: 'neutro', Icono: Store, texto: e.enviado, explicacion: null }
+      return { tono: 'neutro', Icono: Store, texto: e.enviado }
     case 'preparando':
-      return { tono: 'neutro', Icono: PackageOpen, texto: e.preparando, explicacion: null }
+      return { tono: 'neutro', Icono: PackageOpen, texto: e.preparando }
     case 'listo_retiro':
-      return { tono: 'neutro', Icono: PackageCheck, texto: e.listo, explicacion: null }
+      return { tono: 'neutro', Icono: PackageCheck, texto: e.listo }
     case 'en_ruta':
-      return { tono: 'neutro', Icono: Truck, texto: e.enCamino, explicacion: null }
+      return { tono: 'neutro', Icono: Truck, texto: e.enCamino }
     case 'entregado': {
-      const c = enChile(f.entregado_en)
+      const c = enChile(entregadoEn)
       return {
         tono: 'ok',
         Icono: CircleCheck,
@@ -129,19 +133,32 @@ function estadoVisible(f: Pick<FilaPedido, 'estado' | 'entregado_en' | 'devuelto
         ) : (
           e.entregadoEl.replace(/ el$/, '')
         ),
-        explicacion: null,
       }
     }
     case 'no_entregado':
-      return { tono: 'atenta', Icono: PackageX, texto: e.noEntregado, explicacion: e.noEntregadoExplicacion }
+      return { tono: 'atenta', Icono: PackageX, texto: e.noEntregado }
     case 'reprogramado':
-      return { tono: 'atenta', Icono: CalendarClock, texto: e.reprogramado, explicacion: e.reprogramadoExplicacion }
+      return { tono: 'atenta', Icono: CalendarClock, texto: e.reprogramado }
+    case 'cancelado_con_devolucion':
+      return { tono: 'neutro', Icono: Ban, texto: e.cancelado }
+  }
+}
+
+/** La palabra, el ícono y la explicación del estado, para quien ve el pago. */
+function estadoVisible(f: Pick<FilaPedido, 'estado' | 'entregado_en' | 'devuelto_todo' | 'total'>): EstadoVisible {
+  const e = T.estado
+  const base = estadoSinExplicacion(f.estado, f.entregado_en)
+  switch (f.estado) {
+    case 'pagado':
+      return { ...base, explicacion: e.pagadoExplicacion }
+    case 'no_entregado':
+      return { ...base, explicacion: e.noEntregadoExplicacion }
+    case 'reprogramado':
+      return { ...base, explicacion: e.reprogramadoExplicacion }
     case 'cancelado_con_devolucion':
       // D2: «Devolvimos» cuando la anulación está hecha; mientras sigue en curso, «Estamos devolviendo».
       return {
-        tono: 'neutro',
-        Icono: Ban,
-        texto: e.cancelado,
+        ...base,
         explicacion: (
           <>
             {f.devuelto_todo ? e.devolvimosAntes : e.devolviendoAntes} <span className="cifras font-bold">{pesos(f.total)}</span>
@@ -149,10 +166,12 @@ function estadoVisible(f: Pick<FilaPedido, 'estado' | 'entregado_en' | 'devuelto
           </>
         ),
       }
+    default:
+      return { ...base, explicacion: null }
   }
 }
 
-function EtiquetaEstado({ estado }: { estado: EstadoVisible }) {
+function EtiquetaEstado({ estado }: { estado: Omit<EstadoVisible, 'explicacion'> }) {
   const { Icono } = estado
   return (
     <Etiqueta tono={estado.tono} className="flex-wrap">
@@ -160,6 +179,11 @@ function EtiquetaEstado({ estado }: { estado: EstadoVisible }) {
       {estado.texto}
     </Etiqueta>
   )
+}
+
+/** MATU-113 (2.4 y 3.3): la etiqueta del estado sin la explicación, para quien «Se informa». */
+export function EtiquetaSinExplicacion({ estado, entregadoEn }: { estado: EstadoFamilia; entregadoEn: string | null }) {
+  return <EtiquetaEstado estado={estadoSinExplicacion(estado, entregadoEn)} />
 }
 
 // ---------------------------------------------------------------- la pantalla
@@ -439,16 +463,18 @@ export function FilaDelPedido({ fila: f, onAbrir }: { fila: FilaPedido; onAbrir:
   )
 }
 
-/** 3.4: la fila del observador (D-92-1, C3): la fecha, «Pagado» y los productos. No se abre. */
+/**
+ * 3.4, corregida por MATU-113 (3.2 y 3.3): la fila de quien «Se informa». «Pagado el {fecha}», el
+ * estado real con su ícono y su palabra, sin la explicación, y los productos. Ningún monto. No se abre.
+ */
 export function FilaDelObservador({ fila: f }: { fila: FilaObservador }) {
   const dia = enChile(f.pagado_en)?.fecha ?? ''
   return (
     <li className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl bg-hoja px-4 angosto:px-2 py-3 ring-1 ring-linea">
-      <p className="cifras text-lg font-bold">{dia}</p>
-      <Etiqueta tono="ok">
-        <Check aria-hidden className="size-4 shrink-0" />
-        {T.estado.pagado}
-      </Etiqueta>
+      <p className="text-lg font-bold">
+        {T.pagadoEl} <span className="cifras">{dia}</span>
+      </p>
+      <EtiquetaSinExplicacion estado={f.estado} entregadoEn={f.entregado_en} />
       {f.productos_borrados ? (
         <p className="max-w-prose text-base">{T.productosBorrados}</p>
       ) : (

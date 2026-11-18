@@ -152,6 +152,33 @@ describe('La lista (3)', () => {
     expect(ul).not.toHaveTextContent(/Pedido 4821|Total pagado|\$|Lo estamos enviando/)
   })
 
+  it('MATU-113 (3.3): «Pagado el {fecha}» y el estado real con ícono y palabra, sin la explicación ni montos', async () => {
+    api({
+      'GET /pedidos$': {
+        status: 200,
+        cuerpo: lista([
+          filaObservador({ estado: 'en_ruta' }),
+          filaObservador({ pedido_id: PEDIDO_2, pagado_en: '2026-11-02T19:41:00Z', estado: 'entregado', entregado_en: '2026-11-04T18:00:00Z' }),
+          filaObservador({ pedido_id: PEDIDO_3, estado: 'no_entregado' }),
+          filaObservador({ pedido_id: '3c9d4e20-0000-4000-8000-0000000000p4', estado: 'cancelado_con_devolucion' }),
+        ]),
+      },
+    })
+    abrir('observador', LISTA)
+    const ul = await screen.findByRole('list', { name: 'Tus pedidos' })
+    const filas = within(ul).getAllByRole('listitem').filter((li) => li.parentElement === ul)
+    expect(filas).toHaveLength(4)
+    expect(within(filas[0]).getByText('Pagado el').closest('p')).toHaveTextContent('Pagado el 11/11/2026')
+    expect(within(filas[0]).getByText('En camino').querySelector('svg')!.getAttribute('class')).toMatch(/lucide-truck/)
+    expect(within(filas[1]).getByText('Pagado el').closest('p')).toHaveTextContent('Pagado el 02/11/2026')
+    expect(within(filas[1]).getByText('Entregado el').closest('span.inline-flex')).toHaveTextContent('Entregado el 04/11/2026')
+    expect(within(filas[2]).getByText('No pudimos entregarlo')).toBeVisible()
+    expect(within(filas[3]).getByText('Cancelado')).toBeVisible()
+    // Ninguna explicación: ni la del pagado, ni «Te escribimos…», ni «Devolvimos…».
+    expect(ul).not.toHaveTextContent(/\$|Total pagado|Lo estamos enviando|Te escribimos|Te avisamos|Devolvimos|Estamos devolviendo|devolverte/)
+    expect(within(ul).queryAllByRole('button')).toEqual([])
+  })
+
   it('vacío: el texto con el nombre de pila, e «Ir a tu pedido» solo para admin y cuidador', async () => {
     api({ 'GET /pedidos$': { status: 200, cuerpo: lista([]) } })
     abrir('admin', LISTA)
