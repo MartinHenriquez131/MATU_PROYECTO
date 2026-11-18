@@ -595,7 +595,7 @@ def test_retirar_durante_un_borrado_espera_y_409(entorno: EntornoAbrir) -> None:
     cab = _cab(entorno, _cuidador(familia), familia)
     respuesta = _mientras_borra(entorno, familia, lambda: entorno.ficha.iam.cliente.post(
         PERSONA.format(familia.persona.id) + "/consentimientos/plan_cuidado/retiro", headers=cab))
-    assert respuesta.status_code in (404, 409), respuesta.text
+    assert respuesta.status_code == 409, respuesta.text
     assert [(c[1], c[3]) for c in _consentimientos(familia)] == [("plan_cuidado", "borrado")]
 
 
