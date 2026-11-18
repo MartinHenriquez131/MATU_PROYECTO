@@ -418,8 +418,8 @@ describe('Errores de «Compré» y «Me quedan»', () => {
     await waitFor(() => expect(falla).toHaveFocus())
 
     await u.click(within(falla).getByRole('button', { name: 'Ver cómo quedó' }))
-    const seguir = document.getElementById(`seguir-${PANAL.id}`) as HTMLInputElement
-    await waitFor(() => expect(seguir).not.toBeChecked())
+    // Se busca en cada intento: la recarga puede pintar la casilla de nuevo en «Sin seguir».
+    await waitFor(() => expect(document.getElementById(`seguir-${PANAL.id}`)).not.toBeChecked())
     await waitFor(() => expect(document.getElementById(`seguir-${PANAL.id}`)).toHaveFocus())
     expect(screen.getByRole('region', { name: 'Sin seguir' })).toContainElement(fila('Pañal adulto talla M'))
     expect(screen.queryByRole('button', { name: 'Compré: Pañal adulto talla M' })).toBeNull()
@@ -575,11 +575,16 @@ describe('«Ya lo resolví» en envases', () => {
   it('con envase sobre 99: el error de 0 a 99 y nada se envía', async () => {
     const { pedidas, u } = await abrir()
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
+    // H1 de Martín (CI del #106): con envase, el panel se lleva el foco a los 40 ms de abrirse. Si eso
+    // pasaba a mitad de `type`, se perdían dígitos («1» en vez de «100»), «Ya lo resolví» enviaba y el
+    // error nunca se pintaba. Se escribe recién cuando el foco inicial ya llegó al panel.
+    await waitFor(() => expect(screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })).toHaveFocus())
     const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
     await u.clear(campo)
     await u.type(campo, '100')
+    expect(campo).toHaveValue('100')
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
-    expect(campo).toHaveAccessibleDescription(/Escribe un número de 0 a 99\. Si no compraste, déjalo en 0\.$/)
+    await waitFor(() => expect(campo).toHaveAccessibleDescription(/Escribe un número de 0 a 99\. Si no compraste, déjalo en 0\.$/))
     expect(escritas(pedidas)).toEqual([])
   })
 
