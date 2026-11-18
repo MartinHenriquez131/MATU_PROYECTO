@@ -106,7 +106,11 @@ class TarjetaCopia(_Cerrado):
 
 
 class PagoCuentaCopia(_Cerrado):
-    grupo: str
+    # MATU-116 (C4, H6): el nombre del grupo solo si la membresía sigue activa; null si salió («Un grupo del que
+    # saliste»), nunca ""
+    grupo: str | None
+    sigue_en_el_grupo: bool
+    # C2: null si el pedido ya no se guarda (2 años; el pago, 6): «Pago del {fecha}»
     referencia: str | None
     pagado_en: Instante
     cobrado: int
@@ -118,20 +122,28 @@ class PagoCuentaCopia(_Cerrado):
 
 
 class RetractoCuentaCopia(_Cerrado):
-    """MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona."""
+    """MATU-63 (R3): los retractos que pidió esta cuenta, sin el nombre de la persona; MATU-116, también de los grupos
+    que dejó."""
 
-    grupo: str
+    # MATU-116 (C4, H6): el nombre del grupo solo si la membresía sigue activa; null si salió («Un grupo del que
+    # saliste»), nunca ""
+    grupo: str | None
+    sigue_en_el_grupo: bool
     referencia: str | None
     estado: Literal["solicitado", "devuelto", "rechazado"]
     solicitado_en: Instante
     resuelto_en: Instante | None
     # H2 del analista (MATU-81): por qué no se aceptó; null si no se rechazó
     motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
-    productos: list[str]
+    # C3: null si salió del grupo (T4: «Los productos los puedes pedir a {correo}.»)
+    productos: list[str] | None
 
 
 class CondicionesCopia(_Cerrado):
-    grupo: str
+    # MATU-116 (C4, H6): el nombre del grupo solo si la membresía sigue activa; null si salió («Un grupo del que
+    # saliste»), nunca ""
+    grupo: str | None
+    sigue_en_el_grupo: bool
     referencia: str | None
     version: str
     huella: str

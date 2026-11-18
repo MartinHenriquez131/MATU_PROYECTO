@@ -409,6 +409,22 @@ def test_la_copia_de_los_datos_trae_las_partes_los_faltantes_y_el_retracto(despa
     cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
     assert cuenta.status_code == 200, cuenta.text
     assert [x["estado"] for x in cuenta.json()["retractos"]] == ["solicitado"]
+    # MATU-116 (C3, C4 y H6): en el grupo, con el nombre y los productos
+    [retracto] = cuenta.json()["retractos"]
+    assert (retracto["grupo"], retracto["sigue_en_el_grupo"]) == (familia.grupo.nombre, True)
+    assert len(retracto["productos"]) == 1 and retracto["productos"][0]
+
+    # Sale del grupo (queda otro admin): el retracto sin productos y sin el nombre del grupo (null, nunca "")
+    cuidador = familia.miembros["cuidador"].usuario
+    d.sql("UPDATE membresia SET rol = 'admin' WHERE usuario_id = %s AND grupo_id = %s", cuidador.id, familia.grupo.id)
+    d.sql("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE usuario_id = %s AND grupo_id = %s",
+          familia.admin.id, familia.grupo.id)
+    cuenta = d.como(familia.admin, "GET", "/v1/yo/datos")
+    assert cuenta.status_code == 200, cuenta.text
+    [retracto] = cuenta.json()["retractos"]
+    assert (retracto["grupo"], retracto["sigue_en_el_grupo"], retracto["productos"]) == (None, False, None)
+    assert retracto["referencia"] and retracto["estado"] == "solicitado"
+    assert [(x["grupo"], x["sigue_en_el_grupo"]) for x in cuenta.json()["pagos"]] == [(None, False)]
 
 
 
