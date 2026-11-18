@@ -305,15 +305,29 @@ SELECT c.table_name FROM information_schema.columns c
  WHERE c.table_schema = 'public' AND c.column_name = 'grupo_id' AND t.table_type = 'BASE TABLE'
  ORDER BY 1
 """
+# Las cuentas de los miembros de A: no tienen grupo_id, pero una escritura de B que se colara podría cambiarlas.
+# Ninguna columna se excluye: las que se mueven solas (dispositivo.ultimo_uso_en, sesion_refresh.usado_en,
+# usuario.actualizado_en) solo cambian con una petición de esa cuenta, y en la prueba solo pide B
+_MIEMBROS_DE_A = "SELECT usuario_id FROM membresia WHERE grupo_id = %(g)s"
+_DE_LAS_CUENTAS: dict[str, str] = {
+    "usuario": f"id IN ({_MIEMBROS_DE_A})",
+    **{tabla: f"usuario_id IN ({_MIEMBROS_DE_A})" for tabla in (
+        "medio_pago_inscrito", "dispositivo", "sesion_refresh", "aceptacion_politica", "preferencia_notificacion",
+        "indice_credencial",
+    )},
+    # Sin llave foránea (es infraestructura del outbox), pero cada fila es de un evento: las de los eventos de A
+    "evento_consumido": "evento_id IN (SELECT id FROM evento_outbox WHERE grupo_id = %(g)s)",
+}
 _MD5 = "SELECT md5(coalesce(string_agg(x::text, '|' ORDER BY x::text), '')) FROM {tabla} x WHERE {filtro}"
 
 
 def _alcance_del_grupo(cx: psycopg.Connection[Any]) -> dict[str, str]:
     """Cada tabla con filas de un grupo y el filtro que las elige (con %(g)s): el grupo por su id, las tablas con
-    grupo_id, y las que cuelgan de ellas por llaves foráneas, en cadena (hijas, nietas…). El filtro de una tabla sin
-    grupo_id es el OR de todas sus llaves hacia tablas alcanzadas: una fila de A cuenta por cualquiera de ellas."""
+    grupo_id, las cuentas de sus miembros (``_DE_LAS_CUENTAS``), y las que cuelgan de ellas por llaves foráneas, en
+    cadena (hijas, nietas…). El filtro de una tabla sin grupo_id es el OR de todas sus llaves hacia tablas
+    alcanzadas: una fila de A cuenta por cualquiera de ellas."""
     con_grupo = {fila[0] for fila in cx.execute(_CON_GRUPO).fetchall()}
-    base = {"grupo_familiar": "id = %(g)s", **{t: "grupo_id = %(g)s" for t in con_grupo}}
+    base = {"grupo_familiar": "id = %(g)s", **{t: "grupo_id = %(g)s" for t in con_grupo}, **_DE_LAS_CUENTAS}
     llaves: dict[str, list[tuple[str, str]]] = {}
     for hija, columna, madre in cx.execute(_LLAVES).fetchall():
         if hija not in base and hija != madre:
