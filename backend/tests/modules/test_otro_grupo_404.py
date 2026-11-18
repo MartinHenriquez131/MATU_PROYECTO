@@ -11,8 +11,13 @@ pruebas de cada módulo lo prueban ruta por ruta, y esta lo hace para todas a la
    perfil de consumo, alerta y pedido), y pide cada ruta de ``RECURSO_DE_GRUPO`` con los ids de A desde el admin de
    otra familia B, de dos formas: con ``X-Grupo-Id`` del grupo B (su grupo, del que sí es miembro) y con el de A (del
    que no lo es). Las dos responden 404 RFC 7807, sin el nombre de A ni de su persona en el cuerpo.
-3. El control: el admin de A pide las rutas de lectura con los mismos ids y no recibe 404. Sin él, un id mal
-   sembrado también daría 404 y la prueba pasaría en vacío.
+3. El control, para que la prueba no pase en vacío con un id mal sembrado:
+   - cada valor sembrado existe en la base, consultado como superusuario, es de A y está vigente (``EXISTE``),
+     también los que solo aparecen en escrituras (``alerta_id``, ``invitacion_id``, ``membresia_id`` y
+     ``acceso_id``);
+   - el admin de A pide las rutas de lectura con los mismos ids y recibe 200.
+4. Las peticiones de B no cambian nada de A: la huella de las filas de A (``huella_de_a``) es la misma antes y
+   después de todas ellas.
 
 El cuerpo de cada petición es válido para la ruta (``CUERPOS``) y lleva las cabeceras de versión e idempotencia, así
 el 404 no puede ser la sombra de un 422 o un 428.
@@ -253,9 +258,94 @@ def _superusuario(sql: str, *parametros: Any) -> Any:
         return cx.execute(sql, parametros).fetchone()
 
 
+# Cada valor sembrado, como superusuario: existe, es del grupo A y está vigente. Uno que no existe (o de otro grupo, o
+# ya cerrado) también respondería 404 y la prueba pasaría en vacío
+EXISTE: dict[str, str] = {
+    "grupo_id": "SELECT 1 FROM grupo_familiar WHERE id = %(valor)s AND id = %(grupo)s",
+    "persona_id": "SELECT 1 FROM persona_cuidada WHERE id = %(valor)s AND grupo_id = %(grupo)s",
+    "pedido_id": "SELECT 1 FROM pedido WHERE id = %(valor)s AND grupo_id = %(grupo)s AND pagado_en IS NULL",
+    "pedido_pagado_id": "SELECT 1 FROM pedido WHERE id = %(valor)s AND grupo_id = %(grupo)s"
+                        " AND pagado_en IS NOT NULL",
+    "perfil_id": "SELECT 1 FROM perfil_consumo WHERE id = %(valor)s AND grupo_id = %(grupo)s",
+    "alerta_id": "SELECT 1 FROM alerta_quiebre a JOIN perfil_consumo p ON p.id = a.perfil_id"
+                 " WHERE a.id = %(valor)s AND p.grupo_id = %(grupo)s AND a.estado = 'pendiente'",
+    "membresia_id": "SELECT 1 FROM membresia WHERE id = %(valor)s AND grupo_id = %(grupo)s AND estado = 'activa'",
+    "invitacion_id": "SELECT 1 FROM invitacion WHERE id = %(valor)s AND grupo_id = %(grupo)s"
+                     " AND aceptada_en IS NULL AND revocada_en IS NULL",
+    "acceso_id": "SELECT 1 FROM acceso_relevo WHERE id = %(valor)s AND grupo_id = %(grupo)s AND revocado_en IS NULL",
+    # Los que no son ids: la ficha de A existe para el campo y la sección, y su autorización de esa finalidad sigue
+    # vigente
+    "campo": "SELECT 1 FROM plan_cuidado WHERE grupo_id = %(grupo)s AND %(valor)s = 'rutina'",
+    "seccion": "SELECT 1 FROM plan_cuidado WHERE grupo_id = %(grupo)s AND %(valor)s = 'alimentacion'",
+    "finalidad": "SELECT 1 FROM consentimiento WHERE grupo_id = %(grupo)s AND finalidad = %(valor)s"
+                 " AND revocado_en IS NULL",
+}
+
+
+def _existe(sql: str, valor: str, grupo: str) -> bool:
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        return cx.execute(sql, {"valor": valor, "grupo": grupo}).fetchone() is not None
+
+
+# Las llaves foráneas de una columna hacia el id de otra tabla: (tabla hija, columna, tabla madre)
+_LLAVES = """
+SELECT h.relname, a.attname, m.relname
+  FROM pg_constraint k
+  JOIN pg_class h ON h.oid = k.conrelid
+  JOIN pg_class m ON m.oid = k.confrelid
+  JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = k.conkey[1]
+  JOIN pg_attribute r ON r.attrelid = k.confrelid AND r.attnum = k.confkey[1]
+ WHERE k.contype = 'f' AND cardinality(k.conkey) = 1 AND r.attname = 'id'
+   AND h.relnamespace = 'public'::regnamespace AND m.relnamespace = 'public'::regnamespace
+ ORDER BY 1, 2, 3
+"""
+_CON_GRUPO = """
+SELECT c.table_name FROM information_schema.columns c
+  JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+ WHERE c.table_schema = 'public' AND c.column_name = 'grupo_id' AND t.table_type = 'BASE TABLE'
+ ORDER BY 1
+"""
+_MD5 = "SELECT md5(coalesce(string_agg(x::text, '|' ORDER BY x::text), '')) FROM {tabla} x WHERE {filtro}"
+
+
+def _alcance_del_grupo(cx: psycopg.Connection[Any]) -> dict[str, str]:
+    """Cada tabla con filas de un grupo y el filtro que las elige (con %(g)s): el grupo por su id, las tablas con
+    grupo_id, y las que cuelgan de ellas por llaves foráneas, en cadena (hijas, nietas…). El filtro de una tabla sin
+    grupo_id es el OR de todas sus llaves hacia tablas alcanzadas: una fila de A cuenta por cualquiera de ellas."""
+    con_grupo = {fila[0] for fila in cx.execute(_CON_GRUPO).fetchall()}
+    base = {"grupo_familiar": "id = %(g)s", **{t: "grupo_id = %(g)s" for t in con_grupo}}
+    llaves: dict[str, list[tuple[str, str]]] = {}
+    for hija, columna, madre in cx.execute(_LLAVES).fetchall():
+        if hija not in base and hija != madre:
+            llaves.setdefault(hija, []).append((columna, madre))
+    alcanzadas = set(base)
+    while nuevas := {h for h, ls in llaves.items() if h not in alcanzadas and any(m in alcanzadas for _, m in ls)}:
+        alcanzadas |= nuevas
+
+    def filtro(tabla: str, camino: frozenset[str]) -> str:
+        if tabla in base:
+            return base[tabla]
+        partes = [f"{columna} IN (SELECT id FROM {madre} WHERE {filtro(madre, camino | {tabla})})"
+                  for columna, madre in llaves[tabla] if madre in alcanzadas and madre not in camino]
+        return "(" + " OR ".join(partes) + ")" if partes else "false"
+
+    return {tabla: filtro(tabla, frozenset()) for tabla in sorted(alcanzadas)}
+
+
+def huella_de_a(grupo: uuid.UUID) -> dict[str, str]:
+    """La huella (md5 de las filas, en orden) de cada tabla de ``_alcance_del_grupo``, como superusuario y sin RLS."""
+    with psycopg.connect(DSN, autocommit=True) as cx:
+        huellas: dict[str, str] = {}
+        for clave, filtro in _alcance_del_grupo(cx).items():
+            fila = cx.execute(_MD5.format(tabla=clave, filtro=filtro), {"g": grupo}).fetchone()
+            assert fila is not None
+            huellas[clave] = fila[0]
+    return huellas
+
+
 def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
-    """La familia A con ficha, autorización de pedidos, dirección, un pedido pagado y otro sin pagar, un perfil con su
-    alerta, una invitación y un acceso de relevo, todo creado por la API o por la fábrica."""
+    """La familia A con ficha, autorizaciones de pedidos y de consumo, dirección, un pedido pagado y otro sin pagar, un
+    perfil con su alerta, una invitación y un acceso de relevo, todo creado por la API o por la fábrica."""
     familia = e.lista_para_pedir(e.fabrica.familia(con_ficha=True))
     e.hay("panal", "uno")
     # El pagado: se confirma, se paga en la pasarela falsa y Webpay vuelve a MATU
@@ -280,6 +370,8 @@ def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
     assert creado.status_code == 201, creado.text
     pedido_id = creado.json()["id"]
 
+    # Con la autorización de consumo: sin ella, las lecturas del consumo de A responden 403 y el control no sirve
+    e.fabrica.autorizacion_consumo(familia.persona, otorgante=familia.admin)
     perfil_id = e.fabrica.perfil_consumo(familia.persona)
     [alerta_id] = _superusuario(
         "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista) VALUES (%s, current_date + 3) RETURNING id", perfil_id
@@ -399,6 +491,9 @@ def test_desde_otro_grupo_toda_ruta_de_un_recurso_de_grupo_responde_404(
     b = entorno.b
     grupo = b.grupo.id if grupo_de_la_cabecera == "propio" else entorno.a.familia.grupo.id
     nombres_de_a = (entorno.a.familia.grupo.nombre, entorno.a.familia.persona.nombre)
+    antes = huella_de_a(entorno.a.familia.grupo.id)
+    vacia = huella_de_a(uuid.uuid4())
+    assert antes["persona_cuidada"] != vacia["persona_cuidada"] and antes["pedido"] != vacia["pedido"]  # mira filas
     distintas: dict[str, str] = {}
     for metodo, plantilla in sorted(RECURSO_DE_GRUPO, key=lambda r: (r[0] not in METODOS_DE_LECTURA, r)):
         respuesta = entorno.pedir(metodo, plantilla, b.admin, grupo)
@@ -412,14 +507,29 @@ def test_desde_otro_grupo_toda_ruta_de_un_recurso_de_grupo_responde_404(
         if any(nombre in respuesta.text for nombre in nombres_de_a):
             distintas[clave] = "404 con un nombre de A en el cuerpo"
     assert not distintas, json.dumps(distintas, ensure_ascii=False, indent=2)
+    # Ninguna petición de B cambió una fila de A
+    despues = huella_de_a(entorno.a.familia.grupo.id)
+    cambiadas = sorted(t for t in antes.keys() | despues.keys() if antes.get(t) != despues.get(t))
+    assert not cambiadas, f"las peticiones de B cambiaron filas de A en: {cambiadas}"
+
+
+def test_control_cada_valor_sembrado_existe_es_de_a_y_esta_vigente(entorno: Entorno) -> None:
+    """Sin este control, un id que no existe respondería 404 y la prueba de arriba pasaría en vacío. Cubre también los
+    que solo aparecen en escrituras, como acceso_id en DELETE /v1/accesos-relevo/{acceso_id}."""
+    parametros = {nombre for _, ruta in RECURSO_DE_GRUPO for nombre in PARAMETRO.findall(ruta)}
+    assert parametros | {"pedido_pagado_id"} == set(EXISTE)
+    grupo = str(entorno.a.familia.grupo.id)
+    no_existen = sorted(n for n, sql in EXISTE.items() if not _existe(sql, entorno.a.valores[n], grupo))
+    assert not no_existen, f"valores sembrados que no existen en A o no están vigentes: {no_existen}"
 
 
 def test_control_el_admin_de_a_si_alcanza_sus_lecturas(entorno: Entorno) -> None:
-    """Sin este control, un id mal sembrado también respondería 404 y la prueba de arriba pasaría en vacío."""
+    """Sin este control, un id mal sembrado también respondería 404 y la prueba de arriba pasaría en vacío. Cada
+    lectura responde 200, su código exitoso en el contrato: un 500 o un 403 tampoco sirven de control."""
     a = entorno.a.familia
-    no_alcanza: dict[str, int] = {}
+    no_alcanza: dict[str, str] = {}
     for metodo, plantilla in sorted(r for r in RECURSO_DE_GRUPO if r[0] in METODOS_DE_LECTURA):
         respuesta = entorno.pedir(metodo, plantilla, a.admin, a.grupo.id)
-        if respuesta.status_code == 404:
-            no_alcanza[plantilla] = respuesta.status_code
-    assert not no_alcanza, no_alcanza
+        if respuesta.status_code != 200:
+            no_alcanza[plantilla] = f"{respuesta.status_code} {respuesta.text[:200]}"
+    assert not no_alcanza, json.dumps(no_alcanza, ensure_ascii=False, indent=2)
