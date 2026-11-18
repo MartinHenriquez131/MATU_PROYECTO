@@ -5022,7 +5022,7 @@ def test_c10_quien_pago_y_salio_del_grupo_sigue_siendo_el_titular(cx, operador_8
 
 PARTICIPACION_A = "00000000-0000-0000-0000-0000000008a1"
 PARTICIPACION_RECHAZADA_116 = uuid.UUID("00000000-0000-0000-0000-0000000116a1")
-TABLAS_DEL_PAGO = ("cargo", "participacion", "transaccion_pasarela", "retracto", "retracto_linea")
+TABLAS_DEL_PAGO_116 = ("cargo", "participacion", "transaccion_pasarela", "retracto", "retracto_linea")
 
 
 def _paga_y_se_informa_116(cx):
@@ -5052,13 +5052,13 @@ def _paga_y_se_informa_116(cx):
 
 def _ve_del_pago(cx, **ctx):
     como(cx, **ctx)
-    vistos = {t: contar(cx, t) for t in TABLAS_DEL_PAGO}
+    vistos = {t: contar(cx, t) for t in TABLAS_DEL_PAGO_116}
     vistos["pedido_entrega"] = contar(cx, "pedido_entrega")
     cx.execute("RESET ROLE")
     return vistos
 
 
-NADA_DEL_PAGO = dict.fromkeys(TABLAS_DEL_PAGO, 0) | {"pedido_entrega": 0}
+NADA_DEL_PAGO = dict.fromkeys(TABLAS_DEL_PAGO_116, 0) | {"pedido_entrega": 0}
 
 
 def _retirar(cx, usuario):
