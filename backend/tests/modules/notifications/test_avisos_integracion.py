@@ -8,6 +8,9 @@ Solo datos sintéticos.
 import json
 import logging
 import threading
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any
 
@@ -16,12 +19,13 @@ import pytest
 from app.core.db import fabrica_sesiones
 from app.modules.consumption.events import QUIEBRE_PROXIMO
 from app.modules.notifications.application.avisos import ConsumidorQuiebreProximo
-from app.modules.notifications.application.ports import EnvioCorreo
+from app.modules.notifications.application.ports import EnvioCorreo, RepositorioAvisos
 from app.modules.notifications.domain.aviso import ResultadoEnvio
-from app.modules.notifications.infrastructure.repositorio_avisos import UnidadAvisosSQL
+from app.modules.notifications.infrastructure.repositorio_avisos import RepositorioAvisosSQL, UnidadAvisosSQL
 from app.shared.outbox import Hecho, Posponer, Reintentar, ResultadoPublicacion, publicar_pendientes
 from app.shared.outbox_sql import AlmacenOutboxSql
 from tests.base_datos import fabrica_publisher, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.dobles.enviadores_en_memoria import EnviadorCorreoEnMemoria, EnviadorPushEnMemoria
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.modules.notifications.conftest import ORIGEN, EntornoAvisos, ejecutar, filas
@@ -404,6 +408,22 @@ class _CorreoQueEspera:
         return ResultadoEnvio.ENVIADO
 
 
+class _UnidadQueAnotaPid(UnidadAvisosSQL):
+    """Anota el pid de cada sesión que abre. Mientras el primer envío espera, la última es la que tiene el FOR UPDATE
+    de la notificación (MATU-108)."""
+
+    def __init__(self, *args: Any) -> None:
+        super().__init__(*args)
+        self.pids: list[int] = []
+
+    @contextmanager
+    def abrir(self, grupo_id: uuid.UUID) -> Iterator[RepositorioAvisos]:
+        with super().abrir(grupo_id) as repo:
+            assert isinstance(repo, RepositorioAvisosSQL)
+            self.pids.append(pid_de(repo._sesion))
+            yield repo
+
+
 def test_dos_corridas_que_se_cruzan_no_envian_dos_veces(entorno_avisos: EntornoAvisos) -> None:
     """La primera corrida toma el evento y se queda en su primer envío. La segunda, 6 minutos después según su Reloj
     (pasó el arriendo de 5 minutos del outbox), vuelve a tomar el mismo evento y espera el bloqueo de la fila. Al
@@ -417,9 +437,9 @@ def test_dos_corridas_que_se_cruzan_no_envian_dos_veces(entorno_avisos: EntornoA
     almacen = AlmacenOutboxSql(fabrica_publisher())
     resultados: dict[str, ResultadoPublicacion] = {}
 
-    def corrida(nombre: str, correo: Any, push: Any, reloj: RelojFijo) -> None:
+    def corrida(nombre: str, unidad: UnidadAvisosSQL, correo: Any, push: Any, reloj: RelojFijo) -> None:
         consumidor = ConsumidorQuiebreProximo(
-            unidad=UnidadAvisosSQL(fabrica_sesiones()),
+            unidad=unidad,
             correo=correo,
             push=push,
             reloj=reloj,
@@ -430,19 +450,26 @@ def test_dos_corridas_que_se_cruzan_no_envian_dos_veces(entorno_avisos: EntornoA
             almacen, {QUIEBRE_PROXIMO: [consumidor]}, reloj, grupo_id=familia.grupo.id
         )
 
-    primera = threading.Thread(target=corrida, args=("primera", lento, push_lento, RelojFijo(e.reloj.ahora())))
+    unidad_primera = _UnidadQueAnotaPid(fabrica_sesiones())
+    primera = threading.Thread(
+        target=corrida, args=("primera", unidad_primera, lento, push_lento, RelojFijo(e.reloj.ahora()))
+    )
     primera.start()
     assert lento.entro.wait(timeout=30)
     seis_minutos = RelojFijo(e.reloj.ahora() + timedelta(minutes=6))
-    segunda = threading.Thread(target=corrida, args=("segunda", rapido, push_rapido, seis_minutos))
+    segunda = threading.Thread(
+        target=corrida, args=("segunda", UnidadAvisosSQL(fabrica_sesiones()), rapido, push_rapido, seis_minutos)
+    )
     segunda.start()
-    segunda.join(timeout=2)
-    se_cruzaron = segunda.is_alive()  # tomó el evento y espera el FOR UPDATE de la fila que envía la primera
-    lento.seguir.set()
-    primera.join(timeout=30)
-    segunda.join(timeout=30)
+    try:
+        # tomó el evento y espera el FOR UPDATE de la fila que envía la primera
+        esperar_bloqueada_por(unidad_primera.pids[-1], segunda)
+    finally:
+        lento.seguir.set()
+        primera.join(timeout=30)
+        segunda.join(timeout=30)
 
-    assert se_cruzaron and not primera.is_alive() and not segunda.is_alive()
+    assert not primera.is_alive() and not segunda.is_alive()
     assert set(resultados) == {"primera", "segunda"}
     envios = [x.notificacion_id for x in [*lento.enviados, *rapido.enviados]]
     envios += [x.notificacion_id for x in [*push_lento.enviados, *push_rapido.enviados]]

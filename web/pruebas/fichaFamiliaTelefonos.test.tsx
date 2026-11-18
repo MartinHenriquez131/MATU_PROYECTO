@@ -30,24 +30,25 @@ describe('MATU-86 · la hoja del inicio y de la edición de un campo (HojaFicha)
   it('cada teléfono queda en un solo bloque, sin partir, igual que en el relevo', () => {
     render(<HojaFicha pila="Elena" textos={textos} secciones={[{ api: 'quien_es', texto: SECCION }]} />)
     const todos = bloques(document)
+    // MATU-95: «A quién llamar» va primero en la hoja.
     expect(todos.map((b) => b.textContent)).toEqual([
-      '+56 9 5555 0141', // Su día, en la línea de tiempo
-      '9 5555 0177', // Si se altera, junto a una hora
-      '+56 9 5555 0141',
+      '+56 9 5555 0141', // A quién llamar
       '9 5555-0102.',
       '+56 2 2555 0123',
       '+56955550199',
       '+56-9-5555-0177',
+      '+56 9 5555 0141', // Su día, en la línea de tiempo
+      '9 5555 0177', // Si se altera, junto a una hora
       '(+56 9 5555 0163)', // la sección, con sus paréntesis
       '9 5555-0102.',
     ])
     todos.forEach(comoEnElRelevo)
     expect([...todos[0].querySelectorAll('.cifras')].map((c) => c.textContent)).toEqual(['+56 9', '5555 0141'])
     // Con guion: el guion queda y después va el <wbr>.
-    expect([...todos[6].childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'WBR', 'SPAN'])
-    expect([...todos[6].childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '', '5555-0177'])
+    expect([...todos[4].childNodes].map((n) => n.nodeName)).toEqual(['SPAN', '#text', 'WBR', 'SPAN'])
+    expect([...todos[4].childNodes].map((n) => n.textContent)).toEqual(['+56-9', '-', '', '5555-0177'])
     // Sin separador: un <wbr> entre el prefijo y el resto.
-    expect([...todos[5].childNodes].map((n) => n.nodeName)).toEqual(['SPAN', 'WBR', 'SPAN'])
+    expect([...todos[3].childNodes].map((n) => n.nodeName)).toEqual(['SPAN', 'WBR', 'SPAN'])
   })
 
   it('el textContent es el texto de la API, carácter por carácter', () => {

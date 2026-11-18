@@ -26,6 +26,7 @@ from app.modules.consumption.infrastructure.tarea_conservacion import Conservaci
 from app.modules.consumption.infrastructure.tarea_quiebres import ConservacionQuiebresSql
 from app.shared.auditoria_sql import RegistroAuditoriaSql
 from tests.base_datos import DSN, fabrica_scheduler, requiere_base
+from tests.concurrencia import esperar_bloqueada_por, pid_de
 from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.consumption.conftest import EntornoConsumo
@@ -648,10 +649,10 @@ def test_compre_simultaneo_a_un_retiro_espera_y_termina_en_403(entorno_consumo: 
             e.iam.reloj, RepositorioRetirosSQL(sesion, familia.grupo.id, registro),
             efectos_de(sesion, familia.grupo.id, registro),
         )
+        pid = pid_de(sesion)
         hilo = threading.Thread(target=comprar)
         hilo.start()
-        hilo.join(timeout=1.0)
-        assert hilo.is_alive()  # la compra espera el bloqueo del retiro (FOR SHARE contra FOR UPDATE)
+        esperar_bloqueada_por(pid, hilo)  # la compra espera el bloqueo del retiro (FOR SHARE contra FOR UPDATE)
     hilo.join(timeout=15)
     [respuesta] = respuestas
     assert respuesta.status_code == 403 and respuesta.json()["type"] == "/errores/sin-consentimiento"

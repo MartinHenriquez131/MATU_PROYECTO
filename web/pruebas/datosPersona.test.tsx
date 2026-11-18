@@ -228,7 +228,7 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(champu).toHaveTextContent('Quedaban 30 sobres el 10/11/2026.')
     expect(champu).toHaveTextContent('Se acaba el 09/01/2027.')
     expect(champu).toHaveTextContent('Avisa el mismo día.')
-    expect(champu).toHaveTextContent('10 por envase.')
+    expect(champu).toHaveTextContent('10 sobres por envase.')
     expect(champu).toHaveTextContent('Lo agregaron el 20/10/2026. Lo cambió por última vez Carmen Soto el 10/11/2026 a las 08:00.')
     expect(champu).not.toHaveTextContent('Ya no se sigue')
     expect(toallitas).toHaveTextContent('Ya no se sigue')
@@ -236,6 +236,21 @@ describe('«Datos de María»: los bloques (3.4)', () => {
     expect(toallitas).not.toHaveTextContent('Se acaba el')
     expect(toallitas).toHaveTextContent('Avisa 7 días antes.')
     expect(toallitas).toHaveTextContent('Lo cambió por última vez alguien que ya no está en el grupo')
+  })
+
+  // MATU-110 (especificación matu-110-envase-ml-g.md, 6): «400 ml por envase.», no «400 por envase.».
+  it.each([
+    ['unidad', 1200, '1.200 unidades por envase.'],
+    ['sobre', 10, '10 sobres por envase.'],
+    ['ml', 400, '400 ml por envase.'],
+    ['g', 250, '250 g por envase.'],
+  ] as const)('Sus insumos: el envase con su unidad (%s)', async (unidad, n, texto) => {
+    const base = copiaPersona()
+    const [primero, ...resto] = base.insumos.lista!
+    abrir({ ...base, insumos: { ...base.insumos, lista: [{ ...primero, unidad, unidades_por_envase: n }, ...resto] } })
+    await listo()
+    const [insumo] = within(bloque('Sus insumos')).getAllByRole('listitem')
+    expect(insumo).toHaveTextContent(texto)
   })
 
   it('Compras y avisos de insumos: origen, quién, y los cuatro estados del aviso', async () => {

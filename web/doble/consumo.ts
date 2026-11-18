@@ -420,6 +420,13 @@ export function listaParaCompre(autor: { id: string; nombre: string }): PerfilDo
  * sobres con 10 por caja, las toallitas sin envase, los guantes con envase de 1 (D6), la crema en ml
  * con envase (D2), un nombre de 60 caracteres sin espacios con 10.000 por envase, y las bolsas, que
  * con unas 2.000 alcanzan para más de 10 años (422 `cobertura_maxima`).
+ *
+ * MATU-110: la «Crema protectora», en g con 100 g por envase, es el único insumo en g del doble (el
+ * formulario solo crea «Por unidad» y «Por sobre»), para ver en la pantalla el envase en g al abrirla,
+ * al cambiarla y en «Mis datos» (/grupo/datos). El doble no tiene una regla que la haga chocar: el
+ * 412 se provoca con dos pestañas en envases@example.com. Se abre «Cambiar» de la crema en las dos,
+ * se guarda en una (sube la versión, el estado del doble es uno solo en memoria) y al guardar en la
+ * otra, con el `If-Match` viejo, responde 412 `version-desactualizada` con `actual`.
  */
 export function listaParaEnvases(autor: { id: string; nombre: string }): PerfilDoble[] {
   return [
@@ -428,6 +435,7 @@ export function listaParaEnvases(autor: { id: string; nombre: string }): PerfilD
     perfil('Toallitas húmedas', 'unidad', 3, 1, 12, 1, autor),
     conEnvase(perfil('Guantes desechables', 'unidad', 6, 1, 60, 0, RODRIGO_CONSUMO), 1),
     conEnvase(perfil('Crema humectante', 'ml', 50, 7, 500, 0, autor), 250),
+    conEnvase(perfil('Crema protectora', 'g', 5, 1, 300, 0, autor), 100),
     conEnvase(perfil('ToallitasHúmedasExtraGrandesSinPerfumeParaPielSensibleXXL60'.slice(0, 60), 'unidad', 3, 1, 9, 0, autor), 10_000),
     perfil('Bolsas de basura', 'unidad', 1, 2, 40, 0, autor),
   ]

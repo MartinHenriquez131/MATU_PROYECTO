@@ -330,7 +330,7 @@ function Editor({ seccion, ficha, pila, personaId }: { seccion: Seccion; ficha: 
             )}
             <div id="seccion-ayuda" className="text-base text-tenue">
               <p>{MAS.ayuda}</p>
-              {seccion.alergias && <p>{MAS.alergias}</p>}
+              {seccion.alergias && <p>{seccion.alergias}</p>}
             </div>
             <p id="seccion-ejemplo" className="border-s-2 border-linea ps-3 text-base text-tenue">
               {MAS.ejemplo(seccion.ejemplo)}

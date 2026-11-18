@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from psycopg import errors
 
 from tests.base_datos import requiere_base
+from tests.concurrencia import esperar_bloqueada_por
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 # MATU-94: sin valor por omisión (antes, dbname=matu, la base de uso). Sin MATU_TEST_DSN, el archivo se salta como
@@ -3799,7 +3800,6 @@ def grupo_42():
 def _en_paralelo(primera, segunda):
     """primera en una conexión que confirma solo después de que segunda empezó y quedó esperando su bloqueo."""
     import threading
-    import time
 
     resultados: dict[str, object] = {}
     with psycopg.connect(DSN) as uno, psycopg.connect(DSN) as dos:
@@ -3815,8 +3815,7 @@ def _en_paralelo(primera, segunda):
 
         hilo = threading.Thread(target=correr)
         hilo.start()
-        time.sleep(0.5)
-        assert "segunda" not in resultados, "la segunda no esperó el bloqueo"
+        esperar_bloqueada_por(uno.info.backend_pid, hilo)  # falla si la segunda no esperó el bloqueo
         uno.commit()
         hilo.join(timeout=10)
     return resultados

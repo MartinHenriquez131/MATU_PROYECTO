@@ -2089,7 +2089,7 @@ function Conflicto({
   )
   const l = lineaDias(actual.dias_restantes)
   // MATU-60 9.4: el envase, si lo cambió esta persona o la otra.
-  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
+  const envaseDe = (u: number | null | undefined) => (u == null ? LISTA.sinEnvase(actual.unidad) : LISTA.envaseConflicto(miles(u), sufijoCantidad(u, actual.unidad, null)))
   const envaseLeido = leido.unidades_por_envase ?? null
   const envaseActual = actual.unidades_por_envase ?? null
   const verEnvase = mio.unidades_por_envase !== undefined || envaseActual !== envaseLeido
@@ -2211,7 +2211,7 @@ function DialogoEliminar({
         e.preventDefault()
         onCancelar()
       }}
-      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta backdrop:bg-tinta/40"
+      className="m-auto w-[calc(100%-2rem)] angosto:w-[calc(100%-1rem)] max-w-md rounded-2xl bg-hoja p-6 angosto:px-2 angosto:py-4 text-tinta ring-1 ring-linea backdrop:bg-velo"
     >
       <div className="flex flex-col gap-4">
         <h2 id={`${uid}-t`} className="text-xl font-bold break-words [overflow-wrap:anywhere]">

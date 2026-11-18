@@ -34,6 +34,18 @@ El turquesa trabaja en dos tonos. El de **marca** es el que se reconoce: el cír
 | `rocio` | `pino` al 12 % sobre `hoja` | Fondo de notas, botón suave, opción elegida | ver `pino` |
 | `borde` | `tinta` al 50 % con `hoja` | Borde de los controles: campos, opciones y chips sin elegir | 3,5:1 sobre `hoja` y 3,1:1 sobre `papel` claros; 4:1 y 4,6:1 oscuros (WCAG 1.4.11) |
 
+**El velo de los diálogos (`velo`, MATU-103, 17/11/2026).** Es un token nuevo, solo de `web/` (`web/src/index.css`), y la demo no lo usa. Va detrás de todo `<dialog>` modal, como `backdrop:bg-velo`, siempre sin modificador de opacidad.
+
+| Token | Claro | Oscuro | Rol | Medido |
+|---|---|---|---|---|
+| `velo` | `rgb(4 12 14 / 0.45)` | `rgb(4 12 14 / 0.6)` | Oscurecer la página detrás de un diálogo modal. Nunca fondo de texto ni de un control | `papel` velado: `#848B8B` en claro y `#081012` en oscuro, los dos **más oscuros** que el `papel`. El diálogo (`hoja`) sobre la página velada: 3,5:1 en claro y 1,2:1 en oscuro |
+
+- **Por qué hace falta.** Los diálogos usaban `backdrop:bg-tinta/40`. `tinta` cambia de tema: en el oscuro es casi blanca, así que el velo **aclaraba** la página (`papel` oscuro `#0D1719` pasaba a `#636D6D`). Un velo tiene que oscurecer siempre, así que no puede salir de un token que se invierte.
+- **Por qué este color.** Es un verde casi negro, de la misma familia que `papel` y `tinta`, y más oscuro que el `papel` oscuro. Así oscurece en los dos temas. No es negro puro, para que la página velada no se vea gris sucio junto al turquesa. Es el mismo color en los dos temas, como `marca`, y solo cambia la opacidad.
+- **Por qué esa opacidad.** En claro, 0,45 deja el diálogo blanco a 3,5:1 de la página velada, más que el 2,7:1 de antes, y la página se sigue reconociendo detrás. En oscuro, 0,6 lleva la página casi a negro. Ahí el diálogo se separa por su borde `linea` (ver la nota que sigue) y por ser la única superficie con luz.
+- **El borde del diálogo.** En oscuro, `hoja` sobre la página velada mide 1,2:1, igual que una tarjeta `hoja` sobre `papel`. Por eso todo diálogo modal lleva `ring-1 ring-linea`, el mismo contorno de superficie de las tarjetas, en los dos temas. No es un control, así que no necesita los 3:1 de WCAG 1.4.11.
+- **Lo que no cambia.** Al imprimir, los diálogos no salen (`:modal { display: none }`). Por eso `velo` se escribe sin hexadecimal y no va al `@media print`. `coloresRepetidos.test.ts` vigila que el tema oscuro lo repita igual en los dos bloques.
+
 **El logo.** Círculo `marca` con el `Heart` de lucide relleno en blanco (3,5:1 en los dos temas). Sobre un fondo de marca, como el panel del alta, se invierte: círculo blanco y corazón `marca` (3,5:1). Nunca el corazón en `miel` ni el círculo en `pino`. El favicon, los íconos del manifiesto y `theme-color` usan el mismo `#0D9A94`.
 
 **Por qué se queda `miel`.** El imán es lo que hace que la hoja sea una hoja pegada en el refrigerador, y la hoja es lo memorable de MATU. Un turquesa solo, sobre blanco, es el uniforme de las apps de salud. El ámbar de la miel es casi el complementario del turquesa: con un solo punto cálido por pantalla, el imán se ve desde el fondo de la sala y la marca deja de ser clínica. Pierde un rol: ya no es el corazón del logo, que ahora es blanco.
