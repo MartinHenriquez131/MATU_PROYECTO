@@ -4,8 +4,9 @@ persona, el seguimiento de un pedido y lo que se puede devolver.
 Vive en backoffice porque junta el pedido y sus partes (ordering, fulfillment) con lo devuelto y el retracto
 (payments). Todo se lee en la transacción de la petición (sesion_de_grupo), con RLS. No se audita (C23).
 
-- Roles (C3, C5): admin, cuidador y pagador ven el pedido con sus montos; el observador, solo la fecha, los productos y
-  «Pagado» (D-92-1 a). Quien salió del grupo no llega aquí (sesion_de_grupo responde 404, C4).
+- Roles (C3, C5): admin, cuidador y pagador ven el pedido con sus montos; el observador, la fecha del pago, el estado
+  para la familia, la fecha de entrega y los productos, sin ningún monto (D-92-1 a; MATU-113, decisión 472).
+  Quien salió del grupo no llega aquí (sesion_de_grupo responde 404, C4).
 - Lo que el servidor decide (C7, C10): ``puede_cancelar`` y ``puede_arrepentirse``, con su motivo cuando no.
 - Conservación (C27): un pedido que cumplió 2 años desde su cierre (regla de ``ordering/domain/seguimiento.py``) no
   aparece en ``listar`` y responde 404 en ``seguimiento`` y en ``para_devolver`` (GET …/retractos), es decir, solo en

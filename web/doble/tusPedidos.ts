@@ -77,7 +77,8 @@ function fila(p: Pedido, rol: Rol, u: UsuarioPedido) {
   const s = seg(p)
   const productos = p.lineas.map((l) => ({ producto: productoVista(l.producto_id), cantidad: l.cantidad }))
   const resumen = productos.length ? { primero: productos[0].producto.nombre, otros: productos.length - 1 } : null
-  if (rol === 'observador') return { pedido_id: p.id, pagado_en: p.pagado!.pagado_en, estado: 'pagado', productos, resumen_productos: resumen, productos_borrados: false }
+  // MATU-113 (decisión 472): el estado real de familia y la fecha de entrega, sin ningún monto.
+  if (rol === 'observador') return { pedido_id: p.id, pagado_en: p.pagado!.pagado_en, estado: s.estado, entregado_en: s.entregado_en, productos, resumen_productos: resumen, productos_borrados: false }
   const devs = p.devoluciones ?? []
   const devuelto = devs.filter((d) => d.estado === 'hecha' && d.motivo !== 'pago_tardio').reduce((t, d) => t + d.monto, 0)
   const ma = motivoArrepentirse(p, rol, u)

@@ -82,7 +82,14 @@ def fila(p: PedidoDeLaFamilia) -> PedidoPagadoFila:
 
 def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
     return PedidoPagadoFilaObservador.model_validate(
-        {"pedido_id": p.cabecera.id, "pagado_en": _utc(p.cabecera.pagado_en), "estado": "pagado", **_productos(p)}
+        {
+            "pedido_id": p.cabecera.id,
+            "pagado_en": _utc(p.cabecera.pagado_en),
+            # MATU-113 (decisión 472): el estado real de familia, ya no siempre «pagado»
+            "estado": p.estado.value,
+            "entregado_en": _utc(p.cabecera.entregado_en),
+            **_productos(p),
+        }
     )
 
 

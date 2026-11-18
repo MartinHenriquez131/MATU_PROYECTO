@@ -7077,7 +7077,7 @@
           "pedidos"
         ],
         "summary": "«Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años",
-        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
+        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
         "operationId": "listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get",
         "security": [
           {
@@ -7187,7 +7187,7 @@
           "pedidos"
         ],
         "summary": "El pedido sin pagar de la persona, para volver al carrito",
-        "description": "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3",
+        "description": "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3; el observador, sin montos, decisión 472). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3",
         "operationId": "ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get",
         "security": [
           {
@@ -7272,7 +7272,7 @@
           "pedidos"
         ],
         "summary": "Leer el pedido, con el resumen antes de pagar si el total está confirmado",
-        "description": "MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3",
+        "description": "MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador para el observador (C3), sin entrega, resumen ni ningún monto en ningún estado (MATU-113, decisión 472). El vencimiento lo dice el Reloj. No se audita. Capa 3",
         "operationId": "ver_pedido_v1_pedidos__pedido_id__get",
         "security": [
           {
@@ -15639,6 +15639,21 @@
         ],
         "title": "CambioDeLinea"
       },
+      "CambioDeLineaObservador": {
+        "properties": {
+          "comercio_antes": {
+            "$ref": "#/components/schemas/ComercioVista",
+            "description": "El comercio del carrito; el producto pasó a otro"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "comercio_antes"
+        ],
+        "title": "CambioDeLineaObservador",
+        "description": "MATU-113 (decisión 472): el cambio de la línea sin el precio de antes."
+      },
       "ComercioVista": {
         "properties": {
           "id": {
@@ -16252,9 +16267,10 @@
           },
           "lineas": {
             "items": {
-              "$ref": "#/components/schemas/LineaPedido"
+              "$ref": "#/components/schemas/LineaPedidoObservador"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Lineas"
           },
           "salieron": {
@@ -16263,34 +16279,6 @@
             },
             "type": "array",
             "title": "Salieron"
-          },
-          "comercios": {
-            "items": {
-              "$ref": "#/components/schemas/ParteComercio"
-            },
-            "type": "array",
-            "title": "Comercios"
-          },
-          "subtotal_productos": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Subtotal Productos"
-          },
-          "costo_envio": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Costo Envio"
-          },
-          "total": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total"
           },
           "total_confirmado_en": {
             "anyOf": [
@@ -16316,6 +16304,19 @@
             ],
             "title": "Vence En"
           },
+          "pagado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagado En",
+            "description": "Cuándo se pagó, para «Pagado el {fecha}». Sin el monto"
+          },
           "ventana_entrega": {
             "type": "string",
             "title": "Ventana Entrega"
@@ -16340,18 +16341,15 @@
           "precios_de_ejemplo",
           "lineas",
           "salieron",
-          "comercios",
-          "subtotal_productos",
-          "costo_envio",
-          "total",
           "total_confirmado_en",
           "vence_en",
+          "pagado_en",
           "ventana_entrega",
           "creado_en",
           "actualizado_en"
         ],
         "title": "PedidoVistaObservador",
-        "description": "Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag."
+        "description": "Lo que ve el observador (C3; MATU-113, decisión 472): los productos, cuántos, de qué comercio y el estado\ncompleto del pedido. Sin montos en ningún estado (ni precios, ni subtotales, ni envío, ni total, ni devolución),\nsin entrega, sin resumen y sin etag."
       },
       "ProductoPedido": {
         "properties": {
@@ -18819,6 +18817,54 @@
           "unidades_faltantes"
         ],
         "title": "LineaPedidoCopia"
+      },
+      "LineaPedidoObservador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "$ref": "#/components/schemas/ProductoPedido"
+          },
+          "cantidad": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Cantidad",
+            "description": "Envases del producto, de 1 a 99"
+          },
+          "comercio": {
+            "$ref": "#/components/schemas/ComercioVista"
+          },
+          "regla_faltante": {
+            "$ref": "#/components/schemas/Regla"
+          },
+          "cambio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CambioDeLineaObservador"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null si el producto sigue en el mismo comercio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "cantidad",
+          "comercio",
+          "regla_faltante",
+          "cambio"
+        ],
+        "title": "LineaPedidoObservador",
+        "description": "MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,\ndevolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con\nclaves borradas."
       },
       "CondicionesCopia": {
         "properties": {
@@ -21856,8 +21902,31 @@
           },
           "estado": {
             "type": "string",
-            "const": "pagado",
-            "title": "Estado"
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado",
+            "description": "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
           },
           "productos": {
             "items": {
@@ -21887,12 +21956,13 @@
           "pedido_id",
           "pagado_en",
           "estado",
+          "entregado_en",
           "productos",
           "resumen_productos",
           "productos_borrados"
         ],
         "title": "PedidoPagadoFilaObservador",
-        "description": "Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de\nla entrega ni acciones."
+        "description": "Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la\nfecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."
       },
       "ProductoDeLaFila": {
         "properties": {

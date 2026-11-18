@@ -19,7 +19,9 @@ import {
   sembrarPagoEnCurso,
   sembrarPedido,
   tieneDespacho,
+  vencerPedidoEnCurso,
   vistaDespacho,
+  type Regla,
 } from './pedido'
 import { aceptacionVigente, HUELLA, politicaPublicada } from './politica'
 import { atenderGrupo, atenderInvitacionPublica, invitacionPendiente, miembro, type InvitacionDoble, type MiembroDoble } from './grupo'
@@ -516,7 +518,15 @@ function sembrar() {
   }
   sembrarPedido(conPedido('pedido-renovar@example.com', 'Carmen', 'admin', 'vencida').p.id, tresProductos)
   sembrarPedido(conPedido('pedido-pagador@example.com', 'Rodrigo', 'pagador', 'vigente').p.id, tresProductos, true)
-  sembrarPedido(conPedido('pedido-observador@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresProductos)
+  // MATU-113: quien «Se informa», sin montos en ningún estado. Las protectoras con «Si falta: lo sacamos del pedido.».
+  const tresConQuitar: [string, number, Regla?][] = [['Pañal adulto M', 2], ['Protectores diarios', 1, 'quitar'], ['Toallitas húmedas', 3]]
+  sembrarPedido(conPedido('pedido-observador@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresConQuitar)
+  sembrarPedido(conPedido('pedido-observador-confirmado@example.com', 'Rodrigo', 'observador', 'vigente').p.id, tresConQuitar, true)
+  {
+    const { p } = conPedido('pedido-observador-vencido@example.com', 'Rodrigo', 'observador', 'vigente')
+    sembrarPedido(p.id, tresConQuitar, true)
+    vencerPedidoEnCurso(p.id)
+  }
   conPedido('pedido-observador-sin@example.com', 'Rodrigo', 'observador', 'no')
   sembrarPedido(conPedido('pedido-cambios@example.com', 'Carmen', 'admin', 'vigente', 'pedido-cambios').p.id, tresProductos)
   sembrarPedido(conPedido('pedido-plazo@example.com', 'Carmen', 'admin', 'vigente', 'pedido-plazo').p.id, tresProductos)

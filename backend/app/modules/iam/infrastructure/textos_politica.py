@@ -43,6 +43,9 @@ PUBLICADAS: dict[str, str] = {
     # MATU-81: la consola del equipo de MATU, qué ve de cada pedido, la entrada en dos pasos, el registro de cuándo
     # revisa un pedido y lo que anota si hay un problema. El equipo ve menos que antes: nadie vuelve a aceptar
     "0.21": "15f6be576879d2a1dbf3a58df28a4394cb690d5f42c1aaff1899ef9fc3bf1ba7",  # pragma: allowlist secret
+    # MATU-113: quien «Se informa» ve el pedido sin precios, envío ni total, con su estado y las fechas del pago y de
+    # la entrega. Ve menos que antes: nadie vuelve a aceptar; las anteriores siguen
+    "0.22": "c1313a5e812a04c50bd539d0e27403a2152011887d2b6c1b9593cffb28293d3e",  # pragma: allowlist secret
 }
 
 

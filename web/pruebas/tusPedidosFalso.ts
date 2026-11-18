@@ -60,6 +60,7 @@ export const filaObservador = (cambios: Partial<FilaObservador> = {}): FilaObser
   pedido_id: PEDIDO_ID,
   pagado_en: '2026-11-11T19:41:00Z',
   estado: 'pagado',
+  entregado_en: null,
   productos: [
     { producto: PANAL_C, cantidad: 2 },
     { producto: SUPLEMENTO_C, cantidad: 1 },
