@@ -308,6 +308,16 @@ describe('MATU-116: los pagos y lo que pediste devolver, también de un grupo de
     // Nunca la palabra del contrato, ni el nombre de la persona cuidada, ni montos.
     expect(b).not.toHaveTextContent(/retracto|rechazado|María|\$/i)
   })
+
+  it('P3: el grupo y T4 dependen solo de `sigue_en_el_grupo`, aunque llegue un nombre o una lista', async () => {
+    abrir(copiaCuenta({ retractos: [retractoCuenta({ grupo: 'Familia Soto', sigue_en_el_grupo: false, productos: ['Suplemento vainilla x12'] })] }))
+    await listo()
+    const li = within(bloque('Lo que pediste devolver')).getAllByRole('listitem')[0]
+    expect(li).toHaveTextContent('En un grupo del que saliste.')
+    expect(li).not.toHaveTextContent('Familia Soto')
+    expect(li).not.toHaveTextContent('Suplemento vainilla x12')
+    expect(li).toHaveTextContent('Los productos los puedes pedir a cuidaconmatu@gmail.com.')
+  })
 })
 
 describe('«Tus datos»: el diálogo y los estados (5.6)', () => {

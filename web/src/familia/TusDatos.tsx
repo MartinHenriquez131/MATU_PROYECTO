@@ -527,13 +527,14 @@ function Devolucion({ r }: { r: RetractoCuentaCopia }) {
           <DiaDeInstante iso={r.resuelto_en} fin={T.respondimos[1]} />
         </p>
       )}
-      <p className="max-w-prose text-base break-words">{r.grupo ? T.enGrupoFrase(r.grupo) : T.enGrupoQueDejasteFrase}</p>
+      {/* MATU-116 (P3 de la revisión): una sola señal, `sigue_en_el_grupo`, para el grupo y para T4. */}
+      <p className="max-w-prose text-base break-words">{r.sigue_en_el_grupo && r.grupo ? T.enGrupoFrase(r.grupo) : T.enGrupoQueDejasteFrase}</p>
       {/* T4 (C3): de un grupo del que salió, la API no trae los productos. */}
-      {r.productos === null ? (
+      {!r.sigue_en_el_grupo ? (
         <p className="max-w-prose text-base">
           <FraseConCorreo partes={T.productosPideloA} correo={CORREO_CONTACTO} />
         </p>
-      ) : r.productos.length ? (
+      ) : r.productos?.length ? (
         <ul className="list-disc ps-5 text-base marker:text-tenue">
           {r.productos.map((nombre, i) => (
             <li key={`${nombre}-${i}`} className="break-words">
