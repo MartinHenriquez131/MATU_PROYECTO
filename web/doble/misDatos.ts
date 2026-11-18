@@ -489,17 +489,19 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
   // Del más reciente al más antiguo, como el servidor (revisión del 12-11, P3).
   avisos.sort((a, b) => new Date(b.enviado_en ?? b.creado_en).getTime() - new Date(a.enviado_en ?? a.creado_en).getTime())
   const pagos = [
-    { grupo: 'Familia Soto', referencia: '4821', pagado_en: chile(hace(4 * DIA + 150)), cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
+    { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4821', pagado_en: chile(hace(4 * DIA + 150)), cobrado: 37_260, devuelto: 5_290, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 3 }, codigo_autorizacion: '1213', pago_de_prueba: true },
     ...(modo === 'datos-pedidos'
       ? [
-          { grupo: 'Familia Soto', referencia: '4910', pagado_en: chile(hace(3 * DIA - 10)), cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: '4407', pago_de_prueba: true },
-          { grupo: 'Familia Soto', referencia: '4650', pagado_en: chile(hace(20 * DIA - 40)), cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
+          { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4910', pagado_en: chile(hace(3 * DIA - 10)), cobrado: 10_480, devuelto: 0, tarjeta: { tipo: 'debito', ultimos4: '0019', cuotas: 0 }, codigo_autorizacion: '4407', pago_de_prueba: true },
+          { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4650', pagado_en: chile(hace(20 * DIA - 40)), cobrado: 10_480, devuelto: 10_480, tarjeta: null, codigo_autorizacion: null, pago_de_prueba: false },
+          // MATU-116 (C2 y C4): un pago de un grupo del que salió, sin el nombre y sin el pedido (se guarda 6 años y el pedido 2).
+          { grupo: null, sigue_en_el_grupo: false, referencia: null, pagado_en: chile(hace(60 * DIA)), cobrado: 21_900, devuelto: 0, tarjeta: { tipo: 'credito', ultimos4: '4242', cuotas: 0 }, codigo_autorizacion: '5512', pago_de_prueba: true },
         ]
       : []),
   ]
   const condiciones = [
-    { grupo: 'Familia Soto', referencia: '4821', version: '1.0', huella: 'c'.repeat(64), aceptadas_en: chile(hace(4 * DIA + 152)) },
-    ...(modo === 'datos-pedidos' ? [{ grupo: 'Familia Soto', referencia: null, version: '1.0', huella: 'd'.repeat(64), aceptadas_en: chile(hace(2 * DIA - 3)) }] : []),
+    { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4821', version: '1.0', huella: 'c'.repeat(64), aceptadas_en: chile(hace(4 * DIA + 152)) },
+    ...(modo === 'datos-pedidos' ? [{ grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: null, version: '1.0', huella: 'd'.repeat(64), aceptadas_en: chile(hace(2 * DIA - 3)) }] : []),
   ]
   return {
     formato: 'matu-datos/1',
@@ -517,7 +519,17 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
     avisos_enviados: modo === 'datos-vacio' ? [] : avisos,
     envio_simulado: true,
     // MATU-81 (H2 del analista): el retracto que pidió esta cuenta, con su motivo si no se aceptó.
-    retractos: capa3 ? (paga ? [{ grupo: 'Familia Soto', referencia: '4821', estado: 'rechazado', solicitado_en: chile(hace(2 * DIA)), resuelto_en: chile(hace(DIA)), motivo_rechazo: 'sello_abierto', productos: ['Pañal adulto talla M'] }] : []) : null,
+    retractos: capa3
+      ? paga
+        ? [
+            { grupo: 'Familia Soto', sigue_en_el_grupo: true, referencia: '4821', estado: 'rechazado', solicitado_en: chile(hace(2 * DIA)), resuelto_en: chile(hace(DIA)), motivo_rechazo: 'sello_abierto', productos: ['Pañal adulto talla M'] },
+            // MATU-116 (C3): de un grupo del que salió, sin el nombre ni los productos (T4).
+            ...(modo === 'datos-pedidos'
+              ? [{ grupo: null, sigue_en_el_grupo: false, referencia: '4512', estado: 'devuelto', solicitado_en: chile(hace(58 * DIA)), resuelto_en: chile(hace(55 * DIA)), motivo_rechazo: null, productos: null }]
+              : []),
+          ]
+        : []
+      : null,
     pagos: capa3 ? (paga ? pagos : []) : null,
     condiciones_aceptadas: capa3 ? (paga ? condiciones : []) : null,
   }
