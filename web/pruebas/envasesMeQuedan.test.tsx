@@ -7,7 +7,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { fechaCorta } from '../src/compartido/fechas'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
@@ -125,6 +125,18 @@ const ok = (p: Perfil, cambios: Partial<Perfil> = {}): RespuestaFalsa => ({ stat
 // ---------------------------------------------------------------- panel con envase guardado
 
 describe('«Me quedan» con envase guardado (4.1)', () => {
+  /** jsdom no trae `scrollIntoView`: se pone uno que anota qué elementos se desplazaron, y se quita al final. */
+  const desplazados = () => {
+    const lista: Element[] = []
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      lista.push(this)
+    }
+    return lista
+  }
+  afterEach(() => {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+  })
+
   it('si la persona ya tocó un campo del panel antes de los 40 ms, el foco no se le quita y no se pierde lo escrito', async () => {
     const { pedidas, u } = await abrir()
     // Sin depender de la velocidad de la máquina: el temporizador de 40 ms con que el panel toma el
@@ -133,6 +145,7 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     const retenidos: (() => void)[] = []
     const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
       ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    const movidos = desplazados()
     try {
       await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
       await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
@@ -145,6 +158,8 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     }
     expect(envasesCerrados()).toHaveValue('5000')
     expect(envasesCerrados()).toHaveFocus()
+    // MATU-118 (P3 del diseñador): tampoco desplaza el panel; la página no se le mueve mientras escribe.
+    expect(movidos).not.toContain(grupo())
     expect(grupo()).toHaveTextContent('En total, quedan unas 100.000 unidades.')
     expect(escritas(pedidas)).toEqual([])
   })
@@ -152,8 +167,11 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
 
   it('abre en envases, vacío y con el foco en el panel, sin teclado (D4, criterio 1)', async () => {
     const { u } = await abrir()
+    const movidos = desplazados()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
     await waitFor(() => expect(grupo()).toHaveFocus())
+    // Sin escribir, el panel sí se desplaza a la vista (4).
+    expect(movidos).toContain(grupo())
     // El foco no está en un campo: el teclado del teléfono no se abre.
     expect(document.activeElement?.tagName).not.toBe('INPUT')
     expect(envasesCerrados()).toHaveValue('')

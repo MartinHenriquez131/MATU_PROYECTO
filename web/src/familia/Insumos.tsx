@@ -1077,8 +1077,10 @@ function PanelRegistro({
     const t = window.setTimeout(() => {
       // Si en esos 40 ms la persona ya tocó algo del panel (un campo), el foco se queda donde lo puso:
       // quitárselo a mitad de lo que escribe hacía perder dígitos (CI del PR #83).
+      // MATU-118: tampoco desplaza; si ya escribe, la página no se le mueve bajo el dedo.
       const panel = document.getElementById(id)
-      if (!panel?.contains(document.activeElement)) document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
+      if (panel?.contains(document.activeElement)) return
+      document.getElementById(alPanel ? id : campo)?.focus({ preventScroll: true })
       panel?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)
