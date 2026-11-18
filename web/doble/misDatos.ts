@@ -477,12 +477,13 @@ function copiaCuenta(u: CuentaParaCopia, generado: string) {
   const capa3 = modo !== 'datos-sin-capa3'
   const paga = modo === 'datos-pagador' || modo === 'datos-pedidos' || modo === 'datos-admin'
   const avisos = [
-    { creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' },
-    { creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'push', resultado: 'en_el_piloto_no_salio' },
-    { creado_en: chile(hace(5 * DIA)), enviado_en: null, canal: 'push', resultado: 'no_salio' },
-    { creado_en: chile(hace(20)), enviado_en: null, canal: 'correo', resultado: 'pendiente' },
+    // MATU-76 (D-76-6): el tipo de cada aviso, «insumo» o «pedido».
+    { tipo: 'insumo', creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' },
+    { tipo: 'insumo', creado_en: chile(hace(2 * DIA)), enviado_en: chile(hace(2 * DIA - 1)), canal: 'push', resultado: 'en_el_piloto_no_salio' },
+    { tipo: 'pedido', creado_en: chile(hace(5 * DIA)), enviado_en: null, canal: 'push', resultado: 'no_salio' },
+    { tipo: 'pedido', creado_en: chile(hace(20)), enviado_en: null, canal: 'correo', resultado: 'pendiente' },
   ]
-  if (modo === 'datos-historial') for (let i = 0; i < 30; i++) avisos.push({ creado_en: chile(hace(6 * DIA + i * 3 * DIA)), enviado_en: chile(hace(6 * DIA + i * 3 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' })
+  if (modo === 'datos-historial') for (let i = 0; i < 30; i++) avisos.push({ tipo: i % 2 ? 'pedido' : 'insumo', creado_en: chile(hace(6 * DIA + i * 3 * DIA)), enviado_en: chile(hace(6 * DIA + i * 3 * DIA - 1)), canal: 'correo', resultado: 'en_el_piloto_no_salio' })
   // Del más reciente al más antiguo, como el servidor (revisión del 12-11, P3).
   avisos.sort((a, b) => new Date(b.enviado_en ?? b.creado_en).getTime() - new Date(a.enviado_en ?? a.creado_en).getTime())
   const pagos = [

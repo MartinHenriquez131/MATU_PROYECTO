@@ -743,6 +743,8 @@ function sembrarMisDatos() {
   con('datos-lento@example.com', 'Carmen', 'admin', 'datos-lento')
   con('datos-historial@example.com', 'Carmen', 'admin', 'datos-historial')
   con('datos-sin-asociar@example.com', 'Carmen', 'admin', 'datos-sin-asociar')
+  // MATU-76: «Tu cuenta» con «Por correo» de pedidos en No y «Tus datos» con la frase del dinero.
+  con('avisos-pedido@example.com', 'Carmen', 'admin', 'avisos-pedido')
   {
     const u = cuenta('datos-vacio@example.com', 'Carmen', [grupo('Familia Soto', 'admin', [persona('María Soto Pérez', 'María')])], 'datos-vacio')
     u.telefono = null

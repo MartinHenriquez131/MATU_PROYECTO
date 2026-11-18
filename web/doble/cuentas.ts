@@ -207,6 +207,8 @@ export const CUENTAS: CuentaDeEjemplo[] = [
   { email: 'datos-historial@example.com', que: 'Mis datos: más de 90 días. Historial con 84 líneas en 90 días (más las copias pedidas) y 12 anteriores, 24 compras, ingresos y avisos enviados de más de 20: «Ver más» de a 20 (de a 10 en compras y de a 5 en aperturas) y «Lo anterior va en el archivo.»' },
   { email: 'datos-sin-asociar@example.com', que: 'Mis datos: hay_hechos_sin_asociar: «Hay cambios antiguos que no podemos mostrar aquí ni en el archivo…»' },
   { email: 'datos-vacio@example.com', que: 'Mis datos: María sin dirección, sin enlaces, insumos, compras, avisos ni pedidos, y el historial vacío (los textos de cada bloque vacío). «Tus datos» sin celular ni política aceptada' },
+  // MATU-76: los avisos de tus pedidos
+  { email: 'avisos-pedido@example.com', que: 'Tu cuenta (MATU-76): las tres tarjetas de avisos; en «Avisos de tus pedidos», «Por correo» desmarcado con la nota del dinero y «En tus teléfonos» marcado (la tarjeta C se ve aunque la de insumos esté desmarcada). «Tus datos»: los dos grupos, la frase del dinero y cada aviso con «Aviso de insumo» o «Aviso de pedido»' },
 ]
 
 /** MATU-42: el código de las invitaciones de ejemplo (`/invitacion#…`). */
