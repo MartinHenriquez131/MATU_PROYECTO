@@ -8,8 +8,9 @@ Vive en backoffice porque junta el pedido y sus partes (ordering, fulfillment) c
   para la familia, la fecha de entrega y los productos, sin ningún monto (D-92-1 a; MATU-113, decisión 472).
   Quien salió del grupo no llega aquí (sesion_de_grupo responde 404, C4).
 - MATU-116 (J1, C5; decisión 475): el observador que pagó un pedido ve ese pedido como quien paga (``pagaste``), con
-  el detalle y «Arrepentirme de la compra», sin cancelar. Quien pagó lo dice la base (pagados_por, con RLS de la 0032),
-  nunca el cliente. Los pedidos que no pagó siguen con su fila de observador, y su detalle responde 404.
+  el detalle y «Arrepentirme de la compra»; nunca cancelar (puede_cancelar en false, con su motivo). Quien pagó lo
+  dice la base (pagados_por, con RLS de la 0032), nunca el cliente. Los pedidos que no pagó siguen con su fila de
+  observador, y su detalle responde 404.
 - Lo que el servidor decide (C7, C10): ``puede_cancelar`` y ``puede_arrepentirse``, con su motivo cuando no.
 - Conservación (C27): un pedido que cumplió 2 años desde su cierre (regla de ``ordering/domain/seguimiento.py``) no
   aparece en ``listar`` y responde 404 en ``seguimiento`` y en ``para_devolver`` (GET …/retractos), es decir, solo en

@@ -82,15 +82,9 @@ def fila(p: PedidoDeLaFamilia) -> PedidoPagadoFila:
     return PedidoPagadoFila.model_validate({**_con_pago(p), **_productos(p)})
 
 
-def _sin_cancelar(p: PedidoDeLaFamilia) -> dict[str, object]:
-    """MATU-116 (C5): lo de quien paga, sin cancelar."""
-    datos = _con_pago(p)
-    del datos["puede_cancelar"], datos["cancelar_motivo"]
-    return datos
-
-
 def fila_pagaste(p: PedidoDeLaFamilia) -> PedidoPagadoFilaPagaste:
-    return PedidoPagadoFilaPagaste.model_validate({**_sin_cancelar(p), **_productos(p)})
+    """MATU-116 (C5): la forma de «Paga»; el esquema exige puede_cancelar en false (el rol nunca alcanza)."""
+    return PedidoPagadoFilaPagaste.model_validate({**_con_pago(p), **_productos(p)})
 
 
 def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
@@ -124,10 +118,10 @@ def _partes(p: PedidoDeLaFamilia) -> list[ParteDelPedido]:
 
 
 def seguimiento(p: PedidoDeLaFamilia) -> SeguimientoPedido | SeguimientoPedidoPagaste:
-    """MATU-116 (C5): para el observador que pagó, sin cancelar."""
+    """MATU-116 (C5): para el observador que pagó, la forma de «Paga» con puede_cancelar siempre en false."""
     if p.pagaste:
         return SeguimientoPedidoPagaste.model_validate(
-            {**_sin_cancelar(p), "partes": _partes(p), "productos_borrados": p.productos_borrados}
+            {**_con_pago(p), "partes": _partes(p), "productos_borrados": p.productos_borrados}
         )
     return SeguimientoPedido.model_validate(
         {**_con_pago(p), "partes": _partes(p), "productos_borrados": p.productos_borrados}

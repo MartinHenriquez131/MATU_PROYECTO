@@ -19,7 +19,8 @@ es UUID: 404, nunca 403. No piden la autorización despacho (C1). Cache-Control:
   404 (C6 revisado en MATU-116: quien no es admin y no pagó este pedido, también el observador; lo dice la base), 428,
   422, idempotencia, 404 (sin entregar), 409 fuera-de-plazo, 422 producto-no-retractable y 201.
 - MATU-116 (J1, C5; decisión 475): el observador que pagó un pedido lo ve en la lista con la fila «pagaste», tiene su
-  detalle (sin cancelar) y puede arrepentirse. De los pedidos que no pagó, la fila «se_informa» y 404 en el resto.
+  detalle (puede_cancelar siempre false, con su motivo) y puede arrepentirse. De los pedidos que no pagó, la fila
+  «se_informa» y 404 en el resto.
 """
 
 import uuid
@@ -123,7 +124,7 @@ def _actor(request: Request, contexto: SesionDeGrupo) -> Actor:
         " que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador:"
         " ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos,"
         " sin ningún monto (C3; MATU-113, decisión 472), con vista = se_informa; y en los pedidos que pagó, la fila de"
-        " quien paga sin cancelar, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo;"
+        " quien paga con puede_cancelar en false, con vista = pagaste (MATU-116, C5). Del más reciente al más antiguo;"
         " sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita."
         " Capa 3"
     ),
@@ -161,7 +162,8 @@ def listar_pedidos(
     summary="Cómo va un pedido pagado, por comercio",
     description=(
         "MATU-92 (ruta 2). admin, cuidador y pagador: SeguimientoPedido. El observador que pagó el pedido:"
-        " SeguimientoPedidoPagaste, sin puede_cancelar (MATU-116, C5); de uno que no pagó, no tiene detalle (404,"
+        " SeguimientoPedidoPagaste, con puede_cancelar en false (MATU-116, C5); de uno que no pagó, no tiene"
+        " detalle (404,"
         " D-92-1 a). Cada parte con el"
         " nombre de fantasía del comercio, su estado y cancelada_por; cada línea con unidades_faltantes. Nunca el"
         " código de retiro, la referencia de la parte ni la cuenta del encargado (C15). El comprobante es GET …/pago"

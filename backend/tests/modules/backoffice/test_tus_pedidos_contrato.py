@@ -109,7 +109,8 @@ def test_c3_c5_la_vista_del_observador_no_trae_montos_ni_acciones(esquema: dict[
 @pytest.mark.rf("RNF-07")
 def test_c5_quien_paga_y_se_informa_tiene_su_fila_y_su_detalle_sin_cancelar(esquema: dict[str, Any]) -> None:
     """MATU-116 (C5, decisión 475): la lista del observador trae dos filas, por vista; la de un pedido que pagó, y su
-    detalle, son las de quien paga sin puede_cancelar ni cancelar_motivo, y ninguna trae la entrega ni las notas."""
+    detalle, tienen la forma de las de quien paga, con puede_cancelar fijo en false y cancelar_motivo sin null, y
+    ninguna trae la entrega ni las notas."""
     schemas = esquema["components"]["schemas"]
     items = schemas["ListaPedidosPagadosObservador"]["properties"]["items"]["items"]
     assert items["discriminator"]["propertyName"] == "vista"
@@ -117,7 +118,12 @@ def test_c5_quien_paga_y_se_informa_tiene_su_fila_y_su_detalle_sin_cancelar(esqu
     for pagaste, paga in (("PedidoPagadoFilaPagaste", "PedidoPagadoFila"),
                           ("SeguimientoPedidoPagaste", "SeguimientoPedido")):
         propias = set(schemas[pagaste]["properties"]) - {"vista"}
-        assert propias == set(schemas[paga]["properties"]) - {"puede_cancelar", "cancelar_motivo"}, pagaste
+        assert propias == set(schemas[paga]["properties"]), pagaste
+        cancelar = schemas[pagaste]["properties"]["puede_cancelar"]
+        assert (cancelar["type"], cancelar["const"]) == ("boolean", False), pagaste
+        assert {"puede_cancelar", "cancelar_motivo"} <= set(schemas[pagaste]["required"]), pagaste
+        motivo = schemas[pagaste]["properties"]["cancelar_motivo"]
+        assert "anyOf" not in motivo and motivo["type"] == "string" and "rol" in motivo["enum"], pagaste
         assert not _propiedades(esquema, pagaste) & {"entrega", "calle", "telefono_contacto", "lo_que_paso", "nota"}
     seguimiento = esquema["paths"]["/v1/pedidos/{pedido_id}/seguimiento"]["get"]["responses"]["200"]
     referidos = json.dumps(seguimiento)

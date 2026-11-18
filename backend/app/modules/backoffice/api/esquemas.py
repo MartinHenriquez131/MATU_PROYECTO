@@ -374,7 +374,7 @@ class PedidoPagadoFilaObservador(_Estricto):
 
 class PedidoPagadoFilaPagaste(_Estricto):
     """MATU-116 (J1, C5; decisión 475): la fila del observador en un pedido que pagó. La de quien paga
-    (PedidoPagadoFila), sin puede_cancelar ni cancelar_motivo: puede arrepentirse de la compra, nunca cancelar."""
+    (PedidoPagadoFila), con puede_cancelar siempre false: puede arrepentirse de la compra, nunca cancelar."""
 
     vista: Annotated[Literal["pagaste"], Field(description="MATU-116: el pedido lo pagó quien lee")] = "pagaste"
     pedido_id: uuid.UUID
@@ -389,6 +389,10 @@ class PedidoPagadoFilaPagaste(_Estricto):
     total: Annotated[int, Field(gt=0, description="El total pagado, envío incluido, en pesos enteros")]
     devuelto: Annotated[int, Field(ge=0, description="Lo devuelto a la tarjeta con anulaciones hechas")]
     devuelto_todo: Annotated[bool, Field(description="devuelto = total: «Devolvimos», y no «Estamos devolviendo»")]
+    # MATU-116 (decisión del orquestador del 18-11): la forma de «Paga». Nunca puede cancelar: siempre false, con su
+    # motivo (rol, o ya_se_prepara y cancelado antes que el rol, como a «Paga»)
+    puede_cancelar: Literal[False]
+    cancelar_motivo: Annotated[MotivoNoCancelarApi, Field(description=_DESCRIPCION_CANCELAR)]
     puede_arrepentirse: bool
     arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
     plazo_hasta: Annotated[
@@ -462,8 +466,8 @@ class SeguimientoPedido(_Estricto):
 
 
 class SeguimientoPedidoPagaste(_Estricto):
-    """MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), sin
-    puede_cancelar ni cancelar_motivo. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."""
+    """MATU-116 (J1, C5): el detalle para el observador que pagó el pedido. El de quien paga (SeguimientoPedido), con
+    puede_cancelar siempre false. Como SeguimientoPedido, sin la entrega, el teléfono ni las notas del equipo."""
 
     pedido_id: uuid.UUID
     referencia: Referencia
@@ -476,6 +480,10 @@ class SeguimientoPedidoPagaste(_Estricto):
     total: Annotated[int, Field(gt=0)]
     devuelto: Annotated[int, Field(ge=0)]
     devuelto_todo: bool
+    # MATU-116 (decisión del orquestador del 18-11): la forma de «Paga». Nunca puede cancelar: siempre false, con su
+    # motivo (rol, o ya_se_prepara y cancelado antes que el rol, como a «Paga»)
+    puede_cancelar: Literal[False]
+    cancelar_motivo: Annotated[MotivoNoCancelarApi, Field(description=_DESCRIPCION_CANCELAR)]
     puede_arrepentirse: bool
     arrepentirse_motivo: Annotated[MotivoNoArrepentirseApi | None, Field(description=_DESCRIPCION_ARREPENTIRSE)]
     plazo_hasta: datetime | None
