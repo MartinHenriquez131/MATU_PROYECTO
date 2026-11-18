@@ -607,15 +607,13 @@ def test_la_0_19_sigue_publicada_para_quien_la_acepto() -> None:
 
 @pytest.mark.rf("Ley-21.719")
 @pytest.mark.rf("RF-26")
-def test_la_0_20_esta_publicada_y_es_la_de_env_example() -> None:
+def test_la_0_20_sigue_publicada() -> None:
     """MATU-92: la 0.20 agrega «Tus pedidos», con los pedidos pagados de la persona según el rol, y arrepentirse de la
     compra o cancelar un pedido pagado desde la aplicación. No agrega datos, usos ni destinatarios: nadie vuelve a
     aceptar. De la 0.11 a la 0.19 siguen publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20"} <= set(PUBLICADAS)
     huella = "5aab1f67299092cb6a47aa4c922f335b0ba0b42f1849b3ebc963ba385791c63d"  # pragma: allowlist secret
     assert PUBLICADAS["0.20"] == huella
-    valores = dotenv_values(BACKEND.parent / ".env.example")
-    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.20", "2026-11-17")
     texto = texto_publicado("0.20")
     assert texto != texto_publicado("0.19")
     for parte in (
@@ -639,3 +637,61 @@ def test_la_0_20_esta_publicada_y_es_la_de_env_example() -> None:
     assert "- «Arrepentirme de la compra» y cancelar un pedido pagado desde la aplicación. Mientras tanto" not in texto
     # Lo de la 0.19 sigue en el texto vigente
     assert "- La versión 0.19 agrega cómo los comercios preparan tu pedido" in texto
+
+
+@pytest.mark.rf("Ley-21.719")
+@pytest.mark.rf("RF-26")
+def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
+    """MATU-81: la 0.21 agrega la consola del equipo de MATU: qué ve de cada pedido, que entra con su contraseña y un
+    código de su teléfono, que MATU registra cuándo revisa un pedido y lo que anota si hay un problema, que la familia
+    ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
+    publicadas."""
+    assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
+    huella = "15f6be576879d2a1dbf3a58df28a4394cb690d5f42c1aaff1899ef9fc3bf1ba7"  # pragma: allowlist secret
+    assert PUBLICADAS["0.21"] == huella
+    valores = dotenv_values(BACKEND.parent / ".env.example")
+    assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
+    texto = texto_publicado("0.21")
+    assert texto != texto_publicado("0.20")
+    for parte in (
+        # §6: la entrada en dos pasos del equipo
+        "Entra con su contraseña y un código de su teléfono",
+        # O3 del analista: en su consola no ve la dirección ni el teléfono
+        "En su consola no ve la dirección de entrega ni el teléfono de contacto.",
+        "No ve el nombre de la persona que cuidas, su ficha ni el consumo de insumos.",
+        "MATU registra cuándo revisa tu pedido.",
+        # Opción B de Jorge (17-11): la nota se guarda cifrada con una clave propia
+        "lo anota con lo que pasó y cómo se resolvió. Esa nota se guarda cifrada, y la ves en la copia de tus datos.",
+        # §8: los plazos de lo que anota el equipo y del registro de revisión
+        "- **Lo que pasó con un pedido:** si hay un problema con un pedido, lo que anota el equipo de MATU sigue al"
+        " pedido: se guarda cifrado, 2 años desde que el pedido se cierra, y se borra con él.",
+        # Decisión de Jorge del 17-11: la nota queda ilegible solo al borrar los datos de la persona (§8, §9 y §10)
+        "Si pides borrar los datos de la persona, lo anotado hasta ese momento queda ilegible, porque destruimos la"
+        " clave con que se guardó. Lo que el equipo anote después, de un pedido que todavía se guarda, va con una clave"
+        " nueva y sigue el plazo del pedido.",
+        "- Lo que el equipo de MATU anota de un pedido se cifra con una clave propia de cada persona cuidada, distinta"
+        " de la de la ficha y protegida por la misma clave maestra.",
+        "- Lo que el equipo de MATU anotó de sus pedidos queda ilegible en ese momento. Si después hay que anotar algo"
+        " de un pedido pagado que todavía se guarda, se guarda con una clave nueva y se borra con el pedido.",
+        "Que alguien de tu grupo mire un pedido o un pago no se registra.",
+        # Cierre del analista (17-11): §9 dice dónde se ve la nota y §10 la suma a la copia de la persona
+        "y quien administra el grupo o quien cuida a la persona lo ve en la copia de sus datos, en «Datos de» la"
+        " persona.",
+        "lo que anotó el equipo de MATU si hubo un problema con un pedido y cada vez que el equipo revisó un pedido,",
+        "- La versión 0.21 agrega la consola del equipo de MATU",
+        "Suma dos registros sobre tu pedido: la nota de lo que pasó, guardada cifrada, y el registro de cuándo el"
+        " equipo revisa tu pedido, que ves en la copia de tus datos.",
+        # §13: con comercios ficticios, el retiro y la entrega se marcan sin un pedido real (decisión del 17-11)
+        "el retiro y la entrega se marcan en MATU sin llevar un pedido real",
+        "No te pedimos aceptar de nuevo esta política ni volver a dar las autorizaciones: el equipo ve menos que antes,"
+        " y lo que anota es parte de responder por tu pedido.",
+    ):
+        assert parte in texto, parte
+    # La frase de la 0.21 sin el cifrado de la nota ya no está
+    assert "lo anota con lo que pasó y cómo se resolvió, y lo ves en la copia de tus datos." not in texto
+    # La frase anterior del equipo, que decía que veía «los pedidos y los pagos» para soporte, ya no está
+    assert "**El equipo de MATU:** para dar soporte ve los pedidos y los pagos." not in texto
+    # La frase anterior de §13, que decía que el equipo de MATU hacía el retiro y la entrega, ya no está
+    assert "El retiro y la entrega los hace el equipo de MATU." not in texto
+    # Lo de la 0.20 sigue en el texto vigente
+    assert "- La versión 0.20 agrega «Tus pedidos»" in texto

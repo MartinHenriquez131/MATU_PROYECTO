@@ -279,3 +279,26 @@ export const CODIGOS_RETIRO: { codigo: string; que: string }[] = [
   { codigo: '333333', que: 'MATU no responde (503).' },
   { codigo: 'otro', que: 'No es: quedan 4, 3, 2, 1 intentos y al quinto se bloquea.' },
 ]
+
+/**
+ * MATU-81: las cuentas de la consola de operación (doble/operacion.ts), en `/operacion/entrar`. Todas
+ * piden el código fijo del segundo paso, `CODIGO_MFA` de doble/operacion.ts (246810).
+ */
+export const CUENTAS_OPERACION: (CuentaDeEjemplo & { modo: string })[] = [
+  {
+    email: 'operacion@example.com',
+    modo: 'operacion',
+    que: 'Pedidos en cada estado: 4821 en camino (con incidencia abierta y un faltante devuelto), 4822 listo (una parte con código vigente y otra sin código), 4823 en el comercio (se cancela con devolución; una venta sin respuesta), 4824 por despachar, 4825 entregado (retracto por correo con admin@example.com), 4826 con retracto por resolver, 4827 cancelado con la devolución sin terminar, 4828 no entregado y 4831 fuera de plazo. Catálogo con un comercio real en solo lectura; los guantes responden 412 la primera vez.',
+  },
+  { email: 'operacion-vacia@example.com', modo: 'operacion-vacia', que: 'Sin pedidos, retractos, incidencias ni cobros por revisar.' },
+  { email: 'operacion-falla@example.com', modo: 'operacion-falla', que: 'Las listas responden 500.' },
+]
+
+/** MATU-81: los códigos del segundo paso del doble. */
+export const CODIGOS_MFA: { codigo: string; que: string }[] = [
+  { codigo: '246810', que: 'Correcto: entra a la consola.' },
+  { codigo: '111111', que: 'Ese código ya se usó (se ve como «no coincide»).' },
+  { codigo: '222222', que: 'El desafío venció: vuelve a la contraseña.' },
+  { codigo: '999999', que: 'No se puede revisar el código ahora (503).' },
+  { codigo: 'otro', que: 'No coincide: al quinto, 15 minutos de espera (429).' },
+]

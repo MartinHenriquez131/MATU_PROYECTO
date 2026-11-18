@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.modules.care_circle.domain.retiro import EstadoDeAutorizacion, EstadoVista
 from app.shared.auditoria import AccionAuditoria
 from app.shared.copia_datos import dia_en_chile, en_chile, en_chile_o_nada
+from app.shared.notas_operacion import CustodiaNotas
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,9 @@ class ContextoCopia:
     ahora: datetime
     estado_ficha: EstadoDeAutorizacion
     estado_insumos: EstadoDeAutorizacion
+    # MATU-81 (decisión 471): la custodia de las notas de operación, para descifrar «Lo que pasó con tu pedido». Sin
+    # ella, una nota con su clave vigente hace fallar la copia con 503 (decisión de Jorge del 17-11)
+    custodia_notas: CustodiaNotas | None = None
 
     def __repr__(self) -> str:
         return f"ContextoCopia(rol={self.rol!r})"
@@ -253,6 +257,8 @@ TIPO_HECHO: dict[AccionAuditoria, str] = {
     AccionAuditoria.DESPACHO_ENTREGAR: "pedido_entregado",
     AccionAuditoria.DESPACHO_NO_ENTREGADO: "pedido_no_entregado",
     AccionAuditoria.RETRACTO_RESOLVER: "retracto_resuelto",
+    # MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}», sin quién ni qué vio
+    AccionAuditoria.OPERACION_PEDIDO_VER: "matu_reviso_el_pedido",
 }
 
 CAMPOS_BASE = frozenset({"rutina", "manejo_situaciones", "red_apoyo"})
@@ -358,7 +364,7 @@ def hecho(
         # F1 (decisión 384): a qué autorización o a qué pedido se refiere, nada que identifique a una persona
         "finalidad": finalidad if tipo in ("dio_una_autorizacion", "retiro_una_autorizacion") else None,
         "referencia": referencia
-        if accion.startswith(("pedido.", "pago.", "despacho.", "codigo_retiro.", "retracto."))
+        if accion.startswith(("pedido.", "pago.", "despacho.", "codigo_retiro.", "retracto.", "operacion."))
         else None,
     }
 

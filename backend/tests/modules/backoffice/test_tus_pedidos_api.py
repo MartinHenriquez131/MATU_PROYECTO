@@ -17,6 +17,7 @@ from tests.modules.backoffice.conftest import Despacho
 from tests.modules.backoffice.test_despacho_api import PRECIO_PANAL, _codigo, _parte, _preparar_todo, _validar
 from tests.modules.ordering.conftest import COSTO_ENVIO, MONTOS_PARA_EL_OBSERVADOR, claves_a_cualquier_profundidad
 from tests.modules.payments.conftest import pagar, pedido_confirmado, sin_sesion_volver
+from tests.textos import aparece_como_dato
 
 pytestmark = [pytest.mark.rf("RF-20"), pytest.mark.rf("RF-25"), requiere_base]
 
@@ -254,7 +255,10 @@ def test_el_retracto_ampliado_idempotente_y_c13_el_pago_con_retracto_devuelto(de
     assert (fila["estado"], fila["devuelto"]) == ("entregado", PRECIO_PANAL)
 
     logs = d.e.iam.salida_logs.getvalue()
-    assert clave not in logs and str(PRECIO_PANAL) not in logs
+    # La clave es larga y única: se busca como subcadena. El precio, como dato: buscado como subcadena aparecía al
+    # azar dentro de un UUID de los logs (hallazgo de Martín, CI de #101)
+    assert clave not in logs
+    assert not aparece_como_dato(str(PRECIO_PANAL), logs)
 
 
 @pytest.mark.rf("R15")

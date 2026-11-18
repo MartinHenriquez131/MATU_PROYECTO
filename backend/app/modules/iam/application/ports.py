@@ -9,6 +9,7 @@ from typing import Protocol
 from app.modules.iam.domain.demora import ContadorFallos
 from app.modules.iam.domain.dispositivo import LimitesConservacion
 from app.modules.iam.domain.ingresos import FilaIngreso
+from app.modules.iam.domain.mfa import FallosMfa
 from app.modules.iam.domain.politica import AceptacionPolitica
 from app.modules.iam.domain.recuperacion import Canal, CodigoGuardado, EnviosRecientes
 from app.modules.iam.domain.refresh import EstadoRefresh
@@ -50,6 +51,8 @@ class CredencialGuardada:
     usuario_id: uuid.UUID
     password_hash: str
     estado: str
+    # MATU-81 (C29): una cuenta de operación entra en dos pasos
+    es_operacion: bool = False
 
 
 class RepositorioUsuarios(Protocol):
@@ -85,6 +88,8 @@ class ClaimsAcceso:
     exp: datetime
     # Id del dispositivo (MATU-38, decisión 48). None en un token anterior a MATU-38
     did: uuid.UUID | None = None
+    # MATU-81 (C29): el instante del segundo factor de una cuenta de operación. None sin segundo factor
+    mfa: datetime | None = None
 
 
 class EmisorTokens(Protocol):
@@ -94,9 +99,15 @@ class EmisorTokens(Protocol):
     """
 
     def emitir(
-        self, usuario_id: uuid.UUID, emitido_en: datetime, expira_en: datetime, dispositivo_id: uuid.UUID | None = None
+        self,
+        usuario_id: uuid.UUID,
+        emitido_en: datetime,
+        expira_en: datetime,
+        dispositivo_id: uuid.UUID | None = None,
+        mfa_en: datetime | None = None,
     ) -> str:
-        """Devuelve el token firmado con sub, iat y exp, y did si llega el dispositivo (MATU-38)."""
+        """Devuelve el token firmado con sub, iat y exp, did si llega el dispositivo (MATU-38) y mfa si la sesión pasó
+        el segundo factor (MATU-81)."""
         ...
 
     def leer(self, token: str) -> ClaimsAcceso:
@@ -153,6 +164,9 @@ class SesionGuardada:
     familia_id: uuid.UUID
     dispositivo_id: uuid.UUID
     estado: EstadoRefresh
+    # MATU-81: la marca del segundo factor y si la cuenta es de operación
+    mfa_en: datetime | None = None
+    es_operacion: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +178,8 @@ class NuevoRefresh:
     token_hash: bytes
     emitido_en: datetime
     expira_en: datetime
+    # MATU-81 (C29): la marca del segundo factor, que la familia de tokens conserva al renovar
+    mfa_en: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -353,3 +369,64 @@ class UnidadIam(Protocol):
     def conservar(self, limites: LimitesConservacion) -> tuple[int, int]:
         """Con app.rol = 'operacion', llama a iam_conservar. Devuelve (sesiones, dispositivos) borrados."""
         ...
+
+
+# --- MATU-81: el segundo factor de las cuentas de operación (C26 a C32) ----------------------------------------------
+
+
+class MfaNoDisponible(Exception):
+    """Falta la KEK con que se descifra el secreto (CUSTODIA_KEK o KEK_ENTORNO). La entrada de operación responde
+    503."""
+
+
+class SecretoMfaInvalido(Exception):
+    """El secreto cifrado no se descifra con esta KEK y este AAD. Nunca lleva bytes del secreto."""
+
+
+class CifradorMfa(Protocol):
+    """AES-256-GCM con la KEK y el AAD ``mfa:<usuario_id>`` (C26). Implementación: CifradorMfaKek
+    (infrastructure/cifrador_mfa.py)."""
+
+    def cifrar(self, secreto: bytes, usuario_id: uuid.UUID) -> bytes: ...
+
+    def descifrar(self, cifrado: bytes, usuario_id: uuid.UUID) -> bytes:
+        """Lanza SecretoMfaInvalido si no corresponde."""
+        ...
+
+
+@dataclass(frozen=True)
+class DesafioGuardado:
+    usuario_id: uuid.UUID
+    expira_en: datetime
+
+
+class AlmacenMfa(Protocol):
+    """El desafío (solo su huella), los fallos por cuenta (huella HMAC) y el último paso aceptado (anti-repetición).
+
+    Implementaciones: AlmacenMfaRedis (infrastructure/mfa_redis.py) y AlmacenMfaEnMemoria (tests/dobles). Cada método
+    lanza ContadoresNoDisponibles si Redis no responde: la entrada de operación responde 503 (C32)."""
+
+    def guardar_desafio(self, huella: str, desafio: DesafioGuardado) -> None: ...
+
+    def leer_desafio(self, huella: str) -> DesafioGuardado | None: ...
+
+    def borrar_desafio(self, huella: str) -> bool:
+        """True solo para quien lo borró: dos usos concurrentes del mismo desafío no abren dos sesiones."""
+        ...
+
+    def leer_fallos(self, cuenta: str) -> FallosMfa: ...
+
+    def sumar_fallo(self, cuenta: str, ventana_segundos: int) -> FallosMfa: ...
+
+    def borrar_fallos(self, cuenta: str) -> None: ...
+
+    def usar_paso(self, cuenta: str, paso: int, vida_segundos: int) -> bool:
+        """Guarda el paso si es mayor que el último aceptado. False si ya se usó ese paso o uno posterior."""
+        ...
+
+
+class SecretosMfa(Protocol):
+    """Lo cifrado de la cuenta que está entrando, por iam_mfa_secreto (C27). None si no es de operación o no está
+    activa."""
+
+    def secreto_cifrado(self, usuario_id: uuid.UUID) -> bytes | None: ...

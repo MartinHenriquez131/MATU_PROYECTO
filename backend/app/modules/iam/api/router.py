@@ -17,11 +17,13 @@ from app.modules.iam.api.dependencias import TipoCuenta, obtener_emisor_tokens, 
 from app.modules.iam.api.esquemas import (
     CuentaCreadaRespuesta,
     ProblemaEmailRegistradoVista,
+    ProblemaMfaRequeridoVista,
     ProblemaPoliticaCambioVista,
     SesionRespuesta,
     SolicitudRegistro,
     SolicitudSesion,
 )
+from app.modules.iam.api.router_mfa import AlmacenMfaDep, mfa_requerido
 from app.modules.iam.api.router_politica import DETALLE_NO_DISPONIBLE, PoliticaDep, politica_o_503
 from app.modules.iam.api.sesion_web import (
     PROBLEMA,
@@ -39,7 +41,7 @@ from app.modules.iam.application.ports import (
     RepositorioUsuarios,
 )
 from app.modules.iam.application.registro import registrar_usuario
-from app.modules.iam.application.sesiones import DemoraActiva, entrar
+from app.modules.iam.application.sesiones import DemoraActiva, MfaRequerido, entrar
 from app.modules.iam.domain.credenciales import DominioNoPermitido, EmailYaRegistrado
 from app.modules.iam.domain.politica import PoliticaCambio
 from app.modules.iam.domain.sesion import CredencialesInvalidas
@@ -213,7 +215,18 @@ def crear_cuenta(
     ),
     responses={
         200: {"headers": {"Set-Cookie": {"description": "Cookie del refresh", "schema": {"type": "string"}}}},
-        401: {"description": "credenciales-invalidas, el mismo exista o no el email", **PROBLEMA},
+        401: {
+            "description": (
+                "credenciales-invalidas, el mismo exista o no el email. Desde MATU-81, mfa-requerido: la contraseña es"
+                " correcta y la cuenta es de operación. Trae `desafio` y `desafio_expira_en` (5 minutos), sin tokens ni"
+                " cookie: se sigue en POST /v1/sesiones/mfa"
+            ),
+            "content": {
+                "application/problem+json": {
+                    "schema": ProblemaMfaRequeridoVista.model_json_schema(mode="serialization")
+                }
+            },
+        },
         422: {"description": "Cuerpo inválido. No cuenta como intento", **PROBLEMA},
         429: {
             "description": "demasiadas-peticiones: la huella de la IP o la del email están en espera",
@@ -223,7 +236,7 @@ def crear_cuenta(
         503: {"description": "Redis no responde o falta PEPPER_LIMITES: la entrada falla cerrada", **PROBLEMA},
     },
 )
-def crear_sesion(
+def crear_sesion(  # noqa: PLR0913 - las dependencias de la entrada
     request: Request,
     solicitud: SolicitudSesion,
     respuesta: Response,
@@ -236,6 +249,7 @@ def crear_sesion(
     emisor: Annotated[EmisorTokens, Depends(obtener_emisor_tokens)],
     reloj: Annotated[Reloj, Depends(obtener_reloj)],
     tipo_cuenta: Annotated[TipoCuenta, Depends(obtener_tipo_cuenta)],
+    almacen_mfa: AlmacenMfaDep,
 ) -> SesionRespuesta:
     if pepper_limites is None:
         log.error("falta PEPPER_LIMITES: la entrada falla cerrada")
@@ -268,6 +282,9 @@ def crear_sesion(
     except ContadoresNoDisponibles:
         log.error("Redis no responde: la entrada falla cerrada")
         raise ErrorMATU(503, detalle=_SIN_SERVICIO) from None
+    except MfaRequerido as requerido:
+        # MATU-81 (C29): sin tokens ni cookie. El desafío va solo en esta respuesta
+        raise mfa_requerido(requerido.usuario_id, almacen_mfa, reloj, request) from None
     except CredencialesInvalidas:
         # El mismo cuerpo si el email no existe, si la contraseña no corresponde o si la cuenta
         # no está activa: la respuesta no revela cuál falló
@@ -281,4 +298,5 @@ def crear_sesion(
         access_token=sesion.access_token,
         expira_en=sesion.duracion_segundos,
         tipo_cuenta=tipo_cuenta(sesion.usuario_id),  # type: ignore[arg-type]
+        sesion_vence_en=sesion.vence_en,
     )

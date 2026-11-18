@@ -1,4 +1,6 @@
-"""Adaptador SQL del puerto RepositorioUsuarios."""
+"""Adaptador SQL del puerto RepositorioUsuarios, y el de SecretosMfa (MATU-81)."""
+
+import uuid
 
 from psycopg import errors
 from sqlalchemy import select, text
@@ -75,4 +77,22 @@ class RepositorioUsuariosSQL:
             ).one_or_none()
             if fila is None:
                 return None
-            return CredencialGuardada(usuario_id=usuario_id, password_hash=fila.password_hash, estado=fila.estado)
+            # MATU-81 (C29): una cuenta de operación entra en dos pasos. usuario_propio_leer deja leer la propia fila
+            es_operacion = bool(
+                sesion.execute(text("SELECT es_operacion FROM usuario WHERE id = :id"), {"id": usuario_id}).scalar()
+            )
+            return CredencialGuardada(
+                usuario_id=usuario_id, password_hash=fila.password_hash, estado=fila.estado, es_operacion=es_operacion
+            )
+
+
+class SecretosMfaSQL:
+    """iam_mfa_secreto (0030): lo cifrado de la cuenta del contexto, solo si es de operación y está activa (C27)."""
+
+    def __init__(self, fabrica: sessionmaker[Session]) -> None:
+        self._fabrica = fabrica
+
+    def secreto_cifrado(self, usuario_id: uuid.UUID) -> bytes | None:
+        with sesion_tenant(self._fabrica, usuario_id=usuario_id) as sesion:
+            valor = sesion.execute(text("SELECT iam_mfa_secreto(:id)"), {"id": usuario_id}).scalar()
+        return None if valor is None else bytes(valor)

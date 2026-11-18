@@ -127,6 +127,8 @@ class CodigoGenerado(BaseModel):
 
 
 class ParteOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     id: uuid.UUID
     comercio: str
     referencia: str
@@ -135,15 +137,27 @@ class ParteOperacion(BaseModel):
 
 
 class PedidoOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     id: uuid.UUID
     estado: str
     referencia: str | None
     entregado_en: datetime | None
     partes: list[ParteOperacion]
+    # MATU-81 (P4 del diseñador): lo que muestra la fila de la lista
+    pagado_en: datetime
+    total_confirmado: Annotated[int, Field(ge=0, description="Pesos enteros, con IVA incluido")]
+    numero_partes: int
+    incidencia_abierta: bool
+    devolucion_sin_terminar: bool
 
 
 class ListaPedidosOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
     pedidos: list[PedidoOperacion]
+    # MATU-81: la lista trae hasta 200 pedidos, del pago más reciente al más antiguo
+    hay_mas: bool = False
 
 
 class LineaDelRetracto(_Estricto):
@@ -155,7 +169,9 @@ class LineaDelRetracto(_Estricto):
     monto: Annotated[int, Field(gt=0, description="cantidad × precio pagado, en pesos enteros")]
 
 
-class RetractoVista(_Estricto):
+class _RetractoComun(_Estricto):
+    """Lo que comparten la vista de la familia (MATU-92) y la de operación (MATU-81); cada una trae sus líneas."""
+
     id: uuid.UUID
     pedido_id: uuid.UUID
     estado: Literal["solicitado", "devuelto", "rechazado"]
@@ -166,16 +182,46 @@ class RetractoVista(_Estricto):
     origen: Annotated[
         Literal["app", "correo"], Field(description="correo: lo pidió la familia por correo y lo registró operación")
     ]
+
+
+class RetractoVista(_RetractoComun):
     lineas: list[LineaDelRetracto]
     resuelto_en: Annotated[datetime | None, Field(description="Cuándo se devolvió o no se aceptó; null si sigue")]
 
 
-class ListaRetractos(BaseModel):
-    retractos: list[RetractoVista]
+class LineaRetractoOperacion(_Estricto):
+    linea_id: uuid.UUID
+    producto: str
+    presentacion: str
+    cantidad: int
+    monto: Annotated[int, Field(ge=0, description="cantidad × precio pagado, en pesos enteros con IVA")]
+
+
+class RetractoOperacion(_RetractoComun):
+    """MATU-81 (C23, P6): el retracto en la consola, con la referencia del pedido, sus productos (como texto, no las
+    ``LineaDelRetracto`` de la familia) y, si se rechazó, el motivo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    resuelto_en: Annotated[datetime | None, Field(description="Cuándo se devolvió o no se aceptó; null si sigue")]
+    referencia: str | None
+    lineas: list[LineaRetractoOperacion]
+    motivo_rechazo: Literal["sello_abierto", "producto_no_recibido"] | None
+
+
+class ListaRetractosOperacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # O4 del analista (MATU-81)
+
+    retractos: list[RetractoOperacion]
+    # MATU-81: la lista trae hasta 200 retractos
+    hay_mas: bool = False
 
 
 class SolicitudResolverRetracto(_Estricto):
     decision: Literal["devolver", "rechazar"]
+    # MATU-81 (C24, P5): rechazar exige el motivo, de una lista cerrada que la familia ve. producto_no_recibido: MATU
+    # no recibió el producto de vuelta
+    motivo: Literal["sello_abierto", "producto_no_recibido"] | None = None
 
 
 class EstadoPedidoVista(_Estricto):
@@ -196,16 +242,25 @@ class SolicitudRetracto(_Estricto):
 
 
 class SolicitudRetractoPorCorreo(SolicitudRetracto):
-    """H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;
-    sin valor, quien pagó."""
+    """H2: el retracto que la familia pidió por correo. Sin valor, va a nombre de quien pagó. MATU-81 (D-81-9, C25):
+    ``correo_solicitante`` es el correo de quien escribió; el servidor lo busca entre los admins activos del grupo y
+    responde 422 si no está. Nunca lista a nadie ni lo escribe en los logs. ``solicitado_por`` (el id) se mantiene
+    por compatibilidad; no se mandan los dos."""
 
     solicitado_por: uuid.UUID | None = None
+    correo_solicitante: Annotated[str | None, Field(min_length=3, max_length=254)] = None
 
 
 class RetractoVistaFamilia(RetractoVista):
-    """El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id."""
+    """El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.
+    MATU-81 (C24): si no se aceptó, por qué, de la misma lista cerrada que elige operación al rechazar."""
 
     es_tuyo: bool
+    motivo_rechazo: Annotated[
+        Literal["sello_abierto", "producto_no_recibido"] | None,
+        Field(description="Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el"
+              " producto de vuelta); null en los demás"),
+    ]
 
 
 MotivoNoCancelarApi = Literal["rol", "ya_se_prepara", "cancelado"]

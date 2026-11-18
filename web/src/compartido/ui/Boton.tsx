@@ -35,6 +35,12 @@ const VARIANTES: Record<Variante, string> = {
 
 const BASE = 'inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-xl py-2.5 font-bold leading-tight'
 
+/**
+ * El estilo deshabilitado de `Boton` (el `disabled:` de abajo), para un botón con `aria-disabled` que
+ * conserva el foco (Entrar de operación, 4.3 y 4.4). Escrito entero para que Tailwind lo encuentre.
+ */
+export const DESHABILITADO_ARIA = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-60'
+
 /** Las clases de un botón, para un enlace que se ve como botón (por ejemplo, `tel:` en Enlaces). */
 export const claseBoton = (variante: Variante = 'principal') => `${BASE} ${VARIANTES[variante]}`
 

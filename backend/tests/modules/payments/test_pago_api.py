@@ -21,6 +21,7 @@ from tests.modules.ordering.conftest import (
     claves_a_cualquier_profundidad,
 )
 from tests.modules.payments.conftest import cuerpo_pagar, pagar, pedido_confirmado, sin_sesion_volver
+from tests.textos import aparece_como_dato
 
 pytestmark = [pytest.mark.rf("RF-25"), requiere_base]
 
@@ -318,8 +319,11 @@ def test_la_vuelta_sin_sesion_no_trae_ids_y_nada_del_pago_va_a_los_logs(
     assert con_otra_cuenta.json()["grupo_id"] is None and con_otra_cuenta.json()["ya_registrado"] is True
     texto = e.iam.texto_log()
     venta = _consultar("SELECT buy_order, session_id FROM transaccion_pasarela WHERE token = %s", inicio["token"])[0]
-    for secreto in (inicio["token"], *venta, "2032", str(TOTAL)):
+    for secreto in (inicio["token"], *venta):
         assert secreto not in texto, "un dato del pago llegó a los logs"
+    # Los números cortos, como dato: como subcadena caían por azar dentro de un request_id o un usuario_id
+    for numero in ("2032", str(TOTAL)):
+        assert not aparece_como_dato(numero, texto), "un dato del pago llegó a los logs"
     assert pedido["id"] not in [linea.get("ruta") for linea in e.iam.lineas_log()]
 
 

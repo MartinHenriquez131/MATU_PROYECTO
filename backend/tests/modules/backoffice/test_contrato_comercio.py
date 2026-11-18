@@ -28,6 +28,13 @@ NUNCA_AL_COMERCIO = {
 }
 
 
+FILTROS_PERMITIDOS = {
+    ("/v1/operacion/pedidos", "get"): {"grupo", "estado"},
+    ("/v1/operacion/incidencias", "get"): {"estado"},
+    ("/v1/operacion/retractos", "get"): {"estado"},
+}
+
+
 @pytest.fixture(scope="module")
 def esquema() -> Iterator[dict[str, Any]]:
     from app.core import config
@@ -49,7 +56,8 @@ def _rutas(esquema: dict[str, Any]) -> list[str]:
 def test_openapi_json_coincide_con_la_api(esquema: dict[str, Any]) -> None:
     exportado = json.loads((DOCS / "openapi.json").read_text(encoding="utf-8"))
     rutas = _rutas(esquema)
-    assert len(rutas) == 20
+    # MATU-81 suma 10 rutas de operación (decisión 449)
+    assert len(rutas) == 30
     for ruta in rutas:
         assert exportado["paths"][ruta] == esquema["paths"][ruta], f"vuelve a exportar {ruta}"
     for nombre in VISTAS_DEL_COMERCIO:
@@ -69,8 +77,10 @@ def test_el_codigo_va_solo_en_el_cuerpo_y_nada_en_la_url(esquema: dict[str, Any]
     assert {p["name"] for p in validar["parameters"]} == {"parte_id"}
     assert {"200", "404", "422", "429", "503"} <= set(validar["responses"])
     for ruta in _rutas(esquema):
-        for operacion in esquema["paths"][ruta].values():
-            assert all(p["in"] != "query" for p in operacion.get("parameters", [])), ruta
+        for metodo, operacion in esquema["paths"][ruta].items():
+            consulta = {p["name"] for p in operacion.get("parameters", []) if p["in"] == "query"}
+            # MATU-81 (P4, ruta 6): solo los filtros de las listas, que son estados y nunca un dato ni una referencia
+            assert consulta <= FILTROS_PERMITIDOS.get((ruta, metodo), set()), ruta
 
 
 def test_las_acciones_declaran_sus_codigos(esquema: dict[str, Any]) -> None:
@@ -84,10 +94,11 @@ def test_las_acciones_declaran_sus_codigos(esquema: dict[str, Any]) -> None:
 
 
 def test_la_sesion_dice_el_tipo_de_cuenta_y_nada_mas(esquema: dict[str, Any]) -> None:
-    """O1: familia o comercio, sin el comercio ni otro dato de la cuenta."""
+    """O1: familia o comercio, sin el comercio ni otro dato de la cuenta. MATU-81: operacion, y hasta cuándo vale su
+    entrada (C31)."""
     propiedades = esquema["components"]["schemas"]["SesionRespuesta"]["properties"]
-    assert propiedades["tipo_cuenta"]["enum"] == ["familia", "comercio"]
-    assert set(propiedades) == {"access_token", "token_type", "expira_en", "tipo_cuenta"}
+    assert propiedades["tipo_cuenta"]["enum"] == ["familia", "comercio", "operacion"]
+    assert set(propiedades) == {"access_token", "token_type", "expira_en", "tipo_cuenta", "sesion_vence_en"}
 
 
 def test_el_motivo_de_cancelacion_es_uno_de_dos_y_nada_mas(esquema: dict[str, Any]) -> None:

@@ -3,7 +3,8 @@
 // Sin `MarcoAlta`: su panel es la bienvenida de la familia. El token queda solo en memoria.
 import { useEffect, useState, type FormEvent } from 'react'
 import { esperaDe, leerFallo } from '../compartido/api/cliente'
-import { entrar } from '../compartido/api/sesion'
+import { entrar, esCuentaDeOperacion } from '../compartido/api/sesion'
+import { irA } from '../compartido/irA'
 import { Boton } from '../compartido/ui/Boton'
 import { EnlaceEnFrase } from '../compartido/ui/Enlaces'
 import { BotonMostrar } from '../familia/Alta'
@@ -51,6 +52,11 @@ export function EntrarComercio() {
       fijar({ destino: null, avisoEntrar: null })
       navegar(ir, { reemplazar: true })
     } catch (x) {
+      // MATU-81: una cuenta de operación va a su entrada, sin el desafío; ahí vuelve a escribir la contraseña.
+      if (esCuentaDeOperacion(x)) {
+        setClave('')
+        return irA('/operacion/entrar')
+      }
       const f = leerFallo(x)
       const espera = esperaDe(f)
       if (f.status === 401) setFalla({ tipo: 'credenciales' })

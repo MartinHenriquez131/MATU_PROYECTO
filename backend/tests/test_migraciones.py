@@ -1462,7 +1462,8 @@ def test_0028_auditoria_con_persona_y_baja_al_esquema_de_0027(base_desechable):
                          "persona_cuidada_id_grupo_uq": True}
     # Las listas de los dos CHECK son las del código
     # Sin las acciones que suma la 0029 (MATU-63)
-    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0029
+    assert _lista_del_check("auditoria_persona_obligatoria") == (
+        {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0029 - NUEVAS_0030)
     assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA}
     assert consultar("SELECT indexdef LIKE '%WHERE (persona_cuidada_id IS NOT NULL)' FROM pg_indexes"
                      " WHERE indexname = 'auditoria_persona_ix'") == [(True,)]
@@ -1541,6 +1542,10 @@ FUNCIONES_0029 = {
 }
 
 
+# MATU-81: las acciones de persona que suma la 0030
+NUEVAS_0030 = {"operacion.pedido_ver", "incidencia.crear", "incidencia.resolver"}
+
+
 @pytest.mark.rf("RF-26")
 @pytest.mark.rf("Ley-21.719")
 def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
@@ -1570,8 +1575,8 @@ def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
     assert len(referencia) == 6 and not set(referencia) & set("0O1IL")
     # D-63-15: la ubicación de la evidencia se vació
     assert consultar("SELECT lat, lng FROM evidencia") == [(None, None)]
-    # Las listas de los CHECK de la auditoría son las del código
-    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    # Las listas de los CHECK de la auditoría son las del código, sin lo que suma la 0030 (MATU-81)
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0030
     assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO}
     assert consultar("SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM pg_class"
                      " WHERE relname IN ('retracto', 'retracto_linea')") == [(True,)]
@@ -1591,4 +1596,125 @@ def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
     # La referencia vuelve a caber en el CHECK de la 0023 (16 a 64)
     [(referencia,)] = consultar(f"SELECT referencia FROM pedido_comercio WHERE id = '{PARTE29}'")
     assert 16 <= len(referencia) <= 64
+    alembic("upgrade", "head")
+
+
+# ---- 0030 (MATU-81): las incidencias, el segundo factor y la consola de operación
+
+FUNCIONES_0030 = {"iam_mfa_secreto": "matu_app",  # pragma: allowlist secret
+                  "operacion_buscar_cuenta": "matu_scheduler", "operacion_alta": "matu_scheduler"}
+INC30 = "00000000-0000-0000-0000-0000000030a1"
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+def test_0030_backoffice_de_operacion_y_baja_al_esquema_de_0029(base_desechable):
+    from app.shared.auditoria import (
+        ACCIONES_DE_CUENTA,
+        ACCIONES_DE_OPERACION,
+        ACCIONES_DE_PERSONA,
+        ACCIONES_DEL_COMERCIO,
+    )
+
+    alembic("upgrade", "0028")
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(FILAS_ACCESO + FILAS_0028_DESPACHO)
+    alembic("upgrade", "0029")
+    esquema_0029 = catalogo()
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO incidencia (id, pedido_id, tipo, descripcion, creada_por)"
+                  f" VALUES ('{INC30}', '{PED29}', 'desviacion_monto', 'Nota anterior', '{U}')")
+
+    # Decisión 471: la nota en claro no se cifra desde la base; con incidencias, la subida se detiene sin tocarlas
+    assert "la 0030 no las cifra ni las borra" in _alembic_falla("upgrade", "0030")
+    assert consultar(f"SELECT tipo, descripcion FROM incidencia WHERE id = '{INC30}'") == [
+        ("desviacion_monto", "Nota anterior")]
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"DELETE FROM incidencia WHERE id = '{INC30}'")
+
+    alembic("upgrade", "0030")
+    politicas = {(n, c) for n, c in consultar("SELECT policyname, cmd FROM pg_policies WHERE tablename = 'incidencia'")}
+    assert politicas == {("incidencia_operacion_leer", "SELECT"), ("incidencia_operacion_crear", "INSERT"),
+                         ("incidencia_operacion_editar", "UPDATE"), ("incidencia_familia", "SELECT")}
+    assert _privilegios("incidencia") == {"SELECT", "INSERT"}
+    assert _columnas_con("incidencia", "UPDATE") == {"estado", "asignada_a", "resolucion", "resolucion_clave_id",
+                                                     "resuelta_en"}
+    # La nota y la resolución, cifradas: bytea, con la clave de cada una
+    tipos = dict(consultar("SELECT column_name, data_type FROM information_schema.columns"
+                           " WHERE table_name = 'incidencia' AND column_name IN ('descripcion', 'resolucion',"
+                           " 'clave_notas_id', 'resolucion_clave_id')"))
+    assert tipos == {"descripcion": "bytea", "resolucion": "bytea", "clave_notas_id": "uuid",
+                     "resolucion_clave_id": "uuid"}
+    # clave_notas: FORCE ROW LEVEL SECURITY, sus políticas y solo SELECT e INSERT para matu_app
+    assert consultar("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'clave_notas'") == [
+        (True, True)]
+    politicas = {(n, c, r) for n, c, r in consultar(
+        "SELECT policyname, cmd, roles::text FROM pg_policies WHERE tablename = 'clave_notas'")}
+    assert politicas == {
+        ("clave_notas_operacion_leer", "SELECT", "{public}"), ("clave_notas_operacion_crear", "INSERT", "{public}"),
+        ("clave_notas_familia_leer", "SELECT", "{public}"),
+        ("clave_notas_destruccion_leer", "SELECT", "{matu_owner}"),
+        ("clave_notas_destruccion", "UPDATE", "{matu_owner}"),
+    }
+    assert _privilegios("clave_notas") == {"SELECT", "INSERT"}
+    [(acl, definer)] = consultar("SELECT proacl::text, prosecdef FROM pg_proc WHERE proname = 'clave_notas_destruir'")
+    assert definer and acl == "{matu_owner=X/matu_owner}"
+    # Decisión de Jorge del 17-11: la clave de las notas se destruye solo con el borrado de la persona, nunca con la de
+    # la ficha (clave_datos_destruye_notas ya no existe)
+    disparadores = {n for (n,) in consultar("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname IN"
+                                            " ('clave_datos_destruye_notas', 'persona_borrada_destruye_notas',"
+                                            " 'clave_notas_solo_destruir')")}
+    assert disparadores == {"persona_borrada_destruye_notas", "clave_notas_solo_destruir"}
+    [(fk,)] = consultar("SELECT pg_get_constraintdef(oid) FROM pg_constraint"
+                        " WHERE conname = 'incidencia_pedido_id_fkey'")
+    assert "ON DELETE CASCADE" in fk
+    # D-81-2 y D-81-6
+    quitadas = consultar("SELECT policyname FROM pg_policies WHERE policyname IN ('aceptacion_operacion_leer',"
+                         " 'persona_operacion', 'entrega_operacion')")
+    assert quitadas == []
+    assert consultar("SELECT cmd FROM pg_policies WHERE policyname = 'entrega_operacion_leer'") == [("SELECT",)]
+    assert consultar("SELECT count(*) FROM pg_policies WHERE policyname = 'direccion_operacion_leer'") == [(1,)]
+    assert consultar("SELECT policyname, roles::text FROM pg_policies WHERE tablename = 'consentimiento'"
+                     " AND qual LIKE '%operacion%'") == [("consentimiento_conservacion", "{matu_owner}")]
+    # Las funciones nuevas, solo para su rol, con dueño matu_owner
+    filas = consultar("SELECT proname, proacl::text, prosecdef FROM pg_proc WHERE proname = ANY(ARRAY["
+                      + ", ".join(f"'{x}'" for x in FUNCIONES_0030) + "])")
+    assert {x[0] for x in filas} == set(FUNCIONES_0030)
+    for nombre, acl, definer in filas:
+        assert definer and set(acl.strip("{}").split(",")) == {
+            "matu_owner=X/matu_owner", f"{FUNCIONES_0030[nombre]}=X/matu_owner"}, nombre
+    # matu_app sigue sin leer el secreto
+    assert "mfa_secreto_cifrado" not in _columnas_con("usuario", "SELECT")
+    # Las listas de los CHECK de la auditoría son las del código
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    assert _lista_del_check("auditoria_cuenta_acotada") == {
+        a.value for a in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO | ACCIONES_DE_OPERACION}
+    with psycopg.connect(_dsn(BASE)) as c:
+        # C12: sobre un pedido sin pagar, no
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute(f"INSERT INTO incidencia (pedido_id, tipo, descripcion, creada_por)"
+                      f" VALUES ('{PED29}', 'otro', 'x', '{U}')")
+        # C24: el motivo de rechazo, solo en un rechazado y de la lista
+        with pytest.raises(psycopg.errors.CheckViolation), c.transaction():
+            c.execute("SET session_replication_role = replica")
+            c.execute("INSERT INTO retracto (grupo_id, pedido_id, solicitado_por, solicitado_en, plazo_hasta,"
+                      f" incluye_envio, motivo_rechazo) VALUES ('{G}', '{PED29}', '{U}', now(),"
+                      " now() + interval '1 day', false, 'sello_abierto')")
+
+    # Con una clave de notas o una incidencia (cifrada), la bajada se detiene sin tocarlas: lo cifrado no vuelve a texto
+    with psycopg.connect(_dsn(BASE)) as c:
+        [(persona, grupo)] = c.execute(
+            f"SELECT persona_cuidada_id, grupo_id FROM pedido WHERE id = '{PED29}'").fetchall()
+        c.execute("INSERT INTO clave_notas (grupo_id, persona_cuidada_id, dek_cifrada_con_kek, kek_version)"
+                  " VALUES (%s, %s, %s, 1)", (grupo, persona, b"\x05" * 40))
+    assert "no las descifra ni las borra" in _alembic_falla("downgrade", "0029")
+    assert consultar("SELECT count(*) FROM clave_notas") == [(1,)]
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute("DELETE FROM clave_notas")
+
+    alembic("downgrade", "0029")
+    despues = catalogo()
+    for parte, filas_0029 in esquema_0029.items():
+        assert despues[parte] == filas_0029, f"downgrade no restaura {parte}: {set(filas_0029) ^ set(despues[parte])}"
+    assert consultar("SELECT count(*) FROM pg_class WHERE relname = 'clave_notas'") == [(0,)]
     alembic("upgrade", "head")

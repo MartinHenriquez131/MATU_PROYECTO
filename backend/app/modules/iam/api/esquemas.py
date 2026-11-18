@@ -150,7 +150,34 @@ class SesionRespuesta(BaseModel):
     # Segundos de vida del access token
     expira_en: int
     # MATU-63 (O1): a qué pantalla va la cuenta. Sin otro dato de la cuenta
-    tipo_cuenta: Literal["familia", "comercio"] = "familia"
+    tipo_cuenta: Literal["familia", "comercio", "operacion"] = "familia"
+    # MATU-81 (C31): hasta cuándo vale la entrada de una cuenta de operación (12 horas desde el segundo factor). null
+    # en las demás cuentas
+    sesion_vence_en: datetime | None = None
+
+
+class SolicitudMfa(BaseModel):
+    """Cuerpo de POST /v1/sesiones/mfa (MATU-81, C29): el desafío que entregó POST /v1/sesiones y las 6 cifras del
+    teléfono. Ninguno se registra."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    desafio: Annotated[str, Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")]
+    codigo: Annotated[str, Field(pattern=r"^[0-9]{6}$", description="Las 6 cifras de la app del teléfono")]
+
+
+class ProblemaMfaRequeridoVista(BaseModel):
+    """401 mfa-requerido de POST /v1/sesiones: la contraseña es correcta y la cuenta es de operación. Sin tokens ni
+    cookie. ``desafio`` vale hasta ``desafio_expira_en`` (5 minutos) y se usa una vez en POST /v1/sesiones/mfa."""
+
+    type: Literal["/errores/mfa-requerido"]
+    title: str
+    status: Literal[401]
+    detail: str
+    errores: list[dict[str, str]]
+    request_id: str | None
+    desafio: str
+    desafio_expira_en: datetime
 
 
 _CLASE = Annotated[
