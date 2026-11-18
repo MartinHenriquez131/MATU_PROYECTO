@@ -304,6 +304,7 @@ export const MIS_DATOS = {
     avisos: 'Tus avisos', // [ANALISTA]
     avisosEnviados: 'Avisos que te enviamos', // [ANALISTA]
     pagos: 'Tus pagos', // [ANALISTA, D-54-16]
+    devoluciones: 'Lo que pediste devolver', // [NUEVO] N2, MATU-116
     condiciones: 'Condiciones de compra que acep­taste', // [NUEVO], 1.3: con guion suave (P2-1)
   },
   tuNombre: 'Tu nombre', // [NUEVO]
@@ -346,6 +347,8 @@ export const MIS_DATOS = {
   } as Record<AvisoEnviadoCopia['resultado'], string>,
   pago: (referencia: string) => `Pago ${referencia}`, // [NUEVO]
   enGrupo: (grupo: string) => ` en ${grupo}`, // [NUEVO], tras el monto
+  /** MATU-116 (N1): tras el monto, cuando la API deja el grupo en `null` (salió del grupo). Pieza propia, no un `toLowerCase()`. [AJUSTE] de T3 */
+  enGrupoQueDejaste: ' en un grupo del que saliste',
   tarjeta: (tipo: NonNullable<PagoCuentaCopia['tarjeta']>['tipo']) =>
     tipo === 'credito' ? 'Tarjeta de crédito terminada en ' : tipo === 'debito' ? 'Tarjeta de débito terminada en ' : 'Tarjeta de prepago terminada en ', // [NUEVO]
   /** (1.2, P3-4) Sin el «·», que lo pone la pieza Cola (MATU-107, 4). [NUEVO] */
@@ -361,6 +364,20 @@ export const MIS_DATOS = {
   versionEl: (version: string) => [`Versión ${version}, el `, '.'] as const, // [NUEVO]
   paraPedido: (grupo: string, referencia: string) => `En ${grupo}, para el pedido ${referencia}.`, // [NUEVO]
   paraPedidoSinPagar: (grupo: string) => `En ${grupo}, para un pedido que no se pagó.`, // [NUEVO]
+  /** MATU-116: el nombre del grupo en las condiciones, cuando la API lo deja en `null` (salió del grupo). [AJUSTE] de T3 */
+  unGrupoQueDejaste: 'un grupo del que saliste',
+  // MATU-116 (2.3): «Lo que pediste devolver»
+  /** N3: sin referencia, con la fecha de `solicitado_en`. [NUEVO] */
+  devolucionDel: 'Devolución del ',
+  /** N4. [NUEVO] */
+  loPediste: ['Lo pediste el ', '.'] as Partes,
+  /** N5: solo si no se aceptó. [NUEVO] */
+  respondimos: ['Respondimos el ', '.'] as Partes,
+  /** N6. [NUEVO] · [AJUSTE] de T3 */
+  enGrupoFrase: (grupo: string) => `En ${grupo}.`,
+  enGrupoQueDejasteFrase: 'En un grupo del que saliste.',
+  /** T4: en lugar de los productos, si salió del grupo; el correo va en `EnlaceEnFrase`. [T4] */
+  productosPideloA: ['Los productos los puedes pedir a ', '.'] as Partes,
 }
 
 /** Lo que precisa la frase de un hecho: el nombre del campo o la sección (L 14.1), la finalidad y la referencia. */
