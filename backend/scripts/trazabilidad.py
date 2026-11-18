@@ -3,7 +3,7 @@
 Lista los requisitos comprometidos como *Debe* que no tienen ninguna prueba marcada con @pytest.mark.rf("RF-NN") o
 @pytest.mark.rf("RNF-NN"), y sale con 1 si hay alguno: «un requisito comprometido sin prueba no está terminado».
 
-    python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md --pendientes RF-32,RF-40
+    python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md --pendientes RF-32
 
 Funcionales (RF): las tablas de la sección 3 de docs/arquitectura.md del repositorio de documentos (MATU), una fila por
 requisito con la forma «| RF-NN | texto | `módulo` | Debe |», con o sin una nota después de la prioridad. Desde el
