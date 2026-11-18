@@ -50,6 +50,9 @@ PUBLICADAS: dict[str, str] = {
     # texto para todo («Tienes una novedad»). Avisar del pedido es parte de responder por él: nadie vuelve a aceptar;
     # las anteriores siguen
     "0.23": "d3a606c71399a0bccf90c274bab44cb228c7689893fe0270caeca8aef519247f",  # pragma: allowlist secret
+    # MATU-114: el equipo que opera MATU ya no ve el email ni el celular de las cuentas. Ve menos que antes: nadie
+    # vuelve a aceptar; las anteriores siguen
+    "0.24": "8e8b73479d0e097adc0462cf24ef7a71d08691e2e9764dc4a6213978217098c3",  # pragma: allowlist secret
 }
 
 
