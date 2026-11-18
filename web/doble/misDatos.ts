@@ -227,18 +227,23 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
     lineas: [
       linea('Pañal adulto talla M', 'paquete de 30', 'Farmacia Los Aromos (comercio ficticio)', 2, 13_990, 'otro_comercio'),
       linea('Toallitas húmedas', 'paquete de 80', 'Farmacia Los Aromos (comercio ficticio)', 1, 5_290, 'quitar'),
+      linea('Crema protectora', 'pote de 200 g', 'Farmacia Los Aromos (comercio ficticio)', 2, 6_490, 'otro_comercio'),
     ],
-    subtotal_productos: 33_270,
+    subtotal_productos: 46_250,
     costo_envio: 3_990,
-    total: 37_260,
+    total: 50_240,
     entrega,
     pago: {
       estado: 'devuelto_parcial',
       pagado_en: chile(hace(4 * DIA + 150)),
       pagado_por: persona('Rodrigo Soto'),
-      cobrado: 37_260,
-      devuelto: 5_290,
-      devoluciones: [{ motivo: 'producto_no_entregado', producto: 'Toallitas húmedas', monto: 5_290, estado: 'hecha', solicitada_en: chile(hace(3 * DIA)), hecha_en: chile(hace(3 * DIA - 30)) }],
+      cobrado: 50_240,
+      devuelto: 19_280,
+      devoluciones: [
+        { motivo: 'producto_no_entregado', producto: 'Toallitas húmedas', monto: 5_290, estado: 'hecha', solicitada_en: chile(hace(3 * DIA)), hecha_en: chile(hace(3 * DIA - 30)) },
+        // MATU-115 (1.6): la devolución en dinero por arrepentimiento, «… porque se pidió devolver …».
+        { motivo: 'retracto', producto: 'Pañal adulto talla M', monto: 13_990, estado: 'hecha', solicitada_en: chile(hace(DIA + 60)), hecha_en: chile(hace(DIA)) },
+      ],
       pago_de_prueba: true,
     },
     precios_de_ejemplo: true,
@@ -264,8 +269,18 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         nota_disponible: false,
       },
     ],
-    // MATU-81 (H2 del analista): un retracto que no se aceptó, con su motivo (`motivo_rechazo`).
+    // MATU-81 (H2 del analista) y MATU-115 (1.4): «Lo que se pidió devolver» en sus tres estados, con los
+    // dos motivos por los que no se aceptó y uno pedido con el envío.
     retractos: [
+      {
+        estado: 'devuelto',
+        solicitado_en: chile(hace(3 * DIA)),
+        plazo_hasta: chile(hace(-7 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA)),
+        motivo_rechazo: null,
+        lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
+      },
       {
         estado: 'rechazado',
         solicitado_en: chile(hace(2 * DIA)),
@@ -274,6 +289,24 @@ function pedidosDe(modo: string | undefined, direccion: ReturnType<typeof direcc
         resuelto_en: chile(hace(DIA)),
         motivo_rechazo: 'sello_abierto',
         lineas: [{ producto: 'Pañal adulto talla M', cantidad: 1 }],
+      },
+      {
+        estado: 'rechazado',
+        solicitado_en: chile(hace(2 * DIA - 60)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: false,
+        resuelto_en: chile(hace(DIA - 60)),
+        motivo_rechazo: 'producto_no_recibido',
+        lineas: [{ producto: 'Crema protectora', cantidad: 1 }],
+      },
+      {
+        estado: 'solicitado',
+        solicitado_en: chile(hace(120)),
+        plazo_hasta: chile(hace(-8 * DIA)),
+        incluye_envio: true,
+        resuelto_en: null,
+        motivo_rechazo: null,
+        lineas: [{ producto: 'Crema protectora', cantidad: 1 }],
       },
     ],
   }
