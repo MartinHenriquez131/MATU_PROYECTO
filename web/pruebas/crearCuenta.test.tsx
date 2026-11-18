@@ -11,6 +11,10 @@ import { problema422, responderCon } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
 import { responderPolitica } from './politicaFalsa'
 import { conRegiones } from './regiones'
+import { plazosConCarga } from './conCarga'
+
+// MATU-121 (H1 del QA): con la máquina cargada se pasaba del tope de 15 s; solo sube las esperas (MATU-119).
+plazosConCarga()
 
 vi.mock('../src/familia/estado', async (original) => ({
   ...(await original<typeof import('../src/familia/estado')>()),

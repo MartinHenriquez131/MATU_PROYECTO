@@ -10,6 +10,10 @@ import { TusDatos } from '../src/familia/TusDatos'
 import { familiaFalsa } from './familiaFalsa'
 import { antes, apiCopia, copiaComoRespuesta, copiaCuenta, copiaPersona, dialogoDeJsdom, fijarAhora, hecho, MARIA, problemaCopia, type Hecho } from './misDatosFalso'
 import { responderPolitica } from './politicaFalsa'
+import { plazosConCarga } from './conCarga'
+
+// MATU-121 (H1 del QA): con la máquina cargada se pasaba del tope de 15 s; solo sube las esperas (MATU-119).
+plazosConCarga()
 
 vi.mock('../src/familia/estado', async (original) => ({
   ...(await original<typeof import('../src/familia/estado')>()),
