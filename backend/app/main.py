@@ -56,6 +56,7 @@ from app.modules.consumption.infrastructure.efecto_retiro import EfectoRetiroCon
 from app.modules.iam.api.router import router as router_iam
 from app.modules.iam.api.router_datos import router as router_copia_cuenta
 from app.modules.iam.api.router_ingresos import router as router_ingresos
+from app.modules.iam.api.router_mfa import router as router_mfa
 from app.modules.iam.api.router_politica import router as router_politica
 from app.modules.iam.api.router_recuperacion import router as router_recuperacion
 from app.modules.iam.api.router_sesiones import router as router_sesiones
@@ -83,6 +84,7 @@ ROUTERS_CAPA_3: tuple[str, ...] = (
     # MATU-63: la vista del comercio, las rutas de operación y la familia después de pagar (decisión 407)
     "app.modules.backoffice.api.router_comercio:router",
     "app.modules.backoffice.api.router_operacion:router",
+    "app.modules.backoffice.api.router_consola:router",
     "app.modules.backoffice.api.router_familia:router",
 )
 
@@ -245,6 +247,7 @@ def crear_app(stream_logs: TextIO | None = None) -> FastAPI:
     # MATU-75: la política de privacidad vigente, pública y sin sesión
     app.include_router(router_politica, prefix="/v1")
     app.include_router(router_sesiones, prefix="/v1")
+    app.include_router(router_mfa, prefix="/v1")
     app.include_router(router_recuperacion, prefix="/v1")
     app.include_router(router_grupos, prefix="/v1")
     app.include_router(router_personas, prefix="/v1")

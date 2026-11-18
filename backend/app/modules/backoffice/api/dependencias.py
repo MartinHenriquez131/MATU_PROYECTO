@@ -4,8 +4,9 @@
   comercio activo, la sesión fija app.usuario_id y app.comercio_id, nunca app.grupo_id (D-63-14). Sin cuenta de
   comercio: 404, como si la ruta no existiera para ella. Con la cuenta o el comercio inactivos: 403 comercio-inactivo.
 - operador: la cuenta con usuario.es_operacion. Las rutas de operación abren sus transacciones con app.rol =
-  'operacion' y sin cuenta, como pide el trigger pedido_escritura_del_pago. Otra cuenta: 404.
-  [PENDIENTE: MFA de operación (arquitectura 11.6), con la pantalla de MATU-81]
+  'operacion' y sin cuenta, como pide el trigger pedido_escritura_del_pago. Otra cuenta: 404. Desde MATU-81 (C30 y
+  C31) exige además la marca del segundo factor en el access token, de menos de 12 horas: sin ella, 401
+  mfa-requerido (se vuelve a entrar con la contraseña y el código).
 - el secreto del código (CODIGO_RETIRO_SECRETO) y el límite por cuenta de comercio en Redis (D-63-4).
 """
 
@@ -30,8 +31,10 @@ from app.core.limite_ip import (
     obtener_contador_ventana,
     obtener_pepper_limites,
 )
-from app.modules.iam.api.dependencias import UsuarioActual, usuario_actual
+from app.modules.iam.api.dependencias import UsuarioActual, obtener_reloj, usuario_actual
+from app.modules.iam.domain.mfa import sesion_vigente
 from app.shared.limite_ip import LimitePorIp, excedido, huella, retry_after
+from app.shared.puertos import Reloj
 
 log = logging.getLogger("matu.backoffice")
 
@@ -86,11 +89,19 @@ SesionDeComercio = Annotated[ContextoComercio, Depends(sesion_de_comercio, scope
 def operador(
     usuario: Annotated[UsuarioActual, Depends(usuario_actual)],
     fabrica: Annotated[sessionmaker[Session], Depends(obtener_fabrica_sesiones)],
+    reloj: Annotated[Reloj, Depends(obtener_reloj)],
 ) -> uuid.UUID:
     with sesion_tenant(fabrica, usuario_id=usuario.id) as sesion:
         es = sesion.execute(_ES_OPERACION).scalar()
     if not es:
         raise ErrorMATU(404)
+    if not sesion_vigente(usuario.mfa_en, reloj.ahora()):
+        raise ErrorMATU(
+            401,
+            tipo="mfa-requerido",
+            detalle="Vuelve a entrar con tu contraseña y el código de tu teléfono",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return usuario.id
 
 

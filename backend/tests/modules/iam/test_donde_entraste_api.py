@@ -289,13 +289,19 @@ def test_la_preferencia_de_avisos_se_audita_solo_si_cambia_y_sin_valores(
     # Un 422 no audita
     invalido = entorno_iam.cliente.put("/v1/yo/avisos", json={"correo": "talvez"}, headers=_bearer(token))
     assert invalido.status_code == 422
-    cambio = {"correo": not actual["correo"], "push": actual["push"]}
+    cambio = {"correo": not actual["correo"], "push": actual["push"], "pedido": actual["pedido"]}
     for _vez in range(2):
         assert entorno_iam.cliente.put("/v1/yo/avisos", json=cambio, headers=_bearer(token)).json() == cambio
+    # MATU-76: sin pedido en el cuerpo, la preferencia del pedido no cambia y no se audita
+    sin_pedido = {"correo": cambio["correo"], "push": cambio["push"]}
+    assert entorno_iam.cliente.put("/v1/yo/avisos", json=sin_pedido, headers=_bearer(token)).json() == cambio
+    # Cambiar solo la del pedido también se audita, una vez
+    del_pedido = {**cambio, "pedido": {"correo": False, "push": True}}
+    assert entorno_iam.cliente.put("/v1/yo/avisos", json=del_pedido, headers=_bearer(token)).json() == del_pedido
     filas = _filas(
         "SELECT grupo_id, actor_tipo, entidad, entidad_id, detalle, request_id IS NOT NULL FROM auditoria"
         " WHERE actor_ref = %s AND accion = 'avisos.preferencia'", cuenta)
-    assert filas == [(None, "usuario", "usuario", cuenta, None, True)]
+    assert filas == [(None, "usuario", "usuario", cuenta, None, True)] * 2
 
 
 # --- Logs (decisión 270) -------------------------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 // prueba pruebas/pedidoComun.test.ts. El pedido no calcula el total, el envío ni el vencimiento:
 // la única cuenta de la pantalla es la suma «Productos» del carrito (sección 14).
 import type { Catalogo, OfertaCatalogo, ProductoCatalogo } from '../compartido/api/catalogo'
-import type { DireccionVista, EntregaVista, LineaPedido, LineaSolicitud, Pedido, Regla } from '../compartido/api/pedido'
+import type { DireccionVista, EntregaVista, LineaPedido, LineaSolicitud, PedidoVista, Regla } from '../compartido/api/pedido'
 import { cantidadEnTexto, sufijoCantidad, type UnidadLinea } from './textoLista'
 
 export const CANTIDAD_MIN = 1
@@ -100,9 +100,9 @@ export function telefonoEnTexto(t: string): string {
 }
 
 /** Lo que cambió del total confirmado, para saber si la casilla se desmarca (9.5). */
-export function huellaDelTotal(p: Pedido): string {
+export function huellaDelTotal(p: PedidoVista): string {
   return JSON.stringify([p.total, p.lineas.map((l) => [l.producto.id, l.cantidad, l.precio_unitario, l.comercio.id]), p.salieron.map((s) => s.producto.id)])
 }
 
 /** 9.2: cada línea con un cambio, y los que salieron. */
-export const hayCambios = (p: Pedido) => p.salieron.length > 0 || p.lineas.some((l) => l.cambio && (l.cambio.precio_antes !== null || l.cambio.comercio_antes !== null))
+export const hayCambios = (p: PedidoVista) => p.salieron.length > 0 || p.lineas.some((l) => l.cambio && (l.cambio.precio_antes !== null || l.cambio.comercio_antes !== null))

@@ -35,15 +35,23 @@ class EmisorJWT:
         self._clave = clave
 
     def emitir(
-        self, usuario_id: uuid.UUID, emitido_en: datetime, expira_en: datetime, dispositivo_id: uuid.UUID | None = None
+        self,
+        usuario_id: uuid.UUID,
+        emitido_en: datetime,
+        expira_en: datetime,
+        dispositivo_id: uuid.UUID | None = None,
+        mfa_en: datetime | None = None,
     ) -> str:
-        claims = {
+        claims: dict[str, Any] = {
             "sub": str(usuario_id),
             "iat": int(emitido_en.timestamp()),
             "exp": int(expira_en.timestamp()),
         }
         if dispositivo_id is not None:
             claims["did"] = str(dispositivo_id)
+        if mfa_en is not None:
+            # MATU-81: el instante del segundo factor, en segundos epoch
+            claims["mfa"] = int(mfa_en.timestamp())
         return jwt.encode(claims, self._clave, algorithm=ALGORITMO)
 
     def leer(self, token: str) -> ClaimsAcceso:
@@ -60,11 +68,13 @@ class EmisorJWT:
             did = claims.get("did")
             if did is not None and not isinstance(did, str):
                 raise ValueError("did no es texto")
+            mfa = claims.get("mfa")
             return ClaimsAcceso(
                 sub=uuid.UUID(sub),
                 iat=_instante(claims["iat"]),
                 exp=_instante(claims["exp"]),
                 did=None if did is None else uuid.UUID(did),
+                mfa=None if mfa is None else _instante(mfa),
             )
         except (jwt.PyJWTError, ValueError, OverflowError, OSError):
             # Sin encadenar ni copiar el mensaje: no hace falta saber por qué falló, y el token no

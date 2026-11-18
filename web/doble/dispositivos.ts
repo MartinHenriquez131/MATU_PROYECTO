@@ -49,7 +49,9 @@ type Responder = {
 
 const dispositivos = new Map<string, Dispositivo>()
 const eventos: Evento[] = []
-const avisos = new Map<string, { correo: boolean; push: boolean }>()
+/** MATU-76 (decisión 473): `pedido` es la preferencia de los avisos del pedido, también para todos los grupos. */
+type Canales = { correo: boolean; push: boolean }
+const avisos = new Map<string, Canales & { pedido: Canales }>()
 const sembradas = new Set<string>()
 
 // La clave pública VAPID del doble: un punto P-256 real (65 bytes sin comprimir, en base64url), para
@@ -101,6 +103,8 @@ const anotar = (email: string, tipo: Tipo, min: number, dispositivo: string | nu
 function sembrar(email: string, modo: string | undefined) {
   if (sembradas.has(email)) return
   sembradas.add(email)
+  // MATU-76: «Por correo» de pedidos en No y «En tus teléfonos» solo en pedidos (la tarjeta C se ve igual).
+  if (modo === 'avisos-pedido') avisos.set(email, { correo: true, push: false, pedido: { correo: false, push: true } })
   if (modo === 'ingresos-vacio') return
   const pc = nuevo(email, 'Chrome en Windows', 'computador', 30 * DIA, 2 * DIA + 7 * 60)
   const iphone = nuevo(email, 'Safari en iPhone', 'telefono', 12 * DIA, 26 * 60)
@@ -192,8 +196,9 @@ export function paraCopia(email: string, modo: string | undefined, editor: boole
   }
 }
 
-/** Decisión 78: sin preferencia guardada, activos si es admin o cuidador en algún grupo. */
-const avisosDe = (email: string, editor: boolean) => avisos.get(email) ?? { correo: editor, push: editor }
+/** Decisión 78: sin preferencia guardada, activos si es admin o cuidador en algún grupo. Los del pedido, activos para todos (C3). */
+const avisosDe = (email: string, editor: boolean) => avisos.get(email) ?? { correo: editor, push: editor, pedido: { correo: true, push: true } }
+const esCanales = (x: unknown): x is Canales => !!x && typeof x === 'object' && typeof (x as Canales).correo === 'boolean' && typeof (x as Canales).push === 'boolean'
 
 const vistaDispositivo = (d: Dispositivo, did: string | undefined) => ({
   id: d.id,
@@ -301,12 +306,15 @@ export function atenderDispositivos(
       return json(res, 200, avisosDe(email, editor)), true
     }
     if (metodo === 'PUT') {
-      if (typeof cuerpo?.correo !== 'boolean' || typeof cuerpo?.push !== 'boolean')
+      // `pedido` es opcional: sin él (o en null), la preferencia del pedido no cambia.
+      if (typeof cuerpo?.correo !== 'boolean' || typeof cuerpo?.push !== 'boolean' || (cuerpo.pedido != null && !esCanales(cuerpo.pedido)))
         return problema(res, 422, '/errores/validacion', { errores: [{ campo: 'correo', mensaje: 'MENSAJE DEL DOBLE', tipo: 'bool_type' }] }), true
       if (falla('avisos-guardar-falla')) return problema(res, 500, '/errores/interno'), true
       const antes = avisosDe(email, editor)
-      const nueva = { correo: cuerpo.correo, push: cuerpo.push }
-      if (antes.correo !== nueva.correo || antes.push !== nueva.push) anotar(email, 'avisos_cambiados', 0, null)
+      const pedido = cuerpo.pedido != null ? { correo: cuerpo.pedido.correo, push: cuerpo.pedido.push } : antes.pedido
+      const nueva = { correo: cuerpo.correo, push: cuerpo.push, pedido }
+      // Un solo `avisos_cambiados` por PUT si cambió cualquiera de las dos (decisión 259).
+      if (antes.correo !== nueva.correo || antes.push !== nueva.push || antes.pedido.correo !== pedido.correo || antes.pedido.push !== pedido.push) anotar(email, 'avisos_cambiados', 0, null)
       avisos.set(email, nueva)
       return json(res, 200, nueva), true
     }

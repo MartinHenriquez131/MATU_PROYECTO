@@ -382,8 +382,13 @@ export type EventoCuenta = S['EventoCuentaVista']
 export type TipoEventoCuenta = S['EventoCuentaVista']['tipo']
 /** `GET /v1/dispositivos/actual/push`: la clave pública (o `null`), si este dispositivo está inscrito y si el envío es simulado. */
 export type PushActual = S['PushActualVista']
-/** `GET` y `PUT /v1/yo/avisos`: los dos canales, para todos los grupos de la persona. */
+/**
+ * `GET` y `PUT /v1/yo/avisos`: los dos canales del insumo (`correo` y `push`) y, desde MATU-76
+ * (decisión 473), los del pedido (`pedido`), todos para todos los grupos de la persona.
+ */
 export type PreferenciaAvisos = S['PreferenciaAvisosVista']
+/** El cuerpo del `PUT`: sin `pedido`, la preferencia del pedido no cambia. */
+export type SolicitudAvisos = S['SolicitudPreferenciaAvisos']
 
 export async function listarDispositivos(): Promise<Dispositivo[]> {
   return (await apiFamilia.get<S['ListaDispositivos']>('/v1/dispositivos')).data.items
@@ -417,7 +422,7 @@ export async function leerAvisos(): Promise<PreferenciaAvisos> {
   return (await apiFamilia.get<PreferenciaAvisos>('/v1/yo/avisos')).data
 }
 
-/** `PUT /v1/yo/avisos`, con los dos canales. Devuelve lo mismo que el `GET`. Sin versión ni `If-Match`. */
-export async function guardarAvisos(preferencia: PreferenciaAvisos): Promise<PreferenciaAvisos> {
-  return (await apiFamilia.put<PreferenciaAvisos>('/v1/yo/avisos', preferencia)).data
+/** `PUT /v1/yo/avisos`, con los canales del insumo y, si se manda, los del pedido. Devuelve lo mismo que el `GET`. Sin versión ni `If-Match`. */
+export async function guardarAvisos(solicitud: SolicitudAvisos): Promise<PreferenciaAvisos> {
+  return (await apiFamilia.put<PreferenciaAvisos>('/v1/yo/avisos', solicitud)).data
 }

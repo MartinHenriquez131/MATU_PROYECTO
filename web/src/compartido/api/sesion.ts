@@ -26,6 +26,11 @@ let grupoActual: string | null = null
  */
 export type TipoCuenta = SesionRespuesta['tipo_cuenta']
 let tipoCuenta: TipoCuenta | null = null
+/**
+ * MATU-81 (decisión 451): hasta cuándo vale la entrada de una cuenta de operación (12 horas desde el
+ * segundo factor, sin ventana deslizante). `null` en las demás cuentas. Solo en memoria.
+ */
+let sesionVenceEn: string | null = null
 
 /** Cliente de la app de la familia: mismo origen, con el token y el grupo elegidos en memoria. */
 export const apiFamilia = axios.create({
@@ -70,6 +75,9 @@ export const hayToken = () => accessToken !== null
 /** MATU-63: el tipo de la cuenta que entró, o `null` sin entrada. Sin el campo, `familia` (su valor por omisión). */
 export const tipoDeCuenta = (): TipoCuenta | null => (accessToken === null ? null : tipoCuenta)
 
+/** MATU-81: el vencimiento de la entrada de operación (`sesion_vence_en`), o `null`. */
+export const venceLaEntrada = (): string | null => (accessToken === null ? null : sesionVenceEn)
+
 /** Fija el grupo de `X-Grupo-Id` (o lo quita con `null`). */
 export function fijarGrupo(id: string | null) {
   grupoActual = id
@@ -79,6 +87,15 @@ function olvidarTodo() {
   accessToken = null
   grupoActual = null
   tipoCuenta = null
+  sesionVenceEn = null
+}
+
+/** Lo que guarda cada respuesta de `/v1/sesiones`, `/renovar` y `/mfa`. */
+function guardar(r: SesionRespuesta): TipoCuenta {
+  accessToken = r.access_token
+  tipoCuenta = r.tipo_cuenta ?? 'familia'
+  sesionVenceEn = r.sesion_vence_en ?? null
+  return tipoCuenta
 }
 
 // ---------------------------------------------------------------- renovar
@@ -107,8 +124,7 @@ export function renovar(): Promise<boolean> {
         timeout: 20_000,
         headers: { ...CLIENTE, Accept: 'application/json' },
       })
-      accessToken = r.data.access_token
-      tipoCuenta = r.data.tipo_cuenta ?? 'familia'
+      guardar(r.data)
       canal?.postMessage('renovado')
       return true
     } catch (e) {
@@ -132,9 +148,61 @@ export function renovar(): Promise<boolean> {
  */
 export async function entrar(email: string, contrasena: string): Promise<TipoCuenta> {
   const r = await apiFamilia.post<SesionRespuesta>('/v1/sesiones', { email, contrasena }, { headers: { ...CLIENTE } })
-  accessToken = r.data.access_token
-  tipoCuenta = r.data.tipo_cuenta ?? 'familia'
-  return tipoCuenta
+  return guardar(r.data)
+}
+
+/** MATU-81 (decisión 450): el desafío del segundo paso. Vive solo en la memoria de la pantalla. */
+export interface DesafioMfa {
+  desafio: string
+  /** `desafio_expira_en`, 5 minutos. */
+  expiraEn: string
+}
+
+/**
+ * MATU-81: `POST /v1/sesiones` desde la entrada de operación. Con la contraseña de una cuenta de
+ * operación, la API responde 401 `mfa-requerido` con el desafío y sin tokens: se devuelve el
+ * desafío. Con otra cuenta, entra como siempre y devuelve su tipo. Los demás fallos se propagan.
+ */
+export async function entrarConSegundoFactor(email: string, contrasena: string): Promise<{ tipo: TipoCuenta } | DesafioMfa> {
+  try {
+    return { tipo: await entrar(email, contrasena) }
+  } catch (e) {
+    const cuerpo = isAxiosError(e) && e.response?.status === 401 ? (e.response.data as { type?: unknown; desafio?: unknown; desafio_expira_en?: unknown } | undefined) : undefined
+    if (cuerpo && typeof cuerpo.type === 'string' && cuerpo.type.endsWith('/mfa-requerido') && typeof cuerpo.desafio === 'string' && typeof cuerpo.desafio_expira_en === 'string')
+      return { desafio: cuerpo.desafio, expiraEn: cuerpo.desafio_expira_en }
+    throw e
+  }
+}
+
+/**
+ * MATU-81: el 401 `mfa-requerido` de `POST /v1/sesiones`, es decir, la contraseña es de una cuenta de
+ * operación que entró por la puerta de la familia o del comercio. La pantalla lleva a `/operacion/entrar`
+ * y la persona vuelve a escribir su contraseña allá: el desafío se descarta, nunca va a la URL.
+ */
+export function esCuentaDeOperacion(error: unknown): boolean {
+  const cuerpo = isAxiosError(error) && error.response?.status === 401 ? (error.response.data as { type?: unknown } | undefined) : undefined
+  return !!cuerpo && typeof cuerpo.type === 'string' && cuerpo.type.endsWith('/mfa-requerido')
+}
+
+/** MATU-81: `POST /v1/sesiones/mfa` con el desafío y las 6 cifras. Guarda la entrada como `/v1/sesiones`. */
+export async function entrarConCodigo(desafio: string, codigo: string): Promise<TipoCuenta> {
+  const r = await apiFamilia.post<SesionRespuesta>('/v1/sesiones/mfa', { desafio, codigo }, { headers: { ...CLIENTE } })
+  return guardar(r.data)
+}
+
+/**
+ * MATU-81 (4.4): cierra una entrada que no corresponde a esta consola (una cuenta de familia o de
+ * comercio en la entrada de operación, o la de operación que perdió el segundo factor), sin avisar a
+ * las otras pestañas ni mostrar «Saliste». Nunca lanza.
+ */
+export async function cerrarSinAvisar(): Promise<void> {
+  try {
+    await apiFamilia.post('/v1/sesiones/cerrar', null, { headers: { ...CLIENTE } })
+  } catch {
+    // Es local de todos modos.
+  } finally {
+    olvidarTodo()
+  }
 }
 
 /**

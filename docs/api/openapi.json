@@ -289,9 +289,75 @@
             }
           },
           "401": {
-            "description": "credenciales-invalidas, el mismo exista o no el email",
+            "description": "credenciales-invalidas, el mismo exista o no el email. Desde MATU-81, mfa-requerido: la contraseña es correcta y la cuenta es de operación. Trae `desafio` y `desafio_expira_en` (5 minutos), sin tokens ni cookie: se sigue en POST /v1/sesiones/mfa",
             "content": {
-              "application/problem+json": {}
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "/errores/mfa-requerido",
+                      "title": "Type"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "const": 401,
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    },
+                    "errores": {
+                      "items": {
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "title": "Errores"
+                    },
+                    "request_id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Request Id"
+                    },
+                    "desafio": {
+                      "type": "string",
+                      "title": "Desafio"
+                    },
+                    "desafio_expira_en": {
+                      "type": "string",
+                      "format": "date-time",
+                      "title": "Desafio Expira En"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "errores",
+                    "request_id",
+                    "desafio",
+                    "desafio_expira_en"
+                  ],
+                  "title": "ProblemaMfaRequeridoVista",
+                  "description": "401 mfa-requerido de POST /v1/sesiones: la contraseña es correcta y la cuenta es de operación. Sin tokens ni\ncookie. ``desafio`` vale hasta ``desafio_expira_en`` (5 minutos) y se usa una vez en POST /v1/sesiones/mfa."
+                }
+              }
             }
           },
           "422": {
@@ -6584,7 +6650,7 @@
           "avisos"
         ],
         "summary": "Leer Avisos",
-        "description": "Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). Orden: 401 y 200.",
+        "description": "Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). `pedido` es la preferencia de los avisos de sus pedidos (MATU-76): también es de la persona y vale para todos sus grupos, y sin preferencia guardada está activa por los dos canales, sea cual sea su rol. Esos avisos solo le llegan a quien pagó el pedido, y el correo de una devolución o cancelación llega siempre, aunque `pedido.correo` esté apagado. Orden: 401 y 200.",
         "operationId": "leerPreferenciaAvisos",
         "responses": {
           "200": {
@@ -6623,13 +6689,13 @@
           "avisos"
         ],
         "summary": "Guardar Avisos",
-        "description": "Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). Orden: 401, 422 y 200.",
+        "description": "Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). `pedido` es opcional (MATU-76): sin él, la preferencia de los avisos del pedido no cambia; con él, se guarda igual, solo el canal que difiere de lo que muestra el GET o el que ya estaba guardado. El correo de una devolución o cancelación llega siempre, aunque `pedido.correo` sea false. Sin versión ni If-Match: no hay 412. Orden: 401, 422 y 200.",
         "operationId": "guardarPreferenciaAvisos",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PreferenciaAvisosVista"
+                "$ref": "#/components/schemas/SolicitudPreferenciaAvisos"
               }
             }
           },
@@ -7018,7 +7084,7 @@
           "pedidos"
         ],
         "summary": "«Tus pedidos»: los pedidos pagados de la persona, de los últimos 2 años",
-        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, solo la fecha, los productos y «Pagado» (C3). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
+        "description": "MATU-92 (D-92-1 y D-92-2). Los cuatro roles, sin la autorización despacho ni puede_ver_plan (C1 y C2). admin, cuidador y pagador: ListaPedidosPagados, con el total, lo devuelto, el estado para la familia y lo que se puede hacer (puede_cancelar y puede_arrepentirse con su motivo, C7). observador: ListaPedidosPagadosObservador, la fecha del pago, el estado para la familia, entregado_en y los productos, sin ningún monto (C3; MATU-113, decisión 472). Del más reciente al más antiguo; sin los que cumplieron 2 años desde la entrega o la cancelación. Paginada con cursor opaco. No se audita. Capa 3",
         "operationId": "listar_pedidos_v1_personas_cuidadas__persona_id__pedidos_get",
         "security": [
           {
@@ -7128,7 +7194,7 @@
           "pedidos"
         ],
         "summary": "El pedido sin pagar de la persona, para volver al carrito",
-        "description": "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3",
+        "description": "MATU-61 (decisión 197, C4). Los cuatro roles, con la proyección del rol (C3; el observador, sin montos, decisión 472). 404 si la persona no tiene un pedido sin pagar. No pide la autorización despacho. No se audita. Capa 3",
         "operationId": "ver_en_curso_v1_personas_cuidadas__persona_id__pedido_en_curso_get",
         "security": [
           {
@@ -7213,7 +7279,7 @@
           "pedidos"
         ],
         "summary": "Leer el pedido, con el resumen antes de pagar si el total está confirmado",
-        "description": "MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador, sin entrega ni resumen, para el observador (C3). El vencimiento lo dice el Reloj. No se audita. Capa 3",
+        "description": "MATU-61 (decisiones 198 y 205). Los cuatro roles: PedidoVista para admin, cuidador y pagador, y PedidoVistaObservador para el observador (C3), sin entrega, resumen ni ningún monto en ningún estado (MATU-113, decisión 472). El vencimiento lo dice el Reloj. No se audita. Capa 3",
         "operationId": "ver_pedido_v1_pedidos__pedido_id__get",
         "security": [
           {
@@ -9543,7 +9609,7 @@
             }
           },
           "503": {
-            "description": "Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir",
+            "description": "Sin Redis o PEPPER_LIMITES, la ficha vigente no se puede abrir, o hay notas de operación con su clave vigente y falta la KEK de las notas",
             "content": {
               "application/problem+json": {}
             }
@@ -10242,8 +10308,53 @@
           "operacion"
         ],
         "summary": "Listar Pedidos",
-        "description": "Los pedidos pagados en curso con sus partes y el estado del código de cada una.",
+        "description": "Los pedidos pagados con sus partes y el estado del código de cada una, del pago más reciente al más antiguo, hasta 200 (`hay_mas`). MATU-81 (P4, C8): `grupo` (por_atender, en_camino, con_problema, cerrados, cancelados o todos) y `estado` repetido se suman; con_problema suma los pedidos con una incidencia abierta o una devolución sin terminar. Sin ninguno, los que están en curso (todos menos cerrado y cancelados), como desde MATU-63. No se audita.",
         "operationId": "listar_pedidos_v1_operacion_pedidos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "grupo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(por_atender|en_camino|con_problema|cerrados|cancelados|todos)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grupo"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Uno o más estados del pedido",
+              "title": "Estado"
+            },
+            "description": "Uno o más estados del pedido"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -10272,13 +10383,14 @@
             "content": {
               "application/problem+json": {}
             }
+          },
+          "422": {
+            "description": "grupo o estado no son de la lista",
+            "content": {
+              "application/problem+json": {}
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/v1/operacion/partes/{parte_id}/codigo": {
@@ -10494,7 +10606,7 @@
           "operacion"
         ],
         "summary": "No Entregado",
-        "description": "en_ruta → no_entregado: nadie recibió el pedido (D-63-6).",
+        "description": "en_ruta → no_entregado: nadie recibió el pedido (D-63-6). Emite PedidoNoEntregado, que avisa a quien pagó (MATU-76, D-76-5).",
         "operationId": "no_entregado_v1_operacion_pedidos__pedido_id__no_entregado_post",
         "security": [
           {
@@ -10561,15 +10673,43 @@
           "operacion"
         ],
         "summary": "Listar Retractos",
-        "description": "Los retractos por resolver, con lo que se devolvería.",
+        "description": "Los retractos con lo que se devuelve, la referencia, los productos y, si se rechazó, el motivo (P6). MATU-81: `estado` repetido (solicitado, devuelto o rechazado) se suma; sin él, solicitado (por resolver). Primero los por resolver, del más antiguo al más reciente, y después los resueltos, del resuelto más reciente al más antiguo, hasta 200 (`hay_mas`). No se audita.",
         "operationId": "listar_retractos_v1_operacion_retractos_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "solicitado, devuelto o rechazado; repetible",
+              "title": "Estado"
+            },
+            "description": "solicitado, devuelto o rechazado; repetible"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListaRetractos"
+                  "$ref": "#/components/schemas/ListaRetractosOperacion"
                 }
               }
             }
@@ -10591,13 +10731,14 @@
             "content": {
               "application/problem+json": {}
             }
+          },
+          "422": {
+            "description": "estado no es solicitado, devuelto ni rechazado",
+            "content": {
+              "application/problem+json": {}
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/v1/operacion/retractos/{retracto_id}/resolver": {
@@ -10641,7 +10782,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RetractoVista"
+                  "$ref": "#/components/schemas/RetractoOperacion"
                 }
               }
             }
@@ -10664,20 +10805,16 @@
               "application/problem+json": {}
             }
           },
-          "503": {
-            "description": "Sin PASARELA_PAGO no se puede devolver",
+          "422": {
+            "description": "motivo-rechazo: rechazar exige `motivo` (sello_abierto o producto_no_recibido), y devolver no lo lleva (C24)",
             "content": {
               "application/problem+json": {}
             }
           },
-          "422": {
-            "description": "Validation Error",
+          "503": {
+            "description": "Sin PASARELA_PAGO no se puede devolver",
             "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
+              "application/problem+json": {}
             }
           }
         }
@@ -11090,7 +11227,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RetractoVista"
+                  "$ref": "#/components/schemas/RetractoOperacion"
                 }
               }
             }
@@ -11114,7 +11251,13 @@
             }
           },
           "422": {
-            "description": "producto-no-retractable, o solicitado_por no es quien pagó ni un admin",
+            "description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Falta PEPPER_EMAIL para buscar el correo del admin",
             "content": {
               "application/problem+json": {}
             }
@@ -11194,6 +11337,820 @@
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sesiones/mfa": {
+      "post": {
+        "tags": [
+          "sesiones"
+        ],
+        "summary": "Verificar Mfa",
+        "description": "MATU-81 (C29): el segundo paso de la entrada de una cuenta de operación. Recibe el `desafio` del 401 mfa-requerido de POST /v1/sesiones y las 6 cifras de la app del teléfono (TOTP, RFC 6238, ventana de ±1 paso). Con el código correcto, la misma respuesta y la misma cookie que POST /v1/sesiones, con `tipo_cuenta: operacion` y `sesion_vence_en` (12 horas, sin ventana deslizante: C31). El desafío sirve una vez. Se audita `sesion.mfa_correcto` o `sesion.mfa_fallido`, sin grupo ni código. Orden: 422, 503, 401 desafio-vencido, 429 mfa-bloqueado, 401 codigo-mfa-incorrecto o codigo-mfa-usado, 200.",
+        "operationId": "verificar_mfa_v1_sesiones_mfa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudMfa"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie del refresh",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SesionRespuesta"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "desafio-vencido: el desafío no existe, venció (5 minutos) o ya se usó; se vuelve a la contraseña. codigo-mfa-incorrecto: el código no coincide; trae `intentos_restantes` (de 5 por cuenta en 15 minutos). codigo-mfa-usado: ese código ya abrió una sesión; se espera el siguiente (30 segundos)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido: el desafío no tiene 43 caracteres o el código no son 6 cifras",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "mfa-bloqueado: 5 códigos fallidos de la cuenta. Trae `minutos_espera` y Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Segundos",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Redis no responde, falta PEPPER_LIMITES o la KEK: falla cerrada",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/retractos/{retracto_id}": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Ver Retracto",
+        "description": "MATU-81 (ruta 5): un retracto, resuelto o no, con sus productos, la referencia y el motivo.",
+        "operationId": "ver_retracto_v1_operacion_retractos__retracto_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retracto_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Retracto Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetractoOperacion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado o token-invalido",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o el pedido, la parte o el retracto no existen",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "estado-pedido o estado-parte: el estado no permite la acción",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/buscar": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Buscar Pedido",
+        "description": "C7: busca un pedido pagado por su referencia o por la de una de sus partes, sin distinguir mayúsculas. La referencia va solo en el cuerpo: nunca en la URL, los logs, los errores ni la auditoría. Sin resultado, una lista vacía. No se audita (abrir el pedido sí).",
+        "operationId": "buscar_pedido_v1_operacion_pedidos_buscar_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudBuscarPedido"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaPedidosOperacion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Ver Pedido",
+        "description": "Ruta 1: el pedido pagado con sus partes, sus líneas (precio pagado, faltantes y devolución), la línea de tiempo (de pedido_transicion y los instantes de las partes, el cobro, las anulaciones, los retractos y las incidencias; nunca de la auditoría) y `acciones` con `monto_a_devolver` (P3). Sin datos de la persona, del grupo ni de la cuenta de la familia (C5). Se audita como operacion.pedido_ver (D-81-5).",
+        "operationId": "ver_pedido_v1_operacion_pedidos__pedido_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PedidoDetalle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/cobro": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Ver Cobro",
+        "description": "Ruta 3 (C17, C18, D-81-8): el total confirmado, lo cobrado, lo devuelto, cada venta (con buy_order) y cada anulación (motivo, monto, estado e instante). Nunca el token, el session_id, la respuesta de Transbank, la tarjeta, las cuotas ni el código de autorización. Se audita como operacion.pedido_ver (D-81-5).",
+        "operationId": "ver_cobro_v1_operacion_pedidos__pedido_id__cobro_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CobroPedido"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/cobros/pendientes": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Cobros Pendientes",
+        "description": "Ruta 4 (C17): las ventas sin respuesta por más de 15 minutos y las anulaciones sin terminar, hasta 200 de cada una, de la más antigua a la más reciente. La tarea conciliacion_pagos las cierra o las reintenta cada 5 minutos: esta lista es para revisarlas. MATU-81: cada anulación trae `estado`, en_curso (MATU la está pidiendo a Transbank) o sin_terminar (el último intento falló y se reintenta). No se audita.",
+        "operationId": "cobros_pendientes_v1_operacion_cobros_pendientes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CobrosPendientes"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/operacion/incidencias": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Listar Incidencias",
+        "description": "Las incidencias, de la más nueva a la más antigua, hasta 200. Con `estado`, solo las de ese estado. La nota y la resolución se descifran al leer; si la clave de las notas se destruyó, `nota_disponible` es false.",
+        "operationId": "listar_incidencias_v1_operacion_incidencias_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(abierta|en_gestion|resuelta)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListaIncidencias"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "estado no es abierta, en_gestion ni resuelta",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/incidencias/{incidencia_id}": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Ver Incidencia",
+        "description": "Una incidencia, con su versión en el ETag (P7).",
+        "operationId": "ver_incidencia_v1_operacion_incidencias__incidencia_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incidencia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Incidencia Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidenciaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Editar Incidencia",
+        "description": "Cambia el estado, la asignación (`a_mi` o `sin_asignar`) o la resolución (C13). Exige If-Match con el ETag (P7): 428 sin él, 412 si otra persona la cambió. La resolución se guarda cifrada, con la clave vigente de las notas de la persona (decisión 471). Resolverla se audita incidencia.resolver, sin el texto.",
+        "operationId": "editar_incidencia_v1_operacion_incidencias__incidencia_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incidencia_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Incidencia Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudEditarIncidencia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidenciaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "falta-version: el PATCH exige If-Match",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "incidencia-resuelta: una incidencia resuelta ya no cambia",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "falta-resolucion: «resuelta» exige la resolución, o el cuerpo es inválido",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/pedidos/{pedido_id}/incidencias": {
+      "post": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Crear Incidencia",
+        "description": "Anota lo que pasó con un pedido pagado (C10 a C14). La nota (`descripcion`) la puede leer la familia en la copia de sus datos: no lleva nombres, datos de salud ni la dirección. Se guarda cifrada con la clave de las notas de la persona del pedido (decisión 471). Se audita incidencia.crear sin el texto. El texto nunca va a logs, errores, eventos ni auditoría.",
+        "operationId": "crear_incidencia_v1_operacion_pedidos__pedido_id__incidencias_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pedido_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Pedido Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudIncidencia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidenciaVista"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "503": {
+            "description": "Las notas no se pueden cifrar ni descifrar: falta la KEK o una clave vigente no se abre",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido: el tipo o la nota de 1 a 500 caracteres",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/operacion/catalogo": {
+      "get": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Ver Catalogo",
+        "description": "Las ofertas de los comercios activos. `editable` solo en los comercios ficticios (D-81-7).",
+        "operationId": "ver_catalogo_v1_operacion_catalogo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogoConsola"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/operacion/ofertas/{oferta_id}": {
+      "patch": {
+        "tags": [
+          "operacion"
+        ],
+        "summary": "Cambiar Oferta",
+        "description": "Cambia el precio (pesos enteros con IVA incluido, mayor que 0), el stock o si se ofrece, solo en un comercio ficticio (C1, C2; la base lo exige con el trigger oferta_operacion_ficticia). Exige If-Match (C4). Un precio nuevo vale solo para las confirmaciones nuevas: no cambia los pedidos confirmados ni pagados (C3). Se audita catalogo.oferta_cambiar sin grupo y sin los valores.",
+        "operationId": "cambiar_oferta_v1_operacion_ofertas__oferta_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "oferta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Oferta Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudOferta"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfertaConsola"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "no-autenticado, token-invalido o mfa-requerido (sin el segundo factor)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "404": {
+            "description": "No es una cuenta de operación, o lo pedido no existe",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "412": {
+            "description": "version-desactualizada: el If-Match no es la versión actual",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "428": {
+            "description": "falta-version: el PATCH exige If-Match",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "409": {
+            "description": "comercio-real: solo se editan las ofertas de los comercios ficticios (C1)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "422": {
+            "description": "Cuerpo inválido: el precio es un entero en pesos mayor que 0, con IVA",
+            "content": {
+              "application/problem+json": {}
             }
           }
         }
@@ -13643,10 +14600,23 @@
             "type": "string",
             "enum": [
               "familia",
-              "comercio"
+              "comercio",
+              "operacion"
             ],
             "title": "Tipo Cuenta",
             "default": "familia"
+          },
+          "sesion_vence_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sesion Vence En"
           }
         },
         "type": "object",
@@ -14147,6 +15117,39 @@
         "title": "SolicitudPersona",
         "description": "Cuerpo de POST /v1/grupos/{grupo_id}/personas-cuidadas."
       },
+      "SolicitudPreferenciaAvisos": {
+        "properties": {
+          "correo": {
+            "type": "boolean",
+            "title": "Correo",
+            "description": "Avisos de un insumo por correo"
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push",
+            "description": "Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)"
+          },
+          "pedido": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreferenciaPedidoVista"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Los avisos de los pedidos. Sin él, no cambian (MATU-76)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "correo",
+          "push"
+        ],
+        "title": "SolicitudPreferenciaAvisos",
+        "description": "El cuerpo del PUT. ``pedido`` es opcional: sin él, la preferencia de los avisos del pedido no cambia."
+      },
       "SolicitudPresentacionVista": {
         "properties": {
           "token": {
@@ -14463,12 +15466,36 @@
           "correo": {
             "type": "boolean",
             "title": "Correo",
-            "description": "Avisos por correo"
+            "description": "Avisos de un insumo por correo"
           },
           "push": {
             "type": "boolean",
             "title": "Push",
             "description": "Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)"
+          },
+          "pedido": {
+            "$ref": "#/components/schemas/PreferenciaPedidoVista"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "correo",
+          "push",
+          "pedido"
+        ],
+        "title": "PreferenciaAvisosVista",
+        "description": "Lo que devuelven GET y PUT: ``correo`` y ``push`` son los avisos de un insumo que se está acabando (sin\npreferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo), y ``pedido``\nlos avisos de sus pedidos (MATU-76)."
+      },
+      "PreferenciaPedidoCopia": {
+        "properties": {
+          "correo": {
+            "type": "boolean",
+            "title": "Correo"
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push"
           }
         },
         "additionalProperties": false,
@@ -14477,8 +15504,30 @@
           "correo",
           "push"
         ],
-        "title": "PreferenciaAvisosVista",
-        "description": "Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia\nguardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo."
+        "title": "PreferenciaPedidoCopia",
+        "description": "MATU-76 (C11): los avisos de sus pedidos. El correo de una devolución o cancelación llega igual."
+      },
+      "PreferenciaPedidoVista": {
+        "properties": {
+          "correo": {
+            "type": "boolean",
+            "title": "Correo",
+            "description": "Avisos del pedido por correo. Apagarlo apaga solo el de «Entregado» y «No entregado»: el correo de una devolución o cancelación llega siempre, porque es sobre el dinero de quien pagó (D-76-3)"
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push",
+            "description": "Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push). Todos los avisos del pedido por push siguen esta preferencia"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "correo",
+          "push"
+        ],
+        "title": "PreferenciaPedidoVista",
+        "description": "Si la persona recibe los avisos de sus pedidos, por canal (MATU-76). Es de la persona y vale para todos sus\ngrupos. Sin preferencia guardada, activa por los dos canales, sea cual sea su rol. Solo le llegan a quien pagó el\npedido."
       },
       "Catalogo": {
         "properties": {
@@ -14675,6 +15724,21 @@
           "comercio_antes"
         ],
         "title": "CambioDeLinea"
+      },
+      "CambioDeLineaObservador": {
+        "properties": {
+          "comercio_antes": {
+            "$ref": "#/components/schemas/ComercioVista",
+            "description": "El comercio del carrito; el producto pasó a otro"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "comercio_antes"
+        ],
+        "title": "CambioDeLineaObservador",
+        "description": "MATU-113 (decisión 472): el cambio de la línea sin el precio de antes."
       },
       "ComercioVista": {
         "properties": {
@@ -15289,9 +16353,10 @@
           },
           "lineas": {
             "items": {
-              "$ref": "#/components/schemas/LineaPedido"
+              "$ref": "#/components/schemas/LineaPedidoObservador"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Lineas"
           },
           "salieron": {
@@ -15300,34 +16365,6 @@
             },
             "type": "array",
             "title": "Salieron"
-          },
-          "comercios": {
-            "items": {
-              "$ref": "#/components/schemas/ParteComercio"
-            },
-            "type": "array",
-            "title": "Comercios"
-          },
-          "subtotal_productos": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Subtotal Productos"
-          },
-          "costo_envio": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Costo Envio"
-          },
-          "total": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total"
           },
           "total_confirmado_en": {
             "anyOf": [
@@ -15353,6 +16390,19 @@
             ],
             "title": "Vence En"
           },
+          "pagado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagado En",
+            "description": "Cuándo se pagó, para «Pagado el {fecha}». Sin el monto"
+          },
           "ventana_entrega": {
             "type": "string",
             "title": "Ventana Entrega"
@@ -15377,18 +16427,15 @@
           "precios_de_ejemplo",
           "lineas",
           "salieron",
-          "comercios",
-          "subtotal_productos",
-          "costo_envio",
-          "total",
           "total_confirmado_en",
           "vence_en",
+          "pagado_en",
           "ventana_entrega",
           "creado_en",
           "actualizado_en"
         ],
         "title": "PedidoVistaObservador",
-        "description": "Lo que ve el observador (C3): el carrito sin entrega, sin resumen y sin etag."
+        "description": "Lo que ve el observador (C3; MATU-113, decisión 472): los productos, cuántos, de qué comercio y el estado\ncompleto del pedido. Sin montos en ningún estado (ni precios, ni subtotales, ni envío, ni total, ni devolución),\nsin entrega, sin resumen y sin etag."
       },
       "ProductoPedido": {
         "properties": {
@@ -17746,6 +18793,14 @@
       },
       "AvisoEnviadoCopia": {
         "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "insumo",
+              "pedido"
+            ],
+            "title": "Tipo"
+          },
           "creado_en": {
             "type": "string",
             "title": "Creado En"
@@ -17784,6 +18839,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "tipo",
           "creado_en",
           "enviado_en",
           "canal",
@@ -17856,6 +18912,54 @@
           "unidades_faltantes"
         ],
         "title": "LineaPedidoCopia"
+      },
+      "LineaPedidoObservador": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "producto": {
+            "$ref": "#/components/schemas/ProductoPedido"
+          },
+          "cantidad": {
+            "type": "integer",
+            "maximum": 99.0,
+            "minimum": 1.0,
+            "title": "Cantidad",
+            "description": "Envases del producto, de 1 a 99"
+          },
+          "comercio": {
+            "$ref": "#/components/schemas/ComercioVista"
+          },
+          "regla_faltante": {
+            "$ref": "#/components/schemas/Regla"
+          },
+          "cambio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CambioDeLineaObservador"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null si el producto sigue en el mismo comercio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "producto",
+          "cantidad",
+          "comercio",
+          "regla_faltante",
+          "cambio"
+        ],
+        "title": "LineaPedidoObservador",
+        "description": "MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,\ndevolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con\nclaves borradas."
       },
       "CondicionesCopia": {
         "properties": {
@@ -18029,15 +19133,20 @@
           "push": {
             "type": "boolean",
             "title": "Push"
+          },
+          "pedido": {
+            "$ref": "#/components/schemas/PreferenciaPedidoCopia"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "correo",
-          "push"
+          "push",
+          "pedido"
         ],
-        "title": "PreferenciaAvisosCopia"
+        "title": "PreferenciaAvisosCopia",
+        "description": "``correo`` y ``push``: los avisos de un insumo. ``pedido``: los de sus pedidos (MATU-76)."
       },
       "EventoCuentaCopia": {
         "properties": {
@@ -18328,6 +19437,13 @@
             },
             "type": "array",
             "title": "Retractos"
+          },
+          "lo_que_paso": {
+            "items": {
+              "$ref": "#/components/schemas/LoQuePasoCopia"
+            },
+            "type": "array",
+            "title": "Lo Que Paso"
           }
         },
         "additionalProperties": false,
@@ -18346,7 +19462,8 @@
           "precios_de_ejemplo",
           "entregado_en",
           "partes",
-          "retractos"
+          "retractos",
+          "lo_que_paso"
         ],
         "title": "PedidoCopia"
       },
@@ -18976,7 +20093,8 @@
               "pedido_en_camino",
               "pedido_entregado",
               "pedido_no_entregado",
-              "retracto_resuelto"
+              "retracto_resuelto",
+              "matu_reviso_el_pedido"
             ],
             "title": "Tipo"
           },
@@ -19414,8 +20532,14 @@
             },
             "type": "array",
             "title": "Pedidos"
+          },
+          "hay_mas": {
+            "type": "boolean",
+            "title": "Hay Mas",
+            "default": false
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "pedidos"
@@ -19437,22 +20561,6 @@
           "productos"
         ],
         "title": "ListaProductos"
-      },
-      "ListaRetractos": {
-        "properties": {
-          "retractos": {
-            "items": {
-              "$ref": "#/components/schemas/RetractoVista"
-            },
-            "type": "array",
-            "title": "Retractos"
-          }
-        },
-        "type": "object",
-        "required": [
-          "retractos"
-        ],
-        "title": "ListaRetractos"
       },
       "ParteOperacion": {
         "properties": {
@@ -19492,6 +20600,7 @@
             "title": "Estado Codigo"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
@@ -19759,15 +20868,44 @@
             },
             "type": "array",
             "title": "Partes"
+          },
+          "pagado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pagado En"
+          },
+          "total_confirmado": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Confirmado",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "numero_partes": {
+            "type": "integer",
+            "title": "Numero Partes"
+          },
+          "incidencia_abierta": {
+            "type": "boolean",
+            "title": "Incidencia Abierta"
+          },
+          "devolucion_sin_terminar": {
+            "type": "boolean",
+            "title": "Devolucion Sin Terminar"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
           "estado",
           "referencia",
           "entregado_en",
-          "partes"
+          "partes",
+          "pagado_en",
+          "total_confirmado",
+          "numero_partes",
+          "incidencia_abierta",
+          "devolucion_sin_terminar"
         ],
         "title": "PedidoOperacion"
       },
@@ -19876,93 +21014,6 @@
           "parte"
         ],
         "title": "ResultadoCodigoVista"
-      },
-      "RetractoVista": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "pedido_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Pedido Id"
-          },
-          "estado": {
-            "type": "string",
-            "enum": [
-              "solicitado",
-              "devuelto",
-              "rechazado"
-            ],
-            "title": "Estado"
-          },
-          "solicitado_en": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Solicitado En"
-          },
-          "plazo_hasta": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Plazo Hasta"
-          },
-          "incluye_envio": {
-            "type": "boolean",
-            "title": "Incluye Envio"
-          },
-          "monto": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Monto",
-            "description": "Los productos a precio pagado, más el envío si lo incluye"
-          },
-          "origen": {
-            "type": "string",
-            "enum": [
-              "app",
-              "correo"
-            ],
-            "title": "Origen",
-            "description": "correo: lo pidió la familia por correo y lo registró operación"
-          },
-          "lineas": {
-            "items": {
-              "$ref": "#/components/schemas/LineaDelRetracto"
-            },
-            "type": "array",
-            "title": "Lineas"
-          },
-          "resuelto_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resuelto En",
-            "description": "Cuándo se devolvió o no se aceptó; null si sigue"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "id",
-          "pedido_id",
-          "estado",
-          "solicitado_en",
-          "plazo_hasta",
-          "incluye_envio",
-          "monto",
-          "origen",
-          "lineas",
-          "resuelto_en"
-        ],
-        "title": "RetractoVista"
       },
       "RetractosDelPedido": {
         "properties": {
@@ -20143,6 +21194,21 @@
               "rechazar"
             ],
             "title": "Decision"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
           }
         },
         "additionalProperties": false,
@@ -20315,6 +21381,21 @@
             ],
             "title": "Resuelto En"
           },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo"
+          },
           "lineas": {
             "items": {
               "$ref": "#/components/schemas/LineaRetractoCopia"
@@ -20331,6 +21412,7 @@
           "plazo_hasta",
           "incluye_envio",
           "resuelto_en",
+          "motivo_rechazo",
           "lineas"
         ],
         "title": "RetractoCopia",
@@ -20377,6 +21459,21 @@
             ],
             "title": "Resuelto En"
           },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo"
+          },
           "productos": {
             "items": {
               "type": "string"
@@ -20393,6 +21490,7 @@
           "estado",
           "solicitado_en",
           "resuelto_en",
+          "motivo_rechazo",
           "productos"
         ],
         "title": "RetractoCuentaCopia",
@@ -20420,6 +21518,19 @@
               }
             ],
             "title": "Solicitado Por"
+          },
+          "correo_solicitante": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correo Solicitante"
           }
         },
         "additionalProperties": false,
@@ -20428,7 +21539,7 @@
           "lineas"
         ],
         "title": "SolicitudRetractoPorCorreo",
-        "description": "H2: el retracto que la familia pidió por correo. ``solicitado_por``: la cuenta que pagó o el admin del grupo;\nsin valor, quien pagó."
+        "description": "H2: el retracto que la familia pidió por correo. Sin valor, va a nombre de quien pagó. MATU-81 (D-81-9, C25):\n``correo_solicitante`` es el correo de quien escribió; el servidor lo busca entre los admins activos del grupo y\nresponde 422 si no está. Nunca lista a nadie ni lo escribe en los logs. ``solicitado_por`` (el id) se mantiene\npor compatibilidad; no se mandan los dos."
       },
       "ComercioDeLaParte": {
         "properties": {
@@ -20891,8 +22002,31 @@
           },
           "estado": {
             "type": "string",
-            "const": "pagado",
-            "title": "Estado"
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado",
+            "description": "El estado para la familia (lenguaje.md 38): listo_retiro agrupa listo_retiro, asignado, sin_repartidor y retirado; entregado agrupa entregado y cerrado"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
           },
           "productos": {
             "items": {
@@ -20922,12 +22056,13 @@
           "pedido_id",
           "pagado_en",
           "estado",
+          "entregado_en",
           "productos",
           "resumen_productos",
           "productos_borrados"
         ],
         "title": "PedidoPagadoFilaObservador",
-        "description": "Lo que ve el observador (D-92-1 a, C3): la fecha, los productos y «Pagado». Sin referencia, montos, estado de\nla entrega ni acciones."
+        "description": "Lo que ve el observador (D-92-1 a, C3; MATU-113, decisión 472): la fecha del pago, el estado de familia, la\nfecha de entrega y los productos. Sin referencia, montos, comprobante, código ni acciones."
       },
       "ProductoDeLaFila": {
         "properties": {
@@ -21042,6 +22177,22 @@
           "es_tuyo": {
             "type": "boolean",
             "title": "Es Tuyo"
+          },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo",
+            "description": "Solo si estado es rechazado: sello_abierto, o producto_no_recibido (MATU no recibió el producto de vuelta); null en los demás"
           }
         },
         "additionalProperties": false,
@@ -21057,10 +22208,11 @@
           "origen",
           "lineas",
           "resuelto_en",
-          "es_tuyo"
+          "es_tuyo",
+          "motivo_rechazo"
         ],
         "title": "RetractoVistaFamilia",
-        "description": "El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id."
+        "description": "El retracto para la familia (MATU-92, C18): quién lo pidió solo como es_tuyo, nunca su nombre ni su id.\nMATU-81 (C24): si no se aceptó, por qué, de la misma lista cerrada que elige operación al rechazar."
       },
       "SeguimientoPedido": {
         "properties": {
@@ -21236,6 +22388,1511 @@
         ],
         "title": "SeguimientoPedido",
         "description": "GET /v1/pedidos/{id}/seguimiento (ruta 2): cómo va el pedido pagado, por comercio. Sin la referencia de la\nparte, el código de retiro ni nada del encargado (C15). El comprobante es GET …/pago (C14)."
+      },
+      "AccionDisponible": {
+        "properties": {
+          "accion": {
+            "type": "string",
+            "enum": [
+              "en_camino",
+              "entregado",
+              "no_entregado",
+              "cancelar_con_devolucion"
+            ],
+            "title": "Accion"
+          },
+          "monto_a_devolver": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto A Devolver",
+            "description": "Pesos enteros, con IVA incluido"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "accion",
+          "monto_a_devolver"
+        ],
+        "title": "AccionDisponible",
+        "description": "P3: lo que se puede hacer ahora, con lo que devolvería a la misma tarjeta. La pantalla nunca calcula montos."
+      },
+      "AnulacionPendiente": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_curso",
+              "sin_terminar"
+            ],
+            "title": "Estado"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "pago_tardio",
+              "producto_no_entregado",
+              "cancelacion",
+              "retracto"
+            ],
+            "title": "Motivo"
+          },
+          "monto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "intentos": {
+            "type": "integer",
+            "title": "Intentos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "estado",
+          "referencia",
+          "motivo",
+          "monto",
+          "creada_en",
+          "intentos"
+        ],
+        "title": "AnulacionPendiente",
+        "description": "MATU-81: ``estado`` en_curso (iniciada o autorizando: MATU la está pidiendo a Transbank) o sin_terminar (el\núltimo intento falló, error: la conciliación la reintenta cada 5 minutos)."
+      },
+      "AnulacionVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "pago_tardio",
+              "producto_no_entregado",
+              "cancelacion",
+              "retracto"
+            ],
+            "title": "Motivo"
+          },
+          "monto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_curso",
+              "hecha",
+              "rechazada"
+            ],
+            "title": "Estado"
+          },
+          "producto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Producto"
+          },
+          "en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "motivo",
+          "monto",
+          "estado",
+          "producto",
+          "en"
+        ],
+        "title": "AnulacionVista"
+      },
+      "CatalogoConsola": {
+        "properties": {
+          "ofertas": {
+            "items": {
+              "$ref": "#/components/schemas/OfertaConsola"
+            },
+            "type": "array",
+            "title": "Ofertas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ofertas"
+        ],
+        "title": "CatalogoConsola"
+      },
+      "CobroPedido": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "total_confirmado": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Confirmado",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "cobrado": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cobrado",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "devuelto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Devuelto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "queda_cobrado": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Queda Cobrado",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "estado_cargo": {
+            "type": "string",
+            "enum": [
+              "sin_cargo",
+              "pendiente",
+              "pagado",
+              "rechazado",
+              "devuelto_parcial",
+              "anulado"
+            ],
+            "title": "Estado Cargo"
+          },
+          "ventas": {
+            "items": {
+              "$ref": "#/components/schemas/VentaVista"
+            },
+            "type": "array",
+            "title": "Ventas"
+          },
+          "anulaciones": {
+            "items": {
+              "$ref": "#/components/schemas/AnulacionVista"
+            },
+            "type": "array",
+            "title": "Anulaciones"
+          },
+          "calza": {
+            "type": "boolean",
+            "title": "Calza",
+            "description": "Lo cobrado no supera el total y no hay devoluciones sin terminar"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "referencia",
+          "total_confirmado",
+          "cobrado",
+          "devuelto",
+          "queda_cobrado",
+          "estado_cargo",
+          "ventas",
+          "anulaciones",
+          "calza"
+        ],
+        "title": "CobroPedido",
+        "description": "GET /v1/operacion/pedidos/{id}/cobro. Se audita como operacion.pedido_ver (D-81-5)."
+      },
+      "CobrosPendientes": {
+        "properties": {
+          "ventas_sin_respuesta": {
+            "items": {
+              "$ref": "#/components/schemas/VentaPendiente"
+            },
+            "type": "array",
+            "title": "Ventas Sin Respuesta"
+          },
+          "anulaciones_sin_terminar": {
+            "items": {
+              "$ref": "#/components/schemas/AnulacionPendiente"
+            },
+            "type": "array",
+            "title": "Anulaciones Sin Terminar"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ventas_sin_respuesta",
+          "anulaciones_sin_terminar"
+        ],
+        "title": "CobrosPendientes",
+        "description": "GET /v1/operacion/cobros/pendientes: ventas sin respuesta por más de 15 minutos y anulaciones sin terminar."
+      },
+      "ComercioOperacion": {
+        "properties": {
+          "nombre_fantasia": {
+            "type": "string",
+            "title": "Nombre Fantasia"
+          },
+          "ficticio": {
+            "type": "boolean",
+            "title": "Ficticio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nombre_fantasia",
+          "ficticio"
+        ],
+        "title": "ComercioOperacion"
+      },
+      "EventoLineaTiempo": {
+        "properties": {
+          "en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "En"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "estado",
+              "parte",
+              "cobro",
+              "anulacion",
+              "retracto",
+              "incidencia"
+            ],
+            "title": "Tipo"
+          },
+          "actor_tipo": {
+            "type": "string",
+            "enum": [
+              "familia",
+              "comercio",
+              "operacion",
+              "sistema"
+            ],
+            "title": "Actor Tipo"
+          },
+          "comercio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comercio"
+          },
+          "desde": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desde"
+          },
+          "hacia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hacia"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          },
+          "monto": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0,
+                "description": "Pesos enteros, con IVA incluido"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "en",
+          "tipo",
+          "actor_tipo",
+          "comercio",
+          "desde",
+          "hacia",
+          "motivo",
+          "monto"
+        ],
+        "title": "EventoLineaTiempo",
+        "description": "C6: el actor es familia, comercio (con su nombre de fantasía), operacion o sistema. Nunca la cuenta de la\nfamilia. ``tipo``: estado (una transición del pedido), parte, cobro, anulacion, retracto o incidencia."
+      },
+      "IncidenciaVista": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "faltante",
+              "entrega_fallida",
+              "reclamo_familia",
+              "cobro_sin_respuesta",
+              "devolucion_pendiente",
+              "otro"
+            ],
+            "title": "Tipo"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "abierta",
+              "en_gestion",
+              "resuelta"
+            ],
+            "title": "Estado"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion",
+            "description": "La nota, descifrada; null si nota_disponible es false"
+          },
+          "resolucion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolucion"
+          },
+          "nota_disponible": {
+            "type": "boolean",
+            "title": "Nota Disponible",
+            "description": "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "resuelta_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelta En"
+          },
+          "asignada": {
+            "type": "boolean",
+            "title": "Asignada"
+          },
+          "asignada_a_mi": {
+            "type": "boolean",
+            "title": "Asignada A Mi"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "El ETag de la fila, para el If-Match del PATCH sin otro GET"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "pedido_id",
+          "referencia",
+          "tipo",
+          "estado",
+          "descripcion",
+          "resolucion",
+          "nota_disponible",
+          "creada_en",
+          "resuelta_en",
+          "asignada",
+          "asignada_a_mi",
+          "version"
+        ],
+        "title": "IncidenciaVista"
+      },
+      "LineaDetalle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "parte_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parte Id"
+          },
+          "producto": {
+            "type": "string",
+            "title": "Producto"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "precio_unitario": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Precio Unitario",
+            "description": "El precio pagado, con IVA incluido"
+          },
+          "subtotal": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Subtotal",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "estado_linea": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "sin_stock",
+              "preparada",
+              "faltante",
+              "devuelta",
+              "eliminada"
+            ],
+            "title": "Estado Linea"
+          },
+          "unidades_faltantes": {
+            "type": "integer",
+            "title": "Unidades Faltantes"
+          },
+          "monto_devuelto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto Devuelto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "devolucion": {
+            "type": "string",
+            "enum": [
+              "sin_devolucion",
+              "en_curso",
+              "hecha"
+            ],
+            "title": "Devolucion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "parte_id",
+          "producto",
+          "presentacion",
+          "cantidad",
+          "precio_unitario",
+          "subtotal",
+          "estado_linea",
+          "unidades_faltantes",
+          "monto_devuelto",
+          "devolucion"
+        ],
+        "title": "LineaDetalle"
+      },
+      "LineaRetractoOperacion": {
+        "properties": {
+          "linea_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Linea Id"
+          },
+          "producto": {
+            "type": "string",
+            "title": "Producto"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "monto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto",
+            "description": "cantidad × precio pagado, en pesos enteros con IVA"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "linea_id",
+          "producto",
+          "presentacion",
+          "cantidad",
+          "monto"
+        ],
+        "title": "LineaRetractoOperacion"
+      },
+      "ListaIncidencias": {
+        "properties": {
+          "incidencias": {
+            "items": {
+              "$ref": "#/components/schemas/IncidenciaVista"
+            },
+            "type": "array",
+            "title": "Incidencias"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incidencias"
+        ],
+        "title": "ListaIncidencias"
+      },
+      "ListaRetractosOperacion": {
+        "properties": {
+          "retractos": {
+            "items": {
+              "$ref": "#/components/schemas/RetractoOperacion"
+            },
+            "type": "array",
+            "title": "Retractos"
+          },
+          "hay_mas": {
+            "type": "boolean",
+            "title": "Hay Mas",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "retractos"
+        ],
+        "title": "ListaRetractosOperacion"
+      },
+      "LoQuePasoCopia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "faltante",
+              "entrega_fallida",
+              "reclamo_familia",
+              "cobro_sin_respuesta",
+              "devolucion_pendiente",
+              "otro"
+            ],
+            "title": "Tipo"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "abierta",
+              "en_gestion",
+              "resuelta"
+            ],
+            "title": "Estado"
+          },
+          "anotado_en": {
+            "type": "string",
+            "title": "Anotado En"
+          },
+          "resuelto_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelto En"
+          },
+          "nota": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nota"
+          },
+          "resolucion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolucion"
+          },
+          "nota_disponible": {
+            "type": "boolean",
+            "title": "Nota Disponible",
+            "description": "false si la clave de las notas se destruyó con los datos de la persona (borrado criptográfico): la nota y la resolución vienen null y ya no se pueden leer"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "estado",
+          "anotado_en",
+          "resuelto_en",
+          "nota",
+          "resolucion",
+          "nota_disponible"
+        ],
+        "title": "LoQuePasoCopia",
+        "description": "MATU-81 (D-81-4, C15): «Lo que pasó con tu pedido». Lo que el equipo de MATU anotó y cómo se resolvió. Nunca\ndice «incidente» ni «incidencia», ni quién del equipo lo anotó."
+      },
+      "OfertaConsola": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "comercio": {
+            "$ref": "#/components/schemas/ComercioOperacion"
+          },
+          "producto": {
+            "type": "string",
+            "title": "Producto"
+          },
+          "presentacion": {
+            "type": "string",
+            "title": "Presentacion"
+          },
+          "precio": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Precio",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "stock": {
+            "type": "integer",
+            "title": "Stock"
+          },
+          "disponible": {
+            "type": "boolean",
+            "title": "Disponible"
+          },
+          "editable": {
+            "type": "boolean",
+            "title": "Editable",
+            "description": "Solo las ofertas de los comercios ficticios (D-81-7)"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "El ETag de la oferta, para el If-Match del PATCH"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "comercio",
+          "producto",
+          "presentacion",
+          "precio",
+          "stock",
+          "disponible",
+          "editable",
+          "version"
+        ],
+        "title": "OfertaConsola"
+      },
+      "ParteDetalle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "referencia": {
+            "type": "string",
+            "title": "Referencia"
+          },
+          "comercio": {
+            "$ref": "#/components/schemas/ComercioOperacion"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "enviada",
+              "preparando",
+              "lista",
+              "retirada",
+              "cancelada"
+            ],
+            "title": "Estado"
+          },
+          "estado_codigo": {
+            "type": "string",
+            "enum": [
+              "sin_codigo",
+              "vigente",
+              "usado",
+              "bloqueado",
+              "vencido"
+            ],
+            "title": "Estado Codigo"
+          },
+          "codigo_expira_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codigo Expira En"
+          },
+          "enviado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enviado En"
+          },
+          "preparando_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preparando En"
+          },
+          "lista_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lista En"
+          },
+          "retirada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retirada En"
+          },
+          "cancelada_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelada En"
+          },
+          "motivo_cancelacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "producto_faltante",
+                  "familia_cancela"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Cancelacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "referencia",
+          "comercio",
+          "estado",
+          "estado_codigo",
+          "codigo_expira_en",
+          "enviado_en",
+          "preparando_en",
+          "lista_en",
+          "retirada_en",
+          "cancelada_en",
+          "motivo_cancelacion"
+        ],
+        "title": "ParteDetalle"
+      },
+      "PedidoDetalle": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "pagado",
+              "enviado_a_comercio",
+              "preparando",
+              "listo_retiro",
+              "asignado",
+              "sin_repartidor",
+              "retirado",
+              "en_ruta",
+              "entregado",
+              "no_entregado",
+              "reprogramado",
+              "cerrado",
+              "cancelado",
+              "cancelado_con_devolucion"
+            ],
+            "title": "Estado"
+          },
+          "pagado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pagado En"
+          },
+          "entregado_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entregado En"
+          },
+          "subtotal_productos": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Subtotal Productos",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "costo_envio": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Costo Envio",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "total_confirmado": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Confirmado",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "partes": {
+            "items": {
+              "$ref": "#/components/schemas/ParteDetalle"
+            },
+            "type": "array",
+            "title": "Partes"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaDetalle"
+            },
+            "type": "array",
+            "title": "Lineas"
+          },
+          "linea_de_tiempo": {
+            "items": {
+              "$ref": "#/components/schemas/EventoLineaTiempo"
+            },
+            "type": "array",
+            "title": "Linea De Tiempo"
+          },
+          "acciones": {
+            "items": {
+              "$ref": "#/components/schemas/AccionDisponible"
+            },
+            "type": "array",
+            "title": "Acciones"
+          },
+          "retracto_plazo_hasta": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retracto Plazo Hasta",
+            "description": "Hasta cuándo se registra un retracto por correo (90 días desde la entrega)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "referencia",
+          "estado",
+          "pagado_en",
+          "entregado_en",
+          "subtotal_productos",
+          "costo_envio",
+          "total_confirmado",
+          "partes",
+          "lineas",
+          "linea_de_tiempo",
+          "acciones",
+          "retracto_plazo_hasta"
+        ],
+        "title": "PedidoDetalle",
+        "description": "GET /v1/operacion/pedidos/{id}. Se audita como operacion.pedido_ver (D-81-5)."
+      },
+      "RetractoOperacion": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "solicitado",
+              "devuelto",
+              "rechazado"
+            ],
+            "title": "Estado"
+          },
+          "solicitado_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Solicitado En"
+          },
+          "plazo_hasta": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Plazo Hasta"
+          },
+          "incluye_envio": {
+            "type": "boolean",
+            "title": "Incluye Envio"
+          },
+          "monto": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Monto",
+            "description": "Los productos a precio pagado, más el envío si lo incluye"
+          },
+          "origen": {
+            "type": "string",
+            "enum": [
+              "app",
+              "correo"
+            ],
+            "title": "Origen",
+            "description": "correo: lo pidió la familia por correo y lo registró operación"
+          },
+          "resuelto_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resuelto En",
+            "description": "Cuándo se devolvió o no se aceptó; null si sigue"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "lineas": {
+            "items": {
+              "$ref": "#/components/schemas/LineaRetractoOperacion"
+            },
+            "type": "array",
+            "title": "Lineas"
+          },
+          "motivo_rechazo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sello_abierto",
+                  "producto_no_recibido"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo Rechazo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "pedido_id",
+          "estado",
+          "solicitado_en",
+          "plazo_hasta",
+          "incluye_envio",
+          "monto",
+          "origen",
+          "resuelto_en",
+          "referencia",
+          "lineas",
+          "motivo_rechazo"
+        ],
+        "title": "RetractoOperacion",
+        "description": "MATU-81 (C23, P6): el retracto en la consola, con la referencia del pedido, sus productos (como texto, no las\n``LineaDelRetracto`` de la familia) y, si se rechazó, el motivo."
+      },
+      "SolicitudBuscarPedido": {
+        "properties": {
+          "referencia": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Referencia",
+            "description": "La del pedido o la de una parte"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "referencia"
+        ],
+        "title": "SolicitudBuscarPedido",
+        "description": "C7: la referencia va solo en el cuerpo, nunca en la URL, los logs, los errores ni la auditoría."
+      },
+      "SolicitudEditarIncidencia": {
+        "properties": {
+          "estado": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "abierta",
+                  "en_gestion",
+                  "resuelta"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estado"
+          },
+          "resolucion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolucion",
+            "description": "Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota"
+          },
+          "asignacion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "a_mi",
+                  "sin_asignar"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asignacion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudEditarIncidencia",
+        "description": "Solo cambian el estado, a quién está asignada y la resolución (C13). «resuelta» exige ``resolucion``."
+      },
+      "SolicitudIncidencia": {
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "faltante",
+              "entrega_fallida",
+              "reclamo_familia",
+              "cobro_sin_respuesta",
+              "devolucion_pendiente",
+              "otro"
+            ],
+            "title": "Tipo"
+          },
+          "descripcion": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Descripcion",
+            "description": "Hasta 500 caracteres. No escribas nombres, datos de salud ni la dirección. La familia puede leer esta nota"
+          },
+          "asignarme": {
+            "type": "boolean",
+            "title": "Asignarme",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tipo",
+          "descripcion"
+        ],
+        "title": "SolicitudIncidencia"
+      },
+      "SolicitudMfa": {
+        "properties": {
+          "desafio": {
+            "type": "string",
+            "maxLength": 43,
+            "minLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "title": "Desafio"
+          },
+          "codigo": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "title": "Codigo",
+            "description": "Las 6 cifras de la app del teléfono"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "desafio",
+          "codigo"
+        ],
+        "title": "SolicitudMfa",
+        "description": "Cuerpo de POST /v1/sesiones/mfa (MATU-81, C29): el desafío que entregó POST /v1/sesiones y las 6 cifras del\nteléfono. Ninguno se registra."
+      },
+      "SolicitudOferta": {
+        "properties": {
+          "precio": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999999.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precio",
+            "description": "Pesos enteros con IVA incluido"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9999.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock"
+          },
+          "disponible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disponible"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SolicitudOferta"
+      },
+      "VentaPendiente": {
+        "properties": {
+          "pedido_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Pedido Id"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "buy_order": {
+            "type": "string",
+            "title": "Buy Order"
+          },
+          "monto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pedido_id",
+          "referencia",
+          "buy_order",
+          "monto",
+          "creada_en"
+        ],
+        "title": "VentaPendiente"
+      },
+      "VentaVista": {
+        "properties": {
+          "buy_order": {
+            "type": "string",
+            "title": "Buy Order"
+          },
+          "monto": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Monto",
+            "description": "Pesos enteros, con IVA incluido"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "iniciada",
+              "autorizando",
+              "aprobada",
+              "rechazada",
+              "error"
+            ],
+            "title": "Estado"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "respondida_en": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Respondida En"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "buy_order",
+          "monto",
+          "estado",
+          "creada_en",
+          "respondida_en"
+        ],
+        "title": "VentaVista",
+        "description": "D-81-8: buy_order sí (para buscar en el portal de Transbank); nunca va en la URL ni en los logs."
       }
     },
     "securitySchemes": {

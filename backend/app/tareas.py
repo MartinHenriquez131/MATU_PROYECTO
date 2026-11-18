@@ -33,6 +33,10 @@ Tareas:
   lista desde la consola hasta la pantalla de MATU-81 (MATU-63, D-63-5). Usa SCHEDULER_DATABASE_URL y
   CODIGO_RETIRO_SECRETO, audita codigo_retiro.generar y escribe el código una sola vez en la salida estándar, nunca en
   el log.
+- operacion-alta: no es una tarea programada. Da de alta una cuenta de operación con su segundo factor (MATU-81,
+  C28), interactiva: pide el correo, muestra la URI otpauth una sola vez en la salida estándar y pide el primer código
+  antes de guardar. Usa SCHEDULER_DATABASE_URL, PEPPER_EMAIL y la KEK (CUSTODIA_KEK y KEK_ENTORNO). El correo, el
+  secreto y la URI nunca van al log.
 - borrados: las seis de borrado (destruccion_fichas, conservacion_consumo, conservacion_sesiones,
   conservacion_pedidos, conservacion_invitaciones y conservacion_relevo).
 - todas_diarias: los borrados y después los quiebres, en ese orden.
@@ -80,6 +84,7 @@ from app.modules.care_circle.infrastructure import tarea_conservacion_invitacion
 from app.modules.care_plan.infrastructure import tarea_conservacion_relevo, tarea_destruccion
 from app.modules.consumption.infrastructure import tarea_conservacion as tarea_conservacion_consumo
 from app.modules.consumption.infrastructure import tarea_quiebres
+from app.modules.iam.infrastructure import tarea_alta_operacion
 from app.modules.iam.infrastructure import tarea_conservacion as tarea_conservacion_sesiones
 from app.modules.notifications.infrastructure import tarea_avisos
 from app.shared.puertos import Reloj
@@ -350,6 +355,7 @@ def _uso(stream: TextIO) -> None:
     opciones = ", ".join([*TAREAS, *GRUPOS])
     print(f"uso: python -m app.tareas <tarea>, con <tarea> una de: {opciones}", file=stream)
     print(f"     python -m app.tareas {CODIGO_RETIRO} <parte_id>", file=stream)
+    print(f"     python -m app.tareas {OPERACION_ALTA}", file=stream)
 
 
 # MATU-63 (D-63-5): el código de retiro desde la consola, hasta MATU-81. Se importa al correr (es de la capa 3)
@@ -395,8 +401,44 @@ def codigo_retiro(
     return SALIDA_OK
 
 
+# MATU-81 (C28): el alta de una cuenta de operación, interactiva
+OPERACION_ALTA = "operacion-alta"
+
+
+def operacion_alta(
+    *, stream: TextIO | None = None, consola: TextIO | None = None, preguntar: Callable[[str], str] | None = None,
+    reloj: Reloj | None = None, config: Configuracion | None = None,
+) -> int:
+    """La URI otpauth va una sola vez a ``consola`` (la salida estándar), nunca al log. La línea del log lleva el
+    resultado y, si falla, el motivo, la variable que falta o el tipo del error."""
+    tarea = tarea_alta_operacion
+    config = config or obtener_configuracion()
+    configurar_logs(config.log_nivel, stream)
+    extra: dict[str, object] = {"tarea": "operacion_alta", "corrida": str(uuid.uuid4())}
+    fabrica = fabrica_de_rol(config.scheduler_database_url, ROL_SCHEDULER)
+    if fabrica is None:
+        log.error("tarea", extra={**extra, "resultado": FALLO, "falta": VARIABLE_DE[ROL_SCHEDULER]})
+        return SALIDA_FALLO
+    try:
+        tarea.dar_alta(config, fabrica, reloj or RelojSistema(), preguntar or input, consola or sys.stdout)
+    except tarea.FaltaConfiguracion as error:
+        log.error("tarea", extra={**extra, "resultado": FALLO, "falta": error.variable})
+        return SALIDA_FALLO
+    except tarea.AltaRechazada:
+        # El motivo lo dice la consola a quien corre el alta; el log, solo el tipo (CAMPOS_PERMITIDOS)
+        log.error("tarea", extra={**extra, "resultado": FALLO, "tipo_error": "AltaRechazada"})
+        return SALIDA_FALLO
+    except Exception as error:  # noqa: BLE001 - de una excepción, solo su tipo (R1)
+        log.error("tarea", extra={**extra, "resultado": FALLO, "tipo_error": type(error).__name__})
+        return SALIDA_FALLO
+    log.info("tarea", extra={**extra, "resultado": OK})
+    return SALIDA_OK
+
+
 def main(argv: Sequence[str] | None = None, *, stream: TextIO | None = None) -> int:
     argumentos = list(sys.argv[1:] if argv is None else argv)
+    if argumentos == [OPERACION_ALTA]:
+        return operacion_alta(stream=stream)
     if len(argumentos) == 2 and argumentos[0] == CODIGO_RETIRO:
         return codigo_retiro(argumentos[1], stream=stream)
     nombres = nombres_de(argumentos[0]) if len(argumentos) == 1 else None

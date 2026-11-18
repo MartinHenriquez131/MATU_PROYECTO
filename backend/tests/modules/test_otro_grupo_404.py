@@ -133,8 +133,8 @@ COMERCIO = (
     " test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia)"
 )
 OPERACION = (
-    "consola de operación (MATU-63, D-63-5): la cuenta con usuario.es_operacion ve los pedidos de todos los grupos por"
-    " diseño y no manda X-Grupo-Id. La familia recibe 404 en tests/modules/backoffice/test_despacho_api.py"
+    "consola de operación (MATU-63 y MATU-81, D-63-5): la cuenta con usuario.es_operacion ve los pedidos de todos los"
+    " grupos por diseño y no manda X-Grupo-Id. La familia recibe 404 en tests/modules/backoffice/test_despacho_api.py"
     " (test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia)"
 )
 
@@ -157,6 +157,19 @@ EXCEPCIONES: dict[tuple[str, str], str] = {
     ("POST", "/v1/operacion/pedidos/{pedido_id}/cancelar-con-devolucion"): OPERACION,
     ("POST", "/v1/operacion/pedidos/{pedido_id}/retractos"): OPERACION,
     ("POST", "/v1/operacion/retractos/{retracto_id}/resolver"): OPERACION,
+    # La consola de operación de MATU-81: la misma cuenta de operación, ahora con el segundo factor (C30)
+    ("GET", "/v1/operacion/pedidos/{pedido_id}"): OPERACION,
+    ("GET", "/v1/operacion/pedidos/{pedido_id}/cobro"): OPERACION,
+    ("POST", "/v1/operacion/pedidos/{pedido_id}/incidencias"): OPERACION,
+    ("GET", "/v1/operacion/incidencias/{incidencia_id}"): OPERACION,
+    ("PATCH", "/v1/operacion/incidencias/{incidencia_id}"): OPERACION,
+    ("GET", "/v1/operacion/retractos/{retracto_id}"): OPERACION,
+    ("PATCH", "/v1/operacion/ofertas/{oferta_id}"): (
+        "catálogo de los comercios ficticios en la consola de operación (MATU-81, D-81-7): la oferta es de un comercio,"
+        " no de un grupo, y solo la edita la cuenta de operación con el segundo factor. La familia recibe 404 en"
+        " tests/modules/backoffice/test_despacho_api.py"
+        " (test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia)"
+    ),
 }
 
 # Las rutas que solo existen para un pedido pagado: se piden con el pedido pagado de A, no con el carrito
@@ -386,6 +399,19 @@ def _sembrar_a(e: EntornoPedido, pasarela: PasarelaFalsa) -> FamiliaSembrada:
         cx.execute("SET LOCAL session_replication_role = replica")
         cx.execute("UPDATE pedido SET estado = 'entregado', entregado_en = %s WHERE id = %s",
                    (e.iam.reloj.ahora(), primero.json()["id"]))
+    # Una incidencia de operación sobre el pedido pagado (MATU-81), creada por la consola con el segundo factor: así la
+    # huella de A también mira incidencia y clave_notas con filas, y la copia de los datos de A la descifra
+    operador = e.fabrica.usuario()
+    secreto = e.iam.dar_alta_operacion(operador.id)
+    assert operador.contrasena is not None
+    entrada = e.iam.entrar_operacion(operador.email, operador.contrasena, operador.id, secreto)
+    assert entrada.status_code == 200, entrada.text
+    incidencia = e.iam.cliente.post(
+        f"/v1/operacion/pedidos/{primero.json()['id']}/incidencias",
+        json={"tipo": "faltante", "descripcion": "Nota sintética"},
+        headers={"Authorization": f"Bearer {entrada.json()['access_token']}"},
+    )
+    assert incidencia.status_code == 201, incidencia.text
     # El carrito, sin pagar: hay uno solo por persona, y el pagado ya no cuenta
     creado = e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}])
     assert creado.status_code == 201, creado.text
@@ -514,7 +540,8 @@ def test_desde_otro_grupo_toda_ruta_de_un_recurso_de_grupo_responde_404(
     nombres_de_a = (entorno.a.familia.grupo.nombre, entorno.a.familia.persona.nombre)
     antes = huella_de_a(entorno.a.familia.grupo.id)
     vacia = huella_de_a(uuid.uuid4())
-    assert antes["persona_cuidada"] != vacia["persona_cuidada"] and antes["pedido"] != vacia["pedido"]  # mira filas
+    # La huella mira filas, también las de las tablas de MATU-81
+    assert all(antes[t] != vacia[t] for t in ("persona_cuidada", "pedido", "incidencia", "clave_notas"))
     distintas: dict[str, str] = {}
     for metodo, plantilla in sorted(RECURSO_DE_GRUPO, key=lambda r: (r[0] not in METODOS_DE_LECTURA, r)):
         respuesta = entorno.pedir(metodo, plantilla, b.admin, grupo)

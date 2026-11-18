@@ -111,9 +111,17 @@ export const PEDIDO = {
   irALista: 'Ir a la lista de insumos',
   vacioLector: (pila: string) => `Todavía no hay un pedido para ${pila}.`,
 
-  // 7.2: pagador y observador
+  // 7.2: el pagador (quien «Se informa» tiene los suyos, abajo)
   quienPuede: (pila: string) => `Quien administra el grupo o quien cuida a ${pila} puede cambiar el pedido y ver el total.`,
   verResumen: 'Ver el resumen',
+
+  // MATU-113 (especificación 2.4 a 2.6): quien «Se informa» ve el pedido sin montos. [NUEVO], aprobados por Jorge el 17-11
+  bajadaSeInforma: (pila: string) => `Lo que se va a pedir para ${pila}.`,
+  estadoSinConfirmar: 'Sin confirmar',
+  estadoFaltaPagar: 'Falta pagarlo',
+  estadoConfirmarDeNuevo: 'Hay que confirmarlo de nuevo',
+  siFaltaQuitarSeInforma: 'Si falta: lo sacamos del pedido.',
+  quienVePrecios: (pila: string) => `Los precios y el total los ven quien administra el grupo, quien cuida a ${pila} y quien paga.`,
   vencidoPagador: 'Pasaron 15 minutos y el total venció. Pídele a quien armó el pedido que lo vuelva a confirmar.',
 
   // 7.3: al llegar

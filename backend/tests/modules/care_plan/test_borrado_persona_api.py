@@ -38,7 +38,7 @@ from tests.modules.care_plan.test_abrir_relevo_api import (
     _una,
 )
 from tests.modules.care_plan.test_retiro_autorizacion_api import _fabrica
-from tests.textos import aparece_celular
+from tests.textos import aparece_celular, aparece_como_dato
 
 entorno = abrir.entorno
 reloj_fijo = abrir.reloj_fijo
@@ -472,9 +472,11 @@ def test_los_logs_no_llevan_nada_de_la_persona(entorno: EntornoAbrir) -> None:
     assert _borrar(entorno, familia).status_code == 200
     _borrar(entorno, familia)
     log = entorno.ficha.iam.texto_log()
-    for dato in (familia.persona.nombre, familia.persona.nombre_pila, str(familia.persona.id), "Rosa", token, pin,
+    for dato in (familia.persona.nombre, familia.persona.nombre_pila, str(familia.persona.id), "Rosa", token,
                  RUTINA, PREFERENCIAS, "Pañal"):
         assert dato not in log
+    # El PIN tiene 4 cifras: como subcadena caía por azar dentro de un UUID del log
+    assert not aparece_como_dato(pin, log)
     assert not aparece_celular("+56 9 5555 0137", log)
     peticiones = [linea for linea in entorno.ficha.iam.lineas_log() if linea.get("ruta") == BORRADO.format(
         "{persona_id}")]

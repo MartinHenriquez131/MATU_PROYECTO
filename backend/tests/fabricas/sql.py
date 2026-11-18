@@ -110,6 +110,8 @@ BORRAR_CONTENIDO_DE_GRUPOS = (
     # MATU-63: lo que MATU debe al comercio por esos pedidos (RF-31)
     "DELETE FROM consumo_comercio WHERE pedido_id IN (SELECT id FROM pedido WHERE grupo_id = ANY(%s::uuid[]))",
     "DELETE FROM pedido WHERE grupo_id = ANY(%s::uuid[])",
+    # MATU-81 (decisión 471): las claves de las notas de operación; sus incidencias cayeron con el pedido
+    "DELETE FROM clave_notas WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM consentimiento WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM persona_cuidada WHERE grupo_id = ANY(%s::uuid[])",
     "DELETE FROM direccion WHERE grupo_id = ANY(%s::uuid[])",

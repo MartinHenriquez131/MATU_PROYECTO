@@ -6,7 +6,10 @@ Contrato: docs/api/propuestos/mis-datos.openapi.yaml; decisiones 342 a 357 y 366
   borrados: 404, nunca 403. No exige una autorización vigente (C3).
 - Orden: 401, 404, 503 (límite), 429 ``tope-copias``, el registro de ``persona.datos_descargar`` y la copia, en una sola
   transacción REPEATABLE READ (C8, decisión 348). Si el registro falla, no se entrega nada. 503 si la ficha vigente no
-  se puede descifrar porque falta la custodia o no desenvuelve la clave.
+  se puede descifrar porque falta la custodia o no desenvuelve la clave, y también (MATU-81, decisión de Jorge del
+  17-11) si hay notas de operación con su clave vigente y falta la KEK de las notas o no la desenvuelve: la copia
+  nunca muestra como no disponible una nota que existe. ``nota_disponible: false`` queda solo para la clave destruida
+  con el borrado de la persona.
 - Un solo GET para la pantalla y para el archivo (decisiones 343 y 366): ``Content-Disposition: inline`` con
   ``matu-datos-AAAA-MM-DD.json``. ``Cache-Control: no-store``, también en los errores (middleware de
   /v1/personas-cuidadas/).
@@ -46,6 +49,7 @@ from app.shared.copia_datos import (
     content_disposition,
     en_chile,
 )
+from app.shared.notas_operacion import CustodiaNotas, NotasNoDisponibles, obtener_custodia_notas
 from app.shared.puertos import Reloj
 
 log = logging.getLogger("matu.care_plan.copia")
@@ -86,7 +90,11 @@ def _uuid_o_404(valor: str) -> uuid.UUID:
         401: {"description": "no-autenticado o token-invalido", **_PROBLEMA},
         404: {"description": "Sin grupo, rol pagador u observador, o persona de otro grupo o borrada", **_PROBLEMA},
         429: {"description": "tope-copias: 10 copias por hora por cuenta, con Retry-After", **_PROBLEMA},
-        503: {"description": "Sin Redis o PEPPER_LIMITES, o la ficha vigente no se puede abrir", **_PROBLEMA},
+        503: {
+            "description": "Sin Redis o PEPPER_LIMITES, la ficha vigente no se puede abrir, o hay notas de operación"
+            " con su clave vigente y falta la KEK de las notas",
+            **_PROBLEMA,
+        },
     },
 )
 def ver_datos_persona(
@@ -98,6 +106,7 @@ def ver_datos_persona(
     custodia: Annotated[CustodiaClaves | None, Depends(obtener_custodia)],
     pepper: Annotated[bytes | None, Depends(obtener_pepper_limites)],
     contador: Annotated[ContadorVentana, Depends(obtener_contador_ventana)],
+    custodia_notas: Annotated[CustodiaNotas | None, Depends(obtener_custodia_notas)],
 ) -> Any:
     respuesta.headers["Cache-Control"] = "no-store"
     if contexto.rol not in ROLES_QUE_PIDEN:
@@ -123,7 +132,7 @@ def ver_datos_persona(
             persona_cuidada_id=persona_uuid,
         )
     )
-    cuerpo = _armar(contexto, persona_uuid, persona, reloj, custodia, ahora, registro)
+    cuerpo = _armar(contexto, persona_uuid, persona, reloj, custodia, ahora, registro, custodia_notas)
     respuesta.headers["Content-Disposition"] = content_disposition(ARCHIVO_PERSONA, ahora)
     return cuerpo
 
@@ -136,6 +145,7 @@ def _armar(
     custodia: CustodiaClaves | None,
     ahora: Any,
     registro: RegistroAuditoriaSql,
+    custodia_notas: CustodiaNotas | None = None,
 ) -> CopiaDatosPersona:
     retiros = RepositorioRetirosSQL(contexto.sesion, contexto.grupo_id, registro)
     estados = {
@@ -151,6 +161,7 @@ def _armar(
         ahora=ahora,
         estado_ficha=estados[FINALIDAD_PLAN_CUIDADO],
         estado_insumos=estados[FINALIDAD_CONSUMO],
+        custodia_notas=custodia_notas,
     )
     cifrador = None if custodia is None else CifradorAesGcm(custodia, RepositorioClavesSQL(contexto.sesion))
     try:
@@ -167,6 +178,12 @@ def _armar(
     insumos = copia.bloque(copia.BLOQUE_INSUMOS)
     assert insumos is not None
     pedidos = copia.bloque(copia.BLOQUE_PEDIDOS)
+    try:
+        bloque_pedidos = None if pedidos is None else pedidos(ctx)
+    except NotasNoDisponibles:
+        # Falla cerrada, como la consola: una nota con su clave vigente no sale como si se hubiera borrado
+        log.error("las notas de operación no se pueden abrir: la copia falla cerrada")
+        raise ErrorMATU(503, detalle=_DETALLE_503) from None
     return CopiaDatosPersona.model_validate(
         {
             "formato": FORMATO,
@@ -178,7 +195,7 @@ def _armar(
             "ficha": bloque_ficha,
             "enlaces_relevo": enlaces_relevo(ctx, ahora),
             "insumos": insumos(ctx),
-            "pedidos": None if pedidos is None else pedidos(ctx),
+            "pedidos": bloque_pedidos,
             "historial": copia.historial(ctx),
         }
     )

@@ -237,6 +237,29 @@ export const MIS_DATOS = {
     cancelado: 'Cancelado',
     cancelado_con_devolucion: 'Cancelado',
   } as Record<EstadoPedidoCopia, string>, // [NUEVO] salvo «Pagado»
+  /**
+   * MATU-81 (D-81-4, decisión 461): lo que el equipo de MATU anotó de un pedido y cómo se resolvió.
+   * El título es [A81]; lo demás, [FRONTEND]. Nunca dice «incidente» ni «incidencia», ni quién del
+   * equipo lo anotó.
+   */
+  loQuePaso: {
+    titulo: 'Lo que pasó con tu pedido', // [A81]
+    tipo: {
+      faltante: 'Faltó un producto',
+      entrega_fallida: 'No se pudo entregar',
+      reclamo_familia: 'Un reclamo de la familia',
+      cobro_sin_respuesta: 'Un pago que no se confirmó',
+      devolucion_pendiente: 'Una devolución pendiente',
+      otro: 'Otra cosa',
+    } as Record<string, string>,
+    revisando: 'MATU lo está revisando',
+    resuelto: 'Resuelto',
+    anotado: ['Lo anotamos el ', '.'] as Partes,
+    resueltoEl: ['Se resolvió el ', '.'] as Partes,
+    comoSeResolvio: 'Cómo se resolvió:',
+    /** Decisión 471: la clave de las notas se destruyó con los datos de la persona. Texto aprobado por Jorge el 17-11. */
+    notaNoDisponible: 'La nota ya no está disponible: se borró con los datos de la persona.',
+  },
   /** «Se devolvieron {monto} porque…» o, en curso, «Se están devolviendo…» [NUEVO] */
   devolucion: (d: DevolucionCopia) => {
     const verbo = d.estado === 'en_curso' ? 'Se están devolviendo ' : 'Se devolvieron '
@@ -307,6 +330,11 @@ export const MIS_DATOS = {
   si: 'Sí', // [NUEVO]
   no: 'No', // [NUEVO]
   cambiarAvisos: 'Puedes cambiarlos en Tu cuenta.', // [NUEVO]
+  // MATU-76 (especificación 4.1 y 4.2)
+  avisosInsumo: 'Cuando un insumo se está acabando', // [NUEVO], del título de L 20
+  avisosPedido: 'De tus pedidos', // [NUEVO]
+  dineroIgual: 'El correo sobre tu dinero te llega igual.', // [NUEVO], solo con «Por correo» de pedidos en No
+  tipoAviso: { insumo: 'Aviso de insumo', pedido: 'Aviso de pedido' } as Record<AvisoEnviadoCopia['tipo'], string>, // [NUEVO]
   pilotoAvisos: 'En el piloto los avisos se prueban sin enviarse: aparecen aquí, pero no te llegaron.', // [ANALISTA]
   sinAvisosEnviados: 'No hay avisos en los últimos 90 días.', // [NUEVO]
   canalAviso: { correo: 'Por correo', push: 'En tus teléfonos', sms: 'Por SMS' } as Record<AvisoEnviadoCopia['canal'], string>, // [L 20], [MATU-55], [NUEVO]
@@ -384,6 +412,8 @@ export const FRASE_HECHO: Record<TipoHecho, (o: ObjetoHecho) => string> = {
   pedido_entregado: () => 'MATU entregó un pedido',
   pedido_no_entregado: () => 'MATU no pudo entregar un pedido',
   retracto_resuelto: () => 'MATU respondió un retracto',
+  // MATU-81 (D-81-5, decisión 461): abrir el pedido en la consola de operación. [A81] con referencia; sin ella, [FRONTEND].
+  matu_reviso_el_pedido: () => 'El equipo de MATU revisó un pedido',
 }
 
 /** (1.2, F1) Con `referencia`: la frase sin el número, que la pantalla agrega en `cifras`. [NUEVO] */
@@ -403,4 +433,6 @@ export const FRASE_CON_REFERENCIA: Partial<Record<TipoHecho, string>> = {
   pedido_entregado: 'MATU entregó el pedido ',
   pedido_no_entregado: 'MATU no pudo entregar el pedido ',
   retracto_resuelto: 'MATU respondió el retracto del pedido ',
+  // MATU-81 (D-81-5): «El equipo de MATU revisó el pedido {referencia}». [A81]
+  matu_reviso_el_pedido: 'El equipo de MATU revisó el pedido ',
 }

@@ -7,8 +7,9 @@ queda con despacho (C2). El stock de cada comercio lo da un CatalogoComercioSimu
 fija, sin red. El catálogo se siembra con catalogo_sintetico de MATU-59 y se borra después de los pedidos.
 """
 
+import re
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
@@ -182,3 +183,65 @@ def entorno_pedido(
         yield EntornoPedido(iam=entorno_iam, fabrica=fabrica, catalogo=catalogo_sintetico, existencias=existencias)
     finally:
         fabrica.limpiar()
+
+
+# MATU-113 (decisión 472): ningún monto llega al observador, a ninguna profundidad
+MONTOS_PARA_EL_OBSERVADOR = frozenset(
+    {"precio_unitario", "subtotal", "subtotal_productos", "costo_envio", "total", "precio_antes", "monto",
+     "devolucion", "devuelto", "precio_pagado", "oferta_id"}
+)
+
+
+def claves_a_cualquier_profundidad(valor: Any) -> set[str]:
+    """Todas las claves de los objetos del JSON, también de los anidados en listas."""
+    if isinstance(valor, dict):
+        return set(valor) | {c for v in valor.values() for c in claves_a_cualquier_profundidad(v)}
+    if isinstance(valor, list):
+        return {c for v in valor for c in claves_a_cualquier_profundidad(v)}
+    return set()
+
+
+# MATU-113: buscar las cifras como subcadena de la respuesta fallaba al azar (≈1 de cada 400): «9990» cae dentro de un
+# UUID, del sufijo del catálogo sintético («Producto panal 199901») o de los microsegundos de actualizado_en.
+# Los UUID y los instantes ISO 8601 (con fecha y hora) se sacan del texto antes de buscar: también dentro de un texto
+# más largo, como «/pedidos/e372bab4-9990-…» o «2026-11-18T07:58:43.912990Z total $9.990».
+# La hora, los segundos y el desfase solo con valores válidos: si no, un monto pegado a la hora
+# («2026-11-18T12:00-9990», «…12:00:00+9990») se perdería como si fuera parte del instante.
+_UUID_O_INSTANTE = re.compile(
+    r"(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])"
+    r"|(?<!\d)\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:[.,]\d+)?)?"
+    r"(?:Z|[+-](?:[01]\d|2[0-3])(?::?[0-5]\d)?)?(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def _cifra_suelta(cifra: int) -> re.Pattern[str]:
+    """La cifra como número completo: 12990, 12.990 o $12.990, sin dígitos ni un punto con dígitos a los lados.
+
+    Una parte decimal de solo ceros sí cuenta («9990.0», «$9.990,00»), y también un punto final de frase («cuesta
+    $9.990.»). Un número más largo («199901») o con decimales que no son cero («12990.5») no cuenta.
+    """
+    con_puntos = f"{cifra:,}".replace(",", ".")
+    return re.compile(rf"(?<![\d.])(?:{re.escape(con_puntos)}|{cifra})(?:[.,]0+)?(?!\d|[.,]\d)")
+
+
+def cifras_a_la_vista(valor: Any, cifras: Iterable[int]) -> set[int]:
+    """Las cifras que el JSON muestra como dato, con cualquier clave y a cualquier profundidad.
+
+    Cuenta un número igual a la cifra, también negativo (una devolución, -25980), o la cifra como número suelto dentro
+    de un texto. No cuenta lo que está dentro de un UUID o de un instante, ni la cifra dentro de un número más largo.
+    Los booleanos y null no cuentan. Las claves no se revisan aquí: eso lo hace MONTOS_PARA_EL_OBSERVADOR.
+    """
+    cifras = tuple(cifras)
+    if isinstance(valor, dict):
+        return {c for v in valor.values() for c in cifras_a_la_vista(v, cifras)}
+    if isinstance(valor, list):
+        return {c for v in valor for c in cifras_a_la_vista(v, cifras)}
+    if isinstance(valor, bool) or valor is None:
+        return set()
+    if isinstance(valor, int | float):
+        return {c for c in cifras if abs(valor) == c}
+    if isinstance(valor, str):
+        texto = _UUID_O_INSTANTE.sub(" ", valor)
+        return {c for c in cifras if _cifra_suelta(c).search(texto)}
+    return set()

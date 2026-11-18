@@ -191,17 +191,13 @@ function Copia({ datos }: { datos: CopiaDatosCuenta }) {
       <Bloque id="ultimos-ingresos" titulo={B.eventos}>
         <UltimosIngresos eventos={datos.eventos} generadoEn={datos.generado_en} />
       </Bloque>
+      {/* MATU-76 (4.1): las dos preferencias, cada una con su h3. La del pedido con «Por correo» en No suma la frase del dinero (D-76-3). */}
       <Bloque id="tus-avisos" titulo={B.avisos}>
-        <dl className={SUPERFICIE}>
-          <div className="flex flex-col gap-0.5 py-4">
-            <dt className="text-base text-tenue">{T.porCorreo}</dt>
-            <dd className="font-bold">{datos.preferencia_avisos.correo ? T.si : T.no}</dd>
-          </div>
-          <div className="flex flex-col gap-0.5 py-4">
-            <dt className="text-base text-tenue">{T.enTusTelefonos}</dt>
-            <dd className="font-bold">{datos.preferencia_avisos.push ? T.si : T.no}</dd>
-          </div>
-        </dl>
+        <h3 className="text-lg font-bold break-words">{T.avisosInsumo}</h3>
+        <Canales correo={datos.preferencia_avisos.correo} push={datos.preferencia_avisos.push} />
+        <h3 className="text-lg font-bold break-words">{T.avisosPedido}</h3>
+        <Canales correo={datos.preferencia_avisos.pedido.correo} push={datos.preferencia_avisos.pedido.push} />
+        {!datos.preferencia_avisos.pedido.correo && <p className="max-w-prose text-base text-tenue">{T.dineroIgual}</p>}
         <p className="max-w-prose text-base text-tenue">{T.cambiarAvisos}</p>
       </Bloque>
       <Bloque id="avisos-enviados" titulo={B.avisosEnviados}>
@@ -346,6 +342,23 @@ function UltimosIngresos({ eventos, generadoEn }: { eventos: EventoCuentaCopia[]
   )
 }
 
+// ---------------------------------------------------------------- 5.4 Tus avisos (MATU-76, 4.1)
+
+function Canales({ correo, push }: { correo: boolean; push: boolean }) {
+  return (
+    <dl className={SUPERFICIE}>
+      <div className="flex flex-col gap-0.5 py-4">
+        <dt className="text-base text-tenue">{T.porCorreo}</dt>
+        <dd className="font-bold">{correo ? T.si : T.no}</dd>
+      </div>
+      <div className="flex flex-col gap-0.5 py-4">
+        <dt className="text-base text-tenue">{T.enTusTelefonos}</dt>
+        <dd className="font-bold">{push ? T.si : T.no}</dd>
+      </div>
+    </dl>
+  )
+}
+
 // ---------------------------------------------------------------- 5.4 Avisos que te enviamos
 
 const ICONO_RESULTADO: Record<AvisoEnviadoCopia['resultado'], LucideIcon> = {
@@ -377,6 +390,8 @@ function AvisosEnviados({ avisos, simulado, generadoEn }: { avisos: AvisoEnviado
                 <Icono aria-hidden className="mt-0.5 size-5 shrink-0 text-tenue" />
                 <span className="min-w-0 text-base tabular-nums break-words">
                   <FechaHora iso={a.enviado_en ?? a.creado_en} />
+                  {/* MATU-76 (4.2): el tipo, antes del canal. Un tipo desconocido se omite, como un canal desconocido. */}
+                  {Object.hasOwn(T.tipoAviso, a.tipo) && <Cola>{T.tipoAviso[a.tipo]}</Cola>}
                   <Cola>{T.canalAviso[a.canal] ?? ''}</Cola>
                   <Cola>{T.resultadoAviso[a.resultado]}</Cola>
                 </span>
