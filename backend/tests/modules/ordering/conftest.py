@@ -11,7 +11,7 @@ import re
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -203,39 +203,31 @@ def claves_a_cualquier_profundidad(valor: Any) -> set[str]:
 
 # MATU-113: buscar las cifras como subcadena de la respuesta fallaba al azar (≈1 de cada 400): «9990» cae dentro de un
 # UUID, del sufijo del catálogo sintético («Producto panal 199901») o de los microsegundos de actualizado_en.
-_FORMA_DE_INSTANTE = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
-
-
-def _es_uuid_o_instante(texto: str) -> bool:
-    """True si el texto entero es un UUID o un instante ISO 8601 con fecha y hora (no un número suelto como «2026»)."""
-    try:
-        uuid.UUID(texto)
-        return True
-    except ValueError:
-        pass
-    if len(texto) < 16 or not _FORMA_DE_INSTANTE.match(texto):
-        return False
-    try:
-        datetime.fromisoformat(texto)
-    except ValueError:
-        return False
-    return True
+# Los UUID y los instantes ISO 8601 (con fecha y hora) se sacan del texto antes de buscar: también dentro de un texto
+# más largo, como «/pedidos/e372bab4-9990-…» o «2026-11-18T07:58:43.912990Z total $9.990».
+_UUID_O_INSTANTE = re.compile(
+    r"(?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f])"
+    r"|(?<!\d)\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?(?!\d)",
+    re.IGNORECASE,
+)
 
 
 def _cifra_suelta(cifra: int) -> re.Pattern[str]:
     """La cifra como número completo: 12990, 12.990 o $12.990, sin dígitos ni un punto con dígitos a los lados.
 
-    Un punto final de frase sí cuenta («cuesta $9.990.»); un número más largo («199901», «12990.5») no.
+    Una parte decimal de solo ceros sí cuenta («9990.0», «$9.990,00»), y también un punto final de frase («cuesta
+    $9.990.»). Un número más largo («199901») o con decimales que no son cero («12990.5») no cuenta.
     """
     con_puntos = f"{cifra:,}".replace(",", ".")
-    return re.compile(rf"(?<![\d.])(?:{re.escape(con_puntos)}|{cifra})(?!\d|\.\d)")
+    return re.compile(rf"(?<![\d.])(?:{re.escape(con_puntos)}|{cifra})(?:[.,]0+)?(?!\d|[.,]\d)")
 
 
 def cifras_a_la_vista(valor: Any, cifras: Iterable[int]) -> set[int]:
     """Las cifras que el JSON muestra como dato, con cualquier clave y a cualquier profundidad.
 
-    Cuenta un número igual a la cifra, o la cifra como número suelto dentro de un texto. No cuenta los textos que son
-    un UUID o un instante, ni la cifra dentro de un número más largo. Los booleanos y null no cuentan.
+    Cuenta un número igual a la cifra, también negativo (una devolución, -25980), o la cifra como número suelto dentro
+    de un texto. No cuenta lo que está dentro de un UUID o de un instante, ni la cifra dentro de un número más largo.
+    Los booleanos y null no cuentan. Las claves no se revisan aquí: eso lo hace MONTOS_PARA_EL_OBSERVADOR.
     """
     cifras = tuple(cifras)
     if isinstance(valor, dict):
@@ -245,7 +237,8 @@ def cifras_a_la_vista(valor: Any, cifras: Iterable[int]) -> set[int]:
     if isinstance(valor, bool) or valor is None:
         return set()
     if isinstance(valor, int | float):
-        return {c for c in cifras if valor == c}
-    if isinstance(valor, str) and not _es_uuid_o_instante(valor):
-        return {c for c in cifras if _cifra_suelta(c).search(valor)}
+        return {c for c in cifras if abs(valor) == c}
+    if isinstance(valor, str):
+        texto = _UUID_O_INSTANTE.sub(" ", valor)
+        return {c for c in cifras if _cifra_suelta(c).search(texto)}
     return set()
