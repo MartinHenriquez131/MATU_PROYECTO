@@ -48,7 +48,7 @@ _PEDIDO = text(
 _PARTES = text(
     "SELECT pc.id, pc.referencia, pc.estado, co.nombre_fantasia, co.ficticio, pc.enviado_en, pc.preparando_en,"
     " pc.lista_en, pc.retirada_en, pc.cancelada_en, pc.motivo_cancelacion, pc.codigo_generado_en,"
-    " pc.codigo_hash IS NOT NULL AS con_hash, pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en"
+    " pc.codigo_vigente AS con_hash, pc.codigo_expira_en, pc.codigo_usado_en, pc.codigo_bloqueado_en"
     " FROM pedido_comercio pc JOIN comercio co ON co.id = pc.comercio_id WHERE pc.pedido_id = :id"
     " ORDER BY pc.creado_en, pc.id"
 )

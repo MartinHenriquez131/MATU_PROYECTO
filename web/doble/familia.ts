@@ -954,6 +954,8 @@ export async function atenderFamilia(req: IncomingMessage, res: ServerResponse, 
     if (!('email' in r)) return enviarDoble(res, r), true
     const u = usuarios.get(r.email)!
     venceOperacion.set(u.email, new Date(Date.now() + 12 * 3_600_000).toISOString())
+    // MATU-114: entrar de nuevo vuelve a cero el límite de correos del retracto (solo en el doble; en MATU dura una hora).
+    consolas.get(u.email)?.olvidarCorreosQueNoCalzan()
     const did = alEntrar(u.email, String(req.headers['user-agent'] ?? ''), u.modo)
     emitirRefresh(res, u, did, Date.now() + 12 * 3_600_000)
     return json(res, 200, emitirToken(u, did)), true

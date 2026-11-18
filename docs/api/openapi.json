@@ -11192,7 +11192,7 @@
           "operacion"
         ],
         "summary": "Registrar Retracto Por Correo",
-        "description": "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto.",
+        "description": "H2: registra a nombre de la familia el retracto que pidió por correo (origen correo), hasta 90 días desde la entrega. Va a nombre de quien pagó, o del admin que se indique. Se resuelve como cualquier retracto. MATU-114: con correo_solicitante, hasta 5 correos que no calzan por hora y por cuenta de operación (429); cada uno se registra en la auditoría del pedido, sin el correo.",
         "operationId": "registrar_retracto_por_correo_v1_operacion_pedidos__pedido_id__retractos_post",
         "security": [
           {
@@ -11251,13 +11251,19 @@
             }
           },
           "422": {
-            "description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin, o correo_solicitante no es de un admin activo del grupo (D-81-9). Nunca dice quiénes son",
+            "description": "producto-no-retractable, o solicitante-invalido: solicitado_por no es quien pagó ni un admin activo, correo_solicitante no es de un admin activo del grupo (D-81-9), o vienen los dos. El mismo cuerpo en todos los casos: nunca dice cuál ni quiénes son (MATU-114, C9)",
+            "content": {
+              "application/problem+json": {}
+            }
+          },
+          "429": {
+            "description": "demasiados-intentos: 5 correos que no calzan en una hora para la cuenta de operación (MATU-114, C11), con Retry-After. No dice si el último correo era válido",
             "content": {
               "application/problem+json": {}
             }
           },
           "503": {
-            "description": "Falta PEPPER_EMAIL para buscar el correo del admin",
+            "description": "Falta PEPPER_EMAIL o PEPPER_LIMITES, o Redis no responde, con correo_solicitante: no se busca el correo",
             "content": {
               "application/problem+json": {}
             }
@@ -20094,7 +20100,8 @@
               "pedido_entregado",
               "pedido_no_entregado",
               "retracto_resuelto",
-              "matu_reviso_el_pedido"
+              "matu_reviso_el_pedido",
+              "matu_intento_un_retracto_por_correo"
             ],
             "title": "Tipo"
           },

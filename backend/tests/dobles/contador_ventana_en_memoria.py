@@ -1,12 +1,13 @@
 """Doble del puerto ContadorVentana (MATU-25): el límite por IP en un diccionario.
 
 Ventana fija, como el script de Redis: el vencimiento se fija con el primer incremento, con la hora
-del Reloj de la prueba, y los siguientes no lo mueven. Con caido=True, sumar() lanza
+del Reloj de la prueba, y los siguientes no lo mueven. Con caido=True, sumar() y devolver() lanzan
 ContadorNoDisponible, como un Redis que no responde.
 """
 
 import math
 import secrets
+import threading
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -23,18 +24,30 @@ class ContadorVentanaEnMemoria:
         self.caido = caido
         # clave → (conteo, vence_en)
         self.datos: dict[str, tuple[int, datetime]] = {}
+        self._candado = threading.Lock()
 
     def sumar(self, clave: str, ventana_segundos: int) -> Conteo:
-        if self.caido:
-            raise ContadorNoDisponible()
-        ahora = self.reloj.ahora()
-        dato = self.datos.get(clave)
-        if dato is None or ahora >= dato[1]:
-            dato = (1, ahora + timedelta(seconds=ventana_segundos))
-        else:
-            dato = (dato[0] + 1, dato[1])
-        self.datos[clave] = dato
-        return Conteo(dato[0], math.ceil((dato[1] - ahora).total_seconds()))
+        # Atómico como el script de Redis: con hilos, cada uno recibe su propio conteo
+        with self._candado:
+            if self.caido:
+                raise ContadorNoDisponible()
+            ahora = self.reloj.ahora()
+            dato = self.datos.get(clave)
+            if dato is None or ahora >= dato[1]:
+                dato = (1, ahora + timedelta(seconds=ventana_segundos))
+            else:
+                dato = (dato[0] + 1, dato[1])
+            self.datos[clave] = dato
+            return Conteo(dato[0], math.ceil((dato[1] - ahora).total_seconds()))
+
+    def devolver(self, clave: str) -> None:
+        """Resta uno si la clave vive y está sobre cero, sin mover su vencimiento (MATU-114)."""
+        with self._candado:
+            if self.caido:
+                raise ContadorNoDisponible()
+            dato = self.datos.get(clave)
+            if dato is not None and self.reloj.ahora() < dato[1] and dato[0] > 0:
+                self.datos[clave] = (dato[0] - 1, dato[1])
 
 
 def limite_ip_en_memoria(app: "FastAPI", reloj: Reloj, pepper: bytes | None = None) -> ContadorVentanaEnMemoria:

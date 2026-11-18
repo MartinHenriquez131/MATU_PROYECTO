@@ -113,3 +113,38 @@ describe('MATU-63, 14.3: los hechos del pedido en «Datos de»', () => {
     }
   })
 })
+
+describe('MATU-114, lenguaje.md §39: el retracto por correo con un correo que no es de quien administra', () => {
+  const CON = 'El equipo de MATU intentó registrar que alguien quiere arrepentirse de la compra del pedido 4821, con un correo que no es de quien administra el grupo'
+  const SIN = 'El equipo de MATU intentó registrar que alguien quiere arrepentirse de una compra, con un correo que no es de quien administra el grupo'
+
+  async function lineas() {
+    const hechos: Hecho[] = [
+      { ...hecho('matu_intento_un_retracto_por_correo', antes(0, 1), MATU), referencia: '4821' },
+      hecho('matu_intento_un_retracto_por_correo', antes(0, 2), MATU),
+    ]
+    apiCopia(copiaComoRespuesta(copiaPersona({ historial: { alcance: 'todo', hechos, hay_hechos_sin_asociar: false } }), 'matu-datos-2026-11-18.json'))
+    render(<DatosDePersona />)
+    await screen.findByRole('button', { name: 'Descargar en un archivo' })
+    return within(screen.getByRole('region', { name: 'Quién abrió o editó la ficha' })).getAllByRole('listitem')
+  }
+
+  it('con referencia, la frase lleva el pedido en cifras; sin ella, la general; sin nombre de quién del equipo', async () => {
+    const [con, sin] = await lineas()
+    expect(frase(con).textContent).toBe(CON)
+    const cifras = frase(con).querySelector('.cifras')!
+    expect(cifras).toHaveTextContent(/^4821$/)
+    expect(frase(sin).textContent).toBe(SIN)
+    expect(frase(sin).querySelector('.cifras')).toBeNull()
+    for (const li of [con, sin]) {
+      expect(li.querySelector('svg.lucide-headset')).not.toBeNull()
+      expect(cola(li)).toMatch(/^a las\s\d{2}:\d{2}$/)
+    }
+  })
+
+  it('nunca muestra un correo', async () => {
+    const todas = await lineas()
+    for (const li of todas) expect(li.textContent).not.toMatch(/@|example\.com/)
+    expect(screen.getByRole('region', { name: 'Quién abrió o editó la ficha' }).textContent).not.toContain('@')
+  })
+})
