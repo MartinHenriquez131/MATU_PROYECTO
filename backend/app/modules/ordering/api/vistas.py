@@ -103,7 +103,6 @@ def _linea_observador(linea: Linea, confirmado: bool) -> LineaPedidoObservador:
         cantidad=linea.cantidad,
         comercio=_comercio(linea.comercio),
         regla_faltante=linea.regla,
-        retracto_pierde_al_abrir=linea.retracto_pierde_al_abrir,
         cambio=None if comercio_antes is None else CambioDeLineaObservador(comercio_antes=_comercio(comercio_antes)),
     )
 

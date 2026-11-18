@@ -98,8 +98,7 @@ CAMPOS_OBSERVADOR = {
     "id", "persona_cuidada_id", "estado", "precios_de_ejemplo", "lineas", "salieron", "total_confirmado_en",
     "vence_en", "pagado_en", "ventana_entrega", "creado_en", "actualizado_en",
 }
-CAMPOS_LINEA_OBSERVADOR = {"id", "producto", "cantidad", "comercio", "regla_faltante", "retracto_pierde_al_abrir",
-                           "cambio"}
+CAMPOS_LINEA_OBSERVADOR = {"id", "producto", "cantidad", "comercio", "regla_faltante", "cambio"}
 
 
 def _propiedades(esquema: dict[str, Any], nombre: str, vistos: set[str] | None = None) -> set[str]:
@@ -124,6 +123,8 @@ def test_matu113_la_vista_del_observador_tiene_sus_claves_exactas_y_ningun_monto
     assert vista["properties"]["lineas"]["items"]["$ref"].endswith("/LineaPedidoObservador")
     linea = componentes["LineaPedidoObservador"]
     assert set(linea["properties"]) == CAMPOS_LINEA_OBSERVADOR and linea["additionalProperties"] is False
+    # Jorge, 17-11: sin «Derecho a retracto», no puede arrepentirse de una compra que no hizo
+    assert "retracto_pierde_al_abrir" not in linea["properties"]
     assert set(componentes["CambioDeLineaObservador"]["properties"]) == {"comercio_antes"}
     profundas = _propiedades(esquema, "PedidoVistaObservador")
     assert not profundas & MONTOS_PARA_EL_OBSERVADOR, profundas & MONTOS_PARA_EL_OBSERVADOR

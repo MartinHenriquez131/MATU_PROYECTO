@@ -17871,10 +17871,6 @@
           "regla_faltante": {
             "$ref": "#/components/schemas/Regla"
           },
-          "retracto_pierde_al_abrir": {
-            "type": "boolean",
-            "title": "Retracto Pierde Al Abrir"
-          },
           "cambio": {
             "anyOf": [
               {
@@ -17895,11 +17891,10 @@
           "cantidad",
           "comercio",
           "regla_faltante",
-          "retracto_pierde_al_abrir",
           "cambio"
         ],
         "title": "LineaPedidoObservador",
-        "description": "MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes ni\ndevolución: un DTO propio, nunca LineaPedido con claves borradas."
+        "description": "MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,\ndevolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con\nclaves borradas."
       },
       "CondicionesCopia": {
         "properties": {

@@ -179,8 +179,9 @@ class CambioDeLineaObservador(BaseModel):
 
 
 class LineaPedidoObservador(BaseModel):
-    """MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes ni
-    devolución: un DTO propio, nunca LineaPedido con claves borradas."""
+    """MATU-113 (decisión 472): la línea que ve el observador. Sin precio, subtotal, oferta, precio de antes,
+    devolución ni retracto (no puede arrepentirse de una compra que no hizo): un DTO propio, nunca LineaPedido con
+    claves borradas."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -189,7 +190,6 @@ class LineaPedidoObservador(BaseModel):
     cantidad: Cantidad
     comercio: ComercioVista
     regla_faltante: Regla
-    retracto_pierde_al_abrir: bool
     cambio: CambioDeLineaObservador | None = Field(description="null si el producto sigue en el mismo comercio")
 
 
