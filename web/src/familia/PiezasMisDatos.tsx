@@ -18,6 +18,7 @@ import {
   Download,
   Eraser,
   Eye,
+  Headset,
   HandCoins,
   KeyRound,
   Lock,
@@ -388,6 +389,7 @@ const ICONO_HECHO: Record<TipoHecho, LucideIcon> = {
   pedido_entregado: PackageCheck,
   pedido_no_entregado: PackageX,
   retracto_resuelto: MessageSquareReply,
+  matu_reviso_el_pedido: Headset,
 }
 
 /** Un `tipo` que el cliente no conoce no se muestra, y la pantalla no se rompe. */

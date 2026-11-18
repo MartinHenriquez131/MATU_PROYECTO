@@ -14,8 +14,15 @@ import pytest
 
 from app.modules.payments.infrastructure.pasarela_falsa import PasarelaFalsa
 from tests.base_datos import DSN, requiere_base
-from tests.modules.ordering.conftest import COSTO_ENVIO, EntornoPedido
+from tests.modules.ordering.conftest import (
+    COSTO_ENVIO,
+    MONTOS_PARA_EL_OBSERVADOR,
+    EntornoPedido,
+    cifras_a_la_vista,
+    claves_a_cualquier_profundidad,
+)
 from tests.modules.payments.conftest import cuerpo_pagar, pagar, pedido_confirmado, sin_sesion_volver
+from tests.textos import aparece_como_dato
 
 pytestmark = [pytest.mark.rf("RF-25"), requiere_base]
 
@@ -313,11 +320,36 @@ def test_la_vuelta_sin_sesion_no_trae_ids_y_nada_del_pago_va_a_los_logs(
     assert con_otra_cuenta.json()["grupo_id"] is None and con_otra_cuenta.json()["ya_registrado"] is True
     texto = e.iam.texto_log()
     venta = _consultar("SELECT buy_order, session_id FROM transaccion_pasarela WHERE token = %s", inicio["token"])[0]
-    for secreto in (inicio["token"], *venta, "2032", str(TOTAL)):
+    for secreto in (inicio["token"], *venta):
         assert secreto not in texto, "un dato del pago llegó a los logs"
+    # Los números cortos, como dato: como subcadena caían por azar dentro de un request_id o un usuario_id
+    for numero in ("2032", str(TOTAL)):
+        assert not aparece_como_dato(numero, texto), "un dato del pago llegó a los logs"
     assert pedido["id"] not in [linea.get("ruta") for linea in e.iam.lineas_log()]
 
 
 def test_la_vuelta_desconocida_es_404(entorno_pedido: EntornoPedido, pasarela_falsa: PasarelaFalsa) -> None:
     respuesta = sin_sesion_volver(entorno_pedido, {"token_ws": "token-que-no-es-de-matu"})
     assert respuesta.status_code == 404 and pasarela_falsa.llamadas == []
+
+
+def test_matu113_el_observador_ve_el_pedido_pagado_sin_ningun_monto(
+    entorno_pedido: EntornoPedido, pasarela_falsa: PasarelaFalsa
+) -> None:
+    """Decisión 472: estado y fecha del pago, sin precios, subtotales, envío ni total a ninguna profundidad."""
+    e = entorno_pedido
+    familia, pedido, _ = _pagado(e, pasarela_falsa)
+    ruta = f"/v1/pedidos/{pedido['id']}"
+    del_admin = e.pedir("GET", ruta, familia.admin, familia).json()
+    assert (del_admin["estado"], del_admin["total"]) == ("pagado", TOTAL)
+    assert del_admin["lineas"][0]["precio_unitario"] == PRECIO_PANAL
+
+    visto = e.pedir("GET", ruta, e.usuario(familia, "observador"), familia)
+    assert visto.status_code == 200, visto.text
+    claves = claves_a_cualquier_profundidad(visto.json())
+    assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
+    a_la_vista = cifras_a_la_vista(visto.json(), (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL))
+    assert not a_la_vista, a_la_vista
+    assert visto.json()["estado"] == "pagado" and visto.json()["pagado_en"] is not None
+    assert [x["cantidad"] for x in visto.json()["lineas"]] == [2]
+    assert not {"entrega", "resumen", "etag", "pago_en_curso"} & set(visto.json())

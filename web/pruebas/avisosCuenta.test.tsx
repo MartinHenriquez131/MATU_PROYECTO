@@ -111,7 +111,14 @@ function enEspera() {
   return { manejador: () => promesa, soltar }
 }
 
-const bloque = () => screen.getByRole('heading', { level: 3 }).parentElement as HTMLElement
+/** MATU-76 (2.7): la tarjeta C, «Este teléfono», es una `section` con su h2. */
+const bloque = () => screen.getByRole('heading', { level: 2, name: /^Este (teléfono|computador|navegador)$/ }).closest('section') as HTMLElement
+
+// MATU-76: dos tarjetas con las mismas casillas; cada una se busca dentro de su grupo.
+const INSUMO = 'Avisos cuando un insumo se está acabando'
+const PEDIDO = 'Avisos de tus pedidos'
+const casilla = (grupo: string, nombre: string) => within(screen.getByRole('group', { name: grupo })).getByRole('checkbox', { name: nombre })
+const casillaDe = async (grupo: string, nombre: string) => within(await screen.findByRole('group', { name: grupo })).findByRole('checkbox', { name: nombre })
 
 // ---------------------------------------------------------------- 3.3 las preferencias
 
@@ -123,9 +130,9 @@ describe('Avisos: las casillas (3.3)', () => {
     const grupo = await screen.findByRole('group', { name: 'Avisos cuando un insumo se está acabando' })
     expect(within(grupo).getByRole('heading', { level: 2, name: 'Avisos cuando un insumo se está acabando' })).toBeInTheDocument()
     expect(grupo).toHaveAccessibleDescription('Te avisamos cuando un insumo se esté acabando. El aviso no dice cuál ni de quién. Vale para todos tus grupos.')
-    expect(screen.getByText('Vale para todos tus grupos.')).toHaveClass('font-bold')
-    expect(await screen.findByRole('checkbox', { name: 'Por correo' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'En tus teléfonos' })).toBeChecked()
+    expect(within(grupo).getByText('Vale para todos tus grupos.')).toHaveClass('font-bold')
+    expect(await casillaDe(INSUMO, 'Por correo')).toBeChecked()
+    expect(casilla(INSUMO, 'En tus teléfonos')).toBeChecked()
     expect(screen.queryByText('En este teléfono')).toBeNull()
   })
 
@@ -134,7 +141,7 @@ describe('Avisos: las casillas (3.3)', () => {
     const espera = enEspera()
     const api = apiCuenta({ 'PUT ^/v1/yo/avisos$': espera.manejador })
     render(<AvisosCuenta />)
-    const correo = await screen.findByRole('checkbox', { name: 'Por correo' })
+    const correo = await casillaDe(INSUMO, 'Por correo')
     await u().click(correo)
 
     expect(await screen.findByText('Guardando…')).toBeInTheDocument()
@@ -145,7 +152,7 @@ describe('Avisos: las casillas (3.3)', () => {
     // v1.3 (3.3): con el foco del teclado no se apaga, para que su anillo conserve 3:1.
     expect(correo).toHaveClass('aria-disabled:not-focus-visible:opacity-60')
     expect(correo).not.toHaveClass('aria-disabled:opacity-60')
-    const telefonos = screen.getByRole('checkbox', { name: 'En tus teléfonos' })
+    const telefonos = casilla(INSUMO, 'En tus teléfonos')
     expect(telefonos).toHaveAttribute('aria-disabled', 'true')
     expect(correo).toHaveFocus()
     // Mientras guarda, otro toque no pide nada y la casilla no cambia.
@@ -154,7 +161,7 @@ describe('Avisos: las casillas (3.3)', () => {
     expect(telefonos).toBeChecked()
     expect(api.de('PUT', '/v1/yo/avisos')[0].cuerpo).toEqual({ correo: false, push: true })
 
-    espera.soltar({ status: 200, cuerpo: { correo: false, push: true } })
+    espera.soltar({ status: 200, cuerpo: { correo: false, push: true, pedido: { correo: true, push: true } } })
     expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
     expect(screen.queryByText('Guardando…')).toBeNull()
     expect(correo).not.toBeChecked()
@@ -169,7 +176,7 @@ describe('Avisos: las casillas (3.3)', () => {
     navegador()
     apiCuenta({ 'PUT ^/v1/yo/avisos$': problema(500) })
     render(<AvisosCuenta />)
-    const correo = await screen.findByRole('checkbox', { name: 'Por correo' })
+    const correo = await casillaDe(INSUMO, 'Por correo')
     await u().click(correo)
     const error = await screen.findByText('No pudimos guardar. Revisa tu conexión y vuelve a intentarlo.')
     expect(error.closest('[data-aviso]')).toHaveAttribute('data-aviso', 'alert')
@@ -178,29 +185,44 @@ describe('Avisos: las casillas (3.3)', () => {
     expect(document.activeElement).not.toBe(document.body)
   })
 
-  it('E4: al desmarcar «En tus teléfonos», el bloque del teléfono se oculta y la inscripción no se borra', async () => {
+  it('E4 (ampliada en MATU-76): al desmarcar las dos «En tus teléfonos», el bloque del teléfono se oculta y la inscripción no se borra', async () => {
     navegador({ permiso: 'granted', suscritoCon: CLAVE })
-    const api = apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: { ...PUSH_LIBRE, registrado: true } } })
+    const api = apiCuenta({
+      'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: { ...PUSH_LIBRE, registrado: true } },
+      'GET ^/v1/yo/avisos$': { status: 200, cuerpo: { correo: true, push: true, pedido: { correo: true, push: false } } },
+      'PUT ^/v1/yo/avisos$': (p) => ({ status: 200, cuerpo: { pedido: { correo: true, push: false }, ...(p.cuerpo as object) } }),
+    })
     render(<AvisosCuenta />)
     expect(await screen.findByText('Activados')).toBeVisible()
-    await u().click(screen.getByRole('checkbox', { name: 'En tus teléfonos' }))
+    await u().click(casilla(INSUMO, 'En tus teléfonos'))
     await screen.findByText('Guardamos tus avisos.')
     expect(screen.getByText('Activados').closest('[hidden]')).not.toBeNull()
     expect(api.pedidas.filter((p) => p.ruta === '/v1/dispositivos/actual/push' && p.metodo !== 'GET')).toHaveLength(0)
 
-    await u().click(screen.getByRole('checkbox', { name: 'En tus teléfonos' }))
+    await u().click(casilla(INSUMO, 'En tus teléfonos'))
     await vi.waitFor(() => expect(screen.getByText('Activados').closest('[hidden]')).toBeNull())
     expect(screen.getByRole('button', { name: 'Desactivar en este teléfono' })).toBeInTheDocument()
   })
 
   it('error al cargar: la nota y «Volver a intentar», sin casillas inventadas', async () => {
     navegador()
-    apiCuenta({ 'GET ^/v1/yo/avisos$': [problema(500), { status: 200, cuerpo: { correo: false, push: false } }] })
+    apiCuenta({ 'GET ^/v1/yo/avisos$': [problema(500), { status: 200, cuerpo: { correo: false, push: false, pedido: { correo: true, push: false } } }] })
     render(<AvisosCuenta />)
-    expect(await screen.findByText('No pudimos traer tus avisos. Revisa tu conexión e inténtalo de nuevo.')).toBeInTheDocument()
+    // MATU-76 (2.6): la nota en A y en B, y un solo anuncio, el de la A. La tarjeta C no se ve.
+    const notas = await screen.findAllByText('No pudimos traer tus avisos. Revisa tu conexión e inténtalo de nuevo.')
+    expect(notas).toHaveLength(2)
+    expect(within(screen.getByRole('group', { name: INSUMO })).getByText(/No pudimos traer/).closest('[data-aviso]')).toHaveAttribute('data-aviso', 'alert')
+    expect(within(screen.getByRole('group', { name: PEDIDO })).getByText(/No pudimos traer/).closest('[data-aviso]')).toBeNull()
+    expect(document.querySelectorAll('[data-aviso="alert"]')).toHaveLength(1)
     expect(screen.queryByRole('checkbox')).toBeNull()
-    await u().click(screen.getByRole('button', { name: 'Volver a intentar' }))
-    expect(await screen.findByRole('checkbox', { name: 'Por correo' })).not.toBeChecked()
+    expect(screen.queryByRole('heading', { name: /^Este / })).toBeNull()
+    expect(screen.queryByText(/Si es sobre tu dinero/)).toBeNull()
+    // Cualquiera de los dos botones vuelve a leer las dos.
+    await u().click(within(screen.getByRole('group', { name: PEDIDO })).getByRole('button', { name: 'Volver a intentar' }))
+    expect(await casillaDe(INSUMO, 'Por correo')).not.toBeChecked()
+    expect(casilla(PEDIDO, 'Por correo')).toBeChecked()
+    // Con las dos «En tus teléfonos» desmarcadas, la tarjeta C no se ve (está oculta).
+    expect(screen.queryByRole('heading', { name: /^Este / })).toBeNull()
   })
 
   it('la nota del piloto, una vez, en `atenta` con Info; también si falla la lectura del push; no con envío real', async () => {
@@ -227,7 +249,7 @@ describe('Este teléfono: los estados (3.4)', () => {
     const n = navegador()
     apiCuenta()
     render(<AvisosCuenta />)
-    expect(await screen.findByRole('heading', { level: 3, name: 'Este teléfono' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Este teléfono' })).toBeInTheDocument()
     const etiqueta = await screen.findByText('Sin activar')
     expect(etiqueta.querySelector('svg.lucide-circle')).not.toBeNull()
     expect(screen.getByText('Al activarlos, tu navegador anota una dirección de avisos en el servicio de su fabricante, y MATU la guarda hasta que los desactives o salgas. En el piloto, MATU no le envía nada a ese servicio.')).toBeInTheDocument()
@@ -288,7 +310,7 @@ describe('Este teléfono: los estados (3.4)', () => {
     })
     const { unmount } = render(<AvisosCuenta />)
     expect(await screen.findByText('Por ahora no se pueden activar los avisos en este computador. Puedes recibirlos por correo.')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Este computador' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Este computador' })).toBeInTheDocument()
     unmount()
 
     sinNavegadorSimulado()
@@ -327,7 +349,7 @@ describe('Este teléfono: los estados (3.4)', () => {
     apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': [problema(500), { status: 200, cuerpo: PUSH_LIBRE }] })
     render(<AvisosCuenta />)
     expect(await screen.findByText('No pudimos ver los avisos de este teléfono. Revisa tu conexión e inténtalo de nuevo.')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Por correo' })).toBeEnabled()
+    expect(casilla(INSUMO, 'Por correo')).toBeEnabled()
     await u().click(within(bloque()).getByRole('button', { name: 'Volver a intentar' }))
     expect(await screen.findByRole('button', { name: 'Activar en este teléfono' })).toBeInTheDocument()
   })
@@ -355,7 +377,7 @@ describe('MATU-107: estado G, la cuenta no está en el equipo del piloto (2.2, 2
     // Al cargar en G no se anuncia: solo después del 409.
     expect(nota).not.toHaveAttribute('data-aviso')
     const b = bloque()
-    expect(within(b).getByRole('heading', { level: 3, name: 'Este teléfono' })).toBeInTheDocument()
+    expect(within(b).getByRole('heading', { level: 2, name: 'Este teléfono' })).toBeInTheDocument()
     expect(within(b).queryByRole('button')).toBeNull()
     expect(screen.queryByText('Sin activar')).toBeNull()
     expect(screen.queryByText('Activados')).toBeNull()
@@ -373,7 +395,7 @@ describe('MATU-107: estado G, la cuenta no está en el equipo del piloto (2.2, 2
     })
     render(<AvisosCuenta />)
     expect(await screen.findByText(G)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Este computador' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Este computador' })).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/Este navegador no puede recibir avisos|Por ahora no se pueden activar/)
   })
 
@@ -382,7 +404,7 @@ describe('MATU-107: estado G, la cuenta no está en el equipo del piloto (2.2, 2
     const api = apiCuenta({ 'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: SIN_PERMISO } })
     render(<AvisosCuenta />)
     await screen.findByText(G)
-    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    await u().click(casilla(INSUMO, 'Por correo'))
     expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
     expect(api.de('PUT', '/v1/yo/avisos')).toHaveLength(1)
   })
@@ -565,7 +587,7 @@ describe('«Tu cuenta» con MATU-55', () => {
     expect(api.de('GET', '/v1/yo/ingresos')).toHaveLength(0)
     // La única lectura de dispositivos es la de la clase del actual (E1), para «Este teléfono».
     expect(api.de('GET', '/v1/dispositivos')).toHaveLength(1)
-    expect(screen.getByRole('heading', { level: 3, name: `Este ${ACTUAL.clase === 'telefono' ? 'teléfono' : ''}` })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: `Este ${ACTUAL.clase === 'telefono' ? 'teléfono' : ''}` })).toBeInTheDocument()
   })
 })
 
@@ -610,14 +632,14 @@ describe('El foco después del render, sin temporizadores (P1 de la revisión 1.
   })
 
   it.each([
-    ['bien', { status: 200, cuerpo: { correo: false, push: true } }],
+    ['bien', { status: 200, cuerpo: { correo: false, push: true, pedido: { correo: true, push: true } } }],
     ['con error', problema(500)],
   ])('guardar una casilla %s: el foco sigue en la casilla, nunca en el body', async (_, respuesta) => {
     navegador()
     const espera = enEspera()
     apiCuenta({ 'PUT ^/v1/yo/avisos$': espera.manejador })
     render(<AvisosCuenta />)
-    const correo = await screen.findByRole('checkbox', { name: 'Por correo' })
+    const correo = await casillaDe(INSUMO, 'Por correo')
     await u().click(correo)
     await soltarSinTemporizadores(() => espera.soltar(respuesta))
     expect(correo).toHaveFocus()
@@ -635,7 +657,7 @@ describe('Avisos: los mensajes no se acumulan (P3 de la revisión 1.2)', () => {
     await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
     expect(await screen.findByText('Activaste los avisos en este teléfono.')).toBeInTheDocument()
 
-    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    await u().click(casilla(INSUMO, 'Por correo'))
     expect(await screen.findByText('Guardamos tus avisos.')).toBeInTheDocument()
     expect(screen.queryByText('Activaste los avisos en este teléfono.')).toBeNull()
 
@@ -650,7 +672,7 @@ describe('Avisos: los mensajes no se acumulan (P3 de la revisión 1.2)', () => {
     render(<AvisosCuenta />)
     await u().click(await screen.findByRole('button', { name: 'Activar en este teléfono' }))
     expect(await screen.findByText('No pudimos activar los avisos. Revisa tu conexión y vuelve a intentarlo.')).toBeInTheDocument()
-    await u().click(screen.getByRole('checkbox', { name: 'Por correo' }))
+    await u().click(casilla(INSUMO, 'Por correo'))
     await screen.findByText('Guardamos tus avisos.')
     expect(screen.queryByText(/No pudimos activar los avisos/)).toBeNull()
   })

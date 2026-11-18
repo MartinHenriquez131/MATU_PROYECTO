@@ -17,7 +17,13 @@ from datetime import datetime
 from typing import Protocol
 
 from app.modules.care_circle.domain.personas import AutorizacionGuardada
-from app.modules.notifications.domain.aviso import Canal, CodigoAviso, EstadoNotificacion, ResultadoEnvio
+from app.modules.notifications.domain.aviso import (
+    TIPO_EVENTO_QUIEBRE,
+    Canal,
+    CodigoAviso,
+    EstadoNotificacion,
+    ResultadoEnvio,
+)
 from app.modules.notifications.domain.mensaje import MensajeCorreo
 
 
@@ -59,7 +65,7 @@ class MiembroAviso:
     usuario_id: uuid.UUID
     rol: str
     activo: bool  # membresía activa y usuario activo (sin eliminar)
-    # La preferencia guardada por canal para quiebre_proximo, o None si no hay fila
+    # La preferencia guardada por canal para el tipo de evento pedido (quiebre_proximo o pedido), o None sin fila
     preferencias: Mapping[Canal, bool | None]
 
 
@@ -93,7 +99,14 @@ class RepositorioAvisos(Protocol):
         """Los miembros del grupo, con su estado y sus preferencias para quiebre_proximo."""
         ...
 
-    def miembro(self, usuario_id: uuid.UUID) -> MiembroAviso | None: ...
+    def miembro(self, usuario_id: uuid.UUID, tipo_evento: str = TIPO_EVENTO_QUIEBRE) -> MiembroAviso | None:
+        """La membresía en el grupo del contexto (en cualquier estado), con las preferencias de ``tipo_evento``."""
+        ...
+
+    def quienes_pagaron(self, pedido_id: uuid.UUID) -> list[uuid.UUID]:
+        """MATU-76 (C1): las cuentas cuya venta del pedido quedó aprobada, también si después se anuló (pago tardío).
+        Vacío si el pedido no es del grupo del contexto o nadie pagó."""
+        ...
 
     def crear(self, evento_id: int, filas: Sequence[tuple[uuid.UUID, Canal]], plantilla: str, ahora: datetime) -> None:
         """Inserta las filas pendientes que no existan (notificacion_uq): un reintento no duplica."""

@@ -3,6 +3,9 @@
 El celular de una cuenta va enmascarado, como en GET /v1/cuenta; uno escrito va completo, para que quien lo escribió
 lo revise (decisión 203). El resumen solo con el total confirmado vigente (C1). La entrega solo para admin, cuidador
 y pagador, y solo mientras exista su copia (con el total confirmado o vencido).
+
+MATU-113 (decisión 472): la vista del observador sale de su propia proyección (_vista_observador), con su línea
+propia, nunca de la vista completa con claves borradas. No trae ningún monto en ningún estado.
 """
 
 from datetime import UTC, datetime
@@ -10,11 +13,13 @@ from datetime import UTC, datetime
 from app.modules.iam.domain.recuperacion import enmascarar_celular
 from app.modules.ordering.api.esquemas import (
     CambioDeLinea,
+    CambioDeLineaObservador,
     ComercioVista,
     CondicionesVigentes,
     DevolucionLinea,
     EntregaVista,
     LineaPedido,
+    LineaPedidoObservador,
     LineaSalida,
     ParteComercio,
     PedidoVista,
@@ -37,8 +42,6 @@ from app.modules.ordering.domain.pedido import (
 from app.modules.ordering.infrastructure.condiciones import ENLACE, Condiciones
 
 CON_ENTREGA = frozenset({Estado.TOTAL_CONFIRMADO, Estado.VENCIDO})
-# El observador no ve el pago (D-62-2): ni la devolución de una línea
-CON_PAGO = frozenset({"admin", "cuidador", "pagador"})
 
 
 def _utc(instante: datetime | None) -> datetime | None:
@@ -68,7 +71,7 @@ def _devolucion(linea: Linea) -> DevolucionLinea | None:
     return None
 
 
-def _linea(linea: Linea, confirmado: bool, ve_pago: bool = True) -> LineaPedido:
+def _linea(linea: Linea, confirmado: bool) -> LineaPedido:
     cambio = cambio_de(linea, confirmado)
     return LineaPedido(
         id=linea.id,
@@ -86,13 +89,52 @@ def _linea(linea: Linea, confirmado: bool, ve_pago: bool = True) -> LineaPedido:
             precio_antes=cambio.precio_antes,
             comercio_antes=None if cambio.comercio_antes is None else _comercio(cambio.comercio_antes),
         ),
-        devolucion=_devolucion(linea) if ve_pago else None,
+        devolucion=_devolucion(linea),
     )
 
 
-def _comunes(
-    pedido: Pedido, ahora: datetime, costo_envio_vigente: int, precios_de_ejemplo: bool, ve_pago: bool
-) -> dict[str, object]:
+def _linea_observador(linea: Linea, confirmado: bool) -> LineaPedidoObservador:
+    """MATU-113: sin precio, subtotal, oferta ni devolución. Del cambio, solo si el producto pasó a otro comercio."""
+    cambio = cambio_de(linea, confirmado)
+    comercio_antes = None if cambio is None else cambio.comercio_antes
+    return LineaPedidoObservador(
+        id=linea.id,
+        producto=_producto(linea.producto),
+        cantidad=linea.cantidad,
+        comercio=_comercio(linea.comercio),
+        regla_faltante=linea.regla,
+        cambio=None if comercio_antes is None else CambioDeLineaObservador(comercio_antes=_comercio(comercio_antes)),
+    )
+
+
+def _salieron(pedido: Pedido) -> list[LineaSalida]:
+    return [
+        LineaSalida(producto=_producto(x.producto), cantidad=x.cantidad, comercio=_comercio(x.comercio_carrito))
+        for x in pedido.salieron()
+    ]
+
+
+def _vista_observador(pedido: Pedido, ahora: datetime, precios_de_ejemplo: bool) -> PedidoVistaObservador:
+    """MATU-113 (decisión 472): el estado completo y los productos, sin montos, entrega, resumen ni etag."""
+    confirmado = pedido.confirmado
+    lineas = pedido.lineas_que_quedan() if confirmado else pedido.lineas
+    return PedidoVistaObservador(
+        id=pedido.id,
+        persona_cuidada_id=pedido.persona_id,
+        estado=estado_visible(pedido.estado, pedido.total_vence_en, ahora),
+        precios_de_ejemplo=precios_de_ejemplo,
+        lineas=[_linea_observador(linea, confirmado) for linea in lineas],
+        salieron=_salieron(pedido),
+        total_confirmado_en=_utc(pedido.total_confirmado_en),
+        vence_en=_utc(pedido.total_vence_en),
+        pagado_en=_utc(pedido.pagado_en),
+        ventana_entrega=PILOTO.ventana_entrega,
+        creado_en=pedido.creado_en.astimezone(UTC),
+        actualizado_en=pedido.actualizado_en.astimezone(UTC),
+    )
+
+
+def _comunes(pedido: Pedido, ahora: datetime, costo_envio_vigente: int, precios_de_ejemplo: bool) -> dict[str, object]:
     estado = estado_visible(pedido.estado, pedido.total_vence_en, ahora)
     confirmado = pedido.confirmado
     lineas = pedido.lineas_que_quedan() if confirmado else pedido.lineas
@@ -101,11 +143,8 @@ def _comunes(
         "persona_cuidada_id": pedido.persona_id,
         "estado": estado,
         "precios_de_ejemplo": precios_de_ejemplo,
-        "lineas": [_linea(linea, confirmado, ve_pago) for linea in lineas],
-        "salieron": [
-            LineaSalida(producto=_producto(x.producto), cantidad=x.cantidad, comercio=_comercio(x.comercio_carrito))
-            for x in pedido.salieron()
-        ],
+        "lineas": [_linea(linea, confirmado) for linea in lineas],
+        "salieron": _salieron(pedido),
         "comercios": [
             ParteComercio(comercio=_comercio(p.comercio), subtotal_productos=p.subtotal_productos)
             for p in partes_por_comercio(lineas)
@@ -133,9 +172,9 @@ def vista_pedido(
     celular_de_quien_lee: str | None,
     pago_en_curso: bool = False,
 ) -> PedidoVista | PedidoVistaObservador:
-    comunes = _comunes(pedido, ahora, costo_envio_vigente, precios_de_ejemplo, rol in CON_PAGO)
     if not ve_entrega(rol):
-        return PedidoVistaObservador.model_validate(comunes)
+        return _vista_observador(pedido, ahora, precios_de_ejemplo)
+    comunes = _comunes(pedido, ahora, costo_envio_vigente, precios_de_ejemplo)
     estado = comunes["estado"]
     entrega = None
     # MATU-62: pagado (y los siguientes) traen la copia de la entrega

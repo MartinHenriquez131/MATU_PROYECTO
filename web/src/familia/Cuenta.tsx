@@ -206,7 +206,7 @@ export function TuCuenta() {
               {MIS_DATOS.cuentaBoton}
             </Boton>
           </section>
-          {/* MATU-55 (3.3 y 3.4): los avisos, para todos los grupos, y este teléfono. */}
+          {/* MATU-55 (3.3 y 3.4) y MATU-76 (2): los avisos de insumos y de pedidos, para todos los grupos, y este teléfono. */}
           <div className="mt-6">
             <AvisosCuenta />
           </div>

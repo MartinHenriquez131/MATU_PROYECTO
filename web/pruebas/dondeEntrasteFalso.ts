@@ -67,6 +67,9 @@ type Manejador = Respuesta | Respuesta[] | ((p: Pedida) => Respuesta | Promise<R
 
 export const problema = (status: number, tipo = 'interno'): Respuesta => ({ status, cuerpo: { type: `/errores/${tipo}`, title: 'Texto de la API que no se muestra', status } })
 
+/** MATU-76: las dos preferencias, la del insumo y la del pedido (`pedido`), todas activas. */
+export const AVISOS_TODOS = { correo: true, push: true, pedido: { correo: true, push: true } }
+
 /** La API por ruta, con las lecturas y escrituras de MATU-55 por omisión. */
 export function apiCuenta(rutas: Record<string, Manejador> = {}) {
   const pedidas: Pedida[] = []
@@ -75,8 +78,9 @@ export function apiCuenta(rutas: Record<string, Manejador> = {}) {
     'GET ^/v1/cuenta$': { status: 200, cuerpo: CUENTA },
     'GET ^/v1/dispositivos$': { status: 200, cuerpo: { items: [ACTUAL, PC, IPAD] } },
     'GET ^/v1/yo/ingresos$': { status: 200, cuerpo: { eventos: EVENTOS, hay_mas: false } },
-    'GET ^/v1/yo/avisos$': { status: 200, cuerpo: { correo: true, push: true } },
-    'PUT ^/v1/yo/avisos$': (p) => ({ status: 200, cuerpo: p.cuerpo }),
+    'GET ^/v1/yo/avisos$': { status: 200, cuerpo: AVISOS_TODOS },
+    // Como el servidor (decisión 473): sin `pedido` en el cuerpo, la del pedido no cambia.
+    'PUT ^/v1/yo/avisos$': (p) => ({ status: 200, cuerpo: { pedido: AVISOS_TODOS.pedido, ...(p.cuerpo as object) } }),
     'GET ^/v1/dispositivos/actual/push$': { status: 200, cuerpo: PUSH_LIBRE },
     'PUT ^/v1/dispositivos/actual/push$': { status: 204 },
     'DELETE ^/v1/dispositivos/actual/push$': { status: 204 },

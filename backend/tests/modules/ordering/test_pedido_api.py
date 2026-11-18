@@ -14,7 +14,15 @@ import pytest
 
 from app.modules.ordering.infrastructure.condiciones import VERSION_VIGENTE
 from tests.base_datos import DSN, requiere_base
-from tests.modules.ordering.conftest import COSTO_ENVIO, DIRECCION, TELEFONO, EntornoPedido
+from tests.modules.ordering.conftest import (
+    COSTO_ENVIO,
+    DIRECCION,
+    MONTOS_PARA_EL_OBSERVADOR,
+    TELEFONO,
+    EntornoPedido,
+    cifras_a_la_vista,
+    claves_a_cualquier_profundidad,
+)
 
 pytestmark = [pytest.mark.rf("RF-21"), requiere_base]
 
@@ -256,6 +264,70 @@ def test_pagador_ve_todo_y_no_confirma_y_observador_ve_el_carrito(entorno_pedido
         e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}], usuario=observador).status_code
         == 404
     )
+
+
+# --- MATU-113 (decisión 472): el observador no ve montos, en ningún estado -------------------------------------------
+
+
+def _sin_montos(respuesta: Any, *cifras: int) -> None:
+    assert respuesta.status_code == 200, respuesta.text
+    claves = claves_a_cualquier_profundidad(respuesta.json())
+    assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
+    # Como dato, con cualquier clave y a cualquier profundidad; no como parte de un UUID, un instante o un nombre
+    a_la_vista = cifras_a_la_vista(respuesta.json(), cifras)
+    assert not a_la_vista, a_la_vista
+
+
+@pytest.mark.rf("RF-25")
+def test_matu113_el_observador_no_ve_montos_en_borrador_ni_con_el_total_confirmado(
+    entorno_pedido: EntornoPedido,
+) -> None:
+    e = entorno_pedido
+    familia = e.lista_para_pedir(e.fabrica.familia())
+    observador = e.usuario(familia, "observador")
+    e.hay("panal", "uno")
+    creado = e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 2}])
+    assert creado.status_code == 201, creado.text
+    en_curso = f"/v1/personas-cuidadas/{familia.persona.id}/pedido-en-curso"
+
+    # Borrador: el admin ve el precio, el subtotal y el envío vigente; el observador, ninguno
+    del_admin = e.pedir("GET", en_curso, familia.admin, familia).json()
+    assert del_admin["estado"] == "borrador" and del_admin["total"] is None
+    assert del_admin["lineas"][0]["precio_unitario"] == 12990 and del_admin["costo_envio"] == COSTO_ENVIO
+    borrador = e.pedir("GET", en_curso, observador, familia)
+    _sin_montos(borrador, 12990, 2 * 12990, COSTO_ENVIO)
+    [linea] = borrador.json()["lineas"]
+    assert (borrador.json()["estado"], linea["cantidad"]) == ("borrador", 2)
+    assert linea["producto"]["id"] == str(e.catalogo.productos["panal"])
+    assert linea["comercio"]["id"] == str(e.catalogo.comercios["uno"]) and linea["cambio"] is None
+
+    # Total confirmado: lo mismo, en pedido-en-curso y en GET /v1/pedidos/{id}
+    confirmado = e.confirmar(familia, creado.json()["id"])
+    assert confirmado.status_code == 200 and confirmado.json()["total"] == 2 * 12990 + COSTO_ENVIO
+    for ruta in (en_curso, f"/v1/pedidos/{creado.json()['id']}"):
+        visto = e.pedir("GET", ruta, observador, familia)
+        _sin_montos(visto, 12990, 2 * 12990, 2 * 12990 + COSTO_ENVIO)
+        assert visto.json()["estado"] == "total_confirmado" and visto.json()["vence_en"] is not None
+        assert visto.json()["pagado_en"] is None
+    # El pagador sí recibe los montos
+    del_pagador = e.pedir("GET", f"/v1/pedidos/{creado.json()['id']}", e.usuario(familia, "pagador"), familia)
+    assert del_pagador.json()["total"] == 2 * 12990 + COSTO_ENVIO
+
+
+@pytest.mark.rf("RF-25")
+def test_matu113_el_observador_ve_que_cambio_de_comercio_sin_el_precio_de_antes(entorno_pedido: EntornoPedido) -> None:
+    e = entorno_pedido
+    familia = e.lista_para_pedir(e.fabrica.familia())
+    e.hay("panal", "dos")  # el carrito lo tiene en «uno», que no tiene stock
+    creado = e.crear(familia, [{"oferta_id": e.oferta("panal", "uno"), "cantidad": 1}]).json()
+    assert e.confirmar(familia, creado["id"]).json()["lineas"][0]["cambio"]["precio_antes"] == 12990
+
+    visto = e.pedir("GET", f"/v1/pedidos/{creado['id']}", e.usuario(familia, "observador"), familia)
+    _sin_montos(visto, 12990, 9990, 9990 + COSTO_ENVIO)
+    [linea] = visto.json()["lineas"]
+    assert linea["comercio"]["id"] == str(e.catalogo.comercios["dos"])
+    assert set(linea["cambio"]) == {"comercio_antes"}
+    assert linea["cambio"]["comercio_antes"]["id"] == str(e.catalogo.comercios["uno"])
 
 
 def test_el_cuidador_arma_confirma_y_cancela(entorno_pedido: EntornoPedido) -> None:

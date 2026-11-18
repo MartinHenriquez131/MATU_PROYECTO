@@ -120,6 +120,14 @@ def test_catalogo_de_acciones_es_exactamente_el_acordado() -> None:
         "despacho.entregar",
         "despacho.no_entregado",
         "retracto.resolver",
+        # MATU-81 (0030)
+        "cuenta.mfa_alta",
+        "sesion.mfa_correcto",
+        "sesion.mfa_fallido",
+        "catalogo.oferta_cambiar",
+        "operacion.pedido_ver",
+        "incidencia.crear",
+        "incidencia.resolver",
     }
 
 
@@ -151,6 +159,8 @@ def test_actores_y_entidades_son_los_que_se_usan_hoy() -> None:
         "pedido_comercio",
         "oferta",
         "retracto",
+        # MATU-81
+        "incidencia",
     }
 
 

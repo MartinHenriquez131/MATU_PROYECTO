@@ -105,8 +105,11 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
     assert fuera == {
         AccionAuditoria.RELEVO_PRESENTAR, AccionAuditoria.RELEVO_CANJE, AccionAuditoria.RELEVO_PIN_INCORRECTO,
         AccionAuditoria.RELEVO_BLOQUEO, AccionAuditoria.RELEVO_ABRIR, AccionAuditoria.PERSONA_BORRAR,
+        # MATU-81 (D-81-4): lo que el equipo anotó va en «Lo que pasó con tu pedido» (lo_que_paso), no en el historial
+        AccionAuditoria.INCIDENCIA_CREAR, AccionAuditoria.INCIDENCIA_RESOLVER,
     }
-    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 33
+    # MATU-81 (D-81-5) suma matu_reviso_el_pedido
+    assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 34
     assert alcance_del_historial("admin") == "todo" and alcance_del_historial("cuidador") == "lo_tuyo"
 
 

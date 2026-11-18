@@ -20,7 +20,6 @@ from app.modules.backoffice.api.esquemas import (
     PedidoPagadoFilaObservador,
     ProductoDeLaFila,
     ResumenProductos,
-    RetractoVista,
     RetractoVistaFamilia,
     SeguimientoPedido,
 )
@@ -83,7 +82,14 @@ def fila(p: PedidoDeLaFamilia) -> PedidoPagadoFila:
 
 def fila_observador(p: PedidoDeLaFamilia) -> PedidoPagadoFilaObservador:
     return PedidoPagadoFilaObservador.model_validate(
-        {"pedido_id": p.cabecera.id, "pagado_en": _utc(p.cabecera.pagado_en), "estado": "pagado", **_productos(p)}
+        {
+            "pedido_id": p.cabecera.id,
+            "pagado_en": _utc(p.cabecera.pagado_en),
+            # MATU-113 (decisión 472): el estado real de familia, ya no siempre «pagado»
+            "estado": p.estado.value,
+            "entregado_en": _utc(p.cabecera.entregado_en),
+            **_productos(p),
+        }
     )
 
 
@@ -152,15 +158,12 @@ def _datos_retracto(unidad: Unidad, retractos: RepositorioRetractos, r: Retracto
     }
 
 
-def retracto_vista(unidad: Unidad, retractos: RepositorioRetractos, r: Retracto) -> RetractoVista:
-    return RetractoVista.model_validate(_datos_retracto(unidad, retractos, r))
-
-
 def retracto_familia(
     unidad: Unidad, retractos: RepositorioRetractos, r: Retracto, usuario_id: uuid.UUID
 ) -> RetractoVistaFamilia:
     return RetractoVistaFamilia.model_validate(
-        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id}
+        {**_datos_retracto(unidad, retractos, r), "es_tuyo": r.solicitado_por == usuario_id,
+         "motivo_rechazo": r.motivo_rechazo}
     )
 
 

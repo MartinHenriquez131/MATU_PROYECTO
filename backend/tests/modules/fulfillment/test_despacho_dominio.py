@@ -58,7 +58,10 @@ def test_vida_del_codigo_es_de_90_minutos() -> None:
 
 
 def test_huella_del_codigo_depende_de_la_parte_y_del_secreto() -> None:
-    secreto, parte, otra = b"s" * 32, uuid.uuid4(), uuid.uuid4()
+    # Partes fijas: con uuid4, la huella hex podía traer «482173» por azar. Fija, la comprobación es determinista
+    secreto = b"s" * 32
+    parte = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
+    otra = uuid.UUID("00000000-0000-4000-8000-0000000000a2")
     huella = huella_codigo(secreto, parte, "482173")
     assert len(huella) == 64 and "482173" not in huella
     assert huella == huella_codigo(secreto, parte, "482173")

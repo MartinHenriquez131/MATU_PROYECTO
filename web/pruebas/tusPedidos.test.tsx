@@ -30,6 +30,10 @@ import {
   seguimiento,
   seguimientoEntregado,
 } from './tusPedidosFalso'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
+
+// MATU-119: con la máquina cargada, abrir la lista y el detalle pasaba el segundo de las esperas o los 15 s de tope.
+plazosConCarga()
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
@@ -150,6 +154,33 @@ describe('La lista (3)', () => {
     expect(within(filas[0]).getByText(/Pañal adulto M x30/).closest('li')).toHaveTextContent('2 × Pañal adulto M x30')
     expect(filas[1]).toHaveTextContent('De este pedido guardamos solo lo que se pagó y lo que se devolvió.')
     expect(ul).not.toHaveTextContent(/Pedido 4821|Total pagado|\$|Lo estamos enviando/)
+  })
+
+  it('MATU-113 (3.3): «Pagado el {fecha}» y el estado real con ícono y palabra, sin la explicación ni montos', async () => {
+    api({
+      'GET /pedidos$': {
+        status: 200,
+        cuerpo: lista([
+          filaObservador({ estado: 'en_ruta' }),
+          filaObservador({ pedido_id: PEDIDO_2, pagado_en: '2026-11-02T19:41:00Z', estado: 'entregado', entregado_en: '2026-11-04T18:00:00Z' }),
+          filaObservador({ pedido_id: PEDIDO_3, estado: 'no_entregado' }),
+          filaObservador({ pedido_id: '3c9d4e20-0000-4000-8000-0000000000p4', estado: 'cancelado_con_devolucion' }),
+        ]),
+      },
+    })
+    abrir('observador', LISTA)
+    const ul = await screen.findByRole('list', { name: 'Tus pedidos' })
+    const filas = within(ul).getAllByRole('listitem').filter((li) => li.parentElement === ul)
+    expect(filas).toHaveLength(4)
+    expect(within(filas[0]).getByText('Pagado el').closest('p')).toHaveTextContent('Pagado el 11/11/2026')
+    expect(within(filas[0]).getByText('En camino').querySelector('svg')!.getAttribute('class')).toMatch(/lucide-truck/)
+    expect(within(filas[1]).getByText('Pagado el').closest('p')).toHaveTextContent('Pagado el 02/11/2026')
+    expect(within(filas[1]).getByText('Entregado el').closest('span.inline-flex')).toHaveTextContent('Entregado el 04/11/2026')
+    expect(within(filas[2]).getByText('No pudimos entregarlo')).toBeVisible()
+    expect(within(filas[3]).getByText('Cancelado')).toBeVisible()
+    // Ninguna explicación: ni la del pagado, ni «Te escribimos…», ni «Devolvimos…».
+    expect(ul).not.toHaveTextContent(/\$|Total pagado|Lo estamos enviando|Te escribimos|Te avisamos|Devolvimos|Estamos devolviendo|devolverte/)
+    expect(within(ul).queryAllByRole('button')).toEqual([])
   })
 
   it('vacío: el texto con el nombre de pila, e «Ir a tu pedido» solo para admin y cuidador', async () => {
@@ -299,6 +330,35 @@ describe('El detalle (4)', () => {
     expect(rechazada).toHaveTextContent('Esta devolución se pidió por correo. La registró el equipo de MATU.')
     // C26: la palabra del contrato no se muestra.
     expect(document.body).not.toHaveTextContent(/rechaz/i)
+  })
+
+  it('MATU-81 (C24): la devolución no aceptada dice por qué, sin culpar a la familia; sin motivo, no inventa uno', async () => {
+    api(
+      rutasDelEntregado({
+        'GET /retractos$': {
+          status: 200,
+          cuerpo: retractos({
+            retractos: [
+              retracto({ id: 'r1', estado: 'rechazado', resuelto_en: '2026-11-08T15:00:00Z', motivo_rechazo: 'sello_abierto' }),
+              retracto({ id: 'r2', estado: 'rechazado', resuelto_en: '2026-11-09T15:00:00Z', motivo_rechazo: 'producto_no_recibido' }),
+              retracto({ id: 'r3', estado: 'rechazado', resuelto_en: '2026-11-10T15:00:00Z', motivo_rechazo: null }),
+            ],
+          }),
+        },
+      }),
+    )
+    abrir('admin', DETALLE, ELEGIDO_2)
+    const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
+    const [sello, noRecibido, sinMotivo] = s.getAllByRole('listitem').filter((li) => li.parentElement?.parentElement?.tagName === 'SECTION')
+    expect(within(sello).getByText('El producto volvió con el sello abierto.')).toBeVisible()
+    expect(within(noRecibido).getByText('No recibimos el producto de vuelta.')).toBeVisible()
+    expect(sinMotivo).toHaveTextContent('No se aceptó la devolución')
+    expect(sinMotivo).not.toHaveTextContent(/sello abierto|No recibimos/)
+    // El motivo va antes de «Si tienes dudas…».
+    const motivo = within(sello).getByText('El producto volvió con el sello abierto.')
+    expect(motivo.compareDocumentPosition(within(sello).getByRole('link', { name: 'cuidaconmatu@gmail.com' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Ni la palabra del contrato ni el texto de operación («El sello del producto se abrió.»).
+    expect(document.body).not.toHaveTextContent(/rechaz|sello_abierto|producto_no_recibido|se abrió/i)
   })
 
   it('D-63-5 y C15: nunca aparece un código, aunque llegue por un defecto del contrato', async () => {
@@ -493,7 +553,8 @@ describe('Arrepentirme de la compra (5)', () => {
     expect(post.cuerpo).toEqual({ lineas: [{ linea_id: LINEA_SUPLEMENTO, cantidad: 1 }] })
     expect(String(post.cabeceras['Idempotency-Key'])).toMatch(/^[A-Za-z0-9_-]{16,64}$/)
     expect(post.cuerpo).not.toHaveProperty('motivo')
-    expect(await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.')).toBeVisible()
+    // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
+    expect(await screen.findByText('Recibimos tu pedido de devolución. Te escribimos para coordinar el retiro.', fueraDeRegiones)).toBeVisible()
     const s = within((await screen.findByRole('heading', { level: 2, name: 'Productos para devolver' })).closest('section')!)
     expect(s.getByText(/^Te devolvemos/)).toHaveTextContent('Te devolvemos $26.000 cuando')
     expect(escrituras).toEqual([])
@@ -644,7 +705,8 @@ describe('Cancelar el pedido pagado (6)', () => {
     expect(screen.getAllByText('Pagado').length).toBeGreaterThan(0)
     expect(screen.queryByText('Cancelado')).toBeNull()
     await act(async () => soltar({ status: 200, cuerpo: { pedido_id: PEDIDO_ID, estado: 'cancelado_con_devolucion' } }))
-    const nota = (await screen.findByText(/^Cancelamos el pedido/)).closest('[data-aviso]')!
+    // MATU-119: la nota que se ve, no su copia en la región amable, que llega 50 ms después.
+    const nota = (await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).closest('[data-aviso]')!
     expect(nota).toHaveTextContent('Cancelamos el pedido. Estamos devolviendo $57.460 a la tarjeta con que se pagó.')
     expect(nota).toHaveAttribute('data-aviso', 'status')
     await waitFor(() => expect(nota).toHaveFocus())
@@ -697,7 +759,7 @@ describe('Cancelar el pedido pagado (6)', () => {
     const orden = a.pedidas.map((p) => `${p.metodo} ${p.ruta.split('/').pop()}`)
     expect(orden.slice(orden.indexOf('POST cancelar-con-devolucion'))).toContain('GET seguimiento')
     await userEvent.click(confirmar)
-    expect(await screen.findByText(/^Cancelamos el pedido/)).toBeVisible()
+    expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
     const [k1, k2] = claves(a.pedidas, '/cancelar-con-devolucion')
     expect(k1).toBeTruthy()
     expect(k2).toBe(k1)
@@ -717,7 +779,7 @@ describe('Cancelar el pedido pagado (6)', () => {
     abrir('admin', DETALLE, ELEGIDO_1)
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar el pedido' }))
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar el pedido' }))
-    expect(await screen.findByText(/^Cancelamos el pedido/)).toBeVisible()
+    expect(await screen.findByText(/^Cancelamos el pedido/, fueraDeRegiones)).toBeVisible()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

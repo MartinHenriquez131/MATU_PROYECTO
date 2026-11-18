@@ -60,6 +60,7 @@ export const filaObservador = (cambios: Partial<FilaObservador> = {}): FilaObser
   pedido_id: PEDIDO_ID,
   pagado_en: '2026-11-11T19:41:00Z',
   estado: 'pagado',
+  entregado_en: null,
   productos: [
     { producto: PANAL_C, cantidad: 2 },
     { producto: SUPLEMENTO_C, cantidad: 1 },
@@ -147,6 +148,7 @@ export const retracto = (cambios: Partial<RetractoFamilia> = {}): RetractoFamili
   lineas: [{ linea_id: LINEA_SUPLEMENTO, producto: SUPLEMENTO_C, cantidad: 1, monto: 26490 }],
   resuelto_en: null,
   es_tuyo: true,
+  motivo_rechazo: null,
   ...cambios,
 })
 

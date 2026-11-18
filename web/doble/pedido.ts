@@ -12,7 +12,7 @@ import { catalogoDoble } from './catalogo'
 import { atenderTusPedidos, listarPagados } from './tusPedidos'
 
 export type Rol = 'admin' | 'cuidador' | 'pagador' | 'observador'
-type Regla = 'otro_comercio' | 'quitar'
+export type Regla = 'otro_comercio' | 'quitar'
 export type Responder = {
   json: (res: ServerResponse, status: number, cuerpo: unknown) => void
   problema: (res: ServerResponse, status: number, tipo: string, extra?: Record<string, unknown>) => void
@@ -84,6 +84,8 @@ export interface RetractoDoble {
   incluye_envio: boolean
   lineas: { producto_id: string; cantidad: number }[]
   clave: string | null
+  /** MATU-81 (decisión 468): solo en un rechazado. */
+  motivo_rechazo?: 'sello_abierto' | 'producto_no_recibido' | null
 }
 type EstadoDespacho = 'no' | 'vigente' | 'vencida' | 'retirada'
 interface Despacho {
@@ -235,7 +237,30 @@ function vista(p: Pedido, rol: Rol, u: UsuarioPedido) {
     pago_en_curso: pagoEnCurso(p),
     pagado_en: p.pagado?.pagado_en ?? null,
   }
-  if (rol === 'observador') return base
+  // MATU-113 (decisión 472): el observador, con su propia proyección y sin ningún monto en ningún
+  // estado: ni precios, ni subtotales, ni envío, ni total, ni retracto.
+  if (rol === 'observador')
+    return {
+      id: base.id,
+      persona_cuidada_id: base.persona_cuidada_id,
+      estado: base.estado,
+      precios_de_ejemplo: base.precios_de_ejemplo,
+      lineas: lineas.map((l) => ({
+        id: l.id,
+        producto: l.producto,
+        cantidad: l.cantidad,
+        comercio: l.comercio,
+        regla_faltante: l.regla_faltante,
+        cambio: l.cambio?.comercio_antes ? { comercio_antes: l.cambio.comercio_antes } : null,
+      })),
+      salieron,
+      total_confirmado_en: base.total_confirmado_en,
+      vence_en: base.vence_en,
+      pagado_en: base.pagado_en,
+      ventana_entrega: base.ventana_entrega,
+      creado_en: base.creado_en,
+      actualizado_en: base.actualizado_en,
+    }
   const tel = p.telefono
   return {
     ...base,
@@ -1024,6 +1049,13 @@ export function sembrarPagado(
   }
   if (antes) enCurso.set(personaId, antes)
   return p
+}
+
+/** MATU-113: el total confirmado del pedido en curso de la persona, ya vencido (para ver «Hay que confirmarlo de nuevo»). */
+export function vencerPedidoEnCurso(personaId: string) {
+  const id = enCurso.get(personaId)
+  const p = id ? pedidos.get(id) : undefined
+  if (p && p.estado === 'total_confirmado') p.vence = Date.now() - 60_000
 }
 
 /** Un total confirmado que otra persona del grupo está pagando (6.1 y 6.2): la venta espera el `commit`. */

@@ -127,6 +127,16 @@ class AccionAuditoria(StrEnum):
     DESPACHO_ENTREGAR = "despacho.entregar"
     DESPACHO_NO_ENTREGADO = "despacho.no_entregado"
     RETRACTO_RESOLVER = "retracto.resolver"
+    # MATU-81 (C32): el alta y el segundo factor de una cuenta de operación, sin grupo y sin el secreto ni el código
+    CUENTA_MFA_ALTA = "cuenta.mfa_alta"
+    SESION_MFA_CORRECTO = "sesion.mfa_correcto"
+    SESION_MFA_FALLIDO = "sesion.mfa_fallido"
+    # MATU-81 (C4): operación cambia una oferta de un comercio ficticio. Sin grupo y sin el valor anterior ni el nuevo
+    CATALOGO_OFERTA_CAMBIAR = "catalogo.oferta_cambiar"
+    # MATU-81 (D-81-5 y C14): con el grupo y la persona del pedido, sin contenido (ni la nota ni la resolución)
+    OPERACION_PEDIDO_VER = "operacion.pedido_ver"
+    INCIDENCIA_CREAR = "incidencia.crear"
+    INCIDENCIA_RESOLVER = "incidencia.resolver"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
@@ -166,6 +176,20 @@ ACCIONES_DEL_COMERCIO = frozenset(
         AccionAuditoria.COMERCIO_PRODUCTOS_CAMBIAR,
     }
 )
+
+# MATU-81 (0030): las de la cuenta de operación y la del catálogo, que tampoco son de una familia. El CHECK
+# auditoria_cuenta_acotada de la 0030 admite sin grupo estas, las de ACCIONES_DE_CUENTA y las de ACCIONES_DEL_COMERCIO
+ACCIONES_DE_OPERACION = frozenset(
+    {
+        AccionAuditoria.CUENTA_MFA_ALTA,
+        AccionAuditoria.SESION_MFA_CORRECTO,
+        AccionAuditoria.SESION_MFA_FALLIDO,
+        AccionAuditoria.CATALOGO_OFERTA_CAMBIAR,
+    }
+)
+
+# Todas las que pueden ir sin grupo
+ACCIONES_SIN_GRUPO = ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO | ACCIONES_DE_OPERACION
 
 # MATU-54 (D-54-7 a, decisión 365): las acciones que se refieren a una persona cuidada y llevan siempre su
 # persona_cuidada_id. Desde la 0028 el CHECK auditoria_persona_obligatoria exige esta misma lista a toda fila nueva, y
@@ -212,6 +236,10 @@ ACCIONES_DE_PERSONA = frozenset(
         AccionAuditoria.DESPACHO_ENTREGAR,
         AccionAuditoria.DESPACHO_NO_ENTREGADO,
         AccionAuditoria.RETRACTO_RESOLVER,
+        # MATU-81 (0030)
+        AccionAuditoria.OPERACION_PEDIDO_VER,
+        AccionAuditoria.INCIDENCIA_CREAR,
+        AccionAuditoria.INCIDENCIA_RESOLVER,
     }
 )
 
@@ -301,6 +329,8 @@ class EntidadAuditoria(StrEnum):
     PEDIDO_COMERCIO = "pedido_comercio"
     OFERTA = "oferta"
     RETRACTO = "retracto"
+    # MATU-81
+    INCIDENCIA = "incidencia"
 
 
 def _exigir(nombre: str, valor: object, tipo: type) -> None:
@@ -353,7 +383,7 @@ class EntradaAuditoria:
     def __post_init__(self) -> None:
         _exigir("accion", self.accion, AccionAuditoria)
         _exigir("actor_tipo", self.actor_tipo, ActorTipo)
-        if self.grupo_id is not None or self.accion not in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO:
+        if self.grupo_id is not None or self.accion not in ACCIONES_SIN_GRUPO:
             _exigir("grupo_id", self.grupo_id, uuid.UUID)
         if self.actor_ref is not None or self.actor_tipo is not ActorTipo.SISTEMA:
             _exigir("actor_ref", self.actor_ref, uuid.UUID)

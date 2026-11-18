@@ -32,6 +32,22 @@ async function entrar(email: string) {
 
 type Fila = Record<string, unknown> & { pedido_id: string; estado: string }
 
+describe('El doble del pedido en curso de quien «Se informa» (MATU-113)', () => {
+  it.each([
+    ['pedido-observador@example.com', 'borrador'],
+    ['pedido-observador-confirmado@example.com', 'total_confirmado'],
+    ['pedido-observador-vencido@example.com', 'vencido'],
+  ])('%s: %s, sin etag ni ningún monto a ninguna profundidad', async (email, estado) => {
+    const { h, personaId } = await entrar(email)
+    const r = await pedir('GET', `/v1/personas-cuidadas/${personaId}/pedido-en-curso`, null, h)
+    expect(r.status).toBe(200)
+    expect(r.cuerpo.estado).toBe(estado)
+    expect(r.cuerpo).not.toHaveProperty('etag')
+    expect(JSON.stringify(r.cuerpo)).not.toMatch(/"(precio_unitario|subtotal|subtotal_productos|costo_envio|total|precio_antes|monto|devolucion|oferta_id|retracto_pierde_al_abrir|comercios|entrega|resumen)"/)
+    expect((r.cuerpo.lineas as { regla_faltante: string }[]).map((l) => l.regla_faltante)).toContain('quitar')
+  })
+})
+
 describe('El doble de «Tus pedidos»', () => {
   it('admin: los cuatro pagados, del más reciente, con lo que se puede hacer; con cursor', async () => {
     const { h, personaId } = await entrar('tus-pedidos@example.com')
@@ -46,14 +62,13 @@ describe('El doble de «Tus pedidos»', () => {
     expect(mas.cuerpo.siguiente_cursor).toBeNull()
   })
 
-  it('observador: solo la fecha, los productos y «Pagado»; sin detalle (404)', async () => {
+  it('observador: la fecha, el estado real, entregado_en y los productos, sin montos; sin detalle (404)', async () => {
     const { h, personaId } = await entrar('tus-pedidos-observador@example.com')
     const items = (await pedir('GET', `/v1/personas-cuidadas/${personaId}/pedidos`, null, h)).cuerpo.items as Fila[]
     expect(items).toHaveLength(4)
-    for (const f of items) {
-      expect(Object.keys(f).sort()).toEqual(['estado', 'pagado_en', 'pedido_id', 'productos', 'productos_borrados', 'resumen_productos'])
-      expect(f.estado).toBe('pagado')
-    }
+    for (const f of items) expect(Object.keys(f).sort()).toEqual(['entregado_en', 'estado', 'pagado_en', 'pedido_id', 'productos', 'productos_borrados', 'resumen_productos'])
+    // MATU-113 (decisión 472): el estado de familia, el mismo que ve quien paga.
+    expect(items.map((f) => f.estado)).toEqual(['pagado', 'preparando', 'entregado', 'cancelado_con_devolucion'])
     expect((await pedir('GET', `/v1/pedidos/${items[0].pedido_id}/seguimiento`, null, h)).status).toBe(404)
     expect((await pedir('POST', `/v1/pedidos/${items[2].pedido_id}/retractos`, { lineas: [] }, h)).status).toBe(404)
   })

@@ -166,6 +166,32 @@ def test_los_avisos_simulados_no_salen_como_enviados(entorno_iam: EntornoIam, fa
     assert "quiebre_proximo" not in respuesta.text
 
 
+@pytest.mark.rf("RF-39")
+def test_los_avisos_del_pedido_salen_con_su_tipo_y_su_preferencia(
+    entorno_iam: EntornoIam, fabrica_iam: Fabrica
+) -> None:
+    """MATU-76 (C11, D-76-6): cada aviso con su tipo cerrado, «insumo» o «pedido», nunca la plantilla, y las dos
+    preferencias: la del insumo y la del pedido."""
+    familia = _familia(fabrica_iam)
+    with psycopg.connect(DSN) as cx:
+        cx.execute(
+            "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, estado, creada_en)"
+            " VALUES (%s, %s, 990076, 'correo', 'pedido_novedad', 'omitida', now() - interval '1 minute'),"
+            " (%s, %s, 990077, 'push', 'quiebre_proximo', 'omitida', now() - interval '2 minutes')",
+            (familia.admin.id, familia.grupo.id, familia.admin.id, familia.grupo.id))
+        cx.execute(
+            "INSERT INTO preferencia_notificacion (usuario_id, tipo_evento, canal, activo)"
+            " VALUES (%s, 'pedido', 'correo', false)", (familia.admin.id,))
+
+    respuesta = _pedir(entorno_iam, _token(entorno_iam, familia.admin))
+
+    assert respuesta.status_code == 200, respuesta.text
+    cuerpo = respuesta.json()
+    assert [(a["tipo"], a["canal"]) for a in cuerpo["avisos_enviados"]] == [("pedido", "correo"), ("insumo", "push")]
+    assert cuerpo["preferencia_avisos"] == {"correo": True, "push": True, "pedido": {"correo": False, "push": True}}
+    assert "pedido_novedad" not in respuesta.text and "quiebre_proximo" not in respuesta.text
+
+
 # --- Errores ------------------------------------------------------------------------------------------------------
 
 

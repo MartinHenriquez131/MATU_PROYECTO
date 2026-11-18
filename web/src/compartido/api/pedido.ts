@@ -14,9 +14,11 @@ type S = components['schemas']
 
 export type PedidoVista = S['PedidoVista']
 export type PedidoObservador = S['PedidoVistaObservador']
-/** Lo que ve cada rol: `PedidoVista` (admin, cuidador y pagador) o la del observador, sin entrega ni resumen. */
+/** Lo que ve cada rol: `PedidoVista` (admin, cuidador y pagador) o la del observador, sin entrega, resumen ni montos (MATU-113). */
 export type Pedido = PedidoVista | PedidoObservador
 export type LineaPedido = S['LineaPedido']
+/** MATU-113 (decisión 472): la línea de quien «Se informa», sin precio, subtotal, oferta, devolución ni retracto. */
+export type LineaPedidoObservador = S['LineaPedidoObservador']
 export type LineaSalida = S['LineaSalida']
 export type Regla = S['Regla']
 export type LineaSolicitud = S['LineaSolicitud']

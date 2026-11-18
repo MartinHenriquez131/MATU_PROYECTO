@@ -254,12 +254,18 @@ def test_la_linea_y_la_oferta_de_otro_comercio_son_404_y_no_cambian(despacho: De
 @pytest.mark.rf("MATU-79")
 def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia(despacho: Despacho) -> None:
     """MATU-79: la familia que pagó el pedido no alcanza ninguna ruta del comercio ni de operación sobre él (antes solo
-    se probaban las dos listas sin parámetro). El retracto resuelto va con un id inventado: 404 antes de buscarlo."""
+    se probaban las dos listas sin parámetro). El retracto va con un id inventado: 404 antes de buscarlo. La
+    incidencia es de verdad, creada por operación sobre el pedido de la familia (consola de MATU-81)."""
     d = despacho
     familia, pedido = d.pagado()
     parte = d.parte_de(pedido["id"])
     [(linea,)] = d.sql("SELECT id FROM pedido_linea WHERE pedido_id = %s", uuid.UUID(pedido["id"]))
     oferta = d.e.oferta("panal", "uno")
+    creada = d.operacion("POST", f"/pedidos/{pedido['id']}/incidencias",
+                         {"tipo": "faltante", "descripcion": "Nota sintética"})
+    assert creada.status_code == 201, creada.text
+    incidencia = creada.json()["id"]
+    huella_incidencia = d.sql("SELECT md5(i::text) FROM incidencia i WHERE id = %s", uuid.UUID(incidencia))
     rutas: list[tuple[str, str, Any]] = [
         ("GET", f"/v1/comercio/partes/{parte}", None),
         ("POST", f"/v1/comercio/partes/{parte}/preparar", None),
@@ -275,6 +281,14 @@ def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia
         ("POST", f"/v1/operacion/pedidos/{pedido['id']}/retractos", {"lineas": [{"linea_id": str(linea),
                                                                                    "cantidad": 1}]}),
         ("POST", f"/v1/operacion/retractos/{uuid.uuid4()}/resolver", {"decision": "devolver"}),
+        # La consola de MATU-81
+        ("GET", f"/v1/operacion/pedidos/{pedido['id']}", None),
+        ("GET", f"/v1/operacion/pedidos/{pedido['id']}/cobro", None),
+        ("POST", f"/v1/operacion/pedidos/{pedido['id']}/incidencias", {"tipo": "otro", "descripcion": "Sintética"}),
+        ("GET", f"/v1/operacion/incidencias/{incidencia}", None),
+        ("PATCH", f"/v1/operacion/incidencias/{incidencia}", {"estado": "en_gestion"}),
+        ("GET", f"/v1/operacion/retractos/{uuid.uuid4()}", None),
+        ("PATCH", f"/v1/operacion/ofertas/{oferta}", {"stock": 1}),
     ]
     distintas = {}
     for metodo, ruta, cuerpo in rutas:
@@ -282,8 +296,10 @@ def test_las_rutas_con_parametro_de_comercio_y_operacion_son_404_para_la_familia
         if r.status_code != 404:
             distintas[f"{metodo} {ruta}"] = r.status_code
     assert not distintas, distintas
-    # Nada cambió: el pedido sigue recién pagado
+    # Nada cambió: el pedido sigue recién pagado, con su única incidencia igual
     assert d.estado_pedido(pedido["id"]) == "pagado"
+    assert d.sql("SELECT md5(i::text) FROM incidencia i WHERE id = %s", uuid.UUID(incidencia)) == huella_incidencia
+    assert d.sql("SELECT count(*) FROM incidencia WHERE pedido_id = %s", uuid.UUID(pedido["id"])) == [(1,)]
 
 
 def test_una_cuenta_que_no_es_de_comercio_ni_de_operacion_recibe_404(despacho: Despacho) -> None:
@@ -531,7 +547,8 @@ def test_h2_h3_retracto_por_correo_a_nombre_de_quien_pago_y_varios_por_linea(des
     assert d.sql("SELECT solicitado_por FROM retracto WHERE id = %s", uuid.UUID(r.json()["id"])) == [
         (familia.admin.id,)]
     # Se rechaza (el sello venía abierto): esa unidad no se vuelve a pedir, y queda una
-    assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", {"decision": "rechazar"}).status_code == 200
+    rechazo = {"decision": "rechazar", "motivo": "sello_abierto"}
+    assert d.operacion("POST", f"/retractos/{r.json()['id']}/resolver", rechazo).status_code == 200
     segundo = d.operacion("POST", f"/pedidos/{pedido['id']}/retractos", cuerpo)
     assert segundo.status_code == 201, segundo.text
     # 0.3: lo rechazado no cuenta como devuelto, así que el envío no vuelve
