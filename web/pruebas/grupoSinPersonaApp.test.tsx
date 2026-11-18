@@ -11,9 +11,13 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
 import { AppFamilia } from '../src/familia/AppFamilia'
 import type { RespuestaFalsa } from './apiFalsa'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
 import { miembroDePrueba } from './miembrosFalsos'
 
 const GRUPO_ID = '3c9d4e20-0000-4000-8000-0000000000g1'
+
+// MATU-119: con la máquina cargada, las esperas de 1 s y el tope de 15 s no alcanzaban.
+plazosConCarga()
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
@@ -93,7 +97,8 @@ describe('Grupo familiar sin persona registrada', () => {
     expect(d.queryByText(/Lo que escribiste en la ficha/)).toBeNull()
     await userEvent.click(d.getByRole('button', { name: 'Salir del grupo' }))
     await waitFor(() => expect(window.location.pathname).toBe('/empezar/grupo'))
-    expect(await screen.findByText('Saliste de Familia Soto.')).toBeVisible()
+    // MATU-119: el aviso que se ve, no su copia en la región amable, que llega 50 ms después.
+    expect(await screen.findByText('Saliste de Familia Soto.', fueraDeRegiones)).toBeVisible()
     expect(pedidas).toContain(`POST /v1/grupos/${GRUPO_ID}/salida`)
   })
 

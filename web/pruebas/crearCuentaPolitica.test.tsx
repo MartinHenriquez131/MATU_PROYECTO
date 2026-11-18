@@ -8,6 +8,7 @@ import { apiFamilia } from '../src/compartido/api/sesion'
 import { CrearCuenta } from '../src/familia/Alta'
 import type { RespuestaFalsa } from './apiFalsa'
 import { familiaFalsa } from './familiaFalsa'
+import { plazosConCarga } from './conCarga'
 import { HUELLA_DE_PRUEBA, HUELLA_NUEVA, POLITICA_DE_PRUEBA, responderPolitica } from './politicaFalsa'
 
 vi.mock('../src/familia/estado', async (original) => ({
@@ -34,8 +35,13 @@ function responderAlta(...respuestas: RespuestaFalsa[]) {
   return cuerpos
 }
 
+// MATU-119: con la máquina cargada, llenar el formulario pasaba los 15 s de tope. Las esperas suben a
+// 5 s y cada prueba a 30 s, y se escribe sin el turno de temporizador entre tecla y tecla (`delay:
+// null`): las mismas teclas y los mismos eventos. El formulario no mueve el foco mientras se escribe.
+plazosConCarga()
+
 async function llenar({ marcar = true } = {}) {
-  const u = userEvent.setup()
+  const u = userEvent.setup({ delay: null })
   await u.type(screen.getByLabelText('Tu nombre'), 'Ana Prueba')
   await u.type(screen.getByLabelText('Tu correo'), 'ana.prueba@example.org')
   await u.type(screen.getByLabelText('Tu celular'), '+56 9 5555 0137')
