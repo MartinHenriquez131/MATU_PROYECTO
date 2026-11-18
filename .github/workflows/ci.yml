@@ -76,12 +76,31 @@ jobs:
       - name: Estilo (ruff)
         run: ruff check .
 
+      # MATU-79: preparada sin activar. El 18-11 ruff format --check marca 178 de 574 archivos, y reformatear ahora
+      # chocaría con las ramas apiladas abiertas (#101, #108, #112 y MATU-114). Se reformatea en un PR propio cuando
+      # se fusione la fila, y entonces se quita continue-on-error
+      - name: Formato (ruff format)
+        continue-on-error: true
+        run: ruff format --check .
+
       - name: Tipos (mypy)
         run: mypy .
 
       - name: Secretos (detect-secrets)
         working-directory: .
         run: git ls-files -z | xargs -0 detect-secrets-hook --baseline .secrets.baseline
+
+      # MATU-79: preparada sin activar. El 18-11 encuentra PYSEC-2026-1605 en marshmallow 3.26.1 (corregida en 3.26.2
+      # y 4.1.2), que trae transbank-sdk 6.1.0 con el tope marshmallow<=3.26.1, y no hay versión del SDK más nueva.
+      # Actualizar o ignorar la vulnerabilidad es una decisión de Jorge; con ella se quita continue-on-error
+      - name: Dependencias (pip-audit)
+        continue-on-error: true
+        run: pip-audit --skip-editable --desc on
+
+      # MATU-79: la puerta openapi-diff de la estrategia de pruebas (sección 8). Falla si app.openapi() no coincide con
+      # docs/api/openapi.json. Para regenerarlo: cd backend && python scripts/exportar_contrato.py --escribir
+      - name: Contrato (openapi.json)
+        run: python scripts/exportar_contrato.py
 
       - name: Crear roles y base
         run: ROLES_SQL=db/00_roles.sql sh ../infra/postgres/init/10_matu.sh
@@ -93,7 +112,38 @@ jobs:
           alembic upgrade head
 
       - name: Pruebas (pytest)
-        run: pytest -q
+        run: pytest -q --cov=app --cov-report=json:cobertura.json --cov-report=term:skip-covered
+
+      # MATU-79: estrategia de pruebas, sección 8. Dominio (modules/*/domain y shared) y casos de uso
+      # (modules/*/application) por separado, cada uno con su piso; ninguna meta en infrastructure/
+      - name: Cobertura por capa
+        run: python scripts/cobertura_por_capa.py cobertura.json
+
+      # MATU-79: los requisitos Debe viven en docs/arquitectura.md del repositorio de documentos, que es público
+      - name: Documentos de MATU
+        uses: actions/checkout@v4
+        with:
+          repository: MartinHenriquez131/MATU
+          path: matu-docs
+          sparse-checkout: docs/arquitectura.md
+          sparse-checkout-cone-mode: false
+
+      # MATU-79: estrategia de pruebas, sección 14. Preparada sin activar: el 18-11 RF-32 y RF-40 (backoffice) no
+      # tienen ninguna prueba marcada. Se quita continue-on-error cuando las tengan
+      - name: Trazabilidad (RF Debe con prueba)
+        continue-on-error: true
+        run: python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md
+
+  # MATU-79: la imagen de la API que despliega Railway (infra/railway/Dockerfile), construida desde la raíz como en
+  # railway.json. Solo se comprueba que construye: no se sube a ningún registro
+  imagen:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen (docker build)
+        run: docker build -f infra/railway/Dockerfile -t matu-api:ci .
 
   # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint todavía: se revisan
   # los tipos, las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
