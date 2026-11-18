@@ -1638,9 +1638,10 @@ function Formulario({
   // del formulario, el foco se queda donde lo puso: quitárselo hacía perder lo que escribía.
   useEffect(() => {
     if (!ancho) return
-    window.setTimeout(() => {
+    const t = window.setTimeout(() => {
       if (!document.getElementById(`${uid}-form`)?.contains(document.activeElement)) document.getElementById(`${uid}-titulo`)?.focus()
     }, 60)
+    return () => window.clearTimeout(t)
   }, [ancho, uid, modo, perfil?.id])
 
   const validar = (): Partial<Record<CampoForm, string>> => {
@@ -2452,8 +2453,10 @@ function PanelResolver({
     const t = window.setTimeout(() => {
       // MATU-118: el mismo resguardo que el panel de «Compré» y «Me quedan» (PR #83). Si en esos 40 ms
       // la persona ya tocó el campo, el foco se queda donde lo puso: quitárselo hacía perder dígitos.
+      // Tampoco desplaza: si ya escribe, la página no se le mueve bajo el dedo.
       const el = document.getElementById(panel)
-      if (!el?.contains(document.activeElement)) document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
+      if (el?.contains(document.activeElement)) return
+      document.getElementById(conEnvase ? panel : campo)?.focus({ preventScroll: true })
       el?.scrollIntoView?.({ block: 'nearest' })
     }, 40)
     return () => window.clearTimeout(t)

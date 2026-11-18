@@ -6,7 +6,7 @@
 import { act, configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { fechaCorta } from '../src/compartido/fechas'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
@@ -572,6 +572,18 @@ describe('«Ya lo resolví» en envases', () => {
     )
   })
 
+  /** jsdom no trae `scrollIntoView`: se pone uno que anota qué elementos se desplazaron, y se quita al final. */
+  const desplazados = () => {
+    const lista: Element[] = []
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      lista.push(this)
+    }
+    return lista
+  }
+  afterEach(() => {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+  })
+
   // MATU-118: el panel toma el foco a los 40 ms. Si la persona ya empezó a escribir en el campo, en un
   // teléfono lento, el foco no se le quita: antes escribía «100» y quedaba «1».
   it('con envase, si la persona ya escribe antes de los 40 ms, el foco se queda en el campo y no se pierde nada', async () => {
@@ -582,6 +594,7 @@ describe('«Ya lo resolví» en envases', () => {
     const retenidos: (() => void)[] = []
     const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
       ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    const movidos = desplazados()
     try {
       await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
       await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
@@ -596,14 +609,18 @@ describe('«Ya lo resolví» en envases', () => {
     const campo = screen.getByRole('textbox', { name: '¿Compraste? ¿Cuántos envases?' })
     expect(campo).toHaveValue('100')
     expect(campo).toHaveFocus()
+    // P3 del diseñador: tampoco desplaza el panel; la página no se le mueve mientras escribe.
+    expect(movidos).not.toContain(document.getElementById(`panel-${PANAL.id}`))
     expect(escritas(pedidas)).toEqual([])
   })
 
-  it('con envase y sin escribir, el foco sigue llegando al panel, con su nombre para el lector de pantalla', async () => {
+  it('con envase y sin escribir, el foco sigue llegando al panel, con su nombre para el lector de pantalla, y lo desplaza a la vista', async () => {
     const { u } = await abrir()
+    const movidos = desplazados()
     await u.click(screen.getByRole('button', { name: 'Ya lo resolví: Pañal adulto talla M' }))
     const panel = screen.getByRole('group', { name: '¿Compraste? ¿Cuántos envases?' })
     await waitFor(() => expect(panel).toHaveFocus())
+    expect(movidos).toContain(panel)
     expect(panel).toHaveAccessibleName('¿Compraste? ¿Cuántos envases?')
     expect(document.activeElement?.tagName).not.toBe('INPUT')
   })
