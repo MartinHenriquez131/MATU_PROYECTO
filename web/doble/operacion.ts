@@ -850,5 +850,9 @@ export function crearConsola({ ahora = () => new Date(), modo = 'operacion', tra
     return ok(vistaRetracto(r), 201)
   }
 
-  return { atender, estado: { pedidos, retractos, incidencias, ofertas } }
+  /** MATU-114: el doble olvida los correos que no calzaron (al volver a entrar, para probar en el teléfono sin esperar la hora). */
+  const olvidarCorreosQueNoCalzan = () => {
+    correosQueNoCalzan.length = 0
+  }
+  return { atender, olvidarCorreosQueNoCalzan, estado: { pedidos, retractos, incidencias, ofertas } }
 }
