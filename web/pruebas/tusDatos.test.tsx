@@ -318,6 +318,32 @@ describe('MATU-116: los pagos y lo que pediste devolver, también de un grupo de
     expect(li).not.toHaveTextContent('Suplemento vainilla x12')
     expect(li).toHaveTextContent('Los productos los puedes pedir a cuidaconmatu@gmail.com.')
   })
+
+  it('P3 (2.2): en «Tus pagos» el grupo depende solo de `sigue_en_el_grupo`, aunque llegue un nombre', async () => {
+    const base = copiaCuenta()
+    abrir(copiaCuenta({ pagos: [{ ...base.pagos![0], grupo: 'Familia Soto', sigue_en_el_grupo: false }] }))
+    await listo()
+    const pago = within(bloque('Tus pagos')).getAllByRole('listitem')[0]
+    expect(pago).toHaveTextContent('$37.260 en un grupo del que saliste')
+    expect(pago).not.toHaveTextContent('Familia Soto')
+  })
+
+  it('P3 (2.4/N7): en las condiciones el grupo depende solo de `sigue_en_el_grupo`, aunque llegue un nombre', async () => {
+    const base = copiaCuenta()
+    abrir(
+      copiaCuenta({
+        condiciones_aceptadas: [
+          { ...base.condiciones_aceptadas![0], grupo: 'Familia Soto', sigue_en_el_grupo: false },
+          { ...base.condiciones_aceptadas![1], grupo: 'Familia Soto', sigue_en_el_grupo: false },
+        ],
+      }),
+    )
+    await listo()
+    const [pagadas, sinPagar] = within(bloque('Condiciones de compra que acep­taste')).getAllByRole('listitem')
+    expect(pagadas).toHaveTextContent('En un grupo del que saliste, para el pedido 4821.')
+    expect(sinPagar).toHaveTextContent('En un grupo del que saliste, para un pedido que no se pagó.')
+    for (const li of [pagadas, sinPagar]) expect(li).not.toHaveTextContent('Familia Soto')
+  })
 })
 
 describe('«Tus datos»: el diálogo y los estados (5.6)', () => {

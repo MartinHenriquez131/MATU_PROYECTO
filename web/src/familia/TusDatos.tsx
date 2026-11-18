@@ -447,8 +447,8 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
       </p>
       <p className="max-w-prose text-base break-words">
         <span className="cifras">{pesos(p.cobrado)}</span>
-        {/* MATU-116 (N1): de un grupo del que salió, la API deja el grupo en `null`; `""` se trata igual. */}
-        {p.grupo ? T.enGrupo(p.grupo) : T.enGrupoQueDejaste}
+        {/* MATU-116 (2.2, P3 del QA): decide solo `sigue_en_el_grupo`; con `false` nunca se muestra `grupo`. `""` se trata como sin grupo. */}
+        {p.sigue_en_el_grupo && p.grupo ? T.enGrupo(p.grupo) : T.enGrupoQueDejaste}
       </p>
       <p className="max-w-prose text-base break-words">
         {p.tarjeta ? (
@@ -480,8 +480,8 @@ function Pago({ p }: { p: PagoCuentaCopia }) {
 }
 
 function Condiciones({ c }: { c: CondicionesCopia }) {
-  // MATU-116: de un grupo del que salió, la API deja el grupo en `null`.
-  const grupo = c.grupo || T.unGrupoQueDejaste
+  // MATU-116 (2.4/N7, P3 del QA): decide solo `sigue_en_el_grupo`; con `false` nunca se muestra `grupo`.
+  const grupo = c.sigue_en_el_grupo && c.grupo ? c.grupo : T.unGrupoQueDejaste
   return (
     <li className="flex min-w-0 flex-col gap-1 py-4">
       <p className="font-bold">
