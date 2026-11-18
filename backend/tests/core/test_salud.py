@@ -167,7 +167,7 @@ def test_la_conexion_de_la_base_tiene_tiempo_limite_y_no_usa_el_pool(monkeypatch
 
     from app.core import config
 
-    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://matu_app:sintetica@127.0.0.1:1/matu_wt_salud")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://matu_app@127.0.0.1:1/matu_wt_salud")
     config.obtener_configuracion.cache_clear()
     salud._engine_salud.cache_clear()
     try:
