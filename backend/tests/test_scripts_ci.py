@@ -1,10 +1,11 @@
-"""MATU-79 · Los scripts de las puertas del CI: el contrato (exportar_contrato.py) y la trazabilidad (trazabilidad.py).
+"""MATU-79 · Los scripts de las puertas del CI: contrato, trazabilidad y cobertura por capa.
 
 Se prueban sus reglas con entradas sintéticas: cómo se leen los requisitos Debe de una tabla y cuándo dos contratos
 difieren. La corrida completa de cada uno es un paso del pipeline (.github/workflows/ci.yml).
 """
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -26,6 +27,7 @@ def _cargar(nombre: str) -> ModuleType:
 
 trazabilidad = _cargar("trazabilidad")
 exportar_contrato = _cargar("exportar_contrato")
+cobertura_por_capa = _cargar("cobertura_por_capa")
 
 TABLA = """\
 ### 3.1 Algo
@@ -105,3 +107,38 @@ def test_lista_las_diferencias_por_ruta() -> None:
 def test_serializa_como_el_archivo_versionado() -> None:
     texto = exportar_contrato.serializar({"info": {"title": "Configuración"}})
     assert texto == '{\n  "info": {\n    "title": "Configuración"\n  }\n}\n'
+
+
+def _archivo(cubiertas: int, total: int) -> dict[str, Any]:
+    return {"summary": {"covered_lines": cubiertas, "num_statements": total}}
+
+
+INFORME: dict[str, Any] = {
+    "files": {
+        r"app\modules\consumption\domain\quiebre.py": _archivo(9, 10),
+        "app/shared/eventos.py": _archivo(8, 10),
+        "app/modules/ordering/application/casos.py": _archivo(7, 10),
+        "app/modules/ordering/infrastructure/repositorio.py": _archivo(0, 10),
+        "app/core/db.py": _archivo(10, 10),
+    }
+}
+
+
+def test_la_cobertura_se_mide_por_capa_y_sin_infraestructura() -> None:
+    por_capa, por_modulo, total = cobertura_por_capa.medir(INFORME)
+    assert (por_capa["dominio"].cubiertas, por_capa["dominio"].total) == (17, 20)
+    assert (por_capa["aplicacion"].cubiertas, por_capa["aplicacion"].total) == (7, 10)
+    assert set(por_modulo["dominio"]) == {"consumption", "shared"}
+    assert (total.cubiertas, total.total) == (34, 50)
+
+
+def test_una_capa_bajo_su_piso_falla(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    archivo = tmp_path / "cobertura.json"
+    archivo.write_text(json.dumps(INFORME), encoding="utf-8")
+    monkeypatch.setattr(cobertura_por_capa, "PISOS", {"dominio": 85.0, "aplicacion": 70.0})
+    assert cobertura_por_capa.main([str(archivo)]) == 0
+    monkeypatch.setattr(cobertura_por_capa, "PISOS", {"dominio": 86.0, "aplicacion": 70.0})
+    assert cobertura_por_capa.main([str(archivo)]) == 1
+    assert "bajo el piso en: dominio" in capsys.readouterr().err
