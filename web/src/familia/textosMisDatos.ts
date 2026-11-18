@@ -330,6 +330,11 @@ export const MIS_DATOS = {
   si: 'Sí', // [NUEVO]
   no: 'No', // [NUEVO]
   cambiarAvisos: 'Puedes cambiarlos en Tu cuenta.', // [NUEVO]
+  // MATU-76 (especificación 4.1 y 4.2)
+  avisosInsumo: 'Cuando un insumo se está acabando', // [NUEVO], del título de L 20
+  avisosPedido: 'De tus pedidos', // [NUEVO]
+  dineroIgual: 'El correo sobre tu dinero te llega igual.', // [NUEVO], solo con «Por correo» de pedidos en No
+  tipoAviso: { insumo: 'Aviso de insumo', pedido: 'Aviso de pedido' } as Record<AvisoEnviadoCopia['tipo'], string>, // [NUEVO]
   pilotoAvisos: 'En el piloto los avisos se prueban sin enviarse: aparecen aquí, pero no te llegaron.', // [ANALISTA]
   sinAvisosEnviados: 'No hay avisos en los últimos 90 días.', // [NUEVO]
   canalAviso: { correo: 'Por correo', push: 'En tus teléfonos', sms: 'Por SMS' } as Record<AvisoEnviadoCopia['canal'], string>, // [L 20], [MATU-55], [NUEVO]
