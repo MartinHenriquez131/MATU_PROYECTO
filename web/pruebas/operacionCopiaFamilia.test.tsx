@@ -60,6 +60,18 @@ async function abrir(c: CopiaDatosPersona) {
 }
 
 describe('MATU-81 en la copia de los datos de la familia', () => {
+  it('MATU-115 (P1 del diseñador, WCAG 1.4.10): las filas no llevan `items-start`, que dejaba salir la nota; la etiqueta va con `self-start`', async () => {
+    await abrir(conLoQuePaso())
+    const seccion = screen.getByRole('heading', { level: 4, name: 'Lo que pasó con tu pedido' }).closest('section')!
+    const filas = within(seccion).getAllByRole('listitem')
+    expect(filas).toHaveLength(2)
+    for (const f of filas) {
+      expect(f).not.toHaveClass('items-start')
+      expect(f).toHaveClass('min-w-0', 'flex-col')
+    }
+    expect(within(filas[0]).getByText('Resuelto').closest('span.inline-flex')).toHaveClass('self-start')
+  })
+
   it('MATU-115 (P3 de Martín): sin resolución (vacía), «Cómo se resolvió:» no aparece; con resolución, sí', async () => {
     await abrir(
       conLoQuePaso([

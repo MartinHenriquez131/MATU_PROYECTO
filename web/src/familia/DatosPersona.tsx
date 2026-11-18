@@ -801,9 +801,11 @@ function LoQuePaso({ items }: { items: PedidoCopia['lo_que_paso'] }) {
         {items.map((x, i) => {
           const resuelto = x.estado === 'resuelta'
           return (
-            <li key={`${x.anotado_en}-${i}`} className="flex flex-col items-start gap-1">
+            // MATU-115 (P1 del diseñador): sin `items-start`, que dejaba la nota más ancha que la tarjeta a
+            // 320 px con el texto al 200 % (WCAG 1.4.10); la etiqueta se alinea con `self-start` (MATU-54 3.4).
+            <li key={`${x.anotado_en}-${i}`} className="flex min-w-0 flex-col gap-1">
               <span className="font-bold break-words">{L.tipo[x.tipo] ?? L.tipo.otro}</span>
-              <Etiqueta>
+              <Etiqueta className="self-start">
                 {resuelto ? <CircleCheck aria-hidden className="size-3.5 shrink-0" /> : <Hourglass aria-hidden className="size-3.5 shrink-0" />}
                 <span className="min-w-0">{resuelto ? L.resuelto : L.revisando}</span>
               </Etiqueta>
