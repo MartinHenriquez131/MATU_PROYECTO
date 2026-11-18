@@ -23,7 +23,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan import test_abrir_relevo_api as abrir
 from tests.modules.care_plan.test_abrir_relevo_api import RUTA_ACCESOS, EntornoAbrir, _ejecutar, _una
-from tests.textos import aparece_celular
+from tests.textos import aparece_celular, aparece_como_dato
 
 entorno = abrir.entorno
 reloj_fijo = abrir.reloj_fijo
@@ -136,8 +136,10 @@ def test_la_tarea_no_lleva_el_telefono_al_log(entorno: EntornoAbrir, caplog: pyt
     formateador = FormateadorJSON()
     texto = "\n".join(formateador.format(r) for r in caplog.records) + caplog.text
     assert not aparece_celular(TELEFONO, texto)
-    for dato in (str(acceso), str(familia.grupo.id), str(familia.persona.id), "Rosa", token, pin):
+    for dato in (str(acceso), str(familia.grupo.id), str(familia.persona.id), "Rosa", token):
         assert dato not in texto
+    # El PIN tiene 4 cifras: como subcadena caía por azar dentro de un UUID del log
+    assert not aparece_como_dato(pin, texto)
     [linea] = [json.loads(formateador.format(r)) for r in caplog.records if r.name == "matu.tareas"]
     assert linea["tarea"] == "conservacion_relevo" and linea["resultado"] == "ok"
     assert set(linea["contadores"]) == {"telefonos_borrados"} and linea["contadores"]["telefonos_borrados"] >= 1

@@ -348,7 +348,8 @@ def test_el_enlace_y_el_pin_van_a_un_archivo_que_git_ignora(tmp_path: Path) -> N
     )
     assert ignorado.returncode == 0
     # El repr del relevo sembrado no lleva el token ni el PIN
-    assert "0137" not in repr(relevo) and "t" * 43 not in repr(relevo)
+    # El PIN como dato: el repr lleva un UUID al azar y una hora con microsegundos, que podían traer «0137»
+    assert not aparece_como_dato("0137", repr(relevo)) and "t" * 43 not in repr(relevo)
 
 
 @MATU_64

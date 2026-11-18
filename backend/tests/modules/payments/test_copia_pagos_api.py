@@ -14,6 +14,7 @@ from app.modules.payments.infrastructure.pasarela_falsa import PasarelaFalsa
 from tests.base_datos import DSN, requiere_base
 from tests.modules.ordering.conftest import COSTO_ENVIO, TELEFONO, EntornoPedido
 from tests.modules.payments.conftest import pagar, pedido_confirmado, sin_sesion_volver
+from tests.textos import aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-25"), pytest.mark.rf("Ley-21.719")]
 
@@ -72,7 +73,9 @@ def test_la_copia_de_la_persona_trae_el_pedido_pagado_sin_telefono_ni_tarjeta(
     assert (pago["estado"], pago["cobrado"], pago["devuelto"], pago["pago_de_prueba"]) == ("aprobado", TOTAL, 0, True)
     assert pago["pagado_por"] == {"nombre": familia.admin.nombre, "activo": True}
     assert pedido["entrega"] is not None and "telefono_contacto" not in pedido["entrega"]
-    assert TELEFONO not in respuesta.text and token not in respuesta.text and "2032" not in respuesta.text
+    assert TELEFONO not in respuesta.text and token not in respuesta.text
+    # Los 4 dígitos de la tarjeta, como dato: como subcadena caían por azar en la referencia o en un UUID
+    assert not aparece_como_dato("2032", respuesta.text)
     assert not _claves(respuesta.json()) & (DE_LA_VENTA | SOLO_DE_QUIEN_PAGO)
     assert _codigo(pedido["referencia"]) not in respuesta.text
     # El historial dice a qué pedido se refiere cada hecho (F1)

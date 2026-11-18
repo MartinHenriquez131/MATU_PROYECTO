@@ -32,7 +32,7 @@ from tests.dobles.reloj_fijo import RelojFijo
 from tests.dobles.sesiones_relevo_en_memoria import SesionesRelevoEnMemoria
 from tests.fabricas import FamiliaCreada
 from tests.modules.care_plan.conftest import EntornoFicha
-from tests.textos import aparece_como_dato
+from tests.textos import aparece_celular, aparece_como_dato
 
 pytestmark = [requiere_base, pytest.mark.rf("RF-06")]
 
@@ -180,7 +180,8 @@ def test_relevo_ve_solo_campos_habilitados(entorno: EntornoAbrir) -> None:
     # red_apoyo no se compartió, y no ve ninguna sección complementaria
     assert cuerpo["campos"] == {"rutina": {"texto": RUTINA}, "manejo_situaciones": {"texto": None}}
     assert cuerpo["secciones"] == []
-    assert "Hija" not in respuesta.text and "0101" not in respuesta.text
+    # El teléfono de red_apoyo en todas sus formas: «0101» como subcadena podía caer en los microsegundos de vence_en
+    assert "Hija" not in respuesta.text and not aparece_celular("+56 9 5555 0101", respuesta.text)
     assert cuerpo["nombre_pila"] == familia.persona.nombre_pila
     assert familia.persona.nombre not in respuesta.text  # el nombre completo nunca
 
@@ -555,7 +556,7 @@ def test_canje_429_por_ip_sin_tocar_el_acceso_y_vuelve_a_la_hora(entorno: Entorn
     cuerpo = _problema(respuesta, 429, "demasiadas-peticiones")
     assert respuesta.headers["retry-after"] == str(30 * 60)
     assert "set-cookie" not in respuesta.headers
-    assert token not in respuesta.text and pin not in str(cuerpo)
+    assert token not in respuesta.text and not aparece_como_dato(pin, str(cuerpo))
     assert _una("SELECT pin_intentos_fallidos FROM acceso_relevo WHERE id = %s", acceso_id) == (0,)
     assert _acciones(acceso_id) == []
 
