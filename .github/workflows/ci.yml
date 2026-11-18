@@ -137,8 +137,14 @@ jobs:
       # carga con infra/semillas/catalogo_demo.py) ni los convenios, y no existe ninguno de los cuatro indicadores de la
       # arquitectura (GET /v1/backoffice/indicadores). Las rutas de /v1/operacion de MATU-63 operan pedidos, y sus pruebas
       # ya van marcadas con RF-25, RF-26 y RF-40, no con RF-32 (revisado el 18-11)
-      - name: Trazabilidad (RF Debe con prueba)
-        run: python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --pendientes RF-32,RF-40
+      # Los RNF (tabla 2.2): exige una prueba con rf("RNF-xx") a cada Debe con verificación automática (RNF-01, 02, 04,
+      # 07, 08 y 10), con un mínimo de 6. --rnf-opcional es transitorio: la arquitectura de main de MATU todavía no trae la
+      # tabla con ID, y sin ella la puerta revisa solo los RF y lo avisa. Se quita cuando se fusione el PR de documentos
+      # de MATU-79 (rama docs/matu-79-rnf del repositorio MATU)
+      - name: Trazabilidad (RF y RNF Debe con prueba)
+        run: >-
+          python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --pendientes RF-32,RF-40
+          --minimo-rnf 6 --rnf-opcional
 
   # MATU-79: la imagen de la API que despliega Railway (infra/railway/Dockerfile), construida desde la raíz como en
   # railway.json. Solo se comprueba que construye: no se sube a ningún registro
