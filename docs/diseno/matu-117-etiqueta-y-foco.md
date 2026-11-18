@@ -61,9 +61,15 @@ Con el radio de la píldora (80 px), el arco se comía el principio y el final d
 
 No cambian. La etiqueta no es interactiva: no tiene foco, ni presionado, ni deshabilitado. Los cuatro tonos de `TONO_ETIQUETA` (`neutro`, `ok`, `activo` y `atenta`) usan la misma forma.
 
-### 1.5 Fuera del alcance, para el orquestador
+### 1.5 El distintivo del piloto
 
-El distintivo del piloto (`web/src/compartido/ui/Marca.tsx`, línea 15) también es `rounded-full` y se parte en renglones con el texto al 200 %. Con `py-1` mide 2 rem de alto en un renglón, así que `rounded-2xl` lo dejaría igual. No es parte de esta tarjeta: si se quiere, va en otra (P3).
+**Incluido en esta tarjeta por decisión del orquestador (18/11/2026).** `DistintivoPiloto` (`web/src/compartido/ui/Marca.tsx`, línea 15) también era `rounded-full` y se parte en renglones con el texto al 200 %. **Pasa a `rounded-2xl`**, sin otro cambio en su clase (`bg-tinta/7`, `px-3 py-1`, `text-base font-bold text-tenue` y el punto `miel` siguen iguales; el punto conserva su `rounded-full`, porque es un círculo).
+
+- **En un renglón, la misma píldora.** Con `py-1` mide 2 rem de alto (1,5 rem de renglón más 0,25 rem arriba y abajo). Los dos radios de 1 rem suman justo el alto, así que la curva es la de `rounded-full`.
+- **En varios renglones, un rectángulo** de esquinas de 1 rem, como la etiqueta (1.3).
+- La regla del distintivo no cambia: siempre visible, en todas las pantallas, también con el texto al 200 % (`Demo/DISENO.md`, «Rótulos del piloto»).
+
+Criterios 1 a 3 de la sección 4, aplicados también al distintivo: en un renglón se ve igual que en `main` a 360, 1280 y 1920 px, en claro y en oscuro; a 320 px con el texto al 200 % se ve como un rectángulo de esquinas redondas, sin desborde horizontal.
 
 ---
 
