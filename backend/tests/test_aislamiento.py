@@ -777,8 +777,9 @@ OFERTA = "00000000-0000-0000-0000-000000000f11"
 @pytest.mark.parametrize("tabla", ["cargo", "participacion"])
 def test_devuelto_no_supera_lo_cobrado(cx, tabla):
     """Reemplaza a la prueba del tope de captura: ya no hay autorizado ni capturado, solo cobrado y devuelto. Desde la
-    0024 (MATU-62) el cargo lo actualizan el sistema y operación, no la familia."""
-    como(cx, rol="operacion")
+    0024 (MATU-62) el cargo lo actualizan el sistema y operación, no la familia. Desde la 0033 (MATU-122, C4),
+    operación alcanza la participación solo con el grupo del pedido y sin cuenta, como en la devolución."""
+    como(cx, rol="operacion", grupo_id=G_A)
     parcial = "devuelto_parcial" if tabla == "cargo" else "devuelta_parcial"
     with pytest.raises(errors.CheckViolation), cx.transaction():
         cx.execute(f"UPDATE {tabla} SET estado = %s, monto_devuelto = monto_cobrado + 1", (parcial,))
@@ -812,8 +813,9 @@ def test_total_es_productos_mas_un_envio(cx):
 ])
 def test_estados_de_la_captura_diferida_ya_no_existen(cx, tabla, columna, valor):
     # MATU-62: las tablas del pago las actualiza operación (la familia no alcanza la fila y el UPDATE no fallaría)
+    # MATU-122 (C4): la participación, con el grupo del pedido y sin cuenta (la devolución)
     if tabla in ("cargo", "participacion", "transaccion_pasarela"):
-        como(cx, rol="operacion")
+        como(cx, rol="operacion", grupo_id=G_A if tabla == "participacion" else None)
     else:
         como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
     with pytest.raises(errors.CheckViolation):
