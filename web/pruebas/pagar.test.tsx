@@ -13,6 +13,10 @@ import { familiaFalsa } from './familiaFalsa'
 import { apiPedido, borrador, confirmado, conRegionesGlobales, enOrden, PEDIDO_ID, persona, PERSONA_ID, problema, type Pedida } from './pedidoFalso'
 import { GRUPO_ID, TOKEN } from './pagoFalso'
 import { entregado, fila, filaObservador, lista } from './tusPedidosFalso'
+import { plazosConCarga } from './conCarga'
+
+// MATU-119: con la máquina cargada, abrir «Antes de pagar» y pagar pasaba el segundo de las esperas o los 15 s de tope.
+plazosConCarga()
 
 let contexto = familiaFalsa()
 vi.mock('../src/familia/estado', async (original) => ({
