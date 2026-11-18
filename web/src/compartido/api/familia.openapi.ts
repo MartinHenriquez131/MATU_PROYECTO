@@ -11,7 +11,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Salud */
+        /**
+         * Salud
+         * @description Comprueba la base (`SELECT 1`) y Redis (`PING`), cada una con un tiempo límite de 2 segundos. Responde sin
+         *     datos: 200 si las dos responden y 503 si alguna falla.
+         */
         get: operations["salud_v1_salud_get"];
         put?: never;
         post?: never;
@@ -5864,7 +5868,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description La API responde y alcanza la base y Redis */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5873,6 +5877,15 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description servicio-no-disponible: la base o Redis no responden dentro del tiempo límite. El problema no dice cuál ni trae detalle interno */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": unknown;
                 };
             };
         };
