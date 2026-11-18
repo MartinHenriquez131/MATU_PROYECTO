@@ -172,6 +172,8 @@ describe('Retractos', () => {
 
 describe('El retracto que llegó por correo', () => {
   const CORREO_OTRO = 'otra-persona@example.com'
+  /** La nota de 409, 422 no retractable y 429 (P2 de MATU-114). */
+  const notaDelCorreo = () => document.getElementById('nota-del-retracto-por-correo')
 
   async function abrirFormulario(ref = '4825', sobre?: Sobre) {
     const r = await abrirEntregado(ref, sobre)
@@ -234,6 +236,8 @@ describe('El retracto que llegó por correo', () => {
     await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
     await waitFor(() => expect(urgente).toHaveTextContent(/^Este pedido ya no tiene plazo de retracto: venció el \d{2}\/\d{2}\/\d{4}\.$/))
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
+    // P2 de MATU-114: el foco va a la nota, que queda a la vista; no se queda en el botón.
+    await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
   })
 
   // Con la máquina cargada pasó los 15 s: son tres envíos del formulario completo.
@@ -252,6 +256,7 @@ describe('El retracto que llegó por correo', () => {
     await usuario.click(mas())
     await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
     await waitFor(() => expect(urgente).toHaveTextContent('Elige productos que se entregaron, hasta lo que queda por devolver.'))
+    await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
     expect(document.body.textContent).not.toContain('ya tiene un retracto por resolver')
     // Con la unidad que queda, sí.
     await usuario.click(screen.getAllByRole('button', { name: 'Menos: ¿Cuántos?' })[0])
@@ -262,24 +267,44 @@ describe('El retracto que llegó por correo', () => {
     expect(api.consola.estado.retractos.filter((r) => r.pedido_id === ID.entregado)).toHaveLength(2)
   })
 
-  it('MATU-114, 429 demasiados-intentos: el texto de la fila 8.5, en la región urgente y no el de la red', async () => {
+  const PRIMERA = 'Hiciste muchos intentos con correos que no corresponden.'
+  const con429 = (cabeceras: Record<string, string>): Sobre => (l) =>
+    l.endsWith('/retractos') && l.startsWith('POST') ? { status: 429, cuerpo: { type: '/errores/demasiados-intentos', status: 429 }, cabeceras: { 'content-type': 'application/problem+json', ...cabeceras } } : undefined
+
+  async function enviarCon429(cabeceras: Record<string, string>) {
     const almacen = vigilarAlmacenamiento()
-    const { usuario, urgente } = await abrirFormulario('4825', (l) =>
-      l.endsWith('/retractos') && l.startsWith('POST') ? { status: 429, cuerpo: { type: '/errores/demasiados-intentos', status: 429 }, cabeceras: { 'content-type': 'application/problem+json', 'retry-after': '3600' } } : undefined,
-    )
-    await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_OTRO)
-    await usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
-    await usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
-    await waitFor(() => expect(urgente).toHaveTextContent(/^Hiciste muchos intentos con correos que no corresponden\. Espera una hora antes de volver a intentar\.$/))
-    expect(screen.getByRole('alert')).toHaveTextContent('Hiciste muchos intentos con correos que no corresponden. Espera una hora antes de volver a intentar.')
+    const r = await abrirFormulario('4825', con429(cabeceras))
+    await r.usuario.type(screen.getByLabelText('Correo de quien lo pidió'), CORREO_OTRO)
+    await r.usuario.click(screen.getAllByRole('button', { name: 'Más: ¿Cuántos?' })[0])
+    await r.usuario.click(screen.getByRole('button', { name: 'Registrar el retracto' }))
+    return { ...r, almacen }
+  }
+
+  it.each([
+    ['3600', 'Espera 60 minutos antes de volver a intentar.'],
+    ['30', 'Espera 1 minuto antes de volver a intentar.'],
+    ['61', 'Espera 2 minutos antes de volver a intentar.'],
+  ])('MATU-114, 429 con Retry-After %s s: «%s», en la región urgente, con el foco en la nota', async (retry, espera) => {
+    const { urgente, almacen } = await enviarCon429({ 'retry-after': retry })
+    await waitFor(() => expect(urgente.textContent!.replace(/\s+/g, ' ').trim()).toBe(`${PRIMERA} ${espera}`))
+    expect(notaDelCorreo()).toHaveTextContent(`${PRIMERA} ${espera}`)
+    expect(notaDelCorreo()).toHaveAttribute('data-aviso', 'alert')
+    await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
     expect(document.body.textContent).not.toContain('Revisa tu conexión')
     expect(screen.getByLabelText('Correo de quien lo pidió')).toHaveValue('')
     expect(document.body.textContent).not.toContain(CORREO_OTRO)
     expect(almacen).toEqual([])
   })
 
-  it('MATU-114, el doble: después de 5 correos que no calzan, el sexto intento es el 429, aunque el correo sea válido', { timeout: 60_000 }, async () => {
-    const { usuario, urgente } = await abrirFormulario()
+  it('MATU-114, 429 sin Retry-After: la frase de L 7.3 («unos minutos»), sin un número inventado', async () => {
+    const { urgente } = await enviarCon429({})
+    await waitFor(() => expect(urgente).toHaveTextContent(`${PRIMERA} Vuelve a intentarlo en unos minutos.`))
+    expect(notaDelCorreo()).not.toHaveTextContent(/\d/)
+    await waitFor(() => expect(notaDelCorreo()).toHaveFocus())
+  })
+
+  it('MATU-114, el doble: después de 5 correos que no calzan, el sexto es el 429 aunque el correo sea válido; al olvidarlos, vuelve a recibirlo', { timeout: 60_000 }, async () => {
+    const { api, usuario, urgente, amable } = await abrirFormulario()
     const enviar = async (correo: string) => {
       await usuario.clear(screen.getByLabelText('Correo de quien lo pidió'))
       await usuario.type(screen.getByLabelText('Correo de quien lo pidió'), correo)
@@ -291,7 +316,11 @@ describe('El retracto que llegó por correo', () => {
       await waitFor(() => expect(urgente).toHaveTextContent('Ese correo no es de quien administra el grupo de este pedido.'))
     }
     await enviar(CORREO_ADMIN_DE_EJEMPLO)
-    await waitFor(() => expect(urgente).toHaveTextContent('Hiciste muchos intentos con correos que no corresponden. Espera una hora antes de volver a intentar.'))
+    await waitFor(() => expect(urgente).toHaveTextContent(`${PRIMERA} Espera 60 minutos antes de volver a intentar.`))
+    // Lo que hace el doble al volver a entrar a operación (doble/familia.ts).
+    api.consola.olvidarCorreosQueNoCalzan()
+    await enviar(CORREO_ADMIN_DE_EJEMPLO)
+    await waitFor(() => expect(amable).toHaveTextContent('Registraste el retracto del pedido 4825.'))
   })
 
   it('MATU-114, 503: el texto de L 9.1, no el de la red', async () => {

@@ -5,7 +5,7 @@
 // borra de la memoria y del campo con cualquier respuesta del servidor, y nunca se lista a nadie (C25).
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Ban, Circle, Mail, Undo2 } from 'lucide-react'
-import { leerFallo } from '../compartido/api/cliente'
+import { leerFallo, minutosDeEspera } from '../compartido/api/cliente'
 import {
   esProblema,
   extensionDe,
@@ -417,7 +417,9 @@ function DetalleRetracto({ id, onVolver, onCambio }: { id: string; onVolver: () 
 
 // ----------------------------------------------------------------- 8.5 el retracto por correo
 
-type FalloCorreo = { tipo: 'no-es-admin' | 'no-retractable' | 'muchos-intentos' | 'no-disponible' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string }
+type FalloCorreo = { tipo: 'no-es-admin' | 'no-retractable' | 'no-disponible' | 'red' } | { tipo: 'fuera-de-plazo'; fecha: string } | { tipo: 'muchos-intentos'; minutos: number | null }
+/** La nota de 409, 422 no retractable y 429: recibe el foco para quedar a la vista (P2 de MATU-114). */
+const ID_NOTA_CORREO = 'nota-del-retracto-por-correo'
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: PedidoDetalle; onListo: (r: RetractoOperacion) => void; onCancelar: () => void }) {
@@ -466,14 +468,21 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
       if (f.status === 422 && esProblema(f.tipo, 'solicitante-invalido')) {
         setFalla({ tipo: 'no-es-admin' })
         pedirFoco('retracto-correo-campo', 'input')
-      } else if (f.status === 422) setFalla({ tipo: 'no-retractable' })
+      } else if (f.status === 422) {
+        setFalla({ tipo: 'no-retractable' })
+        pedirFoco(ID_NOTA_CORREO)
+      }
       // Se admiten varios retractos por pedido: pedir unidades ya pedidas en otro también es el 422 de arriba.
       else if (f.status === 409) {
         const hasta = extensionDe(x, 'plazo_hasta')
         setFalla({ tipo: 'fuera-de-plazo', fecha: enChile(typeof hasta === 'string' ? hasta : (pedido.retracto_plazo_hasta ?? new Date().toISOString())).fecha })
+        pedirFoco(ID_NOTA_CORREO)
       }
       // MATU-114 (C11): 5 correos que no corresponden en una hora. No dice si el último era válido.
-      else if (f.status === 429 && esProblema(f.tipo, 'demasiados-intentos')) setFalla({ tipo: 'muchos-intentos' })
+      else if (f.status === 429 && esProblema(f.tipo, 'demasiados-intentos')) {
+        setFalla({ tipo: 'muchos-intentos', minutos: f.reintentarEnSegundos === null ? null : minutosDeEspera(f.reintentarEnSegundos) })
+        pedirFoco(ID_NOTA_CORREO)
+      }
       // MATU-114: sin el servicio que busca el correo, el 503 no es de la red.
       else if (f.status === 503) setFalla({ tipo: 'no-disponible' })
       else setFalla({ tipo: 'red' })
@@ -499,8 +508,8 @@ export function RetractoPorCorreo({ pedido, onListo, onCancelar }: { pedido: Ped
               {T.noEsAdminTexto}
             </Nota>
           ) : (
-            <Nota tono="atenta" rol="alert">
-              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : falla.tipo === 'muchos-intentos' ? T.muchosIntentos : T.noRetractable}
+            <Nota id={ID_NOTA_CORREO} enfocable tono="atenta" rol="alert">
+              {falla.tipo === 'fuera-de-plazo' ? T.fueraDePlazo(falla.fecha) : falla.tipo === 'muchos-intentos' ? T.muchosIntentos(falla.minutos) : T.noRetractable}
             </Nota>
           )}
         </div>
