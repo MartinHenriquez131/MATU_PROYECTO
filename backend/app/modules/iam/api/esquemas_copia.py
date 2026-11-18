@@ -1,7 +1,8 @@
 """Esquemas de «Tus datos» (MATU-54, contrato docs/api/propuestos/mis-datos.openapi.yaml).
 
 Todos con ``extra="forbid"`` (C5). Nada de una persona cuidada, ningún id, ni el push_token, la contraseña, el secreto
-del doble factor, la huella del correo, los hashes de sesión, el token, la orden ni el código de autorización.
+del doble factor, la huella del correo, los hashes de sesión, el token ni la orden. El código de autorización va solo
+en los pagos propios de quien pagó, que ya lo ve en su comprobante (decisión 402, F3).
 """
 
 from typing import Literal
