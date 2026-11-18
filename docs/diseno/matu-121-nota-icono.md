@@ -1,6 +1,6 @@
 # MATU-121 · El ícono de la `Nota` va en línea en el modo angosto
 
-**Versión 1 · 18/11/2026** · diseñador (agente 6). Esta tarea sale del P3 de la revisión visual de MATU-114. A 320 px con el texto al 200 %, las notas partían palabras a la mitad: «correspon⏎den.», «60 minuto⏎s» y «01/11/202⏎6.». La regla corta queda en `Demo/DISENO.md`, sección 6 (fila «Nota»). Este documento trae el detalle y las mediciones.
+**Versión 2 · 18/11/2026** · diseñador (agente 6). La versión 2 sale de la revisión visual del commit 1e2e2dd: corrige el criterio 3 de la sección 6 y suma la sección 8, el chevron de `Volver` en el modo angosto. Esta tarea sale del P3 de la revisión visual de MATU-114. A 320 px con el texto al 200 %, las notas partían palabras a la mitad: «correspon⏎den.», «60 minuto⏎s» y «01/11/202⏎6.». La regla corta queda en `Demo/DISENO.md`, sección 6 (fila «Nota»). Este documento trae el detalle y las mediciones.
 
 ## 1. Objetivo
 
@@ -102,7 +102,7 @@ Con capturas en claro y en oscuro, a 320 px con el texto al 200 % y a 360, 1280 
 
    Un correo o una palabra que mida más que el ancho de la nota se puede seguir partiendo: eso lo hace `break-words` a propósito.
 2. **El ícono nunca queda solo en una línea**, con o sin título, con texto o con párrafos. El único caso en columna es `Alta.tsx:775`.
-3. **El ícono en línea mide 1,25 rem** (21,25 px, o 42,5 px con el texto al 200 %), también en `Ficha.tsx:114` y `Compartir.tsx:748`. Su centro está a ±2 px del centro de la primera línea de texto.
+3. **El ícono en línea mide 1,25 rem** (21,25 px, o 42,5 px con el texto al 200 %), también en `Ficha.tsx:114` y `Compartir.tsx:748`. Su centro está a ±2 px del centro de la primera línea de texto con el texto normal, y a ±3 px con el texto al 200 %. **(v2)** El ±2 px de la versión 1 no tomaba en cuenta la escala. En la revisión, el `inline-flex align-middle` del título, ya aprobado en MATU-44, quedó a 2,6 px con el texto al 200 %, que equivale a 1,3 px con el texto normal, y no se nota.
 4. **Ningún desplazamiento horizontal** a 320 px con el texto al 200 %.
 5. **A 360, 1280 y 1920 px sin zoom, las notas son idénticas a las de `main`:** el ícono en su columna y de su tamaño de siempre, también los de 24 px.
 6. **El estado no depende del color:** cada nota sigue mostrando el ícono de su tono, y la línea de 4 px si lleva `borde`.
@@ -111,3 +111,46 @@ Con capturas en claro y en oscuro, a 320 px con el texto al 200 % y a 360, 1280 
 
 - `MensajeError`, que ya lleva su ícono en línea. Hay una sola `Nota`, la de `compartido/ui/Nota.tsx`; `familia/ui.tsx` solo la vuelve a exportar, así que el cambio llega a la app de la familia, al relevo, a la consola de operación y a la del comercio.
 - Los textos: ninguno cambia.
+
+## 8. (v2) El chevron de `Volver` va en línea en el modo angosto
+
+**De dónde sale.** Es el P3 de la revisión del commit 1e2e2dd, y se resuelve en esta misma tarjeta.
+
+En `Alta.tsx:775` (falla `paso1`), a 320 px con el texto al 200 %, coinciden dos cosas:
+- la nota lleva `iconoEnLinea={false}` y su ícono va en columna;
+- `Volver` es `inline-flex items-center`, con el `ChevronLeft` en su propia columna y centrado en la altura del botón.
+
+Entre los dos, el texto «Volver a corregir los datos de María» queda en unos 125 px: una palabra por línea y 438 px de alto, con el chevron flotando a media altura (`capturas114/r121/alta-320-200-claro-nota1.png`).
+
+**Objetivo.** Con el texto al 200 %, Carmen lee de corrido adónde la lleva el botón, y ve la flecha al comienzo de la frase, como en un enlace.
+
+**Regla.** Funciona como en `MensajeError`:
+- en el modo `angosto`, el botón deja de ser `flex` y pasa a `inline-block`, para que su texto corra en líneas;
+- el chevron va en línea, como una letra más, al comienzo de la primera línea.
+
+Fuera del modo `angosto` nada cambia. Esto vale para los 26 usos de `Volver` en `web/src`.
+
+### Clases exactas (`web/src/familia/ui.tsx`, `Volver`)
+
+| Pieza | Hoy | MATU-121 v2 |
+|---|---|---|
+| `button` | `inline-flex min-h-12 items-center gap-1 self-start rounded-lg pr-2 text-left font-bold text-turquesa hover:underline` | Lo mismo, más `angosto:inline-block` |
+| `ChevronLeft` | `size-5 shrink-0` | `size-5 shrink-0 angosto:me-1 angosto:inline angosto:align-middle` |
+
+- **El margen `angosto:me-1`** reemplaza al `gap-1` del `flex`, que deja de aplicar en el modo `angosto`. Es la misma separación de 0,25 rem.
+- **El área táctil sigue en `min-h-12`.** Con el texto al 200 % cada línea ya mide 54 px, más que los 48 px pedidos.
+- **El foco no cambia:** el contorno base rodea la caja del botón, de una o de varias líneas.
+- **El subrayado de `hover:underline`** baja con el texto, línea por línea.
+- **La nota de `Alta.tsx:775` mantiene `iconoEnLinea={false}`.** Con el chevron en línea, el texto del botón queda con unos 210 px, el ancho de la nota menos la columna del ícono, y la frase se lee en pocas líneas. Si el ícono de la nota también flotara, quedaría solo encima del botón (sección 3.3).
+
+### Criterios visuales verificables
+
+1. **A 320 px con el texto al 200 %**, en `Alta.tsx:775`, en claro y en oscuro:
+   - el chevron está en la primera línea, junto a «Volver»;
+   - su centro queda a ±3 px del centro de esa línea;
+   - ninguna línea del botón lleva una sola palabra si la siguiente cabe;
+   - no se parte ninguna palabra;
+   - no hay desplazamiento horizontal.
+2. **El mismo resultado en un `Volver` de encabezado**, por ejemplo «Volver a ¿A quién cuidas?» en el paso 4 del alta: el chevron en la primera línea y el texto de corrido.
+3. **El botón mide 48 px de alto o más**, y muestra el contorno de foco base al llegar con el teclado.
+4. **A 360, 1280 y 1920 px sin zoom, todo `Volver` es idéntico al de antes:** `inline-flex`, el chevron centrado y con la misma caja.
