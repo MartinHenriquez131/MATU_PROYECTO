@@ -177,11 +177,12 @@ describe('El retracto que llegó por correo', () => {
   /**
    * MATU-114 (revisión visual, P2 y P3): la nota con `iconoEnLinea`, como MATU-44 y MATU-54, para que a 320 px
    * y 200 % no parta palabras, y con aire arriba al recibir el foco. jsdom no mide: se afirma la estructura.
+   * MATU-121: sin título, el ícono flota al comienzo del texto (`float-start`) en vez de ir `inline-flex`.
    */
   const conIconoEnLinea = () => {
     const nota = notaDelCorreo()!
     expect(nota.querySelector(':scope > span.contents')).toHaveClass('angosto:hidden')
-    expect(nota.querySelector('span[class*="angosto:inline-flex"] svg')).not.toBeNull()
+    expect(nota.querySelector('.leading-relaxed > span.angosto\\:float-start > svg')).not.toBeNull()
     expect(nota).toHaveClass('scroll-mt-4')
   }
 
