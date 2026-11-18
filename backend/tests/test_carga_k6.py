@@ -18,7 +18,7 @@ PASOS_RNF05 = ["catalogo", "pedido", "confirmar", "pagar", "retorno"]
 def _lista(nombre: str) -> list[str]:
     encontrada = re.search(rf"const {nombre} = \[([^\]]*)\]", SCRIPT)
     assert encontrada is not None, f"falta {nombre} en pedido.js"
-    return re.findall(r"'([a-z]+)'", encontrada.group(1))
+    return re.findall(r"['\"]([\w-]+)['\"]", encontrada.group(1))
 
 
 def test_los_pasos_exigidos_son_el_flujo_de_rnf05() -> None:
@@ -28,7 +28,8 @@ def test_los_pasos_exigidos_son_el_flujo_de_rnf05() -> None:
 
 
 def test_toda_etiqueta_paso_del_script_tiene_su_umbral_y_su_fila_en_el_resumen() -> None:
-    etiquetas = set(re.findall(r"tags: \{ paso: '([a-z]+)' \}", SCRIPT))
+    # Cualquier forma de la etiqueta: con otras en el mismo objeto, sin espacios, con comillas dobles o con guion bajo
+    etiquetas = set(re.findall(r"\bpaso:\s*['\"]([\w-]+)['\"]", SCRIPT))
     assert etiquetas == {"entrar", *PASOS_RNF05}
     # PASOS es lo que recorren los umbrales y el resumen: ninguna etiqueta queda sin medir
     assert set(_lista("PASOS_RNF05")) | {"entrar"} == etiquetas
