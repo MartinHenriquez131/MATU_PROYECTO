@@ -732,7 +732,7 @@ describe('Salir del grupo', () => {
       'Para volver, alguien que administra el grupo tiene que invitarte de nuevo.',
     ])
     // MATU-116 (T5): con la capa 3, los pagos siguen en «Tus datos», y el correo es un enlace en la frase.
-    const t5 = 'Tus pagos los seguirás viendo en Tus datos. Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.'
+    const t5 = 'Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.'
     const correo = enDialogo().getByText((_, el) => el?.tagName === 'P' && el.textContent === t5)
     expect(correo).toHaveClass('text-tenue', 'break-words')
     expect(within(correo).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toHaveAttribute('href', 'mailto:cuidaconmatu@gmail.com')
@@ -769,8 +769,8 @@ describe('Salir del grupo', () => {
     abrir('cuidador')
     const seccion = await screen.findByRole('region', { name: 'Salir del grupo' })
     await within(seccion).findByRole('button', { name: 'Salir del grupo' })
-    const t5 = within(seccion).getByText((_, el) => el?.tagName === 'P' && el.textContent?.startsWith('Tus pagos los seguirás viendo en Tus datos.') === true)
-    expect(t5).toHaveTextContent('Tus pagos los seguirás viendo en Tus datos. Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.')
+    const t5 = within(seccion).getByText((_, el) => el?.tagName === 'P' && el.textContent?.startsWith('Tus pagos los seguirás viendo en «Tus datos».') === true)
+    expect(t5).toHaveTextContent('Tus pagos los seguirás viendo en «Tus datos». Si después necesitas lo que hiciste en el grupo o el detalle de un pedido, pídelo a cuidaconmatu@gmail.com.')
     expect(within(t5).getByRole('link', { name: 'cuidaconmatu@gmail.com' })).toBeVisible()
   })
 
