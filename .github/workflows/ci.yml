@@ -198,10 +198,18 @@ jobs:
         run: npm run build
 
       # El #37 corrigió un familia.openapi.ts desfasado del contrato. Esto evita que se repita.
-      - name: Contrato de la familia al día
+      # MATU-79: relevo.openapi.ts también estuvo desfasado en main una vez sin que nadie lo notara, y se revisa igual
+      - name: Contratos de la app web al día
         run: |
+          npm run contrato
           npm run contrato:familia
+          falla=0
+          if ! git diff --exit-code -- src/compartido/api/relevo.openapi.ts; then
+            echo "::error file=web/src/compartido/api/relevo.openapi.ts::El contrato del relevo no coincide con docs/api/openapi.json. Corre 'cd web && npm run contrato' y sube el relevo.openapi.ts regenerado."
+            falla=1
+          fi
           if ! git diff --exit-code -- src/compartido/api/familia.openapi.ts; then
             echo "::error file=web/src/compartido/api/familia.openapi.ts::El contrato de la app web no coincide con docs/api/openapi.json. Corre 'cd web && npm run contrato:familia' y sube el familia.openapi.ts regenerado."
-            exit 1
+            falla=1
           fi
+          exit $falla
