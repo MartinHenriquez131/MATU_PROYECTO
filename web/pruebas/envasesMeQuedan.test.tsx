@@ -4,10 +4,10 @@
 // el panel (D5), el cambio de modo sin perder lo escrito, ml y g sin enlace (D2), el envase de 1
 // (D6), «Compré» igual y el formulario con el campo del envase dentro del bloque (D3). Textos [L 30]
 // tal cual. Datos sintéticos.
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, configure, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFamilia } from '../src/compartido/api/sesion'
 import { fechaCorta } from '../src/compartido/fechas'
 import { RegionesVivas } from '../src/compartido/ui/Anuncios'
@@ -29,6 +29,25 @@ const sumar = (iso: string, n: number) => {
 }
 
 const BASE = `/v1/personas-cuidadas/${PERSONA.id}/consumo`
+
+// H1 de Martín (CI del #106), como MATU-108 en compreMeQuedan: bajo carga `findBy` y `waitFor` se
+// rendían al segundo, y `waitFor(() => getElementById(id)!)` no esperaba nada (el `!` no lanza).
+const ESPERA_MS = 5_000
+vi.setConfig({ testTimeout: 30_000 })
+const esperaAnterior = getConfig().asyncUtilTimeout
+beforeAll(() => configure({ asyncUtilTimeout: ESPERA_MS }))
+afterAll(() => {
+  configure({ asyncUtilTimeout: esperaAnterior })
+  vi.resetConfig()
+})
+
+/** Como un `findBy`, pero por id: espera a que el elemento exista y lo devuelve. */
+const porId = (id: string) =>
+  waitFor(() => {
+    const el = document.getElementById(id)
+    if (!el) throw new Error(`todavía no aparece #${id}`)
+    return el
+  })
 
 type Perfil = Record<string, unknown> & { id: string; etag: string; nombre_libre: string }
 
@@ -125,6 +144,18 @@ const ok = (p: Perfil, cambios: Partial<Perfil> = {}): RespuestaFalsa => ({ stat
 // ---------------------------------------------------------------- panel con envase guardado
 
 describe('«Me quedan» con envase guardado (4.1)', () => {
+  /** jsdom no trae `scrollIntoView`: se pone uno que anota qué elementos se desplazaron, y se quita al final. */
+  const desplazados = () => {
+    const lista: Element[] = []
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      lista.push(this)
+    }
+    return lista
+  }
+  afterEach(() => {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+  })
+
   it('si la persona ya tocó un campo del panel antes de los 40 ms, el foco no se le quita y no se pierde lo escrito', async () => {
     const { pedidas, u } = await abrir()
     // Sin depender de la velocidad de la máquina: el temporizador de 40 ms con que el panel toma el
@@ -133,6 +164,7 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     const retenidos: (() => void)[] = []
     const espia = vi.spyOn(window, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) =>
       ms === 40 ? (retenidos.push(fn), 0) : original(fn, ms)) as typeof window.setTimeout)
+    const movidos = desplazados()
     try {
       await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
       await waitFor(() => expect(retenidos.length).toBeGreaterThan(0))
@@ -145,6 +177,8 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     }
     expect(envasesCerrados()).toHaveValue('5000')
     expect(envasesCerrados()).toHaveFocus()
+    // MATU-118 (P3 del diseñador): tampoco desplaza el panel; la página no se le mueve mientras escribe.
+    expect(movidos).not.toContain(grupo())
     expect(grupo()).toHaveTextContent('En total, quedan unas 100.000 unidades.')
     expect(escritas(pedidas)).toEqual([])
   })
@@ -152,8 +186,11 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
 
   it('abre en envases, vacío y con el foco en el panel, sin teclado (D4, criterio 1)', async () => {
     const { u } = await abrir()
+    const movidos = desplazados()
     await u.click(screen.getByRole('button', { name: 'Me quedan: Pañal adulto talla M' }))
     await waitFor(() => expect(grupo()).toHaveFocus())
+    // Sin escribir, el panel sí se desplaza a la vista (4).
+    expect(movidos).toContain(grupo())
     // El foco no está en un campo: el teclado del teléfono no se abre.
     expect(document.activeElement?.tagName).not.toBe('INPUT')
     expect(envasesCerrados()).toHaveValue('')
@@ -198,7 +235,7 @@ describe('«Me quedan» con envase guardado (4.1)', () => {
     await u.click(confirmar)
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)[0]).toEqual({ linea: `POST ${BASE}/${PANAL.id}/recontar`, cuerpo: { stock_unidades: 45 }, ifMatch: '"v1"' })
-    const hecho = await waitFor(() => document.getElementById(`hecho-${PANAL.id}`)!)
+    const hecho = await porId(`hecho-${PANAL.id}`)
     // La confirmación en la unidad del insumo, sin la frase del envase, que ya estaba guardado (4.5).
     expect(hecho).toHaveTextContent(`Anotamos lo que queda de «Pañal adulto talla M»: 45 unidades. Alcanza para 11 días, hasta el ${fechaCorta(fecha)}.`)
     expect(hecho).not.toHaveTextContent('También anotamos')
@@ -352,7 +389,7 @@ describe('«Me quedan» sin envase (4.2)', () => {
 
     await waitFor(() => expect(escritas(pedidas)).toHaveLength(1))
     expect(escritas(pedidas)).toEqual([{ linea: `PATCH ${BASE}/${TOALLITAS.id}`, cuerpo: { stock_unidades: 45, unidades_por_envase: 20 }, ifMatch: '"v1"' }])
-    const hecho = await waitFor(() => document.getElementById(`hecho-${TOALLITAS.id}`)!)
+    const hecho = await porId(`hecho-${TOALLITAS.id}`)
     expect(hecho).toHaveTextContent(
       `Anotamos lo que queda de «Toallitas húmedas»: 45 unidades. Alcanza para 15 días, hasta el ${fechaCorta(fecha)}. También anotamos que cada envase trae 20 unidades.`,
     )
