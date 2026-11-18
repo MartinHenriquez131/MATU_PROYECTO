@@ -8271,7 +8271,7 @@
           "pago"
         ],
         "summary": "El estado del pago del pedido, sus devoluciones y el comprobante",
-        "description": "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3",
+        "description": "MATU-62 (decisiones 236, 238 y 239). admin, cuidador y pagador: PagoVista; la tarjeta, el código de autorización y el correo solo para quien pagó. observador: PagoVistaObservador (pagado o sin_pagar), salvo en un pedido que pagó, donde recibe PagoVista como quien paga (MATU-116, C5). Sin cargo, 200 con sin_intento. No pide despacho. No se audita. Capa 3",
         "operationId": "ver_pago_v1_pedidos__pedido_id__pago_get",
         "security": [
           {

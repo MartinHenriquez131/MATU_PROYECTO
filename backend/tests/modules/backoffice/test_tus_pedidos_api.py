@@ -230,6 +230,12 @@ def test_c5_quien_pago_y_paso_a_se_informa_ve_ese_pedido_y_se_arrepiente_y_los_d
     _sin_nada_del_comercio(d, pedido, detalle.text)
     para_devolver = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/retractos", pagador, familia)
     assert para_devolver.status_code == 200, para_devolver.text
+    # El comprobante de quien paga (GET …/pago), con su tarjeta; del pedido ajeno, solo pagado o no
+    pago = d.e.pedir("GET", f"/v1/pedidos/{pedido['id']}/pago", pagador, familia)
+    assert pago.status_code == 200, pago.text
+    assert pago.json()["comprobante"]["pagaste_tu"] is True and pago.json()["comprobante"]["total"] == TOTAL
+    pago_ajeno = d.e.pedir("GET", f"/v1/pedidos/{ajeno['id']}/pago", pagador, familia)
+    assert pago_ajeno.status_code == 200 and set(pago_ajeno.json()) == {"pedido_id", "estado"}, pago_ajeno.text
 
     # El pedido que no pagó: 404 en el detalle, lo que se puede devolver y el retracto
     for ruta in (f"/v1/pedidos/{ajeno['id']}/seguimiento", f"/v1/pedidos/{ajeno['id']}/retractos"):
