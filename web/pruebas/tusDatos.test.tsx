@@ -146,14 +146,14 @@ describe('«Tus datos» (5.1 a 5.4)', () => {
   it('tus avisos y los enviados: la nota del piloto una vez, palabra e ícono por resultado, sin «Salió» en lo simulado', async () => {
     abrir()
     await listo()
-    expect(bloque('Tus avisos')).toHaveTextContent('Por correoSíEn tus teléfonosNoPuedes cambiarlos en Tu cuenta.')
+    expect(bloque('Tus avisos')).toHaveTextContent('Cuando un insumo se está acabandoPor correoSíEn tus teléfonosNoDe tus pedidosPor correoNoEn tus teléfonosSíEl correo sobre tu dinero te llega igual.Puedes cambiarlos en Tu cuenta.')
     const b = bloque('Avisos que te enviamos')
     expect(within(b).getAllByText('En el piloto los avisos se prueban sin enviarse: aparecen aquí, pero no te llegaron.')).toHaveLength(1)
     const lineas = within(b).getAllByRole('listitem')
     expect(lineas.map((l) => l.textContent)).toEqual([
-      '10/11/2026 a las 08:00 · Por correo · En el piloto no salió',
-      '09/11/2026 a las 08:00 · En tus teléfonos · No salió',
-      '12/11/2026 a las 09:00 · Por SMS · Todavía no sale',
+      '10/11/2026 a las 08:00 · Aviso de pedido · Por correo · En el piloto no salió',
+      '09/11/2026 a las 08:00 · Aviso de insumo · En tus teléfonos · No salió',
+      '12/11/2026 a las 09:00 · Aviso de insumo · Por SMS · Todavía no sale',
     ])
     expect(lineas[0].querySelector('svg.lucide-circle-dashed')).not.toBeNull()
     expect(lineas[1].querySelector('svg.lucide-x')).not.toBeNull()

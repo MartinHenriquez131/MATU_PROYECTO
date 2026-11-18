@@ -876,12 +876,12 @@ export interface paths {
         };
         /**
          * Leer Avisos
-         * @description Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). Orden: 401 y 200.
+         * @description Si la persona recibe por correo y por push los avisos de un insumo que se está acabando (MATU-41). Es suya, no del grupo, y vale para todos sus grupos. Sin preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo, e inactivo si solo es pagador u observador (decisión 78). `pedido` es la preferencia de los avisos de sus pedidos (MATU-76): también es de la persona y vale para todos sus grupos, y sin preferencia guardada está activa por los dos canales, sea cual sea su rol. Esos avisos solo le llegan a quien pagó el pedido, y el correo de una devolución o cancelación llega siempre, aunque `pedido.correo` esté apagado. Orden: 401 y 200.
          */
         get: operations["leerPreferenciaAvisos"];
         /**
          * Guardar Avisos
-         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). Orden: 401, 422 y 200.
+         * @description Elige los canales de los avisos de un insumo que se está acabando (MATU-41). La elección es de la persona y vale para todos sus grupos. Trae los dos canales, pero solo guarda el que difiere de lo que muestra el GET, o el que ya estaba guardado: un canal sin elegir sigue, en cada grupo, el valor por omisión del rol (decisión 111). El pagador y el observador lo usan para activarlos; el admin y el cuidador, para apagarlos. Apagar el correo no cambia el push, y al revés: nunca se busca otro canal. Devuelve lo mismo que el GET. Registra `avisos.preferencia` en la auditoría de la cuenta, sin los valores, solo si lo que devuelve el GET cambió (MATU-55, decisión 259). `pedido` es opcional (MATU-76): sin él, la preferencia de los avisos del pedido no cambia; con él, se guarda igual, solo el canal que difiere de lo que muestra el GET o el que ya estaba guardado. El correo de una devolución o cancelación llega siempre, aunque `pedido.correo` sea false. Sin versión ni If-Match: no hay 412. Orden: 401, 422 y 200.
          */
         put: operations["guardarPreferenciaAvisos"];
         post?: never;
@@ -1698,7 +1698,7 @@ export interface paths {
         put?: never;
         /**
          * No Entregado
-         * @description en_ruta → no_entregado: nadie recibió el pedido (D-63-6).
+         * @description en_ruta → no_entregado: nadie recibió el pedido (D-63-6). Emite PedidoNoEntregado, que avisa a quien pagó (MATU-76, D-76-5).
          */
         post: operations["no_entregado_v1_operacion_pedidos__pedido_id__no_entregado_post"];
         delete?: never;
@@ -3298,6 +3298,24 @@ export interface components {
             aviso?: components["schemas"]["AvisoMostradoEntrada"] | null;
             direccion?: components["schemas"]["DireccionNueva"] | null;
         };
+        /**
+         * SolicitudPreferenciaAvisos
+         * @description El cuerpo del PUT. ``pedido`` es opcional: sin él, la preferencia de los avisos del pedido no cambia.
+         */
+        SolicitudPreferenciaAvisos: {
+            /**
+             * Correo
+             * @description Avisos de un insumo por correo
+             */
+            correo: boolean;
+            /**
+             * Push
+             * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)
+             */
+            push: boolean;
+            /** @description Los avisos de los pedidos. Sin él, no cambian (MATU-76) */
+            pedido?: components["schemas"]["PreferenciaPedidoVista"] | null;
+        };
         /** SolicitudPresentacionVista */
         SolicitudPresentacionVista: {
             /** Token */
@@ -3455,18 +3473,48 @@ export interface components {
         };
         /**
          * PreferenciaAvisosVista
-         * @description Si la persona recibe los avisos de un insumo que se está acabando, por canal. Sin preferencia
-         *     guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo.
+         * @description Lo que devuelven GET y PUT: ``correo`` y ``push`` son los avisos de un insumo que se está acabando (sin
+         *     preferencia guardada, lo que corresponde a sus roles: activo si es admin o cuidador en algún grupo), y ``pedido``
+         *     los avisos de sus pedidos (MATU-76).
          */
         PreferenciaAvisosVista: {
             /**
              * Correo
-             * @description Avisos por correo
+             * @description Avisos de un insumo por correo
              */
             correo: boolean;
             /**
              * Push
              * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push)
+             */
+            push: boolean;
+            pedido: components["schemas"]["PreferenciaPedidoVista"];
+        };
+        /**
+         * PreferenciaPedidoCopia
+         * @description MATU-76 (C11): los avisos de sus pedidos. El correo de una devolución o cancelación llega igual.
+         */
+        PreferenciaPedidoCopia: {
+            /** Correo */
+            correo: boolean;
+            /** Push */
+            push: boolean;
+        };
+        /**
+         * PreferenciaPedidoVista
+         * @description Si la persona recibe los avisos de sus pedidos, por canal (MATU-76). Es de la persona y vale para todos sus
+         *     grupos. Sin preferencia guardada, activa por los dos canales, sea cual sea su rol. Solo le llegan a quien pagó el
+         *     pedido.
+         */
+        PreferenciaPedidoVista: {
+            /**
+             * Correo
+             * @description Avisos del pedido por correo. Apagarlo apaga solo el de «Entregado» y «No entregado»: el correo de una devolución o cancelación llega siempre, porque es sobre el dinero de quien pagó (D-76-3)
+             */
+            correo: boolean;
+            /**
+             * Push
+             * @description Avisos por notificación, en los dispositivos donde se activó (PUT /v1/dispositivos/actual/push). Todos los avisos del pedido por push siguen esta preferencia
              */
             push: boolean;
         };
@@ -4801,6 +4849,11 @@ export interface components {
         };
         /** AvisoEnviadoCopia */
         AvisoEnviadoCopia: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "insumo" | "pedido";
             /** Creado En */
             creado_en: string;
             /** Enviado En */
@@ -4926,12 +4979,16 @@ export interface components {
             pedidos: components["schemas"]["PedidoCopia"][] | null;
             historial: components["schemas"]["HistorialCopia"];
         };
-        /** PreferenciaAvisosCopia */
+        /**
+         * PreferenciaAvisosCopia
+         * @description ``correo`` y ``push``: los avisos de un insumo. ``pedido``: los de sus pedidos (MATU-76).
+         */
         PreferenciaAvisosCopia: {
             /** Correo */
             correo: boolean;
             /** Push */
             push: boolean;
+            pedido: components["schemas"]["PreferenciaPedidoCopia"];
         };
         /** EventoCuentaCopia */
         EventoCuentaCopia: {
@@ -10622,7 +10679,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PreferenciaAvisosVista"];
+                "application/json": components["schemas"]["SolicitudPreferenciaAvisos"];
             };
         };
         responses: {

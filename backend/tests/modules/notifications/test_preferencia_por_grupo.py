@@ -36,8 +36,11 @@ def _put(iam: EntornoIam, usuario: UsuarioCreado, cuerpo: dict[str, bool]) -> di
     cabeceras = {"Authorization": f"Bearer {sesion.json()['access_token']}"}
     respuesta = iam.cliente.put(RUTA, json=cuerpo, headers=cabeceras)
     assert respuesta.status_code == 200, respuesta.text
-    resultado: dict[str, bool] = respuesta.json()
-    return resultado
+    resultado = respuesta.json()
+    # MATU-76: la preferencia del pedido no depende del rol ni cambia sin pedirla
+    assert resultado.pop("pedido") == {"correo": True, "push": True}
+    vista: dict[str, bool] = resultado
+    return vista
 
 
 def _guardadas(usuario: UsuarioCreado) -> dict[str, bool]:

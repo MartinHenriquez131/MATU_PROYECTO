@@ -15,7 +15,7 @@ import pytest
 from app.core.config import Configuracion
 from app.modules.consumption.events import QUIEBRE_PROXIMO
 from app.modules.notifications.application.ports import EnvioCorreo, EnvioPush
-from app.modules.notifications.domain.aviso import PLANTILLA_QUIEBRE, Canal, ResultadoEnvio
+from app.modules.notifications.domain.aviso import EVENTOS_DEL_PEDIDO, PLANTILLA_QUIEBRE, Canal, ResultadoEnvio
 from app.modules.notifications.domain.mensaje import correo_quiebre
 from app.modules.notifications.infrastructure import tarea_avisos
 from app.modules.notifications.infrastructure.enviadores_simulados import (
@@ -107,8 +107,12 @@ def test_sin_enviador_avisos_ejecutar_no_toma_eventos(monkeypatch: pytest.Monkey
 def test_con_simulado_la_tarea_consume_quiebre_proximo(tmp_path: Path) -> None:
     config = _config(enviador_avisos="simulado", registro_avisos=tmp_path / "avisos.jsonl", origen_web=ORIGEN)
     mapa = tarea_avisos.consumidores(config, None, RelojFijo(datetime.now(UTC)))  # type: ignore[arg-type]
-    assert mapa is not None and list(mapa) == [QUIEBRE_PROXIMO]
+    assert mapa is not None and list(mapa) == [QUIEBRE_PROXIMO, *EVENTOS_DEL_PEDIDO]
     assert [c.nombre for c in mapa[QUIEBRE_PROXIMO]] == ["notifications.quiebre_proximo"]
+    # MATU-76 (C1): un consumidor por evento del pedido, cada uno con su nombre. PedidoPagado no avisa
+    assert {t: [c.nombre for c in mapa[t]] for t in EVENTOS_DEL_PEDIDO} == {
+        t: [f"notifications.pedido.{t}"] for t in EVENTOS_DEL_PEDIDO}
+    assert "PedidoPagado" not in mapa
 
 
 def test_el_registro_por_omision_va_en_dev() -> None:

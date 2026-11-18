@@ -60,9 +60,19 @@ class DispositivoCopia(_Cerrado):
     avisos_activos: bool
 
 
-class PreferenciaAvisosCopia(_Cerrado):
+class PreferenciaPedidoCopia(_Cerrado):
+    """MATU-76 (C11): los avisos de sus pedidos. El correo de una devolución o cancelación llega igual."""
+
     correo: bool
     push: bool
+
+
+class PreferenciaAvisosCopia(_Cerrado):
+    """``correo`` y ``push``: los avisos de un insumo. ``pedido``: los de sus pedidos (MATU-76)."""
+
+    correo: bool
+    push: bool
+    pedido: PreferenciaPedidoCopia
 
 
 class DispositivoDelEventoCopia(_Cerrado):
@@ -81,6 +91,8 @@ class EventoCuentaCopia(_Cerrado):
 
 
 class AvisoEnviadoCopia(_Cerrado):
+    # MATU-76 (C11, D-76-6): el tipo cerrado del aviso, nunca la plantilla ni el texto
+    tipo: Literal["insumo", "pedido"]
     creado_en: Instante
     enviado_en: Instante | None
     canal: Literal["correo", "push", "sms"]

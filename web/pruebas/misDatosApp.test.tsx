@@ -60,7 +60,7 @@ function api(rol: Rol) {
     if (linea === 'GET /v1/yo/datos') return responder(config, { status: 200, texto: JSON.stringify(copiaCuenta()), cabeceras: { 'content-disposition': 'inline; filename="matu-cuenta-2026-11-12.json"' } })
     if (linea === 'GET /v1/cuenta')
       return responder(config, { status: 200, cuerpo: { id: 'c1', nombre: 'Carmen', email: 'carmen@example.org', celular_enmascarado: null, celular_verificado: false, celular_canal: 'sms', politica_aceptada: null } })
-    if (linea === 'GET /v1/yo/avisos') return responder(config, { status: 200, cuerpo: { correo: true, push: false } })
+    if (linea === 'GET /v1/yo/avisos') return responder(config, { status: 200, cuerpo: { correo: true, push: false, pedido: { correo: true, push: false } } })
     if (linea === 'GET /v1/dispositivos/actual/push') return responder(config, { status: 200, cuerpo: { clave_publica: null, permitido: true, registrado: false, envio_simulado: true } })
     return responder(config, { status: 404, cuerpo: { type: '/errores/no-encontrado', status: 404 } })
   }
