@@ -647,7 +647,7 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
     ve en la copia de sus datos. El equipo ve menos que antes: nadie vuelve a aceptar. De la 0.11 a la 0.20 siguen
     publicadas."""
     assert {"0.11", "0.12", "0.13", "0.14", "0.15", "0.16", "0.17", "0.18", "0.19", "0.20", "0.21"} <= set(PUBLICADAS)
-    huella = "253cf24cd256c16df993c6bac5fce87746a1349ced100bf171c351bad1fdcadb"  # pragma: allowlist secret
+    huella = "15f6be576879d2a1dbf3a58df28a4394cb690d5f42c1aaff1899ef9fc3bf1ba7"  # pragma: allowlist secret
     assert PUBLICADAS["0.21"] == huella
     valores = dotenv_values(BACKEND.parent / ".env.example")
     assert (valores["POLITICA_VERSION"], valores["POLITICA_ACTUALIZADA_EN"]) == ("0.21", "2026-11-17")
@@ -674,6 +674,10 @@ def test_la_0_21_esta_publicada_y_es_la_de_env_example() -> None:
         "- Lo que el equipo de MATU anotó de sus pedidos queda ilegible en ese momento. Si después hay que anotar algo"
         " de un pedido pagado que todavía se guarda, se guarda con una clave nueva y se borra con el pedido.",
         "Que alguien de tu grupo mire un pedido o un pago no se registra.",
+        # Cierre del analista (17-11): §9 dice dónde se ve la nota y §10 la suma a la copia de la persona
+        "y quien administra el grupo o quien cuida a la persona lo ve en la copia de sus datos, en «Datos de» la"
+        " persona.",
+        "lo que anotó el equipo de MATU si hubo un problema con un pedido y cada vez que el equipo revisó un pedido,",
         "- La versión 0.21 agrega la consola del equipo de MATU",
         "Suma dos registros sobre tu pedido: la nota de lo que pasó, guardada cifrada, y el registro de cuándo el"
         " equipo revisa tu pedido, que ves en la copia de tus datos.",

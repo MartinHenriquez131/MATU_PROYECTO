@@ -182,6 +182,8 @@ def test_relevo_ve_solo_campos_habilitados(entorno: EntornoAbrir) -> None:
     assert cuerpo["secciones"] == []
     # El teléfono de red_apoyo en todas sus formas: «0101» como subcadena podía caer en los microsegundos de vence_en
     assert "Hija" not in respuesta.text and not aparece_celular("+56 9 5555 0101", respuesta.text)
+    # Y un teléfono enmascarado que deje solo los últimos cuatro dígitos («****0101») tampoco se escapa
+    assert not aparece_como_dato("0101", respuesta.text)
     assert cuerpo["nombre_pila"] == familia.persona.nombre_pila
     assert familia.persona.nombre not in respuesta.text  # el nombre completo nunca
 
