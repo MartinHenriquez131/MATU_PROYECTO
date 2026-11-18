@@ -20,6 +20,11 @@ pytestmark = [requiere_base, pytest.mark.rf("RF-39")]
 RUTA = "/v1/yo/avisos"
 
 
+def _vista(correo: bool, push: bool, pedido: tuple[bool, bool] = (True, True)) -> dict[str, Any]:
+    """Lo que devuelven GET y PUT. MATU-76: ``pedido`` sin preferencia guardada, activo por los dos canales."""
+    return {"correo": correo, "push": push, "pedido": {"correo": pedido[0], "push": pedido[1]}}
+
+
 @pytest.fixture
 def fabrica_iam(entorno_iam: EntornoIam) -> Iterator[Fabrica]:
     fabrica = Fabrica(pepper=entorno_iam.pepper)
@@ -47,22 +52,22 @@ def test_admin_sin_preferencia_recibe_por_los_dos_canales(entorno_iam: EntornoIa
     familia = fabrica_iam.familia(miembros=())
     respuesta = _get(entorno_iam, familia.admin)
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"correo": True, "push": True}
+    assert respuesta.json() == _vista(True, True)
     assert respuesta.headers["Cache-Control"] == "no-store"
 
 
 def test_pagador_activa_y_admin_apaga(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:
     familia = fabrica_iam.familia(miembros=("pagador",))
     pagador = familia.miembros["pagador"].usuario
-    assert _get(entorno_iam, pagador).json() == {"correo": False, "push": False}
+    assert _get(entorno_iam, pagador).json() == _vista(False, False)
 
     respuesta = _put(entorno_iam, pagador, {"correo": True, "push": False})
-    assert respuesta.status_code == 200 and respuesta.json() == {"correo": True, "push": False}
+    assert respuesta.status_code == 200 and respuesta.json() == _vista(True, False)
     assert respuesta.headers["Cache-Control"] == "no-store"
-    assert _get(entorno_iam, pagador).json() == {"correo": True, "push": False}
+    assert _get(entorno_iam, pagador).json() == _vista(True, False)
 
     admin = _put(entorno_iam, familia.admin, {"correo": False, "push": True})
-    assert admin.json() == {"correo": False, "push": True}
+    assert admin.json() == _vista(False, True)
     guardadas = filas(
         "SELECT usuario_id, canal, activo FROM preferencia_notificacion WHERE tipo_evento = 'quiebre_proximo'"
         " AND usuario_id = ANY(%s) ORDER BY canal", [pagador.id, familia.admin.id],
@@ -72,7 +77,7 @@ def test_pagador_activa_y_admin_apaga(entorno_iam: EntornoIam, fabrica_iam: Fabr
 
 
 def test_sin_grupos_no_recibe(entorno_iam: EntornoIam, fabrica_iam: Fabrica) -> None:
-    assert _get(entorno_iam, fabrica_iam.usuario()).json() == {"correo": False, "push": False}
+    assert _get(entorno_iam, fabrica_iam.usuario()).json() == _vista(False, False)
 
 
 @pytest.mark.parametrize("metodo", ["GET", "PUT"])
@@ -96,12 +101,12 @@ def test_otro_usuario_no_lee_ni_escribe_la_preferencia_ajena(entorno_iam: Entorn
     ).status_code == 200
 
     # Rodrigo ve la suya (por defecto), aunque intente pedir la de Carmen
-    assert _get(entorno_iam, rodrigo).json() == {"correo": True, "push": True}
-    assert _get(entorno_iam, rodrigo, usuario_id=str(carmen.id)).json() == {"correo": True, "push": True}
+    assert _get(entorno_iam, rodrigo).json() == _vista(True, True)
+    assert _get(entorno_iam, rodrigo, usuario_id=str(carmen.id)).json() == _vista(True, True)
     # Un usuario_id en el cuerpo es 422, y la de Carmen no cambia
     respuesta = _put(entorno_iam, rodrigo, {"correo": True, "push": True, "usuario_id": str(carmen.id)})
     assert respuesta.status_code == 422
-    assert _get(entorno_iam, carmen).json() == {"correo": False, "push": False}
+    assert _get(entorno_iam, carmen).json() == _vista(False, False)
 
 
 @pytest.mark.parametrize(
