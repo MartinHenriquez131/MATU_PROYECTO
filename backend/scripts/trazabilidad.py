@@ -1,20 +1,29 @@
 """Trazabilidad de los requisitos Debe contra las pruebas (MATU-79, estrategia de pruebas, sección 14).
 
-Lista los requisitos comprometidos como *Debe* que no tienen ninguna prueba marcada con @pytest.mark.rf("RF-NN"), y
-sale con 1 si hay alguno: «un requisito comprometido sin prueba no está terminado».
+Lista los requisitos comprometidos como *Debe* que no tienen ninguna prueba marcada con @pytest.mark.rf("RF-NN") o
+@pytest.mark.rf("RNF-NN"), y sale con 1 si hay alguno: «un requisito comprometido sin prueba no está terminado».
 
     python scripts/trazabilidad.py --arquitectura ../../MATU/docs/arquitectura.md --pendientes RF-32,RF-40
 
---pendientes es la lista explícita de los Debe que todavía no tienen prueba y se aceptan por ahora (la fija el workflow,
-con el motivo). La puerta falla también si un pendiente ya tiene prueba, para que nadie se olvide de sacarlo de la
-lista, y si un pendiente no es un requisito Debe, para que un error de tipeo no tape nada.
+Funcionales (RF): las tablas de la sección 3 de docs/arquitectura.md del repositorio de documentos (MATU), una fila por
+requisito con la forma «| RF-NN | texto | `módulo` | Debe |». La arquitectura dice que son 26 comprometidos: el script
+exige al menos --minimo (26 por omisión) y dice cuántos encontró.
 
-De dónde salen los requisitos: las tablas de la sección 3 de docs/arquitectura.md del repositorio de documentos (MATU),
-una fila por requisito con la forma «| RF-NN | texto | `módulo` | Debe |». La arquitectura dice que son 26
-comprometidos: el script exige al menos --minimo (26 por omisión) y dice cuántos encontró. Si la arquitectura agrega
-requisitos, la puerta los revisa sin cambiar nada; si una tabla se lee mal y salen menos, sale con 2 y no pasa.
-La ruta se da con --arquitectura o con la variable MATU_ARQUITECTURA. En el CI el repositorio de documentos se descarga
-junto al de código (.github/workflows/ci.yml, paso «Documentos de MATU»).
+No funcionales (RNF): la tabla 2.2, con la forma «| RNF-NN | prioridad | atributo | escenario | cómo se verifica |
+Debe | automática |».
+Solo los *Debe* con verificación *automática* necesitan una prueba; los *manuales* se verifican con personas, con la
+carga de k6 o con una revisión. El script exige al menos --minimo-rnf (6 por omisión). Una fila RNF sin las columnas
+«Obligación» y «Verificación» detiene la puerta, para que una tabla mal leída no pase en silencio. --rnf-opcional sirve
+mientras la arquitectura publicada no tenga la tabla con ID: si no encuentra ninguna fila RNF, lo avisa y revisa solo
+los RF; si encuentra alguna, exige todo.
+
+Si la arquitectura agrega requisitos, la puerta los revisa sin cambiar nada; si una tabla se lee mal y salen menos que
+el mínimo, sale con 2 y no pasa. La ruta se da con --arquitectura o con la variable MATU_ARQUITECTURA. En el CI el
+repositorio de documentos se descarga junto al de código (.github/workflows/ci.yml, paso «Documentos de MATU»).
+
+--pendientes es la lista explícita de los RF o RNF que todavía no tienen prueba y se aceptan por ahora (la fija el
+workflow, con el motivo). La puerta falla también si un pendiente ya tiene prueba, para que nadie se olvide de sacarlo
+de la lista, y si un pendiente no es un requisito que la puerta exige, para que un error de tipeo no tape nada.
 
 De dónde salen las pruebas: pytest recoge la carpeta tests/ sin correr nada (--collect-only) y se leen las marcas rf de
 cada prueba, también las de pytestmark del módulo o de la clase. Se corre desde backend/.
@@ -34,7 +43,10 @@ import pytest
 
 RAIZ_BACKEND = Path(__file__).resolve().parents[1]
 FILA_RF = re.compile(r"^\|\s*(RF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\s*\|\s*$")
+INICIO_RNF = re.compile(r"^\|\s*(RNF-\d{2})\s*\|")
+FILA_RNF = re.compile(r"^\|\s*(RNF-\d{2})\s*\|.*\|\s*(Debe|Debería|Podría)\s*\|\s*(automática|manual)\s*\|\s*$")
 MINIMO = 26
+MINIMO_RNF = 6
 
 
 def requisitos_debe(arquitectura: Path) -> list[str]:
@@ -48,6 +60,27 @@ def requisitos_debe(arquitectura: Path) -> list[str]:
             if anterior != prioridad:
                 raise SystemExit(f"{rf} aparece como {anterior} y como {prioridad} en {arquitectura.name}")
     return sorted(rf for rf, prioridad in vistos.items() if prioridad == "Debe")
+
+
+def rnf_de_la_tabla(arquitectura: Path) -> tuple[int, list[str]]:
+    """Cuántas filas RNF tiene la tabla 2.2, y cuáles son Debe con verificación automática, en orden."""
+    vistos: dict[str, tuple[str, str]] = {}
+    for linea in arquitectura.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        inicio = INICIO_RNF.match(linea)
+        if inicio is None:
+            continue
+        coincidencia = FILA_RNF.match(linea)
+        if coincidencia is None:
+            raise SystemExit(
+                f"{inicio.group(1)} no tiene las columnas Obligación y Verificación en {arquitectura.name}"
+            )
+        rnf, obligacion, verificacion = coincidencia.groups()
+        anterior = vistos.setdefault(rnf, (obligacion, verificacion))
+        if anterior != (obligacion, verificacion):
+            raise SystemExit(f"{rnf} aparece dos veces con otra obligación o verificación en {arquitectura.name}")
+    automaticos = sorted(r for r, (o, v) in vistos.items() if o == "Debe" and v == "automática")
+    return len(vistos), automaticos
 
 
 class _Recolector:
@@ -84,12 +117,23 @@ def main(argv: list[str] | None = None) -> int:
         "--minimo",
         type=int,
         default=MINIMO,
-        help=f"cuántos requisitos Debe se esperan como mínimo (por omisión {MINIMO}, arquitectura 3.5)",
+        help=f"cuántos RF Debe se esperan como mínimo (por omisión {MINIMO}, arquitectura 3.5)",
+    )
+    parser.add_argument(
+        "--minimo-rnf",
+        type=int,
+        default=MINIMO_RNF,
+        help=f"cuántos RNF Debe automáticos se esperan como mínimo (por omisión {MINIMO_RNF}, arquitectura 2.2)",
+    )
+    parser.add_argument(
+        "--rnf-opcional",
+        action="store_true",
+        help="si la arquitectura no tiene ninguna fila RNF, avisa y revisa solo los RF",
     )
     parser.add_argument(
         "--pendientes",
         default="",
-        help="RF Debe sin prueba que se aceptan por ahora, separados por coma (por ejemplo RF-32,RF-40)",
+        help="RF o RNF sin prueba que se aceptan por ahora, separados por coma (por ejemplo RF-32,RF-40)",
     )
     parser.add_argument("--pruebas", type=Path, default=RAIZ_BACKEND / "tests")
     args = parser.parse_args(argv)
@@ -97,32 +141,51 @@ def main(argv: list[str] | None = None) -> int:
     if args.arquitectura is None or not Path(args.arquitectura).is_file():
         print("Falta docs/arquitectura.md: usa --arquitectura <ruta> o MATU_ARQUITECTURA", file=sys.stderr)
         return 2
-    debe = requisitos_debe(Path(args.arquitectura))
-    if args.minimo < 1:
-        print("--minimo debe ser al menos 1: con 0 la puerta pasaría sin revisar nada", file=sys.stderr)
+    if args.minimo < 1 or args.minimo_rnf < 1:
+        print("--minimo y --minimo-rnf deben ser al menos 1: con 0 la puerta pasaría sin revisar nada", file=sys.stderr)
         return 2
-    print(f"Se leyeron {len(debe)} requisitos Debe de {Path(args.arquitectura).name} (mínimo {args.minimo})")
+    arquitectura = Path(args.arquitectura)
+    debe = requisitos_debe(arquitectura)
+    print(f"Se leyeron {len(debe)} requisitos Debe de {arquitectura.name} (mínimo {args.minimo})")
     if len(debe) < args.minimo:
         print(
             f"Se leyeron {len(debe)} requisitos Debe y se esperaban al menos {args.minimo}: {', '.join(debe)}",
             file=sys.stderr,
         )
         return 2
-    pendientes = sorted({rf.strip() for rf in args.pendientes.split(",") if rf.strip()})
-    desconocidos = [rf for rf in pendientes if rf not in debe]
+
+    filas_rnf, rnf = rnf_de_la_tabla(arquitectura)
+    if filas_rnf == 0 and args.rnf_opcional:
+        print(f"Aviso: {arquitectura.name} no tiene la tabla de RNF con ID; con --rnf-opcional se revisan solo los RF")
+    else:
+        print(f"Se leyeron {len(rnf)} RNF Debe automáticos de {filas_rnf} filas RNF (mínimo {args.minimo_rnf})")
+        if len(rnf) < args.minimo_rnf:
+            print(
+                f"Se leyeron {len(rnf)} RNF Debe automáticos y se esperaban al menos {args.minimo_rnf}:"
+                f" {', '.join(rnf) or 'ninguno'}",
+                file=sys.stderr,
+            )
+            return 2
+    exigidos = debe + rnf
+
+    pendientes = sorted({r.strip() for r in args.pendientes.split(",") if r.strip()})
+    desconocidos = [r for r in pendientes if r not in exigidos]
     if desconocidos:
-        print(f"Pendientes que no son requisitos Debe: {', '.join(desconocidos)}", file=sys.stderr)
+        print(f"Pendientes que no son requisitos que la puerta exige: {', '.join(desconocidos)}", file=sys.stderr)
         return 2
 
     por_rf = pruebas_por_requisito(args.pruebas)
-    sin_prueba = [rf for rf in debe if not por_rf.get(rf)]
-    sin_prueba_no_aceptados = [rf for rf in sin_prueba if rf not in pendientes]
-    pendientes_con_prueba = [rf for rf in pendientes if por_rf.get(rf)]
+    sin_prueba = [r for r in exigidos if not por_rf.get(r)]
+    sin_prueba_no_aceptados = [r for r in sin_prueba if r not in pendientes]
+    pendientes_con_prueba = [r for r in pendientes if por_rf.get(r)]
 
-    print(f"\nTrazabilidad: {len(debe)} requisitos Debe, {len(debe) - len(sin_prueba)} con al menos una prueba")
-    for rf in debe:
-        marca = " (pendiente)" if rf in pendientes else ""
-        print(f"  {rf}: {len(por_rf.get(rf, []))} pruebas{marca}")
+    print(
+        f"\nTrazabilidad: {len(debe)} RF Debe y {len(rnf)} RNF Debe automáticos,"
+        f" {len(exigidos) - len(sin_prueba)} de {len(exigidos)} con al menos una prueba"
+    )
+    for requisito in exigidos:
+        marca = " (pendiente)" if requisito in pendientes else ""
+        print(f"  {requisito}: {len(por_rf.get(requisito, []))} pruebas{marca}")
     codigo = 0
     if sin_prueba_no_aceptados:
         print(f"Requisitos Debe sin ninguna prueba marcada: {', '.join(sin_prueba_no_aceptados)}", file=sys.stderr)

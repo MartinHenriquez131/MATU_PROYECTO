@@ -78,10 +78,14 @@ def test_sin_arquitectura_la_puerta_no_pasa(monkeypatch: pytest.MonkeyPatch, tmp
     assert trazabilidad.main(["--arquitectura", str(tmp_path / "no-existe.md")]) == 2
 
 
-def _correr(tmp_path: Path, nombre: str, marcas: list[str], *extra: str) -> int:
-    """La puerta sobre la TABLA, con una carpeta de pruebas sintética que marca los RF dados (uno por prueba)."""
+def _correr(
+    tmp_path: Path, nombre: str, marcas: list[str], *extra: str, tabla: str = TABLA, rnf_opcional: bool = True
+) -> int:
+    """La puerta sobre una tabla sintética, con una carpeta de pruebas que marca los requisitos dados (uno por prueba).
+
+    Por omisión, la TABLA sin RNF y --rnf-opcional, para las pruebas de los RF."""
     archivo = tmp_path / "arquitectura.md"
-    archivo.write_text(TABLA, encoding="utf-8")
+    archivo.write_text(tabla, encoding="utf-8")
     pruebas = tmp_path / "pruebas"
     pruebas.mkdir()
     cuerpo = "import pytest\n"
@@ -90,6 +94,8 @@ def _correr(tmp_path: Path, nombre: str, marcas: list[str], *extra: str) -> int:
     # Un nombre de módulo distinto en cada prueba: pytest.main corre varias veces en el mismo proceso
     (pruebas / f"test_{nombre}.py").write_text(cuerpo, encoding="utf-8")
     args = ["--arquitectura", str(archivo), "--minimo", "2", "--pruebas", str(pruebas), *extra]
+    if rnf_opcional:
+        args.append("--rnf-opcional")
     resultado: int = trazabilidad.main(args)
     return resultado
 
@@ -114,7 +120,7 @@ def test_un_pendiente_que_ya_tiene_prueba_falla(tmp_path: Path, capsys: pytest.C
 def test_un_pendiente_que_no_es_debe_detiene_la_puerta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # RF-16 es Debería en la TABLA y RF-99 no existe
     assert _correr(tmp_path, "pendiente_desconocido", ["RF-01", "RF-02"], "--pendientes", "RF-16,RF-99") == 2
-    assert "Pendientes que no son requisitos Debe: RF-16, RF-99" in capsys.readouterr().err
+    assert "Pendientes que no son requisitos que la puerta exige: RF-16, RF-99" in capsys.readouterr().err
 
 
 def test_contratos_iguales_no_tienen_diferencias() -> None:
@@ -216,3 +222,80 @@ def test_h1_una_ruta_absoluta_con_myapp_cuenta_en_su_capa() -> None:
     por_capa, _, _ = cobertura_por_capa.medir(informe)
     assert (por_capa["dominio"].cubiertas, por_capa["dominio"].total) == (9, 10)
     assert (por_capa["aplicacion"].cubiertas, por_capa["aplicacion"].total) == (7, 10)
+
+
+TABLA_RNF = """### 2.2 Atributos de calidad priorizados
+
+| ID | Prioridad | Atributo | Escenario medible | Cómo se verifica | Obligación | Verificación |
+|---|---|---|---|---|---|---|
+| RNF-01 | 1 | **Uno** | Con una | barra en el escenario | Prueba de reintento | Debe | automática |
+| RNF-02 | 2 | **Dos** | Escenario | Prueba de aislamiento | Debe | automática |
+| RNF-03 | 3 | **Tres** | Escenario | Prueba con usuarios | Debe | manual |
+| RNF-04 | 4 | **Cuatro** | Escenario | Prueba automática | Debería | automática |
+"""
+
+
+def test_lee_los_rnf_debe_automaticos(tmp_path: Path) -> None:
+    archivo = tmp_path / "arquitectura.md"
+    archivo.write_text(TABLA_RNF, encoding="utf-8")
+    assert trazabilidad.rnf_de_la_tabla(archivo) == (4, ["RNF-01", "RNF-02"])
+
+
+def test_una_fila_rnf_sin_obligacion_ni_verificacion_detiene_la_puerta(tmp_path: Path) -> None:
+    archivo = tmp_path / "arquitectura.md"
+    archivo.write_text("| RNF-01 | 1 | **Uno** | Escenario | Prueba |\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="RNF-01 no tiene las columnas"):
+        trazabilidad.rnf_de_la_tabla(archivo)
+
+
+def test_un_rnf_automatico_sin_prueba_falla(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    codigo = _correr(
+        tmp_path, "rnf_sin_prueba", ["RF-01", "RF-02", "RNF-01"], "--minimo-rnf", "2", tabla=TABLA + TABLA_RNF
+    )
+    salida = capsys.readouterr()
+    assert codigo == 1
+    assert "RNF-01: 1 pruebas" in salida.out
+    # RNF-03 es manual y RNF-04 es Debería: no se exigen
+    assert "RNF-03" not in salida.out and "RNF-04" not in salida.out
+    assert "sin ninguna prueba marcada: RNF-02" in salida.err
+
+
+def test_un_rnf_pendiente_se_acepta_y_falla_si_ya_tiene_prueba(tmp_path: Path) -> None:
+    tabla = TABLA + TABLA_RNF
+    marcas = ["RF-01", "RF-02", "RNF-01"]
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    assert _correr(tmp_path / "a", "rnf_pend", marcas, "--minimo-rnf", "2", "--pendientes", "RNF-02", tabla=tabla) == 0
+    con_prueba = [*marcas, "RNF-02"]
+    args = ("--minimo-rnf", "2", "--pendientes", "RNF-02")
+    assert _correr(tmp_path / "b", "rnf_pend_con", con_prueba, *args, tabla=tabla) == 1
+
+
+def test_un_rnf_manual_no_puede_ser_pendiente(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    marcas = ["RF-01", "RF-02", "RNF-01", "RNF-02"]
+    args = ("--minimo-rnf", "2", "--pendientes", "RNF-03")
+    codigo = _correr(tmp_path, "rnf_manual", marcas, *args, tabla=TABLA + TABLA_RNF)
+    assert codigo == 2
+    assert "Pendientes que no son requisitos que la puerta exige: RNF-03" in capsys.readouterr().err
+
+
+def test_sin_tabla_rnf_y_sin_rnf_opcional_no_pasa(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _correr(tmp_path, "sin_tabla", ["RF-01", "RF-02"], rnf_opcional=False) == 2
+    assert "Se leyeron 0 RNF Debe automáticos y se esperaban al menos 6: ninguno" in capsys.readouterr().err
+
+
+def test_sin_tabla_rnf_con_rnf_opcional_avisa_y_pasa(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _correr(tmp_path, "opcional", ["RF-01", "RF-02"]) == 0
+    assert "no tiene la tabla de RNF con ID" in capsys.readouterr().out
+
+
+def test_con_rnf_opcional_una_tabla_rnf_se_exige_entera(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Encontró RNF: --rnf-opcional ya no excusa nada, y 2 automáticos no llegan al mínimo de 6
+    assert _correr(tmp_path, "opcional_con_tabla", ["RF-01", "RF-02"], tabla=TABLA + TABLA_RNF) == 2
+    assert "Se leyeron 2 RNF Debe automáticos y se esperaban al menos 6" in capsys.readouterr().err
+
+
+def test_un_minimo_rnf_de_cero_no_se_acepta(tmp_path: Path) -> None:
+    archivo = tmp_path / "arquitectura.md"
+    archivo.write_text(TABLA, encoding="utf-8")
+    assert trazabilidad.main(["--arquitectura", str(archivo), "--minimo", "2", "--minimo-rnf", "0"]) == 2
