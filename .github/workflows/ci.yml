@@ -151,8 +151,8 @@ jobs:
       - name: Construir la imagen (docker build)
         run: docker build -f infra/railway/Dockerfile -t matu-api:ci .
 
-  # La app web (web/, ADR-026) corre en paralelo al backend. No tiene lint todavía: se revisan
-  # los tipos, las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
+  # La app web (web/, ADR-026) corre en paralelo al backend. Se revisan el estilo (eslint), los tipos,
+  # las pruebas de interfaz, que compile y que su contrato siga al openapi.json.
   web:
     runs-on: ubuntu-latest
 
@@ -172,6 +172,12 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      # MATU-79: ESLint 9 con las recomendadas de TypeScript, react-hooks y jsx-a11y (web/eslint.config.js). Falla con
+      # cualquier error. Los avisos no lo frenan: el 18-11 quedan 9 de react-hooks/exhaustive-deps, efectos con las
+      # dependencias recortadas a propósito, que se revisan uno por uno cuando se fusione la fila de ramas abiertas
+      - name: Estilo (eslint)
+        run: npm run lint
 
       - name: Tipos (tsc)
         run: npm run typecheck
