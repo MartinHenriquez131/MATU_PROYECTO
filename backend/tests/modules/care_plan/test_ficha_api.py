@@ -382,9 +382,10 @@ def test_completitud_por_campo(entorno_ficha: EntornoFicha) -> None:
     familia = entorno_ficha.familia()
     grupo, persona = familia.grupo.id, familia.persona.id
 
-    def guardar(campo: str, texto: str) -> int:
+    def guardar(campo: str, texto: str, estado: int = 201) -> int:
+        # MATU-79: el código exacto, 201 la primera escritura (If-None-Match: *) y 200 las siguientes (If-Match)
         respuesta = entorno_ficha.escribir(familia.admin, grupo, persona, campo, {"texto": texto})
-        assert respuesta.status_code in (200, 201), respuesta.text
+        assert respuesta.status_code == estado, respuesta.text
         guardada = _una("SELECT completitud_pct FROM plan_cuidado WHERE persona_cuidada_id = %s", persona)
         leida = entorno_ficha.leer(familia.admin, grupo, persona).json()["completitud"]
         # La respuesta, la base y la lectura dicen lo mismo
@@ -397,8 +398,8 @@ def test_completitud_por_campo(entorno_ficha: EntornoFicha) -> None:
     assert guardar("manejo_situaciones", _texto("manejo_situaciones")) == 67
     assert guardar("red_apoyo", _texto("red_apoyo")) == 100
     # Vaciar un campo baja la completitud, y volver a escribirlo la sube
-    assert guardar("manejo_situaciones", "") == 67
-    assert guardar("manejo_situaciones", _texto("manejo_situaciones")) == 100
+    assert guardar("manejo_situaciones", "", estado=200) == 67
+    assert guardar("manejo_situaciones", _texto("manejo_situaciones"), estado=200) == 100
 
 
 # --- Criterio 5 y decisión D-B: consentimiento y revisión anual --------------------------------------

@@ -58,6 +58,8 @@ PED_A_ENVIADO = uuid.UUID("00000000-0000-0000-0000-0000000006a1")
 PED_A_BORRADOR = uuid.UUID("00000000-0000-0000-0000-0000000006a2")
 PED_B_ENVIADO = uuid.UUID("00000000-0000-0000-0000-0000000006b1")
 
+PEDIDOS_SEMILLA = (PED_A_ENVIADO, PED_A_BORRADOR, PED_B_ENVIADO)
+
 INFRA_SIN_RLS = {"evento_outbox", "evento_consumido", "indice_token", "indice_credencial"}
 REFERENCIA_PUBLICA = {"categoria_cuidado", "producto", "oferta", "comercio"}
 
@@ -299,8 +301,10 @@ def test_operacion_no_alcanza_plan_ni_consumo(cx):
     for t in ("plan_cuidado", "plan_seccion", "clave_datos", "acceso_relevo",
               "perfil_consumo", "reposicion", "alerta_quiebre"):
         assert contar(cx, t) == 0, f"operación alcanza {t}"
-    assert contar(cx, "pedido") == 3
-    # MATU-81 (D-81-6): operación ya no lee la persona cuidada
+    # MATU-79: operación ve los pedidos de todos los grupos. La prueba exige los de la semilla por id,
+    # no el total de la base, que crece con lo que deje otra prueba
+    assert _quedan(cx, "pedido", PEDIDOS_SEMILLA) == set(PEDIDOS_SEMILLA)
+    # MATU-81 (D-81-6): operación ya no lee la persona cuidada, de ningún grupo
     assert contar(cx, "persona_cuidada") == 0
 
 
@@ -699,7 +703,8 @@ def test_publicador_no_alcanza_tablas_de_negocio(cx):
 
 def test_scheduler_solo_enumera_identificadores(cx):
     cx.execute("SET LOCAL ROLE matu_scheduler")
-    assert cx.execute("SELECT count(id) FROM grupo_familiar").fetchone()[0] == 2
+    # MATU-79: los dos grupos de la semilla, por id; el total de la base no es de la prueba
+    assert _quedan(cx, "grupo_familiar", [G_A, G_B]) == {G_A, G_B}
     with pytest.raises(errors.InsufficientPrivilege):
         cx.execute("SELECT nombre FROM grupo_familiar")
 
@@ -1162,14 +1167,29 @@ def test_operacion_no_lee_push_token_ni_token_hash(cx):
 
 @pytest.mark.rf("RF-37")
 def test_conservacion_de_operacion_solo_devuelve_contadores(cx):
+    # MATU-79: iam_conservar borra lo vencido de todas las cuentas de la base (como en MATU-73). La prueba siembra una
+    # sesión vencida y un dispositivo sin uso de A, mira sus filas por id y exige el contador mayor o igual
     _sembrar_sesiones(cx)
+    vigentes = {fila[0] for fila in cx.execute("SELECT id FROM sesion_refresh WHERE dispositivo_id = ANY(%s)",
+                                               ([DISP_A, DISP_B],)).fetchall()}
+    [vencida] = _ids(cx.execute(
+        "INSERT INTO sesion_refresh (usuario_id, dispositivo_id, familia_id, token_hash, emitido_en, expira_en)"
+        " VALUES (%s, %s, gen_random_uuid(), sha256('vencida-a'::bytea), now() - interval '61 days',"
+        " now() - interval '31 days') RETURNING id", (U_ADMIN_A, DISP_A)))
+    [sin_uso] = _ids(cx.execute(
+        "INSERT INTO dispositivo (usuario_id, plataforma, nombre, creado_en, ultimo_uso_en)"
+        " VALUES (%s, 'web', 'Sin uso', now() - interval '200 days', now() - interval '91 days') RETURNING id",
+        (U_ADMIN_A,)))
     como(cx, "matu_scheduler", rol="operacion")
-    fila = cx.execute(
-        "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())").fetchone()
-    assert fila == (0, 0)
-    columnas = [c.name for c in cx.execute(
-        "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())").description]
-    assert columnas == ["sesiones_borradas", "dispositivos_borrados"]
+    cursor = cx.execute(
+        "SELECT * FROM iam_conservar(now() - interval '30 days', now() - interval '90 days', now())")
+    assert [c.name for c in cursor.description] == ["sesiones_borradas", "dispositivos_borrados"]
+    sesiones, dispositivos = cursor.fetchone()
+    assert sesiones >= 1 and dispositivos >= 1
+    cx.execute("RESET ROLE")
+    assert len(vigentes) == 2
+    assert _quedan(cx, "sesion_refresh", [*vigentes, vencida]) == vigentes  # la de B, de otra familia, se queda
+    assert _quedan(cx, "dispositivo", [DISP_A, DISP_B, sin_uso]) == {DISP_A, DISP_B}
 
 
 @pytest.mark.rf("RF-37")
@@ -1330,14 +1350,21 @@ def test_conservacion_del_consumo_solo_con_operacion_y_tras_90_dias(cx):
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT consumo_conservar(now() - interval '89 days', now())")
     cx.rollback()
+    perfiles = [_perfil_de(cx, G_A), _perfil_de(cx, G_B)]
     como(cx, "matu_scheduler", rol="operacion")
-    # Sin consentimientos de consumo en la semilla: no borra nada y devuelve solo un contador
-    assert cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())").fetchone() == (0,)
+    # Devuelve solo un contador. MATU-79: es de toda la base, así que se exige un entero y no un total. Sin
+    # consentimientos de consumo retirados en la semilla, sus perfiles se quedan
+    [borrados] = cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())").fetchone()
+    assert isinstance(borrados, int) and borrados >= 0
+    cx.execute("RESET ROLE")
+    assert _quedan(cx, "perfil_consumo", perfiles) == set(perfiles)
 
 
 @pytest.mark.rf("RF-10")
 def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
+    # MATU-79: los perfiles de A y de B por id, y el contador mayor o igual a lo propio
     for revocado, queda in (("now() - interval '91 days'", 0), ("now() - interval '89 days'", 1)):
+        perfil_a, perfil_b = _perfil_de(cx, G_A), _perfil_de(cx, G_B)
         cx.execute(
             "INSERT INTO consentimiento (grupo_id, persona_cuidada_id, usuario_id, calidad_otorgante, finalidad,"
             " version_politica, evidencia, otorgado_en, revocado_en, revocacion_motivo)"
@@ -1346,9 +1373,11 @@ def test_conservacion_del_consumo_borra_tras_90_dias_de_revocada(cx):
             (G_A, P_A, U_ADMIN_A),
         )
         como(cx, "matu_scheduler", rol="operacion")
-        cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())")
+        [borrados] = cx.execute("SELECT consumo_conservar(now() - interval '90 days', now())").fetchone()
+        assert borrados >= 1 - queda
         cx.execute("RESET ROLE")  # superusuario: cuenta sin RLS
-        assert contar(cx, "perfil_consumo", f"grupo_id = '{G_A}'") == queda
+        assert _quedan(cx, "perfil_consumo", [perfil_a]) == ({perfil_a} if queda else set())
+        assert _quedan(cx, "perfil_consumo", [perfil_b]) == {perfil_b}  # la otra familia no se toca
         cx.rollback()
 
 
@@ -1579,39 +1608,59 @@ def test_conservacion_de_alertas_solo_con_operacion_y_con_sus_plazos(cx):
         cx.rollback()
 
 
+def _ids(cursor):
+    """Los id de un INSERT … RETURNING id, en el orden de los VALUES."""
+    return [fila[0] for fila in cursor.fetchall()]
+
+
+def _quedan(cx, tabla, ids, columna="id"):
+    """MATU-79: cuáles de ``ids`` siguen en ``tabla``. Las conservaciones borran de toda la base: las pruebas miran
+    solo sus filas, nunca el total de la tabla ni el que devuelve la función."""
+    return {fila[0] for fila in cx.execute(f"SELECT {columna} FROM {tabla} WHERE {columna} = ANY(%s)",
+                                           (list(ids),)).fetchall()}
+
+
 @pytest.mark.rf("RF-12")
 def test_conservacion_de_alertas_borra_lo_vencido_y_deja_lo_reciente(cx):
+    # MATU-79: quiebre_conservar borra lo vencido de toda la base, así que la prueba mira sus filas por id y no el
+    # total que devuelve (antes vaciaba evento_outbox y notificacion para que el total fuera exacto)
     perfil = _perfil_de(cx, G_A)
-    cx.execute(
+    vieja, reciente, pendiente = _ids(cx.execute(
         "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, creada_en, cerrada_en) VALUES"
         " (%(p)s, current_date - 200, 'descartada', now() - interval '200 days', now() - interval '91 days'),"
         " (%(p)s, current_date - 100, 'resuelta', now() - interval '100 days', now() - interval '89 days'),"
-        " (%(p)s, current_date - 300, 'pendiente', now() - interval '300 days', NULL)",
+        " (%(p)s, current_date - 300, 'pendiente', now() - interval '300 days', NULL) RETURNING id",
         {"p": perfil},
-    )
-    cx.execute("DELETE FROM evento_outbox")
-    cx.execute(
+    ))
+    ev_viejo, ev_reciente, ev_pendiente = _ids(cx.execute(
         "INSERT INTO evento_outbox (grupo_id, tipo, agregado_tipo, agregado_id, publicado_en) VALUES"
         " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '31 days'),"
         " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), now() - interval '29 days'),"
-        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), NULL)",
+        " (%(g)s, 'QuiebreProximo', 'alerta_quiebre', gen_random_uuid(), NULL) RETURNING id",
         {"g": G_A},
-    )
-    cx.execute("DELETE FROM notificacion")
-    cx.execute(
+    ))
+    no_vieja, no_reciente = _ids(cx.execute(
         "INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en) VALUES"
         " (%(u)s, %(g)s, 1, 'push', 'quiebre_proximo', now() - interval '91 days'),"
-        " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days')",
+        " (%(u)s, %(g)s, 2, 'push', 'quiebre_proximo', now() - interval '10 days') RETURNING id",
         {"u": U_ADMIN_A, "g": G_A},
-    )
+    ))
+    # Una alerta vencida de otra familia: con el total exacto de antes, (2, 1, 1, 0) habría hecho fallar la prueba
+    [ajena] = _ids(cx.execute(
+        "INSERT INTO alerta_quiebre (perfil_id, fecha_prevista, estado, creada_en, cerrada_en) VALUES"
+        " (%s, current_date - 200, 'descartada', now() - interval '200 days', now() - interval '95 days') RETURNING id",
+        (_perfil_de(cx, G_B),),
+    ))
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
-    assert fila == (1, 1, 1, 0)  # MATU-51: el cuarto contador, las compras declaradas
+    # Cuenta al menos lo propio y la ajena. MATU-51: el cuarto contador, las compras declaradas
+    assert len(fila) == 4 and fila[0] >= 2 and fila[1] >= 1 and fila[2] >= 1 and fila[3] >= 0
     cx.execute("RESET ROLE")
-    assert contar(cx, "alerta_quiebre", f"perfil_id = '{perfil}'") == 2
-    assert contar(cx, "evento_outbox") == 2
-    assert contar(cx, "notificacion") == 1
+    assert _quedan(cx, "alerta_quiebre", [ajena]) == set()
+    assert _quedan(cx, "alerta_quiebre", [vieja, reciente, pendiente]) == {reciente, pendiente}
+    assert _quedan(cx, "evento_outbox", [ev_viejo, ev_reciente, ev_pendiente]) == {ev_reciente, ev_pendiente}
+    assert _quedan(cx, "notificacion", [no_vieja, no_reciente]) == {no_reciente}
 
 
 # ---- MATU-41 (migración 0014): avisos, dispositivo para el sistema, publicador del outbox y conservación
@@ -1747,17 +1796,30 @@ def _evento(cx, grupo=G_A, **columnas):
     ).fetchone()[0]
 
 
+def _tomar_todos(cx, grupo=None):
+    """MATU-79: (id, grupo_id) de lo que outbox_tomar entrega hasta que no queda nada disponible. outbox_tomar toma
+    de toda la base por orden de id y con un tope de 100: la prueba toma todo y mira solo sus eventos, sin vaciar
+    evento_outbox."""
+    tomados: list[tuple[int, uuid.UUID]] = []
+    while lote := cx.execute("SELECT id, grupo_id FROM outbox_tomar(100, now(), %s)", (grupo,)).fetchall():
+        tomados += lote
+    return tomados
+
+
 @pytest.mark.rf("RF-39")
 def test_operacion_toma_arrienda_reintenta_y_falla_al_octavo(cx):
-    cx.execute("DELETE FROM evento_outbox")
     a = _evento(cx)
     b = _evento(cx, grupo=G_B)
-    _evento(cx, disponible_en="2100-01-01T00:00:00Z")  # todavía no disponible
+    futuro = _evento(cx, disponible_en="2100-01-01T00:00:00Z")  # todavía no disponible
+    propios = {a, b, futuro}
     como(cx, "matu_publisher", rol="operacion")
-    assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now(), %s)", (G_A,)).fetchall()] == [a]
+    # Con el grupo, solo eventos de A, cada uno una vez: de los propios, a
+    de_a = _tomar_todos(cx, G_A)
+    assert {g for _, g in de_a} == {G_A} and len(de_a) == len({i for i, _ in de_a})
+    assert propios.intersection(i for i, _ in de_a) == {a}
     # Arrendado: otro publicador no lo vuelve a tomar
-    assert [r[0] for r in cx.execute("SELECT id FROM outbox_tomar(10, now())").fetchall()] == [b]
-    assert cx.execute("SELECT * FROM outbox_tomar(10, now())").fetchall() == []
+    assert propios.intersection(i for i, _ in _tomar_todos(cx)) == {b}
+    assert propios.intersection(i for i, _ in _tomar_todos(cx)) == set()
     for intento in range(1, 8):
         quedo_fallido = cx.execute("SELECT outbox_reintentar(%s, now() + interval '1 second', now())", (a,)).fetchone()
         assert quedo_fallido == (False,), intento
@@ -1771,11 +1833,11 @@ def test_operacion_toma_arrienda_reintenta_y_falla_al_octavo(cx):
 
 @pytest.mark.rf("RF-39")
 def test_posponer_no_suma_un_intento_y_tiene_limite(cx):
-    cx.execute("DELETE FROM evento_outbox")
+    # MATU-79: sin vaciar evento_outbox; la prueba mira si su evento sale entre todo lo que se toma
     a = _evento(cx)
     como(cx, "matu_publisher", rol="operacion")
     assert cx.execute("SELECT outbox_posponer(%s, now() + interval '5 hours', now())", (a,)).fetchone() == (True,)
-    assert cx.execute("SELECT * FROM outbox_tomar(10, now())").fetchall() == []
+    assert a not in {i for i, _ in _tomar_todos(cx)}
     cx.execute("SAVEPOINT antes")
     with pytest.raises(errors.InvalidParameterValue):
         cx.execute("SELECT outbox_posponer(%s, now() + interval '2 days', now())", (a,))
@@ -1786,8 +1848,7 @@ def test_posponer_no_suma_un_intento_y_tiene_limite(cx):
 
 @pytest.mark.rf("RF-39")
 def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(cx):
-    cx.execute("DELETE FROM evento_outbox")
-    cx.execute("DELETE FROM evento_consumido")
+    # MATU-79: sin vaciar evento_outbox ni evento_consumido; la prueba mira sus cuatro eventos por id
     viejo = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
     reciente = _evento(cx, fallido_en="2026-01-01T00:00:00Z")
     publicado = _evento(cx, publicado_en="2026-01-01T00:00:00Z")
@@ -1801,10 +1862,11 @@ def test_conservacion_borra_los_fallidos_a_los_30_dias_con_su_evento_consumido(c
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT * FROM quiebre_conservar(now() - interval '90 days', now() - interval '30 days',"
                       " now())").fetchone()
-    assert fila[1] == 2  # el fallido viejo y el publicado viejo
+    assert fila[1] >= 2  # al menos el fallido viejo y el publicado viejo
     cx.execute("RESET ROLE")
-    assert {r[0] for r in cx.execute("SELECT id FROM evento_outbox").fetchall()} == {reciente, pendiente}
-    assert {r[0] for r in cx.execute("SELECT evento_id FROM evento_consumido").fetchall()} == {reciente, pendiente}
+    propios = [viejo, reciente, publicado, pendiente]
+    assert _quedan(cx, "evento_outbox", propios) == {reciente, pendiente}
+    assert _quedan(cx, "evento_consumido", propios, columna="evento_id") == {reciente, pendiente}
 
 
 # ---- MATU-60 (migración 0015): unidades por envase en el perfil y la lista de insumos
@@ -1954,8 +2016,12 @@ def test_destruir_claves_exige_operacion_y_los_90_dias(cx):
         cx.execute("SELECT plan_destruir_claves(now(), now() + interval '91 days')")
     cx.rollback()
     como(cx, "matu_scheduler", rol="operacion")
-    # Sin retiros en la semilla: no destruye nada y devuelve solo un contador
-    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
+    # Devuelve solo un contador. MATU-79: es de toda la base, así que se exige un entero y no un total. Sin retiros
+    # en la semilla, sus dos claves siguen enteras
+    [destruidas] = cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone()
+    assert isinstance(destruidas, int) and destruidas >= 0
+    assert _clave_destruida(cx, P_A) == (False, False)
+    assert _clave_destruida(cx, P_B) == (False, False)
 
 
 @pytest.mark.rf("RF-02")
@@ -1963,7 +2029,8 @@ def test_destruir_claves_exige_operacion_y_los_90_dias(cx):
 def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye):
     _retiro_de_plan(cx, hace)
     como(cx, "matu_scheduler", rol="operacion")
-    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (int(destruye),)
+    # MATU-79: el contador es de toda la base; cuenta al menos la de P_A cuando corresponde. Lo propio, por persona
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone()[0] >= int(destruye)
     assert _clave_destruida(cx, P_A) == (destruye, destruye)
     # CL-6: con la clave se van las filas cifradas con ella (secciones y campos base) y el plan queda en 0
     secciones_a = contar(cx, "plan_seccion", f"plan_id = '{PLAN_A}'")
@@ -1982,10 +2049,15 @@ def test_destruir_claves_solo_tras_90_dias_y_solo_esa_persona(cx, hace, destruye
 def test_destruir_claves_es_idempotente(cx):
     _retiro_de_plan(cx, "100 days")
     como(cx, "matu_scheduler", rol="operacion")
-    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (1,)
+    # MATU-79: la primera destruye al menos la de P_A (y lo que hubiera vencido en la base); la segunda, en la misma
+    # transacción, ya no encuentra nada que destruir
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone()[0] >= 1
     assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
-    cx.execute("RESET ROLE")
-    assert cx.execute("SELECT count(*) FROM auditoria WHERE accion = 'clave.destruir'").fetchone() == (1,)
+    assert _clave_destruida(cx, P_A) == (True, True)
+    assert _clave_destruida(cx, P_B) == (False, False)
+    # Una sola fila de auditoría para la clave de P_A
+    assert cx.execute("SELECT count(*) FROM auditoria WHERE accion = 'clave.destruir' AND entidad_id ="
+                      " (SELECT id FROM clave_datos WHERE persona_cuidada_id = %s)", (P_A,)).fetchone() == (1,)
 
 
 @pytest.mark.rf("RF-02")
@@ -1993,7 +2065,10 @@ def test_destruir_claves_no_toca_a_quien_volvio_a_autorizar(cx):
     _retiro_de_plan(cx, "100 days")
     _consentimiento(cx)  # una autorización nueva de plan_cuidado, no revocada
     como(cx, "matu_scheduler", rol="operacion")
-    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone() == (0,)
+    # MATU-79: el contador es de toda la base; la prueba mira la clave y las secciones de P_A
+    assert cx.execute("SELECT plan_destruir_claves(now() - interval '90 days', now())").fetchone()[0] >= 0
+    assert _clave_destruida(cx, P_A) == (False, False)
+    assert contar(cx, "plan_seccion", f"plan_id = '{PLAN_A}'") == 3
 
 
 @pytest.mark.rf("RF-02")
@@ -2060,22 +2135,21 @@ def test_reposicion_acepta_lo_que_sale_de_envases_hasta_el_tope_del_stock(cx):
 @pytest.mark.rf("RF-11")
 def test_conservacion_borra_las_compras_declaradas_a_los_90_dias(cx):
     """Decisión 145: declaradas con registrada_en de 90 días o más se borran; las recientes y las de pedido no."""
+    # MATU-79: el total que devuelve quiebre_conservar es de toda la base; la prueba mira sus tres filas por id
     perfil = _perfil_de(cx, G_A)
-    cx.execute(
+    vieja, reciente, de_pedido = _ids(cx.execute(
         "INSERT INTO reposicion (perfil_id, cantidad_unidades, origen, pedido_ref, ocurrida_en, registrada_en) VALUES"
         " (%(p)s, 5, 'declarada', NULL, current_date - 91, now() - interval '91 days'),"
         " (%(p)s, 6, 'declarada', NULL, current_date - 89, now() - interval '89 days'),"
-        " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days')",
+        " (%(p)s, 7, 'pedido_matu', gen_random_uuid(), current_date - 200, now() - interval '200 days') RETURNING id",
         {"p": perfil},
-    )
+    ))
     como(cx, "matu_scheduler", rol="operacion")
     fila = cx.execute("SELECT reposiciones FROM quiebre_conservar(now() - interval '90 days',"
                       " now() - interval '30 days', now())").fetchone()
-    assert fila == (1,)
+    assert fila[0] >= 1
     cx.execute("RESET ROLE")
-    restantes = {r[0] for r in cx.execute("SELECT cantidad_unidades FROM reposicion WHERE perfil_id = %s",
-                                          (perfil,)).fetchall()}
-    assert {6, 7} <= restantes and 5 not in restantes
+    assert _quedan(cx, "reposicion", [vieja, reciente, de_pedido]) == {reciente, de_pedido}
 
 
 @pytest.mark.rf("RF-11")
@@ -2694,17 +2768,18 @@ ROLES_TAREAS = ("matu_scheduler", "matu_publisher")
 
 
 def _notificacion(cx, usuario, grupo, evento, dias):
-    cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en)"
-               " VALUES (%s, %s, %s, 'correo', 'quiebre_proximo', now() - make_interval(days => %s))",
-               (usuario, grupo, evento, dias))
+    return cx.execute("INSERT INTO notificacion (usuario_id, grupo_id, evento_id, canal, plantilla, creada_en)"
+                      " VALUES (%s, %s, %s, 'correo', 'quiebre_proximo', now() - make_interval(days => %s))"
+                      " RETURNING id", (usuario, grupo, evento, dias)).fetchone()[0]
 
 
 @pytest.mark.rf("RF-39")
 def test_operacion_no_lee_los_avisos_de_ningun_grupo(cx):
     """C4: sin notificacion_operacion, matu_app con app.rol = 'operacion' no ve ninguna notificación."""
-    cx.execute("DELETE FROM notificacion")
-    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
-    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    # MATU-79: sin vaciar notificacion. Los avisos propios existen (por id, como superusuario) y operación no ve
+    # ninguno de la tabla entera: ni los propios ni los que haya dejado otra prueba
+    propios = [_notificacion(cx, U_ADMIN_A, G_A, 1, 1), _notificacion(cx, U_ADMIN_B, G_B, 2, 1)]
+    assert _quedan(cx, "notificacion", propios) == set(propios)
     # Con una cuenta sin avisos propios y un grupo en el contexto, tampoco (la propia sigue viendo los suyos)
     for contexto in ({"rol": "operacion"}, {"rol": "operacion", "usuario_id": U_ENC, "grupo_id": G_A}):
         como(cx, **contexto)
@@ -2714,26 +2789,29 @@ def test_operacion_no_lee_los_avisos_de_ningun_grupo(cx):
 
 @pytest.mark.rf("RF-39")
 def test_cada_usuario_ve_solo_sus_avisos(cx):
-    cx.execute("DELETE FROM notificacion")
-    _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
-    _notificacion(cx, U_OBS_A, G_A, 1, 1)
-    _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
+    # MATU-79: sin vaciar notificacion. De los tres avisos propios ve solo el suyo, por id, y todo lo que ve en la
+    # tabla entera es suyo
+    mio = _notificacion(cx, U_ADMIN_A, G_A, 1, 1)
+    del_grupo = _notificacion(cx, U_OBS_A, G_A, 1, 1)
+    de_b = _notificacion(cx, U_ADMIN_B, G_B, 2, 1)
     como(cx, usuario_id=U_ADMIN_A, grupo_id=G_A)
-    assert [r[0] for r in cx.execute("SELECT usuario_id FROM notificacion").fetchall()] == [U_ADMIN_A]
+    assert _quedan(cx, "notificacion", [mio, del_grupo, de_b]) == {mio}
+    assert {r[0] for r in cx.execute("SELECT usuario_id FROM notificacion").fetchall()} == {U_ADMIN_A}
 
 
 @pytest.mark.rf("RF-39")
 def test_la_conservacion_sigue_borrando_los_avisos_a_los_90_dias(cx):
     """La trampa de C4: quiebre_conservar ve las filas como matu_owner por notificacion_conservacion."""
-    cx.execute("DELETE FROM notificacion")
-    _notificacion(cx, U_ADMIN_A, G_A, 1, 91)
-    _notificacion(cx, U_ADMIN_A, G_A, 2, 89)
+    # MATU-79: sin vaciar notificacion; la prueba mira sus avisos por id y exige el contador mayor o igual
+    vieja = _notificacion(cx, U_ADMIN_A, G_A, 1, 91)
+    reciente = _notificacion(cx, U_ADMIN_A, G_A, 2, 89)
+    de_b = _notificacion(cx, U_ADMIN_B, G_B, 3, 89)  # de otra familia, reciente
     como(cx, "matu_scheduler", rol="operacion")
     [notificaciones] = cx.execute("SELECT notificaciones FROM quiebre_conservar(now() - interval '90 days',"
                                   " now() - interval '30 days', now())").fetchone()
-    assert notificaciones == 1
+    assert notificaciones >= 1
     cx.execute("RESET ROLE")
-    assert [r[0] for r in cx.execute("SELECT evento_id FROM notificacion").fetchall()] == [2]
+    assert _quedan(cx, "notificacion", [vieja, reciente, de_b]) == {reciente, de_b}
 
 
 @pytest.mark.rf("RF-02")
@@ -3023,11 +3101,13 @@ def test_pedido_conservar_borra_lo_no_pagado_con_su_linea_de_tiempo(cx):
                f" ('{PED_A_BORRADOR}', '{PED_A_ENVIADO}')")
     cx.execute("SET LOCAL session_replication_role = origin")
     como(cx, "matu_scheduler", rol="operacion")
-    assert cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())").fetchone()[0] == 1
+    # MATU-79: el contador es de toda la base; cuenta al menos el borrador de A. Lo propio, por id
+    assert cx.execute("SELECT * FROM pedido_conservar(now() - interval '30 days', now())").fetchone()[0] >= 1
     cx.execute("RESET ROLE")
     assert contar(cx, "pedido", f"id = '{PED_A_BORRADOR}'") == 0
     assert contar(cx, "pedido_transicion", f"pedido_id = '{PED_A_BORRADOR}'") == 0
     assert contar(cx, "pedido", f"id = '{PED_A_ENVIADO}'") == 1
+    assert contar(cx, "pedido", f"id = '{PED_B_ENVIADO}'") == 1  # el de la otra familia no se toca
     # Fuera de la cascada, la línea de tiempo sigue siendo de solo inserción
     cx.execute("INSERT INTO pedido_transicion (pedido_id, hacia, actor_tipo) VALUES (%s, 'pagado', 'sistema')",
                (PED_A_ENVIADO,))
@@ -3992,12 +4072,14 @@ def test_relevo_conservar_vacia_solo_lo_terminado_hace_30_dias_y_solo_el_telefon
     nombre y su motivo se quedan."""
     _acceso_b_vencido_hace_40_dias(cx)
     como(cx, "matu_scheduler", rol="operacion")
-    assert cx.execute("SELECT relevo_conservar(now() - interval '30 days', now())").fetchone() == (1,)
+    # MATU-79: el contador es de toda la base; cuenta al menos el de B. Los teléfonos se miran por id
+    assert cx.execute("SELECT relevo_conservar(now() - interval '30 days', now())").fetchone()[0] >= 1
     # El scheduler no lee la tabla: solo ejecuta la función
     with pytest.raises(errors.InsufficientPrivilege), cx.transaction():
         cx.execute("SELECT count(*) FROM acceso_relevo")
     cx.execute("RESET ROLE")
-    telefonos = dict(cx.execute("SELECT id, otorgado_a_telefono FROM acceso_relevo").fetchall())
+    telefonos = dict(cx.execute("SELECT id, otorgado_a_telefono FROM acceso_relevo WHERE id = ANY(%s)",
+                                ([*TELEFONOS_SEMILLA, ACC_B_46],)).fetchall())
     assert telefonos == {**TELEFONOS_SEMILLA, ACC_B_46: None}
     assert cx.execute("SELECT otorgado_a_nombre, motivo, telefono_borrado_en IS NOT NULL FROM acceso_relevo"
                       " WHERE id = %s", (ACC_B_46,)).fetchone() == ("Relevo B", "otro", True)

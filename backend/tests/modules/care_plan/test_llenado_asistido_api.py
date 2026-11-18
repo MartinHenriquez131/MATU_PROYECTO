@@ -43,7 +43,7 @@ def test_quien_entra_con_una_invitacion_completa_la_ficha_con_su_cuenta(entorno_
 
     # Rosa escribe «Su día» con la ruta que ya existe
     escrita = entorno_ficha.escribir(rosa, grupo, familia.persona.id, "rutina", {"texto": SU_DIA})
-    assert escrita.status_code in (200, 201), escrita.text
+    assert escrita.status_code == 201, escrita.text  # «Su día» no estaba escrito
     assert escrita.json()["actualizado_por"] == {"id": str(rosa.id), "nombre": rosa.nombre, "autor_activo": True}
     [evento] = entorno_ficha.auditoria.ediciones
     assert evento.usuario_id == rosa.id and evento.campo == "rutina"
