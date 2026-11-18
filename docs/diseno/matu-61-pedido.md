@@ -1,6 +1,7 @@
 # MATU-61 · Pedido: carrito y qué hacer si falta un producto · Especificación de diseño
 
-**Versión 1.4 · 16/11/2026** · agente 6 (UI/UX) · para el frontend
+**Versión 1.5 · 18/11/2026** · agente 6 (UI/UX) · para el frontend
+**Cambios de la 1.5:** MATU-115 (18-11): «Si falta: lo buscamos en otro comercio.» pasa a «Si falta antes de pagar: lo buscamos en otro comercio.» en 7.6, el esquema y la tabla de 9.3 y la tabla de textos. Buscar en otro comercio solo pasa al confirmar el total (cambios de la 1.4). No rompe la línea del producto a 360 px ni a 320 px con el texto al 200 % (`matu-115-retractos-y-si-falta.md`, 2.2). Las frases de «Sacarlo del pedido» no cambian.
 **Cambios de la 1.4:** MATU-112 (16-11): textos de "Si falta" según condiciones 0.3 y lenguaje.md 31. El detalle de «Buscarlo en otro comercio» pasa a «El mismo producto. Si cambia el precio, lo ves antes de pagar.» (6.4, 14 y la tabla de textos), y «Si falta un producto» del resumen antes de pagar pasa al texto de `lenguaje.md` 31 (9.7 y la tabla de textos): después de pagar, en el piloto, no se busca en otro comercio, se anula el cobro de lo que falta el mismo día. La búsqueda en otro comercio pasa solo al confirmar el total, antes de pagar (condiciones 0.3, §5), y así lo dicen 6.4 y su nota sobre «Sacar del pedido».
 **Cambios de la 1.3:** en pantalla ancha, los errores de «Número» y «Depto» van bajo la fila, a todo su ancho, y la columna de 10 rem no cambia (8.1 y criterio 13, decisión del orquestador del 11-11).
 **Cambios de la 1.2** (después de la revisión visual del 11-11, con las decisiones del orquestador): «No hay reserva ni cobros después.» queda como única excepción de «reserva» (secciones 1, 14 y criterio 19); el teléfono abierto tiene un solo rótulo, el `h3` (7.8.1, criterio 27); la nota «El envío y el total los ves al confirmar…» va solo en `borrador` (7.9, criterio 24).
@@ -503,7 +504,7 @@ El hallazgo U4 de la ronda 1: ajustar la cantidad de las toallitas costó. El pr
 - **Qué hace cada opción (JC5 y condiciones 0.3, §5):** la elección vale **al confirmar el total, antes de pagar**. Con «Buscarlo en otro comercio», si falta, MATU busca el mismo producto en otro comercio, y si el producto pasa a otro comercio o cambia de precio, la familia lo ve en el resumen antes de pagar (9.3). Con «Sacarlo del pedido y devolverme su precio», si falta, **sale sin buscarlo en otro comercio**. **Después de pagar, en el piloto, ninguna de las dos busca en otro comercio:** se anula el cobro de lo que falta el mismo día, a la misma tarjeta (9.7). Los textos de la opción, del pagador (más abajo) y del resumen (9.3 y 9.7) dicen eso y nada más.
 - **«Sacarlo del pedido y devolverme su precio» no es «Sacar del pedido».** La opción dice qué hacer si falta al confirmar el total, el botón saca la línea ahora. Por eso la opción va dentro de su grupo, con la pregunta, y el botón va al final de la línea, separado por el retracto.
 - **Con el modo `angosto`:** el indicador arriba y el texto debajo (DISENO.md 6, la regla de MATU-57).
-- **Pagador y observador:** en lugar del grupo, `p text-base`: «Si falta: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (las mismas frases del resumen, 9.3).
+- **Pagador y observador:** en lugar del grupo, `p text-base`: «Si falta antes de pagar: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (las mismas frases del resumen, 9.3; la primera, con «antes de pagar» desde MATU-115).
 
 ### 7.7 Sacar del pedido
 
@@ -806,8 +807,8 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 │ │ 2 × $12.990                    │ │  text-lg tabular-nums
 │ │ Subtotal: $25.980              │ │  text-lg, la cifra font-bold
 │ │ [◐ Cambió el precio]           │ │  Etiqueta atenta, solo si cambió
-│ │ Si falta: lo buscamos en otro  │ │  text-base
-│ │ comercio.                      │ │
+│ │ Si falta antes de pagar: lo    │ │  text-base
+│ │ buscamos en otro comercio.     │ │
 │ │ Derecho a retracto: tienes 10  │ │  text-lg
 │ │ días… No aplica si abres el    │ │
 │ │ sello del producto.            │ │
@@ -882,7 +883,7 @@ Los largos son los de `DireccionEntrada` del contrato propuesto (los del alta, M
 | Cantidad y precio | `p text-lg tabular-nums` | «`{cantidad}` × `{precio}`» **[NUEVO]**, de la demo |
 | Subtotal | `p text-lg`, la cifra en `cifras font-bold` | «Subtotal: `{precio}`» (7.4) |
 | Cambio | La `Etiqueta` de 9.2, si cambió | — |
-| Si falta | `p text-base` | «Si falta: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (C1: la elección de RF-21) |
+| Si falta | `p text-base` | «Si falta antes de pagar: lo buscamos en otro comercio.» o «Si falta: lo sacamos y te devolvemos su precio.» **[NUEVO]** (C1: la elección de RF-21; «antes de pagar», MATU-115) |
 | Retracto | `p text-lg max-w-prose`, «Derecho a retracto:» en negrita | Uno de los dos textos [L 27]. Letra igual a la del precio (C2) |
 
 **Para cambiar algo** (cantidad, regla, sacar, agregar): «Cambiar el pedido», justo después de la lista (9.12). `Volver` «Volver a tu pedido» **[NUEVO]** arriba sigue siendo navegación: lleva al carrito sin cambiar el estado, y el carrito se ve sin controles con la nota de 7.9.
@@ -1299,7 +1300,7 @@ Solo tokens: no hay nada aparte que especificar. En la revisión miro las `Etiqu
 | Subtotal | Subtotal: {precio} | **[NUEVO]** |
 | Si falta | Si falta este producto · Buscarlo en otro comercio · El mismo producto. Si cambia el precio, lo ves antes de pagar. · Sacarlo del pedido y devolverme su precio · Nunca lo cambiamos por otra marca ni por otro producto. (una vez sobre las líneas, O9) | [A4] · **[AJUSTE]** el detalle de «Buscarlo en otro comercio» (MATU-112) |
 | Si falta, error | No pudimos guardar qué hacer si falta. Revisa tu conexión y vuelve a intentarlo. | **[NUEVO]** |
-| Si falta, pagador y resumen | Si falta: lo buscamos en otro comercio. · Si falta: lo sacamos y te devolvemos su precio. | **[NUEVO]** |
+| Si falta, pagador y resumen | Si falta antes de pagar: lo buscamos en otro comercio. · Si falta: lo sacamos y te devolvemos su precio. | **[NUEVO]** (la primera, con «antes de pagar» desde MATU-115) |
 | Sacar | Sacar del pedido · Para el lector: Sacar del pedido: {producto} · Sacamos «{producto}» del pedido. · No pudimos sacarlo. Revisa tu conexión y vuelve a intentarlo. | [A4] · **[NUEVO]** |
 | Entrega | Entrega · Dirección · Todavía no hay una dirección de entrega. · Agregar la dirección · Cambiar dirección · Teléfono de contacto · (tu celular) · Cambiar teléfono · Llega entre 24 y 48 horas hábiles. | **[NUEVO]** · [A4] · **[AJUSTE]** de [D8] |
 | Teléfono | Para que quien entrega pueda avisarte. Si es el de otra persona, avísale. · Guardar el teléfono · Guardamos el teléfono. · Escribe un celular de Chile, por ejemplo +56 9 5555 0137. | [A4] · **[NUEVO]** · [L 8] |
