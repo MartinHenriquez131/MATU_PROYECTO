@@ -7,10 +7,11 @@ queda con despacho (C2). El stock de cada comercio lo da un CatalogoComercioSimu
 fija, sin red. El catálogo se siembra con catalogo_sintetico de MATU-59 y se borra después de los pedidos.
 """
 
+import re
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -197,4 +198,54 @@ def claves_a_cualquier_profundidad(valor: Any) -> set[str]:
         return set(valor) | {c for v in valor.values() for c in claves_a_cualquier_profundidad(v)}
     if isinstance(valor, list):
         return {c for v in valor for c in claves_a_cualquier_profundidad(v)}
+    return set()
+
+
+# MATU-113: buscar las cifras como subcadena de la respuesta fallaba al azar (≈1 de cada 400): «9990» cae dentro de un
+# UUID, del sufijo del catálogo sintético («Producto panal 199901») o de los microsegundos de actualizado_en.
+_FORMA_DE_INSTANTE = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
+
+
+def _es_uuid_o_instante(texto: str) -> bool:
+    """True si el texto entero es un UUID o un instante ISO 8601 con fecha y hora (no un número suelto como «2026»)."""
+    try:
+        uuid.UUID(texto)
+        return True
+    except ValueError:
+        pass
+    if len(texto) < 16 or not _FORMA_DE_INSTANTE.match(texto):
+        return False
+    try:
+        datetime.fromisoformat(texto)
+    except ValueError:
+        return False
+    return True
+
+
+def _cifra_suelta(cifra: int) -> re.Pattern[str]:
+    """La cifra como número completo: 12990, 12.990 o $12.990, sin dígitos ni un punto con dígitos a los lados.
+
+    Un punto final de frase sí cuenta («cuesta $9.990.»); un número más largo («199901», «12990.5») no.
+    """
+    con_puntos = f"{cifra:,}".replace(",", ".")
+    return re.compile(rf"(?<![\d.])(?:{re.escape(con_puntos)}|{cifra})(?!\d|\.\d)")
+
+
+def cifras_a_la_vista(valor: Any, cifras: Iterable[int]) -> set[int]:
+    """Las cifras que el JSON muestra como dato, con cualquier clave y a cualquier profundidad.
+
+    Cuenta un número igual a la cifra, o la cifra como número suelto dentro de un texto. No cuenta los textos que son
+    un UUID o un instante, ni la cifra dentro de un número más largo. Los booleanos y null no cuentan.
+    """
+    cifras = tuple(cifras)
+    if isinstance(valor, dict):
+        return {c for v in valor.values() for c in cifras_a_la_vista(v, cifras)}
+    if isinstance(valor, list):
+        return {c for v in valor for c in cifras_a_la_vista(v, cifras)}
+    if isinstance(valor, bool) or valor is None:
+        return set()
+    if isinstance(valor, int | float):
+        return {c for c in cifras if valor == c}
+    if isinstance(valor, str) and not _es_uuid_o_instante(valor):
+        return {c for c in cifras if _cifra_suelta(c).search(valor)}
     return set()

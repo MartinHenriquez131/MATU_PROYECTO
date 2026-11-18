@@ -15,7 +15,12 @@ from tests.concurrencia import esperar_bloqueada_por
 from tests.fabricas import FamiliaCreada, UsuarioCreado
 from tests.modules.backoffice.conftest import Despacho
 from tests.modules.backoffice.test_despacho_api import PRECIO_PANAL, _codigo, _parte, _preparar_todo, _validar
-from tests.modules.ordering.conftest import COSTO_ENVIO, MONTOS_PARA_EL_OBSERVADOR, claves_a_cualquier_profundidad
+from tests.modules.ordering.conftest import (
+    COSTO_ENVIO,
+    MONTOS_PARA_EL_OBSERVADOR,
+    cifras_a_la_vista,
+    claves_a_cualquier_profundidad,
+)
 from tests.modules.payments.conftest import pagar, pedido_confirmado, sin_sesion_volver
 from tests.textos import aparece_como_dato
 
@@ -423,8 +428,8 @@ def test_matu113_el_observador_ve_el_cancelado_con_devolucion_sin_lo_devuelto(de
     assert visto.json()["estado"] == "cancelado_con_devolucion"
     claves = claves_a_cualquier_profundidad(visto.json())
     assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
-    for cifra in (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL):
-        assert str(cifra) not in visto.text, cifra
+    a_la_vista = cifras_a_la_vista(visto.json(), (PRECIO_PANAL, 2 * PRECIO_PANAL, COSTO_ENVIO, TOTAL))
+    assert not a_la_vista, a_la_vista
 
 
 def test_matu113_el_observador_ve_en_su_fila_el_pedido_en_camino_y_entregado_sin_montos(despacho: Despacho) -> None:
@@ -440,7 +445,9 @@ def test_matu113_el_observador_ve_en_su_fila_el_pedido_en_camino_y_entregado_sin
         assert r.status_code == 200, r.text
         claves = claves_a_cualquier_profundidad(r.json())
         assert not claves & MONTOS_PARA_EL_OBSERVADOR, claves & MONTOS_PARA_EL_OBSERVADOR
-        for nunca in (str(TOTAL), str(PRECIO_PANAL), referencia, "codigo", "referencia", "puede_", "plazo"):
+        a_la_vista = cifras_a_la_vista(r.json(), (TOTAL, PRECIO_PANAL))
+        assert not a_la_vista, a_la_vista
+        for nunca in (referencia, "codigo", "referencia", "puede_", "plazo"):
             assert nunca not in r.text, nunca
         [fila] = r.json()["items"]
         assert set(fila) == CAMPOS_OBSERVADOR
