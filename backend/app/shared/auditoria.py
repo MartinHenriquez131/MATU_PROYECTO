@@ -137,6 +137,9 @@ class AccionAuditoria(StrEnum):
     OPERACION_PEDIDO_VER = "operacion.pedido_ver"
     INCIDENCIA_CREAR = "incidencia.crear"
     INCIDENCIA_RESOLVER = "incidencia.resolver"
+    # MATU-114 (J2): un intento de registrar un retracto por el correo de quien lo pidió que no calzó con un admin
+    # activo del grupo. Con el grupo y la persona del pedido; nunca el correo ni su huella
+    OPERACION_RETRACTO_CORREO_FALLIDO = "operacion.retracto_correo_fallido"
 
 
 # Las acciones de la cuenta, que no pertenecen a una familia: van sin grupo_id (MATU-38). Desde la 0025 (MATU-55) el
@@ -240,6 +243,8 @@ ACCIONES_DE_PERSONA = frozenset(
         AccionAuditoria.OPERACION_PEDIDO_VER,
         AccionAuditoria.INCIDENCIA_CREAR,
         AccionAuditoria.INCIDENCIA_RESOLVER,
+        # MATU-114 (0031)
+        AccionAuditoria.OPERACION_RETRACTO_CORREO_FALLIDO,
     }
 )
 

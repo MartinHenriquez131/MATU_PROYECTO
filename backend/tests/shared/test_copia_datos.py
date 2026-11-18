@@ -107,6 +107,9 @@ def test_el_historial_es_una_lista_cerrada_sin_lo_del_relevo_ni_el_borrado() -> 
         AccionAuditoria.RELEVO_BLOQUEO, AccionAuditoria.RELEVO_ABRIR, AccionAuditoria.PERSONA_BORRAR,
         # MATU-81 (D-81-4): lo que el equipo anotó va en «Lo que pasó con tu pedido» (lo_que_paso), no en el historial
         AccionAuditoria.INCIDENCIA_CREAR, AccionAuditoria.INCIDENCIA_RESOLVER,
+        # MATU-114 (J2): el correo que no calzó en un retracto por correo. Sin tipo en el contrato ni texto en
+        # docs/lenguaje.md todavía: no entra al historial hasta que se decida
+        AccionAuditoria.OPERACION_RETRACTO_CORREO_FALLIDO,
     }
     # MATU-81 (D-81-5) suma matu_reviso_el_pedido
     assert len(set(TIPO_HECHO.values())) == len(TIPO_HECHO) == 34

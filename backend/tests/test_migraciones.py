@@ -1463,7 +1463,7 @@ def test_0028_auditoria_con_persona_y_baja_al_esquema_de_0027(base_desechable):
     # Las listas de los dos CHECK son las del código
     # Sin las acciones que suma la 0029 (MATU-63)
     assert _lista_del_check("auditoria_persona_obligatoria") == (
-        {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0029 - NUEVAS_0030)
+        {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0029 - NUEVAS_0030 - NUEVAS_0031)
     assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA}
     assert consultar("SELECT indexdef LIKE '%WHERE (persona_cuidada_id IS NOT NULL)' FROM pg_indexes"
                      " WHERE indexname = 'auditoria_persona_ix'") == [(True,)]
@@ -1544,6 +1544,8 @@ FUNCIONES_0029 = {
 
 # MATU-81: las acciones de persona que suma la 0030
 NUEVAS_0030 = {"operacion.pedido_ver", "incidencia.crear", "incidencia.resolver"}
+# MATU-114 (J2): lo que suma la 0031
+NUEVAS_0031 = {"operacion.retracto_correo_fallido"}
 
 
 @pytest.mark.rf("RF-26")
@@ -1576,7 +1578,8 @@ def test_0029_vista_del_comercio_y_baja_al_esquema_de_0028(base_desechable):
     # D-63-15: la ubicación de la evidencia se vació
     assert consultar("SELECT lat, lng FROM evidencia") == [(None, None)]
     # Las listas de los CHECK de la auditoría son las del código, sin lo que suma la 0030 (MATU-81)
-    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0030
+    assert _lista_del_check("auditoria_persona_obligatoria") == ({a.value for a in ACCIONES_DE_PERSONA}
+                                                                   - NUEVAS_0030 - NUEVAS_0031)
     assert _lista_del_check("auditoria_cuenta_acotada") == {a.value for a in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO}
     assert consultar("SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM pg_class"
                      " WHERE relname IN ('retracto', 'retracto_linea')") == [(True,)]
@@ -1686,7 +1689,7 @@ def test_0030_backoffice_de_operacion_y_baja_al_esquema_de_0029(base_desechable)
     # matu_app sigue sin leer el secreto
     assert "mfa_secreto_cifrado" not in _columnas_con("usuario", "SELECT")
     # Las listas de los CHECK de la auditoría son las del código
-    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA} - NUEVAS_0031
     assert _lista_del_check("auditoria_cuenta_acotada") == {
         a.value for a in ACCIONES_DE_CUENTA | ACCIONES_DEL_COMERCIO | ACCIONES_DE_OPERACION}
     with psycopg.connect(_dsn(BASE)) as c:
@@ -1717,4 +1720,108 @@ def test_0030_backoffice_de_operacion_y_baja_al_esquema_de_0029(base_desechable)
     for parte, filas_0029 in esquema_0029.items():
         assert despues[parte] == filas_0029, f"downgrade no restaura {parte}: {set(filas_0029) ^ set(despues[parte])}"
     assert consultar("SELECT count(*) FROM pg_class WHERE relname = 'clave_notas'") == [(0,)]
+    alembic("upgrade", "head")
+
+
+# ---- 0031 (MATU-114): operación deja de leer cuentas y membresías
+
+FUNCIONES_0031 = {"operacion_cuenta_activa": "matu_app", "cuenta_es_operacion": "matu_app",
+                  "operacion_solicitante_retracto": "matu_app"}
+# Las políticas que no son TO matu_owner y miran app.rol = 'operacion', después de la 0031 (docstring de la migración)
+POLITICAS_OPERACION_0031 = {
+    "alerta_quiebre": {"alerta_leer"}, "asignacion": {"asignacion_operacion"}, "auditoria": {"auditoria_insertar"},
+    "cargo": {"cargo_operacion_editar", "cargo_operacion_leer"}, "categoria_cuidado": {"categoria_operacion"},
+    "clave_notas": {"clave_notas_operacion_crear", "clave_notas_operacion_leer"},
+    "comercio": {"comercio_operacion"}, "consumo_comercio": {"consumo_comercio_operacion"},
+    "convenio": {"convenio_operacion"}, "direccion": {"direccion_operacion_leer"},
+    "grupo_familiar": {"grupo_operacion"},
+    "incidencia": {"incidencia_operacion_crear", "incidencia_operacion_editar", "incidencia_operacion_leer"},
+    "invitacion": {"invitacion_no_operacion"}, "liquidacion": {"liquidacion_operacion"},
+    "membresia": {"membresia_no_operacion"}, "oferta": {"oferta_operacion"},
+    "oferta_asignacion": {"oferta_asig_operacion"},
+    "participacion": {"participacion_operacion_editar", "participacion_operacion_leer"},
+    "pedido": {"pedido_operacion_leer", "pedido_operacion_pago"},
+    "pedido_comercio": {"pedido_comercio_operacion_editar", "pedido_comercio_operacion_leer"},
+    "pedido_entrega": {"entrega_operacion_leer"}, "pedido_linea": {"linea_pago_devolver"},
+    "pedido_transicion": {"transicion_sistema_crear"}, "perfil_consumo": {"perfil_leer"},
+    "producto": {"producto_operacion"}, "repartidor": {"repartidor_operacion"}, "reposicion": {"reposicion_leer"},
+    "retracto": {"retracto_operacion_crear", "retracto_operacion_editar", "retracto_operacion_leer"},
+    "retracto_linea": {"retracto_linea_operacion_crear", "retracto_linea_operacion_leer"},
+    "transaccion_pasarela": {"transaccion_operacion_crear", "transaccion_operacion_editar",
+                             "transaccion_operacion_leer"},
+    "usuario": {"usuario_no_operacion"}, "usuario_comercio": {"usuario_comercio_operacion"},
+}
+
+
+@pytest.mark.rf("RF-40")
+@pytest.mark.rf("Ley-21.719")
+def test_0031_operacion_sin_cuentas_y_baja_al_esquema_de_0030(base_desechable):
+    from app.shared.auditoria import ACCIONES_DE_PERSONA
+
+    alembic("upgrade", "0030")
+    esquema_0030 = catalogo()
+    alembic("upgrade", "0031")
+
+    # C1, C7 y O1: salen las tres; las restrictivas (TO matu_app) dejan solo la propia cuenta con operación
+    quitadas = consultar("SELECT policyname FROM pg_policies WHERE policyname IN ('usuario_operacion_leer',"
+                         " 'membresia_operacion', 'invitacion_operacion')")
+    assert quitadas == []
+    restrictivas = {(t, n, p, r) for t, n, p, r in consultar(
+        "SELECT tablename, policyname, permissive, roles::text FROM pg_policies"
+        " WHERE policyname LIKE '%_no_operacion'")}
+    assert restrictivas == {("usuario", "usuario_no_operacion", "RESTRICTIVE", "{matu_app}"),
+                            ("membresia", "membresia_no_operacion", "RESTRICTIVE", "{matu_app}"),
+                            ("invitacion", "invitacion_no_operacion", "RESTRICTIVE", "{matu_app}")}
+    # (f): la conservación de invitaciones sigue viendo lo que borra, solo como matu_owner
+    assert consultar("SELECT roles::text, cmd FROM pg_policies WHERE policyname = 'invitacion_conservacion_leer'"
+                     ) == [("{matu_owner}", "SELECT")]
+    # C18: la lista de las políticas de operación que quedan, la del docstring
+    filas = consultar("SELECT tablename, policyname FROM pg_policies WHERE roles::text <> '{matu_owner}'"
+                      " AND coalesce(qual, '') || coalesce(with_check, '') LIKE '%''operacion''%'")
+    quedan: dict[str, set[str]] = {}
+    for tabla, politica in filas:
+        quedan.setdefault(tabla, set()).add(politica)
+    assert quedan == POLITICAS_OPERACION_0031
+    # C2, C8 y O6: definer, dueño matu_owner, search_path fijo y EXECUTE solo de matu_app
+    filas = consultar("SELECT proname, proacl::text, prosecdef, proconfig::text, pg_get_userbyid(proowner)"
+                      " FROM pg_proc WHERE proname = ANY(ARRAY[" + ", ".join(f"'{x}'" for x in FUNCIONES_0031) + "])")
+    assert {x[0] for x in filas} == set(FUNCIONES_0031)
+    for nombre, acl, definer, config, dueno in filas:
+        assert definer and dueno == "matu_owner" and "search_path=pg_catalog, public, pg_temp" in config, nombre
+        assert set(acl.strip("{}").split(",")) == {"matu_owner=X/matu_owner", f"{FUNCIONES_0031[nombre]}=X/matu_owner"}
+    # C3, C5 y O6: las funciones de la 0030 ya no leen usuario con los permisos de quien llama
+    fuentes = dict(consultar("SELECT proname, prosrc FROM pg_proc WHERE proname IN ('incidencia_reglas',"
+                             " 'sesion_refresh_mfa', 'operacion_buscar_cuenta')"))
+    assert "operacion_cuenta_activa(NEW.creada_por)" in fuentes["incidencia_reglas"]
+    assert "FROM usuario" not in fuentes["incidencia_reglas"]
+    assert "cuenta_es_operacion(NEW.usuario_id)" in fuentes["sesion_refresh_mfa"]
+    assert "set_config('app.funcion', 'cuentas', true)" in fuentes["operacion_buscar_cuenta"]
+    # C12 y C13: matu_app no lee codigo_hash, sí codigo_vigente (generada)
+    assert "codigo_hash" not in _columnas_con("pedido_comercio", "SELECT")
+    assert "codigo_vigente" in _columnas_con("pedido_comercio", "SELECT")
+    assert "SELECT" not in _privilegios("pedido_comercio")
+    assert consultar("SELECT is_generated, generation_expression FROM information_schema.columns"
+                     " WHERE table_name = 'pedido_comercio' AND column_name = 'codigo_vigente'") == [
+        ("ALWAYS", "(codigo_hash IS NOT NULL)")]
+    # C16
+    [(qual,)] = consultar("SELECT qual FROM pg_policies WHERE policyname = 'clave_notas_familia_leer'")
+    assert "app_escribe_plan()" in qual and "membresia" not in qual
+    # J2: la acción nueva lleva persona
+    assert _lista_del_check("auditoria_persona_obligatoria") == {a.value for a in ACCIONES_DE_PERSONA}
+
+    # La bajada no borra nada: una fila de la acción nueva se queda, y el CHECK de la 0030 vuelve NOT VALID
+    with psycopg.connect(_dsn(BASE)) as c:
+        c.execute(f"INSERT INTO usuario (id, email, nombre, password_hash) VALUES ('{U}', 'a@correo.ejemplo', 'A',"
+                  " 'h');"
+                  f" INSERT INTO grupo_familiar (id, nombre, creado_por) VALUES ('{G}', 'Familia A', '{U}');"
+                  f" INSERT INTO persona_cuidada (id, grupo_id, nombre, nombre_pila, nivel_apoyo)"
+                  f" VALUES ('{P}', '{G}', 'Persona Cuidada', 'Persona', 'apoyo_total');"
+                  f" INSERT INTO auditoria (grupo_id, actor_tipo, accion, entidad, entidad_id, persona_cuidada_id)"
+                  f" VALUES ('{G}', 'operacion', 'operacion.retracto_correo_fallido', 'pedido', gen_random_uuid(),"
+                  f" '{P}')")
+    alembic("downgrade", "0030")
+    assert consultar("SELECT count(*) FROM auditoria WHERE accion = 'operacion.retracto_correo_fallido'") == [(1,)]
+    despues = catalogo()
+    for parte, filas_0030 in esquema_0030.items():
+        assert despues[parte] == filas_0030, f"downgrade no restaura {parte}: {set(filas_0030) ^ set(despues[parte])}"
     alembic("upgrade", "head")
