@@ -22,6 +22,7 @@ from app.modules.notifications.api.esquemas import (
 from app.modules.notifications.application.preferencias import (
     PreferenciaAvisos,
     PreferenciaCanales,
+    canales_del_pedido_leidos,
     guardar_preferencia,
     leer_preferencia,
 )
@@ -40,11 +41,11 @@ _401: _Respuestas = {401: {"description": "no-autenticado o token-invalido", **P
 
 def _vista(preferencia: PreferenciaAvisos, respuesta: Response) -> PreferenciaAvisosVista:
     respuesta.headers["Cache-Control"] = "no-store"
-    assert preferencia.pedido is not None
+    pedido = canales_del_pedido_leidos(preferencia)
     return PreferenciaAvisosVista(
         correo=preferencia.correo,
         push=preferencia.push,
-        pedido=PreferenciaPedidoVista(correo=preferencia.pedido.correo, push=preferencia.pedido.push),
+        pedido=PreferenciaPedidoVista(correo=pedido.correo, push=pedido.push),
     )
 
 

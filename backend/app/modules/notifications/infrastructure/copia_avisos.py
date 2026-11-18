@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import text
 
 from app.modules.iam.infrastructure.copia_cuenta import ContextoCopiaCuenta
-from app.modules.notifications.application.preferencias import leer_preferencia
+from app.modules.notifications.application.preferencias import canales_del_pedido_leidos, leer_preferencia
 from app.modules.notifications.domain.aviso import TIPO_AVISO_POR_PLANTILLA
 from app.modules.notifications.infrastructure.repositorio_preferencias import RepositorioPreferenciasSQL
 from app.shared.copia_datos import en_chile, en_chile_o_nada
@@ -45,6 +45,7 @@ def tipo_de(plantilla: str) -> str:
 
 def avisos(ctx: ContextoCopiaCuenta) -> dict[str, Any]:
     preferencia = leer_preferencia(RepositorioPreferenciasSQL(ctx.sesion), ctx.usuario_id)
+    pedido = canales_del_pedido_leidos(preferencia)
     enviados = [
         {
             "tipo": tipo_de(f.plantilla),
@@ -55,12 +56,11 @@ def avisos(ctx: ContextoCopiaCuenta) -> dict[str, Any]:
         }
         for f in ctx.sesion.execute(_AVISOS).all()
     ]
-    assert preferencia.pedido is not None
     return {
         "preferencia_avisos": {
             "correo": preferencia.correo,
             "push": preferencia.push,
-            "pedido": {"correo": preferencia.pedido.correo, "push": preferencia.pedido.push},
+            "pedido": {"correo": pedido.correo, "push": pedido.push},
         },
         "avisos_enviados": enviados,
         "envio_simulado": ENVIO_AVISOS_SIMULADO,

@@ -45,6 +45,7 @@ from app.modules.notifications.domain.aviso import (
     PLANTILLA_PEDIDO,
     TIPO_EVENTO_PEDIDO,
     Canal,
+    CodigoAviso,
     Desenlace,
     EstadoNotificacion,
     ResultadoEnvio,
@@ -167,7 +168,11 @@ class ConsumidorAvisoPedido:
 
         resultados: list[ResultadoEnvio] = []
         if fila.canal is Canal.CORREO:
-            assert correo is not None
+            if not correo:
+                # No debería pasar (la revisión ya lo omite), pero nunca se envía a un correo que falta, ni con -O
+                sin_correo = Desenlace(EstadoNotificacion.OMITIDA, CodigoAviso.SIN_DESTINO, reintentar=False)
+                repo.actualizar(fila.id, sin_correo.estado, sin_correo.codigo, None)
+                return sin_correo
             mensaje = correo_pedido(self._origen_web, dinero=self._dinero)
             envio = EnvioCorreo(fila.id, fila.usuario_id, PLANTILLA_PEDIDO, correo, mensaje)
             resultados.append(_sin_excepcion(self._correo.enviar, envio, fila))

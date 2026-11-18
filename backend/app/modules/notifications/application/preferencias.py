@@ -55,6 +55,14 @@ class PreferenciaAvisos:
     pedido: PreferenciaCanales | None = None
 
 
+def canales_del_pedido_leidos(preferencia: PreferenciaAvisos) -> PreferenciaCanales:
+    """La preferencia del pedido de una preferencia **leída** (``leer_preferencia`` siempre la trae). Sin ella falla
+    de forma controlada, aunque Python corra con ``-O``: un ``assert`` ahí desaparecería. El mensaje no lleva datos."""
+    if preferencia.pedido is None:
+        raise RuntimeError("la preferencia leída no trae la del pedido")
+    return preferencia.pedido
+
+
 def _por_defecto(repositorio: RepositorioPreferencias, usuario_id: uuid.UUID) -> bool:
     return any(avisa_por_defecto(rol) for rol in repositorio.roles_activos(usuario_id))
 
