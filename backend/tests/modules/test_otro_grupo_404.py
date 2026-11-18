@@ -25,6 +25,7 @@ el 404 no puede ser la sombra de un 422 o un 428.
 
 import json
 import re
+import secrets
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -37,11 +38,12 @@ from fastapi.routing import iter_route_contexts
 
 from app.core.config import obtener_configuracion
 from app.main import incluir_capa_3
+from app.modules.care_circle.api.dependencias_grupo import obtener_pepper_codigo
 from app.modules.care_circle.api.router_autorizaciones import finalidades_activas
 from app.modules.care_circle.domain.personas import FINALIDAD_DESPACHO
 from app.modules.care_circle.domain.retiro import finalidades_retirables
 from app.modules.care_circle.infrastructure.efectos_retiro import registrar_efecto
-from app.modules.care_plan.api.dependencias import obtener_custodia
+from app.modules.care_plan.api.dependencias import obtener_custodia, obtener_pepper_pin
 from app.modules.catalog.infrastructure.catalogo_simulado import CatalogoComercioSimulado
 from app.modules.ordering.api.router import obtener_catalogo_comercio_pedido, obtener_costo_envio
 from app.modules.ordering.infrastructure.efecto_retiro import EfectoRetiroPedidos
@@ -201,7 +203,10 @@ def rutas_de_prueba(
     existencias: Existencias, custodia: CustodiaEnMemoria, pasarela_falsa: PasarelaFalsa
 ) -> Callable[[FastAPI], None]:
     """La capa 3 montada como lo hace crear_app con CAPA3_HABILITADA (si el .env no la encendió ya), con el catálogo
-    simulado, el costo del envío y la custodia en memoria. Ningún doble cambia el orden de evaluación de una ruta."""
+    simulado, el costo del envío y la custodia en memoria. Ningún doble cambia el orden de evaluación de una ruta.
+    Los peppers del código de la invitación y del PIN del relevo son de la prueba, como en test_invitaciones_api.py y
+    test_relevo_api.py: sin PEPPER_PIN (el CI no lo tiene) crear una invitación o un acceso responde 503."""
+    pepper_codigo, pepper_pin = secrets.token_bytes(32), secrets.token_bytes(32)
 
     def montar(app: FastAPI) -> None:
         if not obtener_configuracion().capa3_habilitada:
@@ -214,6 +219,8 @@ def rutas_de_prueba(
         )
         app.dependency_overrides[obtener_custodia] = lambda: custodia
         app.dependency_overrides[obtener_pasarela] = lambda: pasarela_falsa
+        app.dependency_overrides[obtener_pepper_codigo] = lambda: pepper_codigo
+        app.dependency_overrides[obtener_pepper_pin] = lambda: pepper_pin
 
     return montar
 
