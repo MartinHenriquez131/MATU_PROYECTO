@@ -109,9 +109,9 @@ def test_la_entrada_en_dos_pasos_esta_en_el_contrato(esquema: dict[str, Any]) ->
     assert not mfa.get("parameters")
 
 
-def test_c10_el_retracto_de_operacion_no_dice_a_nombre_de_quien_va(esquema: dict[str, Any]) -> None:
-    """MATU-114 (C10): RetractoOperacion no expone solicitado_por, y el retracto por correo documenta el 429 del
-    límite de correos y un solo 422 solicitante-invalido."""
+def test_c5_el_retracto_de_operacion_no_dice_a_nombre_de_quien_va(esquema: dict[str, Any]) -> None:
+    """C5 de MATU-81, revisado en MATU-114: RetractoOperacion no expone solicitado_por, y el retracto por correo
+    documenta el 429 del límite de correos y un solo 422 solicitante-invalido."""
     campos = _propiedades(esquema, esquema["components"]["schemas"]["RetractoOperacion"], set())
     assert "solicitado_por" not in campos and "correo_solicitante" not in campos
     respuestas = esquema["paths"]["/v1/operacion/pedidos/{pedido_id}/retractos"]["post"]["responses"]

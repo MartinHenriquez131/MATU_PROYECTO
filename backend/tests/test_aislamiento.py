@@ -4986,3 +4986,22 @@ def test_c17_la_clave_de_las_notas_la_leen_solo_admin_y_cuidador_activos(cx, ope
         como(cx, **ctx)
         assert contar(cx, "clave_notas") == 0, ctx
         cx.execute("RESET ROLE")
+
+
+@pytest.mark.rf("R3")
+@pytest.mark.rf("Ley-21.719")
+def test_c10_quien_pago_y_salio_del_grupo_sigue_siendo_el_titular(cx, operador_81):
+    """C10 (decisión de Jorge del 18-11): el retracto por correo sin indicar a nombre de quién va se registra a nombre
+    de quien pagó aunque haya salido del grupo, porque el derecho a arrepentirse es de quien compró y la devolución va
+    a su tarjeta (D-76-4). Un admin, en cambio, tiene que estar activo. Si esta prueba falla, se cambió la regla."""
+    # Quien pagó el pedido de A (participacion de la semilla) es U_ADMIN_A: sale del grupo, con otro admin que queda
+    cx.execute("INSERT INTO membresia (grupo_id, usuario_id, rol) VALUES (%s, %s, 'admin')", (G_A, U_NUEVO))
+    cx.execute("UPDATE membresia SET estado = 'retirada', retirado_en = now() WHERE grupo_id = %s AND usuario_id = %s",
+               (G_A, U_ADMIN_A))
+    como(cx, usuario_id=operador_81, rol="operacion")
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, NULL)", (PED_A_ENVIADO,)).fetchone() == (
+        U_ADMIN_A,)
+    # A su nombre explícito también: es quien pagó
+    assert cx.execute("SELECT operacion_solicitante_retracto(%s, NULL, %s)", (PED_A_ENVIADO, U_ADMIN_A)).fetchone() == (
+        U_ADMIN_A,)
+
