@@ -11,6 +11,10 @@ import { DatosDePersona } from '../src/familia/DatosPersona'
 import { familiaFalsa } from './familiaFalsa'
 import { A_QUIEN, antes, apiCopia, hecho, copiaComoRespuesta, copiaPersona, dialogoDeJsdom, diferida, fijarAhora, MARIA, problemaCopia } from './misDatosFalso'
 import { responderPolitica } from './politicaFalsa'
+import { fueraDeRegiones, plazosConCarga } from './conCarga'
+
+// MATU-119: con la máquina cargada, abrir la copia y recorrer sus bloques pasaba el segundo de las esperas o los 15 s de tope.
+plazosConCarga()
 
 const fijar = vi.fn()
 const anunciar = vi.fn()
@@ -549,7 +553,8 @@ describe('«Datos de María»: descargar (3.7)', () => {
     expect(soltados).toEqual(['blob:prueba'])
     expect(pedidas).toHaveLength(1)
     expect(screen.queryByRole('dialog')).toBeNull()
-    const nota = screen.getByText('Te entregamos el archivo. Búscalo en tus descargas.')
+    // MATU-119: la nota que se ve, no su copia en la región viva, que llega 50 ms después.
+    const nota = screen.getByText('Te entregamos el archivo. Búscalo en tus descargas.', fueraDeRegiones)
     await waitFor(() => expect(nota.closest('[tabindex="-1"]')).toHaveFocus())
     // La nota se borra al volver a abrir el diálogo.
     await u().click(screen.getByRole('button', { name: 'Descargar en un archivo' }))
