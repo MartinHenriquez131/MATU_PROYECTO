@@ -9,7 +9,7 @@
 //   reversibles y no críticos). Sacar, confirmar, cambiar y cancelar esperan la respuesta.
 // - La pantalla no calcula el total, el envío ni el vencimiento: la única cuenta es «Productos».
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CloudOff, Hourglass, Lock, PackageX, SearchX, ShoppingBasket, Store } from 'lucide-react'
+import { Ban, Clock, CloudOff, Hourglass, Lock, PackageX, SearchX, ShoppingBasket, Store, type LucideIcon } from 'lucide-react'
 import { verCatalogo } from '../compartido/api/catalogo'
 import { leerFallo } from '../compartido/api/cliente'
 import { leerAutorizaciones, leerCuenta, nombrePilaDe, type Cuenta, type PersonaListada, type Rol } from '../compartido/api/familia'
@@ -23,11 +23,13 @@ import {
   volverABorrador,
   type DireccionVista,
   type LineaPedido,
+  type LineaPedidoObservador,
   type Pedido,
+  type PedidoObservador,
   type PedidoVista,
   type Regla,
 } from '../compartido/api/pedido'
-import { listarPedidos, type ListaPedidos } from '../compartido/api/tusPedidos'
+import { listarPedidos, type EstadoFamilia, type ListaPedidos } from '../compartido/api/tusPedidos'
 import { esVencida } from '../compartido/api/sesion'
 import { anunciar, Anunciado } from '../compartido/ui/Anuncios'
 import { Boton } from '../compartido/ui/Boton'
@@ -40,14 +42,15 @@ import { agregarAlPedido, cambioAjeno, pagoEnCursoDe, parrafosDeLista, permisoPe
 import { direccionEnTexto, enRango, lineasParaGuardar, reglasConCambio, sufijoDelPedido } from './pedidoComun'
 import { AvisoPiloto, DialogoCancelar, horaDeVencimiento, Retracto, siFaltaTexto, TelefonoContacto, UnaColumna } from './PiezasPedido'
 import { NotaPagoEnCurso } from './Pago'
-import { BloqueTusPedidos } from './TusPedidos'
+import { BloqueTusPedidos, EtiquetaSinExplicacion } from './TusPedidos'
 import { Resumen } from './Resumen'
 import { navegar, useRuta } from './ruteo'
 import { GENERAL } from './textos'
 import { pesos } from './textosCatalogo'
 import { PAGO } from './textosPago'
 import { PEDIDO } from './textosPedido'
-import { Acciones, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
+import { TUS_PEDIDOS } from './textosTusPedidos'
+import { Acciones, Etiqueta, GrupoOpciones, MensajeError, Nota, Titulo, Volver } from './ui'
 
 type Carga = 'cargando' | 'listo' | 'red' | 'apagado' | 'no-encontrado'
 type Aut = 'vigente' | 'revision-vencida' | 'sin-autorizacion'
@@ -341,13 +344,14 @@ export function PantallaPedido() {
       <Volver onClick={() => navegar('/insumos/lista')}>{PEDIDO.volverALista}</Volver>
     ) : null
 
-  const encabezado = (conTitulo = true) => (
+  /** MATU-113 (2.2): con la vista de quien «Se informa» (sin `etag`), su bajada, que no invita a cambiar nada. */
+  const encabezado = (conTitulo = true, bajada: ReactNode = PEDIDO.bajada) => (
     <>
       <PestanasInsumos activa="/insumos/pedido" />
       {conTitulo && (
         <div>
           <Titulo className="text-3xl @2xl/main:text-5xl">{PEDIDO.titulo}</Titulo>
-          <p className="mt-1.5 max-w-prose text-base text-tenue">{PEDIDO.bajada}</p>
+          <p className="mt-1.5 max-w-prose text-base text-tenue">{bajada}</p>
         </div>
       )}
     </>
@@ -515,6 +519,17 @@ export function PantallaPedido() {
       </div>
     )
 
+  // MATU-113 (1 y 2): la vista se elige por la forma de lo que llega, nunca por el rol en memoria.
+  // Sin `etag`, la de quien «Se informa», que no lee ningún campo de dinero aunque llegue.
+  if (!esVistaCompleta(pedido))
+    return (
+      <div className="flex min-w-0 flex-col gap-3">
+        {encabezado(true, PEDIDO.bajadaSeInforma(pila))}
+        <CarritoSeInforma pedido={pedido} pila={pila} nota={notaVista} />
+        {bloquePagado}
+      </div>
+    )
+
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {encabezado()}
@@ -605,7 +620,7 @@ function Vacio({ editor, pila }: { editor: boolean; pila: string }) {
 // ---------------------------------------------------------------- 7 el carrito
 
 interface PropsCarrito {
-  pedido: Pedido
+  pedido: PedidoVista
   editor: boolean
   rol: Rol
   pila: string
@@ -637,7 +652,7 @@ function Carrito(props: PropsCarrito) {
   const { pedido, editor, rol, pila, direccion, cuenta, telefono, onTelefono, deLista, nota, pedidoRef, onPedido, manejar } = props
   const borrador = pedido.estado === 'borrador'
   // MATU-62 (6.1): con un pago en curso nadie del grupo cambia el pedido; cancelar siempre se puede.
-  const enCurso = (esVistaCompleta(pedido) && pedido.pago_en_curso) || props.alertaPago
+  const enCurso = pedido.pago_en_curso || props.alertaPago
   const editable = editor && borrador && !enCurso
   const vencido = pedido.estado === 'vencido'
 
@@ -792,7 +807,7 @@ function Carrito(props: PropsCarrito) {
     if (confirmando) return
     setFalla(null)
     // Con el total vigente y sin controles, lleva al resumen sin volver a confirmar.
-    if (!borrador && pedido.estado === 'total_confirmado' && esVistaCompleta(pedido)) return props.onConfirmado(pedido)
+    if (!borrador && pedido.estado === 'total_confirmado') return props.onConfirmado(pedido)
     if (borrador) {
       const malas = pedido.lineas.filter((l) => !enRango(entero(valores[l.producto.id] ?? '')))
       if (malas.length) {
@@ -857,7 +872,6 @@ function Carrito(props: PropsCarrito) {
   }
   const suma = pedido.lineas.reduce((t, l) => t + cantidadVista(l) * l.precio_unitario, 0)
   const deEjemplo = pedido.precios_de_ejemplo
-  const completa = esVistaCompleta(pedido)
 
   const izquierda = (
     <div className="flex min-w-0 flex-col gap-4">
@@ -925,7 +939,7 @@ function Carrito(props: PropsCarrito) {
           <h3 id={ID_TELEFONO_T} className="text-lg font-bold">
             {PEDIDO.telefono}
           </h3>
-          {completa && !borrador && pedido.entrega ? (
+          {!borrador && pedido.entrega ? (
             <TelefonoContacto
               mostrado={pedido.entrega.telefono_contacto}
               esTuyo={pedido.entrega.telefono_es_tuyo}
@@ -1048,6 +1062,114 @@ function Carrito(props: PropsCarrito) {
         />
       )}
     </>
+  )
+}
+
+// ---------------------------------------------------------------- MATU-113: el pedido para quien «Se informa»
+
+/** El estado del pedido en el que lo agrupa «Tus pedidos» (lenguaje.md 38). */
+function estadoDeFamilia(e: PedidoObservador['estado']): EstadoFamilia | null {
+  switch (e) {
+    case 'asignado':
+    case 'sin_repartidor':
+    case 'retirado':
+      return 'listo_retiro'
+    case 'cerrado':
+      return 'entregado'
+    case 'borrador':
+    case 'total_confirmado':
+    case 'vencido':
+    case 'cancelado':
+      return null
+    default:
+      return e
+  }
+}
+
+function EtiquetaConIcono({ tono, Icono, texto }: { tono: 'neutro' | 'atenta'; Icono: LucideIcon; texto: string }) {
+  return (
+    <Etiqueta tono={tono}>
+      <Icono aria-hidden className="size-4 shrink-0" />
+      {texto}
+    </Etiqueta>
+  )
+}
+
+/**
+ * 2.4: la etiqueta del estado del pedido en curso. Los tres de `…/pedido-en-curso` con su texto; otro
+ * (no debería llegar) con la etiqueta de «Tus pedidos», sin la explicación.
+ */
+function EstadoSeInforma({ estado }: { estado: PedidoObservador['estado'] }) {
+  switch (estado) {
+    case 'borrador':
+      return <EtiquetaConIcono tono="neutro" Icono={ShoppingBasket} texto={PEDIDO.estadoSinConfirmar} />
+    case 'total_confirmado':
+      return <EtiquetaConIcono tono="neutro" Icono={Clock} texto={PEDIDO.estadoFaltaPagar} />
+    case 'vencido':
+      return <EtiquetaConIcono tono="atenta" Icono={Hourglass} texto={PEDIDO.estadoConfirmarDeNuevo} />
+    case 'cancelado':
+      return <EtiquetaConIcono tono="neutro" Icono={Ban} texto={TUS_PEDIDOS.estado.cancelado} />
+    default: {
+      const familia = estadoDeFamilia(estado)
+      return familia ? <EtiquetaSinExplicacion estado={familia} entregadoEn={null} /> : null
+    }
+  }
+}
+
+/**
+ * 2.2 a 2.6: el pedido sin montos, sin el aviso del piloto, sin retracto, sin entrega y sin botones.
+ * Solo lee lo que tiene `PedidoVistaObservador`: nunca un precio, un subtotal ni un total.
+ */
+function CarritoSeInforma({ pedido, pila, nota }: { pedido: PedidoObservador; pila: string; nota: ReactNode }) {
+  return (
+    <>
+      <p>
+        <EstadoSeInforma estado={pedido.estado} />
+      </p>
+      {nota}
+      <div className="mt-2 grid grid-cols-1 gap-x-10 gap-y-10 @3xl/main:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <p id="nunca-otra-marca" className="max-w-prose text-base font-bold">
+            {PEDIDO.nuncaOtraMarca}
+          </p>
+          <ul className="flex flex-col gap-4">
+            {pedido.lineas.map((l) => (
+              <LineaSeInforma key={l.producto.id} linea={l} />
+            ))}
+          </ul>
+        </div>
+        <div className="flex min-w-0 flex-col gap-8 @3xl/main:sticky @3xl/main:top-6 @3xl/main:self-start">
+          <p className="max-w-prose text-base text-tenue">{PEDIDO.quienVePrecios(pila)}</p>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/** 2.5: nombre, presentación (si es distinta), comercio, cantidad y «Si falta». */
+function LineaSeInforma({ linea: l }: { linea: LineaPedidoObservador }) {
+  const nombre = l.producto.nombre
+  const presentacion = l.producto.presentacion.trim()
+  return (
+    <li className="@container/linea rounded-xl bg-hoja px-4 angosto:px-2 py-4 ring-1 ring-linea">
+      <div className="grid grid-cols-1 gap-y-3 @2xl/linea:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @2xl/linea:gap-x-6">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 id={idProducto(l.producto.id)} className="text-xl font-bold break-words">
+            {nombre}
+          </h2>
+          {presentacion && presentacion !== nombre.trim() && <p className="text-base text-tenue">{presentacion}</p>}
+          <p className="text-base break-words">{PEDIDO.comercio(l.comercio.nombre_fantasia, l.comercio.ficticio)}</p>
+        </div>
+        <div className="flex min-w-0 flex-col gap-3">
+          <p className="text-lg tabular-nums">
+            <span className="cifras">{l.cantidad}</span> {sufijoDelPedido(l.cantidad, l.producto)}
+          </p>
+          <div className="border-t border-linea pt-3">
+            <p className="text-base">{l.regla_faltante === 'quitar' ? PEDIDO.siFaltaQuitarSeInforma : PEDIDO.siFaltaOtro}</p>
+          </div>
+        </div>
+      </div>
+    </li>
   )
 }
 
