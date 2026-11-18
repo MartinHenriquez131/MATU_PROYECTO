@@ -130,20 +130,19 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # MATU-79: estrategia de pruebas, sección 14. Falla si un RF Debe no tiene ninguna prueba con @pytest.mark.rf y
-      # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Pendiente
-      # al 18-11: RF-32 (backoffice). RF-40 salió de la lista cuando se fusionó MATU-81 (PR #101), que trae sus pruebas.
-      # RF-32 sale cuando se fusione MATU#116 (MATU-123), que lo baja a Debería: desde ese momento la puerta solo avisa
-      # que hay que sacarlo, sin fallar. RF-32 (la operación gestiona catálogo, convenios, incidencias e indicadores)
-      # sigue pendiente porque no está construido entero: MATU-81 trae las incidencias y la edición de las ofertas de los
-      # comercios ficticios, pero no los convenios ni ninguno de los cuatro indicadores de la arquitectura
-      # (GET /v1/backoffice/indicadores)
+      # no está en --pendientes, y también si un pendiente ya tiene prueba: así nadie se olvida de sacarlo. Sin
+      # pendientes desde el 18-11. RF-40 salió cuando se fusionó MATU-81 (PR #101), que trae sus pruebas. RF-32 (la
+      # operación gestiona catálogo, convenios, incidencias e indicadores) salió porque MATU-81 construyó una parte real,
+      # la gestión del catálogo de los comercios ficticios (D-81-7), y su prueba va marcada con RF-32
+      # (test_el_catalogo_se_edita_solo_en_los_comercios_ficticios_y_no_cambia_lo_confirmado): mientras RF-32 siga como
+      # Debe en la arquitectura, un pendiente con prueba hace fallar la puerta. Los convenios y los cuatro indicadores
+      # (GET /v1/backoffice/indicadores) no están construidos; MATU#116 (MATU-123) baja RF-32 a Debería
       # Los RNF (tabla 2.2): exige una prueba con rf("RNF-xx") a cada Debe con verificación automática (RNF-01, 02, 04,
       # 07, 08 y 10), con un mínimo de 6. La tabla con ID está en la arquitectura de main de MATU desde MATU#117, así
       # que la puerta ya no la deja pasar si falta (sin --rnf-opcional)
       - name: Trazabilidad (RF y RNF Debe con prueba)
         run: >-
-          python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --pendientes RF-32
-          --minimo-rnf 6
+          python scripts/trazabilidad.py --arquitectura ../matu-docs/docs/arquitectura.md --minimo-rnf 6
 
   # MATU-79: la imagen de la API que despliega Railway (infra/railway/Dockerfile), construida desde la raíz como en
   # railway.json. Solo se comprueba que construye: no se sube a ningún registro
